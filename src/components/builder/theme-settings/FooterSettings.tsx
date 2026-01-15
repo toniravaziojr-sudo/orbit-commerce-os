@@ -1,41 +1,22 @@
 // =============================================
 // FOOTER SETTINGS - Global footer configuration
-// Inside ThemeSettingsPanel, replaces right-panel HeaderFooterPropsEditor
+// Uses centralized useThemeSettings hook (template-wide)
 // =============================================
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Palette, ChevronDown, Settings, Type } from 'lucide-react';
-import { toast } from 'sonner';
-import type { BlockNode } from '@/lib/builder/types';
-import type { Json } from '@/integrations/supabase/types';
+import { Palette, ChevronDown, Settings, Type, Loader2 } from 'lucide-react';
+import { useThemeFooter, DEFAULT_THEME_FOOTER, ThemeFooterConfig } from '@/hooks/useThemeSettings';
 
 interface FooterSettingsProps {
   tenantId: string;
   templateSetId?: string;
 }
-
-// Default footer props
-const defaultFooterProps: Record<string, unknown> = {
-  menuId: '',
-  showSocial: true,
-  showLogo: true,
-  showSac: true,
-  showStoreInfo: true,
-  showCopyright: true,
-  copyrightText: '',
-  sacTitle: '',
-  footer1Title: '',
-  footer2Title: '',
-  footerTitlesColor: '',
-};
 
 // Color input component - instant preview with auto-save
 function ColorInput({ 
@@ -49,44 +30,27 @@ function ColorInput({
   label: string;
   placeholder?: string;
 }) {
-  const [localValue, setLocalValue] = useState(value);
-  
-  // Sync with external value on initial load only
-  useEffect(() => {
-    setLocalValue(value);
-  }, [value]);
-  
-  const handleChange = (newValue: string) => {
-    setLocalValue(newValue);
-    onChange(newValue); // Instant callback
-  };
-  
-  const handleClear = () => {
-    setLocalValue('');
-    onChange('');
-  };
-  
   return (
     <div className="space-y-1">
       <Label className="text-[10px]">{label}</Label>
       <div className="flex gap-1.5">
         <input
           type="color"
-          value={localValue || '#000000'}
-          onChange={(e) => handleChange(e.target.value)}
+          value={value || '#000000'}
+          onChange={(e) => onChange(e.target.value)}
           className="w-7 h-7 rounded border cursor-pointer"
         />
         <Input
-          value={localValue || ''}
-          onChange={(e) => handleChange(e.target.value)}
+          value={value || ''}
+          onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           className="flex-1 h-7 text-xs"
         />
-        {localValue && (
+        {value && (
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleClear}
+            onClick={() => onChange('')}
             className="h-7 px-1.5 text-xs"
           >
             ✕
@@ -98,169 +62,66 @@ function ColorInput({
 }
 
 export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps) {
-  const queryClient = useQueryClient();
+  const { footer: savedFooter, updateFooter, isLoading, isSaving } = useThemeFooter(tenantId, templateSetId);
+  const [localProps, setLocalProps] = useState<ThemeFooterConfig>(DEFAULT_THEME_FOOTER);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     colors: true,
     general: false,
     texts: false,
   });
-  
-  // Local state for optimistic updates
-  const [localProps, setLocalProps] = useState<Record<string, unknown>>(defaultFooterProps);
-  const initialLoadDone = useRef(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastSavedPropsRef = useRef<string>('');
+  const initialLoadDone = useRef(false);
 
-  // Fetch current footer config from global layout
-  const { data: footerConfig, isLoading } = useQuery({
-    queryKey: ['footer-settings', tenantId],
-    queryFn: async () => {
-      if (!tenantId) return null;
-      
-      const { data: layout, error } = await supabase
-        .from('storefront_global_layout')
-        .select('footer_config')
-        .eq('tenant_id', tenantId)
-        .maybeSingle();
-      
-      if (error) {
-        console.error('[FooterSettings] Error fetching:', error);
-        return null;
-      }
-      
-      const config = layout?.footer_config as unknown as BlockNode | null;
-      return config?.props || null;
-    },
-    enabled: !!tenantId,
-    staleTime: 60000,
-  });
-
-  // Initialize local state from fetched data (only once)
+  // Initialize local state from hook data
   useEffect(() => {
-    if (footerConfig && !initialLoadDone.current) {
-      const merged = { ...defaultFooterProps, ...footerConfig };
-      setLocalProps(merged);
-      lastSavedPropsRef.current = JSON.stringify(merged);
-      initialLoadDone.current = true;
-    } else if (!footerConfig && !isLoading && !initialLoadDone.current) {
-      setLocalProps(defaultFooterProps);
-      lastSavedPropsRef.current = JSON.stringify(defaultFooterProps);
+    if (savedFooter && !initialLoadDone.current) {
+      setLocalProps(savedFooter);
       initialLoadDone.current = true;
     }
-  }, [footerConfig, isLoading]);
+  }, [savedFooter]);
 
-  // Save footer config - preserves BlockNode structure
-  const saveMutation = useMutation({
-    mutationFn: async (allProps: Record<string, unknown>) => {
-      const updatedConfig: BlockNode = {
-        id: 'global-footer',
-        type: 'Footer',
-        props: allProps,
-      };
-      
-      // Check if row exists
-      const { data: existing } = await supabase
-        .from('storefront_global_layout')
-        .select('id')
-        .eq('tenant_id', tenantId)
-        .maybeSingle();
-      
-      if (existing) {
-        const { error } = await supabase
-          .from('storefront_global_layout')
-          .update({ footer_config: updatedConfig as unknown as Json })
-          .eq('tenant_id', tenantId);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('storefront_global_layout')
-          .insert({
-            tenant_id: tenantId,
-            footer_config: updatedConfig as unknown as Json,
-          });
-        if (error) throw error;
-      }
-      
-      return updatedConfig;
-    },
-    onSuccess: () => {
-      // Invalidate queries to update builder canvas
-      queryClient.invalidateQueries({ queryKey: ['global-layout-editor', tenantId] });
-      queryClient.invalidateQueries({ queryKey: ['public-global-layout'] });
-    },
-    onError: (error) => {
-      console.error('[FooterSettings] Save error:', error);
-      toast.error('Erro ao salvar configurações');
-    },
-  });
-
-  // Update cache immediately for instant preview
-  const updateCacheOptimistically = useCallback((propsToSave: Record<string, unknown>) => {
-    const updatedConfig: BlockNode = {
-      id: 'global-footer',
-      type: 'Footer',
-      props: propsToSave,
-    };
-    
-    // Update the global layout cache immediately
-    queryClient.setQueryData(['global-layout-editor', tenantId], (old: unknown) => {
-      if (!old || typeof old !== 'object') return old;
-      return { ...old, footer_config: updatedConfig };
-    });
-  }, [queryClient, tenantId]);
-
-  // Debounced save function to prevent spam
-  const debouncedSave = useCallback((propsToSave: Record<string, unknown>) => {
-    const propsJson = JSON.stringify(propsToSave);
-    if (propsJson === lastSavedPropsRef.current) return;
-    
-    // Update cache immediately for instant preview
-    updateCacheOptimistically(propsToSave);
-    
+  // Debounced save for text inputs
+  const debouncedSave = useCallback((updates: Partial<ThemeFooterConfig>) => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
-    
     saveTimeoutRef.current = setTimeout(() => {
-      lastSavedPropsRef.current = propsJson;
-      saveMutation.mutate(propsToSave);
+      updateFooter(updates);
     }, 400);
-  }, [saveMutation, updateCacheOptimistically]);
+  }, [updateFooter]);
 
   // Update a single prop - immediate UI, debounced save
-  const updateProp = useCallback((key: string, value: unknown) => {
+  const updateProp = useCallback((key: keyof ThemeFooterConfig, value: unknown) => {
     setLocalProps(prev => {
       const updated = { ...prev, [key]: value };
-      debouncedSave(updated);
+      debouncedSave({ [key]: value });
       return updated;
     });
   }, [debouncedSave]);
 
-  // Update prop immediately (for switches - no extra debounce needed)
-  const updatePropImmediate = useCallback((key: string, value: unknown) => {
+  // Update prop immediately (for switches)
+  const updatePropImmediate = useCallback((key: keyof ThemeFooterConfig, value: unknown) => {
     setLocalProps(prev => {
       const updated = { ...prev, [key]: value };
-      // Clear any pending debounce and save immediately
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
-      // Update cache immediately for instant preview
-      updateCacheOptimistically(updated);
-      lastSavedPropsRef.current = JSON.stringify(updated);
-      saveMutation.mutate(updated);
+      updateFooter({ [key]: value });
       return updated;
     });
-  }, [saveMutation, updateCacheOptimistically]);
+  }, [updateFooter]);
 
   const toggleSection = (key: string) => {
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   if (isLoading) {
-    return <div className="p-4 text-sm text-muted-foreground">Carregando...</div>;
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
   }
-
-  const props = localProps;
 
   return (
     <div className="space-y-2">
@@ -278,17 +139,17 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
         <CollapsibleContent className="px-2 pb-3 space-y-3">
           <ColorInput
             label="Cor de Fundo"
-            value={(props.footerBgColor as string) || ''}
+            value={localProps.footerBgColor || ''}
             onChange={(v) => updateProp('footerBgColor', v)}
           />
           <ColorInput
             label="Cor do Texto"
-            value={(props.footerTextColor as string) || ''}
+            value={localProps.footerTextColor || ''}
             onChange={(v) => updateProp('footerTextColor', v)}
           />
           <ColorInput
             label="Cor dos Títulos"
-            value={(props.footerTitlesColor as string) || ''}
+            value={localProps.footerTitlesColor || ''}
             onChange={(v) => updateProp('footerTitlesColor', v)}
             placeholder="Padrão: mesma cor do texto"
           />
@@ -315,7 +176,7 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
               <p className="text-[10px] text-muted-foreground">Exibe logo no rodapé</p>
             </div>
             <Switch className="scale-90"
-              checked={Boolean(props.showLogo ?? true)}
+              checked={Boolean(localProps.showLogo ?? true)}
               onCheckedChange={(v) => updatePropImmediate('showLogo', v)}
             />
           </div>
@@ -325,7 +186,7 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
               <p className="text-[10px] text-muted-foreground">Exibe nome, CNPJ e descrição</p>
             </div>
             <Switch className="scale-90"
-              checked={Boolean(props.showStoreInfo ?? true)}
+              checked={Boolean(localProps.showStoreInfo ?? true)}
               onCheckedChange={(v) => updatePropImmediate('showStoreInfo', v)}
             />
           </div>
@@ -335,7 +196,7 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
               <p className="text-[10px] text-muted-foreground">Exibe seção de contato</p>
             </div>
             <Switch className="scale-90"
-              checked={Boolean(props.showSac ?? true)}
+              checked={Boolean(localProps.showSac ?? true)}
               onCheckedChange={(v) => updatePropImmediate('showSac', v)}
             />
           </div>
@@ -345,7 +206,7 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
               <p className="text-[10px] text-muted-foreground">Exibe links das redes sociais</p>
             </div>
             <Switch className="scale-90"
-              checked={Boolean(props.showSocial ?? true)}
+              checked={Boolean(localProps.showSocial ?? true)}
               onCheckedChange={(v) => updatePropImmediate('showSocial', v)}
             />
           </div>
@@ -355,7 +216,7 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
               <p className="text-[10px] text-muted-foreground">Exibe texto de direitos autorais</p>
             </div>
             <Switch className="scale-90"
-              checked={Boolean(props.showCopyright ?? true)}
+              checked={Boolean(localProps.showCopyright ?? true)}
               onCheckedChange={(v) => updatePropImmediate('showCopyright', v)}
             />
           </div>
@@ -379,7 +240,7 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
           <div className="space-y-1">
             <Label className="text-[10px]">Título Atendimento</Label>
             <Input
-              value={(props.sacTitle as string) || ''}
+              value={localProps.sacTitle || ''}
               onChange={(e) => updateProp('sacTitle', e.target.value)}
               placeholder="Atendimento (SAC)"
               className="h-7 text-xs"
@@ -389,7 +250,7 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
           <div className="space-y-1">
             <Label className="text-[10px]">Título Footer 1</Label>
             <Input
-              value={(props.footer1Title as string) || ''}
+              value={localProps.footer1Title || ''}
               onChange={(e) => updateProp('footer1Title', e.target.value)}
               placeholder="Categorias"
               className="h-7 text-xs"
@@ -399,7 +260,7 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
           <div className="space-y-1">
             <Label className="text-[10px]">Título Footer 2</Label>
             <Input
-              value={(props.footer2Title as string) || ''}
+              value={localProps.footer2Title || ''}
               onChange={(e) => updateProp('footer2Title', e.target.value)}
               placeholder="Institucional"
               className="h-7 text-xs"
@@ -409,7 +270,7 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
           <div className="space-y-1">
             <Label className="text-[10px]">Texto do Copyright</Label>
             <textarea
-              value={(props.copyrightText as string) || ''}
+              value={localProps.copyrightText || ''}
               onChange={(e) => updateProp('copyrightText', e.target.value)}
               placeholder="© {ano} {nome da loja}. Todos os direitos reservados. CNPJ: ..."
               className="w-full h-16 px-2 py-1 text-xs rounded-md border border-input bg-background resize-none"
@@ -418,6 +279,10 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
           </div>
         </CollapsibleContent>
       </Collapsible>
+
+      <p className="text-xs text-muted-foreground text-center pt-2">
+        {isSaving ? '💾 Salvando...' : '✓ Configurações salvas automaticamente neste template'}
+      </p>
     </div>
   );
 }

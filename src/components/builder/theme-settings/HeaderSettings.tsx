@@ -1,10 +1,10 @@
 // =============================================
 // HEADER SETTINGS - Global header configuration
-// Inside ThemeSettingsPanel, replaces right-panel HeaderFooterPropsEditor
+// Uses centralized useThemeSettings hook (template-wide)
 // =============================================
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -14,27 +14,13 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Palette, ChevronDown, Settings, Bell } from 'lucide-react';
-import { toast } from 'sonner';
-import type { BlockNode } from '@/lib/builder/types';
-import type { Json } from '@/integrations/supabase/types';
+import { Palette, ChevronDown, Settings, Bell, Loader2 } from 'lucide-react';
+import { useThemeHeader, DEFAULT_THEME_HEADER, ThemeHeaderConfig } from '@/hooks/useThemeSettings';
 
 interface HeaderSettingsProps {
   tenantId: string;
   templateSetId?: string;
 }
-
-// Default header config to ensure we always have valid structure
-const defaultHeaderProps: Record<string, unknown> = {
-  menuId: '',
-  showSearch: true,
-  showCart: true,
-  sticky: true,
-  stickyOnMobile: true,
-  noticeEnabled: false,
-  customerAreaEnabled: false,
-  featuredPromosEnabled: false,
-};
 
 // Color input component - calls onChange on every change for instant preview
 function ColorInput({ 
@@ -48,44 +34,27 @@ function ColorInput({
   label: string;
   placeholder?: string;
 }) {
-  const [localValue, setLocalValue] = useState(value);
-  
-  // Sync with external value on initial load only
-  useEffect(() => {
-    setLocalValue(value);
-  }, [value]);
-  
-  const handleChange = (newValue: string) => {
-    setLocalValue(newValue);
-    onChange(newValue); // Instant callback
-  };
-  
-  const handleClear = () => {
-    setLocalValue('');
-    onChange('');
-  };
-  
   return (
     <div className="space-y-1">
       <Label className="text-[10px]">{label}</Label>
       <div className="flex gap-1.5">
         <input
           type="color"
-          value={localValue || '#000000'}
-          onChange={(e) => handleChange(e.target.value)}
+          value={value || '#000000'}
+          onChange={(e) => onChange(e.target.value)}
           className="w-7 h-7 rounded border cursor-pointer"
         />
         <Input
-          value={localValue || ''}
-          onChange={(e) => handleChange(e.target.value)}
+          value={value || ''}
+          onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           className="flex-1 h-7 text-xs"
         />
-        {localValue && (
+        {value && (
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleClear}
+            onClick={() => onChange('')}
             className="h-7 px-1.5 text-xs"
           >
             ✕
@@ -97,159 +66,54 @@ function ColorInput({
 }
 
 export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps) {
-  const queryClient = useQueryClient();
+  const { header: savedHeader, updateHeader, isLoading, isSaving } = useThemeHeader(tenantId, templateSetId);
+  const [localProps, setLocalProps] = useState<ThemeHeaderConfig>(DEFAULT_THEME_HEADER);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     colors: true,
     general: false,
     notice: false,
   });
-  
-  // Local state for optimistic updates
-  const [localProps, setLocalProps] = useState<Record<string, unknown>>(defaultHeaderProps);
-  const initialLoadDone = useRef(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastSavedPropsRef = useRef<string>('');
+  const initialLoadDone = useRef(false);
 
-  // Fetch current header config from global layout
-  const { data: headerConfig, isLoading } = useQuery({
-    queryKey: ['header-settings', tenantId],
-    queryFn: async () => {
-      if (!tenantId) return null;
-      
-      const { data: layout, error } = await supabase
-        .from('storefront_global_layout')
-        .select('header_config')
-        .eq('tenant_id', tenantId)
-        .maybeSingle();
-      
-      if (error) {
-        console.error('[HeaderSettings] Error fetching:', error);
-        return null;
-      }
-      
-      const config = layout?.header_config as unknown as BlockNode | null;
-      return config?.props || null;
-    },
-    enabled: !!tenantId,
-    staleTime: 60000,
-  });
-
-  // Initialize local state from fetched data (only once)
+  // Initialize local state from hook data
   useEffect(() => {
-    if (headerConfig && !initialLoadDone.current) {
-      const merged = { ...defaultHeaderProps, ...headerConfig };
-      setLocalProps(merged);
-      lastSavedPropsRef.current = JSON.stringify(merged);
-      initialLoadDone.current = true;
-    } else if (!headerConfig && !isLoading && !initialLoadDone.current) {
-      setLocalProps(defaultHeaderProps);
-      lastSavedPropsRef.current = JSON.stringify(defaultHeaderProps);
+    if (savedHeader && !initialLoadDone.current) {
+      setLocalProps(savedHeader);
       initialLoadDone.current = true;
     }
-  }, [headerConfig, isLoading]);
+  }, [savedHeader]);
 
-  // Save header config - preserves BlockNode structure
-  const saveMutation = useMutation({
-    mutationFn: async (allProps: Record<string, unknown>) => {
-      const updatedConfig: BlockNode = {
-        id: 'global-header',
-        type: 'Header',
-        props: allProps,
-      };
-      
-      // Check if row exists
-      const { data: existing } = await supabase
-        .from('storefront_global_layout')
-        .select('id')
-        .eq('tenant_id', tenantId)
-        .maybeSingle();
-      
-      if (existing) {
-        const { error } = await supabase
-          .from('storefront_global_layout')
-          .update({ header_config: updatedConfig as unknown as Json })
-          .eq('tenant_id', tenantId);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('storefront_global_layout')
-          .insert({
-            tenant_id: tenantId,
-            header_config: updatedConfig as unknown as Json,
-          });
-        if (error) throw error;
-      }
-      
-      return updatedConfig;
-    },
-    onSuccess: () => {
-      // Invalidate queries to update builder canvas
-      queryClient.invalidateQueries({ queryKey: ['global-layout-editor', tenantId] });
-      queryClient.invalidateQueries({ queryKey: ['public-global-layout'] });
-    },
-    onError: (error) => {
-      console.error('[HeaderSettings] Save error:', error);
-      toast.error('Erro ao salvar configurações');
-    },
-  });
-
-  // Update cache immediately for instant preview
-  const updateCacheOptimistically = useCallback((propsToSave: Record<string, unknown>) => {
-    const updatedConfig: BlockNode = {
-      id: 'global-header',
-      type: 'Header',
-      props: propsToSave,
-    };
-    
-    // Update the global layout cache immediately
-    queryClient.setQueryData(['global-layout-editor', tenantId], (old: unknown) => {
-      if (!old || typeof old !== 'object') return old;
-      return { ...old, header_config: updatedConfig };
-    });
-  }, [queryClient, tenantId]);
-
-  // Debounced save function to prevent spam
-  const debouncedSave = useCallback((propsToSave: Record<string, unknown>) => {
-    const propsJson = JSON.stringify(propsToSave);
-    if (propsJson === lastSavedPropsRef.current) return;
-    
-    // Update cache immediately for instant preview
-    updateCacheOptimistically(propsToSave);
-    
+  // Debounced save for text inputs
+  const debouncedSave = useCallback((updates: Partial<ThemeHeaderConfig>) => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
-    
     saveTimeoutRef.current = setTimeout(() => {
-      lastSavedPropsRef.current = propsJson;
-      saveMutation.mutate(propsToSave);
+      updateHeader(updates);
     }, 400);
-  }, [saveMutation, updateCacheOptimistically]);
+  }, [updateHeader]);
 
   // Update a single prop - immediate UI, debounced save
-  const updateProp = useCallback((key: string, value: unknown) => {
+  const updateProp = useCallback((key: keyof ThemeHeaderConfig, value: unknown) => {
     setLocalProps(prev => {
       const updated = { ...prev, [key]: value };
-      debouncedSave(updated);
+      debouncedSave({ [key]: value });
       return updated;
     });
   }, [debouncedSave]);
 
-  // Update prop immediately (for switches - no extra debounce needed)
-  const updatePropImmediate = useCallback((key: string, value: unknown) => {
+  // Update prop immediately (for switches)
+  const updatePropImmediate = useCallback((key: keyof ThemeHeaderConfig, value: unknown) => {
     setLocalProps(prev => {
       const updated = { ...prev, [key]: value };
-      // Clear any pending debounce and save immediately
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
-      // Update cache immediately for instant preview
-      updateCacheOptimistically(updated);
-      lastSavedPropsRef.current = JSON.stringify(updated);
-      saveMutation.mutate(updated);
+      updateHeader({ [key]: value });
       return updated;
     });
-  }, [saveMutation, updateCacheOptimistically]);
+  }, [updateHeader]);
 
   const toggleSection = (key: string) => {
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -290,10 +154,12 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
   });
 
   if (isLoading) {
-    return <div className="p-4 text-sm text-muted-foreground">Carregando...</div>;
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
   }
-
-  const props = localProps;
 
   return (
     <div className="space-y-2">
@@ -311,17 +177,17 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
         <CollapsibleContent className="px-2 pb-3 space-y-3">
           <ColorInput
             label="Cor de Fundo"
-            value={(props.headerBgColor as string) || ''}
+            value={localProps.headerBgColor || ''}
             onChange={(v) => updateProp('headerBgColor', v)}
           />
           <ColorInput
             label="Cor do Texto"
-            value={(props.headerTextColor as string) || ''}
+            value={localProps.headerTextColor || ''}
             onChange={(v) => updateProp('headerTextColor', v)}
           />
           <ColorInput
             label="Cor dos Ícones"
-            value={(props.headerIconColor as string) || ''}
+            value={localProps.headerIconColor || ''}
             onChange={(v) => updateProp('headerIconColor', v)}
           />
         </CollapsibleContent>
@@ -336,7 +202,7 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
             <div className="flex items-center gap-1.5">
               <Bell className="h-3.5 w-3.5 text-primary" />
               <span className="font-medium">Barra Superior</span>
-              {props.noticeEnabled && (
+              {localProps.noticeEnabled && (
                 <Badge variant="secondary" className="text-[10px] px-1 py-0">Ativo</Badge>
               )}
             </div>
@@ -347,17 +213,17 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
           <div className="flex items-center justify-between">
             <Label className="text-[11px]">Exibir Barra Superior</Label>
             <Switch className="scale-90"
-              checked={Boolean(props.noticeEnabled)}
+              checked={Boolean(localProps.noticeEnabled)}
               onCheckedChange={(v) => updatePropImmediate('noticeEnabled', v)}
             />
           </div>
           
-          {props.noticeEnabled && (
+          {localProps.noticeEnabled && (
             <>
               <div className="space-y-1">
                 <Label className="text-[10px]">Texto do Aviso</Label>
                 <Input
-                  value={(props.noticeText as string) || ''}
+                  value={localProps.noticeText || ''}
                   onChange={(e) => updateProp('noticeText', e.target.value)}
                   placeholder="Ex: Frete grátis em compras acima de R$199!"
                   className="h-7 text-xs"
@@ -365,27 +231,27 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
               </div>
               <ColorInput
                 label="Cor de Fundo"
-                value={(props.noticeBgColor as string) || '#1e40af'}
+                value={localProps.noticeBgColor || '#1e40af'}
                 onChange={(v) => updateProp('noticeBgColor', v)}
               />
               <ColorInput
                 label="Cor do Texto"
-                value={(props.noticeTextColor as string) || '#ffffff'}
+                value={localProps.noticeTextColor || '#ffffff'}
                 onChange={(v) => updateProp('noticeTextColor', v)}
               />
               <div className="flex items-center justify-between">
                 <Label className="text-[11px]">Exibir Link</Label>
                 <Switch className="scale-90"
-                  checked={Boolean(props.noticeLinkEnabled)}
+                  checked={Boolean(localProps.noticeLinkEnabled)}
                   onCheckedChange={(v) => updatePropImmediate('noticeLinkEnabled', v)}
                 />
               </div>
-              {props.noticeLinkEnabled && (
+              {localProps.noticeLinkEnabled && (
                 <>
                   <div className="space-y-1">
                     <Label className="text-[10px]">Texto do Link</Label>
                     <Input
-                      value={(props.noticeLinkLabel as string) || 'Clique Aqui'}
+                      value={localProps.noticeLinkLabel || 'Clique Aqui'}
                       onChange={(e) => updateProp('noticeLinkLabel', e.target.value)}
                       placeholder="Ex: Clique Aqui"
                       className="h-7 text-xs"
@@ -394,7 +260,7 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
                   <div className="space-y-1">
                     <Label className="text-[10px]">URL do Link</Label>
                     <Input
-                      value={(props.noticeLinkUrl as string) || ''}
+                      value={localProps.noticeLinkUrl || ''}
                       onChange={(e) => updateProp('noticeLinkUrl', e.target.value)}
                       placeholder="Ex: /promocoes"
                       className="h-7 text-xs"
@@ -402,7 +268,7 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
                   </div>
                   <ColorInput
                     label="Cor do Link"
-                    value={(props.noticeLinkColor as string) || '#60a5fa'}
+                    value={localProps.noticeLinkColor || '#60a5fa'}
                     onChange={(v) => updateProp('noticeLinkColor', v)}
                   />
                 </>
@@ -429,28 +295,28 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
           <div className="flex items-center justify-between">
             <Label className="text-[11px]">Fixar ao rolar (Mobile)</Label>
             <Switch className="scale-90"
-              checked={Boolean(props.stickyOnMobile ?? true)}
+              checked={Boolean(localProps.stickyOnMobile ?? true)}
               onCheckedChange={(v) => updatePropImmediate('stickyOnMobile', v)}
             />
           </div>
           <div className="flex items-center justify-between">
             <Label className="text-[11px]">Fixo no Topo (Desktop)</Label>
             <Switch className="scale-90"
-              checked={Boolean(props.sticky ?? true)}
+              checked={Boolean(localProps.sticky ?? true)}
               onCheckedChange={(v) => updatePropImmediate('sticky', v)}
             />
           </div>
           <div className="flex items-center justify-between">
             <Label className="text-[11px]">Mostrar Busca</Label>
             <Switch className="scale-90"
-              checked={Boolean(props.showSearch ?? true)}
+              checked={Boolean(localProps.showSearch ?? true)}
               onCheckedChange={(v) => updatePropImmediate('showSearch', v)}
             />
           </div>
           <div className="flex items-center justify-between">
             <Label className="text-[11px]">Mostrar Carrinho</Label>
             <Switch className="scale-90"
-              checked={Boolean(props.showCart ?? true)}
+              checked={Boolean(localProps.showCart ?? true)}
               onCheckedChange={(v) => updatePropImmediate('showCart', v)}
             />
           </div>
@@ -460,7 +326,7 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
           <div className="flex items-center justify-between">
             <Label className="text-[11px]">Exibir "Minha Conta"</Label>
             <Switch className="scale-90"
-              checked={Boolean(props.customerAreaEnabled)}
+              checked={Boolean(localProps.customerAreaEnabled)}
               onCheckedChange={(v) => updatePropImmediate('customerAreaEnabled', v)}
             />
           </div>
@@ -470,73 +336,74 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
           <div className="flex items-center justify-between">
             <Label className="text-[11px]">Exibir Promoções em Destaque</Label>
             <Switch className="scale-90"
-              checked={Boolean(props.featuredPromosEnabled)}
+              checked={Boolean(localProps.featuredPromosEnabled)}
               onCheckedChange={(v) => updatePropImmediate('featuredPromosEnabled', v)}
             />
           </div>
           
-          {Boolean(props.featuredPromosEnabled) && (
+          {localProps.featuredPromosEnabled && (
             <>
               <div className="space-y-1">
-                <Label className="text-[10px]">Texto do link</Label>
+                <Label className="text-[10px]">Label do Link</Label>
                 <Input
-                  value={(props.featuredPromosLabel as string) || 'Promoções'}
+                  value={localProps.featuredPromosLabel || ''}
                   onChange={(e) => updateProp('featuredPromosLabel', e.target.value)}
-                  placeholder="Ex: Promoções"
+                  placeholder="Ex: 🔥 Promoções"
                   className="h-7 text-xs"
                 />
               </div>
               
-              <ColorInput
-                label="Cor do texto"
-                value={(props.featuredPromosTextColor as string) || '#d97706'}
-                onChange={(v) => updateProp('featuredPromosTextColor', v)}
-                placeholder="Ex: #d97706 (dourado)"
-              />
-              
-              {((pages && pages.length > 0) || (categories && categories.length > 0)) && (
-                <div className="space-y-1">
-                  <Label className="text-[10px]">Destino do link</Label>
-                  <Select
-                    value={(props.featuredPromosDestination as string) || ''}
-                    onValueChange={(v) => updateProp('featuredPromosDestination', v)}
-                  >
-                    <SelectTrigger className="w-full h-7 text-xs">
-                      <SelectValue placeholder="Selecione página ou categoria" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories && categories.length > 0 && (
-                        <>
-                          <SelectItem value="__categories_header" disabled className="text-xs font-semibold text-muted-foreground">
-                            Categorias
+              <div className="space-y-1">
+                <Label className="text-[10px]">Destino</Label>
+                <Select 
+                  value={localProps.featuredPromosTarget || ''} 
+                  onValueChange={(v) => updatePropImmediate('featuredPromosTarget', v)}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Selecione o destino" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="" className="text-xs">
+                      <span className="text-muted-foreground">Nenhum destino</span>
+                    </SelectItem>
+                    {categories && categories.length > 0 && (
+                      <>
+                        <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase">
+                          Categorias
+                        </div>
+                        {categories.map((cat) => (
+                          <SelectItem key={cat.id} value={`category:${cat.slug}`} className="text-xs">
+                            📁 {cat.name}
                           </SelectItem>
-                          {categories.map((cat) => (
-                            <SelectItem key={`cat-${cat.id}`} value={`category:${cat.slug}`}>
-                              {cat.name}
-                            </SelectItem>
-                          ))}
-                        </>
-                      )}
-                      {pages && pages.length > 0 && (
-                        <>
-                          <SelectItem value="__pages_header" disabled className="text-xs font-semibold text-muted-foreground">
-                            Páginas
+                        ))}
+                      </>
+                    )}
+                    {pages && pages.length > 0 && (
+                      <>
+                        <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase">
+                          Páginas
+                        </div>
+                        {pages.map((page) => (
+                          <SelectItem key={page.id} value={`page:${page.slug}`} className="text-xs">
+                            📄 {page.title}
                           </SelectItem>
-                          {pages.map((page) => (
-                            <SelectItem key={`page-${page.id}`} value={`page:${page.slug}`}>
-                              {page.title}
-                            </SelectItem>
-                          ))}
-                        </>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+                        ))}
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground">
+                  Selecione uma categoria ou página para o link de promoções
+                </p>
+              </div>
             </>
           )}
         </CollapsibleContent>
       </Collapsible>
+
+      <p className="text-xs text-muted-foreground text-center pt-2">
+        {isSaving ? '💾 Salvando...' : '✓ Configurações salvas automaticamente neste template'}
+      </p>
     </div>
   );
 }

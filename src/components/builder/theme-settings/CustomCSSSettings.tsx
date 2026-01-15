@@ -1,13 +1,15 @@
 // =============================================
 // CUSTOM CSS SETTINGS - Advanced styling
+// Uses centralized useThemeSettings hook (template-wide)
 // =============================================
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, CheckCircle2, Copy } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Copy, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useThemeCustomCss } from '@/hooks/useThemeSettings';
 
 interface CustomCSSSettingsProps {
   tenantId: string;
@@ -29,16 +31,41 @@ const exampleCSS = `/* Exemplo de CSS customizado */
 }`;
 
 export function CustomCSSSettings({ tenantId, templateSetId }: CustomCSSSettingsProps) {
-  const [css, setCss] = useState('');
+  const { customCss: savedCss, updateCustomCss, isLoading, isSaving } = useThemeCustomCss(tenantId, templateSetId);
+  const [localCss, setLocalCss] = useState('');
   const [isValid, setIsValid] = useState(true);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const initialLoadDone = useRef(false);
+
+  // Initialize local state from hook data
+  useEffect(() => {
+    if (savedCss !== undefined && !initialLoadDone.current) {
+      setLocalCss(savedCss);
+      initialLoadDone.current = true;
+    }
+  }, [savedCss]);
+
+  // Debounced save
+  const debouncedSave = useCallback((value: string) => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = setTimeout(() => {
+      updateCustomCss(value);
+    }, 1000); // Longer debounce for CSS to allow more typing
+  }, [updateCustomCss]);
 
   const handleCSSChange = (value: string) => {
-    setCss(value);
+    setLocalCss(value);
+    
     // Basic CSS validation
     try {
-      // Try to parse the CSS by checking for basic syntax issues
       const hasUnmatchedBraces = (value.match(/{/g) || []).length !== (value.match(/}/g) || []).length;
       setIsValid(!hasUnmatchedBraces);
+      
+      if (!hasUnmatchedBraces) {
+        debouncedSave(value);
+      }
     } catch {
       setIsValid(false);
     }
@@ -49,12 +76,20 @@ export function CustomCSSSettings({ tenantId, templateSetId }: CustomCSSSettings
     toast.success('Exemplo copiado!');
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label className="text-sm font-medium">CSS customizado</Label>
-          {css && (
+          {localCss && (
             isValid ? (
               <span className="flex items-center gap-1 text-xs text-green-600">
                 <CheckCircle2 className="h-3 w-3" />
@@ -70,7 +105,7 @@ export function CustomCSSSettings({ tenantId, templateSetId }: CustomCSSSettings
         </div>
         
         <Textarea
-          value={css}
+          value={localCss}
           onChange={(e) => handleCSSChange(e.target.value)}
           placeholder="/* Insira seu CSS customizado aqui */"
           className="min-h-[200px] font-mono text-xs resize-y"
@@ -116,7 +151,7 @@ export function CustomCSSSettings({ tenantId, templateSetId }: CustomCSSSettings
       </div>
 
       <p className="text-xs text-muted-foreground text-center">
-        ⚠️ Alterações serão aplicadas ao salvar o tema
+        {isSaving ? '💾 Salvando...' : '✓ CSS salvo automaticamente neste template'}
       </p>
     </div>
   );
