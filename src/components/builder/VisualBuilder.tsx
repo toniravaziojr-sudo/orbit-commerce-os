@@ -114,6 +114,9 @@ export function VisualBuilder({
   const miniCartPreviewFromUrl = searchParams.get('miniCartPreview') === '1';
   const [showMiniCartPreview, setShowMiniCartPreviewInternal] = useState(miniCartPreviewFromUrl);
   
+  // Mini-cart config state - updated by MiniCartSettings
+  const [miniCartConfig, setMiniCartConfig] = useState<import('./theme-settings/MiniCartSettings').MiniCartConfig | undefined>();
+  
   // Sync URL with theme settings state
   const setShowThemeSettings = useCallback((open: boolean) => {
     setShowThemeSettingsInternal(open);
@@ -941,6 +944,7 @@ export function VisualBuilder({
           }}
           showMiniCartPreview={showMiniCartPreview}
           onToggleMiniCartPreview={setShowMiniCartPreview}
+          onMiniCartConfigChange={setMiniCartConfig}
         />
         
         {/* Center - Canvas */}
@@ -967,6 +971,7 @@ export function VisualBuilder({
             }}
             showMiniCartPreview={showMiniCartPreview}
             onToggleMiniCartPreview={setShowMiniCartPreview}
+            miniCartConfig={miniCartConfig}
           />
         </div>
 

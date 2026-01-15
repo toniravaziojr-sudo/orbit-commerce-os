@@ -19,6 +19,8 @@ import { HeaderSettings } from './theme-settings/HeaderSettings';
 import { FooterSettings } from './theme-settings/FooterSettings';
 import { MiniCartSettings } from './theme-settings/MiniCartSettings';
 
+import { MiniCartConfig } from './theme-settings/MiniCartSettings';
+
 interface ThemeSettingsPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -27,6 +29,7 @@ interface ThemeSettingsPanelProps {
   onNavigateToPage?: (pageType: string) => void;
   showMiniCartPreview?: boolean;
   onToggleMiniCartPreview?: (open: boolean) => void;
+  onMiniCartConfigChange?: (config: MiniCartConfig) => void;
 }
 
 type SettingsView = 'menu' | 'pages' | 'header' | 'footer' | 'mini-cart' | 'typography' | 'colors' | 'css' | 'page-detail';
@@ -91,6 +94,7 @@ export function ThemeSettingsPanel({
   onNavigateToPage,
   showMiniCartPreview,
   onToggleMiniCartPreview,
+  onMiniCartConfigChange,
 }: ThemeSettingsPanelProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   
