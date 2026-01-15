@@ -105,13 +105,13 @@ export function MiniCartSettings({
     loadSettings();
   }, [tenantId, onConfigChange]);
 
-  // Save mutation - merge into cart_config
+  // Save mutation - merge into cart_config using upsert
   const saveMutation = useMutation({
     mutationFn: async (newConfig: MiniCartConfig) => {
       // First get current cart_config to merge
       const { data: current } = await supabase
         .from('store_settings')
-        .select('cart_config')
+        .select('id, cart_config')
         .eq('tenant_id', tenantId)
         .maybeSingle();
 
@@ -131,21 +131,27 @@ export function MiniCartSettings({
         stockReservationMinutes: newConfig.stockReservationMinutes,
       };
 
+      // Use upsert to handle both create and update cases
       const { error } = await supabase
         .from('store_settings')
-        .update({ cart_config: updatedCartConfig as unknown as Json })
-        .eq('tenant_id', tenantId);
+        .upsert(
+          { 
+            tenant_id: tenantId, 
+            cart_config: updatedCartConfig as unknown as Json,
+          },
+          { onConflict: 'tenant_id' }
+        );
 
       if (error) throw error;
       return newConfig;
     },
-    onSuccess: (newConfig) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['store-settings', tenantId] });
       queryClient.invalidateQueries({ queryKey: ['cart-config', tenantId] });
-      onConfigChange?.(newConfig);
       toast.success('Configurações salvas');
     },
-    onError: () => {
+    onError: (err) => {
+      console.error('Error saving mini cart settings:', err);
       toast.error('Erro ao salvar configurações');
     },
   });
@@ -153,6 +159,16 @@ export function MiniCartSettings({
   const handleChange = (key: keyof MiniCartConfig, value: boolean | number) => {
     const newConfig = { ...config, [key]: value };
     setConfig(newConfig);
+    
+    // If disabling mini-cart, also close the preview
+    if (key === 'miniCartEnabled' && value === false) {
+      onTogglePreview?.(false);
+    }
+    
+    // Immediately update the preview with new config
+    onConfigChange?.(newConfig);
+    
+    // Then save to database
     saveMutation.mutate(newConfig);
   };
 
