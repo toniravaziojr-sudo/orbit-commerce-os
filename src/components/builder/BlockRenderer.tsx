@@ -275,10 +275,16 @@ export function BlockRenderer({
   
   // For structural Sections: render children directly, NO wrappers, NO AddBlockButton
   // Blocks are added ONLY via the left menu. No extra spacing/margins.
-  if (isStructuralSection && isEditing) {
+  // This applies in ALL modes (editing, preview, public) - structural sections are always invisible
+  if (isStructuralSection) {
+    // If empty and editing, show nothing (blocks are added via left menu)
+    if (!node.children?.length) {
+      return null;
+    }
+    
     return (
       <>
-        {node.children?.map((child, index) => (
+        {node.children.map((child, index) => (
           <BlockRenderer
             key={child.id}
             node={child}
