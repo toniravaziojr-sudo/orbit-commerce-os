@@ -1199,36 +1199,17 @@ function CheckoutStepsBlock({ isEditing, context }: any) {
 function CartBlock({ isEditing, context, showCrossSell, showCouponField, showTrustBadges }: any) {
   const tenantId = context?.settings?.tenant_id || '';
   
-  // Fetch page settings from database to respect toggle states
-  const { data: cartSettings } = useQuery({
-    queryKey: ['cart-page-settings', tenantId],
-    queryFn: async () => {
-      if (!tenantId) return null;
-      
-      const { data, error } = await supabase
-        .from('storefront_page_templates')
-        .select('page_overrides')
-        .eq('tenant_id', tenantId)
-        .eq('page_type', 'cart')
-        .maybeSingle();
-      
-      if (error) {
-        console.error('Error fetching cart settings:', error);
-        return null;
-      }
-      
-      const overrides = data?.page_overrides as Record<string, unknown> | null;
-      return overrides?.cartSettings as Record<string, boolean> | null;
-    },
-    enabled: !!tenantId && isEditing,
-    staleTime: 0, // Always fetch fresh to catch toggle changes immediately
-    refetchOnMount: 'always',
-  });
+  // Read cart settings from context (passed by VisualBuilder)
+  // REGRAS.md: Settings come from context, not internal queries
+  const cartSettings = context?.cartSettings;
   
   // Merge page settings with block props - page settings take precedence
   const effectiveShowCrossSell = cartSettings?.showCrossSell ?? showCrossSell ?? true;
   const effectiveShowCoupon = cartSettings?.couponEnabled ?? showCouponField ?? true;
   const effectiveShowShipping = cartSettings?.shippingCalculatorEnabled ?? true;
+  const effectiveShowTrustBadges = cartSettings?.showTrustBadges ?? showTrustBadges ?? true;
+  const effectiveShowBenefitBar = cartSettings?.showBenefitBar ?? true;
+  const effectiveShowPromoBanner = cartSettings?.showPromoBanner ?? true;
 
   if (isEditing) {
     return (
@@ -1236,7 +1217,7 @@ function CartBlock({ isEditing, context, showCrossSell, showCouponField, showTru
         showCrossSell={effectiveShowCrossSell} 
         showCouponField={effectiveShowCoupon}
         showShippingCalculator={effectiveShowShipping}
-        showTrustBadges={showTrustBadges}
+        showTrustBadges={effectiveShowTrustBadges}
         isEditing 
       />
     );
@@ -1248,37 +1229,17 @@ function CartBlock({ isEditing, context, showCrossSell, showCouponField, showTru
 function CheckoutBlock({ isEditing, context, showOrderBump, showTimeline }: any) {
   const tenantId = context?.settings?.tenant_id || '';
   
-  // Fetch page settings from database to respect toggle states
-  const { data: checkoutSettings } = useQuery({
-    queryKey: ['checkout-page-settings', tenantId],
-    queryFn: async () => {
-      if (!tenantId) return null;
-      
-      const { data, error } = await supabase
-        .from('storefront_page_templates')
-        .select('page_overrides')
-        .eq('tenant_id', tenantId)
-        .eq('page_type', 'checkout')
-        .maybeSingle();
-      
-      if (error) {
-        console.error('Error fetching checkout settings:', error);
-        return null;
-      }
-      
-      const overrides = data?.page_overrides as Record<string, unknown> | null;
-      return overrides?.checkoutSettings as Record<string, boolean> | null;
-    },
-    enabled: !!tenantId && isEditing,
-    staleTime: 0, // Always fetch fresh to catch toggle changes immediately
-    refetchOnMount: 'always',
-  });
+  // Read checkout settings from context (passed by VisualBuilder)
+  // REGRAS.md: Settings come from context, not internal queries
+  const checkoutSettings = context?.checkoutSettings;
   
   // Merge page settings with block props - page settings take precedence
   const effectiveShowOrderBump = checkoutSettings?.showOrderBump ?? showOrderBump ?? true;
   const effectiveShowTimeline = checkoutSettings?.showTimeline ?? showTimeline ?? true;
   const effectiveShowCoupon = checkoutSettings?.couponEnabled ?? true;
   const effectiveShowTestimonials = checkoutSettings?.testimonialsEnabled ?? true;
+  const effectiveShowTrustBadges = checkoutSettings?.showTrustBadges ?? true;
+  const effectiveShowSecuritySeals = checkoutSettings?.showSecuritySeals ?? true;
 
   if (isEditing) {
     return (
@@ -1287,6 +1248,7 @@ function CheckoutBlock({ isEditing, context, showOrderBump, showTimeline }: any)
         showTimeline={effectiveShowTimeline}
         showCouponField={effectiveShowCoupon}
         showTestimonials={effectiveShowTestimonials}
+        showTrustBadges={effectiveShowTrustBadges}
         isEditing 
       />
     );
@@ -1297,36 +1259,14 @@ function CheckoutBlock({ isEditing, context, showOrderBump, showTimeline }: any)
 
 function ThankYouBlock({ isEditing, context, showTimeline = true, showWhatsApp = true }: any) {
   const tenantSlug = context?.tenantSlug || '';
-  const tenantId = context?.settings?.tenant_id || '';
   const isPreview = context?.isPreview || false;
   
-  // Fetch page settings from database to respect toggle states
-  const { data: thankYouSettings } = useQuery({
-    queryKey: ['thankyou-page-settings', tenantId],
-    queryFn: async () => {
-      if (!tenantId) return null;
-      
-      const { data, error } = await supabase
-        .from('storefront_page_templates')
-        .select('page_overrides')
-        .eq('tenant_id', tenantId)
-        .eq('page_type', 'thank_you')
-        .maybeSingle();
-      
-      if (error) {
-        console.error('Error fetching thank you settings:', error);
-        return null;
-      }
-      
-      const overrides = data?.page_overrides as Record<string, unknown> | null;
-      return overrides?.thankYouSettings as Record<string, boolean> | null;
-    },
-    enabled: !!tenantId && isEditing,
-    staleTime: 0, // Always fetch fresh to catch toggle changes immediately
-    refetchOnMount: 'always',
-  });
+  // Read thank you settings from context (passed by VisualBuilder)
+  // REGRAS.md: Settings come from context, not internal queries
+  const thankYouSettings = context?.thankYouSettings;
   
   // Merge page settings with props - page settings take precedence
+  const effectiveShowTimeline = thankYouSettings?.showTimeline ?? showTimeline ?? true;
   const effectiveShowUpsell = thankYouSettings?.showUpsell ?? true;
   const effectiveShowWhatsApp = thankYouSettings?.showWhatsApp ?? showWhatsApp ?? true;
   
@@ -1339,7 +1279,7 @@ function ThankYouBlock({ isEditing, context, showTimeline = true, showWhatsApp =
         <h1 className="text-3xl font-bold mb-2">Obrigado pela compra!</h1>
         <p className="text-muted-foreground mb-6">Seu pedido #XXXXX foi recebido com sucesso.</p>
         
-        {showTimeline && (
+        {effectiveShowTimeline && (
           <div className="border rounded-lg p-6 mb-6 text-left">
             <h3 className="font-semibold mb-4">Próximos passos</h3>
             <div className="space-y-4">

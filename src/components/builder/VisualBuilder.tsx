@@ -26,6 +26,9 @@ import { HeaderFooterPropsEditor } from './HeaderFooterPropsEditor';
 import { VersionHistoryDialog } from './VersionHistoryDialog';
 import { CategorySettingsPanel, useCategorySettings } from './CategorySettingsPanel';
 import { ProductSettingsPanel, useProductSettings } from './ProductSettingsPanel';
+import { useCartSettings } from './CartSettingsPanel';
+import { useCheckoutSettings } from './CheckoutSettingsPanel';
+import { useThankYouSettings } from './ThankYouSettingsPanel';
 import { BuilderDebugPanel, DebugQueryState, addSupabaseError } from './BuilderDebugPanel';
 // MiniCartPreview is now rendered inside BuilderCanvas
 import { toast } from 'sonner';
@@ -182,6 +185,15 @@ export function VisualBuilder({
   // Product settings for product template - pass templateSetId for real-time updates
   const { settings: productSettings, setSettings: setProductSettings } = useProductSettings(tenantId, templateSetId);
 
+  // Cart settings for cart template - pass templateSetId for real-time updates
+  const { settings: cartSettings } = useCartSettings(tenantId, templateSetId);
+
+  // Checkout settings for checkout template - pass templateSetId for real-time updates
+  const { settings: checkoutSettings } = useCheckoutSettings(tenantId, templateSetId);
+
+  // Thank you settings for thank_you template - pass templateSetId for real-time updates
+  const { settings: thankYouSettings } = useThankYouSettings(tenantId, templateSetId);
+
   // Fetch full category data (including banners) when editing category template
   const { data: selectedCategory } = useQuery({
     queryKey: ['builder-category-full', exampleCategoryId],
@@ -280,8 +292,23 @@ export function VisualBuilder({
       (ctx as any).productSettings = productSettings;
     }
     
+    // For Cart template, add cart settings to context
+    if (pageType === 'cart') {
+      (ctx as any).cartSettings = cartSettings;
+    }
+    
+    // For Checkout template, add checkout settings to context
+    if (pageType === 'checkout') {
+      (ctx as any).checkoutSettings = checkoutSettings;
+    }
+    
+    // For Thank You template, add thank you settings to context
+    if (pageType === 'thank_you') {
+      (ctx as any).thankYouSettings = thankYouSettings;
+    }
+    
     return ctx;
-  }, [context, pageType, selectedCategory, categoryHeaderSlot, canvasViewport, productSettings, categorySettings]);
+  }, [context, pageType, selectedCategory, categoryHeaderSlot, canvasViewport, productSettings, categorySettings, cartSettings, checkoutSettings, thankYouSettings]);
 
   // Debug log on mount
   useEffect(() => {
