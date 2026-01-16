@@ -34,6 +34,7 @@ import { RelatedProductsSelect } from './RelatedProductsSelect';
 import { RelatedProductsPicker } from './RelatedProductsPicker';
 import { ProductStructureEditor } from './ProductStructureEditor';
 import { ProductComponentsPicker, type PendingComponent } from './ProductComponentsPicker';
+import { ProductVariantsEditor, type PendingVariant } from './ProductVariantsEditor';
 import { validateSlugFormat, generateSlug as generateSlugFromPolicy, RESERVED_SLUGS } from '@/lib/slugPolicy';
 import { useToast } from '@/hooks/use-toast';
 
@@ -116,16 +117,50 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [pendingRelatedIds, setPendingRelatedIds] = useState<string[]>([]);
   const [pendingComponents, setPendingComponents] = useState<PendingComponent[]>([]);
+  const [pendingVariants, setPendingVariants] = useState<PendingVariant[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Load product images for editing
+  // Load product data for editing
   useEffect(() => {
     if (product?.id) {
       loadProductImages();
       loadRelatedProducts();
       loadComponents();
+      loadVariants();
     }
   }, [product?.id]);
+
+  const loadVariants = async () => {
+    if (!product?.id) return;
+    
+    const { data } = await supabase
+      .from('product_variants')
+      .select('*')
+      .eq('product_id', product.id)
+      .order('position');
+
+    if (data) {
+      setPendingVariants(data.map(v => ({
+        id: v.id,
+        sku: v.sku,
+        name: v.name,
+        option1_name: v.option1_name || '',
+        option1_value: v.option1_value || '',
+        option2_name: v.option2_name || '',
+        option2_value: v.option2_value || '',
+        option3_name: v.option3_name || '',
+        option3_value: v.option3_value || '',
+        price: v.price,
+        compare_at_price: v.compare_at_price,
+        cost_price: v.cost_price,
+        stock_quantity: v.stock_quantity || 0,
+        weight: v.weight,
+        gtin: v.gtin || '',
+        is_active: v.is_active ?? true,
+        image_url: v.image_url,
+      })));
+    }
+  };
 
   const loadProductImages = async () => {
     if (!product?.id) return;
@@ -344,16 +379,76 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
     }
   };
 
+  // Save variants for new product
+  const saveVariants = async (productId: string): Promise<void> => {
+    if (pendingVariants.length === 0) return;
+
+    for (let i = 0; i < pendingVariants.length; i++) {
+      const variant = pendingVariants[i];
+      let imageUrl = variant.image_url;
+
+      // Upload image if it's a file
+      if (variant.image_file) {
+        const fileExt = variant.image_file.name.split('.').pop();
+        const fileName = `${productId}/variants/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('product-images')
+          .upload(fileName, variant.image_file);
+
+        if (!uploadError) {
+          const { data: { publicUrl } } = supabase.storage
+            .from('product-images')
+            .getPublicUrl(fileName);
+          imageUrl = publicUrl;
+        }
+      }
+
+      await supabase.from('product_variants').insert({
+        product_id: productId,
+        sku: variant.sku,
+        name: variant.name,
+        option1_name: variant.option1_name || null,
+        option1_value: variant.option1_value || null,
+        option2_name: variant.option2_name || null,
+        option2_value: variant.option2_value || null,
+        option3_name: variant.option3_name || null,
+        option3_value: variant.option3_value || null,
+        price: variant.price,
+        compare_at_price: variant.compare_at_price,
+        cost_price: variant.cost_price,
+        stock_quantity: variant.stock_quantity,
+        weight: variant.weight,
+        gtin: variant.gtin || null,
+        is_active: variant.is_active,
+        image_url: imageUrl,
+        position: i,
+      });
+    }
+  };
+
+  // Update variants for editing
+  const updateVariants = async (productId: string): Promise<void> => {
+    // Delete existing variants
+    await supabase.from('product_variants').delete().eq('product_id', productId);
+    
+    // Insert new variants
+    await saveVariants(productId);
+  };
+
   const handleSubmit = async (data: ProductFormData) => {
     setIsSaving(true);
     try {
       if (isEditing && product) {
         await updateProduct.mutateAsync({ id: product.id, ...data });
         
-        // Update related products and components
+        // Update related products, components, and variants
         await updateRelatedProducts(product.id);
         if (data.product_format === 'with_composition') {
           await updateComponents(product.id);
+        }
+        if (data.product_format === 'with_variants') {
+          await updateVariants(product.id);
         }
         
         toast({ title: 'Produto atualizado com sucesso!' });
@@ -397,6 +492,9 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           await saveRelatedProducts(productResult.id);
           if (data.product_format === 'with_composition') {
             await saveComponents(productResult.id);
+          }
+          if (data.product_format === 'with_variants') {
+            await saveVariants(productResult.id);
           }
         }
 
@@ -628,6 +726,16 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                     />
 
                   </div>
+
+                  {/* Variants Editor - shown when product_format is with_variants */}
+                  {form.watch('product_format') === 'with_variants' && (
+                    <ProductVariantsEditor
+                      variants={pendingVariants}
+                      onChange={setPendingVariants}
+                      productName={form.watch('name')}
+                      productSku={form.watch('sku')}
+                    />
+                  )}
                 </CardContent>
               </Card>
 
