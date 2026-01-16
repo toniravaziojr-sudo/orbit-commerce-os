@@ -1,6 +1,8 @@
 // =============================================
-// PRODUCT GRID BLOCK - Renders real products
-// Conforme docs/REGRAS.md - Funcionalidades da página de Categoria
+// PRODUCT GRID BLOCK - Renders products for Home, Product page "related", etc.
+// Este bloco é para vitrines genéricas (Destaques, Relacionados)
+// NÃO contém lógica de página de Categoria (que fica em CategoryPageLayout)
+// REGRAS.md linha 88: não duplicar lógica
 // =============================================
 
 import { useMemo } from 'react';
@@ -10,11 +12,6 @@ import { BlockRenderContext } from '@/lib/builder/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { getPublicProductUrl } from '@/lib/publicUrls';
-import { useProductRatings } from '@/hooks/useProductRating';
-import { RatingSummary } from '@/components/storefront/RatingSummary';
-import { useProductBadgesForProduct } from '@/hooks/useProductBadges';
-import { ShoppingCart } from 'lucide-react';
-
 
 interface ProductGridBlockProps {
   source?: 'all' | 'featured' | 'category';
@@ -38,19 +35,6 @@ interface Product {
   product_images: { url: string; is_primary: boolean }[];
 }
 
-// Category settings from context
-interface CategorySettingsFromContext {
-  showRatings?: boolean;
-  showBadges?: boolean;
-  showAddToCartButton?: boolean;
-  quickBuyEnabled?: boolean;
-  buyNowButtonText?: string;
-  customButtonEnabled?: boolean;
-  customButtonText?: string;
-  customButtonColor?: string;
-  customButtonLink?: string;
-}
-
 export function ProductGridBlock({
   source = 'all',
   categoryId,
@@ -64,24 +48,11 @@ export function ProductGridBlock({
 }: ProductGridBlockProps) {
   const { tenantSlug, viewport } = context;
   
-  // Get category settings from context (passed from VisualBuilder/StorefrontCategory)
-  const categorySettings: CategorySettingsFromContext = (context as any).categorySettings || {};
-  
-  const showRatings = categorySettings.showRatings ?? true;
-  const showBadges = categorySettings.showBadges ?? true;
-  const showAddToCartButton = categorySettings.showAddToCartButton ?? true;
-  const quickBuyEnabled = categorySettings.quickBuyEnabled ?? false;
-  const buyNowButtonText = categorySettings.buyNowButtonText || 'Comprar agora';
-  const customButtonEnabled = categorySettings.customButtonEnabled ?? false;
-  const customButtonText = categorySettings.customButtonText || '';
-  const customButtonColor = categorySettings.customButtonColor || '';
-  const customButtonLink = categorySettings.customButtonLink || '';
-  
-  // Determine if mobile based on viewport context (for builder) or default to responsive CSS
+  // Determine if mobile based on viewport context
   const isMobileViewport = viewport === 'mobile';
   const isTabletViewport = viewport === 'tablet';
 
-  // Resolve category ID - use context.category.id if source is 'category' and categoryId is a placeholder
+  // Resolve category ID
   const effectiveCategoryId = 
     source === 'category' 
       ? (categoryId && !categoryId.includes('{{') ? categoryId : context?.category?.id)
@@ -105,9 +76,8 @@ export function ProductGridBlock({
   const tenantId = tenant?.id;
 
   // Fetch products based on source
-  // REGRAS.md: Se categoria não tiver produtos, mostrar produtos aleatórios do tenant para preenchimento visual
   const { data: products, isLoading } = useQuery({
-    queryKey: ['builder-products', tenantId, source, effectiveCategoryId, limit, isEditing],
+    queryKey: ['builder-products', tenantId, source, effectiveCategoryId, limit],
     queryFn: async () => {
       if (!tenantId) return [];
 
@@ -121,16 +91,13 @@ export function ProductGridBlock({
       if (source === 'featured') {
         query = query.eq('is_featured', true);
       } else if (source === 'category' && effectiveCategoryId) {
-        // Need to join with product_categories
         const { data: productCategories } = await supabase
           .from('product_categories')
           .select('product_id, position')
           .eq('category_id', effectiveCategoryId)
           .order('position', { ascending: true });
 
-        // REGRAS.md: Se categoria não tiver produtos mas tenant tiver, mostrar aleatórios para preenchimento
         if (!productCategories?.length) {
-          // Buscar produtos aleatórios do tenant para fins de visualização
           const { data: fallbackProducts, error: fallbackError } = await supabase
             .from('products')
             .select('id, name, slug, price, compare_at_price, is_featured, product_images(url, is_primary)')
@@ -156,7 +123,6 @@ export function ProductGridBlock({
         
         if (error) throw error;
         
-        // Sort by position from product_categories
         const sortedProducts = (prods || []).sort((a, b) => {
           const posA = positionMap.get(a.id) ?? 999999;
           const posB = positionMap.get(b.id) ?? 999999;
@@ -173,36 +139,19 @@ export function ProductGridBlock({
     enabled: !!tenantId && (source !== 'category' || !!effectiveCategoryId),
   });
 
-  // Sem fallback interno de demoProducts - empty state se não houver produtos
   const displayProducts = useMemo(() => {
     if (products && products.length > 0) return products;
     return [] as Product[];
   }, [products]);
 
-  // Get product IDs for batch rating fetch - always compute even if loading
-  const productIdsForRating = useMemo(() => displayProducts.map(p => p.id), [displayProducts]);
-  const { data: ratingsMap } = useProductRatings(productIdsForRating);
-
-  // Compute grid columns based on viewport context or responsive fallback
-  // Desktop: 4 cols, Tablet: 3 cols, Mobile: 2 cols (with configurable max)
+  // Compute grid columns based on viewport
   const gridCols = useMemo(() => {
-    // If viewport is set (in builder), use explicit values
     if (viewport) {
-      if (isMobileViewport) {
-        // Mobile: always 2 columns
-        return 'grid-cols-2';
-      }
-      if (isTabletViewport) {
-        // Tablet: 3 columns max
-        return columns <= 3 ? `grid-cols-${Math.min(columns, 3)}` : 'grid-cols-3';
-      }
-      // Desktop: use configured columns (max 4 for reasonable card sizes)
+      if (isMobileViewport) return 'grid-cols-2';
+      if (isTabletViewport) return columns <= 3 ? `grid-cols-${Math.min(columns, 3)}` : 'grid-cols-3';
       const desktopCols = Math.min(columns, 4);
       return `grid-cols-${desktopCols}`;
     }
-    
-    // Fallback to responsive CSS classes for public storefront
-    // Pattern: 2 cols mobile, 3 cols tablet (md), 4 cols desktop (lg)
     return {
       1: 'grid-cols-1',
       2: 'grid-cols-2',
@@ -213,7 +162,6 @@ export function ProductGridBlock({
     }[columns] || 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4';
   }, [viewport, isMobileViewport, isTabletViewport, columns]);
 
-  // Helper functions (pure, no hooks)
   const getProductImage = (product: Product) => {
     const primary = product.product_images?.find(img => img.is_primary);
     return primary?.url || product.product_images?.[0]?.url || '/placeholder.svg';
@@ -226,8 +174,6 @@ export function ProductGridBlock({
     }).format(price);
   };
 
-  // === CONDITIONAL RETURNS AFTER ALL HOOKS ===
-  
   if (isLoading) {
     return (
       <div className={cn('grid gap-4 p-4', gridCols)}>
@@ -266,41 +212,28 @@ export function ProductGridBlock({
     <div className="relative">
       <div className={cn('grid gap-3 sm:gap-4', gridCols)}>
         {displayProducts.map((product) => {
-          const rating = ratingsMap?.get(product.id);
-          
-          // Determine product URL based on quickBuy setting
-          // quickBuy vai direto ao checkout (implementar rota de checkout com produto)
           const productUrl = getPublicProductUrl(tenantSlug, product.slug);
           
           return (
-            <div
+            <a
               key={product.id}
+              href={isEditing ? undefined : productUrl || undefined}
               className={cn(
                 'group block bg-card rounded-lg overflow-hidden border transition-shadow hover:shadow-md relative',
                 isEditing && 'pointer-events-none'
               )}
             >
-              {/* Product Image with link */}
-              <a href={isEditing ? undefined : productUrl || undefined}>
-                <div className="aspect-square overflow-hidden bg-muted relative">
-                  <img
-                    src={getProductImage(product)}
-                    alt={product.name}
-                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                    loading="lazy"
-                  />
-                </div>
-              </a>
+              {/* Product Image */}
+              <div className="aspect-square overflow-hidden bg-muted relative">
+                <img
+                  src={getProductImage(product)}
+                  alt={product.name}
+                  className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                  loading="lazy"
+                />
+              </div>
               
               <div className="p-2 sm:p-3">
-                {showRatings && rating && rating.count > 0 && (
-                  <RatingSummary
-                    average={rating.average}
-                    count={rating.count}
-                    variant="card"
-                    className="mb-1"
-                  />
-                )}
                 <h3 className="font-medium text-xs sm:text-sm line-clamp-2 text-foreground">
                   {product.name}
                 </h3>
@@ -317,49 +250,16 @@ export function ProductGridBlock({
                   </div>
                 )}
                 
-                {/* Botões conforme REGRAS.md:
-                    - Se Add to Cart ativo: 1º Carrinho, 2º Custom, 3º Comprar agora
-                    - Se Add to Cart desativado: 1º Custom, 2º Comprar agora
-                */}
+                {/* Botão simples de ver produto - sem lógica de categoria */}
                 {showButton && (
-                  <div className="mt-2 flex flex-col gap-1">
-                    {/* 1º Adicionar ao carrinho (se ativo) */}
-                    {showAddToCartButton && (
-                      <button 
-                        className="w-full py-1 sm:py-1.5 px-2 sm:px-3 text-[10px] sm:text-xs border border-primary text-primary bg-transparent rounded-md hover:bg-primary/10 transition-colors flex items-center justify-center gap-1"
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                      >
-                        <ShoppingCart className="h-3 w-3" />
-                        <span>Adicionar</span>
-                      </button>
-                    )}
-                    
-                    {/* 2º Botão personalizado (se ativo) - sempre no meio */}
-                    {customButtonEnabled && customButtonText && (
-                      <a
-                        href={customButtonLink || '#'}
-                        className="w-full py-1 sm:py-1.5 px-2 sm:px-3 text-[10px] sm:text-xs rounded-md text-center transition-colors"
-                        style={{ 
-                          backgroundColor: customButtonColor || '#6366f1',
-                          color: '#ffffff'
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {customButtonText}
-                      </a>
-                    )}
-                    
-                    {/* 3º Botão principal "Comprar agora" - sempre por último */}
-                    <a
-                      href={isEditing ? undefined : productUrl || undefined}
-                      className="w-full py-1 sm:py-1.5 px-2 sm:px-3 text-[10px] sm:text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-center"
-                    >
-                      {buyNowButtonText}
-                    </a>
+                  <div className="mt-2">
+                    <span className="w-full py-1 sm:py-1.5 px-2 sm:px-3 text-[10px] sm:text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-center block">
+                      {buttonText}
+                    </span>
                   </div>
                 )}
               </div>
-            </div>
+            </a>
           );
         })}
       </div>
