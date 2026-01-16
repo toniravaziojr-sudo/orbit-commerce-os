@@ -269,20 +269,22 @@ export function ThemeSettingsPanel({
       {/* Semi-transparent overlay - visual only, pointer-events disabled to allow canvas interaction */}
       {/* Close only via X button, ArrowLeft - Yampi style */}
       <div 
-        className="fixed inset-0 bg-black/10 z-40 transition-opacity duration-200 pointer-events-none"
+        className="fixed inset-0 bg-black/5 z-40 transition-opacity duration-200 pointer-events-none"
         aria-hidden="true"
       />
       
-      {/* Sliding panel */}
+      {/* Sliding panel - fundo sólido sem transparência */}
       <div 
         className={cn(
-          'fixed left-0 top-0 h-full w-80 bg-background border-r shadow-xl z-50',
+          'fixed left-0 top-0 h-full w-80 border-r shadow-xl z-50',
           'transform transition-transform duration-200 ease-out pointer-events-auto',
+          // Fundo sólido branco/dark mode sem transparência
+          'bg-white dark:bg-zinc-900',
           open ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         {/* Header */}
-        <div className="flex items-center gap-2 p-3 border-b bg-muted/30">
+        <div className="flex items-center gap-2 p-3 border-b bg-zinc-50 dark:bg-zinc-800">
           <Button
             variant="ghost"
             size="icon"

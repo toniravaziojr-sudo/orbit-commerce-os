@@ -972,9 +972,10 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
 
   const tenantSlug = context?.tenantSlug || '';
 
-  // Hook para variantes (se houver produto e showVariants ativo)
+  // Hook para variantes - SEMPRE chamado para evitar erro #310 (hooks condicionais)
+  // O hook retorna dados vazios se productId for undefined
   const { optionGroups, selectedOptions, selectOption, selectedVariant, hasVariants } = useProductVariants(
-    showVariants ? product?.id : undefined
+    product?.id
   );
   
   // Regra de segurança: variante obrigatória
