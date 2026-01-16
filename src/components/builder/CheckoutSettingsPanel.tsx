@@ -2,8 +2,9 @@
 // CHECKOUT SETTINGS PANEL - Accordion for checkout page settings
 // Conforme docs/REGRAS.md - Pattern padrão para páginas do builder
 // =============================================
+// NOTA: Interface e hook vindos de usePageSettings.ts (fonte única de verdade)
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Json } from '@/integrations/supabase/types';
 import {
@@ -17,14 +18,11 @@ import { Switch } from '@/components/ui/switch';
 import { CreditCard } from 'lucide-react';
 import { toast } from 'sonner';
 
-export interface CheckoutSettings {
-  showOrderBump?: boolean;
-  showTimeline?: boolean;
-  couponEnabled?: boolean;
-  testimonialsEnabled?: boolean;
-  showTrustBadges?: boolean;
-  showSecuritySeals?: boolean;
-}
+// Re-export from source of truth
+export type { CheckoutSettings } from '@/hooks/usePageSettings';
+export { useCheckoutSettings } from '@/hooks/usePageSettings';
+
+import type { CheckoutSettings } from '@/hooks/usePageSettings';
 
 interface CheckoutSettingsPanelProps {
   tenantId: string;
@@ -70,7 +68,7 @@ export function CheckoutSettingsPanel({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['page-overrides', tenantId, 'checkout'] });
-      queryClient.invalidateQueries({ queryKey: ['checkout-settings', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['checkout-settings-builder', tenantId] });
     },
     onError: () => {
       toast.error('Erro ao salvar configurações');
@@ -182,70 +180,4 @@ export function CheckoutSettingsPanel({
       </Accordion>
     </div>
   );
-}
-
-// Hook to load checkout settings - using React Query for proper reactivity
-// Reads from draft_content when templateSetId is provided (for builder)
-export function useCheckoutSettings(tenantId: string, templateSetId?: string) {
-  const queryClient = useQueryClient();
-  
-  const { data, isLoading } = useQuery({
-    queryKey: ['checkout-settings', tenantId, templateSetId || 'legacy'],
-    queryFn: async () => {
-      if (!tenantId) return null;
-      
-      // If templateSetId is provided, read from draft_content
-      if (templateSetId) {
-        const { data: templateSet, error: tsError } = await supabase
-          .from('storefront_template_sets')
-          .select('draft_content')
-          .eq('id', templateSetId)
-          .eq('tenant_id', tenantId)
-          .maybeSingle();
-
-        if (!tsError && templateSet?.draft_content) {
-          const draftContent = templateSet.draft_content as Record<string, unknown>;
-          const themeSettings = draftContent.themeSettings as Record<string, unknown> | undefined;
-          const pageSettings = themeSettings?.pageSettings as Record<string, unknown> | undefined;
-          
-          if (pageSettings?.checkout) {
-            return pageSettings.checkout as CheckoutSettings;
-          }
-        }
-      }
-      
-      // Fallback: read from storefront_page_templates (legacy)
-      const { data, error } = await supabase
-        .from('storefront_page_templates')
-        .select('page_overrides')
-        .eq('tenant_id', tenantId)
-        .eq('page_type', 'checkout')
-        .maybeSingle();
-
-      if (error) throw error;
-
-      const overrides = data?.page_overrides as Record<string, unknown> | null;
-      return (overrides?.checkoutSettings as CheckoutSettings) || null;
-    },
-    enabled: !!tenantId,
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
-    refetchInterval: 500,
-  });
-
-  const settings: CheckoutSettings = {
-    showOrderBump: data?.showOrderBump ?? true,
-    showTimeline: data?.showTimeline ?? true,
-    couponEnabled: data?.couponEnabled ?? true,
-    testimonialsEnabled: data?.testimonialsEnabled ?? true,
-    showTrustBadges: data?.showTrustBadges ?? true,
-    showSecuritySeals: data?.showSecuritySeals ?? true,
-  };
-
-  const setSettings = (newSettings: CheckoutSettings) => {
-    queryClient.setQueryData(['checkout-settings', tenantId, templateSetId || 'legacy'], newSettings);
-  };
-
-  return { settings, setSettings, isLoading };
 }
