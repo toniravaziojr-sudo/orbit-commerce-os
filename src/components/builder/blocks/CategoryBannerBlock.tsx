@@ -38,11 +38,6 @@ export function CategoryBannerBlock({
   const showBanner = categorySettings.showBanner ?? true;
   const showTitle = categorySettings.showCategoryName ?? true;
   
-  // Se o banner está desabilitado nas configurações, não renderizar nada
-  if (!showBanner) {
-    return null;
-  }
-  
   // REGRAS.md linha 77: banner vem do menu Categorias (category.banner_desktop_url)
   const bannerDesktop = category?.banner_desktop_url || null;
   const bannerMobile = category?.banner_mobile_url || bannerDesktop;
@@ -68,33 +63,40 @@ export function CategoryBannerBlock({
     right: 'text-right items-end',
   };
 
+  // Se tanto o banner quanto o título estão desabilitados, não renderizar nada
+  if (!showBanner && !showTitle) {
+    return null;
+  }
+
   return (
     <div className="w-full">
-      {/* Banner image container */}
-      <div className={`relative w-full overflow-hidden ${heightClasses[height]}`}>
-        {/* Banner image OR placeholder gradient */}
-        {hasBannerImage ? (
-          <picture>
-            <source media="(min-width: 768px)" srcSet={bannerDesktop || bannerMobile || ''} />
-            <img
-              src={bannerMobile || bannerDesktop || ''}
-              alt={categoryName}
-              className="w-full h-full object-cover"
-            />
-          </picture>
-        ) : (
-          // Placeholder gradient - neutral, no demo images
-          <div className="w-full h-full bg-gradient-to-br from-muted via-muted/80 to-muted-foreground/20" />
-        )}
-        
-        {/* Overlay */}
-        <div 
-          className="absolute inset-0 bg-black"
-          style={{ opacity: hasBannerImage ? overlayOpacity / 100 : 0.3 }}
-        />
-      </div>
+      {/* Banner image container - só renderiza se showBanner=true */}
+      {showBanner && (
+        <div className={`relative w-full overflow-hidden ${heightClasses[height]}`}>
+          {/* Banner image OR placeholder gradient */}
+          {hasBannerImage ? (
+            <picture>
+              <source media="(min-width: 768px)" srcSet={bannerDesktop || bannerMobile || ''} />
+              <img
+                src={bannerMobile || bannerDesktop || ''}
+                alt={categoryName}
+                className="w-full h-full object-cover"
+              />
+            </picture>
+          ) : (
+            // Placeholder gradient - neutral, no demo images
+            <div className="w-full h-full bg-gradient-to-br from-muted via-muted/80 to-muted-foreground/20" />
+          )}
+          
+          {/* Overlay */}
+          <div 
+            className="absolute inset-0 bg-black"
+            style={{ opacity: hasBannerImage ? overlayOpacity / 100 : 0.3 }}
+          />
+        </div>
+      )}
       
-      {/* Title BELOW banner - entre o banner e os produtos */}
+      {/* Title - independente do banner, aparece se showTitle=true */}
       {showTitle && (
         <div className={`py-6 px-4 md:px-8 ${titlePositionClasses[titlePosition]}`}>
           <div className="max-w-4xl mx-auto">
