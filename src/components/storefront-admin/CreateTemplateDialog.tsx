@@ -10,13 +10,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { LayoutTemplate, FileText, Sparkles } from 'lucide-react';
+import { FileText, Sparkles } from 'lucide-react';
 
 interface CreateTemplateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: (name: string) => void;
-  preset: 'cosmetics' | 'blank';
+  preset: 'blank';
   isLoading?: boolean;
 }
 
@@ -36,17 +36,11 @@ export function CreateTemplateDialog({
     }
   };
 
-  const presetInfo = preset === 'cosmetics' 
-    ? {
-        icon: <LayoutTemplate className="h-5 w-5" />,
-        title: 'Novo Template Cosméticos',
-        description: 'Layout completo com blocos e seções prontas para loja de cosméticos.',
-      }
-    : {
-        icon: <FileText className="h-5 w-5" />,
-        title: 'Criar Novo Modelo',
-        description: 'Comece do zero com uma estrutura limpa. A Home fica vazia para você personalizar, e as páginas padrão (produto, carrinho, checkout, etc.) já vêm com a estrutura básica funcional.',
-      };
+  const presetInfo = {
+    icon: <FileText className="h-5 w-5" />,
+    title: 'Criar Novo Modelo',
+    description: 'Comece do zero com uma estrutura limpa. A Home fica vazia para você personalizar, e as páginas padrão (produto, carrinho, checkout, etc.) já vêm com a estrutura básica funcional.',
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

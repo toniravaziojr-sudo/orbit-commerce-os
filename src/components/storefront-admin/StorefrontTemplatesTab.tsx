@@ -47,17 +47,11 @@ import { PublishTemplateDialog } from './PublishTemplateDialog';
 
 // Preset thumbnails - ilustrações estáticas para cada tipo de template
 const PRESET_THUMBNAILS: Record<string, string> = {
-  cosmetics: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=600&h=400&fit=crop&q=80',
   blank: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&h=400&fit=crop&q=80',
   custom: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&h=400&fit=crop&q=80',
 };
 
 const PRESET_INFO = {
-  cosmetics: {
-    name: 'Template Cosméticos',
-    description: 'Template elegante para lojas de beleza e cosméticos, com seções para produtos em destaque, categorias e promoções.',
-    // Removed badge - install directly without dialog
-  },
   blank: {
     name: 'Iniciar do Zero',
     description: 'Comece com uma estrutura limpa e personalize completamente sua loja do jeito que quiser.',
@@ -84,19 +78,13 @@ export function StorefrontTemplatesTab() {
   } = useTemplateSets();
 
   // Dialog states
-  const [createPreset, setCreatePreset] = useState<'cosmetics' | 'blank' | null>(null);
+  const [createPreset, setCreatePreset] = useState<'blank' | null>(null);
   const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null);
   const [publishTarget, setPublishTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
-  const [installPresetTarget, setInstallPresetTarget] = useState<'cosmetics' | null>(null);
-  const [isInstallingPreset, setIsInstallingPreset] = useState(false);
 
   const storeUrl = getPublicHomeUrl(currentTenant?.slug || '', false);
   const previewUrl = getPublicHomeUrl(currentTenant?.slug || '', true);
-
-  // Check if cosmetics template is already installed and active
-  const cosmeticsTemplate = templates.find(t => t.base_preset === 'cosmetics');
-  const isCosmeticsActive = cosmeticsTemplate?.id === publishedTemplateId;
 
   const handleCreateTemplate = async (name: string) => {
     if (!createPreset) return;
@@ -123,38 +111,6 @@ export function StorefrontTemplatesTab() {
     setDeleteTarget(null);
   };
 
-  // Install a preset template (cosmetics)
-  // If template already exists, just activate it. If not, create and activate.
-  const handleInstallPreset = async () => {
-    if (!installPresetTarget) return;
-    
-    setIsInstallingPreset(true);
-    try {
-      let templateId: string;
-      
-      // Check if template already exists
-      const existingTemplate = templates.find(t => t.base_preset === installPresetTarget);
-      
-      if (existingTemplate) {
-        // Just activate the existing template
-        templateId = existingTemplate.id;
-      } else {
-        // Create new template with preset
-        const result = await createTemplate.mutateAsync({ 
-          name: 'Template Cosméticos', 
-          basePreset: installPresetTarget 
-        });
-        templateId = result.id;
-      }
-      
-      // Set as published/active template
-      await setPublishedTemplate.mutateAsync(templateId);
-      setInstallPresetTarget(null);
-    } finally {
-      setIsInstallingPreset(false);
-    }
-  };
-
   const handleDuplicateTemplate = async (templateId: string) => {
     await duplicateTemplate.mutateAsync(templateId);
   };
@@ -167,8 +123,8 @@ export function StorefrontTemplatesTab() {
     navigate(`/storefront/builder?templateId=${templateId}&edit=home&mode=preview`);
   };
 
-  // Templates que NÃO são o publicado e NÃO são presets (cosmetics já tem card próprio)
-  const otherTemplates = templates.filter((t) => t.id !== publishedTemplateId && t.base_preset !== 'cosmetics');
+  // Templates que NÃO são o publicado
+  const otherTemplates = templates.filter((t) => t.id !== publishedTemplateId);
 
   if (isLoading) {
     return (
@@ -322,29 +278,6 @@ export function StorefrontTemplatesTab() {
             />
           ))}
 
-          {/* Template Cosméticos - Preset pronto */}
-          <PresetCard
-            name={PRESET_INFO.cosmetics.name}
-            description={PRESET_INFO.cosmetics.description}
-            thumbnail={PRESET_THUMBNAILS.cosmetics}
-            badge={isCosmeticsActive ? 'Em uso' : undefined}
-            badgeVariant={isCosmeticsActive ? 'default' : 'secondary'}
-            onPreview={() => navigate('/storefront/builder?preset=cosmetics&mode=preview')}
-            onInstall={() => {
-              if (isCosmeticsActive) {
-                // Already active, go to editor
-                if (cosmeticsTemplate) {
-                  navigate(`/storefront/builder?templateId=${cosmeticsTemplate.id}&edit=home`);
-                }
-              } else {
-                // Show confirmation dialog
-                setInstallPresetTarget('cosmetics');
-              }
-            }}
-            installLabel={isCosmeticsActive ? 'Instalado' : 'Instalar'}
-            isInstalled={isCosmeticsActive}
-          />
-
           {/* Iniciar do Zero - Cria novo template */}
           <PresetCard
             name={PRESET_INFO.blank.name}
@@ -407,34 +340,6 @@ export function StorefrontTemplatesTab() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Install Preset Confirmation Dialog */}
-      <AlertDialog open={installPresetTarget !== null} onOpenChange={(open) => !open && setInstallPresetTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Instalar Template Cosméticos?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {publishedTemplate ? (
-                <>
-                  Isso vai substituir o tema ativo atual "<strong>{publishedTemplate.name}</strong>" pelo Template Cosméticos.
-                  <br /><br />
-                  O tema atual continuará disponível na lista de "Outros temas" e poderá ser reativado a qualquer momento.
-                </>
-              ) : (
-                'O Template Cosméticos será instalado e ativado como tema da sua loja.'
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isInstallingPreset}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleInstallPreset}
-              disabled={isInstallingPreset}
-            >
-              {isInstallingPreset ? 'Instalando...' : 'Instalar e ativar'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
