@@ -1,14 +1,15 @@
 // =============================================
-// PRODUCT BADGES - Selos do produto (ex: Novo, Promoção, Frete Grátis)
+// PRODUCT BADGES - Selos do produto (ex: Novo, Mais Vendido, Frete Grátis)
+// NOTA: Não exibe selo de desconto - descontos são geridos pelo menu "Descontos"
 // =============================================
 
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
-import { Truck, Tag, Star, Percent, Flame } from 'lucide-react';
+import { Truck, Tag, Star, Flame } from 'lucide-react';
 
 interface ProductBadgesProps {
-  hasDiscount?: boolean;
-  discountPercent?: number;
+  // NOTA: hasDiscount/discountPercent REMOVIDOS conforme REGRAS.md
+  // Descontos são regidos estritamente pelo menu "Descontos", não por selos automáticos
   isNew?: boolean;
   isBestSeller?: boolean;
   hasFreeShipping?: boolean;
@@ -19,10 +20,11 @@ interface ProductBadgesProps {
 /**
  * Renders product badges/seals above the product
  * Conforme REGRAS.md: "slots para selos"
+ * 
+ * IMPORTANTE: NÃO exibe selo de desconto aqui.
+ * Descontos são gerenciados exclusivamente pelo menu "Descontos".
  */
 export function ProductBadges({
-  hasDiscount = false,
-  discountPercent = 0,
   isNew = false,
   isBestSeller = false,
   hasFreeShipping = false,
@@ -30,16 +32,6 @@ export function ProductBadges({
   className = '',
 }: ProductBadgesProps) {
   const badges: React.ReactNode[] = [];
-
-  // Discount badge
-  if (hasDiscount && discountPercent > 0) {
-    badges.push(
-      <Badge key="discount" variant="destructive" className="gap-1 text-xs font-bold">
-        <Percent className="w-3 h-3" />
-        -{discountPercent}%
-      </Badge>
-    );
-  }
 
   // New badge
   if (isNew) {
