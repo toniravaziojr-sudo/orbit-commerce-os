@@ -142,6 +142,7 @@ function BannerUploadInput({
 
 interface PageSettingsContentProps {
   tenantId: string;
+  templateSetId?: string;
   pageType: string;
   onNavigateToEdit?: () => void;
 }
@@ -206,6 +207,7 @@ type PageSettings = CategorySettings | ProductSettings | CartSettings | Checkout
 
 export function PageSettingsContent({
   tenantId,
+  templateSetId,
   pageType,
   onNavigateToEdit,
 }: PageSettingsContentProps) {
@@ -215,12 +217,37 @@ export function PageSettingsContent({
   const [isLoading, setIsLoading] = useState(true);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
-  // Load settings on mount
+  // Load settings on mount - from template set draft_content if available
   useEffect(() => {
     async function loadSettings() {
       if (!tenantId || !pageType) return;
       
       try {
+        const settingsKey = getSettingsKey(pageType);
+        
+        // If templateSetId is available, load from draft_content
+        if (templateSetId) {
+          const { data: templateSet, error: tsError } = await supabase
+            .from('storefront_template_sets')
+            .select('draft_content')
+            .eq('id', templateSetId)
+            .eq('tenant_id', tenantId)
+            .maybeSingle();
+          
+          if (!tsError && templateSet?.draft_content) {
+            const draftContent = templateSet.draft_content as Record<string, unknown>;
+            const themeSettings = draftContent.themeSettings as Record<string, unknown> | undefined;
+            const pageSettings = themeSettings?.pageSettings as Record<string, unknown> | undefined;
+            
+            if (pageSettings?.[pageType]) {
+              setSettings(pageSettings[pageType] as Record<string, boolean | string>);
+              setIsLoading(false);
+              return;
+            }
+          }
+        }
+        
+        // Fallback: Load from storefront_page_templates (legacy)
         const { data, error } = await supabase
           .from('storefront_page_templates')
           .select('page_overrides')
@@ -231,7 +258,6 @@ export function PageSettingsContent({
         if (error) throw error;
 
         const overrides = data?.page_overrides as Record<string, unknown> | null;
-        const settingsKey = getSettingsKey(pageType);
         
         if (overrides?.[settingsKey]) {
           setSettings(overrides[settingsKey] as Record<string, boolean | string>);
@@ -247,11 +273,53 @@ export function PageSettingsContent({
     }
 
     loadSettings();
-  }, [tenantId, pageType]);
+  }, [tenantId, templateSetId, pageType]);
 
-  // Save mutation - suporta boolean e string
+  // Save mutation - save to template set draft_content if templateSetId available
   const saveMutation = useMutation({
     mutationFn: async (newSettings: Record<string, boolean | string>) => {
+      const settingsKey = getSettingsKey(pageType);
+      
+      // If templateSetId is available, save to draft_content
+      if (templateSetId) {
+        const { data: templateSet, error: fetchError } = await supabase
+          .from('storefront_template_sets')
+          .select('draft_content')
+          .eq('id', templateSetId)
+          .eq('tenant_id', tenantId)
+          .single();
+        
+        if (fetchError) throw fetchError;
+        
+        const currentDraftContent = (templateSet.draft_content as Record<string, unknown>) || {};
+        const currentThemeSettings = (currentDraftContent.themeSettings as Record<string, unknown>) || {};
+        const currentPageSettings = (currentThemeSettings.pageSettings as Record<string, unknown>) || {};
+        
+        const updatedDraftContent = {
+          ...currentDraftContent,
+          themeSettings: {
+            ...currentThemeSettings,
+            pageSettings: {
+              ...currentPageSettings,
+              [pageType]: newSettings,
+            },
+          },
+        };
+        
+        const { error } = await supabase
+          .from('storefront_template_sets')
+          .update({ 
+            draft_content: updatedDraftContent as unknown as Json,
+            last_edited_at: new Date().toISOString(),
+          })
+          .eq('id', templateSetId)
+          .eq('tenant_id', tenantId);
+        
+        if (error) throw error;
+        return newSettings;
+      }
+      
+      // Fallback: save to storefront_page_templates (legacy)
       const { data: template, error: fetchError } = await supabase
         .from('storefront_page_templates')
         .select('page_overrides')
@@ -262,7 +330,6 @@ export function PageSettingsContent({
       if (fetchError) throw fetchError;
 
       const currentOverrides = (template?.page_overrides as Record<string, unknown>) || {};
-      const settingsKey = getSettingsKey(pageType);
       
       const updatedOverrides = {
         ...currentOverrides,
@@ -288,6 +355,10 @@ export function PageSettingsContent({
       // Also invalidate the specific hooks used in VisualBuilder
       queryClient.invalidateQueries({ queryKey: ['category-settings', tenantId] });
       queryClient.invalidateQueries({ queryKey: ['product-settings', tenantId] });
+      // Invalidate template set queries for preview
+      if (templateSetId) {
+        queryClient.invalidateQueries({ queryKey: ['template-set-content', templateSetId] });
+      }
       toast.success('Configurações salvas');
     },
     onError: () => {

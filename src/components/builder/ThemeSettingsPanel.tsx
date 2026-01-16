@@ -208,6 +208,7 @@ export function ThemeSettingsPanel({
         return selectedPageType ? (
           <PageSettingsContent
             tenantId={tenantId}
+            templateSetId={templateSetId}
             pageType={selectedPageType}
             onNavigateToEdit={() => handleNavigateToPage(selectedPageType)}
           />

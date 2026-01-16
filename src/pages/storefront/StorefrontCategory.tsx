@@ -41,8 +41,8 @@ export default function StorefrontCategory() {
     }
   }, [category?.id, categoryLoading, isPreviewMode, trackViewCategory, products]);
   
-  // Fetch category settings from page_overrides
-  // CRITICAL: Must include ALL fields for CategoryPageLayout to work correctly
+  // Fetch category settings from PUBLISHED template set content
+  // CRITICAL: Must read from published_content, NOT from page_overrides (which reflects draft)
   const defaultCategorySettings: CategorySettings = {
     showCategoryName: true,
     showBanner: true,
@@ -58,7 +58,7 @@ export default function StorefrontCategory() {
   };
 
   const { data: categorySettings } = useQuery({
-    queryKey: ['category-settings', tenantSlug],
+    queryKey: ['category-settings-published', tenantSlug, isPreviewMode],
     queryFn: async () => {
       const { data: tenant } = await supabase
         .from('tenants')
@@ -68,16 +68,45 @@ export default function StorefrontCategory() {
       
       if (!tenant) return defaultCategorySettings;
       
-      const { data } = await supabase
-        .from('storefront_page_templates')
-        .select('page_overrides')
+      // Get store settings to find the published template
+      const { data: storeSettings } = await supabase
+        .from('store_settings')
+        .select('published_template_id')
         .eq('tenant_id', tenant.id)
-        .eq('page_type', 'category')
         .maybeSingle();
       
-      const overrides = data?.page_overrides as Record<string, unknown> | null;
-      const saved = (overrides?.categorySettings as CategorySettings) || {};
-      // Merge with defaults to ensure all fields exist
+      const templateSetId = storeSettings?.published_template_id;
+      
+      if (!templateSetId) {
+        // Fallback to page_overrides if no published template (legacy)
+        const { data } = await supabase
+          .from('storefront_page_templates')
+          .select('page_overrides')
+          .eq('tenant_id', tenant.id)
+          .eq('page_type', 'category')
+          .maybeSingle();
+        
+        const overrides = data?.page_overrides as Record<string, unknown> | null;
+        const saved = (overrides?.categorySettings as CategorySettings) || {};
+        return { ...defaultCategorySettings, ...saved };
+      }
+      
+      // Read from published_content (or draft_content if preview mode)
+      const contentField = isPreviewMode ? 'draft_content' : 'published_content';
+      const { data: templateSet } = await supabase
+        .from('storefront_template_sets')
+        .select(contentField)
+        .eq('id', templateSetId)
+        .eq('tenant_id', tenant.id)
+        .single();
+      
+      if (!templateSet) return defaultCategorySettings;
+      
+      const content = (templateSet as any)[contentField] as Record<string, unknown> | null;
+      const themeSettings = content?.themeSettings as Record<string, unknown> | undefined;
+      const pageSettings = themeSettings?.pageSettings as Record<string, unknown> | undefined;
+      const saved = (pageSettings?.category as CategorySettings) || {};
+      
       return { ...defaultCategorySettings, ...saved };
     },
     enabled: !!tenantSlug,
