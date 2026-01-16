@@ -1,5 +1,12 @@
 // =============================================
 // CATEGORY PAGE LAYOUT - Layout com sidebar de filtros + grid de produtos
+// Conforme docs/REGRAS.md linha 67-88 - funcionalidades obrigatórias:
+// - Compra rápida (checkout direto ou página produto)
+// - Exibir/ocultar avaliações
+// - Exibir/ocultar botão adicionar ao carrinho
+// - Alterar texto "Comprar agora"
+// - Mostrar/ocultar selos
+// - Botão personalizado com ordem específica
 // =============================================
 
 import { useState, useMemo } from 'react';
@@ -12,7 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { getPublicProductUrl } from '@/lib/publicUrls';
 import { useProductRatings } from '@/hooks/useProductRating';
 import { RatingSummary } from '@/components/storefront/RatingSummary';
-
+import { ShoppingCart } from 'lucide-react';
 
 interface Product {
   id: string;
@@ -32,6 +39,21 @@ interface CategoryPageLayoutProps {
   isEditing?: boolean;
 }
 
+// Interface para categorySettings do contexto (conforme REGRAS.md)
+interface CategorySettingsFromContext {
+  showCategoryName?: boolean;
+  showBanner?: boolean;
+  showRatings?: boolean;
+  quickBuyEnabled?: boolean;
+  showAddToCartButton?: boolean;
+  showBadges?: boolean;
+  buyNowButtonText?: string;
+  customButtonEnabled?: boolean;
+  customButtonText?: string;
+  customButtonColor?: string;
+  customButtonLink?: string;
+}
+
 export function CategoryPageLayout({
   context,
   limit = 24,
@@ -39,10 +61,24 @@ export function CategoryPageLayout({
   showFilters = true,
   isEditing = false,
 }: CategoryPageLayoutProps) {
-  const { tenantSlug, viewport, category, showRatings = true } = context;
+  const { tenantSlug, viewport, category } = context;
   const isMobile = viewport === 'mobile';
   const categoryId = category?.id;
   const categorySlug = category?.slug;
+
+  // REGRAS.md: Consumir categorySettings do contexto
+  const categorySettings: CategorySettingsFromContext = (context as any)?.categorySettings || {};
+  
+  // Extrair configurações com defaults seguros
+  const showRatings = categorySettings.showRatings ?? true;
+  const showBadges = categorySettings.showBadges ?? true;
+  const showAddToCartButton = categorySettings.showAddToCartButton ?? true;
+  const quickBuyEnabled = categorySettings.quickBuyEnabled ?? false;
+  const buyNowButtonText = categorySettings.buyNowButtonText || 'Comprar agora';
+  const customButtonEnabled = categorySettings.customButtonEnabled ?? false;
+  const customButtonText = categorySettings.customButtonText || '';
+  const customButtonColor = categorySettings.customButtonColor || '';
+  const customButtonLink = categorySettings.customButtonLink || '';
 
   // Filter states
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 500]);
@@ -170,6 +206,24 @@ export function CategoryPageLayout({
     return primary?.url || product.product_images?.[0]?.url || '/placeholder.svg';
   };
 
+  // REGRAS.md linha 76: compra rápida vai direto ao checkout
+  const getProductUrl = (product: Product) => {
+    if (quickBuyEnabled) {
+      // TODO: Implementar rota de checkout direto com produto
+      // Por enquanto, usa a página do produto
+      return getPublicProductUrl(tenantSlug, product.slug);
+    }
+    return getPublicProductUrl(tenantSlug, product.slug);
+  };
+
+  // Handler para adicionar ao carrinho (abre carrinho lateral)
+  const handleAddToCart = (e: React.MouseEvent, product: Product) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // TODO: Integrar com hook de carrinho
+    console.log('Add to cart:', product.id);
+  };
+
   // Use container query class for responsive grid
   const getGridCols = () => {
     // sf-product-grid handles responsiveness via container queries
@@ -263,24 +317,30 @@ export function CategoryPageLayout({
             <div className={cn('grid gap-4', getGridCols())}>
               {filteredProducts.map((product) => {
                 const rating = ratingsMap?.get(product.id);
+                const productUrl = getProductUrl(product);
                 
                 return (
                   <a
                     key={product.id}
-                    href={isEditing ? undefined : getPublicProductUrl(tenantSlug, product.slug) || undefined}
+                    href={isEditing ? undefined : productUrl || undefined}
                     className={cn(
                       'group block bg-card rounded-lg overflow-hidden border transition-shadow hover:shadow-md',
                       isEditing && 'pointer-events-none'
                     )}
                   >
-                    <div className="aspect-square overflow-hidden bg-muted">
+                    {/* Product Image */}
+                    <div className="aspect-square overflow-hidden bg-muted relative">
                       <img
                         src={getProductImage(product)}
                         alt={product.name}
                         className="w-full h-full object-cover transition-transform group-hover:scale-105"
                       />
+                      {/* TODO: Renderizar selos (badges) quando showBadges=true */}
                     </div>
+                    
+                    {/* Product Info */}
                     <div className="p-3">
+                      {/* REGRAS.md linha 78: Avaliações abaixo do nome */}
                       {showRatings && rating && rating.count > 0 && (
                         <RatingSummary
                           average={rating.average}
@@ -289,9 +349,12 @@ export function CategoryPageLayout({
                           className="mb-1"
                         />
                       )}
+                      
                       <h3 className="font-medium text-sm line-clamp-2 text-foreground">
                         {product.name}
                       </h3>
+                      
+                      {/* Price */}
                       <div className="mt-1 flex items-center gap-2">
                         {product.compare_at_price && product.compare_at_price > product.price && (
                           <span className="text-xs text-muted-foreground line-through">
@@ -301,6 +364,43 @@ export function CategoryPageLayout({
                         <span className="text-sm font-semibold text-primary">
                           {formatPrice(product.price)}
                         </span>
+                      </div>
+                      
+                      {/* REGRAS.md linha 79-84: Botões com ordem específica */}
+                      <div className="mt-2 flex flex-col gap-1.5">
+                        {/* 1º Botão "Adicionar ao carrinho" (se ativo) */}
+                        {showAddToCartButton && (
+                          <button 
+                            className="w-full py-1.5 px-3 text-xs border border-primary text-primary bg-transparent rounded-md hover:bg-primary/10 transition-colors flex items-center justify-center gap-1"
+                            onClick={(e) => handleAddToCart(e, product)}
+                          >
+                            <ShoppingCart className="h-3 w-3" />
+                            <span>Adicionar</span>
+                          </button>
+                        )}
+                        
+                        {/* 2º Botão personalizado (se ativo) - sempre no meio */}
+                        {customButtonEnabled && customButtonText && (
+                          <a
+                            href={customButtonLink || '#'}
+                            className="w-full py-1.5 px-3 text-xs rounded-md text-center transition-colors"
+                            style={{ 
+                              backgroundColor: customButtonColor || 'hsl(var(--primary))',
+                              color: '#ffffff'
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {customButtonText}
+                          </a>
+                        )}
+                        
+                        {/* 3º Botão principal "Comprar agora" - sempre por último */}
+                        <a
+                          href={isEditing ? undefined : productUrl || undefined}
+                          className="w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-center"
+                        >
+                          {buyNowButtonText}
+                        </a>
                       </div>
                     </div>
                   </a>
