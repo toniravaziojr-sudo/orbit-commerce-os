@@ -2,6 +2,7 @@
 // PRODUCT SETTINGS PANEL - Accordion for product page settings
 // =============================================
 
+import { useState, useEffect, useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Json } from '@/integrations/supabase/types';
@@ -14,7 +15,8 @@ import {
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
-import { Settings2 } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Settings2, Info } from 'lucide-react';
 import { toast } from 'sonner';
 
 export interface ProductSettings {
@@ -37,14 +39,27 @@ interface ProductSettingsPanelProps {
   tenantId: string;
   settings: ProductSettings;
   onChange: (settings: ProductSettings) => void;
+  onPreviewCart?: (type: 'miniCart' | 'floatingCart') => void;
 }
 
 export function ProductSettingsPanel({
   tenantId,
   settings,
   onChange,
+  onPreviewCart,
 }: ProductSettingsPanelProps) {
   const queryClient = useQueryClient();
+  const [showCartPreviewNotice, setShowCartPreviewNotice] = useState<'miniCart' | 'floatingCart' | null>(null);
+
+  // Auto-hide notice after 5 seconds
+  useEffect(() => {
+    if (showCartPreviewNotice) {
+      const timer = setTimeout(() => {
+        setShowCartPreviewNotice(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [showCartPreviewNotice]);
 
   // Save mutation
   const saveMutation = useMutation({
@@ -85,11 +100,22 @@ export function ProductSettingsPanel({
     },
   });
 
-  const handleChange = (key: keyof ProductSettings, value: boolean | string) => {
+  const handleChange = useCallback((key: keyof ProductSettings, value: boolean | string) => {
     const newSettings = { ...settings, [key]: value };
     onChange(newSettings);
     saveMutation.mutate(newSettings);
-  };
+
+    // Se ativar carrinho suspenso ou carrinho rápido, mostrar preview temporário
+    if (value === true) {
+      if (key === 'openMiniCartOnAdd') {
+        setShowCartPreviewNotice('miniCart');
+        onPreviewCart?.('miniCart');
+      } else if (key === 'showFloatingCart') {
+        setShowCartPreviewNotice('floatingCart');
+        onPreviewCart?.('floatingCart');
+      }
+    }
+  }, [settings, onChange, saveMutation, onPreviewCart]);
 
   return (
     <div className="border-b bg-muted/30">
@@ -197,27 +223,53 @@ export function ProductSettingsPanel({
               <hr className="my-2" />
 
               {/* Abrir carrinho suspenso */}
-              <div className="flex items-center justify-between">
-                <Label htmlFor="openMiniCartOnAdd" className="text-sm">
-                  Abrir carrinho ao adicionar
-                </Label>
-                <Switch
-                  id="openMiniCartOnAdd"
-                  checked={settings.openMiniCartOnAdd ?? true}
-                  onCheckedChange={(checked) => handleChange('openMiniCartOnAdd', checked)}
-                />
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="openMiniCartOnAdd" className="text-sm">
+                      Abrir carrinho suspenso ao adicionar
+                    </Label>
+                    <p className="text-xs text-muted-foreground">Abre o mini-carrinho lateral</p>
+                  </div>
+                  <Switch
+                    id="openMiniCartOnAdd"
+                    checked={settings.openMiniCartOnAdd ?? true}
+                    onCheckedChange={(checked) => handleChange('openMiniCartOnAdd', checked)}
+                  />
+                </div>
+                {showCartPreviewNotice === 'miniCart' && (
+                  <Alert className="bg-blue-500/10 border-blue-500/30">
+                    <Info className="h-4 w-4 text-blue-500" />
+                    <AlertDescription className="text-xs text-blue-700 dark:text-blue-300">
+                      Prévia ativada por 5 segundos. As configurações do carrinho suspenso estão em <strong>Configurações do tema</strong>.
+                    </AlertDescription>
+                  </Alert>
+                )}
               </div>
 
               {/* Carrinho rápido (popup flutuante) */}
-              <div className="flex items-center justify-between">
-                <Label htmlFor="showFloatingCart" className="text-sm">
-                  Carrinho rápido
-                </Label>
-                <Switch
-                  id="showFloatingCart"
-                  checked={settings.showFloatingCart ?? true}
-                  onCheckedChange={(checked) => handleChange('showFloatingCart', checked)}
-                />
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="showFloatingCart" className="text-sm">
+                      Botão "Ir para Carrinho"
+                    </Label>
+                    <p className="text-xs text-muted-foreground">Link para página completa do carrinho</p>
+                  </div>
+                  <Switch
+                    id="showFloatingCart"
+                    checked={settings.showFloatingCart ?? true}
+                    onCheckedChange={(checked) => handleChange('showFloatingCart', checked)}
+                  />
+                </div>
+                {showCartPreviewNotice === 'floatingCart' && (
+                  <Alert className="bg-blue-500/10 border-blue-500/30">
+                    <Info className="h-4 w-4 text-blue-500" />
+                    <AlertDescription className="text-xs text-blue-700 dark:text-blue-300">
+                      Prévia ativada por 5 segundos. As configurações do carrinho são feitas em <strong>Configurações do tema</strong>.
+                    </AlertDescription>
+                  </Alert>
+                )}
               </div>
 
               {/* Divider */}

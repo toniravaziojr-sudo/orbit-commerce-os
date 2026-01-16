@@ -824,9 +824,8 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
           
           {/* Coluna direita: Info */}
           <div className="space-y-4">
-            {/* Selos */}
+            {/* Selos (sem desconto - descontos são geridos pelo menu Descontos) */}
             <div className="flex gap-2">
-              <span className="px-2 py-1 bg-red-100 text-red-600 text-xs rounded">-10%</span>
               <span className="px-2 py-1 bg-blue-100 text-blue-600 text-xs rounded">Novo</span>
             </div>
             
@@ -916,24 +915,24 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
           </div>
         </div>
         
-        {/* Seções abaixo */}
-        <div className="mt-8 space-y-6">
+        {/* Seções abaixo - Placeholders de referência visual (ordem conforme REGRAS.md) */}
+        <div className="mt-8 space-y-4">
           {showBuyTogether && (
-            <div className="border rounded-lg p-4 text-center text-muted-foreground">
-              [Compre Junto]
+            <div className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 text-center">
+              <span className="text-muted-foreground text-sm font-medium">[Compre Junto]</span>
             </div>
           )}
-          <div className="border rounded-lg p-4 text-center text-muted-foreground">
-            [Descrição Completa]
+          <div className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 text-center">
+            <span className="text-muted-foreground text-sm font-medium">[Descrição Completa]</span>
           </div>
           {showReviews && (
-            <div className="border rounded-lg p-4 text-center text-muted-foreground">
-              [Avaliações]
+            <div className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 text-center">
+              <span className="text-muted-foreground text-sm font-medium">[Avaliações]</span>
             </div>
           )}
           {showRelatedProducts && (
-            <div className="border rounded-lg p-4 text-center text-muted-foreground">
-              [Produtos Relacionados]
+            <div className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 text-center">
+              <span className="text-muted-foreground text-sm font-medium">[Produtos Relacionados]</span>
             </div>
           )}
         </div>
@@ -1006,11 +1005,8 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
         
         {/* ===== COLUNA DIREITA: INFO DO PRODUTO ===== */}
         <div className="sf-product-info space-y-4">
-          {/* 1. Selos do produto */}
-          <ProductBadges 
-            hasDiscount={hasDiscount}
-            discountPercent={discountPercent}
-          />
+          {/* 1. Selos do produto (sem desconto - descontos são geridos pelo menu Descontos) */}
+          <ProductBadges />
           
           {/* 2. Estrelas de avaliação */}
           {showReviews && product?.id && (
