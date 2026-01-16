@@ -288,31 +288,26 @@ export function CategoryPageLayout({
         {/* Products grid */}
         <div className="flex-1 relative">
           {filteredProducts.length === 0 ? (
-            isEditing ? (
-              // Structural preview in editing mode - show skeleton grid
-              <div className={cn('grid gap-4', getGridCols())}>
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="bg-card rounded-lg overflow-hidden border">
-                    <div className="aspect-square bg-muted flex items-center justify-center">
-                      <svg className="w-10 h-10 text-muted-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                    <div className="p-3 space-y-2">
-                      <div className="h-4 bg-muted rounded w-3/4" />
-                      <div className="h-4 bg-muted rounded w-1/3" />
+            // Sempre mostrar placeholders estruturais quando não há produtos
+            <div className={cn('grid gap-4', getGridCols())}>
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="bg-card rounded-lg overflow-hidden border">
+                  <div className="aspect-square bg-muted flex items-center justify-center">
+                    <svg className="w-10 h-10 text-muted-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <div className="p-3 space-y-2">
+                    <div className="h-4 bg-muted rounded w-3/4" />
+                    <div className="h-4 bg-muted rounded w-1/3" />
+                    <div className="mt-2 space-y-1.5">
+                      <div className="h-7 bg-muted rounded w-full" />
+                      <div className="h-7 bg-primary/20 rounded w-full" />
                     </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <p className="text-muted-foreground">
-                  Nenhum produto encontrado
-                  {displayProducts.length > 0 && ' com os filtros selecionados.'}
-                </p>
-              </div>
-            )
+                </div>
+              ))}
+            </div>
           ) : (
             <div className={cn('grid gap-4', getGridCols())}>
               {filteredProducts.map((product) => {
