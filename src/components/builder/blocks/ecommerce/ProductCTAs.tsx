@@ -25,6 +25,13 @@ interface ProductCTAsProps {
   isInteractMode?: boolean;
   openMiniCartOnAdd?: boolean;
   onOpenMiniCart?: () => void;
+  // Novos campos conforme REGRAS.md
+  showWhatsAppButton?: boolean;
+  showAddToCartButton?: boolean;
+  buyNowButtonText?: string;
+  miniCartEnabled?: boolean;        // Do tema (não da página)
+  hasRequiredVariant?: boolean;     // Se tem variantes obrigatórias
+  variantSelected?: boolean;        // Se alguma variante está selecionada
 }
 
 export function ProductCTAs({
@@ -41,6 +48,12 @@ export function ProductCTAs({
   isInteractMode,
   openMiniCartOnAdd,
   onOpenMiniCart,
+  showWhatsAppButton = true,
+  showAddToCartButton = true,
+  buyNowButtonText = 'Comprar agora',
+  miniCartEnabled = true,
+  hasRequiredVariant = false,
+  variantSelected = true,
 }: ProductCTAsProps) {
   const navigate = useNavigate();
   const { items, addItem } = useCart();
@@ -64,6 +77,9 @@ export function ProductCTAs({
   
   const isOutOfStock = productStock <= 0 && !allowBackorder;
   const maxQuantity = allowBackorder ? 999 : productStock;
+  
+  // Regra de segurança: desabilita compra se variante obrigatória não selecionada
+  const requiresVariantSelection = hasRequiredVariant && !variantSelected;
   const quantity = localQuantity;
   
   const handleQuantityChange = React.useCallback((newQty: number) => {
@@ -72,7 +88,7 @@ export function ProductCTAs({
   }, [maxQuantity]);
   
   const handleAddToCart = React.useCallback(() => {
-    if (!productId || isOutOfStock || isAddingToCart) return;
+    if (!productId || isOutOfStock || isAddingToCart || requiresVariantSelection) return;
     
     setIsAddingToCart(true);
     
@@ -97,18 +113,20 @@ export function ProductCTAs({
       setAddedFeedback(true);
       toast.success('Produto adicionado ao carrinho!');
       
-      if (openMiniCartOnAdd && onOpenMiniCart) {
+      // Regra de segurança: só abre mini-cart se miniCartEnabled no tema
+      if (openMiniCartOnAdd && miniCartEnabled && onOpenMiniCart) {
         onOpenMiniCart();
       }
+      // Se openMiniCartOnAdd=true mas miniCartEnabled=false, adiciona silenciosamente (apenas toast)
       
       setTimeout(() => {
         setAddedFeedback(false);
       }, 2000);
     }, 150);
-  }, [productId, productName, productSku, productPrice, quantity, imageUrl, isOutOfStock, isAddingToCart, addItem, openMiniCartOnAdd, onOpenMiniCart, trackAddToCart]);
+  }, [productId, productName, productSku, productPrice, quantity, imageUrl, isOutOfStock, isAddingToCart, addItem, openMiniCartOnAdd, miniCartEnabled, onOpenMiniCart, trackAddToCart, requiresVariantSelection]);
   
   const handleBuyNow = React.useCallback(() => {
-    if (!productId || isOutOfStock || isAddingToCart) return;
+    if (!productId || isOutOfStock || isAddingToCart || requiresVariantSelection) return;
     
     addItem({
       product_id: productId,
@@ -128,7 +146,7 @@ export function ProductCTAs({
     
     const checkoutUrl = getPublicCheckoutUrl(tenantSlug, isPreview);
     navigate(checkoutUrl);
-  }, [productId, productName, productSku, productPrice, quantity, imageUrl, isOutOfStock, isAddingToCart, addItem, tenantSlug, isPreview, navigate, trackAddToCart]);
+  }, [productId, productName, productSku, productPrice, quantity, imageUrl, isOutOfStock, isAddingToCart, addItem, tenantSlug, isPreview, navigate, trackAddToCart, requiresVariantSelection]);
   
   const handleWhatsApp = React.useCallback(() => {
     const whatsappNumber = '5511919555920';
@@ -138,9 +156,17 @@ export function ProductCTAs({
   }, [productName]);
   
   const disableInteraction = isEditing && !isInteractMode;
+  const disableBuyButtons = disableInteraction || requiresVariantSelection;
 
   return (
     <div className="space-y-3 pt-2">
+      {/* Mensagem de seleção obrigatória */}
+      {requiresVariantSelection && (
+        <p className="text-sm text-amber-600 text-center font-medium">
+          Selecione uma opção
+        </p>
+      )}
+      
       {/* Quantity selector + Comprar agora in row */}
       <div className="flex gap-3">
         {/* Quantity Selector */}
@@ -167,46 +193,50 @@ export function ProductCTAs({
         {/* Comprar Agora - Uses primary color */}
         <Button
           onClick={handleBuyNow}
-          disabled={isOutOfStock || isAddingToCart || disableInteraction}
+          disabled={isOutOfStock || isAddingToCart || disableBuyButtons}
           className="flex-1 h-10 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold uppercase tracking-wide text-sm"
         >
           {isAddingToCart ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
-            'Comprar agora'
+            buyNowButtonText
           )}
         </Button>
       </div>
       
       {/* Adicionar ao Carrinho - Uses primary color for border */}
-      <Button
-        variant="outline"
-        onClick={handleAddToCart}
-        disabled={isOutOfStock || isAddingToCart || disableInteraction}
-        className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm border-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-      >
-        {isAddingToCart ? (
-          <Loader2 className="w-4 h-4 animate-spin mr-2" />
-        ) : addedFeedback ? (
-          <>
-            <Check className="w-4 h-4 mr-2" />
-            Adicionado!
-          </>
-        ) : (
-          'Adicionar ao carrinho'
-        )}
-      </Button>
+      {showAddToCartButton && (
+        <Button
+          variant="outline"
+          onClick={handleAddToCart}
+          disabled={isOutOfStock || isAddingToCart || disableBuyButtons}
+          className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm border-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+        >
+          {isAddingToCart ? (
+            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+          ) : addedFeedback ? (
+            <>
+              <Check className="w-4 h-4 mr-2" />
+              Adicionado!
+            </>
+          ) : (
+            'Adicionar ao carrinho'
+          )}
+        </Button>
+      )}
       
       {/* Comprar pelo WhatsApp */}
-      <Button
-        variant="outline"
-        onClick={handleWhatsApp}
-        disabled={disableInteraction}
-        className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm border-2 border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700"
-      >
-        <MessageCircle className="w-5 h-5 mr-2" />
-        Comprar pelo WhatsApp
-      </Button>
+      {showWhatsAppButton && (
+        <Button
+          variant="outline"
+          onClick={handleWhatsApp}
+          disabled={disableInteraction}
+          className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm border-2 border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700"
+        >
+          <MessageCircle className="w-5 h-5 mr-2" />
+          Comprar pelo WhatsApp
+        </Button>
+      )}
       
       {/* Out of stock message */}
       {isOutOfStock && (

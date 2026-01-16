@@ -33,6 +33,11 @@ export interface ProductSettings {
   showBuyTogether?: boolean;
   showReviews?: boolean;
   openMiniCartOnAdd?: boolean;
+  // Novos campos conforme REGRAS.md
+  showFloatingCart?: boolean;       // Carrinho rápido (popup flutuante)
+  showWhatsAppButton?: boolean;     // Mostrar botão WhatsApp
+  showAddToCartButton?: boolean;    // Mostrar botão Adicionar ao carrinho
+  buyNowButtonText?: string;        // Texto do botão principal
 }
 
 export interface CartSettings {
@@ -85,6 +90,10 @@ const DEFAULT_SETTINGS: Record<string, PageSettings> = {
     showBuyTogether: true,
     showReviews: true,
     openMiniCartOnAdd: true,
+    showFloatingCart: true,
+    showWhatsAppButton: true,
+    showAddToCartButton: true,
+    buyNowButtonText: 'Comprar agora',
   } as ProductSettings,
   cart: {
     showCrossSell: true,
