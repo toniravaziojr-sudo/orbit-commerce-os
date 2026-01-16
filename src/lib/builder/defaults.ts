@@ -456,7 +456,7 @@ export const defaultProductTemplate: BlockNode = {
             subtitle: 'Aproveite o desconto levando mais',
             maxItems: 3,
             variant: 'normal',
-            showWhenEmpty: true,
+            showWhenEmpty: false, // Only show when offers are configured
           },
         },
       ],

@@ -164,9 +164,11 @@ export function CompreJuntoSlotBlock({
     );
   }
 
-  // No rule configured - show empty state or nothing
+  // No rule configured - show empty state ONLY in editor, never in public
   if (!rule || !rule.suggestedProduct || !currentProduct) {
-    if (!showWhenEmpty) return null;
+    // IMPORTANT: In public storefront, never show the empty state CTA
+    // Only show in editor mode when showWhenEmpty is true
+    if (!isEditing || !showWhenEmpty) return null;
 
     return (
       <section className="py-6 border-t">
