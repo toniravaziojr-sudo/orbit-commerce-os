@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { useProductBadges, ProductBadge, BadgeShape, BadgePosition, CreateBadgeInput } from '@/hooks/useProductBadges';
+import { useState, useEffect } from 'react';
+import { useProductBadges, useBadgeAssignments, ProductBadge, BadgeShape, BadgePosition, CreateBadgeInput } from '@/hooks/useProductBadges';
+import { ProductMultiSelect } from '@/components/builder/ProductMultiSelect';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   Plus, 
   Trash2, 
@@ -16,6 +18,7 @@ import {
   Edit,
   ToggleLeft,
   ToggleRight,
+  Package,
 } from 'lucide-react';
 
 const shapeLabels: Record<BadgeShape, string> = {
@@ -101,10 +104,22 @@ export function BadgesContent() {
   const [editingBadge, setEditingBadge] = useState<ProductBadge | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [formData, setFormData] = useState<BadgeFormData>(defaultFormData);
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+
+  // Fetch badge assignments when editing
+  const { assignedProductIds, isLoading: isLoadingAssignments, updateAssignments } = useBadgeAssignments(editingBadge?.id);
+
+  // Sync selected products when editing badge loads
+  useEffect(() => {
+    if (editingBadge && assignedProductIds.length >= 0) {
+      setSelectedProducts(assignedProductIds);
+    }
+  }, [editingBadge, assignedProductIds]);
 
   const openCreateDialog = () => {
     setEditingBadge(null);
     setFormData(defaultFormData);
+    setSelectedProducts([]);
     setIsDialogOpen(true);
   };
 
@@ -133,8 +148,14 @@ export function BadgesContent() {
 
     if (editingBadge) {
       await updateBadge.mutateAsync({ id: editingBadge.id, ...input });
+      // Update product assignments
+      await updateAssignments.mutateAsync({ badgeId: editingBadge.id, productIds: selectedProducts });
     } else {
-      await createBadge.mutateAsync(input);
+      const newBadge = await createBadge.mutateAsync(input);
+      // Create product assignments for new badge
+      if (selectedProducts.length > 0 && newBadge?.id) {
+        await updateAssignments.mutateAsync({ badgeId: newBadge.id, productIds: selectedProducts });
+      }
     }
     setIsDialogOpen(false);
   };
@@ -261,130 +282,153 @@ export function BadgesContent() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>
               {editingBadge ? 'Editar Selo' : 'Novo Selo'}
             </DialogTitle>
             <DialogDescription>
-              Configure a aparência do selo
+              Configure a aparência do selo e selecione os produtos
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6 py-4">
-            {/* Preview */}
-            <div>
-              <Label className="text-xs text-muted-foreground uppercase">Prévia</Label>
-              <BadgePreview data={formData} />
-            </div>
-
-            {/* Name */}
-            <div>
-              <Label>Nome do selo *</Label>
-              <Input
-                value={formData.name}
-                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="Ex: Promoção, Novo, -30%"
-                maxLength={20}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Máximo 20 caracteres
-              </p>
-            </div>
-
-            {/* Colors */}
-            <div className="grid grid-cols-2 gap-4">
+          <ScrollArea className="flex-1 pr-4">
+            <div className="space-y-6 py-4">
+              {/* Preview */}
               <div>
-                <Label>Cor de fundo</Label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={formData.background_color}
-                    onChange={(e) => setFormData(prev => ({ ...prev, background_color: e.target.value }))}
-                    className="w-10 h-10 rounded border cursor-pointer"
-                  />
-                  <Input
-                    value={formData.background_color}
-                    onChange={(e) => setFormData(prev => ({ ...prev, background_color: e.target.value }))}
-                    className="flex-1"
-                    placeholder="#F59E0B"
-                  />
+                <Label className="text-xs text-muted-foreground uppercase">Prévia</Label>
+                <BadgePreview data={formData} />
+              </div>
+
+              {/* Name */}
+              <div>
+                <Label>Nome do selo *</Label>
+                <Input
+                  value={formData.name}
+                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Ex: Promoção, Novo, -30%"
+                  maxLength={20}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Máximo 20 caracteres
+                </p>
+              </div>
+
+              {/* Colors */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Cor de fundo</Label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={formData.background_color}
+                      onChange={(e) => setFormData(prev => ({ ...prev, background_color: e.target.value }))}
+                      className="w-10 h-10 rounded border cursor-pointer"
+                    />
+                    <Input
+                      value={formData.background_color}
+                      onChange={(e) => setFormData(prev => ({ ...prev, background_color: e.target.value }))}
+                      className="flex-1"
+                      placeholder="#F59E0B"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label>Cor do texto</Label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={formData.text_color}
+                      onChange={(e) => setFormData(prev => ({ ...prev, text_color: e.target.value }))}
+                      className="w-10 h-10 rounded border cursor-pointer"
+                    />
+                    <Input
+                      value={formData.text_color}
+                      onChange={(e) => setFormData(prev => ({ ...prev, text_color: e.target.value }))}
+                      className="flex-1"
+                      placeholder="#FFFFFF"
+                    />
+                  </div>
                 </div>
               </div>
+
+              {/* Shape */}
               <div>
-                <Label>Cor do texto</Label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={formData.text_color}
-                    onChange={(e) => setFormData(prev => ({ ...prev, text_color: e.target.value }))}
-                    className="w-10 h-10 rounded border cursor-pointer"
+                <Label>Formato</Label>
+                <Select
+                  value={formData.shape}
+                  onValueChange={(v) => setFormData(prev => ({ ...prev, shape: v as BadgeShape }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(shapeLabels).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Position */}
+              <div>
+                <Label>Posição</Label>
+                <Select
+                  value={formData.position}
+                  onValueChange={(v) => setFormData(prev => ({ ...prev, position: v as BadgePosition }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(positionLabels).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Active */}
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={formData.is_active}
+                  onCheckedChange={(v) => setFormData(prev => ({ ...prev, is_active: v }))}
+                />
+                <Label>Selo ativo</Label>
+              </div>
+
+              {/* Product Selection */}
+              <div className="border-t pt-4">
+                <Label className="flex items-center gap-2 mb-3">
+                  <Package className="h-4 w-4" />
+                  Produtos vinculados
+                </Label>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Selecione os produtos que exibirão este selo
+                </p>
+                {isLoadingAssignments && editingBadge ? (
+                  <div className="text-sm text-muted-foreground py-4 text-center">
+                    Carregando produtos...
+                  </div>
+                ) : (
+                  <ProductMultiSelect
+                    value={selectedProducts}
+                    onChange={setSelectedProducts}
                   />
-                  <Input
-                    value={formData.text_color}
-                    onChange={(e) => setFormData(prev => ({ ...prev, text_color: e.target.value }))}
-                    className="flex-1"
-                    placeholder="#FFFFFF"
-                  />
-                </div>
+                )}
               </div>
             </div>
+          </ScrollArea>
 
-            {/* Shape */}
-            <div>
-              <Label>Formato</Label>
-              <Select
-                value={formData.shape}
-                onValueChange={(v) => setFormData(prev => ({ ...prev, shape: v as BadgeShape }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(shapeLabels).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Position */}
-            <div>
-              <Label>Posição</Label>
-              <Select
-                value={formData.position}
-                onValueChange={(v) => setFormData(prev => ({ ...prev, position: v as BadgePosition }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(positionLabels).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Active */}
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={formData.is_active}
-                onCheckedChange={(v) => setFormData(prev => ({ ...prev, is_active: v }))}
-              />
-              <Label>Selo ativo</Label>
-            </div>
-          </div>
-
-          <DialogFooter>
+          <DialogFooter className="border-t pt-4">
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
               Cancelar
             </Button>
             <Button 
               onClick={handleSave}
-              disabled={!formData.name.trim() || createBadge.isPending || updateBadge.isPending}
+              disabled={!formData.name.trim() || createBadge.isPending || updateBadge.isPending || updateAssignments.isPending}
             >
-              {createBadge.isPending || updateBadge.isPending ? 'Salvando...' : 'Salvar'}
+              {createBadge.isPending || updateBadge.isPending || updateAssignments.isPending ? 'Salvando...' : 'Salvar'}
             </Button>
           </DialogFooter>
         </DialogContent>
