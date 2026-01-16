@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -21,6 +21,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -29,7 +31,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useDiscounts, Discount, DiscountType, discountTypeLabels } from "@/hooks/useDiscounts";
-import { Percent, Tag, Truck, Sparkles } from "lucide-react";
+import { useProducts } from "@/hooks/useProducts";
+import { useCategories } from "@/hooks/useProducts";
+import { Percent, Tag, Truck, Sparkles, Package, FolderTree, Globe } from "lucide-react";
+
+type AppliesTo = 'all' | 'specific_products' | 'specific_categories';
 
 const formSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -44,6 +50,9 @@ const formSchema = z.object({
   min_subtotal: z.number().min(0).optional().nullable(),
   description: z.string().optional().nullable(),
   auto_apply_first_purchase: z.boolean(),
+  applies_to: z.enum(['all', 'specific_products', 'specific_categories']),
+  product_ids: z.array(z.string()),
+  category_ids: z.array(z.string()),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -56,6 +65,8 @@ interface DiscountFormDialogProps {
 
 export function DiscountFormDialog({ open, onOpenChange, discount }: DiscountFormDialogProps) {
   const { createDiscount, updateDiscount } = useDiscounts();
+  const { products } = useProducts();
+  const { categories } = useCategories();
   const isEditing = !!discount;
 
   const form = useForm<FormValues>({
@@ -73,11 +84,17 @@ export function DiscountFormDialog({ open, onOpenChange, discount }: DiscountFor
       min_subtotal: null,
       description: null,
       auto_apply_first_purchase: false,
+      applies_to: 'all',
+      product_ids: [],
+      category_ids: [],
     },
   });
 
+  const watchAppliesTo = form.watch("applies_to");
+
   useEffect(() => {
     if (discount) {
+      const discountData = discount as any;
       form.reset({
         name: discount.name,
         code: discount.code || "",
@@ -90,7 +107,10 @@ export function DiscountFormDialog({ open, onOpenChange, discount }: DiscountFor
         usage_limit_per_customer: discount.usage_limit_per_customer,
         min_subtotal: discount.min_subtotal,
         description: discount.description,
-        auto_apply_first_purchase: (discount as any).auto_apply_first_purchase || false,
+        auto_apply_first_purchase: discountData.auto_apply_first_purchase || false,
+        applies_to: discountData.applies_to || 'all',
+        product_ids: discountData.product_ids || [],
+        category_ids: discountData.category_ids || [],
       });
     } else {
       form.reset({
@@ -106,6 +126,9 @@ export function DiscountFormDialog({ open, onOpenChange, discount }: DiscountFor
         min_subtotal: null,
         description: null,
         auto_apply_first_purchase: false,
+        applies_to: 'all',
+        product_ids: [],
+        category_ids: [],
       });
     }
   }, [discount, form]);
@@ -126,6 +149,9 @@ export function DiscountFormDialog({ open, onOpenChange, discount }: DiscountFor
       min_subtotal: values.min_subtotal || null,
       description: values.description || null,
       auto_apply_first_purchase: values.auto_apply_first_purchase,
+      applies_to: values.applies_to,
+      product_ids: values.applies_to === 'specific_products' ? values.product_ids : [],
+      category_ids: values.applies_to === 'specific_categories' ? values.category_ids : [],
     };
 
     if (isEditing) {
@@ -249,6 +275,147 @@ export function DiscountFormDialog({ open, onOpenChange, discount }: DiscountFor
                 />
               )}
             </div>
+
+            {/* Product Scope */}
+            <FormField
+              control={form.control}
+              name="applies_to"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Aplica-se a</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="all">
+                        <div className="flex items-center gap-2">
+                          <Globe className="h-4 w-4" />
+                          Todos os produtos
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="specific_products">
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4" />
+                          Produtos específicos
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="specific_categories">
+                        <div className="flex items-center gap-2">
+                          <FolderTree className="h-4 w-4" />
+                          Categorias específicas
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    {field.value === 'all' && 'O desconto será aplicado em qualquer produto'}
+                    {field.value === 'specific_products' && 'O desconto só será aplicado nos produtos selecionados'}
+                    {field.value === 'specific_categories' && 'O desconto só será aplicado em produtos das categorias selecionadas'}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Product Selection */}
+            {watchAppliesTo === 'specific_products' && (
+              <FormField
+                control={form.control}
+                name="product_ids"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Selecione os produtos</FormLabel>
+                    <ScrollArea className="h-48 rounded-md border p-4">
+                      <div className="space-y-2">
+                        {products.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">Nenhum produto cadastrado</p>
+                        ) : (
+                          products.map((product) => (
+                            <div key={product.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`product-${product.id}`}
+                                checked={field.value.includes(product.id)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    field.onChange([...field.value, product.id]);
+                                  } else {
+                                    field.onChange(field.value.filter((id) => id !== product.id));
+                                  }
+                                }}
+                              />
+                              <label
+                                htmlFor={`product-${product.id}`}
+                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                              >
+                                {product.name}
+                                <span className="text-muted-foreground ml-2">({product.sku})</span>
+                              </label>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </ScrollArea>
+                    {field.value.length > 0 && (
+                      <FormDescription>
+                        {field.value.length} produto(s) selecionado(s)
+                      </FormDescription>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {/* Category Selection */}
+            {watchAppliesTo === 'specific_categories' && (
+              <FormField
+                control={form.control}
+                name="category_ids"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Selecione as categorias</FormLabel>
+                    <ScrollArea className="h-48 rounded-md border p-4">
+                      <div className="space-y-2">
+                        {categories.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">Nenhuma categoria cadastrada</p>
+                        ) : (
+                          categories.map((category) => (
+                            <div key={category.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`category-${category.id}`}
+                                checked={field.value.includes(category.id)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    field.onChange([...field.value, category.id]);
+                                  } else {
+                                    field.onChange(field.value.filter((id) => id !== category.id));
+                                  }
+                                }}
+                              />
+                              <label
+                                htmlFor={`category-${category.id}`}
+                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                              >
+                                {category.name}
+                              </label>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </ScrollArea>
+                    {field.value.length > 0 && (
+                      <FormDescription>
+                        {field.value.length} categoria(s) selecionada(s)
+                      </FormDescription>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             {/* Date Range */}
             <div className="grid grid-cols-2 gap-4">

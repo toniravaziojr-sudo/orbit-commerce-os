@@ -2548,7 +2548,9 @@ export type Database = {
       }
       discounts: {
         Row: {
+          applies_to: string | null
           auto_apply_first_purchase: boolean
+          category_ids: string[] | null
           code: string | null
           created_at: string
           description: string | null
@@ -2557,6 +2559,7 @@ export type Database = {
           is_active: boolean
           min_subtotal: number | null
           name: string
+          product_ids: string[] | null
           starts_at: string | null
           tenant_id: string
           type: string
@@ -2566,7 +2569,9 @@ export type Database = {
           value: number
         }
         Insert: {
+          applies_to?: string | null
           auto_apply_first_purchase?: boolean
+          category_ids?: string[] | null
           code?: string | null
           created_at?: string
           description?: string | null
@@ -2575,6 +2580,7 @@ export type Database = {
           is_active?: boolean
           min_subtotal?: number | null
           name: string
+          product_ids?: string[] | null
           starts_at?: string | null
           tenant_id: string
           type: string
@@ -2584,7 +2590,9 @@ export type Database = {
           value?: number
         }
         Update: {
+          applies_to?: string | null
           auto_apply_first_purchase?: boolean
+          category_ids?: string[] | null
           code?: string | null
           created_at?: string
           description?: string | null
@@ -2593,6 +2601,7 @@ export type Database = {
           is_active?: boolean
           min_subtotal?: number | null
           name?: string
+          product_ids?: string[] | null
           starts_at?: string | null
           tenant_id?: string
           type?: string
