@@ -60,35 +60,59 @@ interface BuilderSidebarProps {
   templateName?: string;
 }
 
-// Blocks that should be hidden from the sidebar (infrastructure only)
-// Section IS hidden because it's just a container - we show its CHILDREN instead
-const SIDEBAR_HIDDEN_BLOCKS = new Set(['Header', 'Footer', 'Page', 'Section']);
+// Blocks that should be hidden from the sidebar
+// These are either infrastructure (Header/Footer/Page/Section) or SYSTEM FEATURES
+// System features are controlled via Theme Settings > Pages, not as editable blocks
+// The user can toggle them ON/OFF in settings, but not manually add/remove/reorder them
+const SIDEBAR_HIDDEN_BLOCKS = new Set([
+  // Infrastructure - always hidden
+  'Header', 'Footer', 'Page', 'Section',
+  
+  // System features - Category page
+  'CategoryBanner', 'ProductGrid',
+  
+  // System features - Product page
+  'ProductDetails', 'CompreJuntoSlot',
+  
+  // System features - Cart/Checkout/Thank-you
+  'Cart', 'Checkout', 'ThankYou',
+  
+  // System features - Offer slots (controlled by offers module)
+  'CrossSellSlot', 'OrderBumpSlot', 'UpsellSlot',
+  
+  // System features - Account pages
+  'AccountHub', 'OrdersList', 'OrderDetail',
+  
+  // System features - Other system pages
+  'TrackingLookup', 'BlogListing',
+]);
 
 // Get all content blocks for sidebar display
 // This flattens Section containers to show their children directly
-// This way the user sees "Image", "RichText", etc. instead of "LayoutDashboard Seção"
+// ONLY shows blocks that are NOT in SIDEBAR_HIDDEN_BLOCKS (user-customizable blocks)
 function getMainSections(content: BlockNode, hideStructural: boolean = true): BlockNode[] {
   if (!content.children) return [];
   if (!hideStructural) return content.children;
   
-  // Collect all visible blocks, flattening Section containers
+  // Collect only user-customizable blocks, flattening Section containers
   const result: BlockNode[] = [];
   
   for (const block of content.children) {
-    // Skip infrastructure blocks entirely
-    if (block.type === 'Header' || block.type === 'Footer' || block.type === 'Page') {
-      continue;
-    }
-    
-    // For Section blocks, show their children instead of the Section itself
-    if (block.type === 'Section') {
-      if (block.children && block.children.length > 0) {
-        result.push(...block.children);
+    // Skip all hidden blocks (infrastructure + system features)
+    if (SIDEBAR_HIDDEN_BLOCKS.has(block.type)) {
+      // For Section blocks, check if they have user-customizable children
+      if (block.type === 'Section' && block.children && block.children.length > 0) {
+        // Only add children that are NOT system blocks
+        for (const child of block.children) {
+          if (!SIDEBAR_HIDDEN_BLOCKS.has(child.type)) {
+            result.push(child);
+          }
+        }
       }
       continue;
     }
     
-    // All other blocks are shown directly
+    // Non-hidden blocks are shown directly
     result.push(block);
   }
   
