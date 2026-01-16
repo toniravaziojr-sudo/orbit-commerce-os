@@ -3,6 +3,7 @@
 // Shows mock data without CartContext dependency
 // Renders as an overlay inside the builder canvas (not a global Sheet)
 // Reflects active configuration options from MiniCartSettings
+// Free shipping threshold comes from Logistics > Cart Conversion settings (benefit_config)
 // =============================================
 
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,9 @@ import { ShoppingCart, Truck, Check, X, Clock, Tag, Plus } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { MiniCartConfig, DEFAULT_MINI_CART_CONFIG } from './theme-settings/MiniCartSettings';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 interface MiniCartPreviewProps {
   open: boolean;
@@ -43,18 +47,47 @@ const MOCK_CROSS_SELL = [
   { id: 'cs2', name: 'Outro Sugerido', price: 39.90 },
 ];
 
+// Default threshold fallback
+const DEFAULT_FREE_SHIPPING_THRESHOLD = 199;
+
 export function MiniCartPreview({ 
   open, 
   onOpenChange,
   viewport = 'desktop',
   config = DEFAULT_MINI_CART_CONFIG,
 }: MiniCartPreviewProps) {
+  const { currentTenant } = useAuth();
+  const currentTenantId = currentTenant?.id;
+  
+  // Fetch benefit_config from store_settings (Logistics > Cart Conversion)
+  const { data: benefitConfig } = useQuery({
+    queryKey: ['benefit-config-for-minicart', currentTenantId],
+    queryFn: async () => {
+      if (!currentTenantId) return null;
+      const { data, error } = await supabase
+        .from('store_settings')
+        .select('benefit_config')
+        .eq('tenant_id', currentTenantId)
+        .maybeSingle();
+      if (error) throw error;
+      if (data?.benefit_config) {
+        const parsed = typeof data.benefit_config === 'string' 
+          ? JSON.parse(data.benefit_config) 
+          : data.benefit_config;
+        return parsed;
+      }
+      return null;
+    },
+    enabled: !!currentTenantId && open,
+    staleTime: 30000,
+  });
+  
   const subtotal = MOCK_ITEMS.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const shipping = config.showShippingCalculator ? 15.90 : 0;
   const total = subtotal + shipping;
   
-  // Calculate free shipping progress
-  const freeShippingThreshold = config.freeShippingThreshold || 299;
+  // Use threshold from Logistics settings (benefit_config), fallback to default
+  const freeShippingThreshold = benefitConfig?.thresholdValue || DEFAULT_FREE_SHIPPING_THRESHOLD;
   const remainingForFreeShipping = Math.max(0, freeShippingThreshold - subtotal);
   const freeShippingProgress = Math.min(100, (subtotal / freeShippingThreshold) * 100);
   const hasFreeShipping = subtotal >= freeShippingThreshold;
