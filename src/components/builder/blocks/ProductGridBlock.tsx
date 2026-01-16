@@ -105,8 +105,9 @@ export function ProductGridBlock({
   const tenantId = tenant?.id;
 
   // Fetch products based on source
+  // REGRAS.md: Se categoria não tiver produtos, mostrar produtos aleatórios do tenant para preenchimento visual
   const { data: products, isLoading } = useQuery({
-    queryKey: ['builder-products', tenantId, source, effectiveCategoryId, limit],
+    queryKey: ['builder-products', tenantId, source, effectiveCategoryId, limit, isEditing],
     queryFn: async () => {
       if (!tenantId) return [];
 
@@ -127,7 +128,20 @@ export function ProductGridBlock({
           .eq('category_id', effectiveCategoryId)
           .order('position', { ascending: true });
 
-        if (!productCategories?.length) return [];
+        // REGRAS.md: Se categoria não tiver produtos mas tenant tiver, mostrar aleatórios para preenchimento
+        if (!productCategories?.length) {
+          // Buscar produtos aleatórios do tenant para fins de visualização
+          const { data: fallbackProducts, error: fallbackError } = await supabase
+            .from('products')
+            .select('id, name, slug, price, compare_at_price, is_featured, product_images(url, is_primary)')
+            .eq('tenant_id', tenantId)
+            .eq('status', 'active')
+            .limit(limit)
+            .order('created_at', { ascending: false });
+          
+          if (fallbackError) throw fallbackError;
+          return (fallbackProducts || []) as Product[];
+        }
         
         const productIds = productCategories.map(pc => pc.product_id);
         const positionMap = new Map(productCategories.map(pc => [pc.product_id, pc.position]));
