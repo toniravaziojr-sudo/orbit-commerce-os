@@ -67,27 +67,15 @@ export function ProductCardBadges({ badges, className }: ProductCardBadgesProps)
     </span>
   );
 
+  // Combine all badges into a single row for uniform horizontal display
+  const allBadges = [...leftBadges, ...centerBadges, ...rightBadges].slice(0, 3);
+
   return (
     <div className={cn('absolute inset-x-0 top-1.5 pointer-events-none z-10', className)}>
-      {/* Top row: Left and Right badges side by side */}
-      <div className="flex justify-between items-start px-1.5 gap-1">
-        {/* Left badges - horizontal layout */}
-        <div className="flex flex-wrap gap-0.5 max-w-[50%]">
-          {leftBadges.map(renderBadge)}
-        </div>
-
-        {/* Right badges - horizontal layout, align right */}
-        <div className="flex flex-wrap gap-0.5 justify-end max-w-[50%]">
-          {rightBadges.map(renderBadge)}
-        </div>
+      {/* Single horizontal row with uniform spacing */}
+      <div className="flex items-center gap-1 px-1.5 flex-nowrap overflow-hidden">
+        {allBadges.map(renderBadge)}
       </div>
-
-      {/* Center badges - below if any */}
-      {centerBadges.length > 0 && (
-        <div className="flex justify-center gap-0.5 mt-0.5 px-1.5">
-          {centerBadges.map(renderBadge)}
-        </div>
-      )}
     </div>
   );
 }
