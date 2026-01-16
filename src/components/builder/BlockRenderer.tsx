@@ -89,6 +89,15 @@ import { ProductPageSections } from '@/components/storefront/ProductPageSections
 import { MiniCartDrawer } from '@/components/storefront/MiniCartDrawer';
 import { CartContent } from '@/components/storefront/cart/CartContent';
 
+// Product page components (conforme REGRAS.md)
+import { ProductBadges } from '@/components/storefront/product/ProductBadges';
+import { PaymentBadges } from '@/components/storefront/product/PaymentBadges';
+import { ShippingCalculator } from '@/components/storefront/product/ShippingCalculator';
+import { GuaranteeBadges } from '@/components/storefront/product/GuaranteeBadges';
+import { ProductVariantSelector } from '@/components/storefront/product/ProductVariantSelector';
+import { FloatingCartButton } from '@/components/storefront/FloatingCartButton';
+import { useProductVariants } from '@/hooks/useProductVariants';
+
 // Note: StorefrontOrdersList and StorefrontOrderDetail are NOT imported here
 // to avoid circular dependency (they import BlockRenderer).
 // The OrdersListBlock and OrderDetailBlock only render placeholders in edit mode,
@@ -686,13 +695,23 @@ function ProductCardBlock({ productId, showPrice = true, showButton = true, isEd
 
 function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractMode }: any) {
   const productSettings = context?.productSettings || {};
+  
+  // Toggles conforme REGRAS.md (apenas os 11 listados)
   const showGallery = productSettings.showGallery !== false;
   const showDescription = productSettings.showDescription !== false;
+  const showVariants = productSettings.showVariants !== false;
   const showStock = productSettings.showStock !== false;
   const showReviews = productSettings.showReviews !== false;
   const showBuyTogether = productSettings.showBuyTogether !== false;
   const showRelatedProducts = productSettings.showRelatedProducts !== false;
   const openMiniCartOnAdd = productSettings.openMiniCartOnAdd !== false;
+  const showFloatingCart = productSettings.showFloatingCart !== false;
+  const showWhatsAppButton = productSettings.showWhatsAppButton !== false;
+  const showAddToCartButton = productSettings.showAddToCartButton !== false;
+  const buyNowButtonText = productSettings.buyNowButtonText || 'Comprar agora';
+  
+  // Theme settings for mini-cart (não é toggle da página, é do tema)
+  const miniCartEnabled = context?.themeSettings?.miniCartEnabled !== false;
   
   const [selectedImageIndex, setSelectedImageIndex] = React.useState(0);
   const [miniCartOpen, setMiniCartOpen] = React.useState(false);
@@ -783,21 +802,140 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
   }
 
   if (!product && isEditing) {
+    // Placeholder completo conforme REGRAS.md - exemplifica estrutura da página
     return (
       <div className="py-6 md:py-8 px-4">
         <div className={gridClasses}>
+          {/* Coluna esquerda: Galeria */}
           <div className="w-full">
             <div className="aspect-square bg-muted rounded-lg flex items-center justify-center text-muted-foreground">
               [Imagem do Produto]
             </div>
+            {showGallery && (
+              <div className="flex gap-2 mt-3">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="w-16 h-16 bg-muted/70 rounded-lg flex items-center justify-center text-xs text-muted-foreground">
+                    {i}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+          
+          {/* Coluna direita: Info */}
           <div className="space-y-4">
+            {/* Selos */}
+            <div className="flex gap-2">
+              <span className="px-2 py-1 bg-red-100 text-red-600 text-xs rounded">-10%</span>
+              <span className="px-2 py-1 bg-blue-100 text-blue-600 text-xs rounded">Novo</span>
+            </div>
+            
+            {/* Estrelas */}
+            {showReviews && (
+              <div className="flex items-center gap-1 text-yellow-500">
+                {[1,2,3,4,5].map(i => <span key={i}>★</span>)}
+                <span className="text-xs text-muted-foreground ml-1">(0)</span>
+              </div>
+            )}
+            
+            {/* Nome */}
             <h1 className={`${titleClasses} font-bold`}>[Nome do Produto]</h1>
-            <p className={`${priceClasses} text-primary font-bold`}>[Preço]</p>
-            <button className="w-full bg-primary text-primary-foreground py-3 rounded-lg">
-              Adicionar ao Carrinho
-            </button>
+            
+            {/* Preço */}
+            <div className="flex items-center gap-2">
+              <p className={`${priceClasses} text-primary font-bold`}>R$ 99,90</p>
+              <p className="text-muted-foreground line-through text-sm">R$ 129,90</p>
+            </div>
+            
+            {/* Bandeirinhas pagamento */}
+            <div className="p-2 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-sm font-bold text-green-700">R$ 89,91 no Pix</p>
+              <p className="text-xs text-green-600">10% de desconto</p>
+            </div>
+            
+            {/* Descrição curta */}
+            {showDescription && (
+              <p className="text-muted-foreground text-sm">[Descrição curta do produto...]</p>
+            )}
+            
+            {/* Variantes */}
+            {showVariants && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Cor</p>
+                <div className="flex gap-2">
+                  <span className="px-3 py-1 border rounded-md text-sm">Azul</span>
+                  <span className="px-3 py-1 border rounded-md text-sm">Vermelho</span>
+                </div>
+              </div>
+            )}
+            
+            {/* Estoque */}
+            {showStock && (
+              <p className="text-sm text-muted-foreground">Estoque: 10 unidades</p>
+            )}
+            
+            {/* CTAs */}
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <div className="flex items-center border rounded-full px-3">
+                  <span className="text-sm">1</span>
+                </div>
+                <button className="flex-1 bg-primary text-primary-foreground py-2 rounded-full text-sm font-medium">
+                  {buyNowButtonText}
+                </button>
+              </div>
+              {showAddToCartButton && (
+                <button className="w-full border-2 border-primary text-primary py-2 rounded-full text-sm font-medium">
+                  Adicionar ao carrinho
+                </button>
+              )}
+              {showWhatsAppButton && (
+                <button className="w-full border-2 border-green-500 text-green-600 py-2 rounded-full text-sm font-medium">
+                  Comprar pelo WhatsApp
+                </button>
+              )}
+            </div>
+            
+            {/* Calculadora frete */}
+            <div className="border rounded-lg p-3">
+              <p className="text-sm font-medium mb-2">Calcular frete</p>
+              <div className="flex gap-2">
+                <input type="text" placeholder="00000-000" className="flex-1 border rounded px-2 py-1 text-sm" disabled />
+                <button className="px-3 py-1 bg-muted text-sm rounded">Calcular</button>
+              </div>
+            </div>
+            
+            {/* Bandeirinhas garantia */}
+            <div className="grid grid-cols-3 gap-2">
+              {['Garantia', 'Troca', 'Seguro'].map(item => (
+                <div key={item} className="text-center p-2 bg-muted/50 rounded-lg">
+                  <p className="text-xs font-medium">{item}</p>
+                </div>
+              ))}
+            </div>
           </div>
+        </div>
+        
+        {/* Seções abaixo */}
+        <div className="mt-8 space-y-6">
+          {showBuyTogether && (
+            <div className="border rounded-lg p-4 text-center text-muted-foreground">
+              [Compre Junto]
+            </div>
+          )}
+          <div className="border rounded-lg p-4 text-center text-muted-foreground">
+            [Descrição Completa]
+          </div>
+          {showReviews && (
+            <div className="border rounded-lg p-4 text-center text-muted-foreground">
+              [Avaliações]
+            </div>
+          )}
+          {showRelatedProducts && (
+            <div className="border rounded-lg p-4 text-center text-muted-foreground">
+              [Produtos Relacionados]
+            </div>
+          )}
         </div>
       </div>
     );
@@ -818,51 +956,71 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
 
   const tenantSlug = context?.tenantSlug || '';
 
+  // Hook para variantes (se houver produto e showVariants ativo)
+  const { optionGroups, selectedOptions, selectOption, selectedVariant, hasVariants } = useProductVariants(
+    showVariants ? product?.id : undefined
+  );
+  
+  // Regra de segurança: variante obrigatória
+  const hasRequiredVariant = hasVariants && optionGroups.length > 0;
+  const variantSelected = !hasRequiredVariant || Object.keys(selectedOptions).length === optionGroups.length;
+
   return (
     <div className="py-6 md:py-8 px-4">
       <div className={gridClasses}>
-        {showGallery && (
-          <div className="sf-product-gallery w-full">
-            <div className="aspect-square bg-muted rounded-lg overflow-hidden">
-              {selectedImage?.url ? (
-                <img src={selectedImage.url} alt={selectedImage.alt || productName} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                  <svg className="w-16 h-16 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-              )}
-            </div>
-            
-            {hasMultipleImages && (
-              <div className="flex gap-2 mt-3 overflow-x-auto pb-2">
-                {allImages.map((img: any, index: number) => (
-                  <button
-                    key={index}
-                    onClick={() => setSelectedImageIndex(index)}
-                    className={cn(
-                      "flex-shrink-0 w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden border-2 transition-all",
-                      index === selectedImageIndex 
-                        ? "border-primary ring-2 ring-primary/20" 
-                        : "border-transparent hover:border-muted-foreground/30"
-                    )}
-                  >
-                    <img src={img.url} alt={img.alt || `${productName} ${index + 1}`} className="w-full h-full object-cover" />
-                  </button>
-                ))}
+        {/* ===== COLUNA ESQUERDA: GALERIA ===== */}
+        <div className="sf-product-gallery w-full">
+          {/* Imagem principal (nunca some) */}
+          <div className="aspect-square bg-muted rounded-lg overflow-hidden">
+            {selectedImage?.url ? (
+              <img src={selectedImage.url} alt={selectedImage.alt || productName} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                <svg className="w-16 h-16 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
               </div>
             )}
           </div>
-        )}
+          
+          {/* Galeria secundária (até 10 imagens) - toggle showGallery */}
+          {showGallery && hasMultipleImages && (
+            <div className="flex gap-2 mt-3 overflow-x-auto pb-2">
+              {allImages.slice(0, 10).map((img: any, index: number) => (
+                <button
+                  key={index}
+                  onClick={() => setSelectedImageIndex(index)}
+                  className={cn(
+                    "flex-shrink-0 w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden border-2 transition-all",
+                    index === selectedImageIndex 
+                      ? "border-primary ring-2 ring-primary/20" 
+                      : "border-transparent hover:border-muted-foreground/30"
+                  )}
+                >
+                  <img src={img.url} alt={img.alt || `${productName} ${index + 1}`} className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         
+        {/* ===== COLUNA DIREITA: INFO DO PRODUTO ===== */}
         <div className="sf-product-info space-y-4">
-          <div>
-            <h1 className={`${titleClasses} font-bold leading-tight`}>{productName}</h1>
-            {showReviews && product?.id && (
-              <ProductRatingSummary productId={product.id} variant="productTitle" className="mt-2" />
-            )}
-          </div>
+          {/* 1. Selos do produto */}
+          <ProductBadges 
+            hasDiscount={hasDiscount}
+            discountPercent={discountPercent}
+          />
+          
+          {/* 2. Estrelas de avaliação */}
+          {showReviews && product?.id && (
+            <ProductRatingSummary productId={product.id} variant="productTitle" />
+          )}
+          
+          {/* 3. Nome do produto */}
+          <h1 className={`${titleClasses} font-bold leading-tight`}>{productName}</h1>
+          
+          {/* 4. Valores/preços */}
           <div className="flex flex-wrap items-center gap-2">
             <p className={`${priceClasses} text-primary font-bold`}>
               R$ {productPrice.toFixed(2).replace('.', ',')}
@@ -878,19 +1036,37 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
               </>
             )}
           </div>
+          
+          {/* 5. Bandeirinhas de pagamento (Pix destaque) */}
+          <PaymentBadges productPrice={productPrice} />
+          
+          {/* 6. Descrição curta */}
           {showDescription && productShortDescription && (
             <p className="text-muted-foreground text-sm md:text-base leading-relaxed">{productShortDescription}</p>
           )}
+          
+          {/* 7. Seletor de variantes */}
+          {showVariants && hasVariants && (
+            <ProductVariantSelector
+              optionGroups={optionGroups}
+              selectedOptions={selectedOptions}
+              onSelectOption={selectOption}
+              disabled={isEditing && !isInteractMode}
+            />
+          )}
+          
+          {/* 8. Estoque */}
           {showStock && (
             <p className="text-sm text-muted-foreground">Estoque: {productStock} unidades</p>
           )}
           
+          {/* 9-12. CTAs: Quantidade + Comprar agora + Adicionar + WhatsApp */}
           <ProductCTAs
             productId={product?.id}
             productName={productName}
             productSku={product?.sku || ''}
-            productPrice={productPrice}
-            productStock={productStock}
+            productPrice={selectedVariant?.price ?? productPrice}
+            productStock={selectedVariant?.stock_quantity ?? productStock}
             allowBackorder={allowBackorder}
             imageUrl={selectedImage?.url}
             tenantSlug={tenantSlug}
@@ -899,10 +1075,27 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
             isInteractMode={isInteractMode}
             openMiniCartOnAdd={openMiniCartOnAdd}
             onOpenMiniCart={() => setMiniCartOpen(true)}
+            showWhatsAppButton={showWhatsAppButton}
+            showAddToCartButton={showAddToCartButton}
+            buyNowButtonText={buyNowButtonText}
+            miniCartEnabled={miniCartEnabled}
+            hasRequiredVariant={hasRequiredVariant}
+            variantSelected={variantSelected}
           />
+          
+          {/* 13. Calculadora de frete */}
+          <ShippingCalculator 
+            productId={product?.id}
+            isEditing={isEditing && !isInteractMode}
+          />
+          
+          {/* 14. Bandeirinhas de garantia */}
+          <GuaranteeBadges />
         </div>
       </div>
 
+      {/* ===== SEÇÕES ABAIXO ===== */}
+      {/* Ordem conforme REGRAS.md: Compre Junto → Descrição completa → Avaliações → Relacionados */}
       {product && (
         <ProductPageSections
           product={{
@@ -916,7 +1109,7 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
           }}
           tenantSlug={tenantSlug}
           tenantId={context?.settings?.tenant_id}
-          showDescription={showDescription}
+          showDescription={true} // Descrição completa sempre mostra (conforme regra)
           showBuyTogether={showBuyTogether}
           showReviews={showReviews}
           showRelatedProducts={showRelatedProducts}
@@ -924,12 +1117,18 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
         />
       )}
 
+      {/* Mini Cart Drawer */}
       <MiniCartDrawer
         open={miniCartOpen}
         onOpenChange={setMiniCartOpen}
         tenantSlug={tenantSlug}
         isPreview={context?.isPreview}
       />
+      
+      {/* Floating Cart Button (Carrinho rápido) */}
+      {showFloatingCart && (
+        <FloatingCartButton tenantSlug={tenantSlug} isPreview={context?.isPreview} />
+      )}
     </div>
   );
 }
