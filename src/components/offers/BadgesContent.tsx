@@ -282,8 +282,8 @@ export function BadgesContent() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
-          <DialogHeader>
+        <DialogContent className="max-w-lg sm:max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle>
               {editingBadge ? 'Editar Selo' : 'Novo Selo'}
             </DialogTitle>
@@ -292,8 +292,8 @@ export function BadgesContent() {
             </DialogDescription>
           </DialogHeader>
 
-          <ScrollArea className="flex-1 pr-4">
-            <div className="space-y-6 py-4">
+          <div className="flex-1 overflow-y-auto min-h-0 pr-2 -mr-2">
+            <div className="space-y-5 py-2">
               {/* Preview */}
               <div>
                 <Label className="text-xs text-muted-foreground uppercase">Prévia</Label>
@@ -301,7 +301,7 @@ export function BadgesContent() {
               </div>
 
               {/* Name */}
-              <div>
+              <div className="space-y-1.5">
                 <Label>Nome do selo *</Label>
                 <Input
                   value={formData.name}
@@ -309,21 +309,21 @@ export function BadgesContent() {
                   placeholder="Ex: Promoção, Novo, -30%"
                   maxLength={20}
                 />
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-xs text-muted-foreground">
                   Máximo 20 caracteres
                 </p>
               </div>
 
               {/* Colors */}
               <div className="grid grid-cols-2 gap-4">
-                <div>
+                <div className="space-y-1.5">
                   <Label>Cor de fundo</Label>
                   <div className="flex items-center gap-2">
                     <input
                       type="color"
                       value={formData.background_color}
                       onChange={(e) => setFormData(prev => ({ ...prev, background_color: e.target.value }))}
-                      className="w-10 h-10 rounded border cursor-pointer"
+                      className="w-10 h-10 rounded border cursor-pointer flex-shrink-0"
                     />
                     <Input
                       value={formData.background_color}
@@ -333,14 +333,14 @@ export function BadgesContent() {
                     />
                   </div>
                 </div>
-                <div>
+                <div className="space-y-1.5">
                   <Label>Cor do texto</Label>
                   <div className="flex items-center gap-2">
                     <input
                       type="color"
                       value={formData.text_color}
                       onChange={(e) => setFormData(prev => ({ ...prev, text_color: e.target.value }))}
-                      className="w-10 h-10 rounded border cursor-pointer"
+                      className="w-10 h-10 rounded border cursor-pointer flex-shrink-0"
                     />
                     <Input
                       value={formData.text_color}
@@ -352,40 +352,41 @@ export function BadgesContent() {
                 </div>
               </div>
 
-              {/* Shape */}
-              <div>
-                <Label>Formato</Label>
-                <Select
-                  value={formData.shape}
-                  onValueChange={(v) => setFormData(prev => ({ ...prev, shape: v as BadgeShape }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(shapeLabels).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>{label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Shape and Position in same row */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Formato</Label>
+                  <Select
+                    value={formData.shape}
+                    onValueChange={(v) => setFormData(prev => ({ ...prev, shape: v as BadgeShape }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(shapeLabels).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              {/* Position */}
-              <div>
-                <Label>Posição</Label>
-                <Select
-                  value={formData.position}
-                  onValueChange={(v) => setFormData(prev => ({ ...prev, position: v as BadgePosition }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(positionLabels).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>{label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="space-y-1.5">
+                  <Label>Posição</Label>
+                  <Select
+                    value={formData.position}
+                    onValueChange={(v) => setFormData(prev => ({ ...prev, position: v as BadgePosition }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(positionLabels).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               {/* Active */}
@@ -399,7 +400,7 @@ export function BadgesContent() {
 
               {/* Product Selection */}
               <div className="border-t pt-4">
-                <Label className="flex items-center gap-2 mb-3">
+                <Label className="flex items-center gap-2 mb-2">
                   <Package className="h-4 w-4" />
                   Produtos vinculados
                 </Label>
@@ -418,9 +419,9 @@ export function BadgesContent() {
                 )}
               </div>
             </div>
-          </ScrollArea>
+          </div>
 
-          <DialogFooter className="border-t pt-4">
+          <DialogFooter className="flex-shrink-0 border-t pt-4 mt-4">
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
               Cancelar
             </Button>
