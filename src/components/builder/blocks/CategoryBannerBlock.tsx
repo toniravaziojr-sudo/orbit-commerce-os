@@ -69,44 +69,46 @@ export function CategoryBannerBlock({
   };
 
   return (
-    <div className={`relative w-full overflow-hidden ${heightClasses[height]}`}>
-      {/* Banner image OR placeholder gradient */}
-      {hasBannerImage ? (
-        <picture>
-          <source media="(min-width: 768px)" srcSet={bannerDesktop || bannerMobile || ''} />
-          <img
-            src={bannerMobile || bannerDesktop || ''}
-            alt={categoryName}
-            className="w-full h-full object-cover"
-          />
-        </picture>
-      ) : (
-        // Placeholder gradient - neutral, no demo images
-        <div className="w-full h-full bg-gradient-to-br from-muted via-muted/80 to-muted-foreground/20" />
-      )}
+    <div className="w-full">
+      {/* Banner image container */}
+      <div className={`relative w-full overflow-hidden ${heightClasses[height]}`}>
+        {/* Banner image OR placeholder gradient */}
+        {hasBannerImage ? (
+          <picture>
+            <source media="(min-width: 768px)" srcSet={bannerDesktop || bannerMobile || ''} />
+            <img
+              src={bannerMobile || bannerDesktop || ''}
+              alt={categoryName}
+              className="w-full h-full object-cover"
+            />
+          </picture>
+        ) : (
+          // Placeholder gradient - neutral, no demo images
+          <div className="w-full h-full bg-gradient-to-br from-muted via-muted/80 to-muted-foreground/20" />
+        )}
+        
+        {/* Overlay */}
+        <div 
+          className="absolute inset-0 bg-black"
+          style={{ opacity: hasBannerImage ? overlayOpacity / 100 : 0.3 }}
+        />
+      </div>
       
-      {/* Overlay */}
-      <div 
-        className="absolute inset-0 bg-black"
-        style={{ opacity: hasBannerImage ? overlayOpacity / 100 : 0.3 }}
-      />
-      
-      {/* Content - só mostra se showTitle estiver ativo */}
+      {/* Title BELOW banner - entre o banner e os produtos */}
       {showTitle && (
-        <div className={`absolute inset-0 flex flex-col justify-center px-4 md:px-8 ${titlePositionClasses[titlePosition]}`}>
-          <div className="max-w-4xl">
-            <h1 className="text-2xl md:text-4xl font-bold text-white drop-shadow-lg">
+        <div className={`py-6 px-4 md:px-8 ${titlePositionClasses[titlePosition]}`}>
+          <div className="max-w-4xl mx-auto">
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground">
               {categoryName}
             </h1>
             {categoryDescription && (
-              <p className="mt-2 text-sm md:text-base text-white/90 max-w-2xl drop-shadow">
+              <p className="mt-2 text-sm md:text-base text-muted-foreground max-w-2xl">
                 {categoryDescription}
               </p>
             )}
           </div>
         </div>
       )}
-      
     </div>
   );
 }
