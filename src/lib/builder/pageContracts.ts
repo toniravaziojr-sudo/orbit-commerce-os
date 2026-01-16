@@ -64,9 +64,10 @@ export const PAGE_CONTRACTS: Record<string, PageContract> = {
         lockMove: false,
       },
       {
-        type: 'ProductGrid',
-        label: 'Grade de Produtos',
-        description: 'Lista os produtos da categoria',
+        // REGRAS.md: filtros de busca avançada + listagem de produtos + ordenação (básico)
+        type: 'CategoryPageLayout',
+        label: 'Listagem com Filtros',
+        description: 'Listagem de produtos com filtros avançados e ordenação',
         lockDelete: true,
         lockMove: false,
       },
