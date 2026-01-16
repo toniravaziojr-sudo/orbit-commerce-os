@@ -26,7 +26,13 @@ Este documento é a **FONTE ÚNICA DE VERDADE** para todas as especificações f
 
 ## Índice (TOC)
 
-1. [Loja Virtual / Builder](#loja-virtual--builder)
+1. [Arquitetura Builder vs Storefront Público](#arquitetura-builder-vs-storefront-público)
+   1. [Fluxo de Dados](#fluxo-de-dados)
+   2. [Fonte de Verdade dos Settings](#fonte-de-verdade-dos-settings)
+   3. [Padrão de Settings por Página](#padrão-de-settings-por-página)
+   4. [Integração com Carrinho](#integração-com-carrinho)
+   5. [Comportamento Builder vs Público](#comportamento-builder-vs-público)
+2. [Loja Virtual / Builder](#loja-virtual--builder)
    1. [Funções Padrões (globais, independentes de tema)](#funções-padrões-globais-independentes-de-tema)
    2. [Páginas Padrão](#páginas-padrão)
       - [Página Inicial](#página-inicial)
@@ -40,6 +46,214 @@ Este documento é a **FONTE ÚNICA DE VERDADE** para todas as especificações f
       - [Pedido](#pedido)
       - [Rastreio](#rastreio)
       - [Blog](#blog)
+
+---
+
+## Arquitetura Builder vs Storefront Público
+
+> **REGRA CRÍTICA:** Esta seção define a arquitetura obrigatória para TODAS as páginas do Builder/Storefront. Qualquer nova página DEVE seguir estes padrões.
+
+### Fluxo de Dados
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         CAMADA DE PÁGINA                                 │
+│  Arquivos: src/pages/storefront/Storefront*.tsx                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Responsabilidades:                                                      │
+│  • Buscar dados reais do banco (produtos, categorias, etc)              │
+│  • Buscar settings do template PUBLICADO (published_content)            │
+│  • Detectar modo preview (?preview=1)                                   │
+│  • Montar BlockRenderContext completo                                   │
+│  • Passar tudo para PublicTemplateRenderer                              │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    ↓
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     PUBLIC TEMPLATE RENDERER                             │
+│  Arquivo: src/components/storefront/PublicTemplateRenderer.tsx          │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Responsabilidades:                                                      │
+│  • Renderizar estrutura global (Header/Footer)                          │
+│  • Gerenciar slots (afterHeaderSlot, afterContentSlot)                  │
+│  • Aplicar overrides de página                                          │
+│  • Passar context para BlockRenderer                                    │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    ↓
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         BLOCK RENDERER                                   │
+│  Arquivo: src/components/builder/BlockRenderer.tsx                      │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Responsabilidades:                                                      │
+│  • Mapear block.type para componente React                              │
+│  • Passar props + context para cada bloco                               │
+│  • Gerenciar isEditing vs público                                       │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    ↓
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    BLOCK LAYOUT COMPONENT                                │
+│  Ex: CategoryPageLayout, ProductDetailsBlock, CartBlock                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Responsabilidades:                                                      │
+│  • Ler settings específicos do context (categorySettings, etc)          │
+│  • Aplicar toggles de visibilidade                                      │
+│  • Integrar com useCart para funcionalidade real                        │
+│  • Comportamento diferente baseado em isEditing                         │
+│  • Renderizar UI final                                                  │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Fonte de Verdade dos Settings
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    STOREFRONT_TEMPLATE_SETS                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│  draft_content: {                     ← Usado no BUILDER                │
+│    home: BlockNode,                                                      │
+│    category: BlockNode,                                                  │
+│    product: BlockNode,                                                   │
+│    ...                                                                   │
+│    themeSettings: {                                                      │
+│      headerConfig: {...},                                                │
+│      footerConfig: {...},                                                │
+│      miniCartEnabled: boolean,                                           │
+│      pageSettings: {                  ← Settings por página             │
+│        category: CategorySettings,                                       │
+│        product: ProductSettings,                                         │
+│        cart: CartSettings,                                               │
+│        checkout: CheckoutSettings,                                       │
+│        thankYou: ThankYouSettings,                                       │
+│      }                                                                   │
+│    }                                                                     │
+│  }                                                                       │
+│                                                                          │
+│  published_content: {...}             ← Usado no STOREFRONT PÚBLICO     │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Regra de Leitura:**
+- **Builder/Editor:** Sempre usa `draft_content`
+- **Storefront Público:** Sempre usa `published_content`
+- **Preview (?preview=1):** Usa `draft_content` para teste antes de publicar
+
+### Padrão de Settings por Página
+
+#### Categoria (CategorySettings)
+
+| Setting | Tipo | Default | Descrição |
+|---------|------|---------|-----------|
+| `showRatings` | boolean | true | Exibe estrelas de avaliação nas thumbs |
+| `showBadges` | boolean | true | Exibe selos do menu "Aumentar Ticket" |
+| `showAddToCartButton` | boolean | true | Exibe botão "Adicionar ao carrinho" |
+| `quickBuyEnabled` | boolean | false | Botão principal vai direto ao checkout |
+| `buyNowButtonText` | string | "Comprar agora" | Texto do botão principal |
+| `customButtonEnabled` | boolean | false | Exibe botão personalizado |
+| `customButtonText` | string | "" | Texto do botão personalizado |
+| `customButtonColor` | string | "" | Cor do botão personalizado |
+| `customButtonLink` | string | "" | URL do botão personalizado |
+| `showBanner` | boolean | true | Exibe banner da categoria |
+
+#### Produto (ProductSettings)
+
+| Setting | Tipo | Default | Descrição |
+|---------|------|---------|-----------|
+| `showGallery` | boolean | true | Exibe galeria de imagens secundárias |
+| `showDescription` | boolean | true | Exibe descrição curta |
+| `showVariants` | boolean | true | Exibe seletor de variantes |
+| `showStock` | boolean | true | Exibe quantidade em estoque |
+| `showRelatedProducts` | boolean | true | Exibe grid de produtos relacionados |
+| `showBuyTogether` | boolean | true | Exibe seção "Compre Junto" |
+| `showReviews` | boolean | true | Exibe avaliações e formulário |
+| `showAddToCartButton` | boolean | true | Exibe botão adicionar ao carrinho |
+| `showWhatsAppButton` | boolean | true | Exibe botão comprar pelo WhatsApp |
+| `buyNowButtonText` | string | "Comprar agora" | Texto do botão principal |
+| `openMiniCartOnAdd` | boolean | true | Abre mini-cart ao adicionar |
+
+#### Carrinho (CartSettings)
+
+| Setting | Tipo | Default | Descrição |
+|---------|------|---------|-----------|
+| `showCrossSell` | boolean | true | Exibe produtos sugeridos |
+| `showCouponField` | boolean | true | Exibe campo de cupom |
+| `showTrustBadges` | boolean | true | Exibe selos de confiança |
+| `showShippingCalculator` | boolean | true | Exibe calculadora de frete |
+
+#### Checkout (CheckoutSettings)
+
+| Setting | Tipo | Default | Descrição |
+|---------|------|---------|-----------|
+| `showOrderSummary` | boolean | true | Exibe resumo do pedido |
+| `showCouponField` | boolean | true | Exibe campo de cupom |
+| `allowGuestCheckout` | boolean | true | Permite checkout sem login |
+
+#### Obrigado (ThankYouSettings)
+
+| Setting | Tipo | Default | Descrição |
+|---------|------|---------|-----------|
+| `showOrderDetails` | boolean | true | Exibe detalhes do pedido |
+| `showRelatedProducts` | boolean | true | Exibe produtos relacionados |
+| `showTrackingInfo` | boolean | true | Exibe info de rastreio |
+
+### Integração com Carrinho
+
+#### Regras Obrigatórias
+
+1. **SEMPRE** usar `useCart()` do `@/contexts/CartContext` para operações de carrinho
+2. **SEMPRE** renderizar `MiniCartDrawer` quando `miniCartEnabled !== false`
+3. **SEMPRE** implementar feedback visual "Adicionado" quando mini-cart está desabilitado
+4. **SEMPRE** usar `getPublicCheckoutUrl(tenantSlug)` para compra rápida
+
+#### Padrão de Handler
+
+```typescript
+const handleAddToCart = (product: Product, e: React.MouseEvent) => {
+  e.preventDefault();
+  e.stopPropagation();
+  
+  const cartItem = {
+    product_id: product.id,
+    name: product.name,
+    price: product.price,
+    quantity: 1,
+    image_url: product.images?.[0]?.url,
+    sku: product.sku || product.slug,
+  };
+  
+  addItem(cartItem, (addedItem) => {
+    if (miniCartEnabled && openMiniCartOnAdd) {
+      setMiniCartOpen(true);
+    } else {
+      setAddedProducts(prev => new Set(prev).add(product.id));
+      toast.success('Produto adicionado ao carrinho');
+      setTimeout(() => {
+        setAddedProducts(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(product.id);
+          return newSet;
+        });
+      }, 2000);
+    }
+  });
+};
+```
+
+### Comportamento Builder vs Público
+
+| Aspecto | Builder (isEditing=true) | Público (isEditing=false) |
+|---------|--------------------------|---------------------------|
+| **Dados** | Produtos de exemplo ou amostra aleatória | Dados reais do banco |
+| **Cliques** | Bloqueados ou modo interativo | Funcionais |
+| **Carrinho** | Simulado ou desabilitado | useCart real |
+| **Links** | Não navegam | Navegam normalmente |
+| **Settings** | draft_content | published_content |
+
+#### Regras de Implementação
+
+1. **NUNCA** fazer queries de settings dentro dos blocos - sempre receber via context
+2. **SEMPRE** usar `published_content` no público e `draft_content` no builder
+3. **SEMPRE** ter fallback para `storefront_page_templates` (legacy)
+4. **NUNCA** duplicar lógica entre páginas - criar hooks/utils compartilhados
+5. **SEMPRE** seguir os defaults definidos neste documento
 
 ---
 
