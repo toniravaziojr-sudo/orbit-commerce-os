@@ -91,45 +91,14 @@ export default function StorefrontCategory() {
     );
   }
 
-  // Build category header slot (banner + name) based on settings
-  const showBanner = categorySettings?.showBanner !== false;
-  const showName = categorySettings?.showCategoryName !== false;
-  const bannerDesktop = category?.banner_desktop_url;
-  const bannerMobile = category?.banner_mobile_url;
-  const hasBanner = showBanner && (bannerDesktop || bannerMobile);
-
-  const categoryHeaderSlot = (hasBanner || (showName && category?.name)) ? (
-    <div className="w-full">
-      {hasBanner && (
-        <picture>
-          {bannerMobile && (
-            <source media="(max-width: 767px)" srcSet={bannerMobile} />
-          )}
-          {bannerDesktop && (
-            <source media="(min-width: 768px)" srcSet={bannerDesktop} />
-          )}
-          <img
-            src={bannerDesktop || bannerMobile}
-            alt={`Banner ${category?.name || 'Categoria'}`}
-            className="w-full h-auto object-cover"
-          />
-        </picture>
-      )}
-      {showName && category?.name && (
-        <h1 className="text-2xl md:text-3xl font-bold text-foreground px-4 py-6 text-center bg-background">
-          {category.name}
-        </h1>
-      )}
-    </div>
-  ) : undefined;
+  // Category data is now rendered via CategoryBannerBlock in the template
+  // No need for categoryHeaderSlot - removed to avoid duplication
 
   // Build context for block rendering with category data
   const context: BlockRenderContext & { categories?: any[] } = {
     tenantSlug: tenantSlug || '',
     isPreview: isPreviewMode,
     pageType: 'category',
-    // Pass category header (banner + name) via afterHeaderSlot
-    afterHeaderSlot: categoryHeaderSlot,
     // Pass showRatings setting for product cards
     showRatings: categorySettings?.showRatings !== false,
     settings: {
