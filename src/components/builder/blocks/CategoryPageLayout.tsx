@@ -291,7 +291,7 @@ export function CategoryPageLayout({
             isEditing ? (
               // Structural preview in editing mode - show skeleton grid
               <div className={cn('grid gap-4', getGridCols())}>
-                {Array.from({ length: 8 }).map((_, i) => (
+                {Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className="bg-card rounded-lg overflow-hidden border">
                     <div className="aspect-square bg-muted flex items-center justify-center">
                       <svg className="w-10 h-10 text-muted-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
