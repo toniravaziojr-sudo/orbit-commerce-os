@@ -1375,6 +1375,112 @@ const blockDefinitions: BlockDefinition[] = [
     },
     canHaveChildren: false,
   },
+  // CategoryPageLayout - Listagem de produtos de categoria com filtros (REGRAS.md)
+  {
+    type: 'CategoryPageLayout',
+    label: 'Listagem de Categoria',
+    category: 'ecommerce',
+    icon: 'LayoutList',
+    defaultProps: {
+      showFilters: true,
+      columns: 4,
+      limit: 24,
+      // Funcionalidades REGRAS.md
+      quickBuyEnabled: false,
+      showBanner: true,
+      showRatings: true,
+      showAddToCart: true,
+      showBadges: true,
+      buyButtonText: 'Comprar agora',
+      // Botão personalizado
+      customButtonEnabled: false,
+      customButtonText: 'Ver detalhes',
+      customButtonColor: '',
+      customButtonUrl: '',
+    },
+    propsSchema: {
+      // Configurações de layout
+      columns: {
+        type: 'select',
+        label: 'Colunas',
+        defaultValue: '4',
+        options: [
+          { label: '2', value: '2' },
+          { label: '3', value: '3' },
+          { label: '4', value: '4' },
+          { label: '5', value: '5' },
+        ],
+      },
+      limit: {
+        type: 'number',
+        label: 'Produtos por página',
+        defaultValue: 24,
+        min: 8,
+        max: 48,
+      },
+      showFilters: {
+        type: 'boolean',
+        label: 'Mostrar Filtros',
+        defaultValue: true,
+      },
+      // Funcionalidades REGRAS.md
+      quickBuyEnabled: {
+        type: 'boolean',
+        label: 'Compra Rápida (vai direto ao checkout)',
+        defaultValue: false,
+      },
+      showBanner: {
+        type: 'boolean',
+        label: 'Exibir Banner da Categoria',
+        defaultValue: true,
+      },
+      showRatings: {
+        type: 'boolean',
+        label: 'Exibir Avaliações',
+        defaultValue: true,
+      },
+      showAddToCart: {
+        type: 'boolean',
+        label: 'Botão Adicionar ao Carrinho',
+        defaultValue: true,
+      },
+      showBadges: {
+        type: 'boolean',
+        label: 'Exibir Selos',
+        defaultValue: true,
+      },
+      buyButtonText: {
+        type: 'string',
+        label: 'Texto do Botão Principal',
+        defaultValue: 'Comprar agora',
+        placeholder: 'Ex: Comprar agora',
+      },
+      // Botão personalizado
+      customButtonEnabled: {
+        type: 'boolean',
+        label: 'Exibir Botão Personalizado',
+        defaultValue: false,
+      },
+      customButtonText: {
+        type: 'string',
+        label: 'Texto do Botão Personalizado',
+        defaultValue: 'Ver detalhes',
+        placeholder: 'Ex: Ver detalhes',
+      },
+      customButtonColor: {
+        type: 'color',
+        label: 'Cor do Botão Personalizado',
+        placeholder: 'Padrão do tema',
+      },
+      customButtonUrl: {
+        type: 'string',
+        label: 'URL do Botão Personalizado',
+        placeholder: 'Ex: /ofertas',
+      },
+    },
+    canHaveChildren: false,
+    isRemovable: false, // REGRAS.md: estrutura obrigatória
+  },
   {
     type: 'ProductCarousel',
     label: 'Carrossel de Produtos',
