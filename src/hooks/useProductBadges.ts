@@ -195,3 +195,69 @@ export function useProductBadgesForProduct(productId: string | undefined) {
     enabled: !!productId,
   });
 }
+
+// Hook to manage badge-product assignments
+export function useBadgeAssignments(badgeId: string | undefined) {
+  const queryClient = useQueryClient();
+  const { currentTenant } = useAuth();
+  const currentTenantId = currentTenant?.id;
+
+  const assignmentsQuery = useQuery({
+    queryKey: ['badge-assignments', badgeId],
+    queryFn: async () => {
+      if (!badgeId) return [];
+
+      const { data, error } = await supabase
+        .from('product_badge_assignments')
+        .select('product_id')
+        .eq('badge_id', badgeId);
+
+      if (error) throw error;
+      return data.map((item) => item.product_id);
+    },
+    enabled: !!badgeId,
+  });
+
+  const updateAssignments = useMutation({
+    mutationFn: async ({ badgeId, productIds }: { badgeId: string; productIds: string[] }) => {
+      if (!currentTenantId) throw new Error('Tenant não encontrado');
+
+      // Delete existing assignments
+      const { error: deleteError } = await supabase
+        .from('product_badge_assignments')
+        .delete()
+        .eq('badge_id', badgeId);
+
+      if (deleteError) throw deleteError;
+
+      // Insert new assignments
+      if (productIds.length > 0) {
+        const { error: insertError } = await supabase
+          .from('product_badge_assignments')
+          .insert(
+            productIds.map((productId) => ({
+              badge_id: badgeId,
+              product_id: productId,
+              tenant_id: currentTenantId,
+            }))
+          );
+
+        if (insertError) throw insertError;
+      }
+    },
+    onSuccess: (_, { badgeId }) => {
+      queryClient.invalidateQueries({ queryKey: ['badge-assignments', badgeId] });
+      queryClient.invalidateQueries({ queryKey: ['product-badge-assignments'] });
+      toast.success('Produtos atualizados');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao atualizar produtos');
+    },
+  });
+
+  return {
+    assignedProductIds: assignmentsQuery.data ?? [],
+    isLoading: assignmentsQuery.isLoading,
+    updateAssignments,
+  };
+}
