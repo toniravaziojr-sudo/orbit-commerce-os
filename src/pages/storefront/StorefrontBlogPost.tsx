@@ -15,7 +15,7 @@ import { ptBR } from 'date-fns/locale';
 import { getStoreBaseUrl } from '@/lib/publicUrls';
 import { Storefront404 } from '@/components/storefront/Storefront404';
 import { getDefaultTemplate } from '@/lib/builder/defaults';
-import type { BlockNode } from '@/lib/builder/types';
+import type { BlockNode, BlockRenderContext } from '@/lib/builder/types';
 import type { Json } from '@/integrations/supabase/types';
 
 export default function StorefrontBlogPost() {
@@ -81,15 +81,18 @@ export default function StorefrontBlogPost() {
     return <Storefront404 tenantSlug={tenantSlug || ''} entityType="page" entitySlug={postSlug} />;
   }
 
-  // Build context for the renderer
-  const context = {
+  // Build context for the renderer - blog post data goes into context for blocks to consume
+  const context: BlockRenderContext & { blogPost?: any; categories?: any[] } = {
     tenantSlug: tenantSlug || '',
-    tenantId: storeSettings?.tenant_id,
     isPreview: false,
+    pageType: 'blog' as const,
     settings: {
       store_name: storeSettings?.store_name || undefined,
       logo_url: storeSettings?.logo_url || undefined,
       primary_color: storeSettings?.primary_color || undefined,
+      contact_phone: storeSettings?.contact_phone,
+      contact_email: storeSettings?.contact_email,
+      tenant_id: storeSettings?.tenant_id,
     },
     headerMenu: headerMenu?.items?.map((item: any) => ({
       id: item.id,
@@ -110,9 +113,22 @@ export default function StorefrontBlogPost() {
       name: cat.name,
       slug: cat.slug,
     })),
+    // Blog post data for BlogPostContentBlock to consume
+    blogPost: {
+      id: post.id,
+      title: post.title,
+      slug: post.slug,
+      excerpt: post.excerpt,
+      featured_image_url: post.featured_image_url,
+      featured_image_alt: post.featured_image_alt,
+      published_at: post.published_at,
+      read_time_minutes: post.read_time_minutes,
+      tags: post.tags,
+      content: post.content,
+    },
   };
 
-  // If post has content (builder content), render it
+  // If post has builder content, render it directly
   if (post.content) {
     return (
       <PublicTemplateRenderer
@@ -122,65 +138,61 @@ export default function StorefrontBlogPost() {
     );
   }
 
-  // Otherwise, render a default blog post layout
+  // Otherwise, render fallback layout directly (no afterHeaderSlot pattern)
+  // The blogPost data is in context for any future BlogPostDetailBlock usage
   return (
-    <PublicTemplateRenderer
-      content={getDefaultTemplate('institutional')}
-      context={{
-        ...context,
-        afterHeaderSlot: (
-          <article className="container mx-auto max-w-4xl py-12 px-4">
-            <Link to={`${basePath}/blog`}>
-              <Button variant="ghost" className="mb-8 -ml-4">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Voltar ao blog
-              </Button>
-            </Link>
+    <div className="min-h-screen flex flex-col">
+      {/* Header via template would go here - using simple fallback */}
+      <article className="container mx-auto max-w-4xl py-12 px-4 flex-1">
+        <Link to={`${basePath}/blog`}>
+          <Button variant="ghost" className="mb-8 -ml-4">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Voltar ao blog
+          </Button>
+        </Link>
 
-            <header className="mb-8">
-              <h1 className="text-4xl font-bold mb-4">{post.title}</h1>
-              <div className="flex items-center gap-4 text-muted-foreground">
-                {post.published_at && (
-                  <span className="flex items-center gap-1">
-                    <Calendar className="w-4 h-4" />
-                    {format(new Date(post.published_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                  </span>
-                )}
-                {post.read_time_minutes && (
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-4 h-4" />
-                    {post.read_time_minutes} min de leitura
-                  </span>
-                )}
-              </div>
-            </header>
-
-            {post.featured_image_url && (
-              <img
-                src={post.featured_image_url}
-                alt={post.featured_image_alt || post.title}
-                className="w-full aspect-video object-cover rounded-lg mb-8"
-              />
+        <header className="mb-8">
+          <h1 className="text-4xl font-bold mb-4">{post.title}</h1>
+          <div className="flex items-center gap-4 text-muted-foreground">
+            {post.published_at && (
+              <span className="flex items-center gap-1">
+                <Calendar className="w-4 h-4" />
+                {format(new Date(post.published_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+              </span>
             )}
-
-            {post.excerpt && (
-              <p className="text-xl text-muted-foreground mb-8 leading-relaxed">
-                {post.excerpt}
-              </p>
+            {post.read_time_minutes && (
+              <span className="flex items-center gap-1">
+                <Clock className="w-4 h-4" />
+                {post.read_time_minutes} min de leitura
+              </span>
             )}
+          </div>
+        </header>
 
-            {post.tags && post.tags.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-8 pt-8 border-t">
-                {post.tags.map((tag: string) => (
-                  <span key={tag} className="bg-muted px-3 py-1 rounded-full text-sm">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            )}
-          </article>
-        ),
-      }}
-    />
+        {post.featured_image_url && (
+          <img
+            src={post.featured_image_url}
+            alt={post.featured_image_alt || post.title}
+            className="w-full aspect-video object-cover rounded-lg mb-8"
+          />
+        )}
+
+        {post.excerpt && (
+          <p className="text-xl text-muted-foreground mb-8 leading-relaxed">
+            {post.excerpt}
+          </p>
+        )}
+
+        {post.tags && post.tags.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-8 pt-8 border-t">
+            {post.tags.map((tag: string) => (
+              <span key={tag} className="bg-muted px-3 py-1 rounded-full text-sm">
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+      </article>
+    </div>
   );
 }

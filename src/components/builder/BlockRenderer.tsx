@@ -61,6 +61,7 @@ import { TextBannersBlock as TextBannersBlockComponent } from './blocks/TextBann
 import { VideoUploadBlock as VideoUploadBlockComponent } from './blocks/VideoUploadBlock';
 import { TrackingLookupBlock as TrackingLookupBlockComponent } from './blocks/TrackingLookupBlock';
 import { BlogListingBlock as BlogListingBlockComponent } from './blocks/BlogListingBlock';
+import { BlogPostDetailBlock as BlogPostDetailBlockComponent } from './blocks/BlogPostDetailBlock';
 import { PageContentBlock as PageContentBlockComponent } from './blocks/PageContentBlock';
 import { CustomBlockRenderer as CustomBlockRendererComponent } from './blocks/CustomBlockRenderer';
 import { VideoCarouselBlock as VideoCarouselBlockComponent } from './blocks/VideoCarouselBlock';
@@ -455,6 +456,7 @@ function getBlockComponent(type: string): React.ComponentType<any> {
     // System blocks
     TrackingLookup: TrackingLookupBlockWrapper,
     BlogListing: BlogListingBlockWrapper,
+    BlogPostDetail: BlogPostDetailBlockWrapper,
     PageContent: PageContentBlock,
     CustomBlock: CustomBlockWrapper,
     HTMLSection: HTMLSectionWrapper,
@@ -1380,6 +1382,10 @@ function TrackingLookupBlockWrapper({ context, isEditing, ...props }: any) {
 
 function BlogListingBlockWrapper({ context, isEditing, ...props }: any) {
   return <BlogListingBlockComponent {...props} context={context} isEditing={isEditing} />;
+}
+
+function BlogPostDetailBlockWrapper({ context, isEditing, ...props }: any) {
+  return <BlogPostDetailBlockComponent {...props} context={context} isEditing={isEditing} />;
 }
 
 function PageContentBlock({ context }: any) {
