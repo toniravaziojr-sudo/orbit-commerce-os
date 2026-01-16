@@ -316,39 +316,7 @@ export function BuilderToolbar({
           </SelectContent>
         </Select>
 
-        {/* Example Category Selector - Only for Category template */}
-        {pageType === 'category' && onExampleCategoryChange && (
-          <>
-            <Separator orientation="vertical" className="h-5" />
-            <div className="flex items-center gap-1.5">
-              <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
-              {isLoadingCategories ? (
-                <Skeleton className="h-7 w-[160px]" />
-              ) : (
-                <Select 
-                  value={effectiveCategoryId || ''} 
-                  onValueChange={onExampleCategoryChange}
-                >
-                  <SelectTrigger className="w-[160px] h-7 text-xs">
-                    <SelectValue placeholder="Categoria exemplo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories?.map((category) => (
-                      <SelectItem key={category.id} value={category.id}>
-                        {category.name}
-                      </SelectItem>
-                    ))}
-                    {(!categories || categories.length === 0) && (
-                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                        Nenhuma categoria encontrada
-                      </div>
-                    )}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-          </>
-        )}
+        {/* Category selector removed - category is auto-selected (first available or random) */}
 
         {/* Dirty indicator */}
         {isDirty && (

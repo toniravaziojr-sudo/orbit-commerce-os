@@ -103,46 +103,60 @@ export function CategoryPageLayout({
 
   const tenantId = tenant?.id;
 
-  // Fetch products
+  // Fetch products - with fallback to random products if no category
   const { data: products, isLoading } = useQuery({
     queryKey: ['category-products', tenantId, categoryId, limit],
     queryFn: async () => {
-      if (!tenantId || !categoryId) return [];
+      if (!tenantId) return [];
 
-      const { data: productCategories } = await supabase
-        .from('product_categories')
-        .select('product_id, position')
-        .eq('category_id', categoryId)
-        .order('position', { ascending: true });
+      // If we have a categoryId, fetch products from that category
+      if (categoryId) {
+        const { data: productCategories } = await supabase
+          .from('product_categories')
+          .select('product_id, position')
+          .eq('category_id', categoryId)
+          .order('position', { ascending: true });
 
-      if (!productCategories?.length) return [];
+        if (productCategories?.length) {
+          const productIds = productCategories.map(pc => pc.product_id);
+          const positionMap = new Map(productCategories.map(pc => [pc.product_id, pc.position]));
 
-      const productIds = productCategories.map(pc => pc.product_id);
-      const positionMap = new Map(productCategories.map(pc => [pc.product_id, pc.position]));
+          const { data: prods, error } = await supabase
+            .from('products')
+            .select('id, name, slug, price, compare_at_price, product_images(url, is_primary)')
+            .eq('tenant_id', tenantId)
+            .eq('status', 'active')
+            .in('id', productIds)
+            .limit(limit);
 
+          if (error) throw error;
+
+          return (prods || []).sort((a, b) => {
+            const posA = positionMap.get(a.id) ?? 999999;
+            const posB = positionMap.get(b.id) ?? 999999;
+            return posA - posB;
+          }) as Product[];
+        }
+      }
+
+      // Fallback: fetch random products from tenant for preview
+      // This ensures the builder always shows product placeholders with real data when available
       const { data: prods, error } = await supabase
         .from('products')
         .select('id, name, slug, price, compare_at_price, product_images(url, is_primary)')
         .eq('tenant_id', tenantId)
         .eq('status', 'active')
-        .in('id', productIds)
         .limit(limit);
 
       if (error) throw error;
-
-      return (prods || []).sort((a, b) => {
-        const posA = positionMap.get(a.id) ?? 999999;
-        const posB = positionMap.get(b.id) ?? 999999;
-        return posA - posB;
-      }) as Product[];
+      return (prods || []) as Product[];
     },
-    enabled: !!tenantId && !!categoryId,
+    enabled: !!tenantId,
   });
 
-  // Sem fallback interno de demoProducts - empty state se não houver produtos
+  // Use products or empty array (will show placeholders)
   const displayProducts = useMemo(() => {
-    if (products && products.length > 0) return products;
-    return [] as Product[];
+    return products || [];
   }, [products]);
 
   // Get product IDs for ratings
