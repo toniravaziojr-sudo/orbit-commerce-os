@@ -223,19 +223,21 @@ export function CategoryPageLayout({
   // REGRAS.md linha 76: compra rápida vai direto ao checkout
   const getProductUrl = (product: Product) => {
     if (quickBuyEnabled) {
-      // TODO: Implementar rota de checkout direto com produto
-      // Por enquanto, usa a página do produto
-      return getPublicProductUrl(tenantSlug, product.slug);
+      // Compra rápida: redireciona para checkout com produto pré-adicionado
+      // Usa query param para identificar produto a adicionar
+      return `/${tenantSlug}/checkout?add=${product.id}`;
     }
     return getPublicProductUrl(tenantSlug, product.slug);
   };
 
-  // Handler para adicionar ao carrinho (abre carrinho lateral)
+  // Handler para adicionar ao carrinho (dispara evento para carrinho lateral)
   const handleAddToCart = (e: React.MouseEvent, product: Product) => {
     e.preventDefault();
     e.stopPropagation();
-    // TODO: Integrar com hook de carrinho
-    console.log('Add to cart:', product.id);
+    // Dispara evento customizado para o carrinho lateral capturar
+    window.dispatchEvent(new CustomEvent('addToCart', { 
+      detail: { productId: product.id, quantity: 1 }
+    }));
   };
 
   // Use container query class for responsive grid
@@ -344,7 +346,8 @@ export function CategoryPageLayout({
                         alt={product.name}
                         className="w-full h-full object-cover transition-transform group-hover:scale-105"
                       />
-                      {/* TODO: Renderizar selos (badges) quando showBadges=true */}
+                      {/* Selos são renderizados pelo menu "Aumentar ticket" quando showBadges=true */}
+                      {/* Integração pendente com hook useProductBadges */}
                     </div>
                     
                     {/* Product Info */}
