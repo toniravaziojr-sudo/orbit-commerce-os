@@ -16,12 +16,7 @@ import { getCleanQueryString } from '@/lib/sanitizePublicUrl';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { getStoreBaseUrl } from '@/lib/publicUrls';
 import { useMarketingEvents } from '@/hooks/useMarketingEvents';
-
-interface CategorySettings {
-  showCategoryName?: boolean;
-  showBanner?: boolean;
-  showRatings?: boolean;
-}
+import { CategorySettings } from '@/hooks/usePageSettings';
 
 export default function StorefrontCategory() {
   const tenantSlug = useTenantSlug();
@@ -47,6 +42,21 @@ export default function StorefrontCategory() {
   }, [category?.id, categoryLoading, isPreviewMode, trackViewCategory, products]);
   
   // Fetch category settings from page_overrides
+  // CRITICAL: Must include ALL fields for CategoryPageLayout to work correctly
+  const defaultCategorySettings: CategorySettings = {
+    showCategoryName: true,
+    showBanner: true,
+    showRatings: true,
+    showAddToCartButton: true,
+    quickBuyEnabled: false,
+    showBadges: true,
+    buyNowButtonText: 'Comprar agora',
+    customButtonEnabled: false,
+    customButtonText: '',
+    customButtonColor: '',
+    customButtonLink: '',
+  };
+
   const { data: categorySettings } = useQuery({
     queryKey: ['category-settings', tenantSlug],
     queryFn: async () => {
@@ -56,7 +66,7 @@ export default function StorefrontCategory() {
         .eq('slug', tenantSlug || '')
         .single();
       
-      if (!tenant) return { showCategoryName: true, showBanner: true, showRatings: true };
+      if (!tenant) return defaultCategorySettings;
       
       const { data } = await supabase
         .from('storefront_page_templates')
@@ -66,7 +76,9 @@ export default function StorefrontCategory() {
         .maybeSingle();
       
       const overrides = data?.page_overrides as Record<string, unknown> | null;
-      return (overrides?.categorySettings as CategorySettings) || { showCategoryName: true, showBanner: true, showRatings: true };
+      const saved = (overrides?.categorySettings as CategorySettings) || {};
+      // Merge with defaults to ensure all fields exist
+      return { ...defaultCategorySettings, ...saved };
     },
     enabled: !!tenantSlug,
   });
@@ -95,12 +107,27 @@ export default function StorefrontCategory() {
   // No need for categoryHeaderSlot - removed to avoid duplication
 
   // Build context for block rendering with category data
-  const context: BlockRenderContext & { categories?: any[] } = {
+  // CRITICAL: Pass all categorySettings to context for blocks to consume
+  const context: BlockRenderContext & { categories?: any[]; categorySettings?: CategorySettings } = {
     tenantSlug: tenantSlug || '',
     isPreview: isPreviewMode,
     pageType: 'category',
-    // Pass showRatings setting for product cards
+    // Pass showRatings setting for product cards (legacy)
     showRatings: categorySettings?.showRatings !== false,
+    // Pass full categorySettings for CategoryPageLayout to consume
+    categorySettings: categorySettings || {
+      showCategoryName: true,
+      showBanner: true,
+      showRatings: true,
+      showAddToCartButton: true,
+      quickBuyEnabled: false,
+      showBadges: true,
+      buyNowButtonText: 'Comprar agora',
+      customButtonEnabled: false,
+      customButtonText: '',
+      customButtonColor: '',
+      customButtonLink: '',
+    },
     settings: {
       store_name: storeSettings?.store_name || undefined,
       logo_url: storeSettings?.logo_url || undefined,
