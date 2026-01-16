@@ -210,14 +210,15 @@ export function BuilderToolbar({
     }
     
     if (pageType === 'category') {
+      // Se não tem categoria real, permite preview com slug demo
       if (!effectiveCategoryId) {
-        return { url: null, canPreview: false, reason: 'Nenhuma categoria disponível para visualizar' };
+        return getPreviewUrlWithValidation(tenantSlug, 'category', 'demo-category');
       }
       const category = categories?.find(c => c.id === effectiveCategoryId);
       if (category?.slug) {
         return getPreviewUrlWithValidation(tenantSlug, pageType, category.slug);
       }
-      return { url: null, canPreview: false, reason: 'Categoria sem slug definido' };
+      return getPreviewUrlWithValidation(tenantSlug, 'category', 'demo-category');
     }
     
     // For institutional/landing pages, use the pageSlug prop
