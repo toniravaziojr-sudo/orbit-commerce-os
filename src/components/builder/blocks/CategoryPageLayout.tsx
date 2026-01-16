@@ -20,6 +20,8 @@ import { getPublicProductUrl } from '@/lib/publicUrls';
 import { useProductRatings } from '@/hooks/useProductRating';
 import { RatingSummary } from '@/components/storefront/RatingSummary';
 import { ShoppingCart } from 'lucide-react';
+import { useProductBadgesForProducts } from '@/hooks/useProductBadges';
+import { ProductCardBadges } from '@/components/storefront/product/ProductCardBadges';
 
 interface Product {
   id: string;
@@ -177,6 +179,9 @@ export function CategoryPageLayout({
     [displayProducts]
   );
   const { data: ratingsMap } = useProductRatings(productIdsForRating);
+  
+  // Fetch badges for all products in the grid
+  const { data: badgesMap } = useProductBadgesForProducts(productIdsForRating);
 
   // Extract unique tags from products
   const availableTags = useMemo(() => {
@@ -424,8 +429,10 @@ export function CategoryPageLayout({
                         alt={product.name}
                         className="w-full h-full object-cover transition-transform group-hover:scale-105"
                       />
-                      {/* Selos são renderizados pelo menu "Aumentar ticket" quando showBadges=true */}
-                      {/* Integração pendente com hook useProductBadges */}
+                      {/* Render dynamic badges when showBadges is enabled */}
+                      {showBadges && badgesMap && (
+                        <ProductCardBadges badges={badgesMap.get(product.id) || []} />
+                      )}
                     </div>
                     
                     {/* Product Info */}

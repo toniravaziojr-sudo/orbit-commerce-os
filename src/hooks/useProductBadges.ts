@@ -196,6 +196,47 @@ export function useProductBadgesForProduct(productId: string | undefined) {
   });
 }
 
+// Hook to fetch badges for multiple products at once (efficient for grids)
+export function useProductBadgesForProducts(productIds: string[]) {
+  return useQuery({
+    queryKey: ['product-badge-assignments-batch', productIds.sort().join(',')],
+    queryFn: async () => {
+      if (!productIds.length) return new Map<string, ProductBadge[]>();
+
+      const { data, error } = await supabase
+        .from('product_badge_assignments')
+        .select(`
+          product_id,
+          badge:product_badges(
+            id,
+            name,
+            background_color,
+            text_color,
+            shape,
+            position,
+            is_active
+          )
+        `)
+        .in('product_id', productIds);
+
+      if (error) throw error;
+
+      // Group badges by product_id
+      const badgesMap = new Map<string, ProductBadge[]>();
+      (data || []).forEach((item: any) => {
+        if (item.badge?.is_active) {
+          const existing = badgesMap.get(item.product_id) || [];
+          existing.push(item.badge as ProductBadge);
+          badgesMap.set(item.product_id, existing);
+        }
+      });
+
+      return badgesMap;
+    },
+    enabled: productIds.length > 0,
+  });
+}
+
 // Hook to manage badge-product assignments
 export function useBadgeAssignments(badgeId: string | undefined) {
   const queryClient = useQueryClient();
