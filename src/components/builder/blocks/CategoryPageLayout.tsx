@@ -31,6 +31,18 @@ interface Product {
   tags?: string[];
 }
 
+// Dados fictícios para preview no builder quando não há produtos
+const DEMO_PRODUCTS = [
+  { name: 'Produto Exemplo 1', price: 149.90, compareAtPrice: 199.90, rating: 5, reviewCount: 127 },
+  { name: 'Produto Exemplo 2', price: 89.90, compareAtPrice: null, rating: 4, reviewCount: 43 },
+  { name: 'Produto Exemplo 3', price: 199.90, compareAtPrice: 249.90, rating: 5, reviewCount: 89 },
+  { name: 'Produto Exemplo 4', price: 59.90, compareAtPrice: 79.90, rating: 4, reviewCount: 156 },
+  { name: 'Produto Exemplo 5', price: 299.90, compareAtPrice: null, rating: 5, reviewCount: 67 },
+  { name: 'Produto Exemplo 6', price: 129.90, compareAtPrice: 159.90, rating: 4, reviewCount: 34 },
+  { name: 'Produto Exemplo 7', price: 179.90, compareAtPrice: null, rating: 5, reviewCount: 211 },
+  { name: 'Produto Exemplo 8', price: 99.90, compareAtPrice: 139.90, rating: 4, reviewCount: 78 },
+];
+
 interface CategoryPageLayoutProps {
   context: BlockRenderContext;
   limit?: number;
@@ -304,21 +316,87 @@ export function CategoryPageLayout({
         {/* Products grid */}
         <div className="flex-1 relative">
           {filteredProducts.length === 0 ? (
-            // Sempre mostrar placeholders estruturais quando não há produtos
+            // Dados fictícios para preview no builder - permite visualizar e configurar aparência
             <div className={cn('grid gap-4', getGridCols())}>
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="bg-card rounded-lg overflow-hidden border">
-                  <div className="aspect-square bg-muted flex items-center justify-center">
-                    <svg className="w-10 h-10 text-muted-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {DEMO_PRODUCTS.map((demoProduct, i) => (
+                <div key={i} className="group bg-card rounded-lg overflow-hidden border">
+                  {/* Demo Product Image */}
+                  <div className="aspect-square bg-muted flex items-center justify-center relative">
+                    <svg className="w-12 h-12 text-muted-foreground/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
+                    {/* Demo badge quando showBadges ativo */}
+                    {showBadges && i === 0 && (
+                      <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded font-medium">
+                        -20%
+                      </span>
+                    )}
                   </div>
-                  <div className="p-3 space-y-2">
-                    <div className="h-4 bg-muted rounded w-3/4" />
-                    <div className="h-4 bg-muted rounded w-1/3" />
-                    <div className="mt-2 space-y-1.5">
-                      <div className="h-7 bg-muted rounded w-full" />
-                      <div className="h-7 bg-primary/20 rounded w-full" />
+                  
+                  {/* Demo Product Info */}
+                  <div className="p-3">
+                    {/* Demo rating quando showRatings ativo */}
+                    {showRatings && (
+                      <div className="flex items-center gap-1 mb-1">
+                        {Array.from({ length: 5 }).map((_, starIndex) => (
+                          <svg
+                            key={starIndex}
+                            className={cn(
+                              "w-3 h-3",
+                              starIndex < demoProduct.rating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground/30"
+                            )}
+                            viewBox="0 0 20 20"
+                          >
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                          </svg>
+                        ))}
+                        <span className="text-[10px] text-muted-foreground">({demoProduct.reviewCount})</span>
+                      </div>
+                    )}
+                    
+                    <h3 className="font-medium text-sm line-clamp-2 text-foreground">
+                      {demoProduct.name}
+                    </h3>
+                    
+                    {/* Demo Price */}
+                    <div className="mt-1 flex items-center gap-2">
+                      {demoProduct.compareAtPrice && (
+                        <span className="text-xs text-muted-foreground line-through">
+                          {formatPrice(demoProduct.compareAtPrice)}
+                        </span>
+                      )}
+                      <span className="text-sm font-semibold text-primary">
+                        {formatPrice(demoProduct.price)}
+                      </span>
+                    </div>
+                    
+                    {/* Demo Buttons - mesma ordem da versão real */}
+                    <div className="mt-2 flex flex-col gap-1.5">
+                      {/* 1º Botão "Adicionar ao carrinho" (se ativo) */}
+                      {showAddToCartButton && (
+                        <button className="w-full py-1.5 px-3 text-xs border border-primary text-primary bg-transparent rounded-md hover:bg-primary/10 transition-colors flex items-center justify-center gap-1">
+                          <ShoppingCart className="h-3 w-3" />
+                          <span>Adicionar</span>
+                        </button>
+                      )}
+                      
+                      {/* 2º Botão personalizado (se ativo) */}
+                      {customButtonEnabled && customButtonText && (
+                        <button
+                          className="w-full py-1.5 px-3 text-xs rounded-md text-center transition-colors"
+                          style={{ 
+                            backgroundColor: customButtonColor || 'hsl(var(--primary))',
+                            color: '#ffffff'
+                          }}
+                        >
+                          {customButtonText}
+                        </button>
+                      )}
+                      
+                      {/* 3º Botão principal "Comprar agora" */}
+                      <button className="w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors">
+                        {buyNowButtonText}
+                      </button>
                     </div>
                   </div>
                 </div>
