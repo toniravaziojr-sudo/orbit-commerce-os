@@ -3,6 +3,7 @@
 // =============================================
 
 import { BlockDefinition, BlockPropsSchema } from '@/lib/builder/types';
+import { getRequiredBlockInfo } from '@/lib/builder/pageContracts';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,7 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Trash2, Copy, Settings2, ChevronDown } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Trash2, Copy, Settings2, ChevronDown, Lock } from 'lucide-react';
 import { ProductSelector, CategorySelector, MenuSelector } from './DynamicSelectors';
 import { ProductMultiSelect } from './ProductMultiSelect';
 import { CategoryMultiSelect, CategoryItemConfig } from './CategoryMultiSelect';
@@ -38,6 +40,8 @@ interface PropsEditorProps {
   onDelete?: () => void;
   onDuplicate?: () => void;
   canDelete?: boolean;
+  pageType?: string;
+  blockType?: string;
 }
 
 // Define which props belong to the Header notice group
@@ -62,6 +66,8 @@ export function PropsEditor({
   onDelete,
   onDuplicate,
   canDelete = true,
+  pageType,
+  blockType,
 }: PropsEditorProps) {
   const [noticeOpen, setNoticeOpen] = useState(false);
   
@@ -236,8 +242,18 @@ export function PropsEditor({
 
       {/* Actions */}
       <div className="p-2 border-t bg-muted/30">
+        {/* Badge de estrutura obrigatória - conforme docs/REGRAS.md 16.7 */}
+        {pageType && blockType && !canDelete && (
+          <div className="mb-2">
+            <Badge variant="secondary" className="w-full justify-center gap-1 py-1">
+              <Lock className="h-3 w-3" />
+              Estrutura obrigatória
+            </Badge>
+          </div>
+        )}
+        
         <div className="flex gap-1">
-          {onDuplicate && (
+          {onDuplicate && canDelete && (
             <Button variant="outline" size="sm" className="flex-1 gap-1 h-7 text-xs" onClick={onDuplicate}>
               <Copy className="h-3.5 w-3.5" />
               Duplicar
@@ -250,9 +266,12 @@ export function PropsEditor({
             </Button>
           )}
         </div>
-        {definition.isRemovable === false && (
+        {(definition.isRemovable === false || !canDelete) && (
           <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
-            Este bloco não pode ser removido
+            {!canDelete 
+              ? `Este bloco faz parte da estrutura da página` 
+              : 'Este bloco não pode ser removido'
+            }
           </p>
         )}
       </div>

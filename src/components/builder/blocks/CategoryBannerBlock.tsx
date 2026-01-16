@@ -1,5 +1,6 @@
 // =============================================
 // CATEGORY BANNER BLOCK - Banner da categoria (editável no Builder)
+// Conforme docs/REGRAS.md - estrutura obrigatória da página de Categoria
 // SEM imagens demo hardcoded - template "do zero" fica limpo
 // =============================================
 
@@ -8,7 +9,7 @@ import type { BlockRenderContext } from '@/lib/builder/types';
 interface CategoryBannerBlockProps {
   fallbackImageDesktop?: string;
   fallbackImageMobile?: string;
-  showTitle?: boolean;
+  showTitle?: boolean; // Override do bloco (usado se não houver categorySettings)
   titlePosition?: 'left' | 'center' | 'right';
   overlayOpacity?: number;
   height?: 'sm' | 'md' | 'lg';
@@ -16,10 +17,16 @@ interface CategoryBannerBlockProps {
   isEditing?: boolean;
 }
 
+// Interface para categorySettings do context
+interface CategorySettingsFromContext {
+  showCategoryName?: boolean;
+  showBanner?: boolean;
+}
+
 export function CategoryBannerBlock({
   fallbackImageDesktop,
   fallbackImageMobile,
-  showTitle = true,
+  showTitle: showTitleProp = true,
   titlePosition = 'center',
   overlayOpacity = 40,
   height = 'md',
@@ -29,6 +36,18 @@ export function CategoryBannerBlock({
 
   // Get category data from context
   const category = context?.category;
+  
+  // Get category settings from context (passed from VisualBuilder/StorefrontCategory)
+  const categorySettings: CategorySettingsFromContext = (context as any)?.categorySettings || {};
+  
+  // Use settings from context, fallback to props
+  const showBanner = categorySettings.showBanner ?? true;
+  const showTitle = categorySettings.showCategoryName ?? showTitleProp;
+  
+  // Se o banner está desabilitado nas configurações, não renderizar nada
+  if (!showBanner) {
+    return null;
+  }
   
   // Determine which banner images to use (no demo fallback if not provided)
   const bannerDesktop = category?.banner_desktop_url || fallbackImageDesktop || null;
@@ -78,7 +97,7 @@ export function CategoryBannerBlock({
         style={{ opacity: hasBannerImage ? overlayOpacity / 100 : 0.3 }}
       />
       
-      {/* Content */}
+      {/* Content - só mostra se showTitle estiver ativo */}
       {showTitle && (
         <div className={`absolute inset-0 flex flex-col justify-center px-4 md:px-8 ${titlePositionClasses[titlePosition]}`}>
           <div className="max-w-4xl">

@@ -12,6 +12,7 @@ import { useTemplateSetSave } from '@/hooks/useTemplateSetSave';
 import { BlockNode, BlockRenderContext } from '@/lib/builder/types';
 import { blockRegistry } from '@/lib/builder/registry';
 import { getDefaultTemplate } from '@/lib/builder/defaults';
+import { canDeleteBlock, getRequiredBlockInfo } from '@/lib/builder/pageContracts';
 import { isEssentialBlock, getEssentialBlockReason } from '@/lib/builder/essentialBlocks';
 import { findBlockById } from '@/lib/builder/utils';
 import { BuilderToolbar } from './BuilderToolbar';
@@ -240,46 +241,10 @@ export function VisualBuilder({
   // Data mutations - new multi-template system
   const { saveDraft: saveTemplateSetDraft, publishTemplateSet } = useTemplateSetSave();
 
-  // Build category header slot (banner + name) for afterHeaderSlot
-  // Use context.viewport to determine which image to show in the editor
-  const categoryHeaderSlot = useMemo(() => {
-    if (!isCategoryPage || !selectedCategory) return undefined;
-    
-    const showBanner = categorySettings.showBanner !== false;
-    const showName = categorySettings.showCategoryName !== false;
-    
-    const bannerDesktop = selectedCategory.banner_desktop_url;
-    const bannerMobile = selectedCategory.banner_mobile_url;
-    const hasBanner = showBanner && (bannerDesktop || bannerMobile);
-
-    // In editor, use lifted viewport state to pick the correct image
-    const isMobileView = canvasViewport === 'mobile';
-    
-    // Determine which image to show based on viewport
-    const imageToShow = isMobileView
-      ? (bannerMobile || bannerDesktop)
-      : (bannerDesktop || bannerMobile);
-    
-    // If nothing to show, return undefined
-    if (!hasBanner && !showName) return undefined;
-    
-    return (
-      <div className="w-full">
-        {hasBanner && imageToShow && (
-          <img
-            src={imageToShow}
-            alt={`Banner ${selectedCategory.name || 'Categoria'}`}
-            className="w-full h-auto object-cover"
-          />
-        )}
-        {showName && selectedCategory.name && (
-          <h1 className="text-2xl md:text-3xl font-bold text-foreground px-4 py-6 text-center bg-background">
-            {selectedCategory.name}
-          </h1>
-        )}
-      </div>
-    );
-  }, [isCategoryPage, selectedCategory, categorySettings.showBanner, categorySettings.showCategoryName, canvasViewport]);
+  // NOTA: O CategoryBannerBlock (bloco obrigatório do template) é responsável por renderizar
+  // o banner e título da categoria. Não precisamos de um categoryHeaderSlot separado
+  // pois isso causaria duplicação. O CategoryBannerBlock lê category.banner_*_url do context.
+  const categoryHeaderSlot = undefined;
 
   // Build context with example data - include proper category object for builder
   const builderContext = useMemo<BlockRenderContext>(() => {
@@ -566,13 +531,23 @@ export function VisualBuilder({
   const handleDeleteBlock = useCallback(() => {
     if (!store.selectedBlockId) return;
     const def = store.selectedBlockDefinition;
+    const blockType = store.selectedBlock?.type;
+    
+    // Check page contract first (lockDelete for required blocks)
+    if (blockType && !canDeleteBlock(pageType, blockType)) {
+      const info = getRequiredBlockInfo(pageType, blockType);
+      toast.error(`Este bloco é obrigatório: ${info?.label || 'Estrutura do sistema'}`);
+      return;
+    }
+    
+    // Then check registry-level isRemovable
     if (def?.isRemovable === false) {
       toast.error('Este bloco não pode ser removido');
       return;
     }
     store.removeBlock(store.selectedBlockId);
     toast.success('Bloco removido');
-  }, [store]);
+  }, [store, pageType]);
 
   // Handle duplicating selected block
   const handleDuplicateBlock = useCallback(() => {
@@ -1011,7 +986,12 @@ export function VisualBuilder({
                   onChange={handlePropsChange}
                   onDelete={handleDeleteBlock}
                   onDuplicate={handleDuplicateBlock}
-                  canDelete={store.selectedBlockDefinition.isRemovable !== false}
+                  canDelete={
+                    store.selectedBlockDefinition.isRemovable !== false && 
+                    canDeleteBlock(pageType, store.selectedBlock?.type || '')
+                  }
+                  pageType={pageType}
+                  blockType={store.selectedBlock?.type}
                 />
               )
             ) : (
