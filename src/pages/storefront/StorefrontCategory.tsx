@@ -77,8 +77,11 @@ export default function StorefrontCategory() {
   
   const template = isPreviewMode ? previewTemplate : publicTemplate;
 
+  // Show loading state while any data is still loading
+  const isAnyLoading = categoryLoading || template.isLoading || storeLoading;
+  
   // If category not found and not loading - show 404, never redirect to home
-  if (!category && !categoryLoading && !template.isLoading) {
+  if (!category && !isAnyLoading) {
     return (
       <Storefront404 
         tenantSlug={tenantSlug || ''} 
