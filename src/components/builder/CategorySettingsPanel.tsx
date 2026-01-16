@@ -1,5 +1,6 @@
 // =============================================
 // CATEGORY SETTINGS PANEL - Accordion for category-specific settings
+// Conforme docs/REGRAS.md - Funções padrões da página de Categoria
 // =============================================
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -13,6 +14,7 @@ import {
 } from '@/components/ui/accordion';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
 import { Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -20,6 +22,14 @@ export interface CategorySettings {
   showCategoryName?: boolean;
   showBanner?: boolean;
   showRatings?: boolean;
+  quickBuyEnabled?: boolean;
+  showAddToCartButton?: boolean;
+  showBadges?: boolean;
+  buyNowButtonText?: string;
+  customButtonEnabled?: boolean;
+  customButtonText?: string;
+  customButtonColor?: string;
+  customButtonLink?: string;
 }
 
 interface CategorySettingsPanelProps {
@@ -128,6 +138,124 @@ export function CategorySettingsPanel({
                   onCheckedChange={(checked) => handleChange('showRatings', checked)}
                 />
               </div>
+
+              {/* Exibir selos */}
+              <div className="flex items-center justify-between">
+                <Label htmlFor="showBadges" className="text-sm">
+                  Mostrar selos nos produtos
+                </Label>
+                <Switch
+                  id="showBadges"
+                  checked={settings.showBadges ?? true}
+                  onCheckedChange={(checked) => handleChange('showBadges', checked)}
+                />
+              </div>
+
+              <div className="border-t pt-4 mt-4">
+                <p className="text-xs text-muted-foreground mb-3 font-medium">Botões da Thumb</p>
+                
+                {/* Exibir botão adicionar ao carrinho */}
+                <div className="flex items-center justify-between mb-3">
+                  <Label htmlFor="showAddToCartButton" className="text-sm">
+                    Exibir "Adicionar ao carrinho"
+                  </Label>
+                  <Switch
+                    id="showAddToCartButton"
+                    checked={settings.showAddToCartButton ?? true}
+                    onCheckedChange={(checked) => handleChange('showAddToCartButton', checked)}
+                  />
+                </div>
+
+                {/* Compra rápida */}
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <Label htmlFor="quickBuyEnabled" className="text-sm">
+                      Ativar compra rápida
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Botão principal vai direto ao checkout
+                    </p>
+                  </div>
+                  <Switch
+                    id="quickBuyEnabled"
+                    checked={settings.quickBuyEnabled ?? false}
+                    onCheckedChange={(checked) => handleChange('quickBuyEnabled', checked)}
+                  />
+                </div>
+
+                {/* Texto do botão principal */}
+                <div className="space-y-2 mb-3">
+                  <Label htmlFor="buyNowButtonText" className="text-sm">
+                    Texto do botão principal
+                  </Label>
+                  <Input
+                    id="buyNowButtonText"
+                    value={settings.buyNowButtonText ?? 'Comprar agora'}
+                    onChange={(e) => handleChange('buyNowButtonText', e.target.value)}
+                    placeholder="Comprar agora"
+                    className="h-8 text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Botão personalizado */}
+              <div className="border-t pt-4 mt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <Label htmlFor="customButtonEnabled" className="text-sm">
+                      Botão personalizado
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Adiciona um botão extra no meio
+                    </p>
+                  </div>
+                  <Switch
+                    id="customButtonEnabled"
+                    checked={settings.customButtonEnabled ?? false}
+                    onCheckedChange={(checked) => handleChange('customButtonEnabled', checked)}
+                  />
+                </div>
+
+                {settings.customButtonEnabled && (
+                  <div className="space-y-3 pl-0">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Texto</Label>
+                      <Input
+                        value={settings.customButtonText ?? ''}
+                        onChange={(e) => handleChange('customButtonText', e.target.value)}
+                        placeholder="Ex: Ver detalhes"
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Cor (hex)</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="color"
+                          value={settings.customButtonColor || '#6366f1'}
+                          onChange={(e) => handleChange('customButtonColor', e.target.value)}
+                          className="h-8 w-12 p-1"
+                        />
+                        <Input
+                          value={settings.customButtonColor ?? ''}
+                          onChange={(e) => handleChange('customButtonColor', e.target.value)}
+                          placeholder="#6366f1"
+                          className="h-8 text-sm flex-1"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Link</Label>
+                      <Input
+                        value={settings.customButtonLink ?? ''}
+                        onChange={(e) => handleChange('customButtonLink', e.target.value)}
+                        placeholder="https://..."
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </AccordionContent>
         </AccordionItem>
@@ -158,7 +286,7 @@ export function useCategorySettings(tenantId: string) {
       return (overrides?.categorySettings as CategorySettings) || null;
     },
     enabled: !!tenantId,
-    staleTime: 0, // Always fetch fresh data after invalidation
+    staleTime: 0,
     refetchOnMount: 'always',
   });
 
@@ -166,10 +294,17 @@ export function useCategorySettings(tenantId: string) {
     showCategoryName: data?.showCategoryName ?? true,
     showBanner: data?.showBanner ?? true,
     showRatings: data?.showRatings ?? true,
+    showBadges: data?.showBadges ?? true,
+    showAddToCartButton: data?.showAddToCartButton ?? true,
+    quickBuyEnabled: data?.quickBuyEnabled ?? false,
+    buyNowButtonText: data?.buyNowButtonText ?? 'Comprar agora',
+    customButtonEnabled: data?.customButtonEnabled ?? false,
+    customButtonText: data?.customButtonText ?? '',
+    customButtonColor: data?.customButtonColor ?? '',
+    customButtonLink: data?.customButtonLink ?? '',
   };
 
   const setSettings = (newSettings: CategorySettings) => {
-    // Optimistic update via query cache
     queryClient.setQueryData(['category-settings', tenantId], newSettings);
   };
 
