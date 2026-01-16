@@ -265,14 +265,37 @@ export function CategorySettingsPanel({
 }
 
 // Hook to load category settings - now using React Query for proper reactivity
-export function useCategorySettings(tenantId: string) {
+// UPDATED: Reads from draft_content when templateSetId is provided (for builder)
+export function useCategorySettings(tenantId: string, templateSetId?: string) {
   const queryClient = useQueryClient();
   
   const { data, isLoading } = useQuery({
-    queryKey: ['category-settings', tenantId],
+    // Include templateSetId in query key for proper caching
+    queryKey: ['category-settings', tenantId, templateSetId || 'legacy'],
     queryFn: async () => {
       if (!tenantId) return null;
       
+      // If templateSetId is provided, read from draft_content
+      if (templateSetId) {
+        const { data: templateSet, error: tsError } = await supabase
+          .from('storefront_template_sets')
+          .select('draft_content')
+          .eq('id', templateSetId)
+          .eq('tenant_id', tenantId)
+          .maybeSingle();
+
+        if (!tsError && templateSet?.draft_content) {
+          const draftContent = templateSet.draft_content as Record<string, unknown>;
+          const themeSettings = draftContent.themeSettings as Record<string, unknown> | undefined;
+          const pageSettings = themeSettings?.pageSettings as Record<string, unknown> | undefined;
+          
+          if (pageSettings?.category) {
+            return pageSettings.category as CategorySettings;
+          }
+        }
+      }
+      
+      // Fallback: read from storefront_page_templates (legacy)
       const { data, error } = await supabase
         .from('storefront_page_templates')
         .select('page_overrides')
@@ -290,7 +313,7 @@ export function useCategorySettings(tenantId: string) {
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
     // Poll for changes while builder is open to catch settings changes
-    refetchInterval: 1000,
+    refetchInterval: 500, // Faster polling for real-time feel
   });
 
   const settings: CategorySettings = {
@@ -309,7 +332,7 @@ export function useCategorySettings(tenantId: string) {
 
   const setSettings = (newSettings: CategorySettings) => {
     // Optimistic update for immediate UI feedback
-    queryClient.setQueryData(['category-settings', tenantId], newSettings);
+    queryClient.setQueryData(['category-settings', tenantId, templateSetId || 'legacy'], newSettings);
   };
 
   return { settings, setSettings, isLoading };

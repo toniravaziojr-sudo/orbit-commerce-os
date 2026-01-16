@@ -352,13 +352,18 @@ export function PageSettingsContent({
       queryClient.invalidateQueries({ queryKey: ['checkout-page-settings', tenantId] });
       queryClient.invalidateQueries({ queryKey: ['thankyou-page-settings', tenantId] });
       queryClient.invalidateQueries({ queryKey: ['page-settings', tenantId] });
-      // Also invalidate the specific hooks used in VisualBuilder
-      queryClient.invalidateQueries({ queryKey: ['category-settings', tenantId] });
-      queryClient.invalidateQueries({ queryKey: ['product-settings', tenantId] });
-      // Invalidate template set queries for preview
+      
+      // Invalidate specific hooks used in VisualBuilder with templateSetId
+      // The hooks now use a 3-part key: [type, tenantId, templateSetId]
       if (templateSetId) {
+        queryClient.invalidateQueries({ queryKey: ['category-settings', tenantId, templateSetId] });
+        queryClient.invalidateQueries({ queryKey: ['product-settings', tenantId, templateSetId] });
         queryClient.invalidateQueries({ queryKey: ['template-set-content', templateSetId] });
       }
+      // Also invalidate legacy keys for fallback
+      queryClient.invalidateQueries({ queryKey: ['category-settings', tenantId, 'legacy'] });
+      queryClient.invalidateQueries({ queryKey: ['product-settings', tenantId, 'legacy'] });
+      
       toast.success('Configurações salvas');
     },
     onError: () => {
