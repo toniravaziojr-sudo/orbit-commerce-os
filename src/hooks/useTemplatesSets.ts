@@ -9,13 +9,13 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import type { BlockNode } from '@/lib/builder/types';
 import type { Json } from '@/integrations/supabase/types';
-import { getDefaultTemplate, getBlankTemplate } from '@/lib/builder/defaults';
+import { getBlankTemplate } from '@/lib/builder/defaults';
 
 export interface TemplateSet {
   id: string;
   tenant_id: string;
   name: string;
-  base_preset: 'blank' | 'cosmetics' | 'custom';
+  base_preset: 'blank' | 'custom';
   draft_content: Record<string, BlockNode | null> | null;
   published_content: Record<string, BlockNode | null> | null;
   is_published: boolean;
@@ -27,7 +27,7 @@ export interface TemplateSet {
 
 export interface CreateTemplateParams {
   name: string;
-  basePreset: 'blank' | 'cosmetics';
+  basePreset: 'blank';
 }
 
 export function useTemplateSets() {
@@ -85,21 +85,11 @@ export function useTemplateSets() {
     mutationFn: async ({ name, basePreset }: CreateTemplateParams) => {
       if (!currentTenant?.id) throw new Error('No tenant');
 
-      // Build initial draft content based on preset
+      // Build initial draft content - blank template with header/footer for all page types
       const draftContent: Record<string, BlockNode | null> = {};
-      
-      if (basePreset === 'cosmetics') {
-        // Use full cosmetics template defaults
-        const pageTypes = ['home', 'category', 'product', 'cart', 'checkout', 'thank_you', 'account', 'account_orders', 'account_order_detail'];
-        for (const pageType of pageTypes) {
-          draftContent[pageType] = getDefaultTemplate(pageType as any);
-        }
-      } else {
-        // Blank template - just header/footer for all page types
-        const pageTypes = ['home', 'category', 'product', 'cart', 'checkout', 'thank_you', 'account', 'account_orders', 'account_order_detail'];
-        for (const pageType of pageTypes) {
-          draftContent[pageType] = getBlankTemplate(pageType);
-        }
+      const pageTypes = ['home', 'category', 'product', 'cart', 'checkout', 'thank_you', 'account', 'account_orders', 'account_order_detail'];
+      for (const pageType of pageTypes) {
+        draftContent[pageType] = getBlankTemplate(pageType);
       }
 
       const { data, error } = await supabase
