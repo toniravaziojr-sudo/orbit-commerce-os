@@ -1,6 +1,10 @@
 // =============================================
 // PRODUCT SETTINGS PANEL - Accordion for product page settings
 // =============================================
+//
+// NOTA: Interface e hook centralizados em @/hooks/usePageSettings
+// Este arquivo re-exporta para compatibilidade
+// =============================================
 
 import { useState, useEffect, useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -19,21 +23,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Settings2, Info } from 'lucide-react';
 import { toast } from 'sonner';
 
-export interface ProductSettings {
-  showGallery?: boolean;
-  showDescription?: boolean;
-  showVariants?: boolean;
-  showStock?: boolean;
-  showRelatedProducts?: boolean;
-  showBuyTogether?: boolean;
-  showReviews?: boolean;
-  openMiniCartOnAdd?: boolean;
-  // Novos campos conforme REGRAS.md
-  showFloatingCart?: boolean;
-  showWhatsAppButton?: boolean;
-  showAddToCartButton?: boolean;
-  buyNowButtonText?: string;
-}
+// Re-exportar interface da fonte única de verdade
+import type { ProductSettings } from '@/hooks/usePageSettings';
+import { DEFAULT_PRODUCT_SETTINGS } from '@/hooks/usePageSettings';
+export type { ProductSettings };
 
 interface ProductSettingsPanelProps {
   tenantId: string;
@@ -323,18 +316,20 @@ export function ProductSettingsPanel({
   );
 }
 
-// Hook to load product settings - now using React Query for proper reactivity
-// UPDATED: Reads from draft_content when templateSetId is provided (for builder)
+// =============================================
+// HOOK - Centralizado em usePageSettings.ts
+// Re-exportado aqui para compatibilidade com imports existentes
+// =============================================
+
 export function useProductSettings(tenantId: string, templateSetId?: string) {
   const queryClient = useQueryClient();
+  const queryKey = ['product-settings-builder', tenantId, templateSetId || 'legacy'];
   
   const { data, isLoading } = useQuery({
-    // Include templateSetId in query key for proper caching
-    queryKey: ['product-settings', tenantId, templateSetId || 'legacy'],
+    queryKey,
     queryFn: async () => {
       if (!tenantId) return null;
       
-      // If templateSetId is provided, read from draft_content
       if (templateSetId) {
         const { data: templateSet, error: tsError } = await supabase
           .from('storefront_template_sets')
@@ -354,7 +349,6 @@ export function useProductSettings(tenantId: string, templateSetId?: string) {
         }
       }
       
-      // Fallback: read from storefront_page_templates (legacy)
       const { data, error } = await supabase
         .from('storefront_page_templates')
         .select('page_overrides')
@@ -368,31 +362,19 @@ export function useProductSettings(tenantId: string, templateSetId?: string) {
       return (overrides?.productSettings as ProductSettings) || null;
     },
     enabled: !!tenantId,
-    staleTime: 0, // Always fetch fresh data after invalidation
+    staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
-    // Poll for changes while builder is open to catch settings changes
-    refetchInterval: 500, // Faster polling for real-time feel
+    refetchInterval: 500,
   });
 
   const settings: ProductSettings = {
-    showGallery: data?.showGallery ?? true,
-    showDescription: data?.showDescription ?? true,
-    showVariants: data?.showVariants ?? true,
-    showStock: data?.showStock ?? true,
-    showRelatedProducts: data?.showRelatedProducts ?? true,
-    showBuyTogether: data?.showBuyTogether ?? true,
-    showReviews: data?.showReviews ?? true,
-    openMiniCartOnAdd: data?.openMiniCartOnAdd ?? true,
-    showFloatingCart: data?.showFloatingCart ?? true,
-    showWhatsAppButton: data?.showWhatsAppButton ?? true,
-    showAddToCartButton: data?.showAddToCartButton ?? true,
-    buyNowButtonText: data?.buyNowButtonText ?? 'Comprar agora',
+    ...DEFAULT_PRODUCT_SETTINGS,
+    ...data,
   };
 
   const setSettings = (newSettings: ProductSettings) => {
-    // Optimistic update via query cache
-    queryClient.setQueryData(['product-settings', tenantId, templateSetId || 'legacy'], newSettings);
+    queryClient.setQueryData(queryKey, newSettings);
   };
 
   return { settings, setSettings, isLoading };

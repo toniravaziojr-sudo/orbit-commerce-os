@@ -3,6 +3,10 @@
 // Shows toggles/settings for each page type
 // Includes full cart/checkout configurations
 // =============================================
+// 
+// NOTA: Interfaces importadas de usePageSettings.ts (fonte única de verdade)
+// Conforme docs/REGRAS.md - Arquitetura Builder
+// =============================================
 
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -10,8 +14,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { Json } from '@/integrations/supabase/types';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { 
   ChevronDown, 
@@ -26,6 +28,24 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+
+// Importar interfaces da fonte única de verdade
+import type {
+  CategorySettings,
+  ProductSettings,
+  CartSettings,
+  CheckoutSettings,
+  ThankYouSettings,
+  PageSettings,
+} from '@/hooks/usePageSettings';
+
+import {
+  DEFAULT_CATEGORY_SETTINGS,
+  DEFAULT_PRODUCT_SETTINGS,
+  DEFAULT_CART_SETTINGS,
+  DEFAULT_CHECKOUT_SETTINGS,
+  DEFAULT_THANKYOU_SETTINGS,
+} from '@/hooks/usePageSettings';
 
 // Banner Upload Component with URL input and file upload
 function BannerUploadInput({ 
@@ -147,63 +167,7 @@ interface PageSettingsContentProps {
   onNavigateToEdit?: () => void;
 }
 
-// Settings interfaces for different page types
-// REGRAS.md: Interface completa de configurações de categoria
-interface CategorySettings {
-  showCategoryName?: boolean;
-  showBanner?: boolean;
-  showRatings?: boolean;
-  quickBuyEnabled?: boolean;
-  showAddToCartButton?: boolean;
-  showBadges?: boolean;
-  buyNowButtonText?: string;
-  customButtonEnabled?: boolean;
-  customButtonText?: string;
-  customButtonColor?: string;
-  customButtonLink?: string;
-}
-
-interface ProductSettings {
-  showGallery?: boolean;
-  showDescription?: boolean;
-  showVariants?: boolean;
-  showStock?: boolean;
-  showRelatedProducts?: boolean;
-  showBuyTogether?: boolean;
-  showReviews?: boolean;
-  openMiniCartOnAdd?: boolean;
-}
-
-interface CartSettings {
-  showCrossSell?: boolean;
-  // Carrinho suspenso
-  miniCartEnabled?: boolean;
-  showGoToCartButton?: boolean;
-  // Funcionalidades
-  shippingCalculatorEnabled?: boolean;
-  couponEnabled?: boolean;
-  sessionTrackingEnabled?: boolean;
-  // Banner promocional
-  bannerDesktopEnabled?: boolean;
-  bannerMobileEnabled?: boolean;
-}
-
-interface CheckoutSettings {
-  showOrderBump?: boolean;
-  showTimeline?: boolean;
-  // Funcionalidades
-  couponEnabled?: boolean;
-  testimonialsEnabled?: boolean;
-  // Pixel events
-  purchaseEventAllOrders?: boolean;
-}
-
-interface ThankYouSettings {
-  showUpsell?: boolean;
-  showWhatsApp?: boolean;
-}
-
-type PageSettings = CategorySettings | ProductSettings | CartSettings | CheckoutSettings | ThankYouSettings;
+// NOTA: Interfaces removidas - usar de @/hooks/usePageSettings (fonte única)
 
 export function PageSettingsContent({
   tenantId,
@@ -555,53 +519,14 @@ function getSettingsKey(pageType: string): string {
   return keys[pageType] || `${pageType}Settings`;
 }
 
+// Usar defaults centralizados da fonte única de verdade
 function getDefaultSettings(pageType: string): Record<string, boolean | string> {
   const defaults: Record<string, Record<string, boolean | string>> = {
-    // REGRAS.md: Defaults completos para categoria
-    category: {
-      showCategoryName: true,
-      showBanner: true,
-      showRatings: true,
-      showBadges: true,
-      showAddToCartButton: true,
-      quickBuyEnabled: false,
-      buyNowButtonText: 'Comprar agora',
-      customButtonEnabled: false,
-      customButtonText: '',
-      customButtonColor: '',
-      customButtonLink: '',
-    },
-    product: {
-      showGallery: true,
-      showDescription: true,
-      showVariants: true,
-      showStock: true,
-      showRelatedProducts: true,
-      showBuyTogether: true,
-      showReviews: true,
-      openMiniCartOnAdd: true,
-    },
-    cart: {
-      showCrossSell: true,
-      miniCartEnabled: true,
-      showGoToCartButton: true,
-      shippingCalculatorEnabled: true,
-      couponEnabled: true,
-      sessionTrackingEnabled: true,
-      bannerDesktopEnabled: false,
-      bannerMobileEnabled: false,
-    },
-    checkout: {
-      showOrderBump: true,
-      showTimeline: true,
-      couponEnabled: true,
-      testimonialsEnabled: true,
-      purchaseEventAllOrders: true,
-    },
-    thank_you: {
-      showUpsell: true,
-      showWhatsApp: true,
-    },
+    category: DEFAULT_CATEGORY_SETTINGS as Record<string, boolean | string>,
+    product: DEFAULT_PRODUCT_SETTINGS as Record<string, boolean | string>,
+    cart: DEFAULT_CART_SETTINGS as Record<string, boolean | string>,
+    checkout: DEFAULT_CHECKOUT_SETTINGS as Record<string, boolean | string>,
+    thank_you: DEFAULT_THANKYOU_SETTINGS as Record<string, boolean | string>,
   };
   return defaults[pageType] || {};
 }
