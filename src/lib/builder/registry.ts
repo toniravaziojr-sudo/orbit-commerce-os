@@ -1788,48 +1788,14 @@ const blockDefinitions: BlockDefinition[] = [
     canHaveChildren: false,
   },
   {
-    // REGRAS.md: Banner configurado no menu Categorias, não no builder
-    // propsSchema mínimo - sem upload de imagem
+    // REGRAS.md linha 77: Banner configurado SOMENTE no menu Categorias
+    // Sem opções de edição no builder - propsSchema vazio = sem painel direito
     type: 'CategoryBanner',
     label: 'Banner da Categoria',
     category: 'ecommerce',
     icon: 'Image',
-    defaultProps: {
-      titlePosition: 'center',
-      overlayOpacity: 40,
-      height: 'md',
-    },
-    propsSchema: {
-      // Nota: Imagem do banner é configurada em Produtos → Categorias
-      // Aqui só controles visuais do bloco
-      titlePosition: {
-        type: 'select',
-        label: 'Posição do Título',
-        defaultValue: 'center',
-        options: [
-          { label: 'Esquerda', value: 'left' },
-          { label: 'Centro', value: 'center' },
-          { label: 'Direita', value: 'right' },
-        ],
-      },
-      overlayOpacity: {
-        type: 'number',
-        label: 'Opacidade do Overlay (%)',
-        defaultValue: 40,
-        min: 0,
-        max: 100,
-      },
-      height: {
-        type: 'select',
-        label: 'Altura do Banner',
-        defaultValue: 'md',
-        options: [
-          { label: 'Pequeno', value: 'sm' },
-          { label: 'Médio', value: 'md' },
-          { label: 'Grande', value: 'lg' },
-        ],
-      },
-    },
+    defaultProps: {},
+    propsSchema: {},
     canHaveChildren: false,
   },
   {
