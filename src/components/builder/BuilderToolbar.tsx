@@ -417,7 +417,7 @@ export function BuilderToolbar({
           <AlertDialogTrigger asChild>
             <Button 
               size="sm" 
-              disabled={isPublishing || (pageType === 'category' && !effectiveCategoryId)} 
+              disabled={isPublishing} 
               className="gap-1 h-7 px-2 text-xs"
             >
               <Upload className="h-3.5 w-3.5" />
