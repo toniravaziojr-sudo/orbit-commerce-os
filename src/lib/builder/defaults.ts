@@ -363,24 +363,21 @@ export const defaultCategoryTemplate: BlockNode = {
         height: 'md',
       },
     },
-    // 3. Grid de Produtos da Categoria
+    // 3. Layout da Categoria (listagem + filtros) - REGRAS.md obrigatório
     {
       id: generateBlockId('Section'),
       type: 'Section',
       props: {
-        paddingY: 48,
+        paddingY: 0,
       },
       children: [
         {
-          id: generateBlockId('ProductGrid'),
-          type: 'ProductGrid',
+          id: generateBlockId('CategoryPageLayout'),
+          type: 'CategoryPageLayout',
           props: {
-            title: '',
-            source: 'category',
-            categoryId: '{{category.id}}',
+            showFilters: true,
             columns: 4,
             limit: 24,
-            showPrice: true,
           },
         },
       ],
