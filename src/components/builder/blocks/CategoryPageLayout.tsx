@@ -16,12 +16,13 @@ import { cn } from '@/lib/utils';
 import { BlockRenderContext } from '@/lib/builder/types';
 import { CategoryFilters } from './CategoryFilters';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getPublicProductUrl } from '@/lib/publicUrls';
+import { getPublicProductUrl, getPublicCheckoutUrl } from '@/lib/publicUrls';
 import { useProductRatings } from '@/hooks/useProductRating';
 import { RatingSummary } from '@/components/storefront/RatingSummary';
 import { ShoppingCart } from 'lucide-react';
 import { useProductBadgesForProducts } from '@/hooks/useProductBadges';
 import { ProductCardBadges } from '@/components/storefront/product/ProductCardBadges';
+import { useCart } from '@/contexts/CartContext';
 
 interface Product {
   id: string;
@@ -93,6 +94,9 @@ export function CategoryPageLayout({
   const customButtonText = categorySettings.customButtonText || '';
   const customButtonColor = categorySettings.customButtonColor || '';
   const customButtonLink = categorySettings.customButtonLink || '';
+
+  // Cart integration for add to cart functionality
+  const { addItem } = useCart();
 
   // Filter states
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 500]);
@@ -239,22 +243,43 @@ export function CategoryPageLayout({
 
   // REGRAS.md linha 76: compra rápida vai direto ao checkout
   const getProductUrl = (product: Product) => {
-    if (quickBuyEnabled) {
-      // Compra rápida: redireciona para checkout com produto pré-adicionado
-      // Usa query param para identificar produto a adicionar
-      return `/${tenantSlug}/checkout?add=${product.id}`;
-    }
+    // Sempre retorna a URL do produto para navegação normal
     return getPublicProductUrl(tenantSlug, product.slug);
   };
 
-  // Handler para adicionar ao carrinho (dispara evento para carrinho lateral)
+  // Handler para compra rápida - adiciona ao carrinho e vai para checkout
+  const handleQuickBuy = (e: React.MouseEvent, product: Product) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Adiciona ao carrinho
+    addItem({
+      product_id: product.id,
+      name: product.name,
+      sku: product.slug, // Usa slug como SKU fallback
+      price: product.price,
+      quantity: 1,
+      image_url: getProductImage(product),
+    });
+    
+    // Redireciona para checkout
+    const checkoutUrl = getPublicCheckoutUrl(tenantSlug);
+    window.location.href = checkoutUrl;
+  };
+
+  // Handler para adicionar ao carrinho - usa o hook useCart diretamente
   const handleAddToCart = (e: React.MouseEvent, product: Product) => {
     e.preventDefault();
     e.stopPropagation();
-    // Dispara evento customizado para o carrinho lateral capturar
-    window.dispatchEvent(new CustomEvent('addToCart', { 
-      detail: { productId: product.id, quantity: 1 }
-    }));
+    
+    addItem({
+      product_id: product.id,
+      name: product.name,
+      sku: product.slug, // Usa slug como SKU fallback
+      price: product.price,
+      quantity: 1,
+      image_url: getProductImage(product),
+    });
   };
 
   // Use container query class for responsive grid
@@ -492,12 +517,22 @@ export function CategoryPageLayout({
                         )}
                         
                         {/* 3º Botão principal "Comprar agora" - sempre por último */}
-                        <a
-                          href={isEditing ? undefined : productUrl || undefined}
-                          className="w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-center"
-                        >
-                          {buyNowButtonText}
-                        </a>
+                        {/* Se quickBuyEnabled, usa handleQuickBuy; senão, navega para produto */}
+                        {quickBuyEnabled ? (
+                          <button
+                            onClick={(e) => handleQuickBuy(e, product)}
+                            className="w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-center"
+                          >
+                            {buyNowButtonText}
+                          </button>
+                        ) : (
+                          <a
+                            href={isEditing ? undefined : productUrl || undefined}
+                            className="w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-center"
+                          >
+                            {buyNowButtonText}
+                          </a>
+                        )}
                       </div>
                     </div>
                   </a>

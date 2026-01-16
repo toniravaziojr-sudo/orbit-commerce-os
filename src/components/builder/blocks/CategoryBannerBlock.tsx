@@ -98,13 +98,13 @@ export function CategoryBannerBlock({
       
       {/* Title - independente do banner, aparece se showTitle=true */}
       {showTitle && (
-        <div className={`py-6 px-4 md:px-8 ${titlePositionClasses[titlePosition]}`}>
-          <div className="max-w-4xl mx-auto">
+        <div className={`py-6 px-4 md:px-8 flex flex-col ${titlePositionClasses[titlePosition]}`}>
+          <div className={`max-w-4xl w-full ${titlePosition === 'center' ? 'text-center mx-auto' : titlePosition === 'right' ? 'text-right ml-auto' : ''}`}>
             <h1 className="text-2xl md:text-3xl font-bold text-foreground">
               {categoryName}
             </h1>
             {categoryDescription && (
-              <p className="mt-2 text-sm md:text-base text-muted-foreground max-w-2xl">
+              <p className={`mt-2 text-sm md:text-base text-muted-foreground ${titlePosition === 'center' ? 'mx-auto' : titlePosition === 'right' ? 'ml-auto' : ''}`} style={{ maxWidth: '42rem' }}>
                 {categoryDescription}
               </p>
             )}
