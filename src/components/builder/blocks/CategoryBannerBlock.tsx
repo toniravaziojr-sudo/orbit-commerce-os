@@ -107,12 +107,6 @@ export function CategoryBannerBlock({
         </div>
       )}
       
-      {/* Mensagem orientando sobre configuração - só no editor quando sem banner */}
-      {isEditing && !hasBannerImage && (
-        <div className="absolute top-2 right-2 bg-amber-600/90 text-white text-xs px-3 py-1.5 rounded font-medium shadow-lg">
-          Configure o banner em Produtos → Categorias
-        </div>
-      )}
     </div>
   );
 }
