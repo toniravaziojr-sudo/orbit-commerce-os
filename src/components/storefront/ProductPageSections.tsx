@@ -40,9 +40,9 @@ interface ProductPageSectionsProps {
  * This component MUST be used by both Editor (BlockRenderer) and Public (StorefrontProduct)
  * to ensure consistent rendering order across all contexts.
  * 
- * ORDER (always the same):
- * 1. Full Description (Descrição completa)
- * 2. Buy Together (Compre Junto)
+ * ORDER conforme REGRAS.md:
+ * 1. Buy Together (Compre Junto)
+ * 2. Full Description (Descrição completa)
  * 3. Reviews (Avaliações)
  * 4. Related Products (Produtos Relacionados) - LAST before footer
  */
@@ -70,7 +70,17 @@ export function ProductPageSections({
 
   return (
     <div className="container mx-auto px-4">
-      {/* 1. Full Description Section */}
+      {/* 1. Buy Together Section - PRIMEIRO conforme REGRAS.md */}
+      {showBuyTogether && (
+        <BuyTogetherSection 
+          productId={product.id} 
+          tenantSlug={tenantSlug}
+          currentProduct={currentProductData}
+          viewportOverride={viewportOverride}
+        />
+      )}
+
+      {/* 2. Full Description Section */}
       {showDescription && hasFullDescription && (
         <div className="py-8 border-t">
           <h2 className="text-xl md:text-2xl font-bold mb-4">Descrição</h2>
@@ -79,16 +89,6 @@ export function ProductPageSections({
             dangerouslySetInnerHTML={{ __html: product.description! }}
           />
         </div>
-      )}
-
-      {/* 2. Buy Together Section */}
-      {showBuyTogether && (
-        <BuyTogetherSection 
-          productId={product.id} 
-          tenantSlug={tenantSlug}
-          currentProduct={currentProductData}
-          viewportOverride={viewportOverride}
-        />
       )}
 
       {/* 3. Reviews Section */}
