@@ -12,6 +12,16 @@ export interface CategorySettings {
   showCategoryName?: boolean;
   showBanner?: boolean;
   showRatings?: boolean;
+  // Novos campos conforme REGRAS.md
+  quickBuyEnabled?: boolean;        // Compra rápida - vai direto ao checkout
+  showAddToCartButton?: boolean;    // Exibir botão adicionar ao carrinho
+  showBadges?: boolean;             // Mostrar selos dos produtos
+  buyNowButtonText?: string;        // Texto do botão principal
+  // Botão personalizado
+  customButtonEnabled?: boolean;
+  customButtonText?: string;
+  customButtonColor?: string;
+  customButtonLink?: string;
 }
 
 export interface ProductSettings {
@@ -57,6 +67,14 @@ const DEFAULT_SETTINGS: Record<string, PageSettings> = {
     showCategoryName: true,
     showBanner: true,
     showRatings: true,
+    quickBuyEnabled: false,
+    showAddToCartButton: true,
+    showBadges: true,
+    buyNowButtonText: 'Comprar agora',
+    customButtonEnabled: false,
+    customButtonText: '',
+    customButtonColor: '',
+    customButtonLink: '',
   } as CategorySettings,
   product: {
     showGallery: true,

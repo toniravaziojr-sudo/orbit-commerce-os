@@ -1,5 +1,6 @@
 // =============================================
 // PRODUCT GRID BLOCK - Renders real products
+// Conforme docs/REGRAS.md - Funcionalidades da página de Categoria
 // =============================================
 
 import { useMemo } from 'react';
@@ -11,6 +12,8 @@ import { cn } from '@/lib/utils';
 import { getPublicProductUrl } from '@/lib/publicUrls';
 import { useProductRatings } from '@/hooks/useProductRating';
 import { RatingSummary } from '@/components/storefront/RatingSummary';
+import { useProductBadgesForProduct } from '@/hooks/useProductBadges';
+import { ShoppingCart } from 'lucide-react';
 
 
 interface ProductGridBlockProps {
@@ -35,6 +38,19 @@ interface Product {
   product_images: { url: string; is_primary: boolean }[];
 }
 
+// Category settings from context
+interface CategorySettingsFromContext {
+  showRatings?: boolean;
+  showBadges?: boolean;
+  showAddToCartButton?: boolean;
+  quickBuyEnabled?: boolean;
+  buyNowButtonText?: string;
+  customButtonEnabled?: boolean;
+  customButtonText?: string;
+  customButtonColor?: string;
+  customButtonLink?: string;
+}
+
 export function ProductGridBlock({
   source = 'all',
   categoryId,
@@ -46,7 +62,20 @@ export function ProductGridBlock({
   context,
   isEditing = false,
 }: ProductGridBlockProps) {
-  const { tenantSlug, viewport, showRatings = true } = context;
+  const { tenantSlug, viewport } = context;
+  
+  // Get category settings from context (passed from VisualBuilder/StorefrontCategory)
+  const categorySettings: CategorySettingsFromContext = (context as any).categorySettings || {};
+  
+  const showRatings = categorySettings.showRatings ?? true;
+  const showBadges = categorySettings.showBadges ?? true;
+  const showAddToCartButton = categorySettings.showAddToCartButton ?? true;
+  const quickBuyEnabled = categorySettings.quickBuyEnabled ?? false;
+  const buyNowButtonText = categorySettings.buyNowButtonText || 'Comprar agora';
+  const customButtonEnabled = categorySettings.customButtonEnabled ?? false;
+  const customButtonText = categorySettings.customButtonText || '';
+  const customButtonColor = categorySettings.customButtonColor || '';
+  const customButtonLink = categorySettings.customButtonLink || '';
   
   // Determine if mobile based on viewport context (for builder) or default to responsive CSS
   const isMobileViewport = viewport === 'mobile';
@@ -225,23 +254,30 @@ export function ProductGridBlock({
         {displayProducts.map((product) => {
           const rating = ratingsMap?.get(product.id);
           
+          // Determine product URL based on quickBuy setting
+          // quickBuy vai direto ao checkout (implementar rota de checkout com produto)
+          const productUrl = getPublicProductUrl(tenantSlug, product.slug);
+          
           return (
-            <a
+            <div
               key={product.id}
-              href={isEditing ? undefined : getPublicProductUrl(tenantSlug, product.slug) || undefined}
               className={cn(
-                'group block bg-card rounded-lg overflow-hidden border transition-shadow hover:shadow-md',
+                'group block bg-card rounded-lg overflow-hidden border transition-shadow hover:shadow-md relative',
                 isEditing && 'pointer-events-none'
               )}
             >
-              <div className="aspect-square overflow-hidden bg-muted">
-                <img
-                  src={getProductImage(product)}
-                  alt={product.name}
-                  className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                  loading="lazy"
-                />
-              </div>
+              {/* Product Image with link */}
+              <a href={isEditing ? undefined : productUrl || undefined}>
+                <div className="aspect-square overflow-hidden bg-muted relative">
+                  <img
+                    src={getProductImage(product)}
+                    alt={product.name}
+                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                    loading="lazy"
+                  />
+                </div>
+              </a>
+              
               <div className="p-2 sm:p-3">
                 {showRatings && rating && rating.count > 0 && (
                   <RatingSummary
@@ -266,13 +302,50 @@ export function ProductGridBlock({
                     </span>
                   </div>
                 )}
+                
+                {/* Botões conforme REGRAS.md:
+                    - Se Add to Cart ativo: 1º Carrinho, 2º Custom, 3º Comprar agora
+                    - Se Add to Cart desativado: 1º Custom, 2º Comprar agora
+                */}
                 {showButton && (
-                  <button className="mt-2 w-full py-1 sm:py-1.5 px-2 sm:px-3 text-[10px] sm:text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors">
-                    {buttonText}
-                  </button>
+                  <div className="mt-2 flex flex-col gap-1">
+                    {/* 1º Adicionar ao carrinho (se ativo) */}
+                    {showAddToCartButton && (
+                      <button 
+                        className="w-full py-1 sm:py-1.5 px-2 sm:px-3 text-[10px] sm:text-xs border border-primary text-primary bg-transparent rounded-md hover:bg-primary/10 transition-colors flex items-center justify-center gap-1"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                      >
+                        <ShoppingCart className="h-3 w-3" />
+                        <span>Adicionar</span>
+                      </button>
+                    )}
+                    
+                    {/* 2º Botão personalizado (se ativo) - sempre no meio */}
+                    {customButtonEnabled && customButtonText && (
+                      <a
+                        href={customButtonLink || '#'}
+                        className="w-full py-1 sm:py-1.5 px-2 sm:px-3 text-[10px] sm:text-xs rounded-md text-center transition-colors"
+                        style={{ 
+                          backgroundColor: customButtonColor || '#6366f1',
+                          color: '#ffffff'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {customButtonText}
+                      </a>
+                    )}
+                    
+                    {/* 3º Botão principal "Comprar agora" - sempre por último */}
+                    <a
+                      href={isEditing ? undefined : productUrl || undefined}
+                      className="w-full py-1 sm:py-1.5 px-2 sm:px-3 text-[10px] sm:text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-center"
+                    >
+                      {buyNowButtonText}
+                    </a>
+                  </div>
                 )}
               </div>
-            </a>
+            </div>
           );
         })}
       </div>
