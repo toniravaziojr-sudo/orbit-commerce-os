@@ -56,7 +56,7 @@ interface CategorySettingsFromContext {
 
 export function CategoryPageLayout({
   context,
-  limit = 24,
+  limit = 8, // REGRAS.md: 8 produtos por padrão no preview do builder
   columns = 4,
   showFilters = true,
   isEditing = false,
