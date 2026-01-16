@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/accordion';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
 import { Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -25,6 +26,11 @@ export interface ProductSettings {
   showBuyTogether?: boolean;
   showReviews?: boolean;
   openMiniCartOnAdd?: boolean;
+  // Novos campos conforme REGRAS.md
+  showFloatingCart?: boolean;
+  showWhatsAppButton?: boolean;
+  showAddToCartButton?: boolean;
+  buyNowButtonText?: string;
 }
 
 interface ProductSettingsPanelProps {
@@ -79,7 +85,7 @@ export function ProductSettingsPanel({
     },
   });
 
-  const handleChange = (key: keyof ProductSettings, value: boolean) => {
+  const handleChange = (key: keyof ProductSettings, value: boolean | string) => {
     const newSettings = { ...settings, [key]: value };
     onChange(newSettings);
     saveMutation.mutate(newSettings);
@@ -201,6 +207,62 @@ export function ProductSettingsPanel({
                   onCheckedChange={(checked) => handleChange('openMiniCartOnAdd', checked)}
                 />
               </div>
+
+              {/* Carrinho rápido (popup flutuante) */}
+              <div className="flex items-center justify-between">
+                <Label htmlFor="showFloatingCart" className="text-sm">
+                  Carrinho rápido
+                </Label>
+                <Switch
+                  id="showFloatingCart"
+                  checked={settings.showFloatingCart ?? true}
+                  onCheckedChange={(checked) => handleChange('showFloatingCart', checked)}
+                />
+              </div>
+
+              {/* Divider */}
+              <hr className="my-2" />
+
+              {/* Mostrar botão WhatsApp */}
+              <div className="flex items-center justify-between">
+                <Label htmlFor="showWhatsAppButton" className="text-sm">
+                  Mostrar botão WhatsApp
+                </Label>
+                <Switch
+                  id="showWhatsAppButton"
+                  checked={settings.showWhatsAppButton ?? true}
+                  onCheckedChange={(checked) => handleChange('showWhatsAppButton', checked)}
+                />
+              </div>
+
+              {/* Mostrar botão Adicionar ao carrinho */}
+              <div className="flex items-center justify-between">
+                <Label htmlFor="showAddToCartButton" className="text-sm">
+                  Mostrar Adicionar ao carrinho
+                </Label>
+                <Switch
+                  id="showAddToCartButton"
+                  checked={settings.showAddToCartButton ?? true}
+                  onCheckedChange={(checked) => handleChange('showAddToCartButton', checked)}
+                />
+              </div>
+
+              {/* Divider */}
+              <hr className="my-2" />
+
+              {/* Texto do botão principal */}
+              <div className="space-y-2">
+                <Label htmlFor="buyNowButtonText" className="text-sm">
+                  Texto do botão principal
+                </Label>
+                <Input
+                  id="buyNowButtonText"
+                  value={settings.buyNowButtonText ?? 'Comprar agora'}
+                  onChange={(e) => handleChange('buyNowButtonText', e.target.value)}
+                  placeholder="Comprar agora"
+                  className="h-8 text-sm"
+                />
+              </div>
             </div>
           </AccordionContent>
         </AccordionItem>
@@ -244,6 +306,10 @@ export function useProductSettings(tenantId: string) {
     showBuyTogether: data?.showBuyTogether ?? true,
     showReviews: data?.showReviews ?? true,
     openMiniCartOnAdd: data?.openMiniCartOnAdd ?? true,
+    showFloatingCart: data?.showFloatingCart ?? true,
+    showWhatsAppButton: data?.showWhatsAppButton ?? true,
+    showAddToCartButton: data?.showAddToCartButton ?? true,
+    buyNowButtonText: data?.buyNowButtonText ?? 'Comprar agora',
   };
 
   const setSettings = (newSettings: ProductSettings) => {

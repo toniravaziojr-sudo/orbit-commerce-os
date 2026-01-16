@@ -1,5 +1,7 @@
 # REGRAS — Comando Central
 
+> **REGRA PRINCIPAL:** NUNCA INTERPRETAR AS REGRAS DESTE DOCS, SEMPRE SEGUIR ELAS A RISCA, SE TIVER DÚVIDAS SOBRE ALGUMA IMPLEMENTAÇÃO, CONSULTAR O USUÁRIO ANTES DE PROSSEGUIR.
+
 ## Propósito
 
 Este documento é a **FONTE ÚNICA DE VERDADE** para todas as especificações funcionais, contratos de UI/UX, fluxos e regras de negócio do Comando Central.
@@ -91,7 +93,26 @@ Este documento é a **FONTE ÚNICA DE VERDADE** para todas as especificações f
 
 #### Produto
 
-<!-- Placeholder - conteúdo a ser definido -->
+**Estrutura básica:**
+
+- Slot para imagem principal, slots menores para imagens secundárias até máximo 10 imagens, slots para selos, abaixo dele as 5 estrelas de referência das avaliações, abaixo das estrelas o nome do produto, abaixo do nome os valores, abaixo do valor destaque de pagamento ("bandeirinhas" com as formas de pagamento com destaque para pix com desconto), abaixo vem a descrição curta do produto, abaixo vem as opções de variações (se tiver ativa), depois botão para adicionar quantidade, ao lado o botão principal "Comprar agora", abaixo o botão de adicionar ao carrinho, abaixo o botão de comprar pelo whatsapp, abaixo a calculadora de frete, abaixo "bandeirinhas editáveis" para colocar informações de garantia, etc, abaixo vem o Compre junto (se estiver ativo), depois vem a parte da descrição completa, depois as avaliações do produto, depois os produtos relacionados.
+
+**Observação:** As informações dos produtos são puxadas do cadastro dos produtos, se o cliente não tiver produtos no cadastro, no builder vamos apenas exemplificar com "exemple name" valor simbolico, etc, somente para uma visalização do cliente de como vai ficar a página dos produtos dele, se ele tiver produtos cadastrados o sistema busca um produto real do cliente aleatório para exemplificar. Mesma lógica da página de categoria.
+
+**Funcionalidades:**
+
+- Mostrar galeria (mostra ou esconde as imagens secundárias do cadastro do produto, a imagem principal nunca some)
+- Mostrar descrição (mostra ou esconde a descrição curta dos produtos, nunca esconde a descrição completa, a descrição curta é puxada do cadastro dos produtos)
+- Mostrar ou não as variantes (variações do produto, como cor, tamanho, etc, são puxadas do cadastro do produto)
+- Mostrar ou não o estoque (puxado do cadastro do produto)
+- Mostrar ou esconder produtos relacionados (grid de produtos relacionados também é cadastrada no cadastro dos produtos)
+- Mostrar ou esconder Compre junto (Configurado no menu Aumentar ticket)
+- Mostrar ou esconder avaliações (se desativada esconde todas as avaliações, inclusive o input para o cliente fazer uma avaliação)
+- Ativar ou desativar função de carrinho suspenso na página do produto (ao ativada se o cliente clicar no botão adicionar ao carrinho abre o carrinho suspenso, quando desativada simplesmente adiciona o produto ao carrinho e permanece na página do produto e o botão Adicionar ao carrinho fica bloqueado e muda para "Adicionado")
+- Ativar ou desativar Carrinho rápido (quando ativo funciona assim, se o cliente já tiver algum produto adicionado ao carrinho aparece um popup pequeno no canto inferior direito no formato do carrinho da loja e mostrando a quantidade de itens adicionados, se o cliente clicar ele vai para a página do carrinho com os produtos adicionados, quando a função está desativada não aparece esse popup)
+- Mostrar ou esconder botão "Comprar pelo whatsapp"
+- Mostrar ou esconder botão Adicionar ao carrinho
+- Campo personalizado para editar o nome do botão principal "Comprar agora"
 
 ---
 
