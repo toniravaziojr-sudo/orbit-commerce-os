@@ -2,6 +2,10 @@
 // CATEGORY SETTINGS PANEL - Accordion for category-specific settings
 // Conforme docs/REGRAS.md - Funções padrões da página de Categoria
 // =============================================
+//
+// NOTA: Interface e hook centralizados em @/hooks/usePageSettings
+// Este arquivo re-exporta para compatibilidade
+// =============================================
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,19 +22,10 @@ import { Input } from '@/components/ui/input';
 import { Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-export interface CategorySettings {
-  showCategoryName?: boolean;
-  showBanner?: boolean;
-  showRatings?: boolean;
-  quickBuyEnabled?: boolean;
-  showAddToCartButton?: boolean;
-  showBadges?: boolean;
-  buyNowButtonText?: string;
-  customButtonEnabled?: boolean;
-  customButtonText?: string;
-  customButtonColor?: string;
-  customButtonLink?: string;
-}
+// Re-exportar interface da fonte única de verdade
+import type { CategorySettings } from '@/hooks/usePageSettings';
+import { DEFAULT_CATEGORY_SETTINGS } from '@/hooks/usePageSettings';
+export type { CategorySettings };
 
 interface CategorySettingsPanelProps {
   tenantId: string;
@@ -264,18 +259,20 @@ export function CategorySettingsPanel({
   );
 }
 
-// Hook to load category settings - now using React Query for proper reactivity
-// UPDATED: Reads from draft_content when templateSetId is provided (for builder)
+// =============================================
+// HOOK - Centralizado em usePageSettings.ts
+// Re-exportado aqui para compatibilidade com imports existentes
+// =============================================
+
 export function useCategorySettings(tenantId: string, templateSetId?: string) {
   const queryClient = useQueryClient();
+  const queryKey = ['category-settings-builder', tenantId, templateSetId || 'legacy'];
   
   const { data, isLoading } = useQuery({
-    // Include templateSetId in query key for proper caching
-    queryKey: ['category-settings', tenantId, templateSetId || 'legacy'],
+    queryKey,
     queryFn: async () => {
       if (!tenantId) return null;
       
-      // If templateSetId is provided, read from draft_content
       if (templateSetId) {
         const { data: templateSet, error: tsError } = await supabase
           .from('storefront_template_sets')
@@ -295,7 +292,6 @@ export function useCategorySettings(tenantId: string, templateSetId?: string) {
         }
       }
       
-      // Fallback: read from storefront_page_templates (legacy)
       const { data, error } = await supabase
         .from('storefront_page_templates')
         .select('page_overrides')
@@ -312,27 +308,16 @@ export function useCategorySettings(tenantId: string, templateSetId?: string) {
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
-    // Poll for changes while builder is open to catch settings changes
-    refetchInterval: 500, // Faster polling for real-time feel
+    refetchInterval: 500,
   });
 
   const settings: CategorySettings = {
-    showCategoryName: data?.showCategoryName ?? true,
-    showBanner: data?.showBanner ?? true,
-    showRatings: data?.showRatings ?? true,
-    showBadges: data?.showBadges ?? true,
-    showAddToCartButton: data?.showAddToCartButton ?? true,
-    quickBuyEnabled: data?.quickBuyEnabled ?? false,
-    buyNowButtonText: data?.buyNowButtonText ?? 'Comprar agora',
-    customButtonEnabled: data?.customButtonEnabled ?? false,
-    customButtonText: data?.customButtonText ?? '',
-    customButtonColor: data?.customButtonColor ?? '',
-    customButtonLink: data?.customButtonLink ?? '',
+    ...DEFAULT_CATEGORY_SETTINGS,
+    ...data,
   };
 
   const setSettings = (newSettings: CategorySettings) => {
-    // Optimistic update for immediate UI feedback
-    queryClient.setQueryData(['category-settings', tenantId, templateSetId || 'legacy'], newSettings);
+    queryClient.setQueryData(queryKey, newSettings);
   };
 
   return { settings, setSettings, isLoading };
