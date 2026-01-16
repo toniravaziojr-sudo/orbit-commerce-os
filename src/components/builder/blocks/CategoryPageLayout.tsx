@@ -9,7 +9,7 @@
 // - Botão personalizado com ordem específica
 // =============================================
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
@@ -19,10 +19,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { getPublicProductUrl, getPublicCheckoutUrl } from '@/lib/publicUrls';
 import { useProductRatings } from '@/hooks/useProductRating';
 import { RatingSummary } from '@/components/storefront/RatingSummary';
-import { ShoppingCart } from 'lucide-react';
+import { ShoppingCart, Check } from 'lucide-react';
 import { useProductBadgesForProducts } from '@/hooks/useProductBadges';
 import { ProductCardBadges } from '@/components/storefront/product/ProductCardBadges';
 import { useCart } from '@/contexts/CartContext';
+import { MiniCartDrawer } from '@/components/storefront/MiniCartDrawer';
+import { toast } from 'sonner';
 
 interface Product {
   id: string;
@@ -95,8 +97,19 @@ export function CategoryPageLayout({
   const customButtonColor = categorySettings.customButtonColor || '';
   const customButtonLink = categorySettings.customButtonLink || '';
 
+  // Theme settings for mini-cart (from theme, not page settings)
+  const themeSettings = (context as any)?.themeSettings || {};
+  const miniCartEnabled = themeSettings.miniCartEnabled !== false;
+  const openMiniCartOnAdd = themeSettings.openMiniCartOnAdd !== false;
+
   // Cart integration for add to cart functionality
   const { addItem } = useCart();
+
+  // State for mini-cart drawer
+  const [miniCartOpen, setMiniCartOpen] = useState(false);
+  
+  // State for tracking which products show "Adicionado" feedback
+  const [addedProducts, setAddedProducts] = useState<Set<string>>(new Set());
 
   // Filter states
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 500]);
@@ -267,20 +280,39 @@ export function CategoryPageLayout({
     window.location.href = checkoutUrl;
   };
 
-  // Handler para adicionar ao carrinho - usa o hook useCart diretamente
-  const handleAddToCart = (e: React.MouseEvent, product: Product) => {
+  // Handler para adicionar ao carrinho - feedback visual + mini-cart condicional
+  const handleAddToCart = useCallback((e: React.MouseEvent, product: Product) => {
     e.preventDefault();
     e.stopPropagation();
     
+    // Adiciona ao carrinho
     addItem({
       product_id: product.id,
       name: product.name,
-      sku: product.slug, // Usa slug como SKU fallback
+      sku: product.slug,
       price: product.price,
       quantity: 1,
       image_url: getProductImage(product),
     });
-  };
+    
+    // Mostra feedback "Adicionado" no botão
+    setAddedProducts(prev => new Set(prev).add(product.id));
+    toast.success('Produto adicionado ao carrinho!');
+    
+    // Se miniCart está habilitado e deve abrir ao adicionar, abre o drawer
+    if (miniCartEnabled && openMiniCartOnAdd) {
+      setMiniCartOpen(true);
+    }
+    
+    // Remove o feedback depois de 2 segundos
+    setTimeout(() => {
+      setAddedProducts(prev => {
+        const next = new Set(prev);
+        next.delete(product.id);
+        return next;
+      });
+    }, 2000);
+  }, [addItem, miniCartEnabled, openMiniCartOnAdd]);
 
   // Use container query class for responsive grid
   const getGridCols = () => {
@@ -493,11 +525,26 @@ export function CategoryPageLayout({
                         {/* 1º Botão "Adicionar ao carrinho" (se ativo) */}
                         {showAddToCartButton && (
                           <button 
-                            className="w-full py-1.5 px-3 text-xs border border-primary text-primary bg-transparent rounded-md hover:bg-primary/10 transition-colors flex items-center justify-center gap-1"
+                            className={cn(
+                              "w-full py-1.5 px-3 text-xs rounded-md transition-colors flex items-center justify-center gap-1",
+                              addedProducts.has(product.id)
+                                ? "bg-green-500 text-white border-green-500"
+                                : "border border-primary text-primary bg-transparent hover:bg-primary/10"
+                            )}
                             onClick={(e) => handleAddToCart(e, product)}
+                            disabled={addedProducts.has(product.id)}
                           >
-                            <ShoppingCart className="h-3 w-3" />
-                            <span>Adicionar</span>
+                            {addedProducts.has(product.id) ? (
+                              <>
+                                <Check className="h-3 w-3" />
+                                <span>Adicionado</span>
+                              </>
+                            ) : (
+                              <>
+                                <ShoppingCart className="h-3 w-3" />
+                                <span>Adicionar</span>
+                              </>
+                            )}
                           </button>
                         )}
                         
@@ -542,6 +589,16 @@ export function CategoryPageLayout({
           )}
         </div>
       </div>
+      
+      {/* Mini Cart Drawer - só renderiza se miniCartEnabled */}
+      {miniCartEnabled && (
+        <MiniCartDrawer
+          open={miniCartOpen}
+          onOpenChange={setMiniCartOpen}
+          tenantSlug={tenantSlug}
+          isPreview={context?.isPreview}
+        />
+      )}
     </div>
   );
 }
