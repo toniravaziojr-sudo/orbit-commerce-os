@@ -1,15 +1,12 @@
 // =============================================
-// CATEGORY BANNER BLOCK - Banner da categoria (editável no Builder)
+// CATEGORY BANNER BLOCK - Banner da categoria
 // Conforme docs/REGRAS.md - estrutura obrigatória da página de Categoria
-// SEM imagens demo hardcoded - template "do zero" fica limpo
+// REGRAS.md linha 77: imagem do banner é configurada no menu Categorias
 // =============================================
 
 import type { BlockRenderContext } from '@/lib/builder/types';
 
 interface CategoryBannerBlockProps {
-  fallbackImageDesktop?: string;
-  fallbackImageMobile?: string;
-  showTitle?: boolean; // Override do bloco (usado se não houver categorySettings)
   titlePosition?: 'left' | 'center' | 'right';
   overlayOpacity?: number;
   height?: 'sm' | 'md' | 'lg';
@@ -24,9 +21,6 @@ interface CategorySettingsFromContext {
 }
 
 export function CategoryBannerBlock({
-  fallbackImageDesktop,
-  fallbackImageMobile,
-  showTitle: showTitleProp = true,
   titlePosition = 'center',
   overlayOpacity = 40,
   height = 'md',
@@ -40,18 +34,18 @@ export function CategoryBannerBlock({
   // Get category settings from context (passed from VisualBuilder/StorefrontCategory)
   const categorySettings: CategorySettingsFromContext = (context as any)?.categorySettings || {};
   
-  // Use settings from context, fallback to props
+  // Use settings from context
   const showBanner = categorySettings.showBanner ?? true;
-  const showTitle = categorySettings.showCategoryName ?? showTitleProp;
+  const showTitle = categorySettings.showCategoryName ?? true;
   
   // Se o banner está desabilitado nas configurações, não renderizar nada
   if (!showBanner) {
     return null;
   }
   
-  // Determine which banner images to use (no demo fallback if not provided)
-  const bannerDesktop = category?.banner_desktop_url || fallbackImageDesktop || null;
-  const bannerMobile = category?.banner_mobile_url || fallbackImageMobile || bannerDesktop;
+  // REGRAS.md linha 77: banner vem do menu Categorias (category.banner_desktop_url)
+  const bannerDesktop = category?.banner_desktop_url || null;
+  const bannerMobile = category?.banner_mobile_url || bannerDesktop;
   
   // Check if we have any banner image
   const hasBannerImage = !!bannerDesktop || !!bannerMobile;
@@ -113,10 +107,10 @@ export function CategoryBannerBlock({
         </div>
       )}
       
-      {/* Placeholder hint - only in editor when no banner configured */}
+      {/* Mensagem orientando sobre configuração - só no editor quando sem banner */}
       {isEditing && !hasBannerImage && (
-        <div className="absolute top-2 right-2 bg-muted-foreground/80 text-white text-xs px-2 py-1 rounded font-medium">
-          Configure o banner da categoria
+        <div className="absolute top-2 right-2 bg-amber-600/90 text-white text-xs px-3 py-1.5 rounded font-medium shadow-lg">
+          Configure o banner em Produtos → Categorias
         </div>
       )}
     </div>

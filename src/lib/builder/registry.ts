@@ -1788,34 +1788,20 @@ const blockDefinitions: BlockDefinition[] = [
     canHaveChildren: false,
   },
   {
+    // REGRAS.md: Banner configurado no menu Categorias, não no builder
+    // propsSchema mínimo - sem upload de imagem
     type: 'CategoryBanner',
     label: 'Banner da Categoria',
     category: 'ecommerce',
     icon: 'Image',
     defaultProps: {
-      fallbackImageDesktop: '',
-      fallbackImageMobile: '',
-      showTitle: true,
       titlePosition: 'center',
       overlayOpacity: 40,
       height: 'md',
     },
     propsSchema: {
-      fallbackImageDesktop: {
-        type: 'image',
-        label: 'Imagem Fallback (Desktop)',
-        helpText: 'Usada quando a categoria não tem banner. Recomendado: 1920×400px',
-      },
-      fallbackImageMobile: {
-        type: 'image',
-        label: 'Imagem Fallback (Mobile)',
-        helpText: 'Usada quando a categoria não tem banner. Recomendado: 768×300px',
-      },
-      showTitle: {
-        type: 'boolean',
-        label: 'Mostrar Título da Categoria',
-        defaultValue: true,
-      },
+      // Nota: Imagem do banner é configurada em Produtos → Categorias
+      // Aqui só controles visuais do bloco
       titlePosition: {
         type: 'select',
         label: 'Posição do Título',
