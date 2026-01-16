@@ -45,7 +45,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { isBlockRequired, canDeleteBlock, getRequiredBlockInfo } from '@/lib/builder/pageContracts';
+import { isBlockRequired, canDeleteBlock, getRequiredBlockInfo, getPageContract } from '@/lib/builder/pageContracts';
 
 interface BuilderSidebarProps {
   content: BlockNode;
@@ -68,8 +68,8 @@ const SIDEBAR_HIDDEN_BLOCKS = new Set([
   // Infrastructure - always hidden
   'Header', 'Footer', 'Page', 'Section',
   
-  // System features - Category page
-  'CategoryBanner', 'ProductGrid',
+  // System features - Category page (REGRAS.md: estrutura obrigatória)
+  'CategoryBanner', 'ProductGrid', 'CategoryPageLayout',
   
   // System features - Product page
   'ProductDetails', 'CompreJuntoSlot',
@@ -267,8 +267,14 @@ export function BuilderSidebar({
 }: BuilderSidebarProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   
+  // Check if this is a system page (structure controlled by pageContracts)
+  // System pages do NOT show blocks in the sidebar - only "Configurações do tema"
+  const pageContract = getPageContract(pageType);
+  const isSystemPage = pageContract?.isSystemPage === true;
+  
   // Get visible sections (without structural blocks like Header/Footer)
   // This now flattens Section containers to show their children
+  // For system pages, this will be empty (all blocks are hidden)
   const sections = getMainSections(content, true);
   
   const sensors = useSensors(
@@ -322,61 +328,75 @@ export function BuilderSidebar({
         </div>
       </div>
 
-      {/* Sections list */}
+      {/* Sections list - only shown for non-system pages */}
       <ScrollArea className="flex-1">
         <div className="p-2">
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={sections.map(s => s.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="space-y-0.5">
-                {sections.map((block) => {
-                  const isRequired = isBlockRequired(pageType, block.type);
-                  const canDelete = canDeleteBlock(pageType, block.type);
-                  const requiredInfo = getRequiredBlockInfo(pageType, block.type);
-                  const isLocked = isRequired && !canDelete;
-                  
-                  return (
-                    <SortableBlockItem
-                      key={block.id}
-                      block={block}
-                      isSelected={selectedBlockId === block.id}
-                      isLocked={isLocked}
-                      lockReason={requiredInfo?.label ? `Estrutura obrigatória: ${requiredInfo.label}` : undefined}
-                      onSelect={() => onSelectBlock(block.id)}
-                      onToggleHidden={() => onToggleHidden(block.id)}
-                      onDelete={() => onDeleteBlock(block.id)}
-                    />
-                  );
-                })}
+          {/* For system pages (category, product, cart, etc.), show info message instead of block list */}
+          {isSystemPage ? (
+            <div className="text-center py-8 px-4">
+              <div className="text-muted-foreground text-sm mb-2">
+                Esta página possui estrutura padrão.
               </div>
-            </SortableContext>
+              <div className="text-muted-foreground text-xs">
+                Use as <strong>Configurações do tema</strong> abaixo para personalizar.
+              </div>
+            </div>
+          ) : (
+            <>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={sections.map(s => s.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-0.5">
+                    {sections.map((block) => {
+                      const isRequired = isBlockRequired(pageType, block.type);
+                      const canDelete = canDeleteBlock(pageType, block.type);
+                      const requiredInfo = getRequiredBlockInfo(pageType, block.type);
+                      const isLocked = isRequired && !canDelete;
+                      
+                      return (
+                        <SortableBlockItem
+                          key={block.id}
+                          block={block}
+                          isSelected={selectedBlockId === block.id}
+                          isLocked={isLocked}
+                          lockReason={requiredInfo?.label ? `Estrutura obrigatória: ${requiredInfo.label}` : undefined}
+                          onSelect={() => onSelectBlock(block.id)}
+                          onToggleHidden={() => onToggleHidden(block.id)}
+                          onDelete={() => onDeleteBlock(block.id)}
+                        />
+                      );
+                    })}
+                  </div>
+                </SortableContext>
 
-            <DragOverlay>
-              {activeId ? (
-                <div className="bg-primary/10 border border-primary rounded-md px-3 py-2 text-sm font-medium shadow-lg">
-                  {getActiveBlockLabel()}
-                </div>
-              ) : null}
-            </DragOverlay>
-          </DndContext>
+                <DragOverlay>
+                  {activeId ? (
+                    <div className="bg-primary/10 border border-primary rounded-md px-3 py-2 text-sm font-medium shadow-lg">
+                      {getActiveBlockLabel()}
+                    </div>
+                  ) : null}
+                </DragOverlay>
+              </DndContext>
 
-          {/* Add section button */}
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full mt-3 gap-2 text-muted-foreground hover:text-foreground hover:bg-muted justify-start border-dashed"
-            onClick={onOpenAddBlock}
-          >
-            <Plus className="h-4 w-4" />
-            <span>Adicionar seção</span>
-          </Button>
+              {/* Add section button - only for non-system pages */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full mt-3 gap-2 text-muted-foreground hover:text-foreground hover:bg-muted justify-start border-dashed"
+                onClick={onOpenAddBlock}
+              >
+                <Plus className="h-4 w-4" />
+                <span>Adicionar seção</span>
+              </Button>
+            </>
+          )}
         </div>
       </ScrollArea>
 
