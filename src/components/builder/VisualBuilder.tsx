@@ -176,11 +176,11 @@ export function VisualBuilder({
   const isCategoryPage = pageType === 'category';
   const isProductPage = pageType === 'product';
 
-  // Category settings for category template
-  const { settings: categorySettings, setSettings: setCategorySettings } = useCategorySettings(tenantId);
+  // Category settings for category template - pass templateSetId for real-time updates
+  const { settings: categorySettings, setSettings: setCategorySettings } = useCategorySettings(tenantId, templateSetId);
 
-  // Product settings for product template
-  const { settings: productSettings, setSettings: setProductSettings } = useProductSettings(tenantId);
+  // Product settings for product template - pass templateSetId for real-time updates
+  const { settings: productSettings, setSettings: setProductSettings } = useProductSettings(tenantId, templateSetId);
 
   // Fetch full category data (including banners) when editing category template
   const { data: selectedCategory } = useQuery({
