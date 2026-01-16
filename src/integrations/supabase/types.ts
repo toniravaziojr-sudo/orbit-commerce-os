@@ -7597,6 +7597,102 @@ export type Database = {
           },
         ]
       }
+      product_badge_assignments: {
+        Row: {
+          badge_id: string
+          created_at: string
+          id: string
+          product_id: string
+          tenant_id: string
+        }
+        Insert: {
+          badge_id: string
+          created_at?: string
+          id?: string
+          product_id: string
+          tenant_id: string
+        }
+        Update: {
+          badge_id?: string
+          created_at?: string
+          id?: string
+          product_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_badge_assignments_badge_id_fkey"
+            columns: ["badge_id"]
+            isOneToOne: false
+            referencedRelation: "product_badges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_badge_assignments_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_badge_assignments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_badges: {
+        Row: {
+          background_color: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          position: string
+          shape: string
+          sort_order: number
+          tenant_id: string
+          text_color: string
+          updated_at: string
+        }
+        Insert: {
+          background_color?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          position?: string
+          shape?: string
+          sort_order?: number
+          tenant_id: string
+          text_color?: string
+          updated_at?: string
+        }
+        Update: {
+          background_color?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          position?: string
+          shape?: string
+          sort_order?: number
+          tenant_id?: string
+          text_color?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_badges_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_categories: {
         Row: {
           category_id: string
