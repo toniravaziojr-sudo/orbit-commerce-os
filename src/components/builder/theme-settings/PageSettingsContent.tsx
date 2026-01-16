@@ -147,10 +147,19 @@ interface PageSettingsContentProps {
 }
 
 // Settings interfaces for different page types
+// REGRAS.md: Interface completa de configurações de categoria
 interface CategorySettings {
   showCategoryName?: boolean;
   showBanner?: boolean;
   showRatings?: boolean;
+  quickBuyEnabled?: boolean;
+  showAddToCartButton?: boolean;
+  showBadges?: boolean;
+  buyNowButtonText?: string;
+  customButtonEnabled?: boolean;
+  customButtonText?: string;
+  customButtonColor?: string;
+  customButtonLink?: string;
 }
 
 interface ProductSettings {
@@ -201,7 +210,8 @@ export function PageSettingsContent({
   onNavigateToEdit,
 }: PageSettingsContentProps) {
   const queryClient = useQueryClient();
-  const [settings, setSettings] = useState<Record<string, boolean>>({});
+  // Settings pode ter boolean ou string (para campos de texto)
+  const [settings, setSettings] = useState<Record<string, boolean | string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
@@ -224,7 +234,7 @@ export function PageSettingsContent({
         const settingsKey = getSettingsKey(pageType);
         
         if (overrides?.[settingsKey]) {
-          setSettings(overrides[settingsKey] as Record<string, boolean>);
+          setSettings(overrides[settingsKey] as Record<string, boolean | string>);
         } else {
           // Set defaults based on page type
           setSettings(getDefaultSettings(pageType));
@@ -239,9 +249,9 @@ export function PageSettingsContent({
     loadSettings();
   }, [tenantId, pageType]);
 
-  // Save mutation
+  // Save mutation - suporta boolean e string
   const saveMutation = useMutation({
-    mutationFn: async (newSettings: Record<string, boolean>) => {
+    mutationFn: async (newSettings: Record<string, boolean | string>) => {
       const { data: template, error: fetchError } = await supabase
         .from('storefront_page_templates')
         .select('page_overrides')
@@ -285,7 +295,8 @@ export function PageSettingsContent({
     },
   });
 
-  const handleChange = (key: string, value: boolean) => {
+  // handleChange agora aceita boolean ou string
+  const handleChange = (key: string, value: boolean | string) => {
     const newSettings = { ...settings, [key]: value };
     setSettings(newSettings);
     saveMutation.mutate(newSettings);
@@ -351,7 +362,7 @@ export function PageSettingsContent({
                       </div>
                       <Switch
                         id={config.key}
-                        checked={settings[config.key] ?? config.defaultValue}
+                        checked={Boolean(settings[config.key] ?? config.defaultValue)}
                         onCheckedChange={(checked) => handleChange(config.key, checked)}
                       />
                     </div>
@@ -360,12 +371,68 @@ export function PageSettingsContent({
                       <BannerUploadInput
                         configKey={config.key}
                         value={String(settings[config.key.replace('Enabled', 'Url')] || '')}
-                        onChange={(url) => handleChange(config.key.replace('Enabled', 'Url'), url as unknown as boolean)}
+                        onChange={(url) => handleChange(config.key.replace('Enabled', 'Url'), url)}
                         dimensions={config.key === 'bannerDesktopEnabled' ? '1920 x 250 px' : '768 x 200 px'}
                       />
                     )}
+                    
+                    {/* REGRAS.md: Campos extras para botão personalizado de categoria */}
+                    {pageType === 'category' && config.key === 'customButtonEnabled' && Boolean(settings.customButtonEnabled) && (
+                      <div className="pl-4 border-l-2 border-muted space-y-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Texto do botão</Label>
+                          <Input
+                            value={String(settings.customButtonText || '')}
+                            onChange={(e) => handleChange('customButtonText', e.target.value)}
+                            placeholder="Ex: Ver detalhes"
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Cor (hex)</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              type="color"
+                              value={String(settings.customButtonColor || '#6366f1')}
+                              onChange={(e) => handleChange('customButtonColor', e.target.value)}
+                              className="h-8 w-12 p-1"
+                            />
+                            <Input
+                              value={String(settings.customButtonColor || '')}
+                              onChange={(e) => handleChange('customButtonColor', e.target.value)}
+                              placeholder="#6366f1"
+                              className="h-8 text-sm flex-1"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Link</Label>
+                          <Input
+                            value={String(settings.customButtonLink || '')}
+                            onChange={(e) => handleChange('customButtonLink', e.target.value)}
+                            placeholder="https://..."
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
+                
+                {/* REGRAS.md: Campo de texto para botão principal (categoria) */}
+                {pageType === 'category' && group.id === 'buttons' && (
+                  <div className="pt-2 border-t border-border/50">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Texto do botão principal</Label>
+                      <Input
+                        value={String(settings.buyNowButtonText || 'Comprar agora')}
+                        onChange={(e) => handleChange('buyNowButtonText', e.target.value)}
+                        placeholder="Comprar agora"
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                  </div>
+                )}
               </CollapsibleContent>
             </Collapsible>
           ))}
@@ -389,7 +456,7 @@ export function PageSettingsContent({
               </div>
               <Switch
                 id={config.key}
-                checked={settings[config.key] ?? config.defaultValue}
+                checked={Boolean(settings[config.key] ?? config.defaultValue)}
                 onCheckedChange={(checked) => handleChange(config.key, checked)}
               />
             </div>
@@ -412,12 +479,21 @@ function getSettingsKey(pageType: string): string {
   return keys[pageType] || `${pageType}Settings`;
 }
 
-function getDefaultSettings(pageType: string): Record<string, boolean> {
-  const defaults: Record<string, Record<string, boolean>> = {
+function getDefaultSettings(pageType: string): Record<string, boolean | string> {
+  const defaults: Record<string, Record<string, boolean | string>> = {
+    // REGRAS.md: Defaults completos para categoria
     category: {
       showCategoryName: true,
       showBanner: true,
       showRatings: true,
+      showBadges: true,
+      showAddToCartButton: true,
+      quickBuyEnabled: false,
+      buyNowButtonText: 'Comprar agora',
+      customButtonEnabled: false,
+      customButtonText: '',
+      customButtonColor: '',
+      customButtonLink: '',
     },
     product: {
       showGallery: true,
@@ -465,10 +541,18 @@ interface SettingConfig {
 
 function getSettingsConfig(pageType: string): SettingConfig[] {
   const configs: Record<string, SettingConfig[]> = {
+    // REGRAS.md: Todas as configurações obrigatórias para página de categoria
     category: [
-      { key: 'showCategoryName', label: 'Exibir nome da categoria', defaultValue: true },
-      { key: 'showBanner', label: 'Exibir banner da categoria', defaultValue: true },
-      { key: 'showRatings', label: 'Mostrar avaliações nos produtos', defaultValue: true },
+      // Configurações estruturais da página
+      { key: 'showCategoryName', label: 'Exibir nome da categoria', defaultValue: true, group: 'structure' },
+      { key: 'showBanner', label: 'Exibir banner da categoria', defaultValue: true, group: 'structure' },
+      { key: 'showRatings', label: 'Mostrar avaliações nos produtos', defaultValue: true, group: 'structure' },
+      { key: 'showBadges', label: 'Mostrar selos nos produtos', defaultValue: true, group: 'structure' },
+      // Botões da Thumb
+      { key: 'showAddToCartButton', label: 'Exibir "Adicionar ao carrinho"', defaultValue: true, group: 'buttons' },
+      { key: 'quickBuyEnabled', label: 'Ativar compra rápida', description: 'Botão principal vai direto ao checkout', defaultValue: false, group: 'buttons' },
+      // Botão personalizado (toggle apenas - texto/cor/link são inputs especiais)
+      { key: 'customButtonEnabled', label: 'Botão personalizado', description: 'Adiciona um botão extra na thumb', defaultValue: false, group: 'buttons' },
     ],
     product: [
       { key: 'showGallery', label: 'Mostrar Galeria', defaultValue: true },
@@ -529,6 +613,18 @@ interface SettingsGroup {
 
 function getGroupedSettings(configs: SettingConfig[]): SettingsGroup[] {
   const groupMap: Record<string, SettingsGroup> = {
+    'structure': { 
+      id: 'structure', 
+      label: 'Configurações estruturais da página', 
+      icon: <ImageIcon className="h-4 w-4 text-muted-foreground" />,
+      settings: [] 
+    },
+    'buttons': { 
+      id: 'buttons', 
+      label: 'Botões da Thumb', 
+      icon: <Percent className="h-4 w-4 text-muted-foreground" />,
+      settings: [] 
+    },
     'features': { 
       id: 'features', 
       label: 'Funcionalidades', 
