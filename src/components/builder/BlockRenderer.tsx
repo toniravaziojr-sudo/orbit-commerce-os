@@ -76,6 +76,7 @@ import { AccordionBlock as AccordionBlockComponent } from './blocks/AccordionBlo
 import { CartDemoBlock } from './blocks/CartDemoBlock';
 import { CheckoutDemoBlock } from './blocks/CheckoutDemoBlock';
 import { CategoryBannerBlock as CategoryBannerBlockComponent } from './blocks/CategoryBannerBlock';
+import { CategoryPageLayout as CategoryPageLayoutComponent } from './blocks/CategoryPageLayout';
 
 // Offer Slot Blocks
 import { CompreJuntoSlotBlock, CrossSellSlotBlock, OrderBumpSlotBlock, UpsellSlotBlock } from './blocks/slots';
@@ -430,6 +431,9 @@ function getBlockComponent(type: string): React.ComponentType<any> {
     Cart: CartBlock,
     Checkout: CheckoutBlock,
     ThankYou: ThankYouBlock,
+    
+    // Category page layout (system block)
+    CategoryPageLayout: CategoryPageLayoutBlock,
     
     // Essential blocks
     HeroBanner: HeroBannerBlockWrapper,
@@ -1431,4 +1435,9 @@ function ImageGalleryBlockWrapper(props: any) {
 
 function AccordionBlockBlockWrapper(props: any) {
   return <AccordionBlockComponent {...props} />;
+}
+
+// CategoryPageLayout wrapper - sistema de listagem de categoria (REGRAS.md)
+function CategoryPageLayoutBlock({ context, isEditing, ...props }: any) {
+  return <CategoryPageLayoutComponent context={context} isEditing={isEditing} {...props} />;
 }
