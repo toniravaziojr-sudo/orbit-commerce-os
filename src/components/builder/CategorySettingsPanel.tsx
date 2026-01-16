@@ -288,6 +288,9 @@ export function useCategorySettings(tenantId: string) {
     enabled: !!tenantId,
     staleTime: 0,
     refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    // Poll for changes while builder is open to catch settings changes
+    refetchInterval: 1000,
   });
 
   const settings: CategorySettings = {
@@ -305,6 +308,7 @@ export function useCategorySettings(tenantId: string) {
   };
 
   const setSettings = (newSettings: CategorySettings) => {
+    // Optimistic update for immediate UI feedback
     queryClient.setQueryData(['category-settings', tenantId], newSettings);
   };
 

@@ -269,13 +269,19 @@ export function VisualBuilder({
       ctx.afterHeaderSlot = categoryHeaderSlot;
     }
     
+    // For Category template, add category settings to context
+    // REGRAS.md: categorySettings devem refletir no builder imediatamente
+    if (pageType === 'category') {
+      (ctx as any).categorySettings = categorySettings;
+    }
+    
     // For Product template, add product settings to context
     if (pageType === 'product') {
       (ctx as any).productSettings = productSettings;
     }
     
     return ctx;
-  }, [context, pageType, selectedCategory, categoryHeaderSlot, canvasViewport, productSettings]);
+  }, [context, pageType, selectedCategory, categoryHeaderSlot, canvasViewport, productSettings, categorySettings]);
 
   // Debug log on mount
   useEffect(() => {
