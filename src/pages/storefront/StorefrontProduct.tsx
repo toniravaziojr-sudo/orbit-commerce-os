@@ -60,9 +60,10 @@ export default function StorefrontProduct() {
     }
   }, [isPreviewMode, canPreview, template.isLoading, tenantSlug, productSlug, searchParams, navigate]);
 
-  // Fetch product settings (page_overrides)
+  // Fetch product settings from PUBLISHED template set content
+  // CRITICAL: Must read from published_content, NOT from page_overrides (which reflects draft)
   const { data: productSettings } = useQuery({
-    queryKey: ['product-template-settings', tenantSlug],
+    queryKey: ['product-template-settings-published', tenantSlug, isPreviewMode],
     queryFn: async () => {
       const { data: tenant } = await supabase
         .from('tenants')
@@ -72,15 +73,53 @@ export default function StorefrontProduct() {
       
       if (!tenant) return null;
       
-      const { data } = await supabase
-        .from('storefront_page_templates')
-        .select('page_overrides')
+      // Get store settings to find the published template
+      const { data: storeSettings } = await supabase
+        .from('store_settings')
+        .select('published_template_id')
         .eq('tenant_id', tenant.id)
-        .eq('page_type', 'product')
         .maybeSingle();
       
-      const overrides = data?.page_overrides as Record<string, unknown> | null;
-      return overrides?.productSettings as {
+      const templateSetId = storeSettings?.published_template_id;
+      
+      if (!templateSetId) {
+        // Fallback to page_overrides if no published template (legacy)
+        const { data } = await supabase
+          .from('storefront_page_templates')
+          .select('page_overrides')
+          .eq('tenant_id', tenant.id)
+          .eq('page_type', 'product')
+          .maybeSingle();
+        
+        const overrides = data?.page_overrides as Record<string, unknown> | null;
+        return overrides?.productSettings as {
+          showGallery?: boolean;
+          showDescription?: boolean;
+          showVariants?: boolean;
+          showStock?: boolean;
+          showRelatedProducts?: boolean;
+          showBuyTogether?: boolean;
+          showReviews?: boolean;
+          openMiniCartOnAdd?: boolean;
+        } | null;
+      }
+      
+      // Read from published_content (or draft_content if preview mode)
+      const contentField = isPreviewMode ? 'draft_content' : 'published_content';
+      const { data: templateSet } = await supabase
+        .from('storefront_template_sets')
+        .select(contentField)
+        .eq('id', templateSetId)
+        .eq('tenant_id', tenant.id)
+        .single();
+      
+      if (!templateSet) return null;
+      
+      const content = (templateSet as any)[contentField] as Record<string, unknown> | null;
+      const themeSettings = content?.themeSettings as Record<string, unknown> | undefined;
+      const pageSettings = themeSettings?.pageSettings as Record<string, unknown> | undefined;
+      
+      return (pageSettings?.product as {
         showGallery?: boolean;
         showDescription?: boolean;
         showVariants?: boolean;
@@ -89,7 +128,7 @@ export default function StorefrontProduct() {
         showBuyTogether?: boolean;
         showReviews?: boolean;
         openMiniCartOnAdd?: boolean;
-      } | null;
+      }) || null;
     },
     enabled: !!tenantSlug,
   });
