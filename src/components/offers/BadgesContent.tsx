@@ -306,11 +306,11 @@ export function BadgesContent() {
                 <Input
                   value={formData.name}
                   onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="Ex: Promoção, Novo, -30%"
-                  maxLength={20}
+                  placeholder="Ex: NOVO, -30%, GRÁTIS"
+                  maxLength={12}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Máximo 20 caracteres
+                  Máximo 12 caracteres (ideal para exibição nas thumbs)
                 </p>
               </div>
 
