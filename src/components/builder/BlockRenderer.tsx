@@ -748,6 +748,16 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
   
   const product = contextProduct || exampleProduct;
   
+  // Hook para variantes - SEMPRE chamado ANTES de qualquer return condicional para evitar erro #310
+  // O hook retorna dados vazios se productId for undefined
+  const { optionGroups, selectedOptions, selectOption, selectedVariant, hasVariants } = useProductVariants(
+    product?.id
+  );
+  
+  // Regra de segurança: variante obrigatória
+  const hasRequiredVariant = hasVariants && optionGroups.length > 0;
+  const variantSelected = !hasRequiredVariant || Object.keys(selectedOptions).length === optionGroups.length;
+  
   const allImages = React.useMemo(() => {
     if (contextProduct?.images?.length) {
       const imgs = [...contextProduct.images];
@@ -972,15 +982,7 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
 
   const tenantSlug = context?.tenantSlug || '';
 
-  // Hook para variantes - SEMPRE chamado para evitar erro #310 (hooks condicionais)
-  // O hook retorna dados vazios se productId for undefined
-  const { optionGroups, selectedOptions, selectOption, selectedVariant, hasVariants } = useProductVariants(
-    product?.id
-  );
-  
-  // Regra de segurança: variante obrigatória
-  const hasRequiredVariant = hasVariants && optionGroups.length > 0;
-  const variantSelected = !hasRequiredVariant || Object.keys(selectedOptions).length === optionGroups.length;
+  // hasRequiredVariant e variantSelected já definidos acima (próximo ao hook useProductVariants)
 
   return (
     <div className="py-6 md:py-8 px-4">
