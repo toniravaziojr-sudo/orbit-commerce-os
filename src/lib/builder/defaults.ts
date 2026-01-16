@@ -140,6 +140,7 @@ function getCleanDefaultProps(blockType: string): Record<string, unknown> {
     ProductDetails: { showGallery: true, showDescription: true, showVariants: true, showStock: true },
     CategoryBanner: { showTitle: true, titlePosition: 'center', overlayOpacity: 40, height: 'md' },
     ProductGrid: { title: '', source: 'category', columns: 4, limit: 24, showPrice: true },
+    CategoryPageLayout: { showFilters: true, columns: 4, limit: 24 },
     Cart: {},
     Checkout: { showTimeline: true },
     ThankYou: { showTimeline: true, showWhatsApp: false },
