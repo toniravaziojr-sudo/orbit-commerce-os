@@ -132,16 +132,9 @@ export function MiniCartSettings({
         </div>
 
         {localConfig.showFreeShippingProgress && (
-          <div className="pl-6 space-y-1">
-            <Label className="text-[10px]">Valor mínimo para frete grátis (R$)</Label>
-            <Input
-              type="number"
-              value={localConfig.freeShippingThreshold}
-              onChange={(e) => handleChange('freeShippingThreshold', Number(e.target.value))}
-              className="h-7 text-xs w-32"
-              min={0}
-            />
-          </div>
+          <p className="pl-6 text-[10px] text-muted-foreground italic">
+            O valor mínimo é definido em Logística → Conversão de Carrinho
+          </p>
         )}
 
         <div className="flex items-center justify-between">

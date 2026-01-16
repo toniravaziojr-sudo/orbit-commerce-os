@@ -75,7 +75,7 @@ export interface ThemeMiniCartConfig {
   showCoupon: boolean;
   showShippingCalculator: boolean;
   showFreeShippingProgress: boolean;
-  freeShippingThreshold: number;
+  // freeShippingThreshold removed - now comes from Logistics > Cart Conversion (benefit_config)
   showStockReservationTimer: boolean;
   stockReservationMinutes: number;
 }
@@ -147,7 +147,7 @@ export const DEFAULT_THEME_MINI_CART: ThemeMiniCartConfig = {
   showCoupon: true,
   showShippingCalculator: true,
   showFreeShippingProgress: true,
-  freeShippingThreshold: 199,
+  // freeShippingThreshold removed - now comes from benefit_config
   showStockReservationTimer: false,
   stockReservationMinutes: 15,
 };
@@ -591,7 +591,7 @@ async function migrateLegacySettings(tenantId: string): Promise<ThemeSettings | 
             showCoupon: (storeSettings.cart_config as Record<string, unknown>).miniCartShowCoupon as boolean ?? true,
             showShippingCalculator: (storeSettings.cart_config as Record<string, unknown>).miniCartShowShipping as boolean ?? true,
             showFreeShippingProgress: (storeSettings.cart_config as Record<string, unknown>).miniCartShowFreeShippingProgress as boolean ?? true,
-            freeShippingThreshold: (storeSettings.cart_config as Record<string, unknown>).freeShippingThreshold as number ?? 199,
+            // freeShippingThreshold removed - now comes from benefit_config
           }
         : DEFAULT_THEME_MINI_CART,
       pageSettings: DEFAULT_PAGE_SETTINGS,
