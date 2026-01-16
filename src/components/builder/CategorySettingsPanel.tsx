@@ -78,7 +78,7 @@ export function CategorySettingsPanel({
       // Invalidate both queries to ensure sync
       queryClient.invalidateQueries({ queryKey: ['page-overrides', tenantId, 'category'] });
       queryClient.invalidateQueries({ queryKey: ['category-settings', tenantId] });
-      toast.success('Configurações salvas');
+      // Toast removido para evitar spam durante edição contínua
     },
     onError: () => {
       toast.error('Erro ao salvar configurações');
