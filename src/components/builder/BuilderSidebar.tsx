@@ -328,75 +328,61 @@ export function BuilderSidebar({
         </div>
       </div>
 
-      {/* Sections list - only shown for non-system pages */}
+      {/* Sections list - shows only user-customizable blocks (system blocks are hidden) */}
       <ScrollArea className="flex-1">
         <div className="p-2">
-          {/* For system pages (category, product, cart, etc.), show info message instead of block list */}
-          {isSystemPage ? (
-            <div className="text-center py-8 px-4">
-              <div className="text-muted-foreground text-sm mb-2">
-                Esta página possui estrutura padrão.
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={sections.map(s => s.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-0.5">
+                {sections.map((block) => {
+                  const isRequired = isBlockRequired(pageType, block.type);
+                  const canDelete = canDeleteBlock(pageType, block.type);
+                  const requiredInfo = getRequiredBlockInfo(pageType, block.type);
+                  const isLocked = isRequired && !canDelete;
+                  
+                  return (
+                    <SortableBlockItem
+                      key={block.id}
+                      block={block}
+                      isSelected={selectedBlockId === block.id}
+                      isLocked={isLocked}
+                      lockReason={requiredInfo?.label ? `Estrutura obrigatória: ${requiredInfo.label}` : undefined}
+                      onSelect={() => onSelectBlock(block.id)}
+                      onToggleHidden={() => onToggleHidden(block.id)}
+                      onDelete={() => onDeleteBlock(block.id)}
+                    />
+                  );
+                })}
               </div>
-              <div className="text-muted-foreground text-xs">
-                Use as <strong>Configurações do tema</strong> abaixo para personalizar.
-              </div>
-            </div>
-          ) : (
-            <>
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragStart={handleDragStart}
-                onDragEnd={handleDragEnd}
-              >
-                <SortableContext
-                  items={sections.map(s => s.id)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  <div className="space-y-0.5">
-                    {sections.map((block) => {
-                      const isRequired = isBlockRequired(pageType, block.type);
-                      const canDelete = canDeleteBlock(pageType, block.type);
-                      const requiredInfo = getRequiredBlockInfo(pageType, block.type);
-                      const isLocked = isRequired && !canDelete;
-                      
-                      return (
-                        <SortableBlockItem
-                          key={block.id}
-                          block={block}
-                          isSelected={selectedBlockId === block.id}
-                          isLocked={isLocked}
-                          lockReason={requiredInfo?.label ? `Estrutura obrigatória: ${requiredInfo.label}` : undefined}
-                          onSelect={() => onSelectBlock(block.id)}
-                          onToggleHidden={() => onToggleHidden(block.id)}
-                          onDelete={() => onDeleteBlock(block.id)}
-                        />
-                      );
-                    })}
-                  </div>
-                </SortableContext>
+            </SortableContext>
 
-                <DragOverlay>
-                  {activeId ? (
-                    <div className="bg-primary/10 border border-primary rounded-md px-3 py-2 text-sm font-medium shadow-lg">
-                      {getActiveBlockLabel()}
-                    </div>
-                  ) : null}
-                </DragOverlay>
-              </DndContext>
+            <DragOverlay>
+              {activeId ? (
+                <div className="bg-primary/10 border border-primary rounded-md px-3 py-2 text-sm font-medium shadow-lg">
+                  {getActiveBlockLabel()}
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
 
-              {/* Add section button - only for non-system pages */}
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full mt-3 gap-2 text-muted-foreground hover:text-foreground hover:bg-muted justify-start border-dashed"
-                onClick={onOpenAddBlock}
-              >
-                <Plus className="h-4 w-4" />
-                <span>Adicionar seção</span>
-              </Button>
-            </>
-          )}
+          {/* Add section button - always visible */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full mt-3 gap-2 text-muted-foreground hover:text-foreground hover:bg-muted justify-start border-dashed"
+            onClick={onOpenAddBlock}
+          >
+            <Plus className="h-4 w-4" />
+            <span>Adicionar seção</span>
+          </Button>
         </div>
       </ScrollArea>
 
