@@ -29,9 +29,11 @@ import {
   ToggleLeft,
   ToggleRight,
   ShoppingBag,
+  Tag,
 } from 'lucide-react';
 import { ProductMultiSelect } from '@/components/builder/ProductMultiSelect';
 import { BuyTogetherContent } from '@/components/offers/BuyTogetherContent';
+import { BadgesContent } from '@/components/offers/BadgesContent';
 
 const offerTypeLabels: Record<OfferType, string> = {
   cross_sell: 'Cross-sell',
@@ -101,7 +103,7 @@ export default function Offers() {
   const { rules, isLoading, createRule, updateRule, deleteRule, toggleRule } = useOfferRules();
   const { products } = useProducts();
   
-  const [activeTab, setActiveTab] = useState<OfferType | 'buy_together'>('cross_sell');
+  const [activeTab, setActiveTab] = useState<OfferType | 'buy_together' | 'badges'>('cross_sell');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<OfferRule | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -187,8 +189,8 @@ export default function Offers() {
         description="Configure regras de Cross-sell, Order Bump e Upsell para aumentar o ticket médio"
       />
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as OfferType | 'buy_together')} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as OfferType | 'buy_together' | 'badges')} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="cross_sell" className="flex items-center gap-2">
             <ShoppingCart className="h-4 w-4" />
             <span className="hidden sm:inline">Cross-sell</span>
@@ -220,11 +222,20 @@ export default function Offers() {
             <ShoppingBag className="h-4 w-4" />
             <span className="hidden sm:inline">Compre Junto</span>
           </TabsTrigger>
+          <TabsTrigger value="badges" className="flex items-center gap-2">
+            <Tag className="h-4 w-4" />
+            <span className="hidden sm:inline">Selos</span>
+          </TabsTrigger>
         </TabsList>
 
         {/* Buy Together Tab */}
         <TabsContent value="buy_together" className="space-y-4">
           <BuyTogetherContent />
+        </TabsContent>
+
+        {/* Badges Tab */}
+        <TabsContent value="badges" className="space-y-4">
+          <BadgesContent />
         </TabsContent>
 
         {['cross_sell', 'order_bump', 'upsell'].map((type) => (
