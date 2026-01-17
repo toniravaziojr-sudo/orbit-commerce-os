@@ -30,7 +30,7 @@ import {
   ArrowRight,
   MessageSquare,
 } from 'lucide-react';
-import { TestimonialsManager } from '@/components/cart-checkout/TestimonialsManager';
+import { TestimonialsManagerCompact } from '@/components/cart-checkout/TestimonialsManagerCompact';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { toast } from 'sonner';
@@ -862,7 +862,7 @@ export function PageSettingsContent({
                           <MessageSquare className="h-4 w-4 text-primary" />
                           <span className="text-sm font-medium">Gerenciar Depoimentos</span>
                         </div>
-                        <TestimonialsManager />
+                        <TestimonialsManagerCompact />
                       </div>
                     )}
                     
