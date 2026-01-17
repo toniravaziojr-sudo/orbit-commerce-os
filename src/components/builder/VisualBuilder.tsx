@@ -267,6 +267,15 @@ export function VisualBuilder({
       pageType: pageType as BlockRenderContext['pageType'], // Pass pageType for essential block detection
     };
     
+    // CRITICAL: Inject miniCartConfig into themeSettings so BlockRenderer can read it
+    // This ensures real-time sync between PageSettingsContent and ProductDetailsBlock
+    if (miniCartConfig) {
+      (ctx as any).themeSettings = {
+        ...((ctx as any).themeSettings || {}),
+        miniCart: miniCartConfig,
+      };
+    }
+    
     // For Category template, add category context with the selected example
     if (pageType === 'category' && selectedCategory) {
       ctx.category = { 
@@ -309,7 +318,7 @@ export function VisualBuilder({
     }
     
     return ctx;
-  }, [context, pageType, selectedCategory, categoryHeaderSlot, canvasViewport, productSettings, categorySettings, cartSettings, checkoutSettings, thankYouSettings]);
+  }, [context, pageType, selectedCategory, categoryHeaderSlot, canvasViewport, productSettings, categorySettings, cartSettings, checkoutSettings, thankYouSettings, miniCartConfig]);
 
   // Debug log on mount
   useEffect(() => {
