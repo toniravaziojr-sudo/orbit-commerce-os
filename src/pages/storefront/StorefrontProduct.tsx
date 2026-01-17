@@ -26,7 +26,7 @@ export default function StorefrontProduct() {
   const isPreviewMode = searchParams.get('preview') === '1';
   const { trackViewContent } = useMarketingEvents();
 
-  const { storeSettings, headerMenu, footerMenu, categories: allCategories, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
+  const { tenant, storeSettings, headerMenu, footerMenu, categories: allCategories, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
   const { product, category, isLoading: productLoading } = usePublicProduct(tenantSlug || '', productSlug || '');
   
   // Track product view when product loads
@@ -145,6 +145,9 @@ export default function StorefrontProduct() {
   });
 
   // Build context for block rendering with product data
+  // IMPORTANT: Use tenant.id as primary source (loads first), fallback to storeSettings.tenant_id
+  const tenantId = tenant?.id || storeSettings?.tenant_id;
+  
   const context: BlockRenderContext & { categories?: any[]; productSettings?: any; themeSettings?: any } = {
     tenantSlug: tenantSlug || '',
     isPreview: isPreviewMode,
@@ -165,7 +168,7 @@ export default function StorefrontProduct() {
       store_description: storeSettings?.store_description || undefined,
       contact_phone: storeSettings?.contact_phone,
       contact_email: storeSettings?.contact_email,
-      tenant_id: storeSettings?.tenant_id,
+      tenant_id: tenantId,
     } as any,
     headerMenu: headerMenu?.items?.map(item => ({
       id: item.id,

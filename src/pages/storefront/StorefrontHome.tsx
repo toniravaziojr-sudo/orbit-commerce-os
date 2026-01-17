@@ -19,7 +19,7 @@ export default function StorefrontHome() {
   const navigate = useNavigate();
   const isPreviewMode = searchParams.get('preview') === '1';
 
-  const { storeSettings, headerMenu, footerMenu, categories, isPublished, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
+  const { tenant, storeSettings, headerMenu, footerMenu, categories, isPublished, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
   
   // Use preview hook if in preview mode, otherwise use public hook
   const publicTemplate = usePublicTemplate(tenantSlug || '', 'home');
@@ -42,6 +42,9 @@ export default function StorefrontHome() {
   }, [isPreviewMode, canPreview, template.isLoading, tenantSlug, searchParams, navigate]);
 
   // Build context for block rendering - include all needed data for header/footer
+  // IMPORTANT: Use tenant.id as primary source (loads first), fallback to storeSettings.tenant_id
+  const tenantId = tenant?.id || storeSettings?.tenant_id;
+  
   const context: BlockRenderContext & { categories?: any[] } = {
     tenantSlug: tenantSlug || '',
     isPreview: isPreviewMode,
@@ -56,7 +59,7 @@ export default function StorefrontHome() {
       // Extended settings for header/footer
       contact_phone: storeSettings?.contact_phone,
       contact_email: storeSettings?.contact_email,
-      tenant_id: storeSettings?.tenant_id,
+      tenant_id: tenantId,
     } as any,
     headerMenu: headerMenu?.items?.map(item => ({
       id: item.id,
