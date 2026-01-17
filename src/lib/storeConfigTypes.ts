@@ -100,6 +100,8 @@ export interface CartConfig {
   bannerMobileEnabled: boolean;
   bannerMobileUrl: string | null;
   bannerLink: string | null;
+  // Onde exibir o banner: 'cart_page' | 'mini_cart' | 'both'
+  bannerDisplay: 'cart_page' | 'mini_cart' | 'both';
 }
 
 // =============================================
@@ -176,6 +178,7 @@ export const defaultCartConfig: CartConfig = {
   bannerMobileEnabled: false,
   bannerMobileUrl: null,
   bannerLink: null,
+  bannerDisplay: 'cart_page',
 };
 
 export const defaultCheckoutConfig: CheckoutConfig = {
@@ -285,6 +288,12 @@ export function parseCartConfig(data: unknown): CartConfig {
     cartActionType = 'goToCart';
   }
   
+  // Parse bannerDisplay with migration support
+  let bannerDisplay: 'cart_page' | 'mini_cart' | 'both' = 'cart_page';
+  if (obj.bannerDisplay === 'mini_cart' || obj.bannerDisplay === 'both') {
+    bannerDisplay = obj.bannerDisplay;
+  }
+  
   return {
     cartActionType,
     showAddToCartButton: obj.showAddToCartButton !== false,
@@ -297,6 +306,7 @@ export function parseCartConfig(data: unknown): CartConfig {
     bannerMobileEnabled: Boolean(obj.bannerMobileEnabled),
     bannerMobileUrl: obj.bannerMobileUrl ? String(obj.bannerMobileUrl) : null,
     bannerLink: obj.bannerLink ? String(obj.bannerLink) : null,
+    bannerDisplay,
   };
 }
 

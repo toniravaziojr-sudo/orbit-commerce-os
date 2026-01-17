@@ -24,6 +24,7 @@ import { ResponsiveDrawerLayout } from '@/components/ui/responsive-drawer-layout
 import { calculateCartTotals, formatCurrency, formatPrice } from '@/lib/cartTotals';
 import { Progress } from '@/components/ui/progress';
 import { CouponInput } from '@/components/storefront/CouponInput';
+import { CartPromoBanner } from '@/components/storefront/cart/CartPromoBanner';
 import { getStoreHost } from '@/lib/storeHost';
 
 interface MiniCartDrawerProps {
@@ -91,6 +92,9 @@ export function MiniCartDrawer({
   // Body component - scrollable items list
   const Body = (
     <div className="px-4 py-4">
+      {/* Promo Banner - Respects bannerDisplay config */}
+      <CartPromoBanner config={cartConfig} location="mini_cart" />
+      
       {items.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground py-12">
           <ShoppingCart className="h-12 w-12 mb-4 opacity-40" />

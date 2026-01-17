@@ -18,14 +18,14 @@ import {
   ShoppingCart, 
   Percent, 
   Truck, 
-  Tag, 
-  BarChart3,
   Image as ImageIcon,
   Monitor,
   Smartphone,
   Loader2,
-  Save
+  Save,
+  Link
 } from 'lucide-react';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 export function CartConfigTab() {
   const { config, isLoading, updateCartConfig } = useStoreConfig();
@@ -298,16 +298,50 @@ export function CartConfigTab() {
 
           {/* Banner Link */}
           {(form.bannerDesktopEnabled || form.bannerMobileEnabled) && (
-            <div className="space-y-2">
-              <Label>Link do banner (opcional)</Label>
-              <Input
-                placeholder="https://sualoja.com/promocao"
-                value={form.bannerLink || ''}
-                onChange={(e) => handleChange('bannerLink', e.target.value || null)}
-              />
-              <p className="text-xs text-muted-foreground">
-                URL para onde o banner deve direcionar ao ser clicado
-              </p>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Link className="h-4 w-4 text-muted-foreground" />
+                  Link do banner (opcional)
+                </Label>
+                <Input
+                  placeholder="https://sualoja.com/promocao"
+                  value={form.bannerLink || ''}
+                  onChange={(e) => handleChange('bannerLink', e.target.value || null)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  URL para onde o banner deve direcionar ao ser clicado
+                </p>
+              </div>
+
+              {/* Display Location */}
+              <div className="space-y-3">
+                <Label>Onde exibir o banner</Label>
+                <RadioGroup
+                  value={form.bannerDisplay || 'cart_page'}
+                  onValueChange={(value) => handleChange('bannerDisplay', value as 'cart_page' | 'mini_cart' | 'both')}
+                  className="space-y-2"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="cart_page" id="display-cart-page" />
+                    <Label htmlFor="display-cart-page" className="font-normal cursor-pointer">
+                      Somente na página do carrinho
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="mini_cart" id="display-mini-cart" />
+                    <Label htmlFor="display-mini-cart" className="font-normal cursor-pointer">
+                      Somente no carrinho lateral
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="both" id="display-both" />
+                    <Label htmlFor="display-both" className="font-normal cursor-pointer">
+                      Ambos (página e lateral)
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
             </div>
           )}
         </CardContent>

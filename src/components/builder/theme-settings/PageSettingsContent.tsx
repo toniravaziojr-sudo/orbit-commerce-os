@@ -820,6 +820,59 @@ export function PageSettingsContent({
                     </div>
                   </div>
                 )}
+                
+                {/* Banner extras for cart page: link + display location */}
+                {pageType === 'cart' && group.id === 'banner' && (
+                  Boolean(settings.bannerDesktopEnabled) || Boolean(settings.bannerMobileEnabled)
+                ) && (
+                  <div className="pt-3 border-t border-border/50 space-y-4">
+                    {/* Banner Link */}
+                    <div className="space-y-1">
+                      <Label className="text-xs flex items-center gap-1">
+                        <Link className="h-3 w-3" />
+                        Link do banner (opcional)
+                      </Label>
+                      <Input
+                        value={String(settings.bannerLink || '')}
+                        onChange={(e) => handleChange('bannerLink', e.target.value || null)}
+                        placeholder="https://sua-loja.com/promocao"
+                        className="h-8 text-sm"
+                      />
+                      <p className="text-[10px] text-muted-foreground">
+                        URL para onde o banner redireciona ao clicar
+                      </p>
+                    </div>
+                    
+                    {/* Display location */}
+                    <div className="space-y-2">
+                      <Label className="text-xs">Onde exibir o banner</Label>
+                      <RadioGroup
+                        value={String(settings.bannerDisplay || 'cart_page')}
+                        onValueChange={(value) => handleChange('bannerDisplay', value)}
+                        className="space-y-1"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="cart_page" id="banner-cart-page" />
+                          <Label htmlFor="banner-cart-page" className="text-xs font-normal cursor-pointer">
+                            Somente na página do carrinho
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="mini_cart" id="banner-mini-cart" />
+                          <Label htmlFor="banner-mini-cart" className="text-xs font-normal cursor-pointer">
+                            Somente no carrinho lateral
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="both" id="banner-both" />
+                          <Label htmlFor="banner-both" className="text-xs font-normal cursor-pointer">
+                            Ambos (página e lateral)
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                  </div>
+                )}
               </CollapsibleContent>
             </Collapsible>
           ))}
@@ -1024,7 +1077,6 @@ function getSettingsConfig(pageType: string): SettingConfig[] {
       // Funcionalidades da Página do Carrinho
       { key: 'shippingCalculatorEnabled', label: 'Calculadora de frete', description: 'Permite calcular frete antes do checkout', defaultValue: true, group: 'features' },
       { key: 'couponEnabled', label: 'Cupom de desconto', description: 'Campo para aplicar cupom', defaultValue: true, group: 'features' },
-      { key: 'showGoToCartButton', label: 'Botão "Ir para Carrinho"', description: 'Visível em outros locais (produto, mini-cart)', defaultValue: true, group: 'features' },
       // Ofertas
       { key: 'showCrossSell', label: 'Mostrar Cross-sell', description: 'Sugestões de produtos adicionais', defaultValue: true, group: 'offers' },
       // Banner

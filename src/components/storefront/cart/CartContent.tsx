@@ -35,7 +35,7 @@ export function CartContent({ tenantId }: CartContentProps) {
   if (!hasItems) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <CartPromoBanner config={cartConfig} />
+        <CartPromoBanner config={cartConfig} location="cart_page" />
         <h1 className="text-2xl font-bold mb-6">Meu Carrinho</h1>
         <CartSummary variant="default" />
       </div>
@@ -45,7 +45,7 @@ export function CartContent({ tenantId }: CartContentProps) {
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Cart Promo Banner - Conditional based on cart_config */}
-      <CartPromoBanner config={cartConfig} />
+      <CartPromoBanner config={cartConfig} location="cart_page" />
       
       <h1 className="text-2xl font-bold mb-6">Meu Carrinho</h1>
 
