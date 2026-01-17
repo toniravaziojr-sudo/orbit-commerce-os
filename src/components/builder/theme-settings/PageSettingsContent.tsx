@@ -864,10 +864,7 @@ function getSettingsConfig(pageType: string): SettingConfig[] {
       { key: 'showReviews', label: 'Mostrar Avaliações', defaultValue: true },
       { key: 'showBadges', label: 'Mostrar Selos', description: 'Selos configurados no Aumentar Ticket', defaultValue: true },
       { key: 'showAdditionalHighlight', label: 'Destaque adicional', description: 'Exibe até 3 imagens como mini-banner', defaultValue: false, hasUpload: true },
-      { key: 'openMiniCartOnAdd', label: 'Abrir carrinho suspenso ao adicionar', description: 'Abre o mini-carrinho lateral', defaultValue: true },
-      { key: 'showGoToCartButton', label: 'Botão "Ir para Carrinho"', description: 'Link para página completa do carrinho', defaultValue: true },
-      // REGRAS.md: Botões obrigatórios
-      { key: 'showAddToCartButton', label: 'Mostrar Adicionar ao carrinho', defaultValue: true },
+      // REGRAS.md: Botões obrigatórios + Ação do carrinho unificada (configurada via ProductSettingsPanel)
       { key: 'showWhatsAppButton', label: 'Mostrar botão WhatsApp', defaultValue: true },
     ],
     cart: [
