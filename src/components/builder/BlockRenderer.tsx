@@ -1214,6 +1214,9 @@ function CartBlock({ isEditing, context, showCrossSell, showCouponField, showTru
         showShippingCalculator={effectiveShowShipping}
         showTrustBadges={effectiveShowTrustBadges}
         showPromoBanner={effectiveShowPromoBanner}
+        bannerDesktopUrl={cartSettings?.bannerDesktopUrl}
+        bannerMobileUrl={cartSettings?.bannerMobileUrl}
+        bannerLink={cartSettings?.bannerLink}
         isEditing 
       />
     );

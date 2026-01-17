@@ -65,12 +65,17 @@ export interface CartSettings {
   showTrustBadges?: boolean;
   showBenefitBar?: boolean;
   showPromoBanner?: boolean;
+  // Banner promocional - URLs e configurações
+  bannerDesktopEnabled?: boolean;
+  bannerDesktopUrl?: string | null;
+  bannerMobileEnabled?: boolean;
+  bannerMobileUrl?: string | null;
+  bannerLink?: string | null;
+  bannerDisplay?: 'cart_page' | 'mini_cart' | 'both';
   // Legacy fields (mantidos para compatibilidade)
   miniCartEnabled?: boolean;
   showGoToCartButton?: boolean;
   sessionTrackingEnabled?: boolean;
-  bannerDesktopEnabled?: boolean;
-  bannerMobileEnabled?: boolean;
 }
 
 export interface CheckoutSettings {
@@ -146,11 +151,17 @@ export const DEFAULT_CART_SETTINGS: CartSettings = {
   showTrustBadges: true,
   showBenefitBar: true,
   showPromoBanner: true,
+  // Banner promocional defaults
+  bannerDesktopEnabled: false,
+  bannerDesktopUrl: null,
+  bannerMobileEnabled: false,
+  bannerMobileUrl: null,
+  bannerLink: null,
+  bannerDisplay: 'cart_page',
+  // Legacy
   miniCartEnabled: true,
   showGoToCartButton: true,
   sessionTrackingEnabled: true,
-  bannerDesktopEnabled: false,
-  bannerMobileEnabled: false,
 };
 
 export const DEFAULT_CHECKOUT_SETTINGS: CheckoutSettings = {
