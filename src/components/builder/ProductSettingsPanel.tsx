@@ -266,6 +266,21 @@ export function ProductSettingsPanel({
                 />
               </div>
 
+              {/* Calculadora de frete */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="showShippingCalculator" className="text-sm">
+                    Calculadora de frete
+                  </Label>
+                  <p className="text-xs text-muted-foreground">Cálculo de frete por CEP</p>
+                </div>
+                <Switch
+                  id="showShippingCalculator"
+                  checked={settings.showShippingCalculator ?? true}
+                  onCheckedChange={(checked) => handleChange('showShippingCalculator', checked)}
+                />
+              </div>
+
               {/* Divider */}
               <hr className="my-2" />
 
