@@ -8,13 +8,15 @@
 // Conforme docs/REGRAS.md - Arquitetura Builder
 // =============================================
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Json } from '@/integrations/supabase/types';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Separator } from '@/components/ui/separator';
 import { 
   ChevronDown, 
   Truck, 
@@ -23,11 +25,15 @@ import {
   BarChart3,
   Upload,
   Link,
+  ShoppingBag,
+  ShoppingCart,
+  ArrowRight,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useThemeMiniCart, DEFAULT_THEME_MINI_CART, ThemeMiniCartConfig, CartActionType } from '@/hooks/useThemeSettings';
 
 // Importar interfaces da fonte única de verdade
 import type {
@@ -432,6 +438,56 @@ export function PageSettingsContent({
   const [settings, setSettings] = useState<Record<string, boolean | string | string[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  
+  // Cart action config from theme settings (for product page)
+  const { 
+    miniCart: savedMiniCart, 
+    updateMiniCart, 
+    isLoading: isLoadingMiniCart,
+    isSaving: isSavingMiniCart 
+  } = useThemeMiniCart(tenantId, templateSetId);
+  const [cartActionConfig, setCartActionConfig] = useState<ThemeMiniCartConfig>(DEFAULT_THEME_MINI_CART);
+  const cartActionInitialLoadDone = useRef(false);
+  const saveCartActionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Initialize cart action config from saved data
+  useEffect(() => {
+    if (savedMiniCart && !cartActionInitialLoadDone.current) {
+      setCartActionConfig(savedMiniCart);
+      cartActionInitialLoadDone.current = true;
+    }
+  }, [savedMiniCart]);
+
+  // Debounced save for cart action
+  const debouncedSaveCartAction = useCallback((updates: Partial<ThemeMiniCartConfig>) => {
+    if (saveCartActionTimeoutRef.current) {
+      clearTimeout(saveCartActionTimeoutRef.current);
+    }
+    saveCartActionTimeoutRef.current = setTimeout(() => {
+      updateMiniCart(updates);
+    }, 500);
+  }, [updateMiniCart]);
+
+  // Handle cart action change
+  const handleCartActionChange = useCallback((key: keyof ThemeMiniCartConfig, value: boolean | number | CartActionType) => {
+    setCartActionConfig(prev => {
+      const updated = { ...prev, [key]: value };
+      
+      // When cartActionType changes to a non-none value, force showAddToCartButton to true
+      if (key === 'cartActionType' && value !== 'none') {
+        updated.showAddToCartButton = true;
+      }
+      
+      // Immediate save for booleans/strings, debounced for numbers
+      if (typeof value === 'number') {
+        debouncedSaveCartAction({ [key]: value });
+      } else {
+        updateMiniCart(updated);
+      }
+      
+      return updated;
+    });
+  }, [updateMiniCart, debouncedSaveCartAction]);
 
   // Load settings on mount - from template set draft_content if available
   useEffect(() => {
@@ -799,6 +855,97 @@ export function PageSettingsContent({
               )}
             </div>
           ))}
+          
+          {/* Cart Action Section - Only for Product page */}
+          {pageType === 'product' && !isLoadingMiniCart && (
+            <>
+              <Separator className="my-4" />
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium flex items-center gap-2">
+                  <ShoppingBag className="h-4 w-4 text-primary" />
+                  Ação do Carrinho
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  O que acontece ao clicar em "Adicionar ao carrinho"
+                </p>
+
+                {/* Main Toggle - Cart Action Enabled */}
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                  <div>
+                    <Label className="text-sm font-medium">Ativar ação do carrinho</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Desativado: botão mostra apenas "Adicionado"
+                    </p>
+                  </div>
+                  <Switch
+                    checked={cartActionConfig.cartActionType !== 'none'}
+                    onCheckedChange={(enabled) => 
+                      handleCartActionChange('cartActionType', enabled ? 'miniCart' : 'none')
+                    }
+                  />
+                </div>
+
+                {/* Cart Action Type Selection - only shows when enabled */}
+                {cartActionConfig.cartActionType !== 'none' && (
+                  <div className="space-y-3 pl-2">
+                    <Label className="text-xs text-muted-foreground">Tipo de ação:</Label>
+                    <RadioGroup
+                      value={cartActionConfig.cartActionType}
+                      onValueChange={(value: CartActionType) => handleCartActionChange('cartActionType', value)}
+                      className="space-y-2"
+                    >
+                      <div className="flex items-center space-x-3 p-2 rounded-md hover:bg-muted/50 transition-colors">
+                        <RadioGroupItem value="miniCart" id="product-action-miniCart" />
+                        <div className="flex items-center gap-2 flex-1">
+                          <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+                          <Label htmlFor="product-action-miniCart" className="text-sm cursor-pointer flex-1">
+                            <span className="font-medium">Carrinho Suspenso</span>
+                            <p className="text-xs text-muted-foreground font-normal">
+                              Abre o mini-carrinho lateral
+                            </p>
+                          </Label>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-3 p-2 rounded-md hover:bg-muted/50 transition-colors">
+                        <RadioGroupItem value="goToCart" id="product-action-goToCart" />
+                        <div className="flex items-center gap-2 flex-1">
+                          <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                          <Label htmlFor="product-action-goToCart" className="text-sm cursor-pointer flex-1">
+                            <span className="font-medium">Ir para Carrinho</span>
+                            <p className="text-xs text-muted-foreground font-normal">
+                              Redireciona para a página do carrinho
+                            </p>
+                          </Label>
+                        </div>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                )}
+
+                {/* Show Add to Cart Button - Required when cart action is enabled */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ShoppingBag className="h-3.5 w-3.5 text-muted-foreground" />
+                    <div>
+                      <Label className="text-xs">Mostrar "Adicionar ao carrinho"</Label>
+                      {cartActionConfig.cartActionType !== 'none' && (
+                        <p className="text-[10px] text-amber-600">Obrigatório quando ação está ativa</p>
+                      )}
+                    </div>
+                  </div>
+                  <Switch
+                    checked={cartActionConfig.showAddToCartButton}
+                    onCheckedChange={(v) => handleCartActionChange('showAddToCartButton', v)}
+                    disabled={cartActionConfig.cartActionType !== 'none'}
+                  />
+                </div>
+
+                <p className="text-xs text-muted-foreground text-center pt-2">
+                  {isSavingMiniCart ? '💾 Salvando...' : '✓ Configurações salvas automaticamente'}
+                </p>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
