@@ -16,6 +16,7 @@ import { isPreviewUrl, getCleanQueryString } from '@/lib/sanitizePublicUrl';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { getStoreBaseUrl } from '@/lib/publicUrls';
 import { useMarketingEvents } from '@/hooks/useMarketingEvents';
+import type { ProductSettings } from '@/hooks/usePageSettings';
 
 export default function StorefrontProduct() {
   const tenantSlug = useTenantSlug();
@@ -92,16 +93,7 @@ export default function StorefrontProduct() {
           .maybeSingle();
         
         const overrides = data?.page_overrides as Record<string, unknown> | null;
-        return overrides?.productSettings as {
-          showGallery?: boolean;
-          showDescription?: boolean;
-          showVariants?: boolean;
-          showStock?: boolean;
-          showRelatedProducts?: boolean;
-          showBuyTogether?: boolean;
-          showReviews?: boolean;
-          openMiniCartOnAdd?: boolean;
-        } | null;
+        return overrides?.productSettings as ProductSettings | null;
       }
       
       // Read from published_content (or draft_content if preview mode)
@@ -119,16 +111,7 @@ export default function StorefrontProduct() {
       const themeSettings = content?.themeSettings as Record<string, unknown> | undefined;
       const pageSettings = themeSettings?.pageSettings as Record<string, unknown> | undefined;
       
-      return (pageSettings?.product as {
-        showGallery?: boolean;
-        showDescription?: boolean;
-        showVariants?: boolean;
-        showStock?: boolean;
-        showRelatedProducts?: boolean;
-        showBuyTogether?: boolean;
-        showReviews?: boolean;
-        openMiniCartOnAdd?: boolean;
-      }) || null;
+      return (pageSettings?.product as ProductSettings) || null;
     },
     enabled: !!tenantSlug,
   });
