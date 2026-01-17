@@ -61,9 +61,9 @@ export default function StorefrontProduct() {
     }
   }, [isPreviewMode, canPreview, template.isLoading, tenantSlug, productSlug, searchParams, navigate]);
 
-  // Fetch product settings from PUBLISHED template set content
+  // Fetch product settings AND miniCart config from PUBLISHED template set content
   // CRITICAL: Must read from published_content, NOT from page_overrides (which reflects draft)
-  const { data: productSettings } = useQuery({
+  const { data: templateSettings } = useQuery({
     queryKey: ['product-template-settings-published', tenantSlug, isPreviewMode],
     queryFn: async () => {
       const { data: tenant } = await supabase
@@ -93,7 +93,10 @@ export default function StorefrontProduct() {
           .maybeSingle();
         
         const overrides = data?.page_overrides as Record<string, unknown> | null;
-        return overrides?.productSettings as ProductSettings | null;
+        return {
+          productSettings: overrides?.productSettings as ProductSettings | null,
+          miniCart: null,
+        };
       }
       
       // Read from published_content (or draft_content if preview mode)
@@ -111,10 +114,16 @@ export default function StorefrontProduct() {
       const themeSettings = content?.themeSettings as Record<string, unknown> | undefined;
       const pageSettings = themeSettings?.pageSettings as Record<string, unknown> | undefined;
       
-      return (pageSettings?.product as ProductSettings) || null;
+      return {
+        productSettings: (pageSettings?.product as ProductSettings) || null,
+        miniCart: themeSettings?.miniCart || null,
+      };
     },
     enabled: !!tenantSlug,
   });
+
+  const productSettings = templateSettings?.productSettings;
+  const miniCartConfig = templateSettings?.miniCart;
 
   // If product not found and not loading - show 404, never redirect to home
   if (!product && !productLoading && !template.isLoading) {
@@ -136,12 +145,16 @@ export default function StorefrontProduct() {
   });
 
   // Build context for block rendering with product data
-  const context: BlockRenderContext & { categories?: any[]; productSettings?: any } = {
+  const context: BlockRenderContext & { categories?: any[]; productSettings?: any; themeSettings?: any } = {
     tenantSlug: tenantSlug || '',
     isPreview: isPreviewMode,
     pageType: 'product',
     // Pass product settings for ProductDetailsBlock
     productSettings: productSettings || {},
+    // Pass theme settings including miniCart config for cart action behavior
+    themeSettings: {
+      miniCart: miniCartConfig || undefined,
+    },
     settings: {
       store_name: storeSettings?.store_name || undefined,
       logo_url: storeSettings?.logo_url || undefined,

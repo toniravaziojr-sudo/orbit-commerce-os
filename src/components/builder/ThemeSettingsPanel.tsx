@@ -211,6 +211,7 @@ export function ThemeSettingsPanel({
             templateSetId={templateSetId}
             pageType={selectedPageType}
             onNavigateToEdit={() => handleNavigateToPage(selectedPageType)}
+            onMiniCartConfigChange={onMiniCartConfigChange}
           />
         ) : null;
       case 'header':

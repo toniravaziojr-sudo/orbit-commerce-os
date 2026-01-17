@@ -423,6 +423,7 @@ interface PageSettingsContentProps {
   templateSetId?: string;
   pageType: string;
   onNavigateToEdit?: () => void;
+  onMiniCartConfigChange?: (config: ThemeMiniCartConfig) => void;
 }
 
 // NOTA: Interfaces removidas - usar de @/hooks/usePageSettings (fonte única)
@@ -432,6 +433,7 @@ export function PageSettingsContent({
   templateSetId,
   pageType,
   onNavigateToEdit,
+  onMiniCartConfigChange,
 }: PageSettingsContentProps) {
   const queryClient = useQueryClient();
   // Settings pode ter boolean, string ou array (para campos de múltiplas imagens)
@@ -454,9 +456,10 @@ export function PageSettingsContent({
   useEffect(() => {
     if (savedMiniCart && !cartActionInitialLoadDone.current) {
       setCartActionConfig(savedMiniCart);
+      onMiniCartConfigChange?.(savedMiniCart);
       cartActionInitialLoadDone.current = true;
     }
-  }, [savedMiniCart]);
+  }, [savedMiniCart, onMiniCartConfigChange]);
 
   // Debounced save for cart action
   const debouncedSaveCartAction = useCallback((updates: Partial<ThemeMiniCartConfig>) => {
@@ -478,6 +481,9 @@ export function PageSettingsContent({
         updated.showAddToCartButton = true;
       }
       
+      // CRITICAL: Notify VisualBuilder for real-time canvas update
+      onMiniCartConfigChange?.(updated);
+      
       // Immediate save for booleans/strings, debounced for numbers
       if (typeof value === 'number') {
         debouncedSaveCartAction({ [key]: value });
@@ -487,7 +493,7 @@ export function PageSettingsContent({
       
       return updated;
     });
-  }, [updateMiniCart, debouncedSaveCartAction]);
+  }, [updateMiniCart, debouncedSaveCartAction, onMiniCartConfigChange]);
 
   // Load settings on mount - from template set draft_content if available
   useEffect(() => {
