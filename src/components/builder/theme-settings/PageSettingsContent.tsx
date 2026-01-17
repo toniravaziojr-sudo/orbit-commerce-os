@@ -28,7 +28,9 @@ import {
   ShoppingBag,
   ShoppingCart,
   ArrowRight,
+  MessageSquare,
 } from 'lucide-react';
+import { TestimonialsManager } from '@/components/cart-checkout/TestimonialsManager';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { toast } from 'sonner';
@@ -851,6 +853,17 @@ export function PageSettingsContent({
                         maxImages={3}
                         tenantId={tenantId}
                       />
+                    )}
+                    
+                    {/* Gerenciador de Depoimentos para página de Checkout */}
+                    {pageType === 'checkout' && config.key === 'testimonialsEnabled' && Boolean(settings[config.key]) && (
+                      <div className="pl-4 border-l-2 border-muted pt-2">
+                        <div className="flex items-center gap-2 mb-3">
+                          <MessageSquare className="h-4 w-4 text-primary" />
+                          <span className="text-sm font-medium">Gerenciar Depoimentos</span>
+                        </div>
+                        <TestimonialsManager />
+                      </div>
                     )}
                     
                     {/* REGRAS.md: Campos extras para botão personalizado de categoria */}
