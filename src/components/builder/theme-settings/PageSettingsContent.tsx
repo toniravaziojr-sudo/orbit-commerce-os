@@ -160,6 +160,36 @@ function BannerUploadInput({
   );
 }
 
+// Multi-Image Upload for Additional Highlight
+function MultiImageUploadInput({ images, onChange, maxImages = 3 }: { 
+  images: string[]; onChange: (urls: string[]) => void; maxImages?: number;
+}) {
+  const [newUrl, setNewUrl] = useState('');
+  const handleAdd = () => {
+    if (!newUrl.trim() || images.length >= maxImages) return;
+    onChange([...images, newUrl.trim()]);
+    setNewUrl('');
+  };
+  return (
+    <div className="pl-4 border-l-2 border-muted space-y-2">
+      <p className="text-[10px] text-muted-foreground">Até {maxImages} imagens</p>
+      {images.map((url, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <img src={url} alt="" className="w-10 h-10 object-cover rounded" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+          <span className="flex-1 text-xs truncate">{url}</span>
+          <button type="button" className="text-destructive text-xs" onClick={() => onChange(images.filter((_, j) => j !== i))}>✕</button>
+        </div>
+      ))}
+      {images.length < maxImages && (
+        <div className="flex gap-2">
+          <Input placeholder="URL da imagem..." className="h-7 text-xs flex-1" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAdd()} />
+          <button type="button" className="text-xs px-2 border rounded" onClick={handleAdd}>+</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface PageSettingsContentProps {
   tenantId: string;
   templateSetId?: string;
@@ -176,8 +206,8 @@ export function PageSettingsContent({
   onNavigateToEdit,
 }: PageSettingsContentProps) {
   const queryClient = useQueryClient();
-  // Settings pode ter boolean ou string (para campos de texto)
-  const [settings, setSettings] = useState<Record<string, boolean | string>>({});
+  // Settings pode ter boolean, string ou array (para campos de múltiplas imagens)
+  const [settings, setSettings] = useState<Record<string, boolean | string | string[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
@@ -241,7 +271,7 @@ export function PageSettingsContent({
 
   // Save mutation - save to template set draft_content if templateSetId available
   const saveMutation = useMutation({
-    mutationFn: async (newSettings: Record<string, boolean | string>) => {
+    mutationFn: async (newSettings: Record<string, boolean | string | string[]>) => {
       const settingsKey = getSettingsKey(pageType);
       
       // If templateSetId is available, save to draft_content
@@ -335,8 +365,8 @@ export function PageSettingsContent({
     },
   });
 
-  // handleChange agora aceita boolean ou string
-  const handleChange = (key: string, value: boolean | string) => {
+  // handleChange agora aceita boolean, string ou string[]
+  const handleChange = (key: string, value: boolean | string | string[]) => {
     const newSettings = { ...settings, [key]: value };
     setSettings(newSettings);
     saveMutation.mutate(newSettings);
@@ -407,12 +437,20 @@ export function PageSettingsContent({
                       />
                     </div>
                     {/* Show upload input when toggle is enabled and config has upload */}
-                    {config.hasUpload && (settings[config.key] ?? config.defaultValue) && (
+                    {config.hasUpload && config.key !== 'showAdditionalHighlight' && (settings[config.key] ?? config.defaultValue) && (
                       <BannerUploadInput
                         configKey={config.key}
                         value={String(settings[config.key.replace('Enabled', 'Url')] || '')}
                         onChange={(url) => handleChange(config.key.replace('Enabled', 'Url'), url)}
                         dimensions={config.key === 'bannerDesktopEnabled' ? '1920 x 250 px' : '768 x 200 px'}
+                      />
+                    )}
+                    {/* Multi-image upload for Additional Highlight */}
+                    {config.key === 'showAdditionalHighlight' && Boolean(settings[config.key]) && (
+                      <MultiImageUploadInput
+                        images={Array.isArray(settings.additionalHighlightImages) ? settings.additionalHighlightImages : []}
+                        onChange={(urls) => handleChange('additionalHighlightImages', urls)}
+                        maxImages={3}
                       />
                     )}
                     
@@ -563,7 +601,8 @@ function getSettingsConfig(pageType: string): SettingConfig[] {
       { key: 'showRelatedProducts', label: 'Mostrar Produtos Relacionados', defaultValue: true },
       { key: 'showBuyTogether', label: 'Mostrar Compre Junto', defaultValue: true },
       { key: 'showReviews', label: 'Mostrar Avaliações', defaultValue: true },
-      { key: 'showGuaranteeBadges', label: 'Mostrar Selos de Garantia', description: 'Exibe selos como garantia, troca grátis, etc.', defaultValue: true },
+      { key: 'showBadges', label: 'Mostrar Selos', description: 'Selos configurados no Aumentar Ticket', defaultValue: true },
+      { key: 'showAdditionalHighlight', label: 'Destaque adicional', description: 'Exibe até 3 imagens como mini-banner', defaultValue: false, hasUpload: true },
       { key: 'openMiniCartOnAdd', label: 'Abrir carrinho suspenso ao adicionar', description: 'Abre o mini-carrinho lateral', defaultValue: true },
       { key: 'showGoToCartButton', label: 'Botão "Ir para Carrinho"', description: 'Link para página completa do carrinho', defaultValue: true },
     ],
