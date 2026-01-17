@@ -1,6 +1,7 @@
 // =============================================
-// MINI CART SETTINGS - Unified cart action configuration
+// MINI CART SETTINGS - Mini-cart features configuration
 // Uses centralized useThemeSettings hook (template-wide)
+// NOTE: Cart action (miniCart vs goToCart vs none) is configured in Product Page Settings
 // =============================================
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -8,8 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Loader2, ShoppingBag, Gift, Truck, Percent, Clock, ShoppingCart, ArrowRight } from 'lucide-react';
+import { Loader2, Gift, Truck, Percent, Clock } from 'lucide-react';
 import { useThemeMiniCart, DEFAULT_THEME_MINI_CART, ThemeMiniCartConfig, CartActionType } from '@/hooks/useThemeSettings';
 
 interface MiniCartSettingsProps {
@@ -72,11 +72,6 @@ export function MiniCartSettings({
     setLocalConfig(prev => {
       const updated = { ...prev, [key]: value };
       
-      // When cartActionType changes to a non-none value, force showAddToCartButton to true
-      if (key === 'cartActionType' && value !== 'none') {
-        updated.showAddToCartButton = true;
-      }
-      
       onConfigChange?.(updated);
       
       // Immediate save for booleans/strings, debounced for numbers
@@ -98,99 +93,23 @@ export function MiniCartSettings({
     );
   }
 
-  const isCartActionDisabled = localConfig.cartActionType === 'none';
+  // Check if mini-cart mode is enabled (cart action configured in product page settings)
   const isMiniCartMode = localConfig.cartActionType === 'miniCart';
 
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
-        Configure o comportamento do botão "Adicionar ao carrinho" na página de produto.
+        Configure as funcionalidades do carrinho suspenso (mini-cart).
       </p>
 
-      {/* Main Toggle - Cart Action Enabled */}
-      <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-        <div className="flex items-center gap-2">
-          <ShoppingBag className="h-4 w-4 text-primary" />
-          <div>
-            <Label className="text-sm font-medium">Ação do Carrinho</Label>
-            <p className="text-xs text-muted-foreground">
-              O que acontece ao adicionar produto
-            </p>
-          </div>
-        </div>
-        <Switch
-          checked={localConfig.cartActionType !== 'none'}
-          onCheckedChange={(enabled) => 
-            handleChange('cartActionType', enabled ? 'miniCart' : 'none')
-          }
-        />
-      </div>
-
-      {/* Cart Action Type Selection - only shows when enabled */}
-      {!isCartActionDisabled && (
-        <div className="space-y-3 pl-2">
-          <Label className="text-xs text-muted-foreground">Tipo de ação:</Label>
-          <RadioGroup
-            value={localConfig.cartActionType}
-            onValueChange={(value: CartActionType) => handleChange('cartActionType', value)}
-            className="space-y-2"
-          >
-            <div className="flex items-center space-x-3 p-2 rounded-md hover:bg-muted/50 transition-colors">
-              <RadioGroupItem value="miniCart" id="action-miniCart" />
-              <div className="flex items-center gap-2 flex-1">
-                <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-                <Label htmlFor="action-miniCart" className="text-sm cursor-pointer flex-1">
-                  <span className="font-medium">Carrinho Suspenso</span>
-                  <p className="text-xs text-muted-foreground font-normal">
-                    Abre o mini-carrinho lateral
-                  </p>
-                </Label>
-              </div>
-            </div>
-            <div className="flex items-center space-x-3 p-2 rounded-md hover:bg-muted/50 transition-colors">
-              <RadioGroupItem value="goToCart" id="action-goToCart" />
-              <div className="flex items-center gap-2 flex-1">
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                <Label htmlFor="action-goToCart" className="text-sm cursor-pointer flex-1">
-                  <span className="font-medium">Ir para Carrinho</span>
-                  <p className="text-xs text-muted-foreground font-normal">
-                    Redireciona para a página do carrinho
-                  </p>
-                </Label>
-              </div>
-            </div>
-          </RadioGroup>
-        </div>
-      )}
-
-      {/* Disabled state message */}
-      {isCartActionDisabled && (
-        <div className="p-3 rounded-lg bg-muted/30 border border-dashed">
-          <p className="text-xs text-muted-foreground text-center">
-            Com a ação desativada, o botão apenas mostra "Adicionado" ao clicar.
+      {/* Info about cart action configuration */}
+      {!isMiniCartMode && (
+        <div className="p-3 rounded-lg bg-amber-50 border border-amber-200">
+          <p className="text-xs text-amber-800">
+            ⚠️ O carrinho suspenso está desativado. Para ativá-lo, vá em <strong>Páginas → Página do Produto → Ação do Carrinho</strong> e selecione "Carrinho Suspenso".
           </p>
         </div>
       )}
-
-      {/* Show Add to Cart Button - Required when cart action is enabled */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <ShoppingBag className="h-3.5 w-3.5 text-muted-foreground" />
-          <div>
-            <Label className="text-xs">Mostrar "Adicionar ao carrinho"</Label>
-            {!isCartActionDisabled && (
-              <p className="text-[10px] text-amber-600">Obrigatório quando ação está ativa</p>
-            )}
-          </div>
-        </div>
-        <Switch
-          checked={localConfig.showAddToCartButton}
-          onCheckedChange={(v) => handleChange('showAddToCartButton', v)}
-          disabled={!isCartActionDisabled}
-        />
-      </div>
-
-      <Separator />
 
       {/* Mini-cart specific features - only when miniCart mode is selected */}
       {isMiniCartMode && (
