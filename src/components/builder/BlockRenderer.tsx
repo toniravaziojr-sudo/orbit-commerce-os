@@ -1222,7 +1222,15 @@ function CartBlock({ isEditing, context, showCrossSell, showCouponField, showTru
     );
   }
 
-  return <CartContent tenantId={tenantId} />;
+  return (
+    <CartContent 
+      tenantId={tenantId}
+      showCrossSell={effectiveShowCrossSell}
+      showCoupon={effectiveShowCoupon}
+      showShipping={effectiveShowShipping}
+      showBenefitBar={effectiveShowBenefitBar}
+    />
+  );
 }
 
 function CheckoutBlock({ isEditing, context, showOrderBump, showTimeline }: any) {

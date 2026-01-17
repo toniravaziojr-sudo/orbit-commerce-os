@@ -20,13 +20,29 @@ import { getStoreHost } from '@/lib/storeHost';
 
 interface CartContentProps {
   tenantId: string;
+  showCrossSell?: boolean;
+  showCoupon?: boolean;
+  showShipping?: boolean;
+  showBenefitBar?: boolean;
 }
 
-export function CartContent({ tenantId }: CartContentProps) {
+export function CartContent({ 
+  tenantId, 
+  showCrossSell = true,
+  showCoupon,
+  showShipping,
+  showBenefitBar = true,
+}: CartContentProps) {
   const { items, subtotal } = useCart();
   const { appliedDiscount, applyDiscount, removeDiscount } = useDiscount();
   const { config: cartConfig } = useCartConfig();
   const hasItems = items.length > 0;
+  
+  // Props take precedence over cartConfig, with sensible defaults
+  const effectiveShowCrossSell = showCrossSell;
+  const effectiveShowCoupon = showCoupon ?? cartConfig.couponEnabled;
+  const effectiveShowShipping = showShipping ?? cartConfig.shippingCalculatorEnabled;
+  const effectiveShowBenefitBar = showBenefitBar;
 
   // Use centralized store host helper - always sends actual browser host
   const storeHost = getStoreHost();
@@ -49,10 +65,12 @@ export function CartContent({ tenantId }: CartContentProps) {
       
       <h1 className="text-2xl font-bold mb-6">Meu Carrinho</h1>
 
-      {/* Benefit Progress Bar - Always at top when has items */}
-      <div className="mb-6">
-        <BenefitProgressBar />
-      </div>
+      {/* Benefit Progress Bar - Conditional */}
+      {effectiveShowBenefitBar && (
+        <div className="mb-6">
+          <BenefitProgressBar />
+        </div>
+      )}
 
       {/* Cart Layout - uses container query class for responsive behavior */}
       <div className="sf-cart-layout">
@@ -61,14 +79,14 @@ export function CartContent({ tenantId }: CartContentProps) {
           <CartItemsList />
 
           {/* Shipping Estimator */}
-          {cartConfig.shippingCalculatorEnabled && (
+          {effectiveShowShipping && (
             <div className="border rounded-lg p-4">
               <ShippingEstimator />
             </div>
           )}
 
           {/* Coupon Input */}
-          {cartConfig.couponEnabled && (
+          {effectiveShowCoupon && (
             <div className="border rounded-lg p-4">
               <h3 className="text-sm font-medium mb-3">Cupom de desconto</h3>
               <CouponInput
@@ -83,8 +101,8 @@ export function CartContent({ tenantId }: CartContentProps) {
             </div>
           )}
 
-          {/* Cross-sell - auto-managed by offer_rules, renders only if rules exist */}
-          <CrossSellSection tenantId={tenantId} />
+          {/* Cross-sell - Conditional based on page settings */}
+          {effectiveShowCrossSell && <CrossSellSection tenantId={tenantId} />}
         </div>
 
         {/* Sidebar - Order Summary */}
