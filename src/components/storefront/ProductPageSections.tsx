@@ -13,6 +13,7 @@ import React from 'react';
 import { BuyTogetherSection } from './sections/BuyTogetherSection';
 import { RelatedProductsSection } from './sections/RelatedProductsSection';
 import { ProductReviewsSection } from './sections/ProductReviewsSection';
+import { Link } from 'react-router-dom';
 
 interface ProductData {
   id: string;
@@ -33,6 +34,7 @@ interface ProductPageSectionsProps {
   showReviews?: boolean;
   showRelatedProducts?: boolean;
   viewportOverride?: 'desktop' | 'tablet' | 'mobile';
+  isEditing?: boolean;
 }
 
 /**
@@ -55,6 +57,7 @@ export function ProductPageSections({
   showReviews = true,
   showRelatedProducts = true,
   viewportOverride,
+  isEditing = false,
 }: ProductPageSectionsProps) {
   const hasFullDescription = product.description && product.description.trim().length > 0;
 
@@ -77,6 +80,7 @@ export function ProductPageSections({
           tenantSlug={tenantSlug}
           currentProduct={currentProductData}
           viewportOverride={viewportOverride}
+          isEditing={isEditing}
         />
       )}
 
@@ -98,7 +102,11 @@ export function ProductPageSections({
 
       {/* 4. Related Products Section - LAST (before footer) */}
       {showRelatedProducts && (
-        <RelatedProductsSection productId={product.id} tenantSlug={tenantSlug} />
+        <RelatedProductsSection 
+          productId={product.id} 
+          tenantSlug={tenantSlug} 
+          isEditing={isEditing}
+        />
       )}
     </div>
   );

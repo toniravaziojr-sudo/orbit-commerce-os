@@ -160,32 +160,128 @@ function BannerUploadInput({
   );
 }
 
-// Multi-Image Upload for Additional Highlight
+// Compact Multi-Image Upload for Additional Highlight with size references
 function MultiImageUploadInput({ images, onChange, maxImages = 3 }: { 
   images: string[]; onChange: (urls: string[]) => void; maxImages?: number;
 }) {
-  const [newUrl, setNewUrl] = useState('');
-  const handleAdd = () => {
-    if (!newUrl.trim() || images.length >= maxImages) return;
-    onChange([...images, newUrl.trim()]);
-    setNewUrl('');
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, index?: number) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Por favor, selecione um arquivo de imagem');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('A imagem deve ter no máximo 5MB');
+      return;
+    }
+
+    // For now, show info to use Meu Drive for permanent upload
+    toast.info('Use o Meu Drive para upload permanente, ou cole a URL abaixo.');
   };
+
+  const handleUrlChange = (index: number, url: string) => {
+    const newImages = [...images];
+    newImages[index] = url;
+    onChange(newImages);
+  };
+
+  const handleRemove = (index: number) => {
+    onChange(images.filter((_, i) => i !== index));
+  };
+
+  const handleAddSlot = () => {
+    if (images.length < maxImages) {
+      onChange([...images, '']);
+    }
+  };
+
+  // Initialize with empty slots if needed
+  const slots = images.length > 0 ? images : [];
+
   return (
-    <div className="pl-4 border-l-2 border-muted space-y-2">
-      <p className="text-[10px] text-muted-foreground">Até {maxImages} imagens</p>
-      {images.map((url, i) => (
-        <div key={i} className="flex items-center gap-2">
-          <img src={url} alt="" className="w-10 h-10 object-cover rounded" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-          <span className="flex-1 text-xs truncate">{url}</span>
-          <button type="button" className="text-destructive text-xs" onClick={() => onChange(images.filter((_, j) => j !== i))}>✕</button>
-        </div>
-      ))}
-      {images.length < maxImages && (
-        <div className="flex gap-2">
-          <Input placeholder="URL da imagem..." className="h-7 text-xs flex-1" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAdd()} />
-          <button type="button" className="text-xs px-2 border rounded" onClick={handleAdd}>+</button>
-        </div>
+    <div className="pl-4 border-l-2 border-muted space-y-3 pt-2">
+      <div className="space-y-1">
+        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+          Mini-banners (até {maxImages})
+        </p>
+        <p className="text-[10px] text-muted-foreground">
+          📱 Mobile: 768 × 200 px • 💻 Desktop: 400 × 150 px
+        </p>
+      </div>
+      
+      <div className="grid gap-2">
+        {slots.map((url, i) => (
+          <div key={i} className="relative group">
+            {url ? (
+              <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+                <img 
+                  src={url} 
+                  alt={`Destaque ${i + 1}`} 
+                  className="w-16 h-10 object-cover rounded border"
+                  onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="40" viewBox="0 0 64 40"><rect fill="%23f1f5f9" width="64" height="40"/><text x="32" y="24" text-anchor="middle" fill="%2394a3b8" font-size="8">Erro</text></svg>'; }}
+                />
+                <Input 
+                  value={url}
+                  onChange={(e) => handleUrlChange(i, e.target.value)}
+                  placeholder="URL da imagem..."
+                  className="h-8 text-xs flex-1"
+                />
+                <button 
+                  type="button" 
+                  onClick={() => handleRemove(i)}
+                  className="text-destructive hover:text-destructive/80 p-1"
+                  aria-label="Remover imagem"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <label className="flex items-center justify-center w-16 h-10 border-2 border-dashed rounded cursor-pointer hover:bg-muted/50 transition-colors">
+                  <Upload className="w-4 h-4 text-muted-foreground" />
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={(e) => handleFileChange(e, i)}
+                  />
+                </label>
+                <Input 
+                  value={url}
+                  onChange={(e) => handleUrlChange(i, e.target.value)}
+                  placeholder="Cole a URL da imagem..."
+                  className="h-8 text-xs flex-1"
+                />
+                <button 
+                  type="button" 
+                  onClick={() => handleRemove(i)}
+                  className="text-muted-foreground hover:text-destructive p-1"
+                  aria-label="Remover slot"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {slots.length < maxImages && (
+        <button
+          type="button"
+          onClick={handleAddSlot}
+          className="w-full py-2 border-2 border-dashed rounded-lg text-xs text-muted-foreground hover:bg-muted/50 hover:border-primary/50 transition-colors flex items-center justify-center gap-1"
+        >
+          <span>+</span> Adicionar imagem ({slots.length}/{maxImages})
+        </button>
       )}
+      
+      <p className="text-[10px] text-muted-foreground">
+        💡 Use o <strong>Meu Drive</strong> para upload permanente
+      </p>
     </div>
   );
 }

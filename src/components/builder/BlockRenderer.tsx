@@ -705,20 +705,22 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
   }, [productSettings, isEditing]);
   
   // Toggles conforme REGRAS.md (apenas os 12 listados)
-  const showGallery = productSettings.showGallery !== false;
-  const showDescription = productSettings.showDescription !== false;
-  const showVariants = productSettings.showVariants !== false;
-  const showStock = productSettings.showStock !== false;
-  const showReviews = productSettings.showReviews !== false;
-  const showBuyTogether = productSettings.showBuyTogether !== false;
-  const showRelatedProducts = productSettings.showRelatedProducts !== false;
-  const openMiniCartOnAdd = productSettings.openMiniCartOnAdd !== false;
-  const showFloatingCart = productSettings.showFloatingCart !== false;
-  const showWhatsAppButton = productSettings.showWhatsAppButton !== false;
-  const showAddToCartButton = productSettings.showAddToCartButton !== false;
+  // IMPORTANTE: Usar DEFAULT_PRODUCT_SETTINGS para valores não definidos
+  // Quando o usuário explicitamente desativa (=== false), respeitar essa decisão
+  const showGallery = productSettings.showGallery ?? true;
+  const showDescription = productSettings.showDescription ?? true;
+  const showVariants = productSettings.showVariants ?? true;
+  const showStock = productSettings.showStock ?? true;
+  const showReviews = productSettings.showReviews ?? true;
+  const showBuyTogether = productSettings.showBuyTogether ?? true;
+  const showRelatedProducts = productSettings.showRelatedProducts ?? true;
+  const openMiniCartOnAdd = productSettings.openMiniCartOnAdd ?? true;
+  const showFloatingCart = productSettings.showFloatingCart ?? true;
+  const showWhatsAppButton = productSettings.showWhatsAppButton ?? true;
+  const showAddToCartButton = productSettings.showAddToCartButton ?? true;
   const buyNowButtonText = productSettings.buyNowButtonText || 'Comprar agora';
-  const showBadges = productSettings.showBadges !== false;
-  const showAdditionalHighlight = productSettings.showAdditionalHighlight === true;
+  const showBadges = productSettings.showBadges ?? true;
+  const showAdditionalHighlight = productSettings.showAdditionalHighlight ?? false;
   const additionalHighlightImages = productSettings.additionalHighlightImages || [];
   
   // Theme settings for mini-cart (não é toggle da página, é do tema)
@@ -1140,6 +1142,7 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
           showReviews={showReviews}
           showRelatedProducts={showRelatedProducts}
           viewportOverride={viewportOverride}
+          isEditing={isEditing && !isInteractMode}
         />
       )}
 

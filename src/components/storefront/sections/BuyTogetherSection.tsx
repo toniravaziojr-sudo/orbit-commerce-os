@@ -24,9 +24,10 @@ interface BuyTogetherSectionProps {
     images?: { url: string; alt?: string }[];
   };
   viewportOverride?: 'desktop' | 'tablet' | 'mobile';
+  isEditing?: boolean;
 }
 
-export function BuyTogetherSection({ productId, tenantSlug, currentProduct, viewportOverride }: BuyTogetherSectionProps) {
+export function BuyTogetherSection({ productId, tenantSlug, currentProduct, viewportOverride, isEditing = false }: BuyTogetherSectionProps) {
   const { addItem } = useCart();
   const [isAdding, setIsAdding] = useState(false);
 
@@ -70,7 +71,54 @@ export function BuyTogetherSection({ productId, tenantSlug, currentProduct, view
     enabled: !!productId,
   });
 
+  // In editor mode with no rule, show demo placeholder
   if (isLoading || !rule || !rule.suggestedProduct || !currentProduct) {
+    if (isEditing) {
+      return (
+        <section className="py-6 md:py-8 border-t">
+          <h2 className="text-lg md:text-xl font-bold mb-4 flex items-center gap-2">
+            <ShoppingCart className="h-5 w-5" />
+            Compre Junto
+          </h2>
+          <div className="bg-muted/30 rounded-lg p-4 md:p-6">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3 p-3 bg-background rounded-lg border flex-1">
+                <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center">
+                  <ShoppingCart className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="font-medium text-sm">Produto Atual</p>
+                  <p className="text-primary font-bold">R$ 129,90</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 flex-shrink-0">
+                <Plus className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex items-center gap-3 p-3 bg-background rounded-lg border flex-1">
+                <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center">
+                  <ShoppingCart className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="font-medium text-sm">Produto Sugerido</p>
+                  <p className="text-muted-foreground line-through text-xs">R$ 89,90</p>
+                  <p className="text-primary font-bold">R$ 69,90</p>
+                </div>
+              </div>
+              <div className="pl-4 border-l border-border min-w-[160px] text-center">
+                <p className="text-xs text-muted-foreground line-through">R$ 219,80</p>
+                <p className="text-xs text-muted-foreground font-medium">COMPRANDO JUNTO:</p>
+                <p className="text-xl font-bold text-primary">R$ 199,80</p>
+                <p className="text-sm text-green-600 font-medium">Economize R$ 20,00</p>
+                <Button className="w-full mt-2" size="lg">Adquirir oferta</Button>
+              </div>
+            </div>
+            <p className="text-xs text-center text-muted-foreground mt-4">
+              [Exemplo demonstrativo] <a href="/offers" className="text-primary hover:underline">Configure ofertas reais em Aumentar Ticket</a>
+            </p>
+          </div>
+        </section>
+      );
+    }
     return null;
   }
 
