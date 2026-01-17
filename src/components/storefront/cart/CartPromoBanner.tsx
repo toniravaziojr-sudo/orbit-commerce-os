@@ -1,6 +1,7 @@
 // =============================================
 // CART PROMO BANNER - Promotional banner for cart page
 // Responsive with individual control for desktop/mobile
+// Respects bannerDisplay setting (cart_page, mini_cart, both)
 // =============================================
 
 import { useState, useEffect } from 'react';
@@ -8,9 +9,11 @@ import { CartConfig } from '@/lib/storeConfigTypes';
 
 interface CartPromoBannerProps {
   config: CartConfig;
+  /** Where the banner is being rendered */
+  location?: 'cart_page' | 'mini_cart';
 }
 
-export function CartPromoBanner({ config }: CartPromoBannerProps) {
+export function CartPromoBanner({ config, location = 'cart_page' }: CartPromoBannerProps) {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -22,6 +25,16 @@ export function CartPromoBanner({ config }: CartPromoBannerProps) {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Check if banner should be shown based on display location setting
+  const bannerDisplay = config.bannerDisplay || 'cart_page';
+  const shouldShowAtLocation = 
+    bannerDisplay === 'both' || 
+    bannerDisplay === location;
+
+  if (!shouldShowAtLocation) {
+    return null;
+  }
 
   // Check if banner should be shown for current viewport
   const shouldShowDesktop = !isMobile && config.bannerDesktopEnabled && config.bannerDesktopUrl;
@@ -44,7 +57,7 @@ export function CartPromoBanner({ config }: CartPromoBannerProps) {
   );
 
   return (
-    <div className="mb-6">
+    <div className={location === 'mini_cart' ? 'mb-4' : 'mb-6'}>
       {hasLink ? (
         <a 
           href={config.bannerLink!}
