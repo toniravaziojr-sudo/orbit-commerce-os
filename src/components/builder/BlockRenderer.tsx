@@ -735,15 +735,44 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
   const contextProduct = context?.product;
   
   const { data: exampleProduct, isLoading } = useQuery({
-    queryKey: ['example-product-details', exampleProductId],
+    queryKey: ['example-product-details', exampleProductId, context?.settings?.tenant_id],
     queryFn: async () => {
+      const tenantId = context?.settings?.tenant_id;
+      
       if (!exampleProductId || exampleProductId === '_auto') {
-        const { data, error } = await supabase
+        // Primeiro, tenta buscar um produto COM variantes para demonstrar a funcionalidade
+        if (tenantId) {
+          const { data: productWithVariants } = await supabase
+            .from('products')
+            .select(`
+              id, name, price, compare_at_price, description, short_description, 
+              stock_quantity, status, allow_backorder, sku, 
+              product_images (id, url, alt_text, is_primary, sort_order),
+              product_variants!inner (id)
+            `)
+            .eq('tenant_id', tenantId)
+            .eq('status', 'active')
+            .limit(1)
+            .maybeSingle();
+          
+          if (productWithVariants) {
+            // Remove product_variants do objeto antes de retornar
+            const { product_variants, ...productData } = productWithVariants as any;
+            return productData;
+          }
+        }
+        
+        // Fallback: qualquer produto ativo do tenant
+        let query = supabase
           .from('products')
           .select(`id, name, price, compare_at_price, description, short_description, stock_quantity, status, allow_backorder, sku, product_images (id, url, alt_text, is_primary, sort_order)`)
-          .eq('status', 'active')
-          .limit(1)
-          .single();
+          .eq('status', 'active');
+        
+        if (tenantId) {
+          query = query.eq('tenant_id', tenantId);
+        }
+        
+        const { data, error } = await query.limit(1).single();
         if (error) return null;
         return data;
       }
