@@ -2,10 +2,10 @@
 // PRODUCT PAGE SECTIONS - Single source of truth
 // Editor = Preview = Public (same order always)
 // =============================================
-// ORDER (fixed):
-// 1. Full Description
-// 2. Buy Together  
-// 3. Reviews
+// ORDER (fixed) - conforme REGRAS.md:
+// 1. Buy Together (Compre Junto) - PRIMEIRO
+// 2. Full Description (Descrição completa)
+// 3. Reviews (Avaliações)
 // 4. Related Products (LAST, before footer)
 // =============================================
 
