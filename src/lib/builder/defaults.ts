@@ -439,50 +439,10 @@ export const defaultProductTemplate: BlockNode = {
         },
       ],
     },
-    // 3. Compre Junto (slot - busca de /offers)
-    {
-      id: generateBlockId('Section'),
-      type: 'Section',
-      props: {
-        paddingY: 32,
-        backgroundColor: '#f9fafb',
-      },
-      children: [
-        {
-          id: generateBlockId('CompreJuntoSlot'),
-          type: 'CompreJuntoSlot',
-          props: {
-            title: 'Compre Junto e Economize',
-            subtitle: 'Aproveite o desconto levando mais',
-            maxItems: 3,
-            variant: 'normal',
-            showWhenEmpty: false, // Only show when offers are configured
-          },
-        },
-      ],
-    },
-    // 4. Produtos Relacionados
-    {
-      id: generateBlockId('Section'),
-      type: 'Section',
-      props: {
-        paddingY: 48,
-      },
-      children: [
-        {
-          id: generateBlockId('ProductGrid'),
-          type: 'ProductGrid',
-          props: {
-            title: 'Você também pode gostar',
-            source: 'category',
-            columns: 4,
-            limit: 4,
-            showPrice: true,
-          },
-        },
-      ],
-    },
-    // 5. Rodapé
+    // NOTA: Compre Junto e Produtos Relacionados são renderizados automaticamente
+    // pelo ProductDetailsBlock via ProductPageSections (controlados pelas Configurações da página)
+    // Não adicionar blocos standalone aqui para evitar duplicação
+    // 3. Rodapé
     {
       id: generateBlockId('Footer'),
       type: 'Footer',
