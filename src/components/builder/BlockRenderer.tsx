@@ -841,123 +841,9 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
     );
   }
 
-  if (!product && isEditing) {
-    // Placeholder completo conforme REGRAS.md - exemplifica estrutura da página
-    return (
-      <div className="py-6 md:py-8 px-4">
-        <div className={gridClasses}>
-          {/* Coluna esquerda: Galeria */}
-          <div className="w-full">
-            <div className="aspect-square bg-muted rounded-lg flex items-center justify-center text-muted-foreground">
-              [Imagem do Produto]
-            </div>
-            {showGallery && (
-              <div className="flex gap-2 mt-3">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="w-16 h-16 bg-muted/70 rounded-lg flex items-center justify-center text-xs text-muted-foreground">
-                    {i}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          
-          {/* Coluna direita: Info */}
-          <div className="space-y-4">
-            {/* Selos (sem desconto - descontos são geridos pelo menu Descontos) */}
-            <div className="flex gap-2">
-              <span className="px-2 py-1 bg-blue-100 text-blue-600 text-xs rounded">Novo</span>
-            </div>
-            
-            {/* Estrelas */}
-            {showReviews && (
-              <div className="flex items-center gap-1 text-yellow-500">
-                {[1,2,3,4,5].map(i => <span key={i}>★</span>)}
-                <span className="text-xs text-muted-foreground ml-1">(0)</span>
-              </div>
-            )}
-            
-            {/* Nome */}
-            <h1 className={`${titleClasses} font-bold`}>[Nome do Produto]</h1>
-            
-            {/* Preço */}
-            <div className="flex items-center gap-2">
-              <p className={`${priceClasses} text-primary font-bold`}>R$ 99,90</p>
-              <p className="text-muted-foreground line-through text-sm">R$ 129,90</p>
-            </div>
-            
-            {/* Bandeirinhas pagamento */}
-            <div className="p-2 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-sm font-bold text-green-700">R$ 89,91 no Pix</p>
-              <p className="text-xs text-green-600">10% de desconto</p>
-            </div>
-            
-            {/* Descrição curta */}
-            {showDescription && (
-              <p className="text-muted-foreground text-sm">[Descrição curta do produto...]</p>
-            )}
-            
-            {/* Variantes */}
-            {showVariants && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Cor</p>
-                <div className="flex gap-2">
-                  <span className="px-3 py-1 border rounded-md text-sm">Azul</span>
-                  <span className="px-3 py-1 border rounded-md text-sm">Vermelho</span>
-                </div>
-              </div>
-            )}
-            
-            {/* Estoque */}
-            {showStock && (
-              <p className="text-sm text-muted-foreground">Estoque: 10 unidades</p>
-            )}
-            
-            {/* CTAs */}
-            <div className="space-y-2">
-              <div className="flex gap-2">
-                <div className="flex items-center border rounded-full px-3">
-                  <span className="text-sm">1</span>
-                </div>
-                <button className="flex-1 bg-primary text-primary-foreground py-2 rounded-full text-sm font-medium">
-                  {buyNowButtonText}
-                </button>
-              </div>
-              {showAddToCartButton && (
-                <button className="w-full border-2 border-primary text-primary py-2 rounded-full text-sm font-medium">
-                  Adicionar ao carrinho
-                </button>
-              )}
-              {showWhatsAppButton && (
-                <button className="w-full border-2 border-green-500 text-green-600 py-2 rounded-full text-sm font-medium">
-                  Comprar pelo WhatsApp
-                </button>
-              )}
-            </div>
-            
-            {/* Calculadora frete */}
-            <div className="border rounded-lg p-3">
-              <p className="text-sm font-medium mb-2">Calcular frete</p>
-              <div className="flex gap-2">
-                <input type="text" placeholder="00000-000" className="flex-1 border rounded px-2 py-1 text-sm" disabled />
-                <button className="px-3 py-1 bg-muted text-sm rounded">Calcular</button>
-              </div>
-            </div>
-            
-            {/* Bandeirinhas garantia */}
-            <div className="grid grid-cols-3 gap-2">
-              {['Garantia', 'Troca', 'Seguro'].map(item => (
-                <div key={item} className="text-center p-2 bg-muted/50 rounded-lg">
-                  <p className="text-xs font-medium">{item}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        
-      </div>
-    );
-  }
+  // REMOVED: Duplicate static placeholder - ProductPageSections handles demo content
+  // When no product, we still render the main layout with placeholder content
+  // but ProductPageSections will show its own demo sections
 
   const productName = product?.name || 'Produto';
   const productPrice = product?.price || 0;
@@ -995,23 +881,40 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
           </div>
           
           {/* Galeria secundária (até 10 imagens) - toggle showGallery */}
-          {showGallery && hasMultipleImages && (
-            <div className="flex gap-2 mt-3 overflow-x-auto pb-2">
-              {allImages.slice(0, 10).map((img: any, index: number) => (
-                <button
-                  key={index}
-                  onClick={() => setSelectedImageIndex(index)}
-                  className={cn(
-                    "flex-shrink-0 w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden border-2 transition-all",
-                    index === selectedImageIndex 
-                      ? "border-primary ring-2 ring-primary/20" 
-                      : "border-transparent hover:border-muted-foreground/30"
-                  )}
-                >
-                  <img src={img.url} alt={img.alt || `${productName} ${index + 1}`} className="w-full h-full object-cover" />
-                </button>
-              ))}
-            </div>
+          {showGallery && (
+            hasMultipleImages ? (
+              <div className="flex gap-2 mt-3 overflow-x-auto pb-2">
+                {allImages.slice(0, 10).map((img: any, index: number) => (
+                  <button
+                    key={index}
+                    onClick={() => setSelectedImageIndex(index)}
+                    className={cn(
+                      "flex-shrink-0 w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden border-2 transition-all",
+                      index === selectedImageIndex 
+                        ? "border-primary ring-2 ring-primary/20" 
+                        : "border-transparent hover:border-muted-foreground/30"
+                    )}
+                  >
+                    <img src={img.url} alt={img.alt || `${productName} ${index + 1}`} className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            ) : isEditing ? (
+              // Show demo thumbnails in editor when no multiple images
+              <div className="flex gap-2 mt-3 overflow-x-auto pb-2">
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className={cn(
+                      "flex-shrink-0 w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden border-2 bg-muted flex items-center justify-center",
+                      i === 1 ? "border-primary ring-2 ring-primary/20" : "border-transparent"
+                    )}
+                  >
+                    <span className="text-xs text-muted-foreground">{i}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null
           )}
         </div>
         
@@ -1071,13 +974,36 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
           )}
           
           {/* 7. Seletor de variantes */}
-          {showVariants && hasVariants && (
-            <ProductVariantSelector
-              optionGroups={optionGroups}
-              selectedOptions={selectedOptions}
-              onSelectOption={selectOption}
-              disabled={isEditing && !isInteractMode}
-            />
+          {showVariants && (
+            hasVariants ? (
+              <ProductVariantSelector
+                optionGroups={optionGroups}
+                selectedOptions={selectedOptions}
+                onSelectOption={selectOption}
+                disabled={isEditing && !isInteractMode}
+              />
+            ) : isEditing ? (
+              // Show demo variants in editor when product has no variants
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm font-medium mb-2">Cor</p>
+                  <div className="flex gap-2">
+                    <span className="px-3 py-1 border-2 border-primary rounded-md text-sm bg-primary/5">Azul</span>
+                    <span className="px-3 py-1 border rounded-md text-sm hover:border-muted-foreground/50">Vermelho</span>
+                    <span className="px-3 py-1 border rounded-md text-sm hover:border-muted-foreground/50">Verde</span>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium mb-2">Tamanho</p>
+                  <div className="flex gap-2">
+                    <span className="px-3 py-1 border-2 border-primary rounded-md text-sm bg-primary/5">P</span>
+                    <span className="px-3 py-1 border rounded-md text-sm hover:border-muted-foreground/50">M</span>
+                    <span className="px-3 py-1 border rounded-md text-sm hover:border-muted-foreground/50">G</span>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">[Exemplo demonstrativo - cadastre variantes no produto]</p>
+              </div>
+            ) : null
           )}
           
           {/* 8. Estoque */}
