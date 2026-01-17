@@ -241,8 +241,9 @@ export function VisualBuilder({
     // For home page, no overrides; for other pages, apply overrides
     const overridesToApply = isHomePage ? null : pageOverrides;
     // isEditing=true so header/footer always appear in builder (with hidden prop if disabled)
-    return applyGlobalLayout(startingContent, globalLayout, isCheckoutPage, overridesToApply, true);
-  }, [startingContent, globalLayout, isCheckoutPage, isHomePage, pageOverrides]);
+    // Pass pageType to filter duplicate blocks (e.g., CompreJuntoSlot, ProductGrid on product pages)
+    return applyGlobalLayout(startingContent, globalLayout, isCheckoutPage, overridesToApply, true, pageType);
+  }, [startingContent, globalLayout, isCheckoutPage, isHomePage, pageOverrides, pageType]);
 
   // Builder store for state management
   const store = useBuilderStore(contentWithGlobalLayout);
