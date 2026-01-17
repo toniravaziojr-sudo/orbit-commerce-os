@@ -131,42 +131,42 @@ export function CartDemoBlock({
               rel="noopener noreferrer"
               className="block hover:opacity-90 transition-opacity"
             >
-              {/* Mobile banner */}
+              {/* Mobile banner - visible only on mobile */}
               {bannerMobileUrl && (
                 <img
                   src={bannerMobileUrl}
                   alt="Promoção"
-                  className="w-full h-auto object-cover rounded-lg sf-hidden sf-block-mobile"
+                  className="w-full h-auto object-cover rounded-lg sf-show-mobile sf-hide-desktop"
                   loading="lazy"
                 />
               )}
-              {/* Desktop banner */}
+              {/* Desktop banner - visible only on desktop */}
               {bannerDesktopUrl && (
                 <img
                   src={bannerDesktopUrl}
                   alt="Promoção"
-                  className="w-full h-auto object-cover rounded-lg sf-block sf-hidden-mobile"
+                  className="w-full h-auto object-cover rounded-lg sf-hide-mobile sf-show-desktop"
                   loading="lazy"
                 />
               )}
             </a>
           ) : (
             <>
-              {/* Mobile banner */}
+              {/* Mobile banner - visible only on mobile */}
               {bannerMobileUrl && (
                 <img
                   src={bannerMobileUrl}
                   alt="Promoção"
-                  className="w-full h-auto object-cover rounded-lg sf-hidden sf-block-mobile"
+                  className="w-full h-auto object-cover rounded-lg sf-show-mobile sf-hide-desktop"
                   loading="lazy"
                 />
               )}
-              {/* Desktop banner */}
+              {/* Desktop banner - visible only on desktop */}
               {bannerDesktopUrl && (
                 <img
                   src={bannerDesktopUrl}
                   alt="Promoção"
-                  className="w-full h-auto object-cover rounded-lg sf-block sf-hidden-mobile"
+                  className="w-full h-auto object-cover rounded-lg sf-hide-mobile sf-show-desktop"
                   loading="lazy"
                 />
               )}
