@@ -28,11 +28,18 @@ interface CrossSellSectionProps {
 export function CrossSellSection({ tenantId }: CrossSellSectionProps) {
   const { items, addItem } = useCart();
 
+  // DEBUG: Log tenantId received
+  console.log('[CrossSellSection] tenantId received:', tenantId, '| items in cart:', items.length);
+
   // Fetch active cross-sell rules from offer_rules table using tenantId directly
-  const { data: crossSellRules = [], isLoading: rulesLoading } = useQuery({
+  const { data: crossSellRules = [], isLoading: rulesLoading, error: rulesError } = useQuery({
     queryKey: ['cross-sell-rules', tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      console.log('[CrossSellSection] Fetching cross-sell rules for tenant:', tenantId);
+      if (!tenantId) {
+        console.log('[CrossSellSection] No tenantId, returning empty');
+        return [];
+      }
       
       const { data, error } = await supabase
         .from('offer_rules')
@@ -42,10 +49,19 @@ export function CrossSellSection({ tenantId }: CrossSellSectionProps) {
         .eq('is_active', true)
         .order('priority', { ascending: true });
       
+      console.log('[CrossSellSection] Rules query result:', { data, error });
       if (error) throw error;
       return data as OfferRule[];
     },
     enabled: !!tenantId,
+  });
+
+  // DEBUG: Log query state
+  console.log('[CrossSellSection] Query state:', { 
+    rulesLoading, 
+    rulesError, 
+    rulesCount: crossSellRules.length,
+    enabled: !!tenantId
   });
 
   // Get the first active rule (highest priority)
