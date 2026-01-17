@@ -390,7 +390,72 @@ const handleAddToCart = (product: Product, e: React.MouseEvent) => {
 
 #### Carrinho
 
-<!-- Placeholder - conteúdo a ser definido -->
+**Estrutura visual:**
+
+| Área | Descrição |
+|------|-----------|
+| Banner promocional | Banner configurável (desktop/mobile separados) com link opcional |
+| Barra de benefício | Barra de progresso para frete grátis ou brinde |
+| Lista de itens | Produtos no carrinho com imagem, nome, SKU, preço, quantidade e ações |
+| Calculadora de frete | Campo CEP + seleção de opções de envio |
+| Campo de cupom | Input para aplicar cupom de desconto |
+| Cross-sell | Seção de produtos sugeridos (regras do menu Aumentar Ticket) |
+| Resumo do pedido | Subtotal, desconto, frete e total + botão finalizar |
+| Barra mobile | Resumo fixo no mobile com total e botão checkout |
+
+**Funcionalidades (toggles configuráveis):**
+
+| Toggle | Default | Descrição |
+|--------|---------|-----------|
+| `showCrossSell` | true | Exibe seção de cross-sell |
+| `showCouponField` | true | Exibe campo de cupom |
+| `showShippingCalculator` | true | Exibe calculadora de frete |
+| `showTrustBadges` | true | Exibe selos de confiança |
+| `showBenefitBar` | true | Exibe barra de progresso de benefício |
+
+**Banner promocional (configuração em Carrinho & Checkout → Carrinho):**
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `bannerDesktopEnabled` | boolean | Ativa banner desktop |
+| `bannerDesktopUrl` | string | URL da imagem desktop |
+| `bannerMobileEnabled` | boolean | Ativa banner mobile |
+| `bannerMobileUrl` | string | URL da imagem mobile |
+| `bannerLink` | string | URL de destino ao clicar |
+| `bannerDisplay` | enum | Onde exibir: `cart_page`, `mini_cart` ou `both` |
+
+**Cross-sell (regras):**
+
+- Produtos sugeridos vêm da tabela `offer_rules` com `type='cross_sell'`
+- Produtos já no carrinho são automaticamente filtrados (não aparecem como sugestão)
+- Desconto pode ser aplicado: `percent`, `fixed` ou `none`
+- Limite configurável de itens exibidos (`max_items`)
+
+**Barra de benefício (configuração em Carrinho & Checkout → Barra de Benefício):**
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `enabled` | boolean | Ativa/desativa barra |
+| `mode` | enum | `free_shipping` ou `gift` |
+| `thresholdValue` | number | Valor mínimo para ganhar benefício |
+| `rewardLabel` | string | Texto do benefício (ex: "Frete Grátis") |
+| `successLabel` | string | Texto ao atingir meta |
+| `progressColor` | string | Cor da barra de progresso |
+
+**Regra crítica de ofertas (REGRA FIXA do Knowledge):**
+
+| Tipo de Oferta | Local Correto |
+|----------------|---------------|
+| Cross-sell | Carrinho |
+| Order Bump | Checkout |
+| Compre Junto | Página do Produto |
+
+**Localização das configurações:** Carrinho & Checkout → aba Carrinho
+
+**Carrinho vazio:**
+- Exibe mensagem "Seu carrinho está vazio"
+- Botão "Continuar comprando" redireciona para home
+- Banner promocional ainda é exibido (se configurado)
 
 ---
 
