@@ -160,124 +160,120 @@ function BannerUploadInput({
   );
 }
 
-// Compact Multi-Image Upload for Additional Highlight with size references
-function MultiImageUploadInput({ images, onChange, maxImages = 3 }: { 
-  images: string[]; onChange: (urls: string[]) => void; maxImages?: number;
+// Responsive Image Upload for Additional Highlight - separate mobile/desktop
+function ResponsiveImageUploadInput({ 
+  mobileImages, 
+  desktopImages, 
+  onChangeMobile, 
+  onChangeDesktop, 
+  maxImages = 3 
+}: { 
+  mobileImages: string[]; 
+  desktopImages: string[]; 
+  onChangeMobile: (urls: string[]) => void; 
+  onChangeDesktop: (urls: string[]) => void; 
+  maxImages?: number;
 }) {
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, index?: number) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      toast.error('Por favor, selecione um arquivo de imagem');
-      return;
+  const handleUrlChange = (type: 'mobile' | 'desktop', index: number, url: string) => {
+    const images = type === 'mobile' ? [...mobileImages] : [...desktopImages];
+    images[index] = url;
+    if (type === 'mobile') {
+      onChangeMobile(images);
+    } else {
+      onChangeDesktop(images);
     }
+  };
 
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('A imagem deve ter no máximo 5MB');
-      return;
+  const handleRemove = (type: 'mobile' | 'desktop', index: number) => {
+    if (type === 'mobile') {
+      onChangeMobile(mobileImages.filter((_, i) => i !== index));
+    } else {
+      onChangeDesktop(desktopImages.filter((_, i) => i !== index));
     }
-
-    // For now, show info to use Meu Drive for permanent upload
-    toast.info('Use o Meu Drive para upload permanente, ou cole a URL abaixo.');
   };
 
-  const handleUrlChange = (index: number, url: string) => {
-    const newImages = [...images];
-    newImages[index] = url;
-    onChange(newImages);
-  };
-
-  const handleRemove = (index: number) => {
-    onChange(images.filter((_, i) => i !== index));
-  };
-
-  const handleAddSlot = () => {
+  const handleAddSlot = (type: 'mobile' | 'desktop') => {
+    const images = type === 'mobile' ? mobileImages : desktopImages;
     if (images.length < maxImages) {
-      onChange([...images, '']);
+      if (type === 'mobile') {
+        onChangeMobile([...mobileImages, '']);
+      } else {
+        onChangeDesktop([...desktopImages, '']);
+      }
     }
   };
 
-  // Initialize with empty slots if needed
-  const slots = images.length > 0 ? images : [];
+  const renderImageSlots = (type: 'mobile' | 'desktop', images: string[], label: string, dimensions: string) => {
+    const slots = images.length > 0 ? images : [];
+    
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-medium text-muted-foreground uppercase">
+            {type === 'mobile' ? '📱' : '💻'} {label}
+          </span>
+          <span className="text-[10px] text-muted-foreground">({dimensions})</span>
+        </div>
+        
+        <div className="space-y-2">
+          {slots.map((url, i) => (
+            <div key={i} className="flex items-center gap-2">
+              {url ? (
+                <img 
+                  src={url} 
+                  alt={`${label} ${i + 1}`} 
+                  className="w-12 h-8 object-cover rounded border flex-shrink-0"
+                  onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }}
+                />
+              ) : (
+                <div className="w-12 h-8 border-2 border-dashed rounded flex items-center justify-center flex-shrink-0">
+                  <Upload className="w-3 h-3 text-muted-foreground" />
+                </div>
+              )}
+              <Input 
+                value={url}
+                onChange={(e) => handleUrlChange(type, i, e.target.value)}
+                placeholder="Cole a URL da imagem..."
+                className="h-7 text-xs flex-1"
+              />
+              <button 
+                type="button" 
+                onClick={() => handleRemove(type, i)}
+                className="text-muted-foreground hover:text-destructive p-1 flex-shrink-0"
+                aria-label="Remover"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+        
+        {slots.length < maxImages && (
+          <button
+            type="button"
+            onClick={() => handleAddSlot(type)}
+            className="w-full py-1.5 border-2 border-dashed rounded text-[10px] text-muted-foreground hover:bg-muted/50 hover:border-primary/50 transition-colors flex items-center justify-center gap-1"
+          >
+            <span>+</span> Adicionar ({slots.length}/{maxImages})
+          </button>
+        )}
+      </div>
+    );
+  };
 
   return (
-    <div className="pl-4 border-l-2 border-muted space-y-3 pt-2">
+    <div className="pl-4 border-l-2 border-muted space-y-4 pt-2">
       <div className="space-y-1">
         <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-          Mini-banners (até {maxImages})
-        </p>
-        <p className="text-[10px] text-muted-foreground">
-          📱 Mobile: 768 × 200 px • 💻 Desktop: 400 × 150 px
+          Mini-banners (até {maxImages} por dispositivo)
         </p>
       </div>
       
-      <div className="grid gap-2">
-        {slots.map((url, i) => (
-          <div key={i} className="relative group">
-            {url ? (
-              <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
-                <img 
-                  src={url} 
-                  alt={`Destaque ${i + 1}`} 
-                  className="w-16 h-10 object-cover rounded border"
-                  onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="40" viewBox="0 0 64 40"><rect fill="%23f1f5f9" width="64" height="40"/><text x="32" y="24" text-anchor="middle" fill="%2394a3b8" font-size="8">Erro</text></svg>'; }}
-                />
-                <Input 
-                  value={url}
-                  onChange={(e) => handleUrlChange(i, e.target.value)}
-                  placeholder="URL da imagem..."
-                  className="h-8 text-xs flex-1"
-                />
-                <button 
-                  type="button" 
-                  onClick={() => handleRemove(i)}
-                  className="text-destructive hover:text-destructive/80 p-1"
-                  aria-label="Remover imagem"
-                >
-                  ✕
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <label className="flex items-center justify-center w-16 h-10 border-2 border-dashed rounded cursor-pointer hover:bg-muted/50 transition-colors">
-                  <Upload className="w-4 h-4 text-muted-foreground" />
-                  <input
-                    type="file"
-                    className="hidden"
-                    accept="image/*"
-                    onChange={(e) => handleFileChange(e, i)}
-                  />
-                </label>
-                <Input 
-                  value={url}
-                  onChange={(e) => handleUrlChange(i, e.target.value)}
-                  placeholder="Cole a URL da imagem..."
-                  className="h-8 text-xs flex-1"
-                />
-                <button 
-                  type="button" 
-                  onClick={() => handleRemove(i)}
-                  className="text-muted-foreground hover:text-destructive p-1"
-                  aria-label="Remover slot"
-                >
-                  ✕
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {slots.length < maxImages && (
-        <button
-          type="button"
-          onClick={handleAddSlot}
-          className="w-full py-2 border-2 border-dashed rounded-lg text-xs text-muted-foreground hover:bg-muted/50 hover:border-primary/50 transition-colors flex items-center justify-center gap-1"
-        >
-          <span>+</span> Adicionar imagem ({slots.length}/{maxImages})
-        </button>
-      )}
+      {/* Mobile Images */}
+      {renderImageSlots('mobile', mobileImages, 'Mobile', '768 × 200 px')}
+      
+      {/* Desktop Images */}
+      {renderImageSlots('desktop', desktopImages, 'Desktop', '400 × 150 px')}
       
       <p className="text-[10px] text-muted-foreground">
         💡 Use o <strong>Meu Drive</strong> para upload permanente
@@ -563,11 +559,13 @@ export function PageSettingsContent({
                         dimensions={config.key === 'bannerDesktopEnabled' ? '1920 x 250 px' : '768 x 200 px'}
                       />
                     )}
-                    {/* Multi-image upload for Additional Highlight */}
+                    {/* Responsive image upload for Additional Highlight */}
                     {config.key === 'showAdditionalHighlight' && Boolean(settings[config.key]) && (
-                      <MultiImageUploadInput
-                        images={Array.isArray(settings.additionalHighlightImages) ? settings.additionalHighlightImages : []}
-                        onChange={(urls) => handleChange('additionalHighlightImages', urls)}
+                      <ResponsiveImageUploadInput
+                        mobileImages={Array.isArray(settings.additionalHighlightImagesMobile) ? settings.additionalHighlightImagesMobile : []}
+                        desktopImages={Array.isArray(settings.additionalHighlightImagesDesktop) ? settings.additionalHighlightImagesDesktop : []}
+                        onChangeMobile={(urls) => handleChange('additionalHighlightImagesMobile', urls)}
+                        onChangeDesktop={(urls) => handleChange('additionalHighlightImagesDesktop', urls)}
                         maxImages={3}
                       />
                     )}
@@ -657,11 +655,13 @@ export function PageSettingsContent({
                   onCheckedChange={(checked) => handleChange(config.key, checked)}
                 />
               </div>
-              {/* Multi-image upload for Additional Highlight (product page) */}
+              {/* Responsive image upload for Additional Highlight (product page) */}
               {config.key === 'showAdditionalHighlight' && Boolean(settings[config.key]) && (
-                <MultiImageUploadInput
-                  images={Array.isArray(settings.additionalHighlightImages) ? settings.additionalHighlightImages : []}
-                  onChange={(urls) => handleChange('additionalHighlightImages', urls)}
+                <ResponsiveImageUploadInput
+                  mobileImages={Array.isArray(settings.additionalHighlightImagesMobile) ? settings.additionalHighlightImagesMobile : []}
+                  desktopImages={Array.isArray(settings.additionalHighlightImagesDesktop) ? settings.additionalHighlightImagesDesktop : []}
+                  onChangeMobile={(urls) => handleChange('additionalHighlightImagesMobile', urls)}
+                  onChangeDesktop={(urls) => handleChange('additionalHighlightImagesDesktop', urls)}
                   maxImages={3}
                 />
               )}
