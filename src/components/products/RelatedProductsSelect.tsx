@@ -33,21 +33,22 @@ export function RelatedProductsSelect({ productId }: RelatedProductsSelectProps)
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
 
-  // Fetch all products (excluding current)
+  // Fetch all products (excluding current) - includes active AND draft products
+  // Draft products are shown so users can pre-configure relations before publishing
   const { data: products, isLoading: productsLoading } = useQuery({
     queryKey: ['related-products-list', currentTenant?.id, productId],
     queryFn: async () => {
       if (!currentTenant?.id) return [];
       const { data, error } = await supabase
         .from('products')
-        .select('id, name, sku, price, product_images(url, is_primary)')
+        .select('id, name, sku, price, status, product_images(url, is_primary)')
         .eq('tenant_id', currentTenant.id)
-        .eq('status', 'active')
+        .in('status', ['active', 'draft']) // Include draft products for configuration
         .neq('id', productId)
         .order('name')
         .limit(200);
       if (error) throw error;
-      return (data || []) as ProductItem[];
+      return (data || []) as (ProductItem & { status?: string })[];
     },
     enabled: !!currentTenant?.id && !!productId,
   });
@@ -230,7 +231,14 @@ export function RelatedProductsSelect({ productId }: RelatedProductsSelectProps)
                       />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{product.name}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-medium truncate">{product.name}</p>
+                        {(product as any).status === 'draft' && (
+                          <span className="text-[10px] px-1.5 py-0.5 bg-muted text-muted-foreground rounded flex-shrink-0">
+                            Rascunho
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground">{product.sku}</p>
                     </div>
                   </div>

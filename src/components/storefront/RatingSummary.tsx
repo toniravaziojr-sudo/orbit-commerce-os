@@ -78,7 +78,7 @@ export function RatingSummary({
   const content = (
     <div
       className={cn(
-        'flex items-center gap-1.5',
+        'flex flex-wrap items-center gap-1.5',
         onClick && 'cursor-pointer hover:opacity-80 transition-opacity',
         className
       )}
@@ -90,11 +90,11 @@ export function RatingSummary({
     >
       {renderStars()}
       {variant === 'productTitle' ? (
-        <span className="text-sm text-muted-foreground">
+        <span className="text-sm text-muted-foreground whitespace-nowrap">
           {count} {count === 1 ? 'Avaliação' : 'Avaliações'}
         </span>
       ) : (
-        <span className="text-xs text-muted-foreground">
+        <span className="text-xs text-muted-foreground whitespace-nowrap">
           ({count})
         </span>
       )}
