@@ -10,9 +10,10 @@ import { getPublicProductUrl } from '@/lib/publicUrls';
 interface RelatedProductsSectionProps {
   productId: string;
   tenantSlug: string;
+  isEditing?: boolean;
 }
 
-export function RelatedProductsSection({ productId, tenantSlug }: RelatedProductsSectionProps) {
+export function RelatedProductsSection({ productId, tenantSlug, isEditing = false }: RelatedProductsSectionProps) {
   const { data: relatedProducts, isLoading } = useQuery({
     queryKey: ['related-products-public', productId],
     queryFn: async () => {
@@ -48,6 +49,33 @@ export function RelatedProductsSection({ productId, tenantSlug }: RelatedProduct
   });
 
   if (isLoading || !relatedProducts?.length) {
+    if (isEditing) {
+      // Demo placeholder in editor mode
+      return (
+        <section className="py-8 border-t">
+          <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+            <Link2 className="h-5 w-5" />
+            Produtos Relacionados
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="bg-card rounded-lg overflow-hidden border">
+                <div className="aspect-square bg-muted flex items-center justify-center">
+                  <span className="text-muted-foreground text-xs">Produto {i}</span>
+                </div>
+                <div className="p-3">
+                  <p className="font-medium text-sm">Produto Exemplo {i}</p>
+                  <p className="font-bold text-primary mt-1">R$ 99,90</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-center text-muted-foreground mt-4">
+            [Exemplo demonstrativo] Configure produtos relacionados no painel de cada produto
+          </p>
+        </section>
+      );
+    }
     return null;
   }
 
