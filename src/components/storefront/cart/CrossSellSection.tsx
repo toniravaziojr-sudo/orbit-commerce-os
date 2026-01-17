@@ -1,12 +1,11 @@
 // =============================================
 // CROSS-SELL SECTION - Product recommendations in cart
-// UNIFICADO: Usa offer_rules via useActiveOfferRules
+// UNIFICADO: Usa offer_rules via query direta com tenant_id
 // =============================================
 
 import { useQuery } from '@tanstack/react-query';
-import { useActiveOfferRules, OfferRule } from '@/hooks/useOfferRules';
+import { OfferRule } from '@/hooks/useOfferRules';
 import { useCart } from '@/contexts/CartContext';
-import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -27,14 +26,27 @@ interface CrossSellSectionProps {
 }
 
 export function CrossSellSection({ tenantId }: CrossSellSectionProps) {
-  const tenantSlug = useTenantSlug();
   const { items, addItem } = useCart();
 
-  // Fetch active cross-sell rules from offer_rules table
-  const { data: crossSellRules = [], isLoading: rulesLoading } = useActiveOfferRules(
-    'cross_sell',
-    tenantSlug || ''
-  );
+  // Fetch active cross-sell rules from offer_rules table using tenantId directly
+  const { data: crossSellRules = [], isLoading: rulesLoading } = useQuery({
+    queryKey: ['cross-sell-rules', tenantId],
+    queryFn: async () => {
+      if (!tenantId) return [];
+      
+      const { data, error } = await supabase
+        .from('offer_rules')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('type', 'cross_sell')
+        .eq('is_active', true)
+        .order('priority', { ascending: true });
+      
+      if (error) throw error;
+      return data as OfferRule[];
+    },
+    enabled: !!tenantId,
+  });
 
   // Get the first active rule (highest priority)
   const activeRule: OfferRule | undefined = crossSellRules[0];
