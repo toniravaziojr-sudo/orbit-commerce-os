@@ -64,14 +64,14 @@ export function ProductReviewsSection({ productId, tenantId }: ProductReviewsSec
 
   return (
     <section className="py-8 border-t" id="reviews-section">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
         <h2 className="text-xl font-bold flex items-center gap-2">
           <MessageSquare className="h-5 w-5" />
           Avaliações
         </h2>
         
         {reviews && reviews.length > 0 && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
             {renderStars(Math.round(avgRating))}
             <span className="text-sm text-muted-foreground">
               ({reviews.length} {reviews.length === 1 ? 'avaliação' : 'avaliações'})
