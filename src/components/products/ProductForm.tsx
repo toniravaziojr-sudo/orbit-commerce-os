@@ -34,7 +34,7 @@ import { RelatedProductsSelect } from './RelatedProductsSelect';
 import { RelatedProductsPicker } from './RelatedProductsPicker';
 import { ProductStructureEditor } from './ProductStructureEditor';
 import { ProductComponentsPicker, type PendingComponent } from './ProductComponentsPicker';
-import { ProductVariantsEditor, type PendingVariant } from './ProductVariantsEditor';
+import { ProductVariantPicker, type PendingVariant } from './ProductVariantPicker';
 import { validateSlugFormat, generateSlug as generateSlugFromPolicy, RESERVED_SLUGS } from '@/lib/slugPolicy';
 import { useToast } from '@/hooks/use-toast';
 
@@ -727,9 +727,9 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
 
                   </div>
 
-                  {/* Variants Editor - shown when product_format is with_variants */}
+                  {/* Variants Picker - shown when product_format is with_variants */}
                   {form.watch('product_format') === 'with_variants' && (
-                    <ProductVariantsEditor
+                    <ProductVariantPicker
                       variants={pendingVariants}
                       onChange={setPendingVariants}
                       productName={form.watch('name')}
