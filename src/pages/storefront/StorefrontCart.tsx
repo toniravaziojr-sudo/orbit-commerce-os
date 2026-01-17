@@ -18,6 +18,9 @@ export default function StorefrontCart() {
   const template = usePublicTemplate(tenantSlug || '', 'cart');
 
   // Build context for block rendering - NO afterHeaderSlot (template-only rendering)
+  // IMPORTANT: Use tenant.id as primary source (loads first), fallback to storeSettings.tenant_id
+  const tenantId = tenant?.id || storeSettings?.tenant_id;
+  
   const context: BlockRenderContext & { categories?: any[] } = {
     tenantSlug: tenantSlug || '',
     isPreview: false,
@@ -32,7 +35,7 @@ export default function StorefrontCart() {
       store_description: storeSettings?.store_description || undefined,
       contact_phone: storeSettings?.contact_phone,
       contact_email: storeSettings?.contact_email,
-      tenant_id: storeSettings?.tenant_id,
+      tenant_id: tenantId,
     } as any,
     headerMenu: headerMenu?.items?.map(item => ({
       id: item.id,
