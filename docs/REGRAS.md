@@ -433,3 +433,60 @@ const handleAddToCart = (product: Product, e: React.MouseEvent) => {
 #### Blog
 
 <!-- Placeholder - conteúdo a ser definido -->
+
+---
+
+## Mídias e Uploads — Regra Canônica
+
+> **REGRA CRÍTICA:** Todos os uploads de arquivos/imagens em qualquer módulo DEVEM seguir este padrão.
+
+### Fluxo de Upload Automático
+
+| Etapa | Descrição |
+|-------|-----------|
+| **1. Upload direto** | O upload é feito automaticamente para o storage usando `uploadAndRegisterToSystemDrive()` |
+| **2. Registro no Drive** | O arquivo é automaticamente registrado na pasta "Uploads do sistema" (files table) |
+| **3. URL gerada** | A URL pública é retornada e salva no campo de configuração correspondente |
+
+### Proibições
+
+| ❌ Proibido | ✅ Correto |
+|-------------|------------|
+| Pedir para o usuário "usar o Meu Drive" e colar URL | Fazer upload automático e mostrar a URL gerada |
+| Mostrar toast pedindo ação manual do usuário | Mostrar toast de sucesso após upload concluído |
+| Ter abas "URL" e "Upload" onde Upload não funciona | Upload funcional que vai direto para o storage |
+
+### Implementação Obrigatória
+
+```typescript
+// Em qualquer componente que precisa de upload
+import { uploadAndRegisterToSystemDrive } from '@/lib/uploadAndRegisterToSystemDrive';
+
+const result = await uploadAndRegisterToSystemDrive({
+  tenantId,
+  userId,
+  file,
+  source: 'identificador_do_modulo', // ex: 'page_banner_cart', 'category_image'
+  subPath: 'pasta_no_storage',       // ex: 'banners', 'categories'
+});
+
+if (result?.publicUrl) {
+  onChange(result.publicUrl); // Atualizar o campo com a URL
+}
+```
+
+### Indicador "Em Uso" (para Meu Drive)
+
+| Regra | Descrição |
+|-------|-----------|
+| **Arquivo em uso** | Mostrar badge/sinalização clara que o arquivo está sendo usado por algum módulo |
+| **Aviso ao excluir** | Antes de excluir arquivo em uso, mostrar alerta: "Este arquivo está sendo usado em [módulo]. Deseja excluir mesmo assim?" |
+| **Arquivo não usado** | Aparece normal, sem sinalização especial |
+
+### Hooks e Utilitários Canônicos
+
+| Arquivo | Uso |
+|---------|-----|
+| `src/hooks/useSystemUpload.ts` | Hook React para uploads em componentes |
+| `src/lib/uploadAndRegisterToSystemDrive.ts` | Função utilitária para upload + registro |
+| `src/lib/registerFileToDrive.ts` | Funções auxiliares (ensureSystemFolderAndGetId, fileExistsInDrive) |
