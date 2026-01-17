@@ -91,6 +91,7 @@ import { CartContent } from '@/components/storefront/cart/CartContent';
 
 // Product page components (conforme REGRAS.md)
 import { ProductBadges } from '@/components/storefront/product/ProductBadges';
+import { ProductBadgesWithData } from '@/components/storefront/product/ProductBadgesWithData';
 import { PaymentBadges } from '@/components/storefront/product/PaymentBadges';
 import { ShippingCalculator } from '@/components/storefront/product/ShippingCalculator';
 import { AdditionalHighlight } from '@/components/storefront/product/AdditionalHighlight';
@@ -1014,12 +1015,29 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
         
         {/* ===== COLUNA DIREITA: INFO DO PRODUTO ===== */}
         <div className="sf-product-info space-y-4">
-          {/* 1. Selos do produto (sem desconto - descontos são geridos pelo menu Descontos) */}
-          <ProductBadges />
+          {/* 1. Selos do produto - mostra exemplo no editor quando ativado */}
+          {showBadges && (
+            isEditing ? (
+              <div className="flex flex-wrap gap-2">
+                <span className="px-2 py-1 bg-blue-500 text-white text-xs font-bold rounded">Novo</span>
+                <span className="px-2 py-1 bg-orange-500 text-white text-xs font-bold rounded">Mais Vendido</span>
+                <span className="text-xs text-muted-foreground">[Selos do Aumentar Ticket]</span>
+              </div>
+            ) : (
+              <ProductBadgesWithData productId={product?.id} />
+            )
+          )}
           
-          {/* 2. Estrelas de avaliação */}
-          {showReviews && product?.id && (
-            <ProductRatingSummary productId={product.id} variant="productTitle" />
+          {/* 2. Estrelas de avaliação - mostra exemplo no editor quando ativado */}
+          {showReviews && (
+            isEditing ? (
+              <div className="flex items-center gap-1 text-yellow-500">
+                {[1,2,3,4,5].map(i => <span key={i}>★</span>)}
+                <span className="text-xs text-muted-foreground ml-1">(5 avaliações)</span>
+              </div>
+            ) : (
+              product?.id && <ProductRatingSummary productId={product.id} variant="productTitle" />
+            )
           )}
           
           {/* 3. Nome do produto */}

@@ -533,27 +533,37 @@ export function PageSettingsContent({
           ))}
         </div>
       ) : (
-        // Simple list (for other pages)
+        // Simple list (for other pages like product)
         <div className="space-y-4">
           <p className="text-xs text-muted-foreground">
             Configurações estruturais da página
           </p>
           
           {settingsConfig.map((config) => (
-            <div key={config.key} className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor={config.key} className="text-sm">
-                  {config.label}
-                </Label>
-                {config.description && (
-                  <p className="text-xs text-muted-foreground">{config.description}</p>
-                )}
+            <div key={config.key} className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor={config.key} className="text-sm">
+                    {config.label}
+                  </Label>
+                  {config.description && (
+                    <p className="text-xs text-muted-foreground">{config.description}</p>
+                  )}
+                </div>
+                <Switch
+                  id={config.key}
+                  checked={Boolean(settings[config.key] ?? config.defaultValue)}
+                  onCheckedChange={(checked) => handleChange(config.key, checked)}
+                />
               </div>
-              <Switch
-                id={config.key}
-                checked={Boolean(settings[config.key] ?? config.defaultValue)}
-                onCheckedChange={(checked) => handleChange(config.key, checked)}
-              />
+              {/* Multi-image upload for Additional Highlight (product page) */}
+              {config.key === 'showAdditionalHighlight' && Boolean(settings[config.key]) && (
+                <MultiImageUploadInput
+                  images={Array.isArray(settings.additionalHighlightImages) ? settings.additionalHighlightImages : []}
+                  onChange={(urls) => handleChange('additionalHighlightImages', urls)}
+                  maxImages={3}
+                />
+              )}
             </div>
           ))}
         </div>
