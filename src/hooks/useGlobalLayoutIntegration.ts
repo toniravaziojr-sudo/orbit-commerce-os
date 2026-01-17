@@ -79,9 +79,20 @@ export interface GlobalLayoutData {
  * @param pageOverrides - Optional page-specific overrides
  * @param isEditing - If true, always include header/footer with hidden prop for toggling
  */
-// Blocos que são renderizados automaticamente pelo ProductDetailsBlock via ProductPageSections
-// e NÃO devem existir como standalone em páginas de produto (evita duplicação)
-const PRODUCT_PAGE_DUPLICATE_BLOCKS = ['CompreJuntoSlot', 'ProductGrid'];
+// Blocos que são renderizados automaticamente pelos blocos principais de cada página
+// e NÃO devem existir como standalone (evita duplicação)
+// REGRAS.md: Cada página principal renderiza suas seções internamente via configurações
+const DUPLICATE_BLOCKS_BY_PAGE_TYPE: Record<string, string[]> = {
+  // ProductDetailsBlock renderiza CompreJunto e ProdutosRelacionados via ProductPageSections
+  product: ['CompreJuntoSlot', 'ProductGrid'],
+  // CartContent renderiza CrossSellSection internamente (crossSellEnabled)
+  cart: ['CrossSellSlot'],
+  // CheckoutContent renderiza OrderBumpSection internamente (orderBumpEnabled)
+  checkout: ['OrderBumpSlot'],
+  // ThankYouContent renderiza UpsellSection internamente
+  thank_you: ['UpsellSlot'],
+  obrigado: ['UpsellSlot'], // Alias
+};
 
 /**
  * Filtra recursivamente blocos duplicados de uma árvore de conteúdo
@@ -148,10 +159,10 @@ export function applyGlobalLayout(
     child => child.type !== 'Header' && child.type !== 'Footer'
   );
 
-  // REGRAS.md: Em páginas de produto, remover blocos duplicados que são renderizados
-  // automaticamente pelo ProductDetailsBlock via ProductPageSections
-  if (pageType === 'product') {
-    filteredChildren = filterDuplicateBlocks(filteredChildren, PRODUCT_PAGE_DUPLICATE_BLOCKS);
+  // REGRAS.md: Remover blocos duplicados que são renderizados automaticamente
+  // pelos blocos principais de cada página (evita duplicação)
+  if (pageType && DUPLICATE_BLOCKS_BY_PAGE_TYPE[pageType]) {
+    filteredChildren = filterDuplicateBlocks(filteredChildren, DUPLICATE_BLOCKS_BY_PAGE_TYPE[pageType]);
   }
 
   // Apply page overrides to header props (only for non-checkout pages)
