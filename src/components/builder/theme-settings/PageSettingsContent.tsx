@@ -161,34 +161,87 @@ function BannerUploadInput({
 }
 
 // Responsive Image Upload for Additional Highlight - separate mobile/desktop
+// ATUALIZADO: Agora usa upload real via useSystemUpload, sem opção de URL
 function ResponsiveImageUploadInput({ 
   mobileImages, 
   desktopImages, 
   onChangeMobile, 
   onChangeDesktop, 
-  maxImages = 3 
+  maxImages = 3,
+  tenantId,
 }: { 
   mobileImages: string[]; 
   desktopImages: string[]; 
   onChangeMobile: (urls: string[]) => void; 
   onChangeDesktop: (urls: string[]) => void; 
   maxImages?: number;
+  tenantId: string;
 }) {
-  const handleUrlChange = (type: 'mobile' | 'desktop', index: number, url: string) => {
-    const images = type === 'mobile' ? [...mobileImages] : [...desktopImages];
-    images[index] = url;
-    if (type === 'mobile') {
-      onChangeMobile(images);
-    } else {
-      onChangeDesktop(images);
-    }
-  };
+  const [uploadingIndex, setUploadingIndex] = useState<{ type: 'mobile' | 'desktop'; index: number } | null>(null);
 
   const handleRemove = (type: 'mobile' | 'desktop', index: number) => {
     if (type === 'mobile') {
       onChangeMobile(mobileImages.filter((_, i) => i !== index));
     } else {
       onChangeDesktop(desktopImages.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleFileUpload = async (type: 'mobile' | 'desktop', index: number, file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('Por favor, selecione um arquivo de imagem');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('A imagem deve ter no máximo 5MB');
+      return;
+    }
+
+    setUploadingIndex({ type, index });
+
+    try {
+      // Import dynamically to avoid circular dependencies
+      const { uploadAndRegisterToSystemDrive } = await import('@/lib/uploadAndRegisterToSystemDrive');
+      
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Usuário não autenticado');
+        setUploadingIndex(null);
+        return;
+      }
+
+      const result = await uploadAndRegisterToSystemDrive({
+        tenantId,
+        userId: user.id,
+        file,
+        source: 'additional-highlight',
+        subPath: type === 'mobile' ? 'mobile' : 'desktop',
+      });
+
+      if (!result) {
+        toast.error('Erro ao fazer upload da imagem');
+        setUploadingIndex(null);
+        return;
+      }
+
+      // Update the images array with the new URL
+      const images = type === 'mobile' ? [...mobileImages] : [...desktopImages];
+      images[index] = result.publicUrl;
+      
+      if (type === 'mobile') {
+        onChangeMobile(images);
+      } else {
+        onChangeDesktop(images);
+      }
+
+      toast.success('Imagem enviada com sucesso!');
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error('Erro ao fazer upload da imagem');
+    } finally {
+      setUploadingIndex(null);
     }
   };
 
@@ -216,36 +269,113 @@ function ResponsiveImageUploadInput({
         </div>
         
         <div className="space-y-2">
-          {slots.map((url, i) => (
-            <div key={i} className="flex items-center gap-2">
-              {url ? (
-                <img 
-                  src={url} 
-                  alt={`${label} ${i + 1}`} 
-                  className="w-12 h-8 object-cover rounded border flex-shrink-0"
-                  onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }}
-                />
-              ) : (
-                <div className="w-12 h-8 border-2 border-dashed rounded flex items-center justify-center flex-shrink-0">
-                  <Upload className="w-3 h-3 text-muted-foreground" />
-                </div>
-              )}
-              <Input 
-                value={url}
-                onChange={(e) => handleUrlChange(type, i, e.target.value)}
-                placeholder="Cole a URL da imagem..."
-                className="h-7 text-xs flex-1"
-              />
-              <button 
-                type="button" 
-                onClick={() => handleRemove(type, i)}
-                className="text-muted-foreground hover:text-destructive p-1 flex-shrink-0"
-                aria-label="Remover"
-              >
-                ✕
-              </button>
-            </div>
-          ))}
+          {slots.map((url, i) => {
+            const isUploading = uploadingIndex?.type === type && uploadingIndex?.index === i;
+            
+            return (
+              <div key={i} className="flex items-center gap-2">
+                {url ? (
+                  <img 
+                    src={url} 
+                    alt={`${label} ${i + 1}`} 
+                    className="w-12 h-8 object-cover rounded border flex-shrink-0"
+                    onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }}
+                  />
+                ) : (
+                  <label className={cn(
+                    "w-12 h-8 border-2 border-dashed rounded flex items-center justify-center flex-shrink-0 cursor-pointer hover:bg-muted/50 transition-colors",
+                    isUploading && "pointer-events-none opacity-50"
+                  )}>
+                    {isUploading ? (
+                      <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Upload className="w-3 h-3 text-muted-foreground" />
+                    )}
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      disabled={isUploading}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleFileUpload(type, i, file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                )}
+                
+                {/* Upload button for filled slots */}
+                {url ? (
+                  <label className={cn(
+                    "flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:text-foreground border rounded cursor-pointer hover:bg-muted/50 transition-colors flex-1",
+                    isUploading && "pointer-events-none opacity-50"
+                  )}>
+                    {isUploading ? (
+                      <>
+                        <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                        <span>Enviando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-3 h-3" />
+                        <span>Trocar imagem</span>
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      disabled={isUploading}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleFileUpload(type, i, file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                ) : (
+                  <label className={cn(
+                    "flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:text-foreground border rounded cursor-pointer hover:bg-muted/50 transition-colors flex-1",
+                    isUploading && "pointer-events-none opacity-50"
+                  )}>
+                    {isUploading ? (
+                      <>
+                        <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                        <span>Enviando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-3 h-3" />
+                        <span>Selecionar imagem</span>
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      disabled={isUploading}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleFileUpload(type, i, file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                )}
+                
+                <button 
+                  type="button" 
+                  onClick={() => handleRemove(type, i)}
+                  className="text-muted-foreground hover:text-destructive p-1 flex-shrink-0"
+                  aria-label="Remover"
+                  disabled={isUploading}
+                >
+                  ✕
+                </button>
+              </div>
+            );
+          })}
         </div>
         
         {slots.length < maxImages && (
@@ -276,7 +406,7 @@ function ResponsiveImageUploadInput({
       {renderImageSlots('desktop', desktopImages, 'Desktop', '400 × 150 px')}
       
       <p className="text-[10px] text-muted-foreground">
-        💡 Use o <strong>Meu Drive</strong> para upload permanente
+        📷 As imagens são salvas automaticamente no Meu Drive
       </p>
     </div>
   );
@@ -567,6 +697,7 @@ export function PageSettingsContent({
                         onChangeMobile={(urls) => handleChange('additionalHighlightImagesMobile', urls)}
                         onChangeDesktop={(urls) => handleChange('additionalHighlightImagesDesktop', urls)}
                         maxImages={3}
+                        tenantId={tenantId}
                       />
                     )}
                     
@@ -663,6 +794,7 @@ export function PageSettingsContent({
                   onChangeMobile={(urls) => handleChange('additionalHighlightImagesMobile', urls)}
                   onChangeDesktop={(urls) => handleChange('additionalHighlightImagesDesktop', urls)}
                   maxImages={3}
+                  tenantId={tenantId}
                 />
               )}
             </div>
