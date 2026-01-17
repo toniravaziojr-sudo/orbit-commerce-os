@@ -696,6 +696,13 @@ function ProductCardBlock({ productId, showPrice = true, showButton = true, isEd
 function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractMode }: any) {
   const productSettings = context?.productSettings || {};
   
+  // Debug log for settings sync
+  React.useEffect(() => {
+    if (isEditing) {
+      console.log('[ProductDetailsBlock] productSettings updated:', productSettings);
+    }
+  }, [productSettings, isEditing]);
+  
   // Toggles conforme REGRAS.md (apenas os 12 listados)
   const showGallery = productSettings.showGallery !== false;
   const showDescription = productSettings.showDescription !== false;
