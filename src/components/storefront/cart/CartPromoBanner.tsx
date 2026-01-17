@@ -1,10 +1,10 @@
 // =============================================
 // CART PROMO BANNER - Promotional banner for cart page
 // Responsive with individual control for desktop/mobile
+// Uses container queries for Builder compatibility
 // Respects bannerDisplay setting (cart_page, mini_cart, both)
 // =============================================
 
-import { useState, useEffect } from 'react';
 import { CartConfig } from '@/lib/storeConfigTypes';
 
 interface CartPromoBannerProps {
@@ -14,18 +14,6 @@ interface CartPromoBannerProps {
 }
 
 export function CartPromoBanner({ config, location = 'cart_page' }: CartPromoBannerProps) {
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
   // Check if banner should be shown based on display location setting
   const bannerDisplay = config.bannerDisplay || 'cart_page';
   const shouldShowAtLocation = 
@@ -36,25 +24,51 @@ export function CartPromoBanner({ config, location = 'cart_page' }: CartPromoBan
     return null;
   }
 
-  // Check if banner should be shown for current viewport
-  const shouldShowDesktop = !isMobile && config.bannerDesktopEnabled && config.bannerDesktopUrl;
-  const shouldShowMobile = isMobile && config.bannerMobileEnabled && config.bannerMobileUrl;
+  // Check if any banner is enabled
+  const hasDesktopBanner = config.bannerDesktopEnabled && config.bannerDesktopUrl;
+  const hasMobileBanner = config.bannerMobileEnabled && config.bannerMobileUrl;
 
-  if (!shouldShowDesktop && !shouldShowMobile) {
+  if (!hasDesktopBanner && !hasMobileBanner) {
     return null;
   }
 
-  const imageUrl = isMobile ? config.bannerMobileUrl : config.bannerDesktopUrl;
   const hasLink = !!config.bannerLink;
+  const hasBoth = hasDesktopBanner && hasMobileBanner;
 
-  const bannerContent = (
-    <img
-      src={imageUrl!}
-      alt="Promoção"
-      className="w-full h-auto object-cover rounded-lg"
-      loading="lazy"
-    />
-  );
+  const renderBanners = () => {
+    // If both are configured, show responsive banners
+    if (hasBoth) {
+      return (
+        <>
+          {/* Mobile banner - visible only on mobile (container query) */}
+          <img
+            src={config.bannerMobileUrl!}
+            alt="Promoção"
+            className="w-full h-auto object-cover rounded-lg sf-show-mobile sf-hide-desktop"
+            loading="lazy"
+          />
+          {/* Desktop banner - visible only on desktop (container query) */}
+          <img
+            src={config.bannerDesktopUrl!}
+            alt="Promoção"
+            className="w-full h-auto object-cover rounded-lg sf-hide-mobile sf-show-desktop"
+            loading="lazy"
+          />
+        </>
+      );
+    }
+    
+    // If only one is configured, show it for all viewports
+    const imageUrl = hasDesktopBanner ? config.bannerDesktopUrl : config.bannerMobileUrl;
+    return (
+      <img
+        src={imageUrl!}
+        alt="Promoção"
+        className="w-full h-auto object-cover rounded-lg"
+        loading="lazy"
+      />
+    );
+  };
 
   return (
     <div className={location === 'mini_cart' ? 'mb-4' : 'mb-6'}>
@@ -65,10 +79,10 @@ export function CartPromoBanner({ config, location = 'cart_page' }: CartPromoBan
           rel="noopener noreferrer"
           className="block hover:opacity-90 transition-opacity"
         >
-          {bannerContent}
+          {renderBanners()}
         </a>
       ) : (
-        bannerContent
+        renderBanners()
       )}
     </div>
   );
