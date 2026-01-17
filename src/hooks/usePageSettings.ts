@@ -49,6 +49,7 @@ export interface ProductSettings {
   showWhatsAppButton?: boolean;     // Mostrar botão WhatsApp
   showAddToCartButton?: boolean;    // Mostrar botão Adicionar ao carrinho
   buyNowButtonText?: string;        // Texto do botão principal
+  showGuaranteeBadges?: boolean;    // Mostrar selos de garantia
 }
 
 export interface CartSettings {
@@ -123,6 +124,7 @@ export const DEFAULT_PRODUCT_SETTINGS: ProductSettings = {
   showWhatsAppButton: true,
   showAddToCartButton: true,
   buyNowButtonText: 'Comprar agora',
+  showGuaranteeBadges: true,
 };
 
 export const DEFAULT_CART_SETTINGS: CartSettings = {
