@@ -1573,7 +1573,7 @@ const blockDefinitions: BlockDefinition[] = [
       },
       showVariants: {
         type: 'boolean',
-        label: 'Mostrar Variantes',
+        label: 'Mostrar variações',
         defaultValue: true,
       },
       showStock: {
