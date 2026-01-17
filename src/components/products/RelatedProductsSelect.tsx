@@ -68,7 +68,7 @@ export function RelatedProductsSelect({ productId }: RelatedProductsSelectProps)
     enabled: !!productId,
   });
 
-  // Add related product
+  // Add related product with optimistic update
   const addMutation = useMutation({
     mutationFn: async (relatedProductId: string) => {
       const position = (relatedIds?.length || 0) + 1;
@@ -80,16 +80,28 @@ export function RelatedProductsSelect({ productId }: RelatedProductsSelectProps)
           position,
         });
       if (error) throw error;
+      return relatedProductId;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['related-products', productId] });
+    onMutate: async (relatedProductId) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['related-products', productId] });
+      // Snapshot the previous value
+      const previousIds = queryClient.getQueryData<string[]>(['related-products', productId]);
+      // Optimistically update
+      queryClient.setQueryData(['related-products', productId], (old: string[] = []) => [...old, relatedProductId]);
+      return { previousIds };
     },
-    onError: () => {
+    onError: (_err, _relatedProductId, context) => {
+      // Rollback on error
+      queryClient.setQueryData(['related-products', productId], context?.previousIds);
       toast.error('Erro ao adicionar produto relacionado');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['related-products', productId] });
     },
   });
 
-  // Remove related product
+  // Remove related product with optimistic update
   const removeMutation = useMutation({
     mutationFn: async (relatedProductId: string) => {
       const { error } = await supabase
@@ -98,14 +110,27 @@ export function RelatedProductsSelect({ productId }: RelatedProductsSelectProps)
         .eq('product_id', productId)
         .eq('related_product_id', relatedProductId);
       if (error) throw error;
+      return relatedProductId;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['related-products', productId] });
+    onMutate: async (relatedProductId) => {
+      await queryClient.cancelQueries({ queryKey: ['related-products', productId] });
+      const previousIds = queryClient.getQueryData<string[]>(['related-products', productId]);
+      queryClient.setQueryData(['related-products', productId], (old: string[] = []) => 
+        old.filter(id => id !== relatedProductId)
+      );
+      return { previousIds };
     },
-    onError: () => {
+    onError: (_err, _relatedProductId, context) => {
+      queryClient.setQueryData(['related-products', productId], context?.previousIds);
       toast.error('Erro ao remover produto relacionado');
     },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['related-products', productId] });
+    },
   });
+
+  // Prevent multiple clicks
+  const isMutating = addMutation.isPending || removeMutation.isPending;
 
   const filteredProducts = useMemo(() => {
     if (!products) return [];
@@ -123,6 +148,9 @@ export function RelatedProductsSelect({ productId }: RelatedProductsSelectProps)
   }, [products, relatedIds]);
 
   const toggleProduct = (id: string) => {
+    // Prevent double-clicks while mutating
+    if (isMutating) return;
+    
     if (relatedIds?.includes(id)) {
       removeMutation.mutate(id);
     } else if ((relatedIds?.length || 0) < 12) {
@@ -214,9 +242,9 @@ export function RelatedProductsSelect({ productId }: RelatedProductsSelectProps)
                     className={cn(
                       'flex items-center gap-2 p-2 rounded-md hover:bg-muted cursor-pointer transition-colors',
                       isSelected && 'bg-primary/10',
-                      isDisabled && 'opacity-50 cursor-not-allowed'
+                      (isDisabled || isMutating) && 'opacity-50 cursor-not-allowed'
                     )}
-                    onClick={() => !isDisabled && toggleProduct(product.id)}
+                    onClick={() => !isDisabled && !isMutating && toggleProduct(product.id)}
                   >
                     <Checkbox
                       checked={isSelected}
