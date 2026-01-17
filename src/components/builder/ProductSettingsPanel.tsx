@@ -33,6 +33,7 @@ interface ProductSettingsPanelProps {
   settings: ProductSettings;
   onChange: (settings: ProductSettings) => void;
   onPreviewCart?: (type: 'miniCart' | 'floatingCart') => void;
+  templateSetId?: string;
 }
 
 export function ProductSettingsPanel({
@@ -40,6 +41,7 @@ export function ProductSettingsPanel({
   settings,
   onChange,
   onPreviewCart,
+  templateSetId,
 }: ProductSettingsPanelProps) {
   const queryClient = useQueryClient();
   const [showCartPreviewNotice, setShowCartPreviewNotice] = useState<'miniCart' | 'floatingCart' | null>(null);
@@ -54,10 +56,49 @@ export function ProductSettingsPanel({
     }
   }, [showCartPreviewNotice]);
 
-  // Save mutation
+  // Save mutation - supports both template set and legacy systems
   const saveMutation = useMutation({
     mutationFn: async (newSettings: ProductSettings) => {
-      // Fetch current page_overrides
+      // If templateSetId is available, save to draft_content
+      if (templateSetId) {
+        const { data: templateSet, error: fetchError } = await supabase
+          .from('storefront_template_sets')
+          .select('draft_content')
+          .eq('id', templateSetId)
+          .eq('tenant_id', tenantId)
+          .single();
+        
+        if (fetchError) throw fetchError;
+        
+        const currentDraftContent = (templateSet.draft_content as Record<string, unknown>) || {};
+        const currentThemeSettings = (currentDraftContent.themeSettings as Record<string, unknown>) || {};
+        const currentPageSettings = (currentThemeSettings.pageSettings as Record<string, unknown>) || {};
+        
+        const updatedDraftContent = {
+          ...currentDraftContent,
+          themeSettings: {
+            ...currentThemeSettings,
+            pageSettings: {
+              ...currentPageSettings,
+              product: newSettings,
+            },
+          },
+        };
+        
+        const { error } = await supabase
+          .from('storefront_template_sets')
+          .update({ 
+            draft_content: updatedDraftContent as unknown as Json,
+            last_edited_at: new Date().toISOString(),
+          })
+          .eq('id', templateSetId)
+          .eq('tenant_id', tenantId);
+        
+        if (error) throw error;
+        return newSettings;
+      }
+      
+      // Fallback to legacy system
       const { data: template, error: fetchError } = await supabase
         .from('storefront_page_templates')
         .select('page_overrides')
@@ -86,6 +127,7 @@ export function ProductSettingsPanel({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['page-overrides', tenantId, 'product'] });
       queryClient.invalidateQueries({ queryKey: ['product-settings', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['product-settings-builder', tenantId, templateSetId || 'legacy'] });
       toast.success('Configurações salvas');
     },
     onError: () => {
@@ -152,10 +194,10 @@ export function ProductSettingsPanel({
                 />
               </div>
 
-              {/* Mostrar variantes */}
+              {/* Mostrar variações */}
               <div className="flex items-center justify-between">
                 <Label htmlFor="showVariants" className="text-sm">
-                  Mostrar Variantes
+                  Mostrar variações
                 </Label>
                 <Switch
                   id="showVariants"

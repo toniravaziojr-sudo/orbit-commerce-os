@@ -596,7 +596,7 @@ function getSettingsConfig(pageType: string): SettingConfig[] {
     product: [
       { key: 'showGallery', label: 'Mostrar Galeria', defaultValue: true },
       { key: 'showDescription', label: 'Mostrar Descrição', defaultValue: true },
-      { key: 'showVariants', label: 'Mostrar Variantes', defaultValue: true },
+      { key: 'showVariants', label: 'Mostrar variações', defaultValue: true },
       { key: 'showStock', label: 'Mostrar Estoque', defaultValue: true },
       { key: 'showRelatedProducts', label: 'Mostrar Produtos Relacionados', defaultValue: true },
       { key: 'showBuyTogether', label: 'Mostrar Compre Junto', defaultValue: true },
