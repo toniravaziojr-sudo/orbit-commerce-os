@@ -563,6 +563,7 @@ function getSettingsConfig(pageType: string): SettingConfig[] {
       { key: 'showRelatedProducts', label: 'Mostrar Produtos Relacionados', defaultValue: true },
       { key: 'showBuyTogether', label: 'Mostrar Compre Junto', defaultValue: true },
       { key: 'showReviews', label: 'Mostrar Avaliações', defaultValue: true },
+      { key: 'showGuaranteeBadges', label: 'Mostrar Selos de Garantia', description: 'Exibe selos como garantia, troca grátis, etc.', defaultValue: true },
       { key: 'openMiniCartOnAdd', label: 'Abrir carrinho suspenso ao adicionar', description: 'Abre o mini-carrinho lateral', defaultValue: true },
       { key: 'showGoToCartButton', label: 'Botão "Ir para Carrinho"', description: 'Link para página completa do carrinho', defaultValue: true },
     ],

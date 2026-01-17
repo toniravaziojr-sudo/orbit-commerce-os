@@ -696,7 +696,7 @@ function ProductCardBlock({ productId, showPrice = true, showButton = true, isEd
 function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractMode }: any) {
   const productSettings = context?.productSettings || {};
   
-  // Toggles conforme REGRAS.md (apenas os 11 listados)
+  // Toggles conforme REGRAS.md (apenas os 12 listados)
   const showGallery = productSettings.showGallery !== false;
   const showDescription = productSettings.showDescription !== false;
   const showVariants = productSettings.showVariants !== false;
@@ -709,6 +709,7 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
   const showWhatsAppButton = productSettings.showWhatsAppButton !== false;
   const showAddToCartButton = productSettings.showAddToCartButton !== false;
   const buyNowButtonText = productSettings.buyNowButtonText || 'Comprar agora';
+  const showGuaranteeBadges = productSettings.showGuaranteeBadges !== false;
   
   // Theme settings for mini-cart (não é toggle da página, é do tema)
   const miniCartEnabled = context?.themeSettings?.miniCartEnabled !== false;
@@ -1106,7 +1107,7 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
           />
           
           {/* 14. Bandeirinhas de garantia */}
-          <GuaranteeBadges />
+          {showGuaranteeBadges && <GuaranteeBadges />}
         </div>
       </div>
 
