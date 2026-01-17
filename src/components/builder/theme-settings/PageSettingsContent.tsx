@@ -339,7 +339,7 @@ export function PageSettingsContent({
       if (error) throw error;
       return newSettings;
     },
-    onSuccess: () => {
+    onSuccess: (newSettings) => {
       // Invalidate ALL relevant queries so builder blocks refresh immediately
       queryClient.invalidateQueries({ queryKey: ['page-overrides', tenantId, pageType] });
       queryClient.invalidateQueries({ queryKey: ['cart-page-settings', tenantId] });
@@ -353,10 +353,27 @@ export function PageSettingsContent({
         queryClient.invalidateQueries({ queryKey: ['category-settings', tenantId, templateSetId] });
         queryClient.invalidateQueries({ queryKey: ['product-settings-builder', tenantId, templateSetId] });
         queryClient.invalidateQueries({ queryKey: ['template-set-content', templateSetId] });
+        
+        // ALSO directly update the cache for immediate reflection
+        // This ensures the VisualBuilder context is updated without waiting for refetch
+        if (pageType === 'product') {
+          queryClient.setQueryData(['product-settings-builder', tenantId, templateSetId], newSettings);
+        } else if (pageType === 'category') {
+          queryClient.setQueryData(['category-settings', tenantId, templateSetId], newSettings);
+        }
       }
       // Also invalidate legacy keys for fallback
       queryClient.invalidateQueries({ queryKey: ['category-settings', tenantId, 'legacy'] });
       queryClient.invalidateQueries({ queryKey: ['product-settings-builder', tenantId, 'legacy'] });
+      
+      // For immediate cache update for legacy mode as well
+      if (!templateSetId) {
+        if (pageType === 'product') {
+          queryClient.setQueryData(['product-settings-builder', tenantId, 'legacy'], newSettings);
+        } else if (pageType === 'category') {
+          queryClient.setQueryData(['category-settings', tenantId, 'legacy'], newSettings);
+        }
+      }
       
       toast.success('Configurações salvas');
     },
