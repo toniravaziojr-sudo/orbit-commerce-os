@@ -46,7 +46,21 @@ export function ProductGridBlock({
   context,
   isEditing = false,
 }: ProductGridBlockProps) {
-  const { tenantSlug, viewport } = context;
+  const { tenantSlug, viewport, pageType } = context;
+  
+  // REGRAS.md: Na página de produto, ProductDetailsBlock já renderiza RelatedProductsSection
+  // Este bloco standalone deve mostrar aviso para evitar duplicação
+  if (pageType === 'product') {
+    if (isEditing) {
+      return (
+        <div className="p-4 bg-muted/30 rounded-lg text-center text-muted-foreground text-sm border border-dashed">
+          <p>⚠️ Este bloco é controlado pelas <strong>Configurações da página</strong></p>
+          <p className="text-xs mt-1">Use o toggle "Mostrar Produtos Relacionados" no menu lateral</p>
+        </div>
+      );
+    }
+    return null;
+  }
   
   // Determine if mobile based on viewport context
   const isMobileViewport = viewport === 'mobile';

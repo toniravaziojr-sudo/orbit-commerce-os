@@ -564,6 +564,26 @@ function FooterBlock({ context, isEditing, block }: any) {
 // ========== E-COMMERCE BLOCKS ==========
 
 function ProductGridBlock({ title, source, categoryId, columns = 4, limit = 8, showPrice = true, showButton = true, buttonText = 'Ver produto', context, isEditing }: any) {
+  // REGRAS.md: Na página de produto, este bloco é controlado pelas Configurações da página
+  // Não adicionar wrapper/título para evitar UI residual quando o componente retorna aviso
+  const isProductPage = context?.pageType === 'product';
+  
+  if (isProductPage) {
+    return (
+      <ProductGridBlockComponent
+        source={source}
+        categoryId={categoryId}
+        limit={limit}
+        columns={columns}
+        showPrice={showPrice}
+        showButton={showButton}
+        buttonText={buttonText}
+        context={context}
+        isEditing={isEditing}
+      />
+    );
+  }
+  
   return (
     <div className="py-8">
       {title && <h2 className="text-2xl font-bold mb-6 px-4">{title}</h2>}
