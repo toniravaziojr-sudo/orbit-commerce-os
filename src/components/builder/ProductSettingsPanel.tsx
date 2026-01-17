@@ -398,6 +398,7 @@ export function useProductSettings(tenantId: string, templateSetId?: string) {
           const pageSettings = themeSettings?.pageSettings as Record<string, unknown> | undefined;
           
           if (pageSettings?.product) {
+            console.log('[useProductSettings] Loaded from template set:', pageSettings.product);
             return pageSettings.product as ProductSettings;
           }
         }
@@ -417,15 +418,20 @@ export function useProductSettings(tenantId: string, templateSetId?: string) {
     },
     enabled: !!tenantId,
     staleTime: 0,
+    gcTime: 0, // Don't cache - always refetch
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
-    refetchInterval: 500,
+    refetchInterval: 300, // Faster polling
   });
 
+  // Merge defaults with fetched data - data takes precedence
   const settings: ProductSettings = {
     ...DEFAULT_PRODUCT_SETTINGS,
-    ...data,
+    ...(data || {}),
   };
+  
+  // Debug log
+  console.log('[useProductSettings] Final settings:', { templateSetId, data, settings });
 
   const setSettings = (newSettings: ProductSettings) => {
     queryClient.setQueryData(queryKey, newSettings);
