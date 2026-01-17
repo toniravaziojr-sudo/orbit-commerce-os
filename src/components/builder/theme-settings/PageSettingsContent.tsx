@@ -347,33 +347,38 @@ export function PageSettingsContent({
       queryClient.invalidateQueries({ queryKey: ['thankyou-page-settings', tenantId] });
       queryClient.invalidateQueries({ queryKey: ['page-settings', tenantId] });
       
-      // Invalidate specific hooks used in VisualBuilder with templateSetId
-      // The hooks now use a 3-part key: [type, tenantId, templateSetId]
-      if (templateSetId) {
-        queryClient.invalidateQueries({ queryKey: ['category-settings', tenantId, templateSetId] });
-        queryClient.invalidateQueries({ queryKey: ['product-settings-builder', tenantId, templateSetId] });
-        queryClient.invalidateQueries({ queryKey: ['template-set-content', templateSetId] });
-        
-        // ALSO directly update the cache for immediate reflection
-        // This ensures the VisualBuilder context is updated without waiting for refetch
-        if (pageType === 'product') {
-          queryClient.setQueryData(['product-settings-builder', tenantId, templateSetId], newSettings);
-        } else if (pageType === 'category') {
-          queryClient.setQueryData(['category-settings', tenantId, templateSetId], newSettings);
-        }
-      }
-      // Also invalidate legacy keys for fallback
-      queryClient.invalidateQueries({ queryKey: ['category-settings', tenantId, 'legacy'] });
-      queryClient.invalidateQueries({ queryKey: ['product-settings-builder', tenantId, 'legacy'] });
+      // CRITICAL: Use consistent cache key format with useProductSettings/useCategorySettings
+      // The hooks use: ['type', tenantId, templateSetId || 'legacy']
+      const effectiveTemplateSetId = templateSetId || 'legacy';
       
-      // For immediate cache update for legacy mode as well
-      if (!templateSetId) {
-        if (pageType === 'product') {
-          queryClient.setQueryData(['product-settings-builder', tenantId, 'legacy'], newSettings);
-        } else if (pageType === 'category') {
-          queryClient.setQueryData(['category-settings', tenantId, 'legacy'], newSettings);
-        }
+      // Invalidate and update cache for immediate reflection in VisualBuilder
+      if (pageType === 'product') {
+        queryClient.invalidateQueries({ queryKey: ['product-settings-builder', tenantId, effectiveTemplateSetId] });
+        queryClient.setQueryData(['product-settings-builder', tenantId, effectiveTemplateSetId], newSettings);
+        console.log('[PageSettingsContent] Updated product settings cache:', { tenantId, effectiveTemplateSetId, newSettings });
+      } else if (pageType === 'category') {
+        queryClient.invalidateQueries({ queryKey: ['category-settings', tenantId, effectiveTemplateSetId] });
+        queryClient.setQueryData(['category-settings', tenantId, effectiveTemplateSetId], newSettings);
+        console.log('[PageSettingsContent] Updated category settings cache:', { tenantId, effectiveTemplateSetId, newSettings });
+      } else if (pageType === 'cart') {
+        queryClient.invalidateQueries({ queryKey: ['cart-settings-builder', tenantId, effectiveTemplateSetId] });
+        queryClient.setQueryData(['cart-settings-builder', tenantId, effectiveTemplateSetId], newSettings);
+      } else if (pageType === 'checkout') {
+        queryClient.invalidateQueries({ queryKey: ['checkout-settings-builder', tenantId, effectiveTemplateSetId] });
+        queryClient.setQueryData(['checkout-settings-builder', tenantId, effectiveTemplateSetId], newSettings);
+      } else if (pageType === 'thank_you') {
+        queryClient.invalidateQueries({ queryKey: ['thankYou-settings-builder', tenantId, effectiveTemplateSetId] });
+        queryClient.setQueryData(['thankYou-settings-builder', tenantId, effectiveTemplateSetId], newSettings);
       }
+      
+      // Also invalidate template set content for global refresh
+      if (templateSetId) {
+        queryClient.invalidateQueries({ queryKey: ['template-set-content', templateSetId] });
+      }
+      
+      // Invalidate generic page settings queries
+      queryClient.invalidateQueries({ queryKey: ['page-overrides', tenantId, pageType] });
+      queryClient.invalidateQueries({ queryKey: ['page-settings', tenantId] });
       
       toast.success('Configurações salvas');
     },
