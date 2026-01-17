@@ -1,8 +1,9 @@
 // =============================================
 // PRODUCT VARIANT PICKER - Select pre-defined variant types and options for a product
+// Compact, optional fields for customization
 // =============================================
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useProductVariantTypes, VariantType } from '@/hooks/useProductVariantTypes';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { 
   Select,
   SelectContent,
@@ -20,19 +22,20 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { 
-  Plus, 
   Trash2, 
-  GripVertical,
   ImageIcon,
   Package,
-  AlertCircle
+  AlertCircle,
+  ChevronDown,
+  ChevronRight,
+  Settings2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Link } from 'react-router-dom';
 
 export interface PendingVariant {
-  id: string; // temporary ID for UI
+  id: string;
   sku: string;
   name: string;
   option1_name: string;
@@ -75,6 +78,7 @@ export function ProductVariantPicker({
 }: ProductVariantPickerProps) {
   const { variantTypes, isLoading } = useProductVariantTypes();
   const [selectedTypes, setSelectedTypes] = useState<SelectedVariationType[]>([]);
+  const [expandedVariants, setExpandedVariants] = useState<Set<string>>(new Set());
 
   // Generate variant combinations when options change
   const generateVariantCombinations = (types: SelectedVariationType[]): PendingVariant[] => {
@@ -196,6 +200,18 @@ export function ProductVariantPicker({
       ));
     };
     reader.readAsDataURL(file);
+  };
+
+  const toggleVariantExpanded = (variantId: string) => {
+    setExpandedVariants(prev => {
+      const next = new Set(prev);
+      if (next.has(variantId)) {
+        next.delete(variantId);
+      } else {
+        next.add(variantId);
+      }
+      return next;
+    });
   };
 
   // Available types (not yet selected)
@@ -330,180 +346,148 @@ export function ProductVariantPicker({
           )}
         </div>
 
-        {/* Generated Variants */}
+        {/* Generated Variants - Compact View */}
         {variants.length > 0 && (
-          <div className="space-y-3">
+          <div className="space-y-2">
             <Label className="text-sm font-medium">Variações Geradas</Label>
-            <div className="space-y-3">
-              {variants.map((variant, index) => (
-                <div
-                  key={variant.id}
-                  className="border rounded-lg p-4 space-y-4 bg-card"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline">#{index + 1}</Badge>
-                      <span className="font-medium text-sm">
-                        {[variant.option1_value, variant.option2_value, variant.option3_value]
-                          .filter(Boolean)
-                          .join(' / ')}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs text-muted-foreground">Ativo</Label>
-                      <Switch
-                        checked={variant.is_active}
-                        onCheckedChange={(checked) => handleUpdateVariant(variant.id, 'is_active', checked)}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Image and Name */}
-                  <div className="grid gap-4 md:grid-cols-[100px_1fr]">
-                    {/* Image Upload */}
-                    <div className="space-y-1">
-                      <Label className="text-xs">Imagem</Label>
-                      <label
-                        className={cn(
-                          "flex flex-col items-center justify-center w-[100px] h-[100px] border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors",
-                          variant.image_url && "border-solid"
-                        )}
-                      >
-                        {variant.image_url ? (
-                          <img
-                            src={variant.image_url}
-                            alt={variant.name}
-                            className="w-full h-full object-cover rounded-lg"
-                          />
-                        ) : (
-                          <div className="flex flex-col items-center text-muted-foreground">
-                            <ImageIcon className="h-6 w-6" />
-                            <span className="text-xs mt-1">Upload</span>
-                          </div>
-                        )}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) handleImageUpload(variant.id, file);
-                          }}
-                        />
-                      </label>
-                    </div>
-
-                    {/* Name and SKU */}
-                    <div className="space-y-3">
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <div className="space-y-1">
-                          <Label className="text-xs">Nome da Variação</Label>
-                          <Input
-                            value={variant.name}
-                            onChange={(e) => handleUpdateVariant(variant.id, 'name', e.target.value)}
-                            placeholder={`${productName} - Variação ${index + 1}`}
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs">SKU</Label>
-                          <Input
-                            value={variant.sku}
-                            onChange={(e) => handleUpdateVariant(variant.id, 'sku', e.target.value)}
-                            placeholder="SKU-VAR-001"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Price and Stock */}
-                  <div className="grid gap-3 md:grid-cols-5">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Preço (R$)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={variant.price ?? ''}
-                        onChange={(e) => handleUpdateVariant(variant.id, 'price', e.target.value ? parseFloat(e.target.value) : null)}
-                        placeholder="0,00"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Preço Comparativo</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={variant.compare_at_price ?? ''}
-                        onChange={(e) => handleUpdateVariant(variant.id, 'compare_at_price', e.target.value ? parseFloat(e.target.value) : null)}
-                        placeholder="0,00"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Custo</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={variant.cost_price ?? ''}
-                        onChange={(e) => handleUpdateVariant(variant.id, 'cost_price', e.target.value ? parseFloat(e.target.value) : null)}
-                        placeholder="0,00"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Estoque</Label>
-                      <Input
-                        type="number"
-                        value={variant.stock_quantity}
-                        onChange={(e) => handleUpdateVariant(variant.id, 'stock_quantity', parseInt(e.target.value) || 0)}
-                        placeholder="0"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Peso (kg)</Label>
-                      <Input
-                        type="number"
-                        step="0.001"
-                        value={variant.weight ?? ''}
-                        onChange={(e) => handleUpdateVariant(variant.id, 'weight', e.target.value ? parseFloat(e.target.value) : null)}
-                        placeholder="0,000"
-                      />
-                    </div>
-                  </div>
-
-                  {/* GTIN */}
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div className="space-y-1">
-                      <Label className="text-xs">GTIN/EAN (Código de Barras)</Label>
-                      <Input
-                        value={variant.gtin}
-                        onChange={(e) => handleUpdateVariant(variant.id, 'gtin', e.target.value.replace(/[^\d]/g, ''))}
-                        placeholder="Apenas números"
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Empty state when no variants generated */}
-        {variants.length === 0 && selectedTypes.length > 0 && (
-          <div className="border border-dashed rounded-lg p-6 text-center text-muted-foreground">
-            <Package className="h-10 w-10 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">Selecione opções acima para gerar variações</p>
-          </div>
-        )}
-
-        {selectedTypes.length === 0 && (
-          <div className="border border-dashed rounded-lg p-6 text-center text-muted-foreground">
-            <Package className="h-10 w-10 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">Selecione um tipo de variação para começar</p>
-            <p className="text-xs mt-1">
-              Precisa criar variações?{' '}
-              <Link to="/offers" className="underline text-primary">
-                Acesse Aumentar Ticket → Variações
-              </Link>
+            <p className="text-xs text-muted-foreground mb-2">
+              Clique em uma variação para personalizar nome, SKU, preços e imagem (opcional)
             </p>
+            <div className="space-y-2">
+              {variants.map((variant, index) => {
+                const isExpanded = expandedVariants.has(variant.id);
+                const optionLabel = [variant.option1_value, variant.option2_value, variant.option3_value]
+                  .filter(Boolean)
+                  .join(' / ');
+                
+                return (
+                  <Collapsible 
+                    key={variant.id} 
+                    open={isExpanded} 
+                    onOpenChange={() => toggleVariantExpanded(variant.id)}
+                  >
+                    <div className="border rounded-lg bg-card overflow-hidden">
+                      {/* Compact Header */}
+                      <CollapsibleTrigger asChild>
+                        <div className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center gap-3">
+                            {isExpanded ? (
+                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                            )}
+                            <Badge variant="outline" className="text-xs">#{index + 1}</Badge>
+                            <span className="font-medium text-sm">{optionLabel}</span>
+                            {variant.image_url && (
+                              <div className="w-6 h-6 rounded overflow-hidden border">
+                                <img 
+                                  src={variant.image_url} 
+                                  alt="" 
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {(variant.price !== null || variant.sku !== `${productSku}-${index + 1}`) && (
+                              <Settings2 className="h-3 w-3 text-primary" />
+                            )}
+                            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                              <Label className="text-xs text-muted-foreground">Ativo</Label>
+                              <Switch
+                                checked={variant.is_active}
+                                onCheckedChange={(checked) => handleUpdateVariant(variant.id, 'is_active', checked)}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </CollapsibleTrigger>
+                      
+                      {/* Expanded Fields - Compact */}
+                      <CollapsibleContent>
+                        <div className="p-3 pt-0 border-t bg-muted/30">
+                          <div className="grid gap-3 sm:grid-cols-[60px_1fr] items-start">
+                            {/* Small Image Upload */}
+                            <label
+                              className={cn(
+                                "flex flex-col items-center justify-center w-[60px] h-[60px] border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors",
+                                variant.image_url && "border-solid"
+                              )}
+                            >
+                              {variant.image_url ? (
+                                <img
+                                  src={variant.image_url}
+                                  alt={variant.name}
+                                  className="w-full h-full object-cover rounded-lg"
+                                />
+                              ) : (
+                                <div className="flex flex-col items-center text-muted-foreground">
+                                  <ImageIcon className="h-4 w-4" />
+                                  <span className="text-[10px] mt-0.5">Imagem</span>
+                                </div>
+                              )}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) handleImageUpload(variant.id, file);
+                                }}
+                              />
+                            </label>
+
+                            {/* Compact Fields */}
+                            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                              <div className="space-y-1">
+                                <Label className="text-[10px] uppercase text-muted-foreground">Nome</Label>
+                                <Input
+                                  value={variant.name}
+                                  onChange={(e) => handleUpdateVariant(variant.id, 'name', e.target.value)}
+                                  placeholder={`${productName} - ${optionLabel}`}
+                                  className="h-8 text-sm"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] uppercase text-muted-foreground">SKU</Label>
+                                <Input
+                                  value={variant.sku}
+                                  onChange={(e) => handleUpdateVariant(variant.id, 'sku', e.target.value)}
+                                  placeholder="SKU"
+                                  className="h-8 text-sm"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] uppercase text-muted-foreground">Preço (R$)</Label>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  value={variant.price ?? ''}
+                                  onChange={(e) => handleUpdateVariant(variant.id, 'price', e.target.value ? parseFloat(e.target.value) : null)}
+                                  placeholder="0,00"
+                                  className="h-8 text-sm"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] uppercase text-muted-foreground">Preço c/ Desconto</Label>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  value={variant.compare_at_price ?? ''}
+                                  onChange={(e) => handleUpdateVariant(variant.id, 'compare_at_price', e.target.value ? parseFloat(e.target.value) : null)}
+                                  placeholder="0,00"
+                                  className="h-8 text-sm"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </CollapsibleContent>
+                    </div>
+                  </Collapsible>
+                );
+              })}
+            </div>
           </div>
         )}
       </CardContent>
