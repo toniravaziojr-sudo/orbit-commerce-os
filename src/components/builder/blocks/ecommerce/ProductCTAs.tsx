@@ -9,7 +9,8 @@ import { useMarketingEvents } from '@/hooks/useMarketingEvents';
 import { Button } from '@/components/ui/button';
 import { Minus, Plus, Loader2, Check, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { getPublicCheckoutUrl } from '@/lib/publicUrls';
+import { getPublicCheckoutUrl, getPublicCartUrl } from '@/lib/publicUrls';
+import type { CartActionType } from '@/hooks/useThemeSettings';
 
 interface ProductCTAsProps {
   productId?: string;
@@ -32,6 +33,8 @@ interface ProductCTAsProps {
   miniCartEnabled?: boolean;        // Do tema (não da página)
   hasRequiredVariant?: boolean;     // Se tem variantes obrigatórias
   variantSelected?: boolean;        // Se alguma variante está selecionada
+  // Cart action type: what happens on "Add to Cart" click
+  cartActionType?: CartActionType;
 }
 
 export function ProductCTAs({
@@ -54,6 +57,7 @@ export function ProductCTAs({
   miniCartEnabled = true,
   hasRequiredVariant = false,
   variantSelected = true,
+  cartActionType = 'miniCart',
 }: ProductCTAsProps) {
   const navigate = useNavigate();
   const { items, addItem } = useCart();
@@ -113,17 +117,22 @@ export function ProductCTAs({
       setAddedFeedback(true);
       toast.success('Produto adicionado ao carrinho!');
       
-      // Regra de segurança: só abre mini-cart se miniCartEnabled no tema
-      if (openMiniCartOnAdd && miniCartEnabled && onOpenMiniCart) {
+      // Handle cart action based on cartActionType
+      if (cartActionType === 'goToCart') {
+        // Redirect to cart page
+        const cartUrl = getPublicCartUrl(tenantSlug, isPreview);
+        navigate(cartUrl);
+      } else if (cartActionType === 'miniCart' && openMiniCartOnAdd && miniCartEnabled && onOpenMiniCart) {
+        // Open mini-cart drawer
         onOpenMiniCart();
       }
-      // Se openMiniCartOnAdd=true mas miniCartEnabled=false, adiciona silenciosamente (apenas toast)
+      // If cartActionType === 'none', just show the toast (already done above)
       
       setTimeout(() => {
         setAddedFeedback(false);
       }, 2000);
     }, 150);
-  }, [productId, productName, productSku, productPrice, quantity, imageUrl, isOutOfStock, isAddingToCart, addItem, openMiniCartOnAdd, miniCartEnabled, onOpenMiniCart, trackAddToCart, requiresVariantSelection]);
+  }, [productId, productName, productSku, productPrice, quantity, imageUrl, isOutOfStock, isAddingToCart, addItem, openMiniCartOnAdd, miniCartEnabled, onOpenMiniCart, trackAddToCart, requiresVariantSelection, cartActionType, tenantSlug, isPreview, navigate]);
   
   const handleBuyNow = React.useCallback(() => {
     if (!productId || isOutOfStock || isAddingToCart || requiresVariantSelection) return;

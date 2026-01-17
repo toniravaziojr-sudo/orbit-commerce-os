@@ -1074,6 +1074,7 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
             miniCartEnabled={miniCartEnabled}
             hasRequiredVariant={hasRequiredVariant}
             variantSelected={variantSelected}
+            cartActionType={cartActionType}
           />
           
           {/* 13. Calculadora de frete */}
