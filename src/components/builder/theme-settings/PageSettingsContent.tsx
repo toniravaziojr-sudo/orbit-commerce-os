@@ -351,12 +351,12 @@ export function PageSettingsContent({
       // The hooks now use a 3-part key: [type, tenantId, templateSetId]
       if (templateSetId) {
         queryClient.invalidateQueries({ queryKey: ['category-settings', tenantId, templateSetId] });
-        queryClient.invalidateQueries({ queryKey: ['product-settings', tenantId, templateSetId] });
+        queryClient.invalidateQueries({ queryKey: ['product-settings-builder', tenantId, templateSetId] });
         queryClient.invalidateQueries({ queryKey: ['template-set-content', templateSetId] });
       }
       // Also invalidate legacy keys for fallback
       queryClient.invalidateQueries({ queryKey: ['category-settings', tenantId, 'legacy'] });
-      queryClient.invalidateQueries({ queryKey: ['product-settings', tenantId, 'legacy'] });
+      queryClient.invalidateQueries({ queryKey: ['product-settings-builder', tenantId, 'legacy'] });
       
       toast.success('Configurações salvas');
     },
@@ -595,7 +595,7 @@ function getSettingsConfig(pageType: string): SettingConfig[] {
     ],
     product: [
       { key: 'showGallery', label: 'Mostrar Galeria', defaultValue: true },
-      { key: 'showDescription', label: 'Mostrar Descrição', defaultValue: true },
+      { key: 'showDescription', label: 'Mostrar Descrição', description: 'Descrição curta do produto', defaultValue: true },
       { key: 'showVariants', label: 'Mostrar variações', defaultValue: true },
       { key: 'showStock', label: 'Mostrar Estoque', defaultValue: true },
       { key: 'showRelatedProducts', label: 'Mostrar Produtos Relacionados', defaultValue: true },
@@ -605,6 +605,9 @@ function getSettingsConfig(pageType: string): SettingConfig[] {
       { key: 'showAdditionalHighlight', label: 'Destaque adicional', description: 'Exibe até 3 imagens como mini-banner', defaultValue: false, hasUpload: true },
       { key: 'openMiniCartOnAdd', label: 'Abrir carrinho suspenso ao adicionar', description: 'Abre o mini-carrinho lateral', defaultValue: true },
       { key: 'showGoToCartButton', label: 'Botão "Ir para Carrinho"', description: 'Link para página completa do carrinho', defaultValue: true },
+      // REGRAS.md: Botões obrigatórios
+      { key: 'showAddToCartButton', label: 'Mostrar Adicionar ao carrinho', defaultValue: true },
+      { key: 'showWhatsAppButton', label: 'Mostrar botão WhatsApp', defaultValue: true },
     ],
     cart: [
       // Funcionalidades da Página do Carrinho
