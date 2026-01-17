@@ -212,15 +212,15 @@ export function ProductSettingsPanel({
                 />
               </div>
 
-              {/* Mostrar selos de garantia */}
+              {/* Mostrar selos */}
               <div className="flex items-center justify-between">
-                <Label htmlFor="showGuaranteeBadges" className="text-sm">
-                  Mostrar Selos de Garantia
+                <Label htmlFor="showBadges" className="text-sm">
+                  Mostrar Selos
                 </Label>
                 <Switch
-                  id="showGuaranteeBadges"
-                  checked={settings.showGuaranteeBadges ?? true}
-                  onCheckedChange={(checked) => handleChange('showGuaranteeBadges', checked)}
+                  id="showBadges"
+                  checked={settings.showBadges ?? true}
+                  onCheckedChange={(checked) => handleChange('showBadges', checked)}
                 />
               </div>
 

@@ -93,7 +93,7 @@ import { CartContent } from '@/components/storefront/cart/CartContent';
 import { ProductBadges } from '@/components/storefront/product/ProductBadges';
 import { PaymentBadges } from '@/components/storefront/product/PaymentBadges';
 import { ShippingCalculator } from '@/components/storefront/product/ShippingCalculator';
-import { GuaranteeBadges } from '@/components/storefront/product/GuaranteeBadges';
+import { AdditionalHighlight } from '@/components/storefront/product/AdditionalHighlight';
 import { ProductVariantSelector } from '@/components/storefront/product/ProductVariantSelector';
 import { FloatingCartButton } from '@/components/storefront/FloatingCartButton';
 import { useProductVariants } from '@/hooks/useProductVariants';
@@ -709,7 +709,9 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
   const showWhatsAppButton = productSettings.showWhatsAppButton !== false;
   const showAddToCartButton = productSettings.showAddToCartButton !== false;
   const buyNowButtonText = productSettings.buyNowButtonText || 'Comprar agora';
-  const showGuaranteeBadges = productSettings.showGuaranteeBadges !== false;
+  const showBadges = productSettings.showBadges !== false;
+  const showAdditionalHighlight = productSettings.showAdditionalHighlight === true;
+  const additionalHighlightImages = productSettings.additionalHighlightImages || [];
   
   // Theme settings for mini-cart (não é toggle da página, é do tema)
   const miniCartEnabled = context?.themeSettings?.miniCartEnabled !== false;
@@ -943,27 +945,6 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
           </div>
         </div>
         
-        {/* Seções abaixo - Placeholders de referência visual (ordem conforme REGRAS.md) */}
-        <div className="mt-8 space-y-4">
-          {showBuyTogether && (
-            <div className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 text-center">
-              <span className="text-muted-foreground text-sm font-medium">[Compre Junto]</span>
-            </div>
-          )}
-          <div className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 text-center">
-            <span className="text-muted-foreground text-sm font-medium">[Descrição Completa]</span>
-          </div>
-          {showReviews && (
-            <div className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 text-center">
-              <span className="text-muted-foreground text-sm font-medium">[Avaliações]</span>
-            </div>
-          )}
-          {showRelatedProducts && (
-            <div className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 text-center">
-              <span className="text-muted-foreground text-sm font-medium">[Produtos Relacionados]</span>
-            </div>
-          )}
-        </div>
       </div>
     );
   }
@@ -1106,8 +1087,10 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
             isEditing={isEditing && !isInteractMode}
           />
           
-          {/* 14. Bandeirinhas de garantia */}
-          {showGuaranteeBadges && <GuaranteeBadges />}
+          {/* 14. Destaque adicional (imagens) */}
+          {showAdditionalHighlight && additionalHighlightImages.length > 0 && (
+            <AdditionalHighlight images={additionalHighlightImages} />
+          )}
         </div>
       </div>
 

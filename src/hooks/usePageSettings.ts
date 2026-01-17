@@ -49,7 +49,9 @@ export interface ProductSettings {
   showWhatsAppButton?: boolean;     // Mostrar botão WhatsApp
   showAddToCartButton?: boolean;    // Mostrar botão Adicionar ao carrinho
   buyNowButtonText?: string;        // Texto do botão principal
-  showGuaranteeBadges?: boolean;    // Mostrar selos de garantia
+  showBadges?: boolean;             // Mostrar selos (do Aumentar Ticket)
+  showAdditionalHighlight?: boolean; // Destaque adicional (imagens)
+  additionalHighlightImages?: string[]; // URLs das imagens do destaque adicional (máx 3)
 }
 
 export interface CartSettings {
@@ -124,7 +126,9 @@ export const DEFAULT_PRODUCT_SETTINGS: ProductSettings = {
   showWhatsAppButton: true,
   showAddToCartButton: true,
   buyNowButtonText: 'Comprar agora',
-  showGuaranteeBadges: true,
+  showBadges: true,
+  showAdditionalHighlight: false,
+  additionalHighlightImages: [],
 };
 
 export const DEFAULT_CART_SETTINGS: CartSettings = {
