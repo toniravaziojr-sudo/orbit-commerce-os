@@ -79,12 +79,41 @@ export interface GlobalLayoutData {
  * @param pageOverrides - Optional page-specific overrides
  * @param isEditing - If true, always include header/footer with hidden prop for toggling
  */
+// Blocos que são renderizados automaticamente pelo ProductDetailsBlock via ProductPageSections
+// e NÃO devem existir como standalone em páginas de produto (evita duplicação)
+const PRODUCT_PAGE_DUPLICATE_BLOCKS = ['CompreJuntoSlot', 'ProductGrid'];
+
+/**
+ * Filtra recursivamente blocos duplicados de uma árvore de conteúdo
+ */
+function filterDuplicateBlocks(children: BlockNode[], blockTypesToRemove: string[]): BlockNode[] {
+  return children
+    .filter(child => !blockTypesToRemove.includes(child.type))
+    .map(child => {
+      if (child.children && child.children.length > 0) {
+        return {
+          ...child,
+          children: filterDuplicateBlocks(child.children, blockTypesToRemove),
+        };
+      }
+      return child;
+    })
+    // Remove Section containers que ficaram vazios após a filtragem
+    .filter(child => {
+      if (child.type === 'Section' && (!child.children || child.children.length === 0)) {
+        return false;
+      }
+      return true;
+    });
+}
+
 export function applyGlobalLayout(
   content: BlockNode,
   globalLayout: GlobalLayoutData | null,
   isCheckout: boolean,
   pageOverrides?: PageOverrides | null,
-  isEditing: boolean = false
+  isEditing: boolean = false,
+  pageType?: string
 ): BlockNode {
   if (!content || !globalLayout) return content;
 
@@ -115,9 +144,15 @@ export function applyGlobalLayout(
   }
 
   // Filter out existing Header/Footer blocks
-  const filteredChildren = content.children.filter(
+  let filteredChildren = content.children.filter(
     child => child.type !== 'Header' && child.type !== 'Footer'
   );
+
+  // REGRAS.md: Em páginas de produto, remover blocos duplicados que são renderizados
+  // automaticamente pelo ProductDetailsBlock via ProductPageSections
+  if (pageType === 'product') {
+    filteredChildren = filterDuplicateBlocks(filteredChildren, PRODUCT_PAGE_DUPLICATE_BLOCKS);
+  }
 
   // Apply page overrides to header props (only for non-checkout pages)
   let finalHeaderConfig = { ...headerConfig };

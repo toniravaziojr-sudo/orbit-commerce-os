@@ -150,9 +150,38 @@ export function PublicTemplateRenderer({
     }
 
     // Filter out existing Header/Footer blocks from content
-    const filteredChildren = content.children.filter(
+    let filteredChildren = content.children.filter(
       child => child.type !== 'Header' && child.type !== 'Footer'
     );
+
+    // REGRAS.md: Em páginas de produto, remover blocos duplicados que são renderizados
+    // automaticamente pelo ProductDetailsBlock via ProductPageSections
+    if (pageType === 'product') {
+      const PRODUCT_PAGE_DUPLICATE_BLOCKS = ['CompreJuntoSlot', 'ProductGrid'];
+      
+      const filterDuplicateBlocks = (children: BlockNode[]): BlockNode[] => {
+        return children
+          .filter(child => !PRODUCT_PAGE_DUPLICATE_BLOCKS.includes(child.type))
+          .map(child => {
+            if (child.children && child.children.length > 0) {
+              return {
+                ...child,
+                children: filterDuplicateBlocks(child.children),
+              };
+            }
+            return child;
+          })
+          .filter(child => {
+            // Remove Section containers que ficaram vazios após a filtragem
+            if (child.type === 'Section' && (!child.children || child.children.length === 0)) {
+              return false;
+            }
+            return true;
+          });
+      };
+      
+      filteredChildren = filterDuplicateBlocks(filteredChildren);
+    }
 
     // Apply page overrides to header props (only for non-checkout pages)
     let finalHeaderConfig = { ...headerConfig };
@@ -175,7 +204,7 @@ export function PublicTemplateRenderer({
       showFooter1: effectiveShowFooter1,
       showFooter2: effectiveShowFooter2,
     };
-  }, [content, globalLayout, isCheckout, pageOverrides]);
+  }, [content, globalLayout, isCheckout, pageOverrides, pageType]);
 
   // Show access denied for preview without auth
   if (isPreviewMode && !canPreview) {
