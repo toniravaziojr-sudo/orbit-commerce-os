@@ -118,29 +118,45 @@ export function CartConfigTab() {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label>Ativar carrinho suspenso</Label>
+              <Label>Ação do Carrinho</Label>
               <p className="text-sm text-muted-foreground">
-                Exibe um drawer lateral ao adicionar produtos ao carrinho
+                O que acontece ao adicionar produto ao carrinho
               </p>
             </div>
             <Switch
-              checked={form.miniCartEnabled}
-              onCheckedChange={(checked) => handleChange('miniCartEnabled', checked)}
+              checked={form.cartActionType !== 'none'}
+              onCheckedChange={(checked) => handleChange('cartActionType', checked ? 'miniCart' : 'none')}
             />
           </div>
 
-          {form.miniCartEnabled && (
-            <div className="flex items-center justify-between pl-4 border-l-2 border-muted">
-              <div className="space-y-0.5">
-                <Label>Botão "Ir para Carrinho"</Label>
-                <p className="text-sm text-muted-foreground">
-                  Exibe botão para navegar à página completa do carrinho
-                </p>
+          {form.cartActionType !== 'none' && (
+            <div className="pl-4 border-l-2 border-muted space-y-3">
+              <div className="flex items-center gap-3">
+                <input
+                  type="radio"
+                  id="cartAction-miniCart"
+                  checked={form.cartActionType === 'miniCart'}
+                  onChange={() => handleChange('cartActionType', 'miniCart')}
+                  className="h-4 w-4"
+                />
+                <Label htmlFor="cartAction-miniCart" className="cursor-pointer">
+                  <span className="font-medium">Carrinho Suspenso</span>
+                  <p className="text-sm text-muted-foreground font-normal">Abre o mini-carrinho lateral</p>
+                </Label>
               </div>
-              <Switch
-                checked={form.showGoToCartButton}
-                onCheckedChange={(checked) => handleChange('showGoToCartButton', checked)}
-              />
+              <div className="flex items-center gap-3">
+                <input
+                  type="radio"
+                  id="cartAction-goToCart"
+                  checked={form.cartActionType === 'goToCart'}
+                  onChange={() => handleChange('cartActionType', 'goToCart')}
+                  className="h-4 w-4"
+                />
+                <Label htmlFor="cartAction-goToCart" className="cursor-pointer">
+                  <span className="font-medium">Ir para Carrinho</span>
+                  <p className="text-sm text-muted-foreground font-normal">Redireciona para a página do carrinho</p>
+                </Label>
+              </div>
             </div>
           )}
         </CardContent>

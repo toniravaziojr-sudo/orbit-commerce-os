@@ -110,9 +110,9 @@ export function MiniCartPreview({
         )}
       >
         {/* Disabled banner */}
-        {!config.miniCartEnabled && (
+        {config.cartActionType === 'none' && (
           <div className="bg-orange-100 text-orange-700 text-xs px-4 py-2 text-center font-medium">
-            ⚠️ Carrinho suspenso desativado na loja
+            ⚠️ Ação do carrinho desativada na loja
           </div>
         )}
         
@@ -297,7 +297,7 @@ export function MiniCartPreview({
             >
               Iniciar Compra
             </Button>
-            {config.showGoToCartButton && (
+            {config.cartActionType === 'goToCart' && (
               <Button
                 variant="outline"
                 className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm"

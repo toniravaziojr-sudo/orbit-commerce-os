@@ -83,9 +83,10 @@ export interface OffersConfig {
 // =============================================
 
 export interface CartConfig {
-  // Carrinho suspenso
-  miniCartEnabled: boolean;
-  showGoToCartButton: boolean;
+  // Unified cart action type: 'miniCart' | 'goToCart' | 'none'
+  cartActionType: 'miniCart' | 'goToCart' | 'none';
+  // Show add to cart button (required when cartActionType is not 'none')
+  showAddToCartButton: boolean;
   
   // Funcionalidades
   crossSellEnabled: boolean;
@@ -164,8 +165,8 @@ export const defaultOffersConfig: OffersConfig = {
 };
 
 export const defaultCartConfig: CartConfig = {
-  miniCartEnabled: true,
-  showGoToCartButton: true,
+  cartActionType: 'miniCart',
+  showAddToCartButton: true,
   crossSellEnabled: true,
   shippingCalculatorEnabled: true,
   couponEnabled: true,
@@ -273,9 +274,20 @@ export function parseOffersConfig(data: unknown): OffersConfig {
 export function parseCartConfig(data: unknown): CartConfig {
   if (!data || typeof data !== 'object') return defaultCartConfig;
   const obj = data as Record<string, unknown>;
+  
+  // Migrate from legacy: miniCartEnabled + showGoToCartButton -> cartActionType
+  let cartActionType: 'miniCart' | 'goToCart' | 'none' = 'miniCart';
+  if (obj.cartActionType) {
+    cartActionType = obj.cartActionType as 'miniCart' | 'goToCart' | 'none';
+  } else if (obj.miniCartEnabled === false) {
+    cartActionType = 'none';
+  } else if (obj.showGoToCartButton === true && obj.miniCartEnabled !== true) {
+    cartActionType = 'goToCart';
+  }
+  
   return {
-    miniCartEnabled: obj.miniCartEnabled !== false,
-    showGoToCartButton: obj.showGoToCartButton !== false,
+    cartActionType,
+    showAddToCartButton: obj.showAddToCartButton !== false,
     crossSellEnabled: obj.crossSellEnabled !== false,
     shippingCalculatorEnabled: obj.shippingCalculatorEnabled !== false,
     couponEnabled: obj.couponEnabled !== false,
