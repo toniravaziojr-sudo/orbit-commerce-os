@@ -541,27 +541,8 @@ export const defaultCheckoutTemplate: BlockNode = {
         },
       ],
     },
-    // Order Bump Slot (busca de /offers)
-    {
-      id: generateBlockId('Section'),
-      type: 'Section',
-      props: {
-        paddingY: 16,
-      },
-      children: [
-        {
-          id: generateBlockId('OrderBumpSlot'),
-          type: 'OrderBumpSlot',
-          props: {
-            title: 'Aproveite e adicione',
-            subtitle: 'Oferta exclusiva para você',
-            maxItems: 2,
-            variant: 'compact',
-            showWhenEmpty: false,
-          },
-        },
-      ],
-    },
+    // REMOVED: OrderBumpSlot was duplicating the internal OrderBumpSection of CheckoutContent
+    // Order Bump is now handled ONLY internally by the Checkout block, controlled by orderBumpEnabled toggle
     {
       id: generateBlockId('Footer'),
       type: 'Footer',
@@ -609,28 +590,8 @@ export const defaultThankYouTemplate: BlockNode = {
         },
       ],
     },
-    // Upsell Slot (busca de /offers)
-    {
-      id: generateBlockId('Section'),
-      type: 'Section',
-      props: {
-        backgroundColor: '#f9fafb',
-        paddingY: 48,
-      },
-      children: [
-        {
-          id: generateBlockId('UpsellSlot'),
-          type: 'UpsellSlot',
-          props: {
-            title: 'Oferta Especial para Você',
-            subtitle: 'Aproveite esta oferta exclusiva!',
-            maxItems: 3,
-            variant: 'normal',
-            showWhenEmpty: true,
-          },
-        },
-      ],
-    },
+    // REMOVED: UpsellSlot was duplicating the internal UpsellSection of ThankYouContent
+    // Upsell is now handled ONLY internally by the ThankYou block, controlled internally
     {
       id: generateBlockId('Footer'),
       type: 'Footer',

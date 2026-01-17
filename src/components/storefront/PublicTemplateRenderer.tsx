@@ -154,14 +154,21 @@ export function PublicTemplateRenderer({
       child => child.type !== 'Header' && child.type !== 'Footer'
     );
 
-    // REGRAS.md: Em páginas de produto, remover blocos duplicados que são renderizados
-    // automaticamente pelo ProductDetailsBlock via ProductPageSections
-    if (pageType === 'product') {
-      const PRODUCT_PAGE_DUPLICATE_BLOCKS = ['CompreJuntoSlot', 'ProductGrid'];
-      
+    // REGRAS.md: Remover blocos duplicados que são renderizados automaticamente
+    // pelos blocos principais de cada página (evita duplicação)
+    const DUPLICATE_BLOCKS_BY_PAGE_TYPE: Record<string, string[]> = {
+      product: ['CompreJuntoSlot', 'ProductGrid'],
+      cart: ['CrossSellSlot'],
+      checkout: ['OrderBumpSlot'],
+      thank_you: ['UpsellSlot'],
+      obrigado: ['UpsellSlot'],
+    };
+    
+    const blocksToRemove = DUPLICATE_BLOCKS_BY_PAGE_TYPE[pageType];
+    if (blocksToRemove) {
       const filterDuplicateBlocks = (children: BlockNode[]): BlockNode[] => {
         return children
-          .filter(child => !PRODUCT_PAGE_DUPLICATE_BLOCKS.includes(child.type))
+          .filter(child => !blocksToRemove.includes(child.type))
           .map(child => {
             if (child.children && child.children.length > 0) {
               return {
