@@ -144,13 +144,8 @@ export const PAGE_CONTRACTS: Record<string, PageContract> = {
       },
     ],
     optionalSlots: [
-      {
-        type: 'OrderBumpSlot',
-        label: 'Order Bump',
-        description: 'Oferta adicional no checkout',
-        toggleKey: 'showOrderBump',
-        defaultEnabled: true,
-      },
+      // OrderBumpSlot removed - handled internally by CheckoutContent via OrderBumpSection
+      // Toggle showOrderBump controls visibility of internal OrderBumpSection, not a separate block
     ],
   },
   

@@ -9,8 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Input } from '@/components/ui/input';
 import { useStoreConfig } from '@/hooks/useStoreConfig';
-import { CheckoutConfig, PaymentMethod, defaultCheckoutConfig } from '@/lib/storeConfigTypes';
+import { CheckoutConfig, PaymentMethod, PaymentMethodCustomLabels, defaultCheckoutConfig } from '@/lib/storeConfigTypes';
 import { TestimonialsManager } from './TestimonialsManager';
 import { 
   CreditCard, 
@@ -168,22 +169,43 @@ export function CheckoutConfigTab() {
         <CardContent>
           <div className="space-y-2">
             {form.paymentMethodsOrder.map((method, index) => (
-              <div
-                key={method}
-                draggable
-                onDragStart={() => handleDragStart(method)}
-                onDragOver={(e) => handleDragOver(e, method)}
-                onDragEnd={handleDragEnd}
-                className={`
-                  flex items-center gap-3 p-3 rounded-lg border bg-card
-                  cursor-move hover:bg-muted/50 transition-colors
-                  ${draggedMethod === method ? 'opacity-50 border-primary' : ''}
-                `}
-              >
-                <GripVertical className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground w-6">{index + 1}.</span>
-                {PAYMENT_METHOD_LABELS[method].icon}
-                <span className="font-medium">{PAYMENT_METHOD_LABELS[method].label}</span>
+              <div key={method} className="space-y-2">
+                <div
+                  draggable
+                  onDragStart={() => handleDragStart(method)}
+                  onDragOver={(e) => handleDragOver(e, method)}
+                  onDragEnd={handleDragEnd}
+                  className={`
+                    flex items-center gap-3 p-3 rounded-lg border bg-card
+                    cursor-move hover:bg-muted/50 transition-colors
+                    ${draggedMethod === method ? 'opacity-50 border-primary' : ''}
+                  `}
+                >
+                  <GripVertical className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground w-6">{index + 1}.</span>
+                  {PAYMENT_METHOD_LABELS[method].icon}
+                  <span className="font-medium flex-1">{PAYMENT_METHOD_LABELS[method].label}</span>
+                </div>
+                {/* Custom label input for each method */}
+                <div className="ml-10 pb-2">
+                  <Input
+                    placeholder={`Ex: 5% OFF, até 12x sem juros...`}
+                    value={form.paymentMethodLabels?.[method] || ''}
+                    onChange={(e) => {
+                      const newLabels: PaymentMethodCustomLabels = {
+                        ...form.paymentMethodLabels,
+                        [method]: e.target.value || undefined,
+                      };
+                      // Remove empty values
+                      if (!e.target.value) delete newLabels[method];
+                      handleChange('paymentMethodLabels', newLabels);
+                    }}
+                    className="text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Texto personalizado (badge) - opcional
+                  </p>
+                </div>
               </div>
             ))}
           </div>

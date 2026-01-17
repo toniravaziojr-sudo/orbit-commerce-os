@@ -49,6 +49,7 @@ interface PaymentMethodSelectorProps {
   onCardDataChange: (data: CardData) => void;
   disabled?: boolean;
   methodsOrder?: PaymentMethod[];
+  customLabels?: Record<string, string>;
 }
 
 export function PaymentMethodSelector({
@@ -58,6 +59,7 @@ export function PaymentMethodSelector({
   onCardDataChange,
   disabled = false,
   methodsOrder = ['pix', 'credit_card', 'boleto'],
+  customLabels = {},
 }: PaymentMethodSelectorProps) {
   const formatCardNumber = (value: string): string => {
     const digits = value.replace(/\D/g, '').slice(0, 16);
@@ -101,6 +103,11 @@ export function PaymentMethodSelector({
               <p className="font-medium">{method.label}</p>
               <p className="text-sm text-muted-foreground">{method.description}</p>
             </div>
+            {customLabels[method.value] && (
+              <span className="text-xs font-semibold bg-primary text-primary-foreground px-2 py-1 rounded">
+                {customLabels[method.value]}
+              </span>
+            )}
           </Label>
         ))}
       </RadioGroup>

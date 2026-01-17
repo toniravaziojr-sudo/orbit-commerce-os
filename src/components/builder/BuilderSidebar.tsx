@@ -78,7 +78,8 @@ const SIDEBAR_HIDDEN_BLOCKS = new Set([
   'Cart', 'Checkout', 'ThankYou',
   
   // System features - Offer slots (controlled by offers module)
-  'CrossSellSlot', 'OrderBumpSlot', 'UpsellSlot',
+  // OrderBumpSlot removed - handled internally by CheckoutContent
+  'CrossSellSlot', 'UpsellSlot',
   
   // System features - Account pages
   'AccountHub', 'OrdersList', 'OrderDetail',

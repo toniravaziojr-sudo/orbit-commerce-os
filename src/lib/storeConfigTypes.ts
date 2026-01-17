@@ -110,12 +110,21 @@ export interface CartConfig {
 
 export type PaymentMethod = 'pix' | 'credit_card' | 'boleto';
 
+// Custom labels/badges per payment method (e.g., "5% OFF no PIX")
+export interface PaymentMethodCustomLabels {
+  pix?: string;
+  credit_card?: string;
+  boleto?: string;
+}
+
 export interface CheckoutConfig {
   couponEnabled: boolean;
   orderBumpEnabled: boolean;
   testimonialsEnabled: boolean;
   paymentMethodsOrder: PaymentMethod[];
   purchaseEventTiming: 'all_orders' | 'paid_only';
+  // Custom labels shown on each payment method (e.g., "5% OFF", "até 12x sem juros")
+  paymentMethodLabels?: PaymentMethodCustomLabels;
 }
 
 // Default configurations
@@ -187,6 +196,7 @@ export const defaultCheckoutConfig: CheckoutConfig = {
   testimonialsEnabled: false,
   paymentMethodsOrder: ['pix', 'credit_card', 'boleto'],
   purchaseEventTiming: 'paid_only',
+  paymentMethodLabels: {},
 };
 
 // Parse functions for database JSONB
@@ -324,11 +334,21 @@ export function parseCheckoutConfig(data: unknown): CheckoutConfig {
     if (parsed.length > 0) paymentMethodsOrder = parsed;
   }
   
+  // Parse payment method labels
+  const paymentMethodLabels: PaymentMethodCustomLabels = {};
+  if (obj.paymentMethodLabels && typeof obj.paymentMethodLabels === 'object') {
+    const labels = obj.paymentMethodLabels as Record<string, unknown>;
+    if (labels.pix) paymentMethodLabels.pix = String(labels.pix);
+    if (labels.credit_card) paymentMethodLabels.credit_card = String(labels.credit_card);
+    if (labels.boleto) paymentMethodLabels.boleto = String(labels.boleto);
+  }
+  
   return {
     couponEnabled: obj.couponEnabled !== false,
     orderBumpEnabled: obj.orderBumpEnabled !== false,
     testimonialsEnabled: Boolean(obj.testimonialsEnabled),
     paymentMethodsOrder,
     purchaseEventTiming: obj.purchaseEventTiming === 'all_orders' ? 'all_orders' : 'paid_only',
+    paymentMethodLabels,
   };
 }
