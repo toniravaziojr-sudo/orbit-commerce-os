@@ -438,7 +438,7 @@ export function ProductVariantPicker({
                             </label>
 
                             {/* Compact Fields */}
-                            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
                               <div className="space-y-1">
                                 <Label className="text-[10px] uppercase text-muted-foreground">Nome</Label>
                                 <Input
@@ -476,6 +476,18 @@ export function ProductVariantPicker({
                                   value={variant.compare_at_price ?? ''}
                                   onChange={(e) => handleUpdateVariant(variant.id, 'compare_at_price', e.target.value ? parseFloat(e.target.value) : null)}
                                   placeholder="0,00"
+                                  className="h-8 text-sm"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] uppercase text-muted-foreground">Estoque</Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  value={variant.stock_quantity}
+                                  onChange={(e) => handleUpdateVariant(variant.id, 'stock_quantity', parseInt(e.target.value) || 0)}
+                                  placeholder="0"
                                   className="h-8 text-sm"
                                 />
                               </div>
