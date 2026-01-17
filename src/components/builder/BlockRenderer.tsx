@@ -79,8 +79,8 @@ import { CheckoutDemoBlock } from './blocks/CheckoutDemoBlock';
 import { CategoryBannerBlock as CategoryBannerBlockComponent } from './blocks/CategoryBannerBlock';
 import { CategoryPageLayout as CategoryPageLayoutComponent } from './blocks/CategoryPageLayout';
 
-// Offer Slot Blocks
-import { CompreJuntoSlotBlock, CrossSellSlotBlock, OrderBumpSlotBlock, UpsellSlotBlock } from './blocks/slots';
+// Offer Slot Blocks (OrderBumpSlotBlock removed - handled internally by CheckoutContent)
+import { CompreJuntoSlotBlock, CrossSellSlotBlock, UpsellSlotBlock } from './blocks/slots';
 
 // Storefront components
 import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
@@ -484,9 +484,9 @@ function getBlockComponent(type: string): React.ComponentType<any> {
     AccordionBlock: AccordionBlockBlockWrapper,
     
     // Offer Slot Blocks - passam context para detectar pageType e evitar duplicação
+    // OrderBumpSlot removed - handled internally by CheckoutContent via OrderBumpSection
     CompreJuntoSlot: (props: any) => <CompreJuntoSlotBlock {...props} isEditing={props.isEditing} context={props.context} />,
     CrossSellSlot: (props: any) => <CrossSellSlotBlock {...props} isEditing={props.isEditing} context={props.context} />,
-    OrderBumpSlot: (props: any) => <OrderBumpSlotBlock {...props} isEditing={props.isEditing} context={props.context} />,
     UpsellSlot: (props: any) => <UpsellSlotBlock {...props} isEditing={props.isEditing} context={props.context} />,
   };
 

@@ -150,9 +150,9 @@ function getCleanDefaultProps(blockType: string): Record<string, unknown> {
     TrackingLookup: { title: 'Rastrear Pedido', description: 'Acompanhe o status da sua entrega' },
     BlogListing: { title: 'Blog', postsPerPage: 9, showExcerpt: true, showImage: true, showTags: true, showPagination: true },
     // AJUSTE 5: All slots enabled by default (showWhenEmpty: true) for demonstration
+    // OrderBumpSlot removed - handled internally by CheckoutContent
     CompreJuntoSlot: { title: 'Compre Junto', maxItems: 3, variant: 'normal', showWhenEmpty: true },
     CrossSellSlot: { title: 'Você também pode gostar', maxItems: 4, variant: 'normal', showWhenEmpty: true },
-    OrderBumpSlot: { title: 'Aproveite', maxItems: 2, variant: 'compact', showWhenEmpty: true },
     UpsellSlot: { title: 'Oferta Especial', maxItems: 3, variant: 'normal', showWhenEmpty: true },
   };
   return props[blockType] || {};

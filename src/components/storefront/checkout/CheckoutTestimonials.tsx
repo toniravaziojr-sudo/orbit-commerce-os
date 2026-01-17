@@ -121,15 +121,6 @@ export function CheckoutTestimonials({ productIds }: CheckoutTestimonialsProps) 
           </div>
         ))}
       </div>
-      
-      <div className="mt-4 pt-4 border-t flex items-center justify-center gap-2 text-sm text-muted-foreground">
-        <div className="flex -space-x-1">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-          ))}
-        </div>
-        <span>4.9/5 de mais de 500 avaliações</span>
-      </div>
     </div>
   );
 }

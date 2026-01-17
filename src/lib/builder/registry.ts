@@ -3130,39 +3130,8 @@ const blockDefinitions: BlockDefinition[] = [
     },
     canHaveChildren: false,
   },
-  {
-    type: 'OrderBumpSlot',
-    label: 'Oferta no Checkout',
-    category: 'ecommerce',
-    icon: 'Zap',
-    defaultProps: {
-      title: 'Aproveite e adicione',
-      subtitle: 'Oferta exclusiva para você',
-      maxItems: 2,
-      variant: 'normal',
-      showWhenEmpty: true,
-      ctaLabel: 'Configurar ofertas',
-      ctaHref: '/offers',
-    },
-    propsSchema: {
-      title: { type: 'string', label: 'Título', defaultValue: 'Aproveite e adicione' },
-      subtitle: { type: 'string', label: 'Subtítulo (opcional)', defaultValue: 'Oferta exclusiva para você' },
-      maxItems: { type: 'number', label: 'Máximo de Itens', defaultValue: 2, min: 1, max: 4 },
-      variant: {
-        type: 'select',
-        label: 'Variante',
-        defaultValue: 'normal',
-        options: [
-          { label: 'Normal', value: 'normal' },
-          { label: 'Compacto', value: 'compact' },
-        ],
-      },
-      showWhenEmpty: { type: 'boolean', label: 'Mostrar quando vazio', defaultValue: true },
-      ctaLabel: { type: 'string', label: 'Texto do CTA', defaultValue: 'Configurar ofertas' },
-      ctaHref: { type: 'string', label: 'Link do CTA', defaultValue: '/offers' },
-    },
-    canHaveChildren: false,
-  },
+  // NOTE: OrderBumpSlot was REMOVED - duplicated logic with CheckoutContent's internal OrderBumpSection
+  // Order Bump is now handled ONLY internally by Checkout block, controlled by showOrderBump toggle
   {
     type: 'UpsellSlot',
     label: 'Oferta Pós-Compra',
