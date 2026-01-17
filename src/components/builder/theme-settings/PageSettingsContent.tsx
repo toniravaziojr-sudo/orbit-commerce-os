@@ -668,7 +668,7 @@ export function PageSettingsContent({
       if (error) throw error;
       return newSettings;
     },
-    onSuccess: (newSettings) => {
+    onSuccess: async (newSettings) => {
       // Invalidate ALL relevant queries so builder blocks refresh immediately
       queryClient.invalidateQueries({ queryKey: ['page-overrides', tenantId, pageType] });
       queryClient.invalidateQueries({ queryKey: ['cart-page-settings', tenantId] });
@@ -692,6 +692,49 @@ export function PageSettingsContent({
       } else if (pageType === 'cart') {
         queryClient.invalidateQueries({ queryKey: ['cart-settings-builder', tenantId, effectiveTemplateSetId] });
         queryClient.setQueryData(['cart-settings-builder', tenantId, effectiveTemplateSetId], newSettings);
+        
+        // SYNC BANNER SETTINGS TO store_settings.cart_config for public storefront
+        // This ensures banner changes in builder are immediately visible in public cart
+        const bannerKeys = ['bannerDesktopEnabled', 'bannerDesktopUrl', 'bannerMobileEnabled', 'bannerMobileUrl', 'bannerLink', 'bannerDisplay'];
+        const hasBannerChange = bannerKeys.some(key => key in newSettings);
+        
+        if (hasBannerChange) {
+          try {
+            const { data: storeSettings } = await supabase
+              .from('store_settings')
+              .select('id, cart_config')
+              .eq('tenant_id', tenantId)
+              .maybeSingle();
+            
+            const currentCartConfig = (storeSettings?.cart_config as Record<string, unknown>) || {};
+            const updatedCartConfig = {
+              ...currentCartConfig,
+              bannerDesktopEnabled: newSettings.bannerDesktopEnabled ?? currentCartConfig.bannerDesktopEnabled,
+              bannerDesktopUrl: newSettings.bannerDesktopUrl ?? currentCartConfig.bannerDesktopUrl,
+              bannerMobileEnabled: newSettings.bannerMobileEnabled ?? currentCartConfig.bannerMobileEnabled,
+              bannerMobileUrl: newSettings.bannerMobileUrl ?? currentCartConfig.bannerMobileUrl,
+              bannerLink: newSettings.bannerLink ?? currentCartConfig.bannerLink,
+              bannerDisplay: newSettings.bannerDisplay ?? currentCartConfig.bannerDisplay ?? 'cart_page',
+            };
+            
+            if (storeSettings?.id) {
+              await supabase
+                .from('store_settings')
+                .update({ cart_config: updatedCartConfig as unknown as Json })
+                .eq('id', storeSettings.id);
+            } else {
+              await supabase
+                .from('store_settings')
+                .insert({ tenant_id: tenantId, cart_config: updatedCartConfig as unknown as Json });
+            }
+            
+            // Invalidate storefront config to reflect changes immediately
+            queryClient.invalidateQueries({ queryKey: ['storefront-config', tenantId] });
+            console.log('[PageSettingsContent] Synced banner settings to store_settings.cart_config');
+          } catch (err) {
+            console.error('[PageSettingsContent] Failed to sync banner settings:', err);
+          }
+        }
       } else if (pageType === 'checkout') {
         queryClient.invalidateQueries({ queryKey: ['checkout-settings-builder', tenantId, effectiveTemplateSetId] });
         queryClient.setQueryData(['checkout-settings-builder', tenantId, effectiveTemplateSetId], newSettings);

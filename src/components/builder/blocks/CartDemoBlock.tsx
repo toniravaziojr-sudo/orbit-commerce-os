@@ -34,6 +34,7 @@ interface CartDemoBlockProps {
   showCouponField?: boolean;
   showTrustBadges?: boolean;
   showShippingCalculator?: boolean;
+  showPromoBanner?: boolean;
   // Textos editáveis
   title?: string;
   checkoutButtonText?: string;
@@ -88,6 +89,7 @@ export function CartDemoBlock({
   showCouponField = true,
   showTrustBadges = true,
   showShippingCalculator = true,
+  showPromoBanner = true,
   title = 'Carrinho de Compras',
   checkoutButtonText = 'Finalizar Compra',
   continueShoppingText = 'Continuar Comprando',
@@ -112,6 +114,22 @@ export function CartDemoBlock({
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {/* Promo Banner Demo */}
+      {showPromoBanner && (
+        <div className="mb-6 bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 rounded-lg p-4 flex items-center justify-center gap-3">
+          <Tag className="h-5 w-5 text-primary" />
+          <span className="text-sm font-medium text-foreground">
+            [Banner promocional será exibido aqui quando configurado]
+          </span>
+          {isEditing && (
+            <Badge variant="outline" className="ml-2 text-xs">
+              <Settings className="h-3 w-3 mr-1" />
+              Configurar em Páginas → Carrinho
+            </Badge>
+          )}
+        </div>
+      )}
+      
       <div className="flex items-center gap-3 mb-8">
         <ShoppingCart className="h-8 w-8 text-primary" />
         <h1 className="text-2xl font-bold">{title}</h1>

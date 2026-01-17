@@ -1213,6 +1213,7 @@ function CartBlock({ isEditing, context, showCrossSell, showCouponField, showTru
         showCouponField={effectiveShowCoupon}
         showShippingCalculator={effectiveShowShipping}
         showTrustBadges={effectiveShowTrustBadges}
+        showPromoBanner={effectiveShowPromoBanner}
         isEditing 
       />
     );
