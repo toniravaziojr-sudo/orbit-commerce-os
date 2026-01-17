@@ -193,8 +193,8 @@ export function MiniCartDrawer({
         >
           Iniciar Compra
         </Button>
-        {/* "Ir para Carrinho" button - Conditional based on cart_config */}
-        {cartConfig.showGoToCartButton && (
+        {/* "Ir para Carrinho" button - only shown when cartActionType is 'goToCart' */}
+        {cartConfig.cartActionType === 'goToCart' && (
           <Button
             variant="outline"
             onClick={handleGoToCart}

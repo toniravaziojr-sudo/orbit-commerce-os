@@ -68,9 +68,14 @@ export interface ThemeFooterConfig {
   footerTitlesColor?: string;
 }
 
+// Cart action type: what happens when user clicks "Add to cart"
+export type CartActionType = 'miniCart' | 'goToCart' | 'none';
+
 export interface ThemeMiniCartConfig {
-  miniCartEnabled: boolean;
-  showGoToCartButton: boolean;
+  // Unified cart action: 'miniCart' (opens drawer), 'goToCart' (redirects), 'none' (just feedback)
+  cartActionType: CartActionType;
+  // Show add to cart button - required when cartActionType is not 'none'
+  showAddToCartButton: boolean;
   showCrossSell: boolean;
   showCoupon: boolean;
   showShippingCalculator: boolean;
@@ -141,8 +146,8 @@ export const DEFAULT_THEME_FOOTER: ThemeFooterConfig = {
 };
 
 export const DEFAULT_THEME_MINI_CART: ThemeMiniCartConfig = {
-  miniCartEnabled: true,
-  showGoToCartButton: true,
+  cartActionType: 'miniCart', // Default: opens mini-cart drawer
+  showAddToCartButton: true,
   showCrossSell: true,
   showCoupon: true,
   showShippingCalculator: true,
@@ -583,16 +588,18 @@ async function migrateLegacySettings(tenantId: string): Promise<ThemeSettings | 
         ? { ...DEFAULT_THEME_FOOTER, ...((globalLayout.footer_config as unknown as BlockNode)?.props || {}) } as ThemeFooterConfig
         : DEFAULT_THEME_FOOTER,
       miniCart: storeSettings?.cart_config
-        ? {
+        ? ({
             ...DEFAULT_THEME_MINI_CART,
-            miniCartEnabled: (storeSettings.cart_config as Record<string, unknown>).miniCartEnabled as boolean ?? true,
-            showGoToCartButton: (storeSettings.cart_config as Record<string, unknown>).showGoToCartButton as boolean ?? true,
+            // Migrate from legacy: if miniCartEnabled was false, set to 'none'
+            cartActionType: ((storeSettings.cart_config as Record<string, unknown>).miniCartEnabled as boolean ?? true) 
+              ? 'miniCart' 
+              : 'none',
+            showAddToCartButton: true,
             showCrossSell: (storeSettings.cart_config as Record<string, unknown>).miniCartShowCrossSell as boolean ?? true,
             showCoupon: (storeSettings.cart_config as Record<string, unknown>).miniCartShowCoupon as boolean ?? true,
             showShippingCalculator: (storeSettings.cart_config as Record<string, unknown>).miniCartShowShipping as boolean ?? true,
             showFreeShippingProgress: (storeSettings.cart_config as Record<string, unknown>).miniCartShowFreeShippingProgress as boolean ?? true,
-            // freeShippingThreshold removed - now comes from benefit_config
-          }
+          } as ThemeMiniCartConfig)
         : DEFAULT_THEME_MINI_CART,
       pageSettings: DEFAULT_PAGE_SETTINGS,
     };
