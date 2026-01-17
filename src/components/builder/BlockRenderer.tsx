@@ -721,6 +721,7 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
   const buyNowButtonText = productSettings.buyNowButtonText || 'Comprar agora';
   const showBadges = productSettings.showBadges ?? true;
   const showAdditionalHighlight = productSettings.showAdditionalHighlight ?? false;
+  const showShippingCalculator = productSettings.showShippingCalculator ?? true;
   const additionalHighlightImagesMobile = productSettings.additionalHighlightImagesMobile || [];
   const additionalHighlightImagesDesktop = productSettings.additionalHighlightImagesDesktop || [];
   // Fallback para compatibilidade com dados antigos
@@ -1067,10 +1068,12 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
           />
           
           {/* 13. Calculadora de frete */}
-          <ShippingCalculator 
-            productId={product?.id}
-            isEditing={isEditing && !isInteractMode}
-          />
+          {showShippingCalculator && (
+            <ShippingCalculator 
+              productId={product?.id}
+              isEditing={isEditing && !isInteractMode}
+            />
+          )}
           
           {/* 14. Destaque adicional (imagens) - separado mobile/desktop */}
           {showAdditionalHighlight && (

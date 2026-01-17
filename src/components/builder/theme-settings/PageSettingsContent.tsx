@@ -726,6 +726,7 @@ function getSettingsConfig(pageType: string): SettingConfig[] {
       { key: 'showDescription', label: 'Mostrar Descrição', description: 'Descrição curta do produto', defaultValue: true },
       { key: 'showVariants', label: 'Mostrar variações', defaultValue: true },
       { key: 'showStock', label: 'Mostrar Estoque', defaultValue: true },
+      { key: 'showShippingCalculator', label: 'Calculadora de frete', description: 'Cálculo de frete por CEP', defaultValue: true },
       { key: 'showRelatedProducts', label: 'Mostrar Produtos Relacionados', defaultValue: true },
       { key: 'showBuyTogether', label: 'Mostrar Compre Junto', defaultValue: true },
       { key: 'showReviews', label: 'Mostrar Avaliações', defaultValue: true },

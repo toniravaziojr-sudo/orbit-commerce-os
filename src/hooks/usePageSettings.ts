@@ -52,6 +52,7 @@ export interface ProductSettings {
   showBadges?: boolean;             // Mostrar selos (do Aumentar Ticket)
   showAdditionalHighlight?: boolean; // Destaque adicional (imagens)
   additionalHighlightImages?: string[]; // URLs das imagens do destaque adicional (máx 3)
+  showShippingCalculator?: boolean; // Calculadora de frete
 }
 
 export interface CartSettings {
@@ -129,6 +130,7 @@ export const DEFAULT_PRODUCT_SETTINGS: ProductSettings = {
   showBadges: true,
   showAdditionalHighlight: false,
   additionalHighlightImages: [],
+  showShippingCalculator: true,
 };
 
 export const DEFAULT_CART_SETTINGS: CartSettings = {
