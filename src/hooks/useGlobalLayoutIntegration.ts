@@ -87,8 +87,9 @@ const DUPLICATE_BLOCKS_BY_PAGE_TYPE: Record<string, string[]> = {
   product: ['CompreJuntoSlot', 'ProductGrid'],
   // CartContent renderiza CrossSellSection internamente (crossSellEnabled)
   cart: ['CrossSellSlot'],
-  // CheckoutContent renderiza OrderBumpSection internamente (orderBumpEnabled)
-  checkout: ['OrderBumpSlot'],
+  // CheckoutContent renderiza OrderBumpSection internamente (orderBumpEnabled via toggle)
+  // OrderBumpSlot removed - handled internally by Checkout block
+  checkout: [],
   // ThankYouContent renderiza UpsellSection internamente
   thank_you: ['UpsellSlot'],
   obrigado: ['UpsellSlot'], // Alias
