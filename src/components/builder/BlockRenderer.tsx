@@ -697,12 +697,18 @@ function ProductCardBlock({ productId, showPrice = true, showButton = true, isEd
 function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractMode }: any) {
   const productSettings = context?.productSettings || {};
   
+  // Theme settings for mini-cart (unified cart action config)
+  const themeSettings = context?.themeSettings || {};
+  const miniCartConfig = themeSettings.miniCart || {};
+  const cartActionType = miniCartConfig.cartActionType ?? 'miniCart';
+  
   // Debug log for settings sync
   React.useEffect(() => {
     if (isEditing) {
       console.log('[ProductDetailsBlock] productSettings updated:', productSettings);
+      console.log('[ProductDetailsBlock] miniCartConfig:', miniCartConfig);
     }
-  }, [productSettings, isEditing]);
+  }, [productSettings, miniCartConfig, isEditing]);
   
   // Toggles conforme REGRAS.md (apenas os 12 listados)
   // IMPORTANTE: Usar DEFAULT_PRODUCT_SETTINGS para valores não definidos
@@ -714,10 +720,13 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
   const showReviews = productSettings.showReviews ?? true;
   const showBuyTogether = productSettings.showBuyTogether ?? true;
   const showRelatedProducts = productSettings.showRelatedProducts ?? true;
-  const openMiniCartOnAdd = productSettings.openMiniCartOnAdd ?? true;
+  
+  // Cart action settings come from theme settings (miniCart config)
+  const openMiniCartOnAdd = cartActionType === 'miniCart';
+  const showAddToCartButton = miniCartConfig.showAddToCartButton ?? true;
+  
   const showFloatingCart = productSettings.showFloatingCart ?? true;
   const showWhatsAppButton = productSettings.showWhatsAppButton ?? true;
-  const showAddToCartButton = productSettings.showAddToCartButton ?? true;
   const buyNowButtonText = productSettings.buyNowButtonText || 'Comprar agora';
   const showBadges = productSettings.showBadges ?? true;
   const showAdditionalHighlight = productSettings.showAdditionalHighlight ?? false;
@@ -727,8 +736,8 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
   // Fallback para compatibilidade com dados antigos
   const additionalHighlightImages = productSettings.additionalHighlightImages || [];
   
-  // Theme settings for mini-cart (não é toggle da página, é do tema)
-  const miniCartEnabled = context?.themeSettings?.miniCartEnabled !== false;
+  // Mini-cart enabled based on cart action type
+  const miniCartEnabled = cartActionType === 'miniCart';
   
   const [selectedImageIndex, setSelectedImageIndex] = React.useState(0);
   const [miniCartOpen, setMiniCartOpen] = React.useState(false);
