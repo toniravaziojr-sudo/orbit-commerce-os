@@ -20,7 +20,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Settings2, Info } from 'lucide-react';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Settings2, Info, ShoppingCart } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Re-exportar interface da fonte única de verdade
@@ -284,51 +285,82 @@ export function ProductSettingsPanel({
               {/* Divider */}
               <hr className="my-2" />
 
-              {/* Abrir carrinho suspenso */}
-              <div className="space-y-2">
+              {/* Ação do carrinho - Nova UI unificada */}
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <Label htmlFor="openMiniCartOnAdd" className="text-sm">
-                      Abrir carrinho suspenso ao adicionar
+                    <Label className="text-sm flex items-center gap-1.5">
+                      <ShoppingCart className="h-3.5 w-3.5" />
+                      Ação do carrinho
                     </Label>
-                    <p className="text-xs text-muted-foreground">Abre o mini-carrinho lateral</p>
+                    <p className="text-xs text-muted-foreground">O que acontece ao adicionar produto</p>
                   </div>
                   <Switch
-                    id="openMiniCartOnAdd"
-                    checked={settings.openMiniCartOnAdd ?? true}
-                    onCheckedChange={(checked) => handleChange('openMiniCartOnAdd', checked)}
+                    checked={(settings.cartActionType ?? 'miniCart') !== 'none'}
+                    onCheckedChange={(checked) => {
+                      const newType: 'miniCart' | 'none' = checked ? 'miniCart' : 'none';
+                      const newSettings: ProductSettings = { 
+                        ...settings, 
+                        cartActionType: newType,
+                        // Sincronizar com legacy fields
+                        openMiniCartOnAdd: newType === 'miniCart',
+                        showFloatingCart: false,
+                        // Forçar showAddToCartButton quando ação está ativa
+                        showAddToCartButton: checked ? true : settings.showAddToCartButton,
+                      };
+                      onChange(newSettings);
+                      saveMutation.mutate(newSettings);
+                    }}
                   />
                 </div>
+
+                {/* Radio buttons para escolher tipo - só mostra quando ativo */}
+                {(settings.cartActionType ?? 'miniCart') !== 'none' && (
+                  <RadioGroup
+                    value={settings.cartActionType === 'goToCart' ? 'goToCart' : 'miniCart'}
+                    onValueChange={(value: 'miniCart' | 'goToCart') => {
+                      const newSettings = {
+                        ...settings,
+                        cartActionType: value,
+                        openMiniCartOnAdd: value === 'miniCart',
+                        showFloatingCart: value === 'goToCart',
+                      };
+                      onChange(newSettings);
+                      saveMutation.mutate(newSettings);
+                      if (value === 'miniCart') {
+                        setShowCartPreviewNotice('miniCart');
+                        onPreviewCart?.('miniCart');
+                      }
+                    }}
+                    className="grid grid-cols-2 gap-2"
+                  >
+                    <div className="flex items-center space-x-2 border rounded-md p-2 cursor-pointer hover:bg-muted/50">
+                      <RadioGroupItem value="miniCart" id="cart-miniCart" />
+                      <Label htmlFor="cart-miniCart" className="text-xs cursor-pointer flex-1">
+                        Carrinho suspenso
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2 border rounded-md p-2 cursor-pointer hover:bg-muted/50">
+                      <RadioGroupItem value="goToCart" id="cart-goToCart" />
+                      <Label htmlFor="cart-goToCart" className="text-xs cursor-pointer flex-1">
+                        Ir para carrinho
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                )}
+
+                {/* Nota quando desativado */}
+                {(settings.cartActionType ?? 'miniCart') === 'none' && (
+                  <p className="text-xs text-muted-foreground italic">
+                    Desativado: o botão apenas mostrará "Adicionado" ao clicar.
+                  </p>
+                )}
+
                 {showCartPreviewNotice === 'miniCart' && (
                   <Alert className="bg-blue-500/10 border-blue-500/30">
                     <Info className="h-4 w-4 text-blue-500" />
                     <AlertDescription className="text-xs text-blue-700 dark:text-blue-300">
-                      Prévia ativada por 5 segundos. As configurações do carrinho suspenso estão em <strong>Configurações do tema</strong>.
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </div>
-
-              {/* Carrinho rápido (popup flutuante) */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="showFloatingCart" className="text-sm">
-                      Botão "Ir para Carrinho"
-                    </Label>
-                    <p className="text-xs text-muted-foreground">Link para página completa do carrinho</p>
-                  </div>
-                  <Switch
-                    id="showFloatingCart"
-                    checked={settings.showFloatingCart ?? true}
-                    onCheckedChange={(checked) => handleChange('showFloatingCart', checked)}
-                  />
-                </div>
-                {showCartPreviewNotice === 'floatingCart' && (
-                  <Alert className="bg-blue-500/10 border-blue-500/30">
-                    <Info className="h-4 w-4 text-blue-500" />
-                    <AlertDescription className="text-xs text-blue-700 dark:text-blue-300">
-                      Prévia ativada por 5 segundos. As configurações do carrinho são feitas em <strong>Configurações do tema</strong>.
+                      Prévia ativada. Configurações do carrinho suspenso em <strong>Configurações do tema</strong>.
                     </AlertDescription>
                   </Alert>
                 )}
@@ -349,14 +381,20 @@ export function ProductSettingsPanel({
                 />
               </div>
 
-              {/* Mostrar botão Adicionar ao carrinho */}
+              {/* Mostrar botão Adicionar ao carrinho - desabilitado quando ação do carrinho está ativa */}
               <div className="flex items-center justify-between">
-                <Label htmlFor="showAddToCartButton" className="text-sm">
-                  Mostrar Adicionar ao carrinho
-                </Label>
+                <div>
+                  <Label htmlFor="showAddToCartButton" className="text-sm">
+                    Mostrar Adicionar ao carrinho
+                  </Label>
+                  {(settings.cartActionType ?? 'miniCart') !== 'none' && (
+                    <p className="text-xs text-muted-foreground">Obrigatório quando ação do carrinho está ativa</p>
+                  )}
+                </div>
                 <Switch
                   id="showAddToCartButton"
                   checked={settings.showAddToCartButton ?? true}
+                  disabled={(settings.cartActionType ?? 'miniCart') !== 'none'}
                   onCheckedChange={(checked) => handleChange('showAddToCartButton', checked)}
                 />
               </div>

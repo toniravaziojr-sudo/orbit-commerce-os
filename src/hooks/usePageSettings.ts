@@ -43,9 +43,12 @@ export interface ProductSettings {
   showRelatedProducts?: boolean;
   showBuyTogether?: boolean;
   showReviews?: boolean;
+  // Nova lógica de "Ação do carrinho" (substitui openMiniCartOnAdd e showFloatingCart)
+  cartActionType?: 'miniCart' | 'goToCart' | 'none';
+  // Legacy fields (mantidos para compatibilidade)
   openMiniCartOnAdd?: boolean;
+  showFloatingCart?: boolean;
   // Conforme REGRAS.md
-  showFloatingCart?: boolean;       // Carrinho rápido (popup flutuante)
   showWhatsAppButton?: boolean;     // Mostrar botão WhatsApp
   showAddToCartButton?: boolean;    // Mostrar botão Adicionar ao carrinho
   buyNowButtonText?: string;        // Texto do botão principal
@@ -122,8 +125,11 @@ export const DEFAULT_PRODUCT_SETTINGS: ProductSettings = {
   showRelatedProducts: true,
   showBuyTogether: true,
   showReviews: true,
+  // Nova lógica: default é miniCart
+  cartActionType: 'miniCart',
+  // Legacy fields para compatibilidade
   openMiniCartOnAdd: true,
-  showFloatingCart: true,
+  showFloatingCart: false,
   showWhatsAppButton: true,
   showAddToCartButton: true,
   buyNowButtonText: 'Comprar agora',
