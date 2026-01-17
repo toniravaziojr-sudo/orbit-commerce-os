@@ -44,10 +44,26 @@ export function CompreJuntoSlotBlock({
   ctaHref = '/offers',
   isEditing = false,
   currentProduct,
-}: CompreJuntoSlotBlockProps) {
+  context,
+}: CompreJuntoSlotBlockProps & { context?: any }) {
   const tenantSlug = useTenantSlug();
   const { addItem } = useCart();
   const [isAdding, setIsAdding] = useState(false);
+
+  // REGRAS.md: Na página de produto, ProductDetailsBlock já renderiza via ProductPageSections
+  // Este bloco standalone deve retornar null para evitar duplicação
+  const pageType = context?.pageType;
+  if (pageType === 'product') {
+    if (isEditing) {
+      return (
+        <div className="p-4 bg-muted/30 rounded-lg text-center text-muted-foreground text-sm border border-dashed">
+          <p>⚠️ Este bloco é controlado pelas <strong>Configurações da página</strong></p>
+          <p className="text-xs mt-1">Use o toggle "Mostrar Compre Junto" no menu lateral</p>
+        </div>
+      );
+    }
+    return null;
+  }
 
   // Fetch buy together rules for this product
   const { data: rule, isLoading } = useQuery({

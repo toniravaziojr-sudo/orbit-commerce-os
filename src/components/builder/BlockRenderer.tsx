@@ -483,11 +483,11 @@ function getBlockComponent(type: string): React.ComponentType<any> {
     ImageGallery: ImageGalleryBlockWrapper,
     AccordionBlock: AccordionBlockBlockWrapper,
     
-    // Offer Slot Blocks
-    CompreJuntoSlot: (props: any) => <CompreJuntoSlotBlock {...props} isEditing={props.isEditing} />,
-    CrossSellSlot: (props: any) => <CrossSellSlotBlock {...props} isEditing={props.isEditing} />,
-    OrderBumpSlot: (props: any) => <OrderBumpSlotBlock {...props} isEditing={props.isEditing} />,
-    UpsellSlot: (props: any) => <UpsellSlotBlock {...props} isEditing={props.isEditing} />,
+    // Offer Slot Blocks - passam context para detectar pageType e evitar duplicação
+    CompreJuntoSlot: (props: any) => <CompreJuntoSlotBlock {...props} isEditing={props.isEditing} context={props.context} />,
+    CrossSellSlot: (props: any) => <CrossSellSlotBlock {...props} isEditing={props.isEditing} context={props.context} />,
+    OrderBumpSlot: (props: any) => <OrderBumpSlotBlock {...props} isEditing={props.isEditing} context={props.context} />,
+    UpsellSlot: (props: any) => <UpsellSlotBlock {...props} isEditing={props.isEditing} context={props.context} />,
   };
 
   return components[type] || FallbackBlock;
@@ -721,6 +721,9 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
   const buyNowButtonText = productSettings.buyNowButtonText || 'Comprar agora';
   const showBadges = productSettings.showBadges ?? true;
   const showAdditionalHighlight = productSettings.showAdditionalHighlight ?? false;
+  const additionalHighlightImagesMobile = productSettings.additionalHighlightImagesMobile || [];
+  const additionalHighlightImagesDesktop = productSettings.additionalHighlightImagesDesktop || [];
+  // Fallback para compatibilidade com dados antigos
   const additionalHighlightImages = productSettings.additionalHighlightImages || [];
   
   // Theme settings for mini-cart (não é toggle da página, é do tema)
@@ -1069,9 +1072,17 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
             isEditing={isEditing && !isInteractMode}
           />
           
-          {/* 14. Destaque adicional (imagens) */}
-          {showAdditionalHighlight && additionalHighlightImages.length > 0 && (
-            <AdditionalHighlight images={additionalHighlightImages} />
+          {/* 14. Destaque adicional (imagens) - separado mobile/desktop */}
+          {showAdditionalHighlight && (
+            additionalHighlightImagesMobile.length > 0 || 
+            additionalHighlightImagesDesktop.length > 0 || 
+            additionalHighlightImages.length > 0
+          ) && (
+            <AdditionalHighlight 
+              mobileImages={additionalHighlightImagesMobile.length > 0 ? additionalHighlightImagesMobile : additionalHighlightImages}
+              desktopImages={additionalHighlightImagesDesktop.length > 0 ? additionalHighlightImagesDesktop : additionalHighlightImages}
+              isMobileView={isMobileView}
+            />
           )}
         </div>
       </div>
