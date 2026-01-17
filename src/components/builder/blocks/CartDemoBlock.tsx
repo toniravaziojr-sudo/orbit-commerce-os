@@ -35,6 +35,10 @@ interface CartDemoBlockProps {
   showTrustBadges?: boolean;
   showShippingCalculator?: boolean;
   showPromoBanner?: boolean;
+  // Banner props - URLs e configurações reais
+  bannerDesktopUrl?: string | null;
+  bannerMobileUrl?: string | null;
+  bannerLink?: string | null;
   // Textos editáveis
   title?: string;
   checkoutButtonText?: string;
@@ -90,6 +94,9 @@ export function CartDemoBlock({
   showTrustBadges = true,
   showShippingCalculator = true,
   showPromoBanner = true,
+  bannerDesktopUrl,
+  bannerMobileUrl,
+  bannerLink,
   title = 'Carrinho de Compras',
   checkoutButtonText = 'Finalizar Compra',
   continueShoppingText = 'Continuar Comprando',
@@ -114,18 +121,56 @@ export function CartDemoBlock({
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* Promo Banner Demo */}
-      {showPromoBanner && (
-        <div className="mb-6 bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 rounded-lg p-4 flex items-center justify-center gap-3">
-          <Tag className="h-5 w-5 text-primary" />
-          <span className="text-sm font-medium text-foreground">
-            [Banner promocional será exibido aqui quando configurado]
-          </span>
-          {isEditing && (
-            <Badge variant="outline" className="ml-2 text-xs">
-              <Settings className="h-3 w-3 mr-1" />
-              Configurar em Páginas → Carrinho
-            </Badge>
+      {/* Promo Banner - exibe imagem real se configurada */}
+      {showPromoBanner && (bannerDesktopUrl || bannerMobileUrl) && (
+        <div className="mb-6">
+          {bannerLink ? (
+            <a 
+              href={bannerLink} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="block hover:opacity-90 transition-opacity"
+            >
+              {/* Mobile banner */}
+              {bannerMobileUrl && (
+                <img
+                  src={bannerMobileUrl}
+                  alt="Promoção"
+                  className="w-full h-auto object-cover rounded-lg sf-hidden sf-block-mobile"
+                  loading="lazy"
+                />
+              )}
+              {/* Desktop banner */}
+              {bannerDesktopUrl && (
+                <img
+                  src={bannerDesktopUrl}
+                  alt="Promoção"
+                  className="w-full h-auto object-cover rounded-lg sf-block sf-hidden-mobile"
+                  loading="lazy"
+                />
+              )}
+            </a>
+          ) : (
+            <>
+              {/* Mobile banner */}
+              {bannerMobileUrl && (
+                <img
+                  src={bannerMobileUrl}
+                  alt="Promoção"
+                  className="w-full h-auto object-cover rounded-lg sf-hidden sf-block-mobile"
+                  loading="lazy"
+                />
+              )}
+              {/* Desktop banner */}
+              {bannerDesktopUrl && (
+                <img
+                  src={bannerDesktopUrl}
+                  alt="Promoção"
+                  className="w-full h-auto object-cover rounded-lg sf-block sf-hidden-mobile"
+                  loading="lazy"
+                />
+              )}
+            </>
           )}
         </div>
       )}
