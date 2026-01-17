@@ -7983,6 +7983,83 @@ export type Database = {
           },
         ]
       }
+      product_variant_type_options: {
+        Row: {
+          created_at: string
+          id: string
+          sort_order: number | null
+          tenant_id: string
+          value: string
+          variant_type_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          sort_order?: number | null
+          tenant_id: string
+          value: string
+          variant_type_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          sort_order?: number | null
+          tenant_id?: string
+          value?: string
+          variant_type_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_variant_type_options_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_variant_type_options_variant_type_id_fkey"
+            columns: ["variant_type_id"]
+            isOneToOne: false
+            referencedRelation: "product_variant_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_variant_types: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          sort_order: number | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          sort_order?: number | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          sort_order?: number | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_variant_types_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_variants: {
         Row: {
           barcode: string | null
