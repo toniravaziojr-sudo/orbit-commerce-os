@@ -161,13 +161,19 @@ Este documento é a **FONTE ÚNICA DE VERDADE** para todas as especificações f
 | `showDescription` | boolean | true | Exibe descrição curta |
 | `showVariants` | boolean | true | Exibe seletor de variantes |
 | `showStock` | boolean | true | Exibe quantidade em estoque |
-| `showRelatedProducts` | boolean | true | Exibe grid de produtos relacionados |
-| `showBuyTogether` | boolean | true | Exibe seção "Compre Junto" |
 | `showReviews` | boolean | true | Exibe avaliações e formulário |
-| `showAddToCartButton` | boolean | true | Exibe botão adicionar ao carrinho |
-| `showWhatsAppButton` | boolean | true | Exibe botão comprar pelo WhatsApp |
+| `showBuyTogether` | boolean | true | Exibe seção "Compre Junto" |
+| `showRelatedProducts` | boolean | true | Exibe grid de produtos relacionados |
+| `showWhatsAppButton` | boolean | true | Exibe botão "Comprar pelo WhatsApp" |
+| `showAddToCartButton` | boolean | true | Exibe botão "Adicionar ao carrinho" |
+| `showBadges` | boolean | true | Exibe selos do produto (Novo, Mais Vendido, etc) |
+| `showShippingCalculator` | boolean | true | Exibe calculadora de frete |
+| `showAdditionalHighlight` | boolean | false | Exibe banners de destaque adicional |
+| `showFloatingCart` | boolean | true | Exibe popup de carrinho rápido |
 | `buyNowButtonText` | string | "Comprar agora" | Texto do botão principal |
-| `openMiniCartOnAdd` | boolean | true | Abre mini-cart ao adicionar |
+| `cartActionType` | CartActionType | "miniCart" | Ação ao clicar em "Adicionar ao carrinho" |
+| `additionalHighlightImagesMobile` | string[] | [] | URLs de imagens mobile (até 3) |
+| `additionalHighlightImagesDesktop` | string[] | [] | URLs de imagens desktop (até 3) |
 
 #### Carrinho (CartSettings)
 
@@ -307,26 +313,78 @@ const handleAddToCart = (product: Product, e: React.MouseEvent) => {
 
 #### Produto
 
-**Estrutura básica:**
+**Estrutura visual (ordem fixa):**
 
-- Slot para imagem principal, slots menores para imagens secundárias até máximo 10 imagens, slots para selos, abaixo dele as 5 estrelas de referência das avaliações, abaixo das estrelas o nome do produto, abaixo do nome os valores, abaixo do valor destaque de pagamento ("bandeirinhas" com as formas de pagamento com destaque para pix com desconto), abaixo vem a descrição curta do produto, abaixo vem as opções de variações (se tiver ativa), depois botão para adicionar quantidade, ao lado o botão principal "Comprar agora", abaixo o botão de adicionar ao carrinho, abaixo o botão de comprar pelo whatsapp, abaixo a calculadora de frete, abaixo "bandeirinhas editáveis" para colocar informações de garantia, etc, abaixo vem o Compre junto (se estiver ativo), depois vem a parte da descrição completa, depois as avaliações do produto, depois os produtos relacionados.
+| Coluna Esquerda | Coluna Direita |
+|-----------------|----------------|
+| Imagem principal | Selos do produto (Novo, Mais Vendido, Frete Grátis, personalizados) |
+| Galeria secundária (até 10 imagens) | Estrelas de avaliação (média real) |
+| | Nome do produto |
+| | Preços (valor atual, comparativo riscado) |
+| | Bandeirinhas de pagamento (PIX com desconto, cartão, boleto, débito) |
+| | Descrição curta |
+| | Seletor de variantes (se houver) |
+| | Informação de estoque |
+| | Seletor de quantidade + Botão "Comprar agora" |
+| | Botão "Adicionar ao carrinho" |
+| | Botão "Comprar pelo WhatsApp" |
+| | Calculadora de frete |
+| | Destaques adicionais (até 3 banners) |
+| | Bandeirinhas de garantia |
 
-**Observação:** As informações dos produtos são puxadas do cadastro dos produtos, se o cliente não tiver produtos no cadastro, no builder vamos apenas exemplificar com "exemple name" valor simbolico, etc, somente para uma visalização do cliente de como vai ficar a página dos produtos dele, se ele tiver produtos cadastrados o sistema busca um produto real do cliente aleatório para exemplificar. Mesma lógica da página de categoria.
+**Seções abaixo do produto (ordem fixa):**
 
-**Funcionalidades:**
+1. **Compre Junto** (cross-sell) - configurado no menu Aumentar Ticket
+2. **Descrição completa** - texto HTML do cadastro do produto
+3. **Avaliações do produto** - reviews reais + formulário para nova avaliação
+4. **Produtos relacionados** - grid de produtos relacionados (ÚLTIMO, antes do footer)
 
-- Mostrar galeria (mostra ou esconde as imagens secundárias do cadastro do produto, a imagem principal nunca some)
-- Mostrar descrição (mostra ou esconde a descrição curta dos produtos, nunca esconde a descrição completa, a descrição curta é puxada do cadastro dos produtos)
-- Mostrar ou não as variantes (variações do produto, como cor, tamanho, etc, são puxadas do cadastro do produto)
-- Mostrar ou não o estoque (puxado do cadastro do produto)
-- Mostrar ou esconder produtos relacionados (grid de produtos relacionados também é cadastrada no cadastro dos produtos)
-- Mostrar ou esconder Compre junto (Configurado no menu Aumentar ticket)
-- Mostrar ou esconder avaliações (se desativada esconde todas as avaliações, inclusive o input para o cliente fazer uma avaliação)
-- Ativar ou desativar função de carrinho suspenso na página do produto (ao ativada se o cliente clicar no botão adicionar ao carrinho abre o carrinho suspenso, quando desativada simplesmente adiciona o produto ao carrinho e permanece na página do produto e o botão Adicionar ao carrinho fica bloqueado e muda para "Adicionado")
-- Ativar ou desativar Carrinho rápido (quando ativo funciona assim, se o cliente já tiver algum produto adicionado ao carrinho aparece um popup pequeno no canto inferior direito no formato do carrinho da loja e mostrando a quantidade de itens adicionados, se o cliente clicar ele vai para a página do carrinho com os produtos adicionados, quando a função está desativada não aparece esse popup)
-- Mostrar ou esconder botão "Comprar pelo whatsapp"
-- Mostrar ou esconder botão Adicionar ao carrinho
-- Campo personalizado para editar o nome do botão principal "Comprar agora"
+**Observação:** Se o cliente não tiver produtos cadastrados, o builder exibe dados de exemplo para visualização. Se tiver, busca um produto real aleatório para exemplificar.
+
+**Funcionalidades (13 toggles + 1 campo de texto + 1 seletor):**
+
+| Toggle | Default | Descrição |
+|--------|---------|-----------|
+| `showGallery` | true | Exibe/oculta imagens secundárias (principal sempre visível) |
+| `showDescription` | true | Exibe/oculta descrição curta (completa sempre visível) |
+| `showVariants` | true | Exibe/oculta seletor de variantes |
+| `showStock` | true | Exibe/oculta quantidade em estoque |
+| `showReviews` | true | Exibe/oculta avaliações e formulário de avaliação |
+| `showBuyTogether` | true | Exibe/oculta seção "Compre Junto" |
+| `showRelatedProducts` | true | Exibe/oculta grid de produtos relacionados |
+| `showWhatsAppButton` | true | Exibe/oculta botão "Comprar pelo WhatsApp" |
+| `showAddToCartButton` | true | Exibe/oculta botão "Adicionar ao carrinho" |
+| `showBadges` | true | Exibe/oculta selos do produto |
+| `showShippingCalculator` | true | Exibe/oculta calculadora de frete |
+| `showAdditionalHighlight` | false | Exibe/oculta banners de destaque adicional |
+| `showFloatingCart` | true | Exibe/oculta popup de carrinho rápido (canto inferior direito) |
+
+| Campo | Default | Descrição |
+|-------|---------|-----------|
+| `buyNowButtonText` | "Comprar agora" | Texto personalizável do botão principal |
+
+**Destaques Adicionais (configuração extra):**
+- `additionalHighlightImagesMobile`: Array de até 3 URLs de imagens para mobile
+- `additionalHighlightImagesDesktop`: Array de até 3 URLs de imagens para desktop
+
+**Ação do Carrinho (configuração unificada):**
+
+| Opção | Valor | Comportamento |
+|-------|-------|---------------|
+| Carrinho Suspenso | `miniCart` | Adiciona produto e abre drawer lateral do mini-cart |
+| Ir para Carrinho | `goToCart` | Adiciona produto e redireciona para `/cart` |
+| Desativado | `none` | Adiciona produto, exibe toast "Adicionado" e permanece na página |
+
+**Localização das configurações:** Configurações do tema → Páginas → Página do Produto
+
+**Regras de segurança:**
+- Se o produto possui variantes obrigatórias, os botões de compra ficam desabilitados até o cliente selecionar uma opção
+- Produto sem estoque (`stock_quantity <= 0` e `allow_backorder = false`) desabilita todos os botões de compra
+- No Builder, botões ficam desabilitados (exceto no modo "Interagir")
+
+**Tracking de marketing:**
+- `trackViewContent`: Disparado ao carregar a página do produto
+- `trackAddToCart`: Disparado ao adicionar produto ao carrinho
 
 ---
 
