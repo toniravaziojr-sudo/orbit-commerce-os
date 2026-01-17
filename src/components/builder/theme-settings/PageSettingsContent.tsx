@@ -53,19 +53,24 @@ import {
   DEFAULT_THANKYOU_SETTINGS,
 } from '@/hooks/usePageSettings';
 
-// Banner Upload Component with URL input and file upload
+// Banner Upload Component with automatic system upload
 function BannerUploadInput({ 
   configKey, 
   value, 
   onChange, 
-  dimensions 
+  dimensions,
+  tenantId,
+  userId,
 }: { 
   configKey: string; 
   value: string; 
   onChange: (url: string) => void;
   dimensions: string;
+  tenantId?: string;
+  userId?: string;
 }) {
   const [activeTab, setActiveTab] = useState<'url' | 'upload'>('url');
+  const [isUploading, setIsUploading] = useState(false);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -83,12 +88,38 @@ function BannerUploadInput({
       return;
     }
 
-    // Create object URL for preview (in production, upload to storage)
-    // For now, show toast with instructions to use Meu Drive
-    toast.info('Use o Meu Drive para fazer upload permanente da imagem, ou cole a URL abaixo.');
-    
-    // Switch to URL tab for manual entry
-    setActiveTab('url');
+    if (!tenantId || !userId) {
+      toast.error('Erro: tenant ou usuário não encontrado');
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      // Import dynamically to avoid circular deps
+      const { uploadAndRegisterToSystemDrive } = await import('@/lib/uploadAndRegisterToSystemDrive');
+      
+      const result = await uploadAndRegisterToSystemDrive({
+        tenantId,
+        userId,
+        file,
+        source: `page_banner_${configKey}`,
+        subPath: 'banners',
+      });
+
+      if (result?.publicUrl) {
+        onChange(result.publicUrl);
+        toast.success('Imagem enviada com sucesso!');
+        setActiveTab('url');
+      } else {
+        toast.error('Erro ao fazer upload da imagem');
+      }
+    } catch (err) {
+      console.error('Upload error:', err);
+      toast.error('Erro ao fazer upload da imagem');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -120,16 +151,19 @@ function BannerUploadInput({
             onChange={(e) => onChange(e.target.value)}
           />
           <p className="text-[10px] text-muted-foreground mt-1">
-            Cole a URL da imagem ou use o Meu Drive
+            Cole a URL da imagem
           </p>
         </TabsContent>
         
         <TabsContent value="upload" className="mt-2">
-          <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
+          <label className={cn(
+            "flex flex-col items-center justify-center w-full h-20 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors",
+            isUploading && "opacity-50 pointer-events-none"
+          )}>
             <div className="flex flex-col items-center justify-center pt-2 pb-3">
-              <Upload className="w-6 h-6 mb-1 text-muted-foreground" />
+              <Upload className={cn("w-6 h-6 mb-1 text-muted-foreground", isUploading && "animate-pulse")} />
               <p className="text-xs text-muted-foreground">
-                Clique para selecionar
+                {isUploading ? 'Enviando...' : 'Clique para selecionar'}
               </p>
               <p className="text-[10px] text-muted-foreground">
                 PNG, JPG ou WEBP (máx. 5MB)
@@ -140,10 +174,11 @@ function BannerUploadInput({
               className="hidden"
               accept="image/*"
               onChange={handleFileChange}
+              disabled={isUploading}
             />
           </label>
           <p className="text-[10px] text-muted-foreground mt-1 text-center">
-            💡 Para upload permanente, use o <strong>Meu Drive</strong> e cole a URL
+            📁 Upload automático para "Uploads do sistema"
           </p>
         </TabsContent>
       </Tabs>
@@ -440,6 +475,16 @@ export function PageSettingsContent({
   const [settings, setSettings] = useState<Record<string, boolean | string | string[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const [userId, setUserId] = useState<string | undefined>();
+  
+  // Get current user ID for uploads
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user?.id) {
+        setUserId(data.user.id);
+      }
+    });
+  }, []);
   
   // Cart action config from theme settings (for product page)
   const { 
@@ -749,6 +794,8 @@ export function PageSettingsContent({
                         value={String(settings[config.key.replace('Enabled', 'Url')] || '')}
                         onChange={(url) => handleChange(config.key.replace('Enabled', 'Url'), url)}
                         dimensions={config.key === 'bannerDesktopEnabled' ? '1920 x 250 px' : '768 x 200 px'}
+                        tenantId={tenantId}
+                        userId={userId}
                       />
                     )}
                     {/* Responsive image upload for Additional Highlight */}
