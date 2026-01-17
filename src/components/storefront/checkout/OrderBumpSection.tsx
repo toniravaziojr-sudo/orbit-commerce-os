@@ -1,16 +1,18 @@
 // =============================================
 // ORDER BUMP SECTION - Adds special offer to cart
+// UNIFICADO: Usa offer_rules via useActiveOfferRules
 // =============================================
 
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useOffers } from '@/contexts/StorefrontConfigContext';
+import { useActiveOfferRules, OfferRule } from '@/hooks/useOfferRules';
 import { useCart } from '@/contexts/CartContext';
+import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { supabase } from '@/integrations/supabase/client';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Gift } from 'lucide-react';
+import { Gift, Loader2 } from 'lucide-react';
 
 interface OrderBumpProduct {
   id: string;
@@ -26,19 +28,25 @@ interface OrderBumpSectionProps {
 }
 
 export function OrderBumpSection({ tenantId, disabled = false }: OrderBumpSectionProps) {
-  const { config, isLoading: configLoading } = useOffers();
+  const tenantSlug = useTenantSlug();
   const { items, addItem, removeItem } = useCart();
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
+  const [initialized, setInitialized] = useState(false);
 
-  const orderBumpConfig = config.orderBump;
+  // Fetch active order bump rules from offer_rules table
+  const { data: orderBumpRules = [], isLoading: rulesLoading } = useActiveOfferRules(
+    'order_bump',
+    tenantSlug || ''
+  );
 
-  // Get order bump products
-  const { data: products, isLoading } = useQuery({
-    queryKey: ['order-bump-products', tenantId, orderBumpConfig.productIds],
+  // Get the first active rule (highest priority)
+  const activeRule: OfferRule | undefined = orderBumpRules[0];
+
+  // Fetch products from the suggested_product_ids
+  const { data: products = [], isLoading: productsLoading } = useQuery({
+    queryKey: ['order-bump-products', tenantId, activeRule?.suggested_product_ids],
     queryFn: async () => {
-      if (!orderBumpConfig.enabled || orderBumpConfig.productIds.length === 0) {
-        return [];
-      }
+      if (!activeRule?.suggested_product_ids?.length) return [];
 
       const { data, error } = await supabase
         .from('products')
@@ -51,8 +59,8 @@ export function OrderBumpSection({ tenantId, disabled = false }: OrderBumpSectio
         `)
         .eq('tenant_id', tenantId)
         .eq('status', 'active')
-        .in('id', orderBumpConfig.productIds)
-        .limit(2);
+        .in('id', activeRule.suggested_product_ids)
+        .limit(activeRule.max_items || 2);
 
       if (error) throw error;
 
@@ -68,28 +76,47 @@ export function OrderBumpSection({ tenantId, disabled = false }: OrderBumpSectio
         })[0]?.url,
       })) as OrderBumpProduct[];
     },
-    enabled: !!tenantId && orderBumpConfig.enabled && orderBumpConfig.productIds.length > 0,
+    enabled: !!tenantId && !!activeRule?.suggested_product_ids?.length,
   });
 
-  // Sync checked state with cart on mount
+  const isLoading = rulesLoading || productsLoading;
+
+  // Calculate discounted price based on rule
+  const getDiscountedPrice = (product: OrderBumpProduct): number => {
+    if (!activeRule || activeRule.discount_type === 'none') {
+      return product.price;
+    }
+
+    if (activeRule.discount_type === 'percent') {
+      return product.price * (1 - activeRule.discount_value / 100);
+    }
+
+    if (activeRule.discount_type === 'fixed') {
+      return Math.max(0, product.price - activeRule.discount_value);
+    }
+
+    return product.price;
+  };
+
+  // Sync checked state with cart on mount and handle default_checked
   useEffect(() => {
-    if (!products) return;
-    
+    if (!products.length || initialized) return;
+
     const cartProductIds = new Set(items.map(i => i.product_id));
     const initialChecked = new Set<string>();
-    
+
     products.forEach(p => {
       if (cartProductIds.has(p.id)) {
         initialChecked.add(p.id);
       }
     });
-    
-    // Check by default if configured
-    if (orderBumpConfig.defaultChecked && initialChecked.size === 0) {
+
+    // Auto-add if default_checked is true and product not in cart
+    if (activeRule?.default_checked && initialChecked.size === 0) {
       products.forEach(p => {
         if (!cartProductIds.has(p.id)) {
           initialChecked.add(p.id);
-          const discountedPrice = p.price * (1 - orderBumpConfig.discountPercent / 100);
+          const discountedPrice = getDiscountedPrice(p);
           addItem({
             product_id: p.id,
             name: p.name,
@@ -101,16 +128,17 @@ export function OrderBumpSection({ tenantId, disabled = false }: OrderBumpSectio
         }
       });
     }
-    
+
     setCheckedItems(initialChecked);
-  }, [products]);
+    setInitialized(true);
+  }, [products, activeRule, initialized]);
 
   const handleToggle = (product: OrderBumpProduct, checked: boolean) => {
     const newChecked = new Set(checkedItems);
-    
+
     if (checked) {
       newChecked.add(product.id);
-      const discountedPrice = product.price * (1 - orderBumpConfig.discountPercent / 100);
+      const discountedPrice = getDiscountedPrice(product);
       addItem({
         product_id: product.id,
         name: product.name,
@@ -126,30 +154,51 @@ export function OrderBumpSection({ tenantId, disabled = false }: OrderBumpSectio
         removeItem(cartItem.id);
       }
     }
-    
+
     setCheckedItems(newChecked);
   };
 
-  if (configLoading || isLoading) return null;
-  if (!orderBumpConfig.enabled) return null;
-  if (!products || products.length === 0) return null;
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-4">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // No active rule or no products - don't render
+  if (!activeRule || products.length === 0) return null;
+
+  // Discount label for badge
+  const discountLabel = activeRule.discount_type === 'percent' && activeRule.discount_value > 0
+    ? `-${activeRule.discount_value}%`
+    : activeRule.discount_type === 'fixed' && activeRule.discount_value > 0
+    ? `-R$ ${activeRule.discount_value.toFixed(2)}`
+    : null;
 
   return (
     <div className="border-2 border-dashed border-primary/30 rounded-lg p-4 bg-primary/5">
       <div className="flex items-center gap-2 mb-3">
         <Gift className="h-5 w-5 text-primary" />
-        <h3 className="font-semibold">{orderBumpConfig.title}</h3>
+        <h3 className="font-semibold">{activeRule.title || 'Oferta Especial!'}</h3>
+        {discountLabel && (
+          <Badge variant="secondary" className="bg-green-100 text-green-700 text-xs ml-auto">
+            {discountLabel}
+          </Badge>
+        )}
       </div>
 
-      {orderBumpConfig.description && (
-        <p className="text-sm text-muted-foreground mb-4">{orderBumpConfig.description}</p>
+      {activeRule.description && (
+        <p className="text-sm text-muted-foreground mb-4">{activeRule.description}</p>
       )}
 
       <div className="space-y-3">
         {products.map(product => {
           const originalPrice = product.price;
-          const discountedPrice = originalPrice * (1 - orderBumpConfig.discountPercent / 100);
+          const discountedPrice = getDiscountedPrice(product);
           const isChecked = checkedItems.has(product.id);
+          const hasSavings = discountedPrice < originalPrice;
 
           return (
             <Label
@@ -163,11 +212,11 @@ export function OrderBumpSection({ tenantId, disabled = false }: OrderBumpSectio
                 onCheckedChange={(checked) => handleToggle(product, !!checked)}
                 disabled={disabled}
               />
-              
+
               <div className="w-12 h-12 bg-muted rounded-md overflow-hidden shrink-0">
                 {product.image_url ? (
-                  <img 
-                    src={product.image_url} 
+                  <img
+                    src={product.image_url}
                     alt={product.name}
                     className="w-full h-full object-cover"
                   />
@@ -184,12 +233,13 @@ export function OrderBumpSection({ tenantId, disabled = false }: OrderBumpSectio
                   <span className="font-semibold text-primary">
                     R$ {discountedPrice.toFixed(2).replace('.', ',')}
                   </span>
-                  <span className="text-sm text-muted-foreground line-through">
-                    R$ {originalPrice.toFixed(2).replace('.', ',')}
-                  </span>
-                  <Badge variant="secondary" className="bg-green-100 text-green-700 text-xs">
-                    -{orderBumpConfig.discountPercent}%
-                  </Badge>
+                  {hasSavings && (
+                    <>
+                      <span className="text-sm text-muted-foreground line-through">
+                        R$ {originalPrice.toFixed(2).replace('.', ',')}
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
             </Label>

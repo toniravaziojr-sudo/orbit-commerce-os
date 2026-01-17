@@ -388,10 +388,8 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
             />
           </div>
 
-          {/* Order bump */}
-          {checkoutConfig.orderBumpEnabled && (
-            <OrderBumpSection tenantId={tenantId} disabled={isProcessing} />
-          )}
+          {/* Order bump - auto-managed by offer_rules, renders only if rules exist */}
+          <OrderBumpSection tenantId={tenantId} disabled={isProcessing} />
           
           {/* Testimonials */}
           {checkoutConfig.testimonialsEnabled && (

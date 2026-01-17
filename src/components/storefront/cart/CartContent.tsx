@@ -83,10 +83,8 @@ export function CartContent({ tenantId }: CartContentProps) {
             </div>
           )}
 
-          {/* Cross-sell */}
-          {cartConfig.crossSellEnabled && (
-            <CrossSellSection tenantId={tenantId} />
-          )}
+          {/* Cross-sell - auto-managed by offer_rules, renders only if rules exist */}
+          <CrossSellSection tenantId={tenantId} />
         </div>
 
         {/* Sidebar - Order Summary */}
