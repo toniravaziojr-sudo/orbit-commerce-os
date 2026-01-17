@@ -1096,6 +1096,7 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
 
       {/* ===== SEÇÕES ABAIXO ===== */}
       {/* Ordem conforme REGRAS.md: Compre Junto → Descrição completa → Avaliações → Relacionados */}
+      {/* REGRAS.md L319: "nunca esconde a descrição completa" - showDescription controla apenas a descrição curta */}
       {product && (
         <ProductPageSections
           product={{
@@ -1109,7 +1110,7 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
           }}
           tenantSlug={tenantSlug}
           tenantId={context?.settings?.tenant_id}
-          showDescription={true} // Descrição completa sempre mostra (conforme regra)
+          showDescription={true}
           showBuyTogether={showBuyTogether}
           showReviews={showReviews}
           showRelatedProducts={showRelatedProducts}
