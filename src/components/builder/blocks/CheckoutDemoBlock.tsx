@@ -461,23 +461,6 @@ export function CheckoutDemoBlock({
                 {checkoutButtonText}
               </Button>
 
-              {/* Trust badges */}
-              {showTrustBadges && (
-                <div className="flex items-center justify-center gap-4 pt-4 border-t">
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Lock className="h-3 w-3" />
-                    <span>SSL</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Shield className="h-3 w-3" />
-                    <span>Seguro</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <BadgeCheck className="h-3 w-3" />
-                    <span>Verificado</span>
-                  </div>
-                </div>
-              )}
 
               {/* Testimonials - uses real CheckoutTestimonials component */}
               {/* Component handles fallback to demo testimonials when no real data exists */}
