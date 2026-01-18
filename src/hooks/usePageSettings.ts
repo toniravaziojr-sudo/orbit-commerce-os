@@ -445,8 +445,10 @@ export function useThankYouSettings(tenantId: string, templateSetId?: string) {
           const themeSettings = draftContent.themeSettings as Record<string, unknown> | undefined;
           const pageSettings = themeSettings?.pageSettings as Record<string, unknown> | undefined;
           
-          if (pageSettings?.thankYou) {
-            return pageSettings.thankYou as ThankYouSettings;
+          // Check both snake_case (new) and camelCase (legacy) keys
+          const thankYouSettings = pageSettings?.thank_you || pageSettings?.thankYou;
+          if (thankYouSettings) {
+            return thankYouSettings as ThankYouSettings;
           }
         }
       }
