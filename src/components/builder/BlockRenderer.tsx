@@ -7,6 +7,7 @@
 
 import React from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
+import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
 import { BlockNode, BlockRenderContext } from '@/lib/builder/types';
 import { blockRegistry } from '@/lib/builder/registry';
 import { isEssentialBlock, getEssentialBlockReason } from '@/lib/builder/essentialBlocks';
@@ -1350,18 +1351,18 @@ function AccountHubBlock({ context, isEditing }: any) {
   
   const tenantSlug = context?.tenantSlug || '';
   
+  // REGRA GLOBAL: Usar useStorefrontUrls para URLs compatíveis com custom domains
+  const urls = useStorefrontUrls(tenantSlug);
+  
   // Helper functions (not hooks - can be defined anywhere)
   const getWhatsAppHref = (phone: string, message: string) => {
     const cleanPhone = phone.replace(/\D/g, '');
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
   };
   
-  const getStoreBaseUrl = (slug: string) => slug ? `/loja/${slug}` : '';
-  
   // Get settings from context
   const storeSettings = context?.settings || {};
   const isDemoMode = searchParams.has('demoAccount');
-  const basePath = getStoreBaseUrl(tenantSlug);
   
   const whatsappNumber = storeSettings?.social_whatsapp || '+5511919555920';
   const whatsappHref = getWhatsAppHref(whatsappNumber, 'Olá! Preciso de suporte.');
@@ -1412,7 +1413,7 @@ function AccountHubBlock({ context, isEditing }: any) {
               <p className="text-sm text-muted-foreground">Acompanhe seus pedidos</p>
             </div>
           </div>
-          <Link to={`${basePath}/conta/pedidos${isDemoMode ? '?demoAccount=1' : ''}`}>
+          <Link to={`${urls.accountOrders()}${isDemoMode ? '?demoAccount=1' : ''}`}>
             <Button className="w-full">Ver pedidos</Button>
           </Link>
         </div>
@@ -1431,7 +1432,7 @@ function AccountHubBlock({ context, isEditing }: any) {
       </div>
       
       <div className="mt-8 text-center">
-        <Link to={basePath || '/'}>
+        <Link to={urls.home()}>
           <Button variant="ghost">🛒 Voltar à loja</Button>
         </Link>
       </div>
