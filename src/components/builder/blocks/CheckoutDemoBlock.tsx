@@ -465,7 +465,7 @@ export function CheckoutDemoBlock({
               {/* Testimonials - uses real CheckoutTestimonials component */}
               {/* Component handles fallback to demo testimonials when no real data exists */}
               {showTestimonials && (
-                <CheckoutTestimonials tenantId={tenantId} />
+                <CheckoutTestimonials tenantId={tenantId} isEditing />
               )}
 
               {/* Payment icons */}
