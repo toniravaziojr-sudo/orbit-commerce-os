@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { ReviewMediaUploader } from '@/components/reviews/ReviewMediaUploader';
 
 interface ReviewFormProps {
   productId: string;
@@ -28,6 +29,7 @@ export function ReviewForm({ productId, tenantId, onSuccess }: ReviewFormProps) 
   const [email, setEmail] = useState('');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
 
   const submitMutation = useMutation({
     mutationFn: async () => {
@@ -54,6 +56,7 @@ export function ReviewForm({ productId, tenantId, onSuccess }: ReviewFormProps) 
           content: content.trim(),
           rating,
           status: 'pending', // Always pending - requires admin approval
+          media_urls: mediaUrls.length > 0 ? mediaUrls : null,
         });
 
       if (error) throw error;
@@ -65,6 +68,7 @@ export function ReviewForm({ productId, tenantId, onSuccess }: ReviewFormProps) 
       setEmail('');
       setTitle('');
       setContent('');
+      setMediaUrls([]);
       setIsOpen(false);
       
       toast.success('Sua avaliação foi enviada e está pendente de aprovação');
@@ -186,6 +190,18 @@ export function ReviewForm({ productId, tenantId, onSuccess }: ReviewFormProps) 
         <p className="text-xs text-muted-foreground mt-1">
           {content.length}/2000 caracteres
         </p>
+      </div>
+
+      {/* Media Upload */}
+      <div className="mb-4">
+        <Label className="text-sm mb-2 block">
+          Fotos e Vídeos (opcional)
+        </Label>
+        <ReviewMediaUploader
+          mediaUrls={mediaUrls}
+          onChange={setMediaUrls}
+          maxFiles={5}
+        />
       </div>
 
       {/* Actions */}

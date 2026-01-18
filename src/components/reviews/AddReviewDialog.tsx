@@ -16,6 +16,7 @@ import { Switch } from '@/components/ui/switch';
 import { Star, Plus, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { ReviewMediaUploader } from './ReviewMediaUploader';
 
 interface AddReviewDialogProps {
   trigger?: React.ReactNode;
@@ -36,6 +37,7 @@ export function AddReviewDialog({ trigger }: AddReviewDialogProps) {
   const [content, setContent] = useState('');
   const [isVerifiedPurchase, setIsVerifiedPurchase] = useState(false);
   const [status, setStatus] = useState<'pending' | 'approved'>('approved');
+  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
 
   // Fetch products - using REST API to avoid type depth issues
   const { data: products = [] } = useQuery({
@@ -68,6 +70,7 @@ export function AddReviewDialog({ trigger }: AddReviewDialogProps) {
     setContent('');
     setIsVerifiedPurchase(false);
     setStatus('approved');
+    setMediaUrls([]);
   };
 
   const createMutation = useMutation({
@@ -90,6 +93,7 @@ export function AddReviewDialog({ trigger }: AddReviewDialogProps) {
           is_verified_purchase: isVerifiedPurchase,
           status,
           approved_at: status === 'approved' ? new Date().toISOString() : null,
+          media_urls: mediaUrls.length > 0 ? mediaUrls : null,
         });
 
       if (error) throw error;
@@ -210,6 +214,16 @@ export function AddReviewDialog({ trigger }: AddReviewDialogProps) {
               maxLength={2000}
             />
             <p className="text-xs text-muted-foreground">{content.length}/2000 caracteres</p>
+          </div>
+
+          {/* Media Upload */}
+          <div className="space-y-2">
+            <Label>Fotos e Vídeos (opcional)</Label>
+            <ReviewMediaUploader
+              mediaUrls={mediaUrls}
+              onChange={setMediaUrls}
+              maxFiles={5}
+            />
           </div>
 
           {/* Verified Purchase */}
