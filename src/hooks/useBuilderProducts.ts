@@ -20,6 +20,7 @@ export type ProductSource = 'all' | 'featured' | 'category' | 'newest' | 'bestse
 
 interface UseBuilderProductsOptions {
   tenantSlug: string;
+  tenantId?: string; // Optional: if provided, skips tenant lookup query
   source?: ProductSource;
   categoryId?: string;
   limit?: number;
@@ -51,12 +52,15 @@ export function useTenantId(tenantSlug: string) {
  */
 export function useBuilderProducts({
   tenantSlug,
+  tenantId: providedTenantId,
   source = 'all',
   categoryId,
   limit = 8,
   productIds,
 }: UseBuilderProductsOptions) {
-  const { data: tenantId, isLoading: tenantLoading } = useTenantId(tenantSlug);
+  // Use provided tenantId if available, otherwise fetch from slug
+  const { data: fetchedTenantId, isLoading: tenantLoading } = useTenantId(tenantSlug);
+  const tenantId = providedTenantId || fetchedTenantId;
 
   // Determine if query should be enabled
   const hasProductIds = productIds && productIds.length > 0;

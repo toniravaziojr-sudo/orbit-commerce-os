@@ -100,6 +100,12 @@ import { AdditionalHighlight } from '@/components/storefront/product/AdditionalH
 import { ProductVariantSelector } from '@/components/storefront/product/ProductVariantSelector';
 import { FloatingCartButton } from '@/components/storefront/FloatingCartButton';
 import { useProductVariants } from '@/hooks/useProductVariants';
+import { useProductRatings } from '@/hooks/useProductRating';
+import { useProductBadgesForProducts } from '@/hooks/useProductBadges';
+import { useCart } from '@/contexts/CartContext';
+import { toast } from 'sonner';
+import { getPublicCheckoutUrl } from '@/lib/publicUrls';
+import { ProductCard as ProductCardComponent } from './blocks/shared/ProductCard';
 
 // Note: StorefrontOrdersList and StorefrontOrderDetail are NOT imported here
 // to avoid circular dependency (they import BlockRenderer).
@@ -634,13 +640,22 @@ function FeaturedProductsBlock({ title, productIds, limit = 4, columns = 4, show
   );
 }
 
-function ProductCardBlock({ productId, showPrice = true, showButton = true, isEditing }: any) {
+// ProductCardBlock - Uses shared ProductCard component to respect categorySettings
+function ProductCardBlock({ productId, showPrice = true, showButton = true, isEditing, context }: any) {
+  const categorySettings = (context as any)?.categorySettings || {};
+  const tenantSlug = context?.tenantSlug || '';
+  const tenantId = context?.settings?.tenant_id;
+  
   const { data: product, isLoading } = useQuery({
-    queryKey: ['product-card', productId],
+    queryKey: ['product-card', productId, tenantId],
     queryFn: async () => {
       let query = supabase
         .from('products')
-        .select(`id, name, price, status, product_images (id, url, alt_text, is_primary, sort_order)`);
+        .select(`id, name, slug, price, compare_at_price, status, product_images (id, url, alt_text, is_primary, sort_order)`);
+      
+      if (tenantId) {
+        query = query.eq('tenant_id', tenantId);
+      }
       
       if (!productId || productId === '_auto') {
         query = query.eq('status', 'active').limit(1);
@@ -648,14 +663,45 @@ function ProductCardBlock({ productId, showPrice = true, showButton = true, isEd
         query = query.eq('id', productId);
       }
       
-      const { data, error } = await query.single();
+      const { data, error } = await query.maybeSingle();
       if (error) return null;
       return data;
     },
     enabled: !!productId || isEditing,
   });
 
-  const primaryImage = product?.product_images?.find((img: any) => img.is_primary) || product?.product_images?.[0];
+  // Fetch rating for this product
+  const productIds = product?.id ? [product.id] : [];
+  const { data: ratingsMap } = useProductRatings(productIds);
+  const { data: badgesMap } = useProductBadgesForProducts(productIds);
+  
+  // Cart functionality
+  const { addItem: addToCart, items: cartItems } = useCart();
+  const [addedProducts, setAddedProducts] = React.useState<Set<string>>(new Set());
+  
+  const isProductInCart = React.useCallback((pid: string) => {
+    return cartItems.some(item => item.product_id === pid) || addedProducts.has(pid);
+  }, [cartItems, addedProducts]);
+  
+  const handleAddToCart = React.useCallback((e: React.MouseEvent, p: any) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isEditing) return;
+    const primaryImage = p.product_images?.find((img: any) => img.is_primary)?.url || p.product_images?.[0]?.url;
+    addToCart({ product_id: p.id, name: p.name, sku: p.slug, price: p.price, quantity: 1, image_url: primaryImage });
+    setAddedProducts(prev => new Set(prev).add(p.id));
+    toast.success('Produto adicionado ao carrinho!');
+  }, [addToCart, isEditing]);
+  
+  const handleQuickBuy = React.useCallback((e: React.MouseEvent, p: any) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isEditing) return;
+    const primaryImage = p.product_images?.find((img: any) => img.is_primary)?.url || p.product_images?.[0]?.url;
+    addToCart({ product_id: p.id, name: p.name, sku: p.slug, price: p.price, quantity: 1, image_url: primaryImage });
+    const checkoutUrl = getPublicCheckoutUrl(tenantSlug);
+    window.location.href = checkoutUrl;
+  }, [addToCart, tenantSlug, isEditing]);
 
   if (isLoading) {
     return (
@@ -667,32 +713,50 @@ function ProductCardBlock({ productId, showPrice = true, showButton = true, isEd
     );
   }
 
-  if (!product && !isEditing) return null;
+  if (!product && isEditing) {
+    return (
+      <div className="bg-card border rounded-lg p-4 hover:shadow-md transition-shadow">
+        <div className="aspect-square bg-muted rounded mb-3 flex items-center justify-center overflow-hidden">
+          <span className="text-muted-foreground text-4xl">📦</span>
+        </div>
+        <h3 className="font-medium truncate">Produto</h3>
+        <p className="text-primary font-bold">R$ 99,90</p>
+        <p className="text-xs text-muted-foreground mt-2 text-center">[Selecione um produto]</p>
+      </div>
+    );
+  }
+  
+  if (!product) return null;
+
+  // Convert product to ProductCardProduct format
+  const productForCard = {
+    id: product.id,
+    name: product.name,
+    slug: product.slug || product.id,
+    price: product.price || 0,
+    compare_at_price: product.compare_at_price,
+    product_images: product.product_images?.map((img: any) => ({
+      url: img.url,
+      is_primary: img.is_primary,
+    })),
+  };
+
+  const rating = ratingsMap?.get(product.id);
+  const badges = badgesMap?.get(product.id);
 
   return (
-    <div className="bg-card border rounded-lg p-4 hover:shadow-md transition-shadow">
-      <div className="aspect-square bg-muted rounded mb-3 flex items-center justify-center overflow-hidden">
-        {primaryImage?.url ? (
-          <img src={primaryImage.url} alt={product?.name} className="w-full h-full object-cover" />
-        ) : (
-          <span className="text-muted-foreground text-4xl">📦</span>
-        )}
-      </div>
-      <h3 className="font-medium truncate">{product?.name || 'Produto'}</h3>
-      {showPrice && (
-        <p className="text-primary font-bold">
-          R$ {(product?.price || 99.90).toFixed(2).replace('.', ',')}
-        </p>
-      )}
-      {showButton && (
-        <button className="w-full mt-2 bg-primary text-primary-foreground py-2 rounded text-sm hover:bg-primary/90">
-          Comprar
-        </button>
-      )}
-      {isEditing && !product && (
-        <p className="text-xs text-muted-foreground mt-2 text-center">[Selecione um produto]</p>
-      )}
-    </div>
+    <ProductCardComponent
+      product={productForCard}
+      tenantSlug={tenantSlug}
+      isEditing={isEditing}
+      settings={categorySettings}
+      rating={rating}
+      badges={badges}
+      isAddedToCart={isProductInCart(product.id)}
+      onAddToCart={handleAddToCart}
+      onQuickBuy={handleQuickBuy}
+      variant="default"
+    />
   );
 }
 

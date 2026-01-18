@@ -40,9 +40,12 @@ export function CategoryListBlock({
   isEditing = false,
 }: CategoryListBlockProps) {
   const { tenantSlug } = context;
+  
+  // Try to get tenant_id directly from context.settings (more reliable)
+  const tenantIdFromContext = (context as any)?.settings?.tenant_id;
 
-  // Fetch tenant first to get tenantId
-  const { data: tenant } = useQuery({
+  // Fetch tenant first to get tenantId (fallback if not in context)
+  const { data: tenant, isLoading: tenantLoading } = useQuery({
     queryKey: ['tenant-by-slug', tenantSlug],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -53,13 +56,14 @@ export function CategoryListBlock({
       if (error) throw error;
       return data;
     },
-    enabled: !!tenantSlug,
+    enabled: !!tenantSlug && !tenantIdFromContext,
   });
 
-  const tenantId = tenant?.id;
+  // Use tenantId from context if available, otherwise from query
+  const tenantId = tenantIdFromContext || tenant?.id;
 
   // Fetch categories
-  const { data: categories, isLoading } = useQuery({
+  const { data: categories, isLoading: categoriesLoading } = useQuery({
     queryKey: ['builder-categories', tenantId, source, limit],
     queryFn: async () => {
       if (!tenantId) return [];
@@ -82,6 +86,8 @@ export function CategoryListBlock({
     },
     enabled: !!tenantId,
   });
+  
+  const isLoading = (!tenantIdFromContext && tenantLoading) || categoriesLoading;
 
   const gridCols = {
     2: 'grid-cols-1 sm:grid-cols-2',
