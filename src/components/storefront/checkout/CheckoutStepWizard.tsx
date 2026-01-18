@@ -4,7 +4,7 @@
 // Uses REAL payment integration with Pagar.me
 // =============================================
 
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Fragment } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useCart } from '@/contexts/CartContext';
 import { useDiscount, AppliedDiscount } from '@/contexts/DiscountContext';
@@ -22,7 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Loader2, AlertTriangle, ShoppingCart, ArrowLeft, ArrowRight, Check, User, MapPin, Truck, CreditCard, Info, Eye, EyeOff, Tag } from 'lucide-react';
+import { Loader2, AlertTriangle, ShoppingCart, ArrowLeft, ArrowRight, Check, User, MapPin, Truck, CreditCard, Info, Eye, EyeOff, Tag, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { calculateCartTotals, formatCurrency } from '@/lib/cartTotals';
 import { useShipping, useCanonicalDomain, useCheckoutConfig } from '@/contexts/StorefrontConfigContext';
@@ -696,8 +696,8 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         </Link>
       </div>
 
-      {/* Step indicator */}
-      <StepIndicator steps={STEPS} currentStep={currentStep} onStepClick={goToStep} />
+      {/* Progress Timeline (modern style like builder) */}
+      <ProgressTimeline steps={STEPS} currentStep={currentStep} onStepClick={goToStep} />
 
       {/* Payment failed alert */}
       {paymentStatus === 'failed' && paymentError && (
@@ -852,8 +852,8 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   );
 }
 
-// Step Indicator Component
-function StepIndicator({ 
+// Progress Timeline Component (modern horizontal style like builder)
+function ProgressTimeline({ 
   steps, 
   currentStep, 
   onStepClick 
@@ -863,50 +863,37 @@ function StepIndicator({
   onStepClick: (step: CheckoutStep) => void;
 }) {
   return (
-    <div className="mb-8">
-      <div className="flex items-center justify-between">
-        {steps.map((step, index) => {
-          const isCompleted = currentStep > step.id;
-          const isCurrent = currentStep === step.id;
-          const Icon = step.icon;
+    <div className="flex items-center justify-center gap-2 mb-8 overflow-x-auto pb-2">
+      {steps.map((step, index) => {
+        const isCompleted = currentStep > step.id;
+        const isCurrent = currentStep === step.id;
+        const Icon = step.icon;
 
-          return (
-            <div key={step.id} className="flex items-center flex-1">
-              <button
-                onClick={() => onStepClick(step.id as CheckoutStep)}
-                disabled={step.id > currentStep}
-                className={cn(
-                  "flex items-center gap-2 p-2 rounded-lg transition-colors",
-                  isCompleted && "text-primary cursor-pointer hover:bg-primary/10",
-                  isCurrent && "text-primary font-semibold",
-                  !isCompleted && !isCurrent && "text-muted-foreground cursor-not-allowed"
-                )}
-              >
-                <div className={cn(
-                  "w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors",
-                  isCompleted && "bg-primary border-primary text-primary-foreground",
-                  isCurrent && "border-primary text-primary",
-                  !isCompleted && !isCurrent && "border-muted-foreground/30"
-                )}>
-                  {isCompleted ? (
-                    <Check className="h-4 w-4" />
-                  ) : (
-                    <Icon className="h-4 w-4" />
-                  )}
-                </div>
-                <span className="hidden sm:inline text-sm">{step.label}</span>
-              </button>
-
-              {index < steps.length - 1 && (
-                <div className={cn(
-                  "flex-1 h-0.5 mx-2",
-                  isCompleted ? "bg-primary" : "bg-muted"
-                )} />
+        return (
+          <React.Fragment key={step.id}>
+            <button
+              onClick={() => step.id <= currentStep && onStepClick(step.id as CheckoutStep)}
+              disabled={step.id > currentStep}
+              className={cn(
+                "flex items-center gap-2 px-3 py-2 rounded-full text-sm whitespace-nowrap transition-colors",
+                isCompleted && "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 cursor-pointer hover:bg-green-200 dark:hover:bg-green-900/50",
+                isCurrent && "bg-primary text-primary-foreground",
+                !isCompleted && !isCurrent && "bg-muted text-muted-foreground cursor-not-allowed"
               )}
-            </div>
-          );
-        })}
-      </div>
+            >
+              {isCompleted ? (
+                <Check className="h-4 w-4" />
+              ) : (
+                <Icon className="h-4 w-4" />
+              )}
+              <span className="font-medium">{step.label}</span>
+            </button>
+            {index < steps.length - 1 && (
+              <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            )}
+          </React.Fragment>
+        );
+      })}
     </div>
   );
 }
