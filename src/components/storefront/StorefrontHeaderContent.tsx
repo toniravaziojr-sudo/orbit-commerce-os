@@ -771,7 +771,7 @@ export function StorefrontHeaderContent({
         {/* === DESKTOP SECONDARY NAV BAR: Header Menu Items + Featured Promos === */}
         {(forceDesktop || !forceMobile) && (hierarchicalMenuItems.length > 0 || featuredPromosUrl) && (
           <nav className={cn(
-            "flex items-center justify-between py-2 border-t border-muted/30",
+            "flex items-center justify-center py-2 border-t border-muted/30",
             forceMobile ? "hidden" : (forceDesktop ? "flex" : "hidden md:flex")
           )}
           style={{ 
@@ -779,8 +779,8 @@ export function StorefrontHeaderContent({
             minHeight: '32px'
           }}
           >
-            {/* Header Menu Items Navigation - Left side */}
-            <div className="flex items-center gap-4 flex-1">
+            {/* Header Menu Items Navigation - Centered */}
+            <div className="flex items-center justify-center gap-6 flex-1">
               {hierarchicalMenuItems.map((item) => (
                 item.children.length > 0 ? (
                   <div 
