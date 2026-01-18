@@ -6,6 +6,7 @@ import { getStoreBaseUrl, getPublicCategoryUrl, getPublicPageUrl, getPublicLandi
 import { getWhatsAppHref, getPhoneHref, getEmailHref, isValidWhatsApp, isValidPhone, isValidEmail } from '@/lib/contactHelpers';
 import { formatCnpj } from '@/lib/formatCnpj';
 import type { BlockNode } from '@/lib/builder/types';
+import { FooterSkeleton, shouldShowFooterSkeleton } from '@/components/builder/blocks/SkeletonBlocks';
 
 // TikTok icon component (not in lucide)
 function TikTokIcon({ className }: { className?: string }) {
@@ -392,8 +393,29 @@ export function StorefrontFooterContent({
     ...(footerTextColor ? { color: footerTextColor } : {}),
   };
 
+  // ============================================
+  // SKELETON MODE: Show demo when no real data in editor mode
+  // ============================================
+  const footerDataCheck = {
+    hasLogo: Boolean(logoUrl),
+    hasStoreName: Boolean(storeName && storeName !== 'Loja'),
+    hasDescription: Boolean(storeDescription),
+    hasContactInfo: hasContact,
+    hasMenuItems: footer1Items.length > 0 || footer2Items.length > 0,
+    hasSocialMedia: Boolean(hasSocialMedia),
+  };
+  
+  const showSkeleton = isEditing && shouldShowFooterSkeleton(footerDataCheck);
+  
+  // In editor mode with no data: show skeleton demo
+  if (showSkeleton) {
+    // Detect if mobile layout (check CSS class approach won't work in SSR, so we rely on container query behavior)
+    // For now, footer skeleton always shows desktop version as container queries handle mobile
+    return <FooterSkeleton isMobile={false} />;
+  }
+
   return (
-    <footer 
+    <footer
       className="border-t bg-muted/30"
       style={footerStyle}
     >

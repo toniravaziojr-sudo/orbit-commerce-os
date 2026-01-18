@@ -15,6 +15,7 @@ import {
   isValidEmail
 } from '@/lib/contactHelpers';
 import { HeaderAttendanceDropdown } from './HeaderAttendanceDropdown';
+import { HeaderSkeleton, shouldShowHeaderSkeleton } from '@/components/builder/blocks/SkeletonBlocks';
 
 interface HeaderConfig {
   props?: Record<string, any>;
@@ -316,6 +317,23 @@ export function StorefrontHeaderContent({
   // Determine layout mode based on viewportOverride (from builder) or CSS will handle it for public
   const forceMobile = viewportOverride === 'mobile' || viewportOverride === 'tablet';
   const forceDesktop = viewportOverride === 'desktop';
+
+  // ============================================
+  // SKELETON MODE: Show demo when no real data in editor mode
+  // ============================================
+  const headerDataCheck = {
+    hasLogo: Boolean(storeSettings?.logo_url),
+    hasStoreName: Boolean(storeSettings?.store_name),
+    hasMenuItems: hierarchicalMenuItems.length > 0,
+    hasContactInfo: Boolean(hasContactInfo),
+  };
+  
+  const showSkeleton = isEditing && shouldShowHeaderSkeleton(headerDataCheck);
+  
+  // In editor mode with no data: show skeleton demo
+  if (showSkeleton) {
+    return <HeaderSkeleton isMobile={forceMobile} />;
+  }
 
   return (
     <header 

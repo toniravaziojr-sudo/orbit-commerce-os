@@ -4,7 +4,7 @@
 // These are ONLY shown in editor mode, never in public
 // =============================================
 
-import { Package, Grid3X3, ShoppingBag, ChevronRight } from 'lucide-react';
+import { Package, Grid3X3, ShoppingBag, ChevronRight, Search, ShoppingCart, User, Menu, Store, Phone, Mail, Facebook, Instagram } from 'lucide-react';
 
 interface SkeletonSectionProps {
   label: string;
@@ -235,4 +235,257 @@ export function TimelineSkeleton() {
       </div>
     </div>
   );
+}
+
+// =============================================
+// HEADER SKELETON - Demo header for editor when no real config
+// =============================================
+
+interface HeaderSkeletonProps {
+  isMobile?: boolean;
+}
+
+export function HeaderSkeleton({ isMobile = false }: HeaderSkeletonProps) {
+  if (isMobile) {
+    return (
+      <div className="w-full bg-muted/30 border-2 border-dashed border-muted-foreground/20 rounded-lg">
+        {/* Mobile header */}
+        <div className="flex items-center justify-between p-3">
+          <Menu className="h-5 w-5 text-muted-foreground/40" />
+          <div className="flex items-center gap-2">
+            <Store className="h-5 w-5 text-muted-foreground/40" />
+            <div className="h-4 w-20 bg-muted-foreground/20 rounded" />
+          </div>
+          <div className="flex items-center gap-2">
+            <User className="h-5 w-5 text-muted-foreground/30" />
+            <div className="relative">
+              <ShoppingCart className="h-5 w-5 text-muted-foreground/40" />
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary/30 rounded-full text-[10px] flex items-center justify-center text-primary-foreground/50">0</span>
+            </div>
+          </div>
+        </div>
+        {/* Mobile search bar */}
+        <div className="px-3 pb-3">
+          <div className="flex items-center gap-2 bg-muted/50 rounded-md px-3 py-2">
+            <Search className="h-4 w-4 text-muted-foreground/30" />
+            <div className="h-3 w-32 bg-muted-foreground/20 rounded" />
+          </div>
+        </div>
+        <p className="text-center text-muted-foreground/40 text-xs pb-2">
+          [Demo] Configure em Configurações do tema → Cabeçalho
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full bg-muted/30 border-2 border-dashed border-muted-foreground/20 rounded-lg">
+      {/* Notice bar demo */}
+      <div className="bg-primary/10 py-1.5 px-4 text-center">
+        <span className="text-primary/50 text-xs">✨ Mensagem de destaque - Configure na barra de avisos</span>
+      </div>
+      
+      {/* Main header */}
+      <div className="flex items-center justify-between p-4 border-b border-muted/30">
+        {/* Search */}
+        <div className="flex-1 max-w-xs">
+          <div className="flex items-center gap-2 bg-muted/50 rounded-md px-3 py-2">
+            <Search className="h-4 w-4 text-muted-foreground/30" />
+            <div className="h-3 w-24 bg-muted-foreground/20 rounded" />
+          </div>
+        </div>
+        
+        {/* Logo */}
+        <div className="flex items-center gap-2">
+          <Store className="h-8 w-8 text-muted-foreground/40" />
+          <div className="h-5 w-28 bg-muted-foreground/25 rounded" />
+        </div>
+        
+        {/* Actions */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-muted-foreground/40">
+            <Phone className="h-4 w-4" />
+            <span className="text-xs">Atendimento</span>
+          </div>
+          <User className="h-5 w-5 text-muted-foreground/40" />
+          <div className="relative">
+            <ShoppingCart className="h-5 w-5 text-muted-foreground/40" />
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary/30 rounded-full text-[10px] flex items-center justify-center text-primary-foreground/50">0</span>
+          </div>
+        </div>
+      </div>
+      
+      {/* Secondary nav (menu) */}
+      <div className="flex items-center justify-center gap-6 py-2 px-4">
+        {['Categorias', 'Novidades', 'Promoções', 'Sobre'].map((item) => (
+          <div key={item} className="text-muted-foreground/40 text-sm hover:text-muted-foreground/60 cursor-default">
+            {item}
+          </div>
+        ))}
+      </div>
+      
+      <p className="text-center text-muted-foreground/40 text-xs pb-2">
+        [Demo] Configure em Configurações do tema → Cabeçalho
+      </p>
+    </div>
+  );
+}
+
+// =============================================
+// FOOTER SKELETON - Demo footer for editor when no real config
+// =============================================
+
+interface FooterSkeletonProps {
+  isMobile?: boolean;
+}
+
+export function FooterSkeleton({ isMobile = false }: FooterSkeletonProps) {
+  if (isMobile) {
+    return (
+      <div className="w-full bg-muted/30 border-2 border-dashed border-muted-foreground/20 rounded-lg p-4">
+        {/* Logo */}
+        <div className="flex items-center justify-center gap-2 mb-4">
+          <Store className="h-8 w-8 text-muted-foreground/40" />
+          <div className="h-5 w-24 bg-muted-foreground/25 rounded" />
+        </div>
+        
+        {/* Description */}
+        <div className="text-center mb-4">
+          <div className="h-3 w-3/4 bg-muted-foreground/15 rounded mx-auto mb-1" />
+          <div className="h-3 w-1/2 bg-muted-foreground/15 rounded mx-auto" />
+        </div>
+        
+        {/* Social icons */}
+        <div className="flex items-center justify-center gap-4 mb-4">
+          <Facebook className="h-5 w-5 text-muted-foreground/30" />
+          <Instagram className="h-5 w-5 text-muted-foreground/30" />
+          <Mail className="h-5 w-5 text-muted-foreground/30" />
+        </div>
+        
+        {/* Contact info */}
+        <div className="text-center text-xs text-muted-foreground/40 mb-4">
+          <div className="flex items-center justify-center gap-1 mb-1">
+            <Phone className="h-3 w-3" />
+            <span>(00) 0000-0000</span>
+          </div>
+          <div className="flex items-center justify-center gap-1">
+            <Mail className="h-3 w-3" />
+            <span>contato@loja.com</span>
+          </div>
+        </div>
+        
+        {/* Copyright */}
+        <div className="text-center text-xs text-muted-foreground/30 pt-3 border-t border-muted/30">
+          © 2025 Nome da Loja. Todos os direitos reservados.
+        </div>
+        
+        <p className="text-center text-muted-foreground/40 text-xs mt-3">
+          [Demo] Configure em Configurações do tema → Rodapé
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full bg-muted/30 border-2 border-dashed border-muted-foreground/20 rounded-lg p-6">
+      <div className="grid grid-cols-4 gap-8">
+        {/* Column 1: Logo + Description */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <Store className="h-8 w-8 text-muted-foreground/40" />
+            <div className="h-5 w-24 bg-muted-foreground/25 rounded" />
+          </div>
+          <div className="space-y-1">
+            <div className="h-3 w-full bg-muted-foreground/15 rounded" />
+            <div className="h-3 w-4/5 bg-muted-foreground/15 rounded" />
+            <div className="h-3 w-3/5 bg-muted-foreground/15 rounded" />
+          </div>
+        </div>
+        
+        {/* Column 2: SAC */}
+        <div>
+          <div className="h-4 w-24 bg-muted-foreground/25 rounded mb-3" />
+          <div className="space-y-2 text-xs text-muted-foreground/40">
+            <div className="flex items-center gap-2">
+              <Phone className="h-3 w-3" />
+              <span>(00) 0000-0000</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Mail className="h-3 w-3" />
+              <span>contato@loja.com</span>
+            </div>
+          </div>
+          {/* Social icons */}
+          <div className="flex items-center gap-3 mt-4">
+            <Facebook className="h-4 w-4 text-muted-foreground/30" />
+            <Instagram className="h-4 w-4 text-muted-foreground/30" />
+          </div>
+        </div>
+        
+        {/* Column 3: Menu 1 */}
+        <div>
+          <div className="h-4 w-20 bg-muted-foreground/25 rounded mb-3" />
+          <div className="space-y-2">
+            {['Link 1', 'Link 2', 'Link 3'].map((item) => (
+              <div key={item} className="text-xs text-muted-foreground/40">
+                {item}
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        {/* Column 4: Menu 2 */}
+        <div>
+          <div className="h-4 w-20 bg-muted-foreground/25 rounded mb-3" />
+          <div className="space-y-2">
+            {['Página 1', 'Página 2', 'Página 3'].map((item) => (
+              <div key={item} className="text-xs text-muted-foreground/40">
+                {item}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      
+      {/* Copyright */}
+      <div className="text-center text-xs text-muted-foreground/30 pt-4 mt-4 border-t border-muted/30">
+        © 2025 Nome da Loja. Todos os direitos reservados.
+      </div>
+      
+      <p className="text-center text-muted-foreground/40 text-xs mt-3">
+        [Demo] Configure em Configurações do tema → Rodapé
+      </p>
+    </div>
+  );
+}
+
+// =============================================
+// HELPER: Check if header/footer should show skeleton
+// =============================================
+
+export interface HeaderDataCheck {
+  hasLogo: boolean;
+  hasStoreName: boolean;
+  hasMenuItems: boolean;
+  hasContactInfo: boolean;
+}
+
+export interface FooterDataCheck {
+  hasLogo: boolean;
+  hasStoreName: boolean;
+  hasDescription: boolean;
+  hasContactInfo: boolean;
+  hasMenuItems: boolean;
+  hasSocialMedia: boolean;
+}
+
+export function shouldShowHeaderSkeleton(data: HeaderDataCheck): boolean {
+  // Show skeleton if ALL key data is missing
+  return !data.hasLogo && !data.hasStoreName && !data.hasMenuItems && !data.hasContactInfo;
+}
+
+export function shouldShowFooterSkeleton(data: FooterDataCheck): boolean {
+  // Show skeleton if ALL key data is missing
+  return !data.hasLogo && !data.hasStoreName && !data.hasDescription && 
+         !data.hasContactInfo && !data.hasMenuItems && !data.hasSocialMedia;
 }
