@@ -109,30 +109,6 @@ export function CategoryForm({
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="image_url">Imagem (miniatura)</Label>
-          <div className="flex gap-2">
-            <Input
-              id="image_url"
-              value={formData.image_url}
-              onChange={(e) => onChange({ ...formData, image_url: e.target.value })}
-              placeholder="URL da imagem"
-            />
-            {formData.image_url && (
-              <div className="h-10 w-10 rounded border overflow-hidden flex-shrink-0">
-                <img
-                  src={formData.image_url}
-                  alt=""
-                  className="h-full w-full object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-              </div>
-            )}
-          </div>
-        </div>
-
         {/* Banner section */}
         <div className="border-t pt-4 mt-4">
           <h4 className="font-medium mb-3 text-sm text-muted-foreground">Banner da Categoria</h4>
