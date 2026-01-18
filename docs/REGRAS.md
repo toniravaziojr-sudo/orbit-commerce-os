@@ -670,7 +670,101 @@ is_active = true + published_at IS NOT NULL → aparece no storefront público
 
 #### Obrigado
 
-<!-- Placeholder - conteúdo a ser definido -->
+**Rota:** `/loja/:slug/obrigado`
+
+**Arquivo de página:** `src/pages/storefront/StorefrontThankYou.tsx`
+
+**Propósito:** Página de confirmação pós-checkout exibida após a conclusão do pagamento.
+
+**Estrutura visual:**
+
+| Área | Descrição |
+|------|-----------|
+| Header/Footer | Elementos globais do template |
+| Ícone de sucesso | Checkmark verde centralizado |
+| Mensagem principal | "Obrigado pela compra!" + número do pedido |
+| Timeline de status | Passos: Confirmado → Separação → Envio |
+| Upsell Slot | Ofertas pós-compra (configuradas em Aumentar Ticket) |
+| Botão WhatsApp | Suporte via WhatsApp |
+| Compartilhamento social | Botões para WhatsApp, Facebook e X (Twitter) |
+
+**Componentes de UI:**
+
+| Componente | Arquivo | Função |
+|------------|---------|--------|
+| `ThankYouContent` | `storefront/ThankYouContent.tsx` | Conteúdo principal da página |
+| `ThankYouBlock` | `builder/blocks/ThankYouBlock.tsx` | Wrapper para o builder |
+| `UpsellSection` | `storefront/sections/UpsellSection.tsx` | Ofertas pós-compra |
+| `UpsellSlotBlock` | `builder/blocks/slots/UpsellSlotBlock.tsx` | Bloco de upsell no builder |
+| `SocialShareButtons` | `storefront/SocialShareButtons.tsx` | Botões de compartilhamento |
+
+**Settings (ThankYouSettings):**
+
+| Setting | Tipo | Default | Descrição |
+|---------|------|---------|-----------|
+| `showTimeline` | boolean | true | Exibe timeline de próximos passos |
+| `showUpsell` | boolean | true | Exibe ofertas pós-compra (Upsell) |
+| `showWhatsApp` | boolean | true | Exibe botão de suporte WhatsApp |
+| `showOrderSummary` | boolean | true | Exibe resumo do pedido |
+| `showTrackingLink` | boolean | true | Exibe link para rastreio |
+| `showSocialShare` | boolean | false | Exibe botões de compartilhamento social |
+
+**Fonte de verdade dos settings:**
+
+| Contexto | Local |
+|----------|-------|
+| **Builder** | `draft_content.themeSettings.pageSettings.thank_you` |
+| **Storefront Público** | `published_content.themeSettings.pageSettings.thank_you` |
+
+**Regras de Upsell (ofertas pós-compra):**
+
+| Regra | Descrição |
+|-------|-----------|
+| **Fonte de dados** | Tabela `offer_rules` com `type='upsell'` |
+| **Condição** | `is_active=true` |
+| **Desconto** | Pode ser `percent`, `fixed` ou `none` |
+| **Limite de itens** | Controlado por `max_items` na regra |
+| **Builder** | Exibe dados demo quando não há regras reais |
+| **Público** | Exibe APENAS dados reais; se não houver, não renderiza |
+
+**Compartilhamento Social:**
+
+| Rede | Comportamento |
+|------|---------------|
+| **WhatsApp** | Abre wa.me com mensagem pré-formatada |
+| **Facebook** | Abre sharer com URL da loja |
+| **X (Twitter)** | Abre intent com mensagem e URL |
+
+Mensagem padrão: *"Acabei de fazer uma compra incrível na [Nome da Loja]! 🛍️✨"*
+
+**Fluxo de dados:**
+
+```
+1. Checkout redireciona para /obrigado?pedido=XXXXX
+2. Página busca settings do template publicado
+3. Renderiza ThankYouContent com context completo
+4. UpsellSection busca regras ativas de upsell
+5. Exibe ofertas com desconto aplicado
+```
+
+**Hooks utilizados:**
+
+| Hook | Arquivo | Função |
+|------|---------|--------|
+| `usePublicStorefront` | `hooks/useStorefront.ts` | Dados da loja e menus |
+| `usePublicTemplate` | `hooks/usePublicTemplate.ts` | Template publicado |
+| `useActiveOfferRules` | `hooks/useOfferRules.ts` | Regras de upsell ativas |
+
+**Regra crítica de ofertas (REGRA FIXA):**
+
+| Tipo de Oferta | Local Correto |
+|----------------|---------------|
+| Cross-sell | Carrinho |
+| Order Bump | Checkout |
+| Compre Junto | Página do Produto |
+| **Upsell** | **Página Obrigado** |
+
+**Configuração de toggles:** Loja Virtual → Builder → Configurações do tema → Página Obrigado
 
 ---
 
