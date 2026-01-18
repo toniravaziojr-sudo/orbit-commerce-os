@@ -5,8 +5,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { getStoreBaseUrl, getPublicCategoryUrl, getPublicPageUrl, getPublicLandingUrl } from '@/lib/publicUrls';
 import { getWhatsAppHref, getPhoneHref, getEmailHref, isValidWhatsApp, isValidPhone, isValidEmail } from '@/lib/contactHelpers';
 import { formatCnpj } from '@/lib/formatCnpj';
+import { cn } from '@/lib/utils';
 import type { BlockNode } from '@/lib/builder/types';
-import { FooterSkeleton, shouldShowFooterSkeleton } from '@/components/builder/blocks/SkeletonBlocks';
+
 
 // TikTok icon component (not in lucide)
 function TikTokIcon({ className }: { className?: string }) {
@@ -394,25 +395,47 @@ export function StorefrontFooterContent({
   };
 
   // ============================================
-  // SKELETON MODE: Show demo when no real data in editor mode
+  // DEMO DATA: Show demo content for empty sections in editor mode
+  // Each section shows demo ONLY when that specific section is empty
   // ============================================
-  const footerDataCheck = {
-    hasLogo: Boolean(logoUrl),
-    hasStoreName: Boolean(storeName && storeName !== 'Loja'),
-    hasDescription: Boolean(storeDescription),
-    hasContactInfo: hasContact,
-    hasMenuItems: footer1Items.length > 0 || footer2Items.length > 0,
-    hasSocialMedia: Boolean(hasSocialMedia),
-  };
   
-  const showSkeleton = isEditing && shouldShowFooterSkeleton(footerDataCheck);
+  // Demo data for sections without real content
+  const demoStoreName = isEditing && (!storeName || storeName === 'Loja') ? 'Minha Loja' : null;
+  const demoDescription = isEditing && !storeDescription ? 'Sua loja de confiança com produtos de qualidade e entrega rápida para todo o Brasil.' : null;
   
-  // In editor mode with no data: show skeleton demo
-  if (showSkeleton) {
-    // Detect if mobile layout (check CSS class approach won't work in SSR, so we rely on container query behavior)
-    // For now, footer skeleton always shows desktop version as container queries handle mobile
-    return <FooterSkeleton isMobile={false} />;
-  }
+  const demoContactData = isEditing && !hasContact ? {
+    phone: '(11) 99999-9999',
+    whatsapp: '(11) 99999-9999',
+    email: 'contato@minhaloja.com',
+    address: 'Av. Exemplo, 1000 - São Paulo, SP',
+    hours: 'Seg a Sex: 9h às 18h',
+  } : null;
+  
+  const demoSocialMedia = isEditing && !hasSocialMedia ? {
+    facebook: 'https://facebook.com/minhaloja',
+    instagram: 'https://instagram.com/minhaloja',
+  } : null;
+  
+  // Use demo or real data
+  const displayStoreName = demoStoreName || storeName;
+  const displayDescription = demoDescription || storeDescription;
+  const displayPhone = demoContactData?.phone || phone;
+  const displayWhatsApp = demoContactData?.whatsapp || whatsApp;
+  const displayEmail = demoContactData?.email || email;
+  const displayAddress = demoContactData?.address || address;
+  const displayHours = demoContactData?.hours || supportHours;
+  const displayFacebook = demoSocialMedia?.facebook || socialFacebook;
+  const displayInstagram = demoSocialMedia?.instagram || socialInstagram;
+  
+  // Generate demo hrefs
+  const displayWhatsAppHref = demoContactData ? getWhatsAppHref(demoContactData.whatsapp) : whatsAppHref;
+  const displayPhoneHref = demoContactData ? getPhoneHref(demoContactData.phone) : phoneHref;
+  const displayEmailHref = demoContactData ? getEmailHref(demoContactData.email) : emailHref;
+  
+  // Check if demo mode for styling
+  const showDemoContact = Boolean(demoContactData);
+  const showDemoSocial = Boolean(demoSocialMedia);
+  const showDemoStore = Boolean(demoStoreName || demoDescription);
 
   return (
     <footer
@@ -439,15 +462,19 @@ export function StorefrontFooterContent({
                     {logoUrl ? (
                       <img
                         src={logoUrl}
-                        alt={storeName}
+                        alt={displayStoreName || 'Loja'}
                         className="h-12 max-w-[180px] object-contain"
                       />
                     ) : (
                       <span
-                        className="text-xl font-bold block"
+                        className={cn(
+                          "text-xl font-bold block",
+                          showDemoStore && "opacity-50"
+                        )}
                         style={{ color: footerTextColor || primaryColor }}
                       >
-                        {storeName}
+                        {displayStoreName}
+                        {showDemoStore && <span className="text-xs font-normal ml-1">[Demo]</span>}
                       </span>
                     )}
                   </Link>
@@ -457,21 +484,29 @@ export function StorefrontFooterContent({
               {/* Nome Fantasia / Descrição - respects showStoreInfo */}
               {showStoreInfo && (
                 <div className="space-y-2">
-                  {!showLogo && storeName && (
+                  {!showLogo && displayStoreName && (
                     <h4 
-                      className="text-lg font-semibold"
+                      className={cn(
+                        "text-lg font-semibold",
+                        showDemoStore && "opacity-50"
+                      )}
                       style={footerTitlesColor ? { color: footerTitlesColor } : {}}
                     >
-                      {storeName}
+                      {displayStoreName}
+                      {showDemoStore && <span className="text-xs font-normal ml-1">[Demo]</span>}
                     </h4>
                   )}
                   
-                  {storeDescription && (
+                  {(storeDescription || demoDescription) && (
                     <p 
-                      className="text-sm text-muted-foreground leading-relaxed"
-                      style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
+                      className={cn(
+                        "text-sm text-muted-foreground leading-relaxed",
+                        demoDescription && "opacity-50 italic"
+                      )}
+                      style={footerTextColor ? { color: footerTextColor, opacity: demoDescription ? 0.5 : 0.8 } : {}}
                     >
-                      {storeDescription}
+                      {displayDescription}
+                      {demoDescription && <span className="text-xs ml-1">[Demo]</span>}
                     </p>
                   )}
                   
@@ -489,18 +524,25 @@ export function StorefrontFooterContent({
             </div>
 
             {/* MOBILE BLOCO 2: Atendimento (SAC) - Full width, left aligned for readability */}
-            {showSac && hasContact && (
-              <div className="flex flex-col w-full bg-muted/20 rounded-lg p-4">
+            {showSac && (hasContact || showDemoContact) && (
+              <div className={cn(
+                "flex flex-col w-full bg-muted/20 rounded-lg p-4",
+                showDemoContact && "border border-dashed border-muted-foreground/20"
+              )}>
                 <h4 
                   className="font-semibold mb-4 text-base"
                   style={footerTitlesColor ? { color: footerTitlesColor } : {}}
                 >
                   {sacTitle}
+                  {showDemoContact && <span className="text-xs font-normal text-muted-foreground/50 ml-2">[Demo]</span>}
                 </h4>
-                <div className="flex flex-col gap-3 w-full">
-                  {whatsAppHref && (
+                <div className={cn(
+                  "flex flex-col gap-3 w-full",
+                  showDemoContact && "opacity-50"
+                )}>
+                  {displayWhatsAppHref && (
                     <a
-                      href={whatsAppHref}
+                      href={displayWhatsAppHref}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-2"
@@ -511,63 +553,72 @@ export function StorefrontFooterContent({
                       <span>WhatsApp</span>
                     </a>
                   )}
-                  {phoneHref && (
+                  {displayPhoneHref && (
                     <a
-                      href={phoneHref}
+                      href={displayPhoneHref}
                       className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-2"
                       onClick={e => isEditing && e.preventDefault()}
                       style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
                     >
                       <Phone className="h-4 w-4 text-blue-600 flex-shrink-0" />
-                      <span>{phone}</span>
+                      <span>{displayPhone}</span>
                     </a>
                   )}
-                  {emailHref && (
+                  {displayEmailHref && (
                     <a
-                      href={emailHref}
+                      href={displayEmailHref}
                       className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-2"
                       onClick={e => isEditing && e.preventDefault()}
                       style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
                     >
                       <Mail className="h-4 w-4 text-red-600 flex-shrink-0" />
-                      <span className="break-all">{email}</span>
+                      <span className="break-all">{displayEmail}</span>
                     </a>
                   )}
-                  {address && (
+                  {displayAddress && (
                     <div 
                       className="text-sm text-muted-foreground flex items-start gap-2 w-full"
                       style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
                     >
                       <span className="text-xs flex-shrink-0 pt-0.5">📍</span>
-                      <span className="leading-relaxed flex-1" style={{ wordBreak: 'normal', overflowWrap: 'anywhere' }}>{address}</span>
+                      <span className="leading-relaxed flex-1" style={{ wordBreak: 'normal', overflowWrap: 'anywhere' }}>{displayAddress}</span>
                     </div>
                   )}
-                  {supportHours && (
+                  {displayHours && (
                     <div 
                       className="text-sm text-muted-foreground inline-flex items-center gap-2"
                       style={footerTextColor ? { color: footerTextColor, opacity: 0.7 } : {}}
                     >
                       <span className="text-xs flex-shrink-0">🕐</span>
-                      <span>{supportHours}</span>
+                      <span>{displayHours}</span>
                     </div>
                   )}
                 </div>
+                {showDemoContact && (
+                  <p className="text-xs text-muted-foreground/40 mt-3 text-center italic">
+                    Configure em Configurações da Loja
+                  </p>
+                )}
               </div>
             )}
 
             {/* MOBILE BLOCO 3: Redes Sociais */}
-            {showSocial && hasSocialMedia && (
+            {showSocial && (hasSocialMedia || showDemoSocial) && (
               <div className="flex flex-col items-center">
                 <h4 
                   className="font-semibold mb-4 text-base"
                   style={footerTitlesColor ? { color: footerTitlesColor } : {}}
                 >
                   Redes Sociais
+                  {showDemoSocial && <span className="text-xs font-normal text-muted-foreground/50 ml-2">[Demo]</span>}
                 </h4>
-                <div className="flex gap-6 justify-center flex-wrap">
-                  {socialFacebook && (
+                <div className={cn(
+                  "flex gap-6 justify-center flex-wrap",
+                  showDemoSocial && "opacity-50"
+                )}>
+                  {displayFacebook && (
                     <a
-                      href={socialFacebook}
+                      href={displayFacebook}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-muted-foreground hover:text-blue-600 transition-colors"
@@ -578,9 +629,9 @@ export function StorefrontFooterContent({
                       <Facebook className="h-5 w-5" />
                     </a>
                   )}
-                  {socialInstagram && (
+                  {displayInstagram && (
                     <a
-                      href={socialInstagram}
+                      href={displayInstagram}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-muted-foreground hover:text-pink-600 transition-colors"
@@ -631,6 +682,11 @@ export function StorefrontFooterContent({
                     </a>
                   ))}
                 </div>
+                {showDemoSocial && (
+                  <p className="text-xs text-muted-foreground/40 mt-2 italic">
+                    Configure em Configurações da Loja
+                  </p>
+                )}
               </div>
             )}
 
@@ -736,15 +792,19 @@ export function StorefrontFooterContent({
                     {logoUrl ? (
                       <img
                         src={logoUrl}
-                        alt={storeName}
+                        alt={displayStoreName || 'Loja'}
                         className="h-12 max-w-[180px] object-contain"
                       />
                     ) : (
                       <span
-                        className="text-2xl font-bold block"
+                        className={cn(
+                          "text-2xl font-bold block",
+                          showDemoStore && "opacity-50"
+                        )}
                         style={{ color: footerTextColor || primaryColor }}
                       >
-                        {storeName}
+                        {displayStoreName}
+                        {showDemoStore && <span className="text-xs font-normal ml-1">[Demo]</span>}
                       </span>
                     )}
                   </Link>
@@ -754,21 +814,29 @@ export function StorefrontFooterContent({
               {/* Nome Fantasia / Descrição - respects showStoreInfo */}
               {showStoreInfo && (
                 <div className="space-y-2 w-full">
-                  {!showLogo && storeName && (
+                  {!showLogo && displayStoreName && (
                     <h4 
-                      className="text-lg font-semibold"
+                      className={cn(
+                        "text-lg font-semibold",
+                        showDemoStore && "opacity-50"
+                      )}
                       style={footerTitlesColor ? { color: footerTitlesColor } : {}}
                     >
-                      {storeName}
+                      {displayStoreName}
+                      {showDemoStore && <span className="text-xs font-normal ml-1">[Demo]</span>}
                     </h4>
                   )}
                   
-                  {storeDescription && (
+                  {(storeDescription || demoDescription) && (
                     <p 
-                      className="text-sm text-muted-foreground leading-relaxed"
-                      style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
+                      className={cn(
+                        "text-sm text-muted-foreground leading-relaxed",
+                        demoDescription && "opacity-50 italic"
+                      )}
+                      style={footerTextColor ? { color: footerTextColor, opacity: demoDescription ? 0.5 : 0.8 } : {}}
                     >
-                      {storeDescription}
+                      {displayDescription}
+                      {demoDescription && <span className="text-xs ml-1">[Demo]</span>}
                     </p>
                   )}
                   
@@ -789,22 +857,23 @@ export function StorefrontFooterContent({
           {/* ============================================ */}
           {/* COLUNA 2: Atendimento + Redes Sociais */}
           {/* ============================================ */}
-          {((showSac && hasContact) || (showSocial && hasSocialMedia)) && (
+          {((showSac && (hasContact || showDemoContact)) || (showSocial && (hasSocialMedia || showDemoSocial))) && (
             <div className="flex flex-col items-start text-left space-y-6">
               
               {/* Sub-bloco 2.1: Atendimento (SAC) */}
-              {showSac && hasContact && (
+              {showSac && (hasContact || showDemoContact) && (
                 <div className="w-full">
                   <h4 
                     className="font-semibold mb-3"
                     style={footerTitlesColor ? { color: footerTitlesColor } : {}}
                   >
                     {sacTitle}
+                    {showDemoContact && <span className="text-xs font-normal text-muted-foreground/50 ml-2">[Demo]</span>}
                   </h4>
-                  <div className="flex flex-col gap-2.5">
-                    {whatsAppHref && (
+                  <div className={cn("flex flex-col gap-2.5", showDemoContact && "opacity-50")}>
+                    {displayWhatsAppHref && (
                       <a
-                        href={whatsAppHref}
+                        href={displayWhatsAppHref}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-2"
@@ -815,44 +884,44 @@ export function StorefrontFooterContent({
                         <span>WhatsApp</span>
                       </a>
                     )}
-                    {phoneHref && (
+                    {displayPhoneHref && (
                       <a
-                        href={phoneHref}
+                        href={displayPhoneHref}
                         className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-2"
                         onClick={e => isEditing && e.preventDefault()}
                         style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
                       >
                         <Phone className="h-4 w-4 text-blue-600 flex-shrink-0" />
-                        <span>{phone}</span>
+                        <span>{displayPhone}</span>
                       </a>
                     )}
-                    {emailHref && (
+                    {displayEmailHref && (
                       <a
-                        href={emailHref}
+                        href={displayEmailHref}
                         className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-2"
                         onClick={e => isEditing && e.preventDefault()}
                         style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
                       >
                         <Mail className="h-4 w-4 text-red-600 flex-shrink-0" />
-                        <span className="break-all">{email}</span>
+                        <span className="break-all">{displayEmail}</span>
                       </a>
                     )}
-                    {address && (
+                    {displayAddress && (
                       <div 
                         className="text-sm text-muted-foreground flex items-start gap-2"
                         style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
                       >
                         <span className="text-xs flex-shrink-0 pt-0.5">📍</span>
-                        <span className="leading-relaxed">{address}</span>
+                        <span className="leading-relaxed">{displayAddress}</span>
                       </div>
                     )}
-                    {supportHours && (
+                    {displayHours && (
                       <div 
                         className="text-sm text-muted-foreground inline-flex items-center gap-2"
                         style={footerTextColor ? { color: footerTextColor, opacity: 0.7 } : {}}
                       >
                         <span className="text-xs flex-shrink-0">🕐</span>
-                        <span>{supportHours}</span>
+                        <span>{displayHours}</span>
                       </div>
                     )}
                   </div>
@@ -860,18 +929,19 @@ export function StorefrontFooterContent({
               )}
 
               {/* Sub-bloco 2.2: Redes Sociais */}
-              {showSocial && hasSocialMedia && (
+              {showSocial && (hasSocialMedia || showDemoSocial) && (
                 <div className="w-full">
                   <h4 
                     className="font-semibold mb-3"
                     style={footerTitlesColor ? { color: footerTitlesColor } : {}}
                   >
                     Redes Sociais
+                    {showDemoSocial && <span className="text-xs font-normal text-muted-foreground/50 ml-2">[Demo]</span>}
                   </h4>
-                  <div className="flex gap-5 flex-wrap">
-                    {socialFacebook && (
+                  <div className={cn("flex gap-5 flex-wrap", showDemoSocial && "opacity-50")}>
+                    {displayFacebook && (
                       <a
-                        href={socialFacebook}
+                        href={displayFacebook}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-muted-foreground hover:text-blue-600 transition-colors"
@@ -882,9 +952,9 @@ export function StorefrontFooterContent({
                         <Facebook className="h-5 w-5" />
                       </a>
                     )}
-                    {socialInstagram && (
+                    {displayInstagram && (
                       <a
-                        href={socialInstagram}
+                        href={displayInstagram}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-muted-foreground hover:text-pink-600 transition-colors"
