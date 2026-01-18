@@ -435,23 +435,53 @@ export function useThemeHeader(tenantId: string | undefined, templateSetId: stri
     ...themeSettings?.header,
   };
 
-  const updateHeader = (newHeader: Partial<ThemeHeaderConfig>) => {
+  const updateHeader = async (newHeader: Partial<ThemeHeaderConfig>) => {
     const updatedHeader = { ...header, ...newHeader };
+    
+    // Build header block for global layout
+    const headerBlock: BlockNode = {
+      id: 'global-header',
+      type: 'Header',
+      props: updatedHeader,
+    };
     
     // Update cache immediately for instant preview
     if (tenantId) {
-      const headerBlock: BlockNode = {
-        id: 'global-header',
-        type: 'Header',
-        props: updatedHeader,
-      };
       queryClient.setQueryData(['global-layout-editor', tenantId], (old: unknown) => {
         if (!old || typeof old !== 'object') return old;
         return { ...old, header_config: headerBlock };
       });
     }
     
+    // Save to template set (themeSettings)
     saveThemeSettings({ header: updatedHeader });
+    
+    // Also persist to storefront_global_layout for real-time sync
+    if (tenantId) {
+      try {
+        const { data: existing } = await supabase
+          .from('storefront_global_layout')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .maybeSingle();
+        
+        if (existing) {
+          await supabase
+            .from('storefront_global_layout')
+            .update({ header_config: headerBlock as unknown as Json })
+            .eq('tenant_id', tenantId);
+        } else {
+          await supabase
+            .from('storefront_global_layout')
+            .insert({
+              tenant_id: tenantId,
+              header_config: headerBlock as unknown as Json,
+            });
+        }
+      } catch (err) {
+        console.error('[useThemeHeader] Error syncing to global layout:', err);
+      }
+    }
   };
 
   return {
@@ -472,23 +502,54 @@ export function useThemeFooter(tenantId: string | undefined, templateSetId: stri
     ...themeSettings?.footer,
   };
 
-  const updateFooter = (newFooter: Partial<ThemeFooterConfig>) => {
+  const updateFooter = async (newFooter: Partial<ThemeFooterConfig>) => {
     const updatedFooter = { ...footer, ...newFooter };
+    
+    // Build footer block for global layout
+    const footerBlock: BlockNode = {
+      id: 'global-footer',
+      type: 'Footer',
+      props: updatedFooter,
+    };
     
     // Update cache immediately for instant preview
     if (tenantId) {
-      const footerBlock: BlockNode = {
-        id: 'global-footer',
-        type: 'Footer',
-        props: updatedFooter,
-      };
       queryClient.setQueryData(['global-layout-editor', tenantId], (old: unknown) => {
         if (!old || typeof old !== 'object') return old;
         return { ...old, footer_config: footerBlock };
       });
     }
     
+    // Save to template set (themeSettings)
     saveThemeSettings({ footer: updatedFooter });
+    
+    // Also persist to storefront_global_layout for real-time sync
+    // This ensures the VisualBuilder sees the changes immediately after cache update
+    if (tenantId) {
+      try {
+        const { data: existing } = await supabase
+          .from('storefront_global_layout')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .maybeSingle();
+        
+        if (existing) {
+          await supabase
+            .from('storefront_global_layout')
+            .update({ footer_config: footerBlock as unknown as Json })
+            .eq('tenant_id', tenantId);
+        } else {
+          await supabase
+            .from('storefront_global_layout')
+            .insert({
+              tenant_id: tenantId,
+              footer_config: footerBlock as unknown as Json,
+            });
+        }
+      } catch (err) {
+        console.error('[useThemeFooter] Error syncing to global layout:', err);
+      }
+    }
   };
 
   return {
