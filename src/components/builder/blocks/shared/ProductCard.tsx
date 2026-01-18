@@ -1,0 +1,324 @@
+// =============================================
+// PRODUCT CARD - Componente compartilhado para exibição de produtos
+// Centraliza configurações de visualização conforme categorySettings
+// Usado por: ProductGridBlock, ProductCarouselBlock, CollectionSectionBlock,
+//            BannerProductsBlock, FeaturedProductsBlock, CategoryPageLayout
+// =============================================
+
+import { Link } from 'react-router-dom';
+import { cn } from '@/lib/utils';
+import { ShoppingCart, Check } from 'lucide-react';
+import { RatingSummary } from '@/components/storefront/RatingSummary';
+import { ProductCardBadges, DynamicBadge } from '@/components/storefront/product/ProductCardBadges';
+import { getPublicProductUrl } from '@/lib/publicUrls';
+import type { CategorySettings } from '@/hooks/usePageSettings';
+
+// Tipo de produto compatível com os blocos
+export interface ProductCardProduct {
+  id: string;
+  name: string;
+  slug: string;
+  price: number;
+  compare_at_price?: number | null;
+  product_images?: { url: string; is_primary?: boolean }[];
+}
+
+// Dados de rating
+export interface ProductRating {
+  average: number;
+  count: number;
+}
+
+// Re-export DynamicBadge para uso externo
+export type { DynamicBadge };
+
+// Props do ProductCard
+export interface ProductCardProps {
+  product: ProductCardProduct;
+  tenantSlug: string;
+  isEditing?: boolean;
+  
+  // Configurações de visualização (vem do categorySettings do tema)
+  settings?: Partial<CategorySettings>;
+  
+  // Dados dinâmicos
+  rating?: ProductRating | null;
+  badges?: DynamicBadge[];
+  isAddedToCart?: boolean;
+  
+  // Callbacks
+  onAddToCart?: (e: React.MouseEvent, product: ProductCardProduct) => void;
+  onQuickBuy?: (e: React.MouseEvent, product: ProductCardProduct) => void;
+  
+  // Estilos
+  className?: string;
+  imageClassName?: string;
+  variant?: 'default' | 'compact' | 'minimal';
+}
+
+// Helper para formatar preço
+const formatPrice = (price: number) => {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(price);
+};
+
+// Helper para obter imagem do produto
+const getProductImage = (product: ProductCardProduct) => {
+  const primary = product.product_images?.find(img => img.is_primary);
+  return primary?.url || product.product_images?.[0]?.url || '/placeholder.svg';
+};
+
+export function ProductCard({
+  product,
+  tenantSlug,
+  isEditing = false,
+  settings = {},
+  rating,
+  badges,
+  isAddedToCart = false,
+  onAddToCart,
+  onQuickBuy,
+  className,
+  imageClassName,
+  variant = 'default',
+}: ProductCardProps) {
+  // Extrair configurações com defaults seguros
+  const showRatings = settings.showRatings ?? true;
+  const showBadges = settings.showBadges ?? true;
+  const showAddToCartButton = settings.showAddToCartButton ?? true;
+  const quickBuyEnabled = settings.quickBuyEnabled ?? false;
+  const buyNowButtonText = settings.buyNowButtonText || 'Comprar agora';
+  const customButtonEnabled = settings.customButtonEnabled ?? false;
+  const customButtonText = settings.customButtonText || '';
+  const customButtonColor = settings.customButtonColor || '';
+  const customButtonLink = settings.customButtonLink || '';
+  
+  const productUrl = getPublicProductUrl(tenantSlug, product.slug);
+  const hasDiscount = product.compare_at_price && product.compare_at_price > product.price;
+  
+  // Container principal com link
+  const CardWrapper = ({ children }: { children: React.ReactNode }) => {
+    if (isEditing) {
+      return (
+        <div className={cn(
+          'group block bg-card rounded-lg overflow-hidden border transition-shadow hover:shadow-md',
+          'pointer-events-none',
+          className
+        )}>
+          {children}
+        </div>
+      );
+    }
+    
+    return (
+      <a
+        href={productUrl || undefined}
+        className={cn(
+          'group block bg-card rounded-lg overflow-hidden border transition-shadow hover:shadow-md',
+          className
+        )}
+      >
+        {children}
+      </a>
+    );
+  };
+  
+  // Renderização minimal (sem botões, apenas imagem + nome + preço)
+  if (variant === 'minimal') {
+    return (
+      <CardWrapper>
+        <div className={cn('aspect-square overflow-hidden bg-muted relative', imageClassName)}>
+          <img
+            src={getProductImage(product)}
+            alt={product.name}
+            className="w-full h-full object-cover transition-transform group-hover:scale-105"
+            loading="lazy"
+          />
+          {showBadges && badges && badges.length > 0 && (
+            <ProductCardBadges badges={badges} />
+          )}
+          {hasDiscount && (
+            <span className="absolute top-2 right-2 bg-destructive text-destructive-foreground text-xs font-medium px-2 py-1 rounded">
+              -{Math.round((1 - product.price / product.compare_at_price!) * 100)}%
+            </span>
+          )}
+        </div>
+        <div className="p-2 sm:p-3">
+          <h3 className="font-medium text-xs sm:text-sm line-clamp-2 text-foreground">
+            {product.name}
+          </h3>
+          <div className="mt-1 flex flex-wrap items-center gap-1 sm:gap-2">
+            {hasDiscount && (
+              <span className="text-[10px] sm:text-xs text-muted-foreground line-through">
+                {formatPrice(product.compare_at_price!)}
+              </span>
+            )}
+            <span className="text-xs sm:text-sm font-semibold text-primary">
+              {formatPrice(product.price)}
+            </span>
+          </div>
+        </div>
+      </CardWrapper>
+    );
+  }
+  
+  // Renderização compact (imagem + rating + nome + preço + um botão)
+  if (variant === 'compact') {
+    return (
+      <CardWrapper>
+        <div className={cn('aspect-square overflow-hidden bg-muted relative', imageClassName)}>
+          <img
+            src={getProductImage(product)}
+            alt={product.name}
+            className="w-full h-full object-cover transition-transform group-hover:scale-105"
+            loading="lazy"
+          />
+          {showBadges && badges && badges.length > 0 && (
+            <ProductCardBadges badges={badges} />
+          )}
+        </div>
+        <div className="p-3">
+          {showRatings && rating && rating.count > 0 && (
+            <RatingSummary
+              average={rating.average}
+              count={rating.count}
+              variant="card"
+              className="mb-1"
+            />
+          )}
+          <h3 className="font-medium text-sm line-clamp-2 text-foreground">
+            {product.name}
+          </h3>
+          <div className="mt-1 flex items-center gap-2">
+            {hasDiscount && (
+              <span className="text-xs text-muted-foreground line-through">
+                {formatPrice(product.compare_at_price!)}
+              </span>
+            )}
+            <span className="text-sm font-semibold text-primary">
+              {formatPrice(product.price)}
+            </span>
+          </div>
+        </div>
+      </CardWrapper>
+    );
+  }
+  
+  // Renderização default (completa com todos os botões)
+  return (
+    <CardWrapper>
+      {/* Product Image */}
+      <div className={cn('aspect-square overflow-hidden bg-muted relative', imageClassName)}>
+        <img
+          src={getProductImage(product)}
+          alt={product.name}
+          className="w-full h-full object-cover transition-transform group-hover:scale-105"
+          loading="lazy"
+        />
+        {showBadges && badges && badges.length > 0 && (
+          <ProductCardBadges badges={badges} />
+        )}
+      </div>
+      
+      {/* Product Info */}
+      <div className="p-3">
+        {/* Rating acima do nome */}
+        {showRatings && rating && rating.count > 0 && (
+          <RatingSummary
+            average={rating.average}
+            count={rating.count}
+            variant="card"
+            className="mb-1"
+          />
+        )}
+        
+        <h3 className="font-medium text-sm line-clamp-2 text-foreground">
+          {product.name}
+        </h3>
+        
+        {/* Price */}
+        <div className="mt-1 flex items-center gap-2">
+          {hasDiscount && (
+            <span className="text-xs text-muted-foreground line-through">
+              {formatPrice(product.compare_at_price!)}
+            </span>
+          )}
+          <span className="text-sm font-semibold text-primary">
+            {formatPrice(product.price)}
+          </span>
+        </div>
+        
+        {/* Botões conforme REGRAS.md linha 79-84 */}
+        <div className="mt-2 flex flex-col gap-1.5">
+          {/* 1º Botão "Adicionar ao carrinho" (se ativo) */}
+          {showAddToCartButton && onAddToCart && (
+            <button 
+              className={cn(
+                "w-full py-1.5 px-3 text-xs rounded-md transition-colors flex items-center justify-center gap-1",
+                isAddedToCart
+                  ? "bg-green-500 text-white border-green-500"
+                  : "border border-primary text-primary bg-transparent hover:bg-primary/10"
+              )}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onAddToCart(e, product);
+              }}
+              disabled={isAddedToCart}
+            >
+              {isAddedToCart ? (
+                <>
+                  <Check className="h-3 w-3" />
+                  <span>Adicionado</span>
+                </>
+              ) : (
+                <>
+                  <ShoppingCart className="h-3 w-3" />
+                  <span>Adicionar</span>
+                </>
+              )}
+            </button>
+          )}
+          
+          {/* 2º Botão personalizado (se ativo) */}
+          {customButtonEnabled && customButtonText && (
+            <a
+              href={customButtonLink || '#'}
+              className="w-full py-1.5 px-3 text-xs rounded-md text-center transition-colors"
+              style={{ 
+                backgroundColor: customButtonColor || 'hsl(var(--primary))',
+                color: '#ffffff'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {customButtonText}
+            </a>
+          )}
+          
+          {/* 3º Botão principal "Comprar agora" */}
+          {quickBuyEnabled && onQuickBuy ? (
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onQuickBuy(e, product);
+              }}
+              className="w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-center"
+            >
+              {buyNowButtonText}
+            </button>
+          ) : (
+            <span className="w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md text-center">
+              {buyNowButtonText}
+            </span>
+          )}
+        </div>
+      </div>
+    </CardWrapper>
+  );
+}
+
+// Export helper functions para uso em outros componentes
+export { formatPrice, getProductImage };
