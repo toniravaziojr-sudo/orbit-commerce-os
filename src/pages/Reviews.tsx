@@ -39,6 +39,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { AddReviewDialog } from '@/components/reviews/AddReviewDialog';
 import { GenerateReviewsDialog } from '@/components/reviews/GenerateReviewsDialog';
+import { registerReviewMediaToDrive } from '@/lib/registerReviewMediaToDrive';
 
 interface ProductReview {
   id: string;
@@ -51,6 +52,7 @@ interface ProductReview {
   status: 'pending' | 'approved' | 'rejected';
   is_verified_purchase: boolean;
   created_at: string;
+  media_urls: string[] | null;
   product?: { id: string; name: string };
 }
 
@@ -109,7 +111,19 @@ export default function Reviews() {
 
   // Update status mutation
   const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status, productId }: { id: string; status: string; productId: string }) => {
+    mutationFn: async ({ 
+      id, 
+      status, 
+      productId,
+      mediaUrls,
+      customerName,
+    }: { 
+      id: string; 
+      status: string; 
+      productId: string;
+      mediaUrls?: string[] | null;
+      customerName?: string;
+    }) => {
       const updateData: any = { status };
       if (status === 'approved') {
         updateData.approved_at = new Date().toISOString();
@@ -121,6 +135,18 @@ export default function Reviews() {
         .update(updateData)
         .eq('id', id);
       if (error) throw error;
+      
+      // If approving and has media, register to Drive
+      if (status === 'approved' && mediaUrls && mediaUrls.length > 0 && currentTenantId && user?.id) {
+        await registerReviewMediaToDrive(
+          currentTenantId,
+          user.id,
+          mediaUrls,
+          id,
+          customerName || 'Cliente'
+        );
+      }
+      
       return { productId };
     },
     onSuccess: (data) => {
@@ -129,6 +155,7 @@ export default function Reviews() {
       queryClient.invalidateQueries({ queryKey: ['product-rating', data.productId] });
       queryClient.invalidateQueries({ queryKey: ['product-ratings-batch'] });
       queryClient.invalidateQueries({ queryKey: ['product-reviews-public', data.productId] });
+      queryClient.invalidateQueries({ queryKey: ['files'] }); // Refresh Drive files
       toast.success('Status atualizado');
     },
     onError: () => {
@@ -359,7 +386,13 @@ export default function Reviews() {
                         <DropdownMenuContent align="end">
                           {review.status !== 'approved' && (
                             <DropdownMenuItem
-                              onClick={() => updateStatusMutation.mutate({ id: review.id, status: 'approved', productId: review.product_id })}
+                              onClick={() => updateStatusMutation.mutate({ 
+                                id: review.id, 
+                                status: 'approved', 
+                                productId: review.product_id,
+                                mediaUrls: review.media_urls,
+                                customerName: review.customer_name,
+                              })}
                             >
                               <Check className="h-4 w-4 mr-2 text-green-600" />
                               Aprovar
