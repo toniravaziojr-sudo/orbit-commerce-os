@@ -1,18 +1,20 @@
 // =============================================
 // COLLECTION SECTION BLOCK - Category/Collection products with "Ver todos"
+// USA ProductCard compartilhado para respeitar categorySettings do tema
 // =============================================
 
-import { useBuilderProducts, formatProductPrice, getProductImage } from '@/hooks/useBuilderProducts';
+import { useBuilderProducts, formatProductPrice } from '@/hooks/useBuilderProducts';
 import { useProductRatings } from '@/hooks/useProductRating';
 import { BlockRenderContext } from '@/lib/builder/types';
 import { cn } from '@/lib/utils';
 import { ChevronRight, Loader2, ImageIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { getPublicCategoryUrl, getPublicProductUrl } from '@/lib/publicUrls';
+import { getPublicCategoryUrl } from '@/lib/publicUrls';
 import { useIsMobile } from '@/hooks/use-mobile';
 import useEmblaCarousel from 'embla-carousel-react';
 import { useCallback, useMemo } from 'react';
-import { RatingSummary } from '@/components/storefront/RatingSummary';
+import { ProductCard, formatPrice } from './shared/ProductCard';
+import type { CategorySettings } from '@/hooks/usePageSettings';
 
 interface CollectionSectionBlockProps {
   title?: string;
@@ -43,7 +45,9 @@ export function CollectionSectionBlock({
   context,
   isEditing = false,
 }: CollectionSectionBlockProps) {
-  const showRatings = context?.showRatings !== false;
+  // Get categorySettings from context (passed from VisualBuilder)
+  const categorySettings: Partial<CategorySettings> = (context as any)?.categorySettings || {};
+
   // Hook must be called unconditionally (Rules of Hooks)
   const deviceIsMobile = useIsMobile();
   const isMobile = context?.viewport === 'mobile' || (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && deviceIsMobile);
@@ -117,11 +121,11 @@ export function CollectionSectionBlock({
                     <div className="flex items-center gap-2">
                       {product.compare_at_price && (
                         <span className="text-xs text-muted-foreground line-through">
-                          {formatProductPrice(product.compare_at_price)}
+                          {formatPrice(product.compare_at_price)}
                         </span>
                       )}
                       <span className="text-sm font-semibold text-primary">
-                        {formatProductPrice(product.price)}
+                        {formatPrice(product.price)}
                       </span>
                     </div>
                   )}
@@ -137,60 +141,6 @@ export function CollectionSectionBlock({
     }
     return null;
   }
-
-  const ProductCard = ({ product }: { product: typeof products[0] }) => {
-    const imageUrl = getProductImage(product);
-    const productUrl = getPublicProductUrl(context?.tenantSlug || '', product.slug) || '/';
-    const rating = ratingsMap?.get(product.id);
-    
-    return (
-      <div className="group">
-        <div className="aspect-square bg-muted/30 rounded-lg overflow-hidden mb-3">
-          <img
-            src={imageUrl}
-            alt={product.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          />
-        </div>
-        {/* Rating - above product name (respects showRatings setting) */}
-        {showRatings && rating && rating.count > 0 && (
-          <RatingSummary
-            average={rating.average}
-            count={rating.count}
-            variant="card"
-            className="mb-1"
-          />
-        )}
-        <h3 className="font-medium text-sm mb-1 line-clamp-2">{product.name}</h3>
-      {showPrice && (
-        <div className="flex items-center gap-2 mb-2">
-          {product.compare_at_price && product.compare_at_price > product.price && (
-            <span className="text-xs text-muted-foreground line-through">
-              {formatProductPrice(product.compare_at_price)}
-            </span>
-          )}
-          <span className="font-semibold text-primary">
-            {formatProductPrice(product.price)}
-          </span>
-        </div>
-      )}
-      {showButton && (
-        isEditing ? (
-          <span className="block w-full text-center py-2 px-4 bg-primary text-primary-foreground rounded-md text-sm font-medium cursor-default">
-            {buttonText}
-          </span>
-        ) : (
-          <Link
-            to={productUrl}
-            className="block w-full text-center py-2 px-4 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
-          >
-            {buttonText}
-          </Link>
-        )
-      )}
-    </div>
-    );
-  };
 
   return (
     <section className="py-8">
@@ -218,17 +168,27 @@ export function CollectionSectionBlock({
           <div className="relative">
             <div className="overflow-hidden" ref={emblaRef}>
               <div className="flex gap-4">
-                {products.map((product) => (
-                  <div
-                    key={product.id}
-                    className={cn(
-                      'flex-shrink-0',
-                      isMobile ? 'w-[calc(50%-8px)]' : 'w-[calc(25%-12px)]'
-                    )}
-                  >
-                    <ProductCard product={product} />
-                  </div>
-                ))}
+                {products.map((product) => {
+                  const rating = ratingsMap?.get(product.id);
+                  return (
+                    <div
+                      key={product.id}
+                      className={cn(
+                        'flex-shrink-0',
+                        isMobile ? 'w-[calc(50%-8px)]' : 'w-[calc(25%-12px)]'
+                      )}
+                    >
+                      <ProductCard
+                        product={product}
+                        tenantSlug={context?.tenantSlug || ''}
+                        isEditing={isEditing}
+                        settings={categorySettings}
+                        rating={rating}
+                        variant="compact"
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </div>
             {/* Carousel Navigation */}
@@ -258,9 +218,20 @@ export function CollectionSectionBlock({
           )}
           style={isMobile ? { gridTemplateColumns: `repeat(${mobileColumns}, 1fr)` } : undefined}
           >
-            {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
+            {products.map((product) => {
+              const rating = ratingsMap?.get(product.id);
+              return (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  tenantSlug={context?.tenantSlug || ''}
+                  isEditing={isEditing}
+                  settings={categorySettings}
+                  rating={rating}
+                  variant="compact"
+                />
+              );
+            })}
           </div>
         )}
       </div>

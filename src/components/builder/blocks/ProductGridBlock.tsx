@@ -3,6 +3,7 @@
 // Este bloco é para vitrines genéricas (Destaques, Relacionados)
 // NÃO contém lógica de página de Categoria (que fica em CategoryPageLayout)
 // REGRAS.md linha 88: não duplicar lógica
+// USA ProductCard compartilhado para respeitar categorySettings do tema
 // =============================================
 
 import { useMemo } from 'react';
@@ -11,7 +12,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { BlockRenderContext } from '@/lib/builder/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { getPublicProductUrl } from '@/lib/publicUrls';
+import { ProductCard, formatPrice, getProductImage } from './shared/ProductCard';
+import { useProductRatings } from '@/hooks/useProductRating';
+import type { CategorySettings } from '@/hooks/usePageSettings';
 
 interface ProductGridBlockProps {
   source?: 'all' | 'featured' | 'category';
@@ -46,7 +49,10 @@ export function ProductGridBlock({
   context,
   isEditing = false,
 }: ProductGridBlockProps) {
-  const { tenantSlug, viewport, pageType } = context;
+  const { tenantSlug, viewport } = context;
+  
+  // Get categorySettings from context (passed from VisualBuilder)
+  const categorySettings: Partial<CategorySettings> = (context as any)?.categorySettings || {};
   
   // Determine if mobile based on viewport context
   const isMobileViewport = viewport === 'mobile';
@@ -144,6 +150,10 @@ export function ProductGridBlock({
     return [] as Product[];
   }, [products]);
 
+  // Get product IDs for batch rating fetch
+  const productIds = useMemo(() => displayProducts.map(p => p.id), [displayProducts]);
+  const { data: ratingsMap } = useProductRatings(productIds);
+
   // Compute grid columns based on viewport
   const gridCols = useMemo(() => {
     if (viewport) {
@@ -161,18 +171,6 @@ export function ProductGridBlock({
       6: 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
     }[columns] || 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4';
   }, [viewport, isMobileViewport, isTabletViewport, columns]);
-
-  const getProductImage = (product: Product) => {
-    const primary = product.product_images?.find(img => img.is_primary);
-    return primary?.url || product.product_images?.[0]?.url || '/placeholder.svg';
-  };
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(price);
-  };
 
   if (isLoading) {
     return (
@@ -194,8 +192,10 @@ export function ProductGridBlock({
       const demoProducts = Array.from({ length: limit }, (_, i) => ({
         id: `demo-${i}`,
         name: `Produto Exemplo ${i + 1}`,
+        slug: `demo-${i}`,
         price: 89.90 + (i * 25),
         compare_at_price: i % 2 === 0 ? 119.90 + (i * 25) : null,
+        product_images: [] as { url: string; is_primary: boolean }[],
       }));
 
       return (
@@ -247,54 +247,18 @@ export function ProductGridBlock({
     <div className="relative">
       <div className={cn('grid gap-3 sm:gap-4', gridCols)}>
         {displayProducts.map((product) => {
-          const productUrl = getPublicProductUrl(tenantSlug, product.slug);
+          const rating = ratingsMap?.get(product.id);
           
           return (
-            <a
+            <ProductCard
               key={product.id}
-              href={isEditing ? undefined : productUrl || undefined}
-              className={cn(
-                'group block bg-card rounded-lg overflow-hidden border transition-shadow hover:shadow-md relative',
-                isEditing && 'pointer-events-none'
-              )}
-            >
-              {/* Product Image */}
-              <div className="aspect-square overflow-hidden bg-muted relative">
-                <img
-                  src={getProductImage(product)}
-                  alt={product.name}
-                  className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                  loading="lazy"
-                />
-              </div>
-              
-              <div className="p-2 sm:p-3">
-                <h3 className="font-medium text-xs sm:text-sm line-clamp-2 text-foreground">
-                  {product.name}
-                </h3>
-                {showPrice && (
-                  <div className="mt-1 flex flex-wrap items-center gap-1 sm:gap-2">
-                    {product.compare_at_price && product.compare_at_price > product.price && (
-                      <span className="text-[10px] sm:text-xs text-muted-foreground line-through">
-                        {formatPrice(product.compare_at_price)}
-                      </span>
-                    )}
-                    <span className="text-xs sm:text-sm font-semibold text-primary">
-                      {formatPrice(product.price)}
-                    </span>
-                  </div>
-                )}
-                
-                {/* Botão simples de ver produto - sem lógica de categoria */}
-                {showButton && (
-                  <div className="mt-2">
-                    <span className="w-full py-1 sm:py-1.5 px-2 sm:px-3 text-[10px] sm:text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-center block">
-                      {buttonText}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </a>
+              product={product}
+              tenantSlug={tenantSlug}
+              isEditing={isEditing}
+              settings={categorySettings}
+              rating={rating}
+              variant="compact"
+            />
           );
         })}
       </div>

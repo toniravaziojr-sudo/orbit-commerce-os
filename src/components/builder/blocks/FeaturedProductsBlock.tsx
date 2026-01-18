@@ -1,15 +1,16 @@
 // =============================================
 // FEATURED PRODUCTS BLOCK - Manual product selection only
+// USA ProductCard compartilhado para respeitar categorySettings do tema
 // =============================================
 
 import { useMemo } from 'react';
 import { BlockRenderContext } from '@/lib/builder/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { getPublicProductUrl } from '@/lib/publicUrls';
-import { useBuilderProducts, getProductImage, formatProductPrice } from '@/hooks/useBuilderProducts';
+import { useBuilderProducts } from '@/hooks/useBuilderProducts';
 import { useProductRatings } from '@/hooks/useProductRating';
-import { RatingSummary } from '@/components/storefront/RatingSummary';
+import { ProductCard, formatPrice } from './shared/ProductCard';
+import type { CategorySettings } from '@/hooks/usePageSettings';
 
 interface FeaturedProductsBlockProps {
   title?: string;
@@ -34,7 +35,10 @@ export function FeaturedProductsBlock({
   context,
   isEditing = false,
 }: FeaturedProductsBlockProps) {
-  const { tenantSlug, showRatings = true } = context;
+  const { tenantSlug } = context;
+
+  // Get categorySettings from context (passed from VisualBuilder)
+  const categorySettings: Partial<CategorySettings> = (context as any)?.categorySettings || {};
 
   // Parse productIds: support both array (new) and string (legacy)
   const parsedProductIds = Array.isArray(productIds)
@@ -113,11 +117,11 @@ export function FeaturedProductsBlock({
                     <div className="mt-1 flex items-center gap-2">
                       {product.compare_at_price && (
                         <span className="text-xs text-muted-foreground line-through">
-                          {formatProductPrice(product.compare_at_price)}
+                          {formatPrice(product.compare_at_price)}
                         </span>
                       )}
                       <span className="text-sm font-semibold text-primary">
-                        {formatProductPrice(product.price)}
+                        {formatPrice(product.price)}
                       </span>
                     </div>
                   )}
@@ -149,53 +153,15 @@ export function FeaturedProductsBlock({
         {products.map((product) => {
           const rating = ratingsMap?.get(product.id);
           return (
-            <a
+            <ProductCard
               key={product.id}
-              href={isEditing ? undefined : getPublicProductUrl(tenantSlug, product.slug) || undefined}
-              className={cn(
-                'group block bg-card rounded-lg overflow-hidden border transition-shadow hover:shadow-md',
-                isEditing && 'pointer-events-none'
-              )}
-            >
-              <div className="aspect-square overflow-hidden bg-muted">
-                <img
-                  src={getProductImage(product)}
-                  alt={product.name}
-                  className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                />
-              </div>
-              <div className="p-3">
-                {/* Rating - above product name (respects showRatings setting) */}
-                {showRatings && rating && rating.count > 0 && (
-                  <RatingSummary
-                    average={rating.average}
-                    count={rating.count}
-                    variant="card"
-                    className="mb-1"
-                  />
-                )}
-                <h3 className="font-medium text-sm line-clamp-2 text-foreground">
-                  {product.name}
-                </h3>
-                {showPrice && (
-                  <div className="mt-1 flex items-center gap-2">
-                    {product.compare_at_price && product.compare_at_price > product.price && (
-                      <span className="text-xs text-muted-foreground line-through">
-                        {formatProductPrice(product.compare_at_price)}
-                      </span>
-                    )}
-                    <span className="text-sm font-semibold text-primary">
-                      {formatProductPrice(product.price)}
-                    </span>
-                  </div>
-                )}
-                {showButton && (
-                  <button className="mt-2 w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors">
-                    {buttonText}
-                  </button>
-                )}
-              </div>
-            </a>
+              product={product}
+              tenantSlug={tenantSlug}
+              isEditing={isEditing}
+              settings={categorySettings}
+              rating={rating}
+              variant="compact"
+            />
           );
         })}
       </div>
