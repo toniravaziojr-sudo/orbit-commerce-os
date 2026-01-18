@@ -10,11 +10,13 @@ import { BlockRenderContext } from '@/lib/builder/types';
 import { cn } from '@/lib/utils';
 import { ChevronRight, Loader2, ImageIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { getPublicCategoryUrl } from '@/lib/publicUrls';
+import { getPublicCategoryUrl, getPublicCheckoutUrl } from '@/lib/publicUrls';
 import { useIsMobile } from '@/hooks/use-mobile';
 import useEmblaCarousel from 'embla-carousel-react';
-import { useCallback, useMemo } from 'react';
-import { ProductCard, formatPrice } from './shared/ProductCard';
+import { useCallback, useMemo, useState } from 'react';
+import { ProductCard, formatPrice, ProductCardProduct } from './shared/ProductCard';
+import { useCart } from '@/contexts/CartContext';
+import { toast } from 'sonner';
 import type { CategorySettings } from '@/hooks/usePageSettings';
 
 interface CollectionSectionBlockProps {
@@ -64,6 +66,34 @@ export function CollectionSectionBlock({
   const productIds = useMemo(() => products.map(p => p.id), [products]);
   const { data: ratingsMap } = useProductRatings(productIds);
   const { data: badgesMap } = useProductBadgesForProducts(productIds);
+
+  // Cart functionality
+  const { addItem: addToCart, items: cartItems } = useCart();
+  const [addedProducts, setAddedProducts] = useState<Set<string>>(new Set());
+
+  const isProductInCart = useCallback((productId: string) => {
+    return cartItems.some(item => item.product_id === productId) || addedProducts.has(productId);
+  }, [cartItems, addedProducts]);
+
+  const handleAddToCart = useCallback((e: React.MouseEvent, product: ProductCardProduct) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isEditing) return;
+    const primaryImage = product.product_images?.find(img => img.is_primary)?.url || product.product_images?.[0]?.url;
+    addToCart({ product_id: product.id, name: product.name, sku: product.slug, price: product.price, quantity: 1, image_url: primaryImage });
+    setAddedProducts(prev => new Set(prev).add(product.id));
+    toast.success('Produto adicionado ao carrinho!');
+  }, [addToCart, isEditing]);
+
+  const handleQuickBuy = useCallback((e: React.MouseEvent, product: ProductCardProduct) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isEditing) return;
+    const primaryImage = product.product_images?.find(img => img.is_primary)?.url || product.product_images?.[0]?.url;
+    addToCart({ product_id: product.id, name: product.name, sku: product.slug, price: product.price, quantity: 1, image_url: primaryImage });
+    const checkoutUrl = getPublicCheckoutUrl(context?.tenantSlug || '');
+    window.location.href = checkoutUrl;
+  }, [addToCart, context?.tenantSlug, isEditing]);
 
   const [emblaRef, emblaApi] = useEmblaCarousel({
     align: 'start',
@@ -188,6 +218,9 @@ export function CollectionSectionBlock({
                         settings={categorySettings}
                         rating={rating}
                         badges={badges}
+                        isAddedToCart={isProductInCart(product.id)}
+                        onAddToCart={handleAddToCart}
+                        onQuickBuy={handleQuickBuy}
                         variant="compact"
                       />
                     </div>
@@ -234,6 +267,9 @@ export function CollectionSectionBlock({
                   settings={categorySettings}
                   rating={rating}
                   badges={badges}
+                  isAddedToCart={isProductInCart(product.id)}
+                  onAddToCart={handleAddToCart}
+                  onQuickBuy={handleQuickBuy}
                   variant="compact"
                 />
               );
