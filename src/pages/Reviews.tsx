@@ -33,7 +33,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Star, MoreHorizontal, Check, X, Trash2, Search, Loader2, MessageSquare, Plus, Sparkles } from 'lucide-react';
+import { Star, MoreHorizontal, Check, X, Trash2, Search, Loader2, MessageSquare, Plus, Sparkles, Play, Image as ImageIcon } from 'lucide-react';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -63,6 +64,11 @@ export default function Reviews() {
   const [activeTab, setActiveTab] = useState<string>('pending');
   const [productFilter, setProductFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [lightboxMedia, setLightboxMedia] = useState<string | null>(null);
+
+  const isVideo = (url: string) => {
+    return url.match(/\.(mp4|webm|ogg|mov)$/i);
+  };
 
   // Ensure "Review clientes" folder exists on page load
   useEffect(() => {
@@ -344,6 +350,7 @@ export default function Reviews() {
                   <TableHead>Cliente</TableHead>
                   <TableHead>Nota</TableHead>
                   <TableHead>Conteúdo</TableHead>
+                  <TableHead>Mídia</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Data</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
@@ -377,6 +384,37 @@ export default function Reviews() {
                         <p className="text-sm text-muted-foreground line-clamp-2">
                           {review.content}
                         </p>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {review.media_urls && review.media_urls.length > 0 ? (
+                        <div className="flex gap-1">
+                          {review.media_urls.slice(0, 3).map((url, index) => (
+                            <button
+                              key={index}
+                              onClick={() => setLightboxMedia(url)}
+                              className="relative w-10 h-10 rounded overflow-hidden border hover:ring-2 hover:ring-primary transition-all"
+                            >
+                              {isVideo(url) ? (
+                                <>
+                                  <video src={url} className="w-full h-full object-cover" />
+                                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                    <Play className="h-3 w-3 text-white fill-white" />
+                                  </div>
+                                </>
+                              ) : (
+                                <img src={url} alt="" className="w-full h-full object-cover" />
+                              )}
+                            </button>
+                          ))}
+                          {review.media_urls.length > 3 && (
+                            <div className="w-10 h-10 rounded border bg-muted flex items-center justify-center text-xs text-muted-foreground">
+                              +{review.media_urls.length - 3}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">-</span>
                       )}
                     </TableCell>
                     <TableCell>{getStatusBadge(review.status)}</TableCell>
@@ -435,6 +473,34 @@ export default function Reviews() {
         </CardContent>
       </Card>
       </Tabs>
+
+      {/* Media Lightbox */}
+      <Dialog open={!!lightboxMedia} onOpenChange={() => setLightboxMedia(null)}>
+        <DialogContent className="max-w-3xl p-0 overflow-hidden">
+          <button
+            onClick={() => setLightboxMedia(null)}
+            className="absolute top-2 right-2 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          {lightboxMedia && (
+            isVideo(lightboxMedia) ? (
+              <video 
+                src={lightboxMedia} 
+                controls 
+                autoPlay 
+                className="w-full max-h-[80vh] object-contain"
+              />
+            ) : (
+              <img 
+                src={lightboxMedia} 
+                alt="Mídia da avaliação" 
+                className="w-full max-h-[80vh] object-contain"
+              />
+            )
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

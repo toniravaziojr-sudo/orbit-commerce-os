@@ -3,12 +3,14 @@
 // With customer-facing review form
 // =============================================
 
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Star, MessageSquare } from 'lucide-react';
+import { Star, MessageSquare, Play, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ReviewForm } from './ReviewForm';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 
 interface ProductReviewsSectionProps {
   productId: string;
@@ -16,12 +18,14 @@ interface ProductReviewsSectionProps {
 }
 
 export function ProductReviewsSection({ productId, tenantId }: ProductReviewsSectionProps) {
+  const [lightboxMedia, setLightboxMedia] = useState<string | null>(null);
+  
   const { data: reviews, isLoading } = useQuery({
     queryKey: ['product-reviews-public', productId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('product_reviews')
-        .select('id, customer_name, rating, title, content, created_at, is_verified_purchase, tenant_id')
+        .select('id, customer_name, rating, title, content, created_at, is_verified_purchase, tenant_id, media_urls')
         .eq('product_id', productId)
         .eq('status', 'approved')
         .order('created_at', { ascending: false })
@@ -32,6 +36,10 @@ export function ProductReviewsSection({ productId, tenantId }: ProductReviewsSec
     },
     enabled: !!productId,
   });
+
+  const isVideo = (url: string) => {
+    return url.match(/\.(mp4|webm|ogg|mov)$/i);
+  };
 
   if (isLoading) {
     return null;
@@ -121,6 +129,30 @@ export function ProductReviewsSection({ productId, tenantId }: ProductReviewsSec
                         {review.content}
                       </p>
                     )}
+
+                    {/* Media thumbnails */}
+                    {review.media_urls && review.media_urls.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        {review.media_urls.map((url, index) => (
+                          <button
+                            key={index}
+                            onClick={() => setLightboxMedia(url)}
+                            className="relative w-16 h-16 rounded-lg overflow-hidden border hover:ring-2 hover:ring-primary transition-all group"
+                          >
+                            {isVideo(url) ? (
+                              <>
+                                <video src={url} className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                  <Play className="h-5 w-5 text-white fill-white" />
+                                </div>
+                              </>
+                            ) : (
+                              <img src={url} alt={`Mídia ${index + 1}`} className="w-full h-full object-cover" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 
@@ -146,6 +178,34 @@ export function ProductReviewsSection({ productId, tenantId }: ProductReviewsSec
           )}
         </>
       )}
+
+      {/* Media Lightbox */}
+      <Dialog open={!!lightboxMedia} onOpenChange={() => setLightboxMedia(null)}>
+        <DialogContent className="max-w-3xl p-0 overflow-hidden">
+          <button
+            onClick={() => setLightboxMedia(null)}
+            className="absolute top-2 right-2 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          {lightboxMedia && (
+            isVideo(lightboxMedia) ? (
+              <video 
+                src={lightboxMedia} 
+                controls 
+                autoPlay 
+                className="w-full max-h-[80vh] object-contain"
+              />
+            ) : (
+              <img 
+                src={lightboxMedia} 
+                alt="Mídia da avaliação" 
+                className="w-full max-h-[80vh] object-contain"
+              />
+            )
+          )}
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
