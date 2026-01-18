@@ -111,12 +111,27 @@ export function useTemplateSetSave() {
 
       if (settingsError) throw settingsError;
 
+      // CRITICAL: Publish all active checkout testimonials
+      // This ensures testimonials follow the same draft→published flow as the template
+      const { error: testimonialsError } = await supabase
+        .from('checkout_testimonials')
+        .update({ published_at: new Date().toISOString() })
+        .eq('tenant_id', currentTenant.id)
+        .eq('is_active', true);
+
+      if (testimonialsError) {
+        console.error('Error publishing testimonials:', testimonialsError);
+        // Non-blocking: don't fail the entire publish if testimonials fail
+      }
+
       return { success: true };
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['template-set-content', variables.templateSetId] });
       queryClient.invalidateQueries({ queryKey: ['template-sets'] });
       queryClient.invalidateQueries({ queryKey: ['store-settings'] });
+      // Invalidate storefront testimonials so public sees newly published ones
+      queryClient.invalidateQueries({ queryKey: ['storefront-testimonials', currentTenant?.id] });
       toast.success('Template publicado com sucesso!');
     },
     onError: (error: Error) => {
