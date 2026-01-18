@@ -320,6 +320,15 @@ Convites usam template padrão do sistema.
 
 > **Status:** Módulo concluído. Alterações estruturais requerem aprovação.
 
+### Miniaturas de Categorias
+
+| Regra | Descrição |
+|-------|-----------|
+| **Cadastro de categoria** | **NÃO** possui campo de miniatura/thumbnail. Apenas nome, slug, descrição e banners. |
+| **Miniaturas nos blocos** | Imagens de miniatura são configuradas **diretamente nos blocos do Builder** (Lista de Categorias, Categorias em Destaque). |
+| **Flexibilidade** | Cada bloco pode ter dimensões e imagens diferentes para a mesma categoria. |
+| **Dimensões recomendadas** | Lista de Categorias: 800×800px • Categorias em Destaque: 200×200px (circular) |
+
 ---
 
 ## 0.17) Produtos, Clientes e Pedidos — Módulos Core (Concluídos e Protegidos)
