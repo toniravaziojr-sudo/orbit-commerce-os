@@ -14,6 +14,352 @@ Este documento é a **FONTE ÚNICA DE VERDADE** para todas as especificações f
 
 ---
 
+## 0) Regras Gerais (NÃO NEGOCIÁVEIS)
+
+### Abordagem Estrutural (Regra Permanente)
+
+Quando um problema/lógica envolver vários componentes (frontend + Edge Functions + banco + RLS + jobs), a correção deve ser feita no **pipeline/lógica global** — não em ajustes item-a-item — para reduzir regressões e retrabalho.
+
+### Diagnóstico Obrigatório para Erro Recorrente
+
+Se um erro se repetir mais de 1 vez (mesmo sintoma/rota/stack), **parar "tentativas rápidas"** e instalar diagnóstico antes da próxima correção:
+
+| Diagnóstico | Descrição |
+|-------------|-----------|
+| **ErrorBoundary** | Na rota afetada com botão "Copiar Diagnóstico" (stack + componentStack + URL + userAgent + timestamp) |
+| **Debug Panel** | Opcional via `?debug=1` exibindo: tenant atual, auth state, status/erro das queries, dados mínimos retornados |
+| **Logs estruturados** | `console.group` nos hooks críticos (inputs/outputs) para identificar causa raiz |
+
+**Critério:** Só voltar a "corrigir" depois de capturar diagnóstico suficiente para apontar a causa raiz.
+
+### Anti-Regressão de Core
+
+**Proibido** refatorar core/base sem autorização explícita do usuário.
+
+### Multi-Tenant (Regra Fixa)
+
+Tudo sempre tenant-scoped. **Proibido** vazamento de dados/tokens/credenciais entre tenants.
+
+### CORE DO SISTEMA (Regra Fixa)
+
+**Produtos, Clientes e Pedidos são a base/fonte de verdade.**
+
+Qualquer módulo (marketing, suporte, automações, integrações, fiscal, logística, marketplaces, atendimento etc.) deve ler/alterar o Core via **API interna do Core** (camada de serviço), sem fluxos paralelos nem writes diretos fora dessa camada.
+
+### Build (Regra Fixa)
+
+**Não considerar concluído** se build/lint/typecheck falharem.
+
+### Feature Incompleta
+
+Esconder via feature-flag. **NUNCA** deixar "UI quebrada" em produção.
+
+### Integrações Sensíveis (WhatsApp/Email/Pagamentos/Marketplaces)
+
+**Não quebrar provider em produção.** Se trocar, implementar em paralelo com gate + rollback.
+
+---
+
+## 0.1) Tenants Âncora
+
+| Tenant | Email | Tenant ID |
+|--------|-------|-----------|
+| **Super Admin (Platform)** | `toniravaziojr@gmail.com` | - |
+| **Tenant Base Especial** | `respeiteohomem@gmail.com` | `d1a4d0ed-8842-495e-b741-540a9a345b25` |
+
+> "Somente no tenant base especial" = **SPECIAL ONLY** (não afetar platform/admin nem customers).
+
+---
+
+## 0.2) Auth / RLS (Resumo Operacional)
+
+| Aspecto | Descrição |
+|---------|-----------|
+| **Auth** | `auth.users` → `profiles` (id igual) |
+| **Multi-tenancy** | `tenants` + `user_roles`; `profiles.current_tenant_id` = tenant ativo |
+| **Roles** | Usar `hasRole()` (nunca hardcoded) |
+| **Platform admins** | Tabela `platform_admins` (separado). Platform admin não precisa de tenant para acessar |
+
+---
+
+## 0.3) Arquitetura — Locais Canônicos (Regra Fixa)
+
+Cada "tipo de coisa" tem um local canônico; módulos dependentes **não criam fluxo paralelo**.
+
+| Local Canônico | Responsabilidade |
+|----------------|------------------|
+| **Integrações (hub)** | Conectar/configurar integrações e credenciais globais |
+| **Atendimento** | Todas as mensagens de todos os canais |
+| **Marketplaces** | Operações específicas do marketplace |
+| **Fiscal (NFe)** | Módulo fiscal/certificado; **não é "integração"** |
+| **Logística (/shipping)** | Frete e transportadoras; **não fica em Integrações** |
+| **Meu Drive (public.files)** | Fonte de verdade de arquivos/mídias do tenant |
+| **Usuários e Permissões** | Equipe do tenant; não confundir com `platform_admins` |
+
+---
+
+## 0.4) Edge Functions (Regras Fixas)
+
+| Regra | Descrição |
+|-------|-----------|
+| **Erro de negócio** | HTTP 200 + `{ success: false, error: "...", code? }` |
+| **CORS** | Completo em TODAS as respostas (OPTIONS + success + error). **Falta de CORS = bug crítico** |
+| **Email** | Sempre `normalizeEmail()` (trim + lowercase) |
+| **RLS** | Validar SELECT/INSERT/UPDATE/DELETE por tabela antes de dar "done" |
+
+---
+
+## 0.5) Credenciais Globais (platform_credentials)
+
+| Regra | Descrição |
+|-------|-----------|
+| **Allowlist** | Qualquer nova key precisa estar na allowlist de edição da function de update (ex.: `EDITABLE_CREDENTIALS`), senão salvar deve falhar |
+| **UX admin** | Após salvar, UI deve refletir estado persistido (SET + preview mascarado) e permitir editar/remover |
+
+---
+
+## 0.6) Regra de Prompts (Lovable)
+
+Problema estrutural/multi-componente → prompt pede correção do **pipeline global**; nunca correção item a item.
+
+---
+
+## 0.7) Importação — Wizard (Etapas Congeladas + Mini-Sistemas)
+
+> **Regra Crítica:** Etapa 1 e Etapa 2 estão válidas e **CONGELADAS** — não modificar sem autorização explícita.
+
+### Etapas
+
+| Etapa | Nome | Status |
+|-------|------|--------|
+| 1 | Análise da Loja | **CONGELADA** |
+| 2 | Importação de Arquivos | **CONGELADA** |
+| 3 | Estrutura da Loja | Em ajuste (Categorias, Páginas institucionais, Menus) |
+
+### Regras da Etapa 2
+
+| Regra | Descrição |
+|-------|-----------|
+| **Batches** | 25–50; health check obrigatório |
+| **Produto sem nome** | NUNCA inserir "Produto sem nome"; se faltar name/title → erro |
+| **SKU** | Pode ser gerado se faltar (determinístico + único por tenant) |
+| **Preço** | Não vira 0 silenciosamente; parse falhou = erro/warning explícito |
+| **Pós-validação** | O que o job diz que importou deve aparecer na mesma query/tabela usada pela UI; mismatch = FAILED |
+
+### Etapa 3 — Mini-sistemas
+
+**A) Categorias:**
+- Via Edge Function + `import_jobs`/`import_items`
+- Upsert por `(tenant_id, slug)`
+- `external_id` canônico
+- `parent_id` quando houver evidência
+- Banners best-effort com alta confiança
+- Mídia via Meu Drive (path único)
+- Vínculo produto↔categoria só com match seguro e idempotente
+
+**B) Páginas institucionais:**
+- Links do footer, texto predominante
+- Pular: checkout/login/carrinho/rastreio/blog/search/produto/coleção/forms/apps/iframes
+- Deduplicar sem slug-1/slug-2
+- Home não importa
+
+**C) Menus (gerar estrutura inicial tenant-wide):**
+
+| Menu | Conteúdo |
+|------|----------|
+| **Header** | Categorias como `menu_items` no menu `location='header'` |
+| **Footer 1** | Categorias + itens nativos (Blog/Rastreio) se existirem |
+| **Footer 2** | Somente páginas institucionais |
+
+Salvar em `menus` e `menu_items` (tenant-scoped).
+
+### Contrato de Jobs
+
+| Regra | Descrição |
+|-------|-----------|
+| **Processing infinito** | Proibido; finaliza `completed`/`failed` com timestamps |
+| **Relatório** | `created`/`updated`/`skipped`/`failed` + motivos |
+| **Pós-validação** | Count + sample read (mesma query da UI) |
+
+### Limpar Importação (Hard Reset)
+
+Remover dados gerados por job/tracking **sem apagar uploads do usuário**.
+Categorias: deletar `product_categories` vinculados antes de deletar `categories`.
+
+---
+
+## 0.8) Integrações — UI/UX (Regras Fixas)
+
+| Regra | Descrição |
+|-------|-----------|
+| **Abas** | Em uma linha (sem duplicidade) |
+| **NFe** | Não aparece em Integrações |
+| **Frete/Logística** | Não aparece em Integrações (fica em `/shipping`) |
+| **Email (domínio)** | Fica em Integrações (aba Emails) |
+
+---
+
+## 0.9) Marketplaces — Padrão (Mercado Livre como referência)
+
+| Aspecto | Regra |
+|---------|-------|
+| **Credenciais globais do app** | `platform_credentials` (admin) |
+| **Conexão por tenant** | `marketplace_connections` (tenant-scoped) |
+| **Tokens em tabela global** | Proibido |
+| **Expor secrets globais ao tenant** | Proibido |
+| **Navegação** | Marketplaces menu principal; `/marketplaces/mercadolivre` |
+| **OAuth** | Conectar em Integrações; menu do marketplace só mostra CTA enquanto não conectado |
+| **Pedidos** | `orders.marketplace_source`, `marketplace_order_id`, `marketplace_data` |
+
+---
+
+## 0.10) Atendimento (Canais) — Regra Fixa
+
+Tudo em **Atendimento**. Mercado Livre alimenta `conversations` + `messages` (`channel_type='mercadolivre'`).
+
+**Proibido:** Manter "Mensagens" como aba principal dentro de Marketplaces.
+
+---
+
+## 0.11) Dependência de Integração — Alertas Contextuais
+
+| Regra | Descrição |
+|-------|-----------|
+| **Exibição** | Mostrar alerta apenas quando necessário |
+| **Bloqueio** | Bloquear configuração/IA sem integração e linkar para Integrações |
+
+---
+
+## 0.12) Origem do Pedido — Ícone + Fiscal
+
+| Regra | Descrição |
+|-------|-----------|
+| **Badge** | Pedidos exibem badge de origem |
+| **Fiscal** | Filtra por origem via `orders.marketplace_source` |
+| **Anti-regressão** | Não quebrar comportamento atual |
+
+---
+
+## 0.13) Logística / Frete — Segurança
+
+| Regra | Descrição |
+|-------|-----------|
+| **Configuração** | Em `/shipping` |
+| **RLS** | Proibido SELECT público amplo em shipping rules |
+| **Checkout** | Calcula via Edge Function com service role + filtro tenant |
+
+---
+
+## 0.14) Mídias do Tenant — Fonte de Verdade (Regra Fixa)
+
+**Fonte de verdade:** `public.files` (Meu Drive)
+
+### Pasta "Uploads do sistema"
+
+| Regra | Descrição |
+|-------|-----------|
+| Sempre existe | `is_system_folder=true` |
+| Não pode renomear/excluir/mover | - |
+| Itens do sistema | Não podem sair da árvore do sistema |
+
+### Uploads (obrigatório, qualquer módulo)
+
+| Regra | Descrição |
+|-------|-----------|
+| Path único | Não sobrescrever |
+| Registro | Em `public.files` (folder do sistema), com `metadata { source, system_managed:true }` |
+| Referência | Atualizar referência do módulo para nova mídia |
+| Cache-busting | Em previews ao trocar |
+
+### "Em uso"
+
+| Regra | Descrição |
+|-------|-----------|
+| Matching estrito | `file_id` > `path` > URL normalizada (sem contains/prefix) |
+| Em duplicidade | `updated_at` mais recente |
+
+**Decisão:** `media_library` não é banco do usuário; builder consome imagens do Meu Drive.
+
+---
+
+## 0.15) Usuários e Permissões (RBAC do Cliente) — Regra Fixa
+
+### Escopo
+
+Gerenciamento da equipe do tenant (não confundir com `platform_admins`).
+
+### Modelo
+
+| Aspecto | Descrição |
+|---------|-----------|
+| **Tabelas** | `profiles`, `user_roles`, `role_invitations` |
+| **RLS de profiles** | Tenant-scoped via `current_tenant_id` |
+| **Convites** | Via `role_invitations` com token e expiração |
+| **Modo convite** | Usuário só acessa tenant se tiver role ativo |
+| **Guards** | Usar `hasRole()` para verificar permissões |
+| **Default deny** | Sem role = sem acesso |
+
+### UX Mínimo
+
+- Lista de membros da equipe
+- Convidar membro (email + role)
+- Editar role de membro existente
+- Remover membro da equipe
+
+### Reset Controlado
+
+Alterações de role não podem ser desfeitas automaticamente; requer ação explícita.
+
+### Template de E-mail Canônico
+
+Convites usam template padrão do sistema.
+
+---
+
+## 0.16) Categorias — Módulo Core (Concluído e Protegido)
+
+> **Status:** Módulo concluído. Alterações estruturais requerem aprovação.
+
+---
+
+## 0.17) Produtos, Clientes e Pedidos — Módulos Core (Concluídos e Protegidos)
+
+### Core API
+
+Todas as operações de escrita passam pela Core API (Edge Functions):
+- `core-orders`
+- `core-customers`
+- `core-products`
+
+### Auditoria
+
+Todas as alterações são registradas em `core_audit_log`.
+
+### Eventos
+
+Mudanças de status geram eventos para automações.
+
+### State Machine (Pedidos)
+
+| Status | Transições Permitidas |
+|--------|----------------------|
+| `pending` | `processing`, `cancelled` |
+| `processing` | `shipped`, `cancelled` |
+| `shipped` | `delivered`, `returned` |
+| `delivered` | `returned` |
+| `cancelled` | - |
+| `returned` | - |
+
+### Gates e Regras de Delete
+
+| Entidade | Regra de Delete |
+|----------|-----------------|
+| **Produto** | Verificar dependências (pedidos, kits, relacionados) |
+| **Cliente** | Verificar dependências (pedidos, conversas, endereços) |
+| **Pedido** | Soft delete ou delete real conforme status |
+
+---
+
 ## Regra de Imutabilidade
 
 | Regra | Descrição |
