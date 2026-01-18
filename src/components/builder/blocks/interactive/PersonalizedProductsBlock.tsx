@@ -1,17 +1,24 @@
 // =============================================
 // PERSONALIZED PRODUCTS BLOCK - "Recommended for you" section
+// USA ProductCard compartilhado para respeitar categorySettings do tema
 // =============================================
 
 import React from 'react';
 import { Sparkles, RefreshCw, ShoppingBag, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { BlockRenderContext } from '@/lib/builder/types';
+import { ProductCard, formatPrice } from '../shared/ProductCard';
+import type { CategorySettings } from '@/hooks/usePageSettings';
 
 interface ProductItem {
   id?: string;
   name?: string;
+  slug?: string;
   price?: number;
   originalPrice?: number;
+  compare_at_price?: number | null;
   image?: string;
+  product_images?: { url: string; is_primary?: boolean }[];
   badge?: string;
 }
 
@@ -24,6 +31,7 @@ interface PersonalizedProductsBlockProps {
   showRecommended?: boolean;
   showBuyAgain?: boolean;
   products?: ProductItem[];
+  context?: BlockRenderContext;
   isEditing?: boolean;
 }
 
@@ -31,14 +39,17 @@ const defaultProducts: ProductItem[] = [
   {
     id: '1',
     name: 'Camiseta Premium',
+    slug: 'camiseta-premium',
     price: 89.90,
     originalPrice: 129.90,
+    compare_at_price: 129.90,
     image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=300&h=300&fit=crop',
     badge: 'Recomendado',
   },
   {
     id: '2',
     name: 'Tênis Esportivo',
+    slug: 'tenis-esportivo',
     price: 299.90,
     image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=300&h=300&fit=crop',
     badge: 'Baseado em sua navegação',
@@ -46,6 +57,7 @@ const defaultProducts: ProductItem[] = [
   {
     id: '3',
     name: 'Mochila Casual',
+    slug: 'mochila-casual',
     price: 149.90,
     image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=300&h=300&fit=crop',
     badge: 'Você pode gostar',
@@ -53,8 +65,10 @@ const defaultProducts: ProductItem[] = [
   {
     id: '4',
     name: 'Relógio Smart',
+    slug: 'relogio-smart',
     price: 499.90,
     originalPrice: 699.90,
+    compare_at_price: 699.90,
     image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=300&h=300&fit=crop',
     badge: 'Popular',
   },
@@ -69,8 +83,12 @@ export function PersonalizedProductsBlock({
   showRecommended = true,
   showBuyAgain = false,
   products,
+  context,
   isEditing = false,
 }: PersonalizedProductsBlockProps) {
+  // Get categorySettings from context (passed from VisualBuilder)
+  const categorySettings: Partial<CategorySettings> = (context as any)?.categorySettings || {};
+
   // IMPORTANT: Demo products should ONLY appear in builder/editor mode
   // In public storefront, show nothing if no real products exist
   const hasRealProducts = products && products.length > 0;
@@ -81,19 +99,22 @@ export function PersonalizedProductsBlock({
     return null;
   }
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(price);
-  };
-
   const gridColsClass = {
     2: 'grid-cols-1 sm:grid-cols-2',
     3: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
     4: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4',
     5: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5',
   }[columns] || 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4';
+
+  // Normalize products to ProductCard format
+  const normalizedProducts = displayProducts.map(p => ({
+    id: p.id || '',
+    name: p.name || '',
+    slug: p.slug || '',
+    price: p.price || 0,
+    compare_at_price: p.compare_at_price || p.originalPrice || null,
+    product_images: p.product_images || (p.image ? [{ url: p.image, is_primary: true }] : []),
+  }));
 
   return (
     <section className="py-12 px-4">
@@ -137,58 +158,15 @@ export function PersonalizedProductsBlock({
 
         {/* Grid de produtos */}
         <div className={cn('grid gap-4 sm:gap-6', gridColsClass)}>
-          {displayProducts.map((product, index) => (
-            <div
+          {normalizedProducts.map((product, index) => (
+            <ProductCard
               key={product.id || index}
-              className="group relative bg-card rounded-xl border border-border overflow-hidden hover:shadow-lg hover:border-primary/30 transition-all duration-300"
-            >
-              {/* Badge */}
-              {product.badge && (
-                <div className="absolute top-3 left-3 z-10">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide rounded-full bg-primary/90 text-primary-foreground backdrop-blur-sm">
-                    <Sparkles className="w-3 h-3" />
-                    {product.badge}
-                  </span>
-                </div>
-              )}
-
-              {/* Imagem */}
-              <div className="aspect-square bg-muted overflow-hidden">
-                {product.image ? (
-                  <img
-                    src={product.image}
-                    alt={product.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <ShoppingBag className="w-12 h-12 text-muted-foreground/30" />
-                  </div>
-                )}
-              </div>
-
-              {/* Info */}
-              <div className="p-4">
-                <h3 className="font-medium text-foreground line-clamp-2 mb-2 group-hover:text-primary transition-colors">
-                  {product.name}
-                </h3>
-                <div className="flex items-center gap-2">
-                  <span className="text-lg font-bold text-foreground">
-                    {formatPrice(product.price || 0)}
-                  </span>
-                  {product.originalPrice && product.originalPrice > (product.price || 0) && (
-                    <span className="text-sm text-muted-foreground line-through">
-                      {formatPrice(product.originalPrice)}
-                    </span>
-                  )}
-                </div>
-                {product.originalPrice && product.originalPrice > (product.price || 0) && (
-                  <span className="inline-block mt-1.5 text-xs font-medium text-green-600 dark:text-green-400">
-                    {Math.round((1 - (product.price || 0) / product.originalPrice) * 100)}% OFF
-                  </span>
-                )}
-              </div>
-            </div>
+              product={product}
+              tenantSlug={context?.tenantSlug || ''}
+              isEditing={isEditing}
+              settings={categorySettings}
+              variant="compact"
+            />
           ))}
         </div>
 

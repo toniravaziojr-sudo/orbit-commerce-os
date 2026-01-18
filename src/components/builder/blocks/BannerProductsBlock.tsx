@@ -1,14 +1,19 @@
 // =============================================
 // BANNER + PRODUCTS BLOCK - Hybrid banner with products combo
+// USA ProductCard compartilhado para respeitar categorySettings do tema
 // =============================================
 
 import { useBuilderProducts, formatProductPrice, getProductImage } from '@/hooks/useBuilderProducts';
+import { useProductRatings } from '@/hooks/useProductRating';
 import { BlockRenderContext } from '@/lib/builder/types';
 import { cn } from '@/lib/utils';
 import { Loader2, ImageIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getPublicProductUrl } from '@/lib/publicUrls';
+import { ProductCard } from './shared/ProductCard';
+import type { CategorySettings } from '@/hooks/usePageSettings';
+import { useMemo } from 'react';
 
 interface BannerProductsBlockProps {
   title?: string;
@@ -43,6 +48,9 @@ export function BannerProductsBlock({
 }: BannerProductsBlockProps) {
   const isMobileDevice = useIsMobile();
   
+  // Get categorySettings from context (passed from VisualBuilder)
+  const categorySettings: Partial<CategorySettings> = (context as any)?.categorySettings || {};
+  
   const isMobile = context?.viewport === 'mobile' || 
     (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && isMobileDevice);
   const imageUrl = isMobile && imageMobile ? imageMobile : imageDesktop;
@@ -69,6 +77,10 @@ export function BannerProductsBlock({
     productIds: source === 'manual' && productIdArray.length > 0 ? productIdArray : undefined,
     limit,
   });
+
+  // Get product IDs for batch rating fetch
+  const productIdsForRating = useMemo(() => products.map(p => p.id), [products]);
+  const { data: ratingsMap } = useProductRatings(productIdsForRating);
 
   const showEmptyState = (source === 'manual' && productIdArray.length === 0) ||
     (source === 'category' && !validCategoryId);
@@ -147,8 +159,7 @@ export function BannerProductsBlock({
               </div>
             ) : productCount > 0 ? (
               displayProducts.map((product, index) => {
-                const productImageUrl = getProductImage(product);
-                const productUrl = getPublicProductUrl(context?.tenantSlug || '', product.slug) || '/';
+                const rating = ratingsMap?.get(product.id);
                 
                 // For 3 products, make the 3rd span full width
                 const isLastOfThree = productCount === 3 && index === 2;
@@ -157,48 +168,20 @@ export function BannerProductsBlock({
                   <div 
                     key={product.id} 
                     className={cn(
-                      'group flex flex-col bg-card rounded-lg overflow-hidden border',
                       isLastOfThree && 'col-span-2',
-                      // Single product takes all space
                       productCount === 1 && 'row-span-1',
-                      // Two products each take half
                       productCount === 2 && 'row-span-1'
                     )}
                   >
-                    {/* Product image fills available space */}
-                    <div className="flex-1 min-h-0 bg-muted/30 overflow-hidden relative">
-                      <img
-                        src={productImageUrl}
-                        alt={product.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                      {/* Discount badge */}
-                      {product.compare_at_price && product.compare_at_price > product.price && (
-                        <span className="absolute top-2 right-2 bg-destructive text-destructive-foreground text-xs font-medium px-2 py-1 rounded">
-                          -{Math.round((1 - product.price / product.compare_at_price) * 100)}%
-                        </span>
-                      )}
-                    </div>
-                    {/* Product info - fixed height */}
-                    <div className="p-2 flex-shrink-0">
-                      <h3 className="font-medium text-xs line-clamp-1 text-primary hover:underline">
-                        {isEditing ? (
-                          <span className="cursor-default">{product.name}</span>
-                        ) : (
-                          <Link to={productUrl}>{product.name}</Link>
-                        )}
-                      </h3>
-                      <div className="flex items-center gap-1 mt-0.5">
-                        {product.compare_at_price && product.compare_at_price > product.price && (
-                          <span className="text-[10px] text-muted-foreground line-through">
-                            {formatProductPrice(product.compare_at_price)}
-                          </span>
-                        )}
-                        <span className="font-semibold text-xs">
-                          {formatProductPrice(product.price)}
-                        </span>
-                      </div>
-                    </div>
+                    <ProductCard
+                      product={product}
+                      tenantSlug={context?.tenantSlug || ''}
+                      isEditing={isEditing}
+                      settings={categorySettings}
+                      rating={rating}
+                      variant="minimal"
+                      className="h-full"
+                    />
                   </div>
                 );
               })
