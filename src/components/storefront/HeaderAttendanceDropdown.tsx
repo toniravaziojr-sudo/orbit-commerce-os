@@ -19,6 +19,8 @@ interface AttendanceDropdownProps {
   headerTextColor?: string;
   headerIconColor?: string;
   isEditing?: boolean;
+  /** Shows demo indicator when displaying placeholder content */
+  isDemo?: boolean;
 }
 
 export function HeaderAttendanceDropdown({
@@ -30,6 +32,7 @@ export function HeaderAttendanceDropdown({
   headerTextColor,
   headerIconColor,
   isEditing = false,
+  isDemo = false,
 }: AttendanceDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -148,11 +151,20 @@ export function HeaderAttendanceDropdown({
             "absolute top-full right-0 mt-2 z-50",
             "min-w-[280px] max-w-[320px] p-4",
             "bg-background border rounded-lg shadow-lg",
-            "animate-in fade-in-0 zoom-in-95 duration-100"
+            "animate-in fade-in-0 zoom-in-95 duration-100",
+            isDemo && "border-dashed border-muted-foreground/30"
           )}
           role="menu"
           aria-orientation="vertical"
         >
+          {/* Demo indicator */}
+          {isDemo && (
+            <div className="mb-3 pb-2 border-b border-dashed border-muted-foreground/20 text-center">
+              <span className="text-xs text-muted-foreground/60 italic">
+                [Demo] Configure em Configurações da Loja
+              </span>
+            </div>
+          )}
           <div className="space-y-3">
             {/* Phone */}
             {isPhoneValid && phoneHref && (

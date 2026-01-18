@@ -15,7 +15,6 @@ import {
   isValidEmail
 } from '@/lib/contactHelpers';
 import { HeaderAttendanceDropdown } from './HeaderAttendanceDropdown';
-import { HeaderSkeleton, shouldShowHeaderSkeleton } from '@/components/builder/blocks/SkeletonBlocks';
 
 interface HeaderConfig {
   props?: Record<string, any>;
@@ -319,21 +318,24 @@ export function StorefrontHeaderContent({
   const forceDesktop = viewportOverride === 'desktop';
 
   // ============================================
-  // SKELETON MODE: Show demo when no real data in editor mode
+  // DEMO DATA: Show demo content for empty sections in editor mode
+  // Each section shows demo ONLY when that specific section is empty
   // ============================================
-  const headerDataCheck = {
-    hasLogo: Boolean(storeSettings?.logo_url),
-    hasStoreName: Boolean(storeSettings?.store_name),
-    hasMenuItems: hierarchicalMenuItems.length > 0,
-    hasContactInfo: Boolean(hasContactInfo),
-  };
+  const hasLogo = Boolean(storeSettings?.logo_url);
+  const hasStoreName = Boolean(storeSettings?.store_name);
   
-  const showSkeleton = isEditing && shouldShowHeaderSkeleton(headerDataCheck);
+  // Demo store name when no real name/logo
+  const demoStoreName = 'Minha Loja';
+  const displayStoreName = storeSettings?.store_name || (isEditing ? demoStoreName : 'Loja');
   
-  // In editor mode with no data: show skeleton demo
-  if (showSkeleton) {
-    return <HeaderSkeleton isMobile={forceMobile} />;
-  }
+  // Demo contact info for header dropdown
+  const demoContactInfo = isEditing && !hasContactInfo ? {
+    phone: '(11) 99999-9999',
+    whatsapp: '(11) 99999-9999',
+    email: 'contato@minhaloja.com',
+    address: 'Av. Exemplo, 1000 - São Paulo, SP',
+    hours: 'Seg a Sex: 9h às 18h',
+  } : null;
 
   return (
     <header 
@@ -663,10 +665,16 @@ export function StorefrontHeaderContent({
               />
             ) : (
               <span
-                className="text-lg md:text-xl font-bold"
+                className={cn(
+                  "text-lg md:text-xl font-bold",
+                  isEditing && !hasStoreName && "opacity-50"
+                )}
                 style={{ color: headerTextColor || primaryColor }}
               >
-                {storeSettings?.store_name || 'Loja'}
+                {displayStoreName}
+                {isEditing && !hasStoreName && (
+                  <span className="text-xs font-normal ml-1 text-muted-foreground/50">[Demo]</span>
+                )}
               </span>
             )}
           </LinkWrapper>
@@ -677,17 +685,18 @@ export function StorefrontHeaderContent({
               "flex items-center justify-end gap-3 flex-1",
               forceMobile ? "hidden" : (forceDesktop ? "flex" : "hidden md:flex")
             )}>
-              {/* Attendance Dropdown */}
-              {hasContactInfo && (
+              {/* Attendance Dropdown - Shows demo when no real contact in editor */}
+              {(hasContactInfo || isEditing) && (
                 <HeaderAttendanceDropdown
-                  phoneNumber={phoneNumber}
-                  whatsAppNumber={whatsAppNumber}
-                  emailAddress={emailAddress}
-                  address={storeAddress}
-                  businessHours={businessHours}
+                  phoneNumber={demoContactInfo?.phone || phoneNumber}
+                  whatsAppNumber={demoContactInfo?.whatsapp || whatsAppNumber}
+                  emailAddress={demoContactInfo?.email || emailAddress}
+                  address={demoContactInfo?.address || storeAddress}
+                  businessHours={demoContactInfo?.hours || businessHours}
                   headerTextColor={headerTextColor}
                   headerIconColor={headerIconColor}
                   isEditing={isEditing}
+                  isDemo={Boolean(demoContactInfo)}
                 />
               )}
               
