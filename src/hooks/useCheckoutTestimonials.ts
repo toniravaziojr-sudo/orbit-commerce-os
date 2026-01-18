@@ -117,7 +117,9 @@ export function useCheckoutTestimonials() {
       return testimonial;
     },
     onSuccess: () => {
+      // Invalidate both admin and storefront queries so changes reflect everywhere
       queryClient.invalidateQueries({ queryKey: ['checkout-testimonials', currentTenant?.id] });
+      queryClient.invalidateQueries({ queryKey: ['storefront-testimonials', currentTenant?.id] });
       toast.success('Depoimento criado com sucesso!');
     },
     onError: (error: Error) => {
@@ -166,7 +168,9 @@ export function useCheckoutTestimonials() {
       }
     },
     onSuccess: () => {
+      // Invalidate both admin and storefront queries so changes reflect everywhere
       queryClient.invalidateQueries({ queryKey: ['checkout-testimonials', currentTenant?.id] });
+      queryClient.invalidateQueries({ queryKey: ['storefront-testimonials', currentTenant?.id] });
       toast.success('Depoimento atualizado com sucesso!');
     },
     onError: (error: Error) => {
@@ -185,7 +189,9 @@ export function useCheckoutTestimonials() {
       if (error) throw error;
     },
     onSuccess: () => {
+      // Invalidate both admin and storefront queries so changes reflect everywhere
       queryClient.invalidateQueries({ queryKey: ['checkout-testimonials', currentTenant?.id] });
+      queryClient.invalidateQueries({ queryKey: ['storefront-testimonials', currentTenant?.id] });
       toast.success('Depoimento excluído com sucesso!');
     },
     onError: (error: Error) => {
@@ -206,7 +212,9 @@ export function useCheckoutTestimonials() {
       await Promise.all(updates);
     },
     onSuccess: () => {
+      // Invalidate both admin and storefront queries so changes reflect everywhere
       queryClient.invalidateQueries({ queryKey: ['checkout-testimonials', currentTenant?.id] });
+      queryClient.invalidateQueries({ queryKey: ['storefront-testimonials', currentTenant?.id] });
     },
     onError: (error: Error) => {
       console.error('Error reordering testimonials:', error);
