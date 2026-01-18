@@ -27,7 +27,6 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { 
   useCheckoutTestimonials, 
@@ -186,8 +185,8 @@ export function TestimonialDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>
             {isEditing ? 'Editar Depoimento' : 'Novo Depoimento'}
           </DialogTitle>
@@ -198,9 +197,9 @@ export function TestimonialDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 pr-4 max-h-[calc(90vh-180px)] min-h-[400px]">
+        <div className="flex-1 overflow-y-auto pr-2 -mr-2">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-6">
               {/* Image Upload */}
               <FormField
                 control={form.control}
@@ -441,9 +440,9 @@ export function TestimonialDialog({
               )}
             </form>
           </Form>
-        </ScrollArea>
+        </div>
 
-        <DialogFooter className="mt-4">
+        <DialogFooter className="flex-shrink-0 mt-4 pt-4 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
