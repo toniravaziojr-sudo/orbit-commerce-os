@@ -408,96 +408,113 @@ export function StorefrontHeaderContent({
 
                     {/* Mobile Navigation with hierarchy */}
                     {showHeaderMenu && <nav className="flex flex-col gap-1">
-                      {hierarchicalMenuItems.map((item) => (
-                        <div key={item.id}>
-                          {item.children.length > 0 ? (
-                            <>
-                              <div className="flex items-center">
-                                <LinkWrapper
-                                  to={getMenuItemUrl(item)}
-                                  onClick={() => setMobileMenuOpen(false)}
-                                  className="flex-1 py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-l-lg"
-                                >
-                                  {item.label}
-                                </LinkWrapper>
-                                <button
-                                  type="button"
-                                  onClick={() => toggleMobileDropdown(item.id)}
-                                  className="py-3 px-3 text-muted-foreground hover:bg-muted rounded-r-lg"
-                                  aria-label={openMobileDropdowns.has(item.id) ? 'Fechar submenu' : 'Abrir submenu'}
-                                >
-                                  <ChevronDown className={cn(
-                                    "h-4 w-4 transition-transform duration-200",
-                                    openMobileDropdowns.has(item.id) && "rotate-180"
-                                  )} />
-                                </button>
-                              </div>
-                              {openMobileDropdowns.has(item.id) && (
-                                <div className="ml-4 border-l-2 border-primary/30">
-                                  {item.children.map((child) => (
-                                    <div key={child.id}>
-                                      {child.children && child.children.length > 0 ? (
-                                        <>
-                                          <div className="flex items-center">
-                                            <LinkWrapper
-                                              to={getMenuItemUrl(child)}
-                                              onClick={() => setMobileMenuOpen(false)}
-                                              className="flex-1 py-2 px-4 text-sm text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-l-lg transition-colors"
-                                            >
-                                              {child.label}
-                                            </LinkWrapper>
-                                            <button
-                                              type="button"
-                                              onClick={() => toggleMobileDropdown(child.id)}
-                                              className="py-2 px-3 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-r-lg transition-colors"
-                                              aria-label={openMobileDropdowns.has(child.id) ? 'Fechar submenu' : 'Abrir submenu'}
-                                            >
-                                              <ChevronDown className={cn(
-                                                "h-3 w-3 transition-transform duration-200",
-                                                openMobileDropdowns.has(child.id) && "rotate-180"
-                                              )} />
-                                            </button>
-                                          </div>
-                                          {openMobileDropdowns.has(child.id) && (
-                                            <div className="ml-4 border-l-2 border-primary/20">
-                                              {child.children.map((grandchild) => (
-                                                <LinkWrapper
-                                                  key={grandchild.id}
-                                                  to={getMenuItemUrl(grandchild)}
-                                                  onClick={() => setMobileMenuOpen(false)}
-                                                  className="py-2 px-4 text-sm text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg block transition-colors"
-                                                >
-                                                  {grandchild.label}
-                                                </LinkWrapper>
-                                              ))}
-                                            </div>
-                                          )}
-                                        </>
-                                      ) : (
-                                        <LinkWrapper
-                                          to={getMenuItemUrl(child)}
-                                          onClick={() => setMobileMenuOpen(false)}
-                                          className="py-2 px-4 text-sm text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg block transition-colors"
-                                        >
-                                          {child.label}
-                                        </LinkWrapper>
-                                      )}
-                                    </div>
-                                  ))}
+                      {hierarchicalMenuItems.length > 0 ? (
+                        hierarchicalMenuItems.map((item) => (
+                          <div key={item.id}>
+                            {item.children.length > 0 ? (
+                              <>
+                                <div className="flex items-center">
+                                  <LinkWrapper
+                                    to={getMenuItemUrl(item)}
+                                    onClick={() => setMobileMenuOpen(false)}
+                                    className="flex-1 py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-l-lg"
+                                  >
+                                    {item.label}
+                                  </LinkWrapper>
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleMobileDropdown(item.id)}
+                                    className="py-3 px-3 text-muted-foreground hover:bg-muted rounded-r-lg"
+                                    aria-label={openMobileDropdowns.has(item.id) ? 'Fechar submenu' : 'Abrir submenu'}
+                                  >
+                                    <ChevronDown className={cn(
+                                      "h-4 w-4 transition-transform duration-200",
+                                      openMobileDropdowns.has(item.id) && "rotate-180"
+                                    )} />
+                                  </button>
                                 </div>
-                              )}
-                            </>
-                          ) : (
-                            <LinkWrapper
-                              to={getMenuItemUrl(item)}
-                              onClick={() => setMobileMenuOpen(false)}
-                              className="py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-lg flex items-center justify-between"
+                                {openMobileDropdowns.has(item.id) && (
+                                  <div className="ml-4 border-l-2 border-primary/30">
+                                    {item.children.map((child) => (
+                                      <div key={child.id}>
+                                        {child.children && child.children.length > 0 ? (
+                                          <>
+                                            <div className="flex items-center">
+                                              <LinkWrapper
+                                                to={getMenuItemUrl(child)}
+                                                onClick={() => setMobileMenuOpen(false)}
+                                                className="flex-1 py-2 px-4 text-sm text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-l-lg transition-colors"
+                                              >
+                                                {child.label}
+                                              </LinkWrapper>
+                                              <button
+                                                type="button"
+                                                onClick={() => toggleMobileDropdown(child.id)}
+                                                className="py-2 px-3 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-r-lg transition-colors"
+                                                aria-label={openMobileDropdowns.has(child.id) ? 'Fechar submenu' : 'Abrir submenu'}
+                                              >
+                                                <ChevronDown className={cn(
+                                                  "h-3 w-3 transition-transform duration-200",
+                                                  openMobileDropdowns.has(child.id) && "rotate-180"
+                                                )} />
+                                              </button>
+                                            </div>
+                                            {openMobileDropdowns.has(child.id) && (
+                                              <div className="ml-4 border-l-2 border-primary/20">
+                                                {child.children.map((grandchild) => (
+                                                  <LinkWrapper
+                                                    key={grandchild.id}
+                                                    to={getMenuItemUrl(grandchild)}
+                                                    onClick={() => setMobileMenuOpen(false)}
+                                                    className="py-2 px-4 text-sm text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg block transition-colors"
+                                                  >
+                                                    {grandchild.label}
+                                                  </LinkWrapper>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </>
+                                        ) : (
+                                          <LinkWrapper
+                                            to={getMenuItemUrl(child)}
+                                            onClick={() => setMobileMenuOpen(false)}
+                                            className="py-2 px-4 text-sm text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg block transition-colors"
+                                          >
+                                            {child.label}
+                                          </LinkWrapper>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <LinkWrapper
+                                to={getMenuItemUrl(item)}
+                                onClick={() => setMobileMenuOpen(false)}
+                                className="py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-lg flex items-center justify-between"
+                              >
+                                {item.label}
+                              </LinkWrapper>
+                            )}
+                          </div>
+                        ))
+                      ) : isEditing ? (
+                        // Demo menu items for mobile when no real menu
+                        <>
+                          {['Categorias', 'Novidades', 'Promoções', 'Sobre'].map((label, i) => (
+                            <span
+                              key={i}
+                              className="py-3 px-4 text-sm font-medium text-muted-foreground/50 cursor-default"
                             >
-                              {item.label}
-                            </LinkWrapper>
-                          )}
-                        </div>
-                      ))}
+                              {label}
+                            </span>
+                          ))}
+                          <p className="text-xs text-muted-foreground/40 italic px-4 mt-2">
+                            [Demo] Configure em Menus
+                          </p>
+                        </>
+                      ) : null}
                       
                       {/* Featured Promos (Mobile) */}
                       {featuredPromosEnabled && featuredPromosUrl && (
@@ -787,7 +804,7 @@ export function StorefrontHeaderContent({
         )}
         
         {/* === DESKTOP SECONDARY NAV BAR: Header Menu Items + Featured Promos === */}
-        {(forceDesktop || !forceMobile) && (hierarchicalMenuItems.length > 0 || featuredPromosUrl) && (
+        {(forceDesktop || !forceMobile) && (hierarchicalMenuItems.length > 0 || featuredPromosUrl || isEditing) && (
           <nav className={cn(
             "flex items-center justify-center py-2 border-t border-muted/30",
             forceMobile ? "hidden" : (forceDesktop ? "flex" : "hidden md:flex")
@@ -799,7 +816,8 @@ export function StorefrontHeaderContent({
           >
             {/* Header Menu Items Navigation - Centered */}
             <div className="flex items-center justify-center gap-6 flex-1">
-              {hierarchicalMenuItems.map((item) => (
+              {hierarchicalMenuItems.length > 0 ? (
+                hierarchicalMenuItems.map((item) => (
                 item.children.length > 0 ? (
                   <div 
                     key={item.id}
@@ -869,7 +887,24 @@ export function StorefrontHeaderContent({
                     {item.label}
                   </LinkWrapper>
                 )
-              ))}
+              ))
+              ) : isEditing ? (
+                // Demo menu items when no real menu in editor mode
+                <>
+                  {['Categorias', 'Novidades', 'Promoções', 'Sobre'].map((label, i) => (
+                    <span
+                      key={i}
+                      className="text-xs font-medium text-muted-foreground/50 cursor-default whitespace-nowrap"
+                      style={{ color: headerTextColor ? `${headerTextColor}80` : undefined }}
+                    >
+                      {label}
+                    </span>
+                  ))}
+                  <span className="text-xs text-muted-foreground/40 italic ml-2">
+                    [Demo] Configure em Menus
+                  </span>
+                </>
+              ) : null}
             </div>
             
             {/* Featured Promos - Right side */}

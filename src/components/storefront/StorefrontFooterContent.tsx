@@ -635,7 +635,7 @@ export function StorefrontFooterContent({
             )}
 
             {/* MOBILE BLOCO 4: Footer Menu 1 */}
-            {showFooter1 && footer1Items.length > 0 && (
+            {showFooter1 && (footer1Items.length > 0 || isEditing) && (
               <div className="flex flex-col items-center text-center">
                 <h4 
                   className="font-semibold mb-3"
@@ -644,23 +644,40 @@ export function StorefrontFooterContent({
                   {footer1Name}
                 </h4>
                 <nav className="flex flex-col gap-2">
-                  {footer1Items.map((item) => (
-                    <Link
-                      key={item.id}
-                      to={getMenuItemUrl(item)}
-                      className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                      onClick={e => isEditing && e.preventDefault()}
-                      style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
+                  {footer1Items.length > 0 ? (
+                    footer1Items.map((item) => (
+                      <Link
+                        key={item.id}
+                        to={getMenuItemUrl(item)}
+                        className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                        onClick={e => isEditing && e.preventDefault()}
+                        style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
+                      >
+                        {item.label}
+                      </Link>
+                    ))
+                  ) : isEditing ? (
+                    <>
+                      {['Novidades', 'Mais Vendidos', 'Promoções'].map((label, i) => (
+                        <span
+                          key={i}
+                          className="text-sm text-muted-foreground/50 cursor-default"
+                          style={footerTextColor ? { color: footerTextColor, opacity: 0.4 } : {}}
+                        >
+                          {label}
+                        </span>
+                      ))}
+                      <p className="text-xs text-muted-foreground/40 mt-2 italic">
+                        [Demo] Configure em Menus
+                      </p>
+                    </>
+                  ) : null}
                 </nav>
               </div>
             )}
 
             {/* MOBILE BLOCO 5: Footer Menu 2 */}
-            {showFooter2 && footer2Items.length > 0 && (
+            {showFooter2 && (footer2Items.length > 0 || isEditing) && (
               <div className="flex flex-col items-center text-center">
                 <h4 
                   className="font-semibold mb-3"
@@ -669,17 +686,34 @@ export function StorefrontFooterContent({
                   {footer2Name}
                 </h4>
                 <nav className="flex flex-col gap-2">
-                  {footer2Items.map((item) => (
-                    <Link
-                      key={item.id}
-                      to={getMenuItemUrl(item)}
-                      className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                      onClick={e => isEditing && e.preventDefault()}
-                      style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
+                  {footer2Items.length > 0 ? (
+                    footer2Items.map((item) => (
+                      <Link
+                        key={item.id}
+                        to={getMenuItemUrl(item)}
+                        className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                        onClick={e => isEditing && e.preventDefault()}
+                        style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
+                      >
+                        {item.label}
+                      </Link>
+                    ))
+                  ) : isEditing ? (
+                    <>
+                      {['Sobre Nós', 'Política de Privacidade', 'Termos de Uso'].map((label, i) => (
+                        <span
+                          key={i}
+                          className="text-sm text-muted-foreground/50 cursor-default"
+                          style={footerTextColor ? { color: footerTextColor, opacity: 0.4 } : {}}
+                        >
+                          {label}
+                        </span>
+                      ))}
+                      <p className="text-xs text-muted-foreground/40 mt-2 italic">
+                        [Demo] Configure em Menus
+                      </p>
+                    </>
+                  ) : null}
                 </nav>
               </div>
             )}
@@ -910,7 +944,7 @@ export function StorefrontFooterContent({
           {/* ============================================ */}
           {/* COLUNA 3: Footer Menu 1 */}
           {/* ============================================ */}
-          {showFooter1 && footer1Items.length > 0 && (
+          {showFooter1 && (footer1Items.length > 0 || isEditing) && (
             <div className="text-left">
               <h4 
                 className="font-semibold mb-3"
@@ -919,17 +953,34 @@ export function StorefrontFooterContent({
                 {footer1Name}
               </h4>
               <nav className="flex flex-col gap-2">
-                {footer1Items.map((item) => (
-                  <Link
-                    key={item.id}
-                    to={getMenuItemUrl(item)}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                    onClick={e => isEditing && e.preventDefault()}
-                    style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
-                  >
-                    {item.label}
-                  </Link>
-                ))}
+                {footer1Items.length > 0 ? (
+                  footer1Items.map((item) => (
+                    <Link
+                      key={item.id}
+                      to={getMenuItemUrl(item)}
+                      className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                      onClick={e => isEditing && e.preventDefault()}
+                      style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
+                    >
+                      {item.label}
+                    </Link>
+                  ))
+                ) : isEditing ? (
+                  <>
+                    {['Novidades', 'Mais Vendidos', 'Promoções'].map((label, i) => (
+                      <span
+                        key={i}
+                        className="text-sm text-muted-foreground/50 cursor-default"
+                        style={footerTextColor ? { color: footerTextColor, opacity: 0.4 } : {}}
+                      >
+                        {label}
+                      </span>
+                    ))}
+                    <p className="text-xs text-muted-foreground/40 mt-2 italic">
+                      [Demo] Configure em Menus
+                    </p>
+                  </>
+                ) : null}
               </nav>
             </div>
           )}
@@ -937,7 +988,7 @@ export function StorefrontFooterContent({
           {/* ============================================ */}
           {/* COLUNA 4: Footer Menu 2 */}
           {/* ============================================ */}
-          {showFooter2 && footer2Items.length > 0 && (
+          {showFooter2 && (footer2Items.length > 0 || isEditing) && (
             <div className="text-left">
               <h4 
                 className="font-semibold mb-3"
@@ -946,17 +997,34 @@ export function StorefrontFooterContent({
                 {footer2Name}
               </h4>
               <nav className="flex flex-col gap-2">
-                {footer2Items.map((item) => (
-                  <Link
-                    key={item.id}
-                    to={getMenuItemUrl(item)}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                    onClick={e => isEditing && e.preventDefault()}
-                    style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
-                  >
-                    {item.label}
-                  </Link>
-                ))}
+                {footer2Items.length > 0 ? (
+                  footer2Items.map((item) => (
+                    <Link
+                      key={item.id}
+                      to={getMenuItemUrl(item)}
+                      className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                      onClick={e => isEditing && e.preventDefault()}
+                      style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
+                    >
+                      {item.label}
+                    </Link>
+                  ))
+                ) : isEditing ? (
+                  <>
+                    {['Sobre Nós', 'Política de Privacidade', 'Termos de Uso'].map((label, i) => (
+                      <span
+                        key={i}
+                        className="text-sm text-muted-foreground/50 cursor-default"
+                        style={footerTextColor ? { color: footerTextColor, opacity: 0.4 } : {}}
+                      >
+                        {label}
+                      </span>
+                    ))}
+                    <p className="text-xs text-muted-foreground/40 mt-2 italic">
+                      [Demo] Configure em Menus
+                    </p>
+                  </>
+                ) : null}
               </nav>
             </div>
           )}
