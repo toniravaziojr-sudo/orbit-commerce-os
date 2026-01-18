@@ -198,9 +198,9 @@ export function TestimonialDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 pr-4">
+        <ScrollArea className="flex-1 pr-4 max-h-[calc(90vh-180px)] min-h-[400px]">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-4">
               {/* Image Upload */}
               <FormField
                 control={form.control}
@@ -318,14 +318,18 @@ export function TestimonialDialog({
                 )}
               />
 
-              {/* Products Section */}
-              <div className="space-y-3">
-                <div>
-                  <FormLabel>Produtos</FormLabel>
-                  <FormDescription>
-                    Selecione produtos específicos para que a prova social seja mostrada.
-                    Caso queira que seja mostrada para <strong>todos os produtos</strong>, deixe este campo vazio.
-                  </FormDescription>
+              {/* Products Section - Highlighted for visibility */}
+              <div className="space-y-3 pt-4 border-t mt-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Search className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <FormLabel className="text-base">Exibir para quais produtos?</FormLabel>
+                    <FormDescription className="text-xs">
+                      Deixe vazio para <strong>todos os produtos</strong>, ou selecione produtos específicos.
+                    </FormDescription>
+                  </div>
                 </div>
 
                 {/* Selected Products */}
