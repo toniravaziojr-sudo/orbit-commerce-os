@@ -33,10 +33,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Star, MoreHorizontal, Check, X, Trash2, Search, Loader2, MessageSquare } from 'lucide-react';
+import { Star, MoreHorizontal, Check, X, Trash2, Search, Loader2, MessageSquare, Plus, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { AddReviewDialog } from '@/components/reviews/AddReviewDialog';
+import { GenerateReviewsDialog } from '@/components/reviews/GenerateReviewsDialog';
 
 interface ProductReview {
   id: string;
@@ -202,6 +204,12 @@ export default function Reviews() {
       <PageHeader
         title="Avaliações"
         description="Modere as avaliações de produtos da sua loja"
+        actions={
+          <div className="flex gap-2">
+            <AddReviewDialog />
+            <GenerateReviewsDialog />
+          </div>
+        }
       />
 
       {/* Stats */}
