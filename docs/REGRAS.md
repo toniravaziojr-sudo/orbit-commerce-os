@@ -750,6 +750,46 @@ const urls = useStorefrontUrls(tenantSlug);
 
 ---
 
+### Estrutura Comum: Home Page e Páginas da Loja (REGRA ESTRUTURAL)
+
+> **REGRA CRÍTICA:** A Home Page e as Páginas da Loja (menu "Páginas da Loja") compartilham a mesma estrutura lógica de criação.
+
+#### Características Comuns
+
+| Aspecto | Comportamento |
+|---------|---------------|
+| **Header** | Header padrão da loja (mesmo componente, configurável) |
+| **Footer** | Footer padrão da loja (mesmo componente, configurável) |
+| **Conteúdo** | 100% personalizável por blocos do builder |
+| **Edição** | Mesmo editor visual com todos os blocos disponíveis |
+| **Renderização** | Mesmo `PublicTemplateRenderer` com `BlockRenderContext` |
+
+#### Diferença Principal
+
+| Página | URL/Link |
+|--------|----------|
+| **Home Page** | Domínio principal da loja (ex: `minhaloja.com.br` ou `/loja/slug`) |
+| **Páginas da Loja** | Links personalizados definidos na criação (ex: `/page/sobre-nos`, `/page/politica-de-privacidade`) |
+
+#### Regras de Implementação
+
+1. **MESMO componente de renderização** para ambos os tipos (`StorefrontHome.tsx` e `StorefrontPage.tsx` usam estrutura similar)
+2. **MESMOS blocos disponíveis** no editor visual
+3. **Header e Footer automáticos** — não precisam ser adicionados manualmente pelo usuário
+4. **Conteúdo entre Header e Footer** é totalmente livre para composição com blocos
+5. **Template padrão** para novas páginas inclui Header + Section vazia + Footer
+
+#### Arquivos Relacionados
+
+| Arquivo | Responsabilidade |
+|---------|------------------|
+| `src/pages/storefront/StorefrontHome.tsx` | Renderiza a home page pública |
+| `src/pages/storefront/StorefrontPage.tsx` | Renderiza páginas institucionais/da loja |
+| `src/pages/Pages.tsx` | Lista e gerencia páginas da loja no admin |
+| `src/hooks/usePageBuilder.ts` | Hook de versionamento e edição de páginas |
+
+---
+
 #### Categoria
 
 **Estrutura básica:**
