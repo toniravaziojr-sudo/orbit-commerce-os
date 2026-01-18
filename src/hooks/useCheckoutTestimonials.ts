@@ -259,16 +259,17 @@ export function useStorefrontTestimonials(tenantId: string | undefined, productI
         productMap.set(assoc.testimonial_id, [...existing, assoc.product_id]);
       });
 
-      // Filter testimonials:
-      // - If no productId provided, show all active testimonials (for checkout sidebar)
-      // - If productId provided, filter by product association or global (no associations)
+      // Filter testimonials logic:
+      // - Testimonial sem produto vinculado = mostra para TODOS (global)
+      // - Testimonial com produto vinculado = mostra APENAS para aquele produto
       return testimonials.filter(t => {
         const associatedProducts = productMap.get(t.id) || [];
-        // No products = show for all (global testimonial)
+        // Sem produtos vinculados = global, mostra sempre
         if (associatedProducts.length === 0) return true;
-        // If productId provided, check if it matches one of the associated products
+        // Com produtos vinculados = só mostra se o productId do checkout estiver na lista
         if (productId) return associatedProducts.includes(productId);
-        // No productId but has associations = still show in checkout (show all)
+        // No checkout geral (sem productId específico), mostra os globais + todos vinculados
+        // porque o checkout pode ter múltiplos produtos
         return true;
       }).map(t => ({
         ...t,

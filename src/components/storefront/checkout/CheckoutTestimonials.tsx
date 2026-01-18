@@ -37,11 +37,15 @@ const defaultTestimonials: Testimonial[] = [
 ];
 
 interface CheckoutTestimonialsProps {
+  tenantId?: string;
   productIds?: string[];
 }
 
-export function CheckoutTestimonials({ productIds }: CheckoutTestimonialsProps) {
-  const { tenantId } = useStorefrontConfig();
+export function CheckoutTestimonials({ tenantId: propTenantId, productIds }: CheckoutTestimonialsProps) {
+  const { tenantId: contextTenantId } = useStorefrontConfig();
+  
+  // Use prop tenantId first, fallback to context
+  const tenantId = propTenantId || contextTenantId;
   
   // Fetch custom testimonials from database
   // Pass first productId if available for filtering
