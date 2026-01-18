@@ -1276,15 +1276,36 @@ const blockDefinitions: BlockDefinition[] = [
     icon: 'FolderTree',
     defaultProps: {
       title: 'Categorias',
+      source: 'auto',
       layout: 'grid',
       columns: 4,
       showDescription: false,
+      showImage: true,
+      items: [],
     },
     propsSchema: {
       title: {
         type: 'string',
         label: 'Título',
         defaultValue: 'Categorias',
+      },
+      source: {
+        type: 'select',
+        label: 'Fonte das Categorias',
+        defaultValue: 'auto',
+        options: [
+          { label: 'Automático (todas)', value: 'auto' },
+          { label: 'Apenas principais (sem subcategorias)', value: 'parent' },
+          { label: 'Selecionar manualmente', value: 'custom' },
+        ],
+        helpText: 'Escolha como as categorias serão exibidas',
+      },
+      items: {
+        type: 'categoryMultiSelect',
+        label: 'Categorias Selecionadas',
+        max: 12,
+        helpText: 'Selecione categorias e adicione imagens de capa personalizadas. Recomendado: 800×800px (1:1) para desktop, 400×400px para mobile.',
+        showWhen: { source: 'custom' },
       },
       layout: {
         type: 'select',
@@ -1306,6 +1327,11 @@ const blockDefinitions: BlockDefinition[] = [
           { label: '4', value: '4' },
           { label: '6', value: '6' },
         ],
+      },
+      showImage: {
+        type: 'boolean',
+        label: 'Mostrar Imagem',
+        defaultValue: true,
       },
       showDescription: {
         type: 'boolean',
