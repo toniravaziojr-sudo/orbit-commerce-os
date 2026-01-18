@@ -2158,14 +2158,18 @@ const blockDefinitions: BlockDefinition[] = [
     category: 'content',
     icon: 'FileText',
     defaultProps: {
-      title: '',
-      text: '',
-      imageDesktop: '',
-      imageMobile: '',
-      showCta: false,
+      title: 'Título legal',
+      text: 'Escreva seu texto aqui, falando um pouco sobre sua marca, produto, empresa ou promoção. Solte sua imaginação!',
+      imageDesktop1: '',
+      imageMobile1: '',
+      imageDesktop2: '',
+      imageMobile2: '',
+      ctaEnabled: true,
       ctaText: 'Saiba mais',
-      ctaUrl: '',
-      imagePosition: 'right',
+      ctaUrl: '#',
+      ctaBgColor: '',
+      ctaTextColor: '',
+      layout: 'text-left',
     },
     propsSchema: {
       title: {
@@ -2178,31 +2182,41 @@ const blockDefinitions: BlockDefinition[] = [
         label: 'Texto',
         placeholder: 'Conteúdo do texto',
       },
-      imageDesktop: {
+      imageDesktop1: {
         type: 'image',
-        label: 'Imagem Desktop',
+        label: 'Imagem 1 (Desktop)',
         placeholder: 'URL da imagem desktop',
-        helpText: 'Recomendado: 800×600px (proporção 4:3)',
-      },
-      imageMobile: {
-        type: 'image',
-        label: 'Imagem Mobile',
-        placeholder: 'URL da imagem mobile (opcional)',
         helpText: 'Recomendado: 600×800px (proporção 3:4)',
       },
-      imagePosition: {
+      imageMobile1: {
+        type: 'image',
+        label: 'Imagem 1 (Mobile)',
+        placeholder: 'URL da imagem mobile (opcional)',
+      },
+      imageDesktop2: {
+        type: 'image',
+        label: 'Imagem 2 (Desktop)',
+        placeholder: 'URL da imagem desktop',
+        helpText: 'Recomendado: 600×800px (proporção 3:4)',
+      },
+      imageMobile2: {
+        type: 'image',
+        label: 'Imagem 2 (Mobile)',
+        placeholder: 'URL da imagem mobile (opcional)',
+      },
+      layout: {
         type: 'select',
-        label: 'Posição da Imagem',
-        defaultValue: 'right',
+        label: 'Layout',
+        defaultValue: 'text-left',
         options: [
-          { label: 'Direita', value: 'right' },
-          { label: 'Esquerda', value: 'left' },
+          { label: 'Texto à esquerda', value: 'text-left' },
+          { label: 'Texto à direita', value: 'text-right' },
         ],
       },
-      showCta: {
+      ctaEnabled: {
         type: 'boolean',
         label: 'Mostrar CTA',
-        defaultValue: false,
+        defaultValue: true,
       },
       ctaText: {
         type: 'string',
@@ -2213,6 +2227,16 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'string',
         label: 'URL do CTA',
         placeholder: 'Link do botão',
+      },
+      ctaBgColor: {
+        type: 'color',
+        label: 'Cor de Fundo do CTA',
+        placeholder: 'Padrão do tema',
+      },
+      ctaTextColor: {
+        type: 'color',
+        label: 'Cor do Texto do CTA',
+        placeholder: 'Padrão do tema',
       },
     },
     canHaveChildren: false,
