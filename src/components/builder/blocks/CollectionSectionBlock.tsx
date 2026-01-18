@@ -85,24 +85,57 @@ export function CollectionSectionBlock({
     );
   }
 
+  // Show demo products when editing and no products found
   if (products.length === 0) {
-    return (
-      <div className="py-8">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex items-center gap-4 mb-6">
-            <h2 className="text-2xl font-bold">{title}</h2>
-            {showViewAll && (
-              <span className="text-muted-foreground hover:text-primary transition-colors cursor-pointer flex items-center gap-1">
-                Ver todos <ChevronRight className="h-4 w-4" />
-              </span>
-            )}
-          </div>
-          <div className="text-center py-12 text-muted-foreground">
-            <p>Nenhum produto encontrado</p>
+    if (isEditing) {
+      const demoProducts = Array.from({ length: limit }, (_, i) => ({
+        id: `demo-${i}`,
+        name: `Produto da Coleção ${i + 1}`,
+        price: 79.90 + (i * 20),
+        compare_at_price: i % 2 === 0 ? 99.90 + (i * 20) : null,
+      }));
+
+      return (
+        <div className="py-8">
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="flex items-center gap-4 mb-6">
+              <h2 className="text-2xl font-bold">{title}</h2>
+              {showViewAll && (
+                <span className="text-muted-foreground flex items-center gap-1">
+                  Ver todos <ChevronRight className="h-4 w-4" />
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              {demoProducts.map((product) => (
+                <div key={product.id} className="group pointer-events-none">
+                  <div className="aspect-square bg-muted/30 rounded-lg overflow-hidden mb-3 flex items-center justify-center">
+                    <ImageIcon className="h-8 w-8 text-muted-foreground/30" />
+                  </div>
+                  <h3 className="font-medium text-sm mb-1 text-muted-foreground">{product.name}</h3>
+                  {showPrice && (
+                    <div className="flex items-center gap-2">
+                      {product.compare_at_price && (
+                        <span className="text-xs text-muted-foreground line-through">
+                          {formatProductPrice(product.compare_at_price)}
+                        </span>
+                      )}
+                      <span className="text-sm font-semibold text-primary">
+                        {formatProductPrice(product.price)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-center text-muted-foreground mt-4">
+              [Exemplo demonstrativo] Selecione uma categoria real no painel lateral
+            </p>
           </div>
         </div>
-      </div>
-    );
+      );
+    }
+    return null;
   }
 
   const ProductCard = ({ product }: { product: typeof products[0] }) => {

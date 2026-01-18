@@ -101,22 +101,18 @@ export function InfoHighlightsBlock({
   const isMobile = context?.viewport === 'mobile' || (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && deviceIsMobile);
   const effectiveLayout = isMobile ? 'vertical' : layout;
 
-  // Sem fallback interno - empty state se não houver items
-  if (!items || items.length === 0) {
-    if (isEditing) {
-      return (
-        <section className="py-6 border-y bg-muted/20">
-          <div className="max-w-7xl mx-auto px-4">
-            <div className="flex items-center justify-center py-6 border-2 border-dashed border-muted-foreground/30 rounded-lg">
-              <div className="text-center">
-                <p className="text-muted-foreground mb-1">Benefícios da Loja</p>
-                <p className="text-sm text-muted-foreground">Configure os benefícios no painel lateral</p>
-              </div>
-            </div>
-          </div>
-        </section>
-      );
-    }
+  // Default demo highlights for builder preview
+  const demoHighlights: HighlightItem[] = [
+    { id: 'demo-1', icon: 'Truck', title: 'Frete Grátis', description: 'Para todo o Brasil' },
+    { id: 'demo-2', icon: 'CreditCard', title: 'Parcelamos em 12x', description: 'Sem juros no cartão' },
+    { id: 'demo-3', icon: 'Shield', title: 'Compra Segura', description: 'Site 100% protegido' },
+    { id: 'demo-4', icon: 'Package', title: 'Troca Grátis', description: 'Em até 30 dias' },
+  ];
+
+  // Use demo highlights when editing and no items configured
+  const displayItems = items && items.length > 0 ? items : (isEditing ? demoHighlights : []);
+  
+  if (displayItems.length === 0) {
     return null;
   }
 
@@ -129,7 +125,7 @@ export function InfoHighlightsBlock({
             ? 'flex-row justify-center items-center flex-wrap' 
             : 'flex-col items-start'
         )}>
-          {items.map((item, index) => {
+          {displayItems.map((item, index) => {
             const IconComponent = iconMap[item.icon] || Shield;
             
             return (
@@ -163,6 +159,11 @@ export function InfoHighlightsBlock({
             );
           })}
         </div>
+        {isEditing && (!items || items.length === 0) && (
+          <p className="text-xs text-center text-muted-foreground mt-3">
+            [Exemplo demonstrativo] Configure benefícios reais no painel lateral
+          </p>
+        )}
       </div>
     </section>
   );

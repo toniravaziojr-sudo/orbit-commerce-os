@@ -19,26 +19,37 @@ interface TestimonialsBlockProps {
   isEditing?: boolean;
 }
 
+// Default demo testimonials for builder preview
+const defaultDemoTestimonials: TestimonialItem[] = [
+  {
+    name: 'Maria Silva',
+    content: 'Excelente atendimento! Produtos de qualidade e entrega rápida. Recomendo!',
+    rating: 5,
+    role: 'Cliente verificada',
+  },
+  {
+    name: 'João Santos',
+    content: 'Fiquei muito satisfeito com a compra. O produto chegou antes do prazo.',
+    rating: 5,
+    role: 'Cliente desde 2023',
+  },
+  {
+    name: 'Ana Costa',
+    content: 'Ótima experiência de compra! Já é minha terceira vez comprando aqui.',
+    rating: 4,
+    role: 'Cliente fiel',
+  },
+];
+
 export function TestimonialsBlock({ title = 'O que dizem nossos clientes', items = [], isEditing }: TestimonialsBlockProps) {
-  // Sem fallback interno - empty state se não houver items
-  if (!items || items.length === 0) {
-    if (isEditing) {
-      return (
-        <div className="py-8 container mx-auto px-4">
-          {title && <h2 className="text-2xl font-bold mb-6 text-center">{title}</h2>}
-          <div className="flex items-center justify-center py-12 border-2 border-dashed border-muted-foreground/30 rounded-lg bg-muted/20">
-            <div className="text-center">
-              <p className="text-muted-foreground mb-2">Nenhum depoimento configurado</p>
-              <p className="text-sm text-muted-foreground">Configure os depoimentos no painel lateral</p>
-            </div>
-          </div>
-        </div>
-      );
-    }
+  // Use demo testimonials when editing and no items configured
+  const displayItems = items && items.length > 0 ? items : (isEditing ? defaultDemoTestimonials : []);
+  
+  if (displayItems.length === 0) {
     return null;
   }
-
-  const testimonialItems = items;
+  
+  const testimonialItems = displayItems;
 
   return (
     <div className="py-8 container mx-auto px-4">
@@ -62,9 +73,9 @@ export function TestimonialsBlock({ title = 'O que dizem nossos clientes', items
           </div>
         ))}
       </div>
-      {isEditing && (
-        <p className="text-center text-sm text-muted-foreground mt-4">
-          [Configure os depoimentos no painel lateral]
+      {isEditing && items.length === 0 && (
+        <p className="text-xs text-center text-muted-foreground mt-4">
+          [Exemplo demonstrativo] Configure depoimentos reais no painel lateral
         </p>
       )}
     </div>
