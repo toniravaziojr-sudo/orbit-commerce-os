@@ -50,6 +50,9 @@ export function CollectionSectionBlock({
 }: CollectionSectionBlockProps) {
   // Get categorySettings from context (passed from VisualBuilder)
   const categorySettings: Partial<CategorySettings> = (context as any)?.categorySettings || {};
+  
+  // Get tenantId directly from context if available (more reliable)
+  const tenantIdFromContext = (context as any)?.settings?.tenant_id;
 
   // Hook must be called unconditionally (Rules of Hooks)
   const deviceIsMobile = useIsMobile();
@@ -57,6 +60,7 @@ export function CollectionSectionBlock({
   
   const { products, isLoading, error } = useBuilderProducts({
     tenantSlug: context?.tenantSlug || '',
+    tenantId: tenantIdFromContext,
     source: categoryId ? 'category' : 'newest',
     categoryId,
     limit,
