@@ -758,3 +758,680 @@ if (result?.publicUrl) {
 | `src/hooks/useSystemUpload.ts` | Hook React para uploads em componentes |
 | `src/lib/uploadAndRegisterToSystemDrive.ts` | Função utilitária para upload + registro |
 | `src/lib/registerFileToDrive.ts` | Funções auxiliares (ensureSystemFolderAndGetId, fileExistsInDrive) |
+
+---
+
+## Módulos Aprovados (E2E Completo)
+
+> **Status:** ✅ Módulos 100% funcionais e aprovados para produção.
+
+### Lista de Módulos Aprovados
+
+| # | Módulo | Rota | Status |
+|---|--------|------|--------|
+| 1 | Pedidos | `/orders` | ✅ Ready |
+| 2 | Checkout Abandonado | `/abandoned-checkouts` | ✅ Ready |
+| 3 | Produtos | `/products` | ✅ Ready |
+| 4 | Categorias | `/categories` | ✅ Ready |
+| 5 | Clientes | `/customers` | ✅ Ready |
+| 6 | Loja Virtual | `/storefront` | ✅ Ready |
+| 7 | Menus | `/menus` | ✅ Ready |
+| 8 | Aumentar Ticket | `/offers` | ✅ Ready |
+| 9 | Avaliações | `/reviews` | ✅ Ready |
+| 10 | Meu Drive | `/files` | ✅ Ready |
+
+---
+
+### 1. Pedidos (`/orders`)
+
+#### Visão Geral
+
+Módulo central de gestão de pedidos com listagem, detalhamento, criação manual e acompanhamento de status.
+
+#### Estrutura de Navegação
+
+```
+/orders                    → Lista de pedidos
+/orders/:id               → Detalhes do pedido
+/orders/new               → Criar novo pedido (venda consultiva)
+```
+
+#### Listagem de Pedidos
+
+| Componente | Descrição |
+|------------|-----------|
+| **Stats Cards** | Pendentes, Em processamento, Enviados |
+| **Busca** | Por número do pedido, nome do cliente, email |
+| **Filtros** | Status do pedido, Status de pagamento, Status de envio, Período |
+| **Paginação** | 50 pedidos por página |
+
+#### Filtros Disponíveis
+
+| Filtro | Opções |
+|--------|--------|
+| **Status do Pedido** | Pendente, Processando, Enviado, Entregue, Cancelado |
+| **Status de Pagamento** | Pendente, Pago, Reembolsado, Falhou |
+| **Status de Envio** | Pendente, Processando, Enviado, Entregue |
+| **Período** | Data inicial, Data final, Campo de data (criação/atualização) |
+
+#### Detalhes do Pedido
+
+| Aba/Seção | Campos |
+|-----------|--------|
+| **Aba Detalhes** | Itens do pedido, quantidades, preços, subtotal, frete, descontos, total |
+| **Aba Notificações** | Histórico de notificações enviadas ao cliente |
+| **Painel Cliente** | Nome, email, telefone, CPF, endereço de entrega |
+| **Painel Pagamento** | Método, status, gateway, transaction_id |
+| **Painel Remessa** | Transportadora, código de rastreio, status, datas |
+
+#### Ações Disponíveis
+
+| Ação | Descrição |
+|------|-----------|
+| **Atualizar Status** | Alterar status do pedido (dropdown) |
+| **Ver Detalhes** | Navegar para página de detalhes |
+| **Excluir** | Remover pedido (com confirmação) |
+| **Adicionar Rastreio** | Inserir código de rastreamento |
+| **Reenviar Notificação** | Reenviar email de status ao cliente |
+
+#### Novo Pedido (Venda Consultiva)
+
+| Etapa | Campos/Ações |
+|-------|--------------|
+| **Busca de Cliente** | Buscar cliente existente ou criar novo |
+| **Busca de Produtos** | Buscar e adicionar produtos ao pedido |
+| **Quantidades** | Ajustar quantidade de cada item |
+| **Endereço** | Selecionar endereço do cliente ou adicionar novo |
+| **Frete Manual** | Definir valor de frete manualmente |
+| **Pagamento** | Selecionar método de pagamento |
+| **Finalizar** | Criar pedido com status inicial |
+
+#### Backend
+
+| Recurso | Descrição |
+|---------|-----------|
+| **Edge Function** | `core-orders` (CRUD completo) |
+| **Tabelas** | `orders`, `order_items`, `order_history`, `shipments` |
+| **Auditoria** | `core_audit_log` registra todas as alterações |
+
+---
+
+### 2. Checkout Abandonado (`/abandoned-checkouts`)
+
+#### Visão Geral
+
+Dashboard de monitoramento e recuperação de checkouts abandonados.
+
+#### Stats Cards
+
+| Card | Descrição |
+|------|-----------|
+| **Total** | Quantidade total de checkouts no período |
+| **Abandonados** | Checkouts marcados como abandonados |
+| **Não recuperados** | Abandonados sem conversão |
+| **Valor perdido** | Soma do total estimado dos não recuperados |
+
+#### Filtros
+
+| Filtro | Opções |
+|--------|--------|
+| **Busca** | Por nome, email ou telefone do cliente |
+| **Status** | Ativo, Abandonado, Convertido, Recuperado |
+| **Região** | Estado/UF do cliente |
+| **Período** | Data inicial e final |
+
+#### Detalhes do Checkout (Sheet)
+
+| Seção | Campos |
+|-------|--------|
+| **Cliente** | Nome, email, telefone, região |
+| **Itens** | Produtos no carrinho, quantidades, preços |
+| **Timeline** | Iniciado em, Última atividade, Abandonado em, Recuperado em |
+| **UTM/Atribuição** | Dados de origem do tráfego |
+
+#### Fluxo de Abandono
+
+```
+1. Cliente inicia checkout
+2. Sistema captura contato no step 1 (identificação)
+3. checkout_sessions.contact_captured_at é preenchido
+4. Se inatividade > 30 min → scheduler-tick marca abandoned_at
+5. Evento checkout.abandoned é disparado
+6. Cliente pode ser recuperado via email/whatsapp
+7. Se converter → recovered_at é preenchido
+```
+
+#### Backend
+
+| Recurso | Descrição |
+|---------|-----------|
+| **Tabela** | `checkout_sessions` |
+| **Campos-chave** | `status`, `abandoned_at`, `recovered_at`, `contact_captured_at` |
+| **Job** | `scheduler-tick` verifica e marca abandonos |
+
+---
+
+### 3. Produtos (`/products`)
+
+#### Visão Geral
+
+Catálogo completo de produtos com suporte a variantes, kits e gestão de estoque.
+
+#### Estrutura de Navegação
+
+```
+/products              → Lista de produtos
+/products/new          → Criar produto
+/products/:id/edit     → Editar produto
+```
+
+#### Abas do Formulário
+
+| Aba | Campos |
+|-----|--------|
+| **Básico** | Nome, Slug, SKU, Descrição curta, Descrição completa, Status (ativo/rascunho) |
+| **Imagens** | Galeria de imagens (ordenável), Imagem principal |
+| **Preços** | Preço de venda, Preço comparativo (de/por), Custo |
+| **Estoque** | Quantidade, Estoque mínimo, Gerenciar estoque (toggle) |
+| **Estrutura (Kit)** | Composição de produtos (para kits/combos) |
+| **Relacionados** | Produtos relacionados (cross-sell/up-sell) |
+| **SEO** | Título SEO, Descrição SEO, URL canônica |
+| **Avançado** | NCM, GTIN/EAN, CEST, Origem fiscal, Peso, Dimensões |
+
+#### Tipos de Produto
+
+| Tipo | Descrição |
+|------|-----------|
+| **Simples** | Produto único, sem variações |
+| **Com Variantes** | Até 3 atributos de variação (cor, tamanho, etc.) |
+| **Kit/Combo** | Composição de outros produtos |
+
+#### Campos de Variante
+
+| Campo | Descrição |
+|-------|-----------|
+| **SKU** | Identificador único da variante |
+| **Preço** | Preço específico (ou herda do produto pai) |
+| **Estoque** | Quantidade da variante |
+| **Atributos** | Valores dos atributos (ex: P, M, G / Azul, Vermelho) |
+
+#### Campos Fiscais
+
+| Campo | Descrição |
+|-------|-----------|
+| **NCM** | Nomenclatura Comum do Mercosul |
+| **GTIN/EAN** | Código de barras |
+| **CEST** | Código Especificador da Substituição Tributária |
+| **Origem** | Nacional, Importado, etc. |
+
+#### Backend
+
+| Recurso | Descrição |
+|---------|-----------|
+| **Edge Function** | `core-products` (CRUD completo) |
+| **Tabelas** | `products`, `product_images`, `product_variants`, `product_components` |
+| **Auditoria** | `core_audit_log` registra todas as alterações |
+
+---
+
+### 4. Categorias (`/categories`)
+
+#### Visão Geral
+
+Gestão de categorias do catálogo com suporte a hierarquia e banners.
+
+#### Campos da Categoria
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| **Nome** | string | Nome da categoria |
+| **Slug** | string | URL amigável (auto-gerado) |
+| **Descrição** | text | Descrição da categoria |
+| **Imagem** | url | Thumbnail da categoria |
+| **Categoria Pai** | ref | Para subcategorias |
+| **Ordem** | number | Ordenação na listagem |
+| **Ativa** | boolean | Visibilidade no storefront |
+
+#### Banners
+
+| Tipo | Dimensões | Descrição |
+|------|-----------|-----------|
+| **Desktop** | 1920x400px | Banner para telas grandes |
+| **Mobile** | 768x300px | Banner para dispositivos móveis |
+
+#### SEO
+
+| Campo | Descrição |
+|-------|-----------|
+| **Título SEO** | Título para mecanismos de busca |
+| **Descrição SEO** | Meta description |
+
+#### Aba Produtos
+
+| Funcionalidade | Descrição |
+|----------------|-----------|
+| **Associar** | Vincular produtos à categoria |
+| **Desassociar** | Remover vínculo |
+| **Ordenar** | Definir ordem dos produtos na categoria |
+
+#### Backend
+
+| Recurso | Descrição |
+|---------|-----------|
+| **Tabela** | `categories` |
+| **Relacionamento** | `product_categories` (N:N com products) |
+| **Hierarquia** | `parent_id` para subcategorias |
+
+---
+
+### 5. Clientes (`/customers`)
+
+#### Visão Geral
+
+CRM completo com visão 360º do cliente, endereços e histórico de pedidos.
+
+#### Estrutura de Navegação
+
+```
+/customers             → Lista de clientes
+/customers/:id         → Detalhes do cliente (visão 360º)
+```
+
+#### Listagem
+
+| Componente | Descrição |
+|------------|-----------|
+| **Busca** | Por nome, email, telefone, CPF |
+| **Filtros** | Tags, Data de cadastro |
+| **Paginação** | 50 clientes por página |
+
+#### Visão 360º (Detalhes)
+
+| Seção | Campos |
+|-------|--------|
+| **Dados Pessoais** | Nome, Email, Telefone, CPF, Data de nascimento |
+| **Endereços** | Lista de endereços (múltiplos), Endereço padrão |
+| **Histórico de Pedidos** | Lista de pedidos do cliente, status, valores |
+| **Notas Internas** | Anotações da equipe sobre o cliente |
+| **Tags** | Segmentação/etiquetas customizadas |
+
+#### Ações
+
+| Ação | Descrição |
+|------|-----------|
+| **Editar** | Alterar dados do cliente |
+| **Adicionar Endereço** | Novo endereço |
+| **Adicionar Nota** | Nova nota interna |
+| **Adicionar Tag** | Nova tag de segmentação |
+| **Ver Pedido** | Navegar para pedido específico |
+
+#### Backend
+
+| Recurso | Descrição |
+|---------|-----------|
+| **Edge Function** | `core-customers` (CRUD completo) |
+| **Tabelas** | `customers`, `customer_addresses`, `customer_tags`, `customer_notes` |
+| **Auditoria** | `core_audit_log` registra todas as alterações |
+
+---
+
+### 6. Loja Virtual (`/storefront`)
+
+#### Visão Geral
+
+Sistema multi-template com editor visual (Builder) para personalização completa do storefront.
+
+#### Estrutura de Navegação
+
+```
+/storefront                                    → Entrada (Templates + Configurações)
+/storefront/builder?templateId=X&edit=home     → Editor visual
+```
+
+#### Abas da Entrada (`/storefront`)
+
+| Aba | Descrição |
+|-----|-----------|
+| **Templates** | Gerenciamento de temas/templates |
+| **Configurações da Loja** | Dados globais do negócio (tenant-wide) |
+
+#### Seção Templates
+
+| Componente | Descrição |
+|------------|-----------|
+| **Template Ativo** | Destaque do tema em uso na loja |
+| **Outros Templates** | Grid de temas disponíveis |
+| **CTA "Personalizar loja"** | Abre o Builder do template ativo |
+
+#### Configurações da Loja (tenant-wide)
+
+| Campo | Descrição |
+|-------|-----------|
+| **Nome da Loja** | Nome do negócio |
+| **Logo** | Logo principal |
+| **Favicon** | Ícone do navegador |
+| **Contato** | Telefone, WhatsApp, Email |
+| **Endereço** | Endereço físico |
+| **Horário de Atendimento** | Horários de funcionamento |
+| **Redes Sociais** | Links das redes sociais |
+
+#### Editor Visual (Builder)
+
+| Componente | Descrição |
+|------------|-----------|
+| **Menu Esquerdo** | Lista de blocos/seções da página atual |
+| **Canvas Central** | Preview editável da página |
+| **Painel Direito** | Propriedades do bloco selecionado |
+| **Drawer de Blocos** | Catálogo de blocos disponíveis |
+
+#### Configurações do Tema (template-wide)
+
+| Seção | Campos |
+|-------|--------|
+| **Tipografia** | Fonte principal, Fonte de títulos |
+| **Cores** | Primária, Secundária, Fundo, Texto |
+| **Cabeçalho** | Layout, Cores, Menus, Busca, Atendimento |
+| **Rodapé** | Layout, Colunas, Links, Redes sociais |
+| **Mini-Carrinho** | Habilitado/Desabilitado, Auto-abrir |
+| **CSS Personalizado** | CSS adicional do tema |
+
+#### Páginas do Builder
+
+| Página | pageType | Descrição |
+|--------|----------|-----------|
+| **Home** | `home` | Página inicial |
+| **Categoria** | `category` | Listagem de produtos |
+| **Produto** | `product` | Detalhes do produto |
+| **Carrinho** | `cart` | Carrinho de compras |
+| **Checkout** | `checkout` | Finalização do pedido |
+| **Obrigado** | `thankYou` | Confirmação do pedido |
+| **Minha Conta** | `account` | Área do cliente |
+| **Pedidos** | `orders` | Lista de pedidos do cliente |
+| **Pedido** | `order` | Detalhes de um pedido |
+| **Rastreio** | `tracking` | Rastreamento de pedido |
+| **Blog** | `blog` | Listagem de posts |
+
+#### Fluxo de Publicação
+
+```
+1. Usuário edita no Builder → salva em draft_content
+2. Clica em "Publicar" → draft_content copia para published_content
+3. store_settings.published_template_id é atualizado
+4. store_settings.is_published = true
+5. Storefront público passa a usar o novo conteúdo
+```
+
+#### Backend
+
+| Recurso | Descrição |
+|---------|-----------|
+| **Tabela** | `storefront_template_sets` |
+| **Campos** | `draft_content`, `published_content`, `theme_settings` |
+| **Relacionamento** | `store_settings.published_template_id` |
+
+---
+
+### 7. Menus (`/menus`)
+
+#### Visão Geral
+
+Gerenciamento de menus de navegação do storefront (Header e Footer).
+
+#### Painéis
+
+| Painel | Location | Descrição |
+|--------|----------|-----------|
+| **Menu Header** | `header` | Menu principal (navegação superior) |
+| **Footer 1** | `footer_1` | Primeira coluna do rodapé |
+| **Footer 2** | `footer_2` | Segunda coluna do rodapé |
+
+#### Tipos de Item
+
+| Tipo | Descrição |
+|------|-----------|
+| **Categoria** | Link para categoria do catálogo |
+| **Página** | Link para página institucional |
+| **Externo** | URL externa (abre em nova aba) |
+
+#### Funcionalidades
+
+| Funcionalidade | Descrição |
+|----------------|-----------|
+| **Adicionar Item** | Criar novo item no menu |
+| **Editar Item** | Alterar label, tipo, destino |
+| **Excluir Item** | Remover item do menu |
+| **Reordenar (DnD)** | Arrastar para reordenar |
+| **Criar Submenu** | Arrastar para direita → vira filho |
+| **Remover Submenu** | Arrastar para esquerda → volta ao nível raiz |
+
+#### Reflexo no Storefront
+
+| Menu | Local no Storefront |
+|------|---------------------|
+| **Header** | Barra secundária do cabeçalho (linha 2) |
+| **Footer 1** | Primeira coluna de links do rodapé |
+| **Footer 2** | Segunda coluna de links do rodapé |
+
+#### Backend
+
+| Recurso | Descrição |
+|---------|-----------|
+| **Tabelas** | `menus`, `menu_items` |
+| **Campos menu** | `name`, `location`, `tenant_id` |
+| **Campos item** | `label`, `item_type`, `ref_id`, `url`, `parent_id`, `sort_order` |
+
+---
+
+### 8. Aumentar Ticket (`/offers`)
+
+#### Visão Geral
+
+Regras de ofertas para aumentar o ticket médio: Cross-sell, Order Bump, Upsell e Compre Junto.
+
+#### Abas
+
+| Aba | Descrição |
+|-----|-----------|
+| **Ofertas** | Lista e gestão das regras de oferta |
+| **Selos** | Selos/badges para produtos |
+| **Variações** | Variações globais (cores, tamanhos, etc.) |
+
+#### Tipos de Oferta
+
+| Tipo | Local de Exibição | Descrição |
+|------|-------------------|-----------|
+| **Cross-sell** | Carrinho | Sugestões de produtos no carrinho |
+| **Order Bump** | Checkout | Adicional com 1-click no checkout |
+| **Upsell** | Página de Obrigado | Oferta pós-compra |
+| **Compre Junto** | Página do Produto | Combo de produtos relacionados |
+
+#### Campos da Regra
+
+| Campo | Descrição |
+|-------|-----------|
+| **Título** | Nome interno da regra |
+| **Tipo** | Cross-sell, Order Bump, Upsell, Compre Junto |
+| **Prioridade** | Ordem de exibição (maior = primeiro) |
+| **Ativo** | Liga/desliga a regra |
+| **Produtos Gatilho** | Produtos que ativam a regra |
+| **Produtos Sugeridos** | Produtos oferecidos |
+| **Desconto** | Tipo (%, R$) e valor do desconto |
+| **Valor Mínimo** | Valor mínimo do carrinho para ativar |
+| **Tipo de Cliente** | Novo, Recorrente, Todos |
+
+#### Selos de Produto
+
+| Campo | Descrição |
+|-------|-----------|
+| **Nome** | Texto do selo (ex: "Mais Vendido", "Novo") |
+| **Cor** | Cor de fundo do selo |
+| **Produtos** | Produtos que recebem o selo |
+
+#### Backend
+
+| Recurso | Descrição |
+|---------|-----------|
+| **Tabela** | `offer_rules` |
+| **Campos** | `type`, `priority`, `trigger_products`, `suggested_products`, `discount_type`, `discount_value`, `min_cart_value`, `customer_type` |
+
+---
+
+### 9. Avaliações (`/reviews`)
+
+#### Visão Geral
+
+Moderação de avaliações de produtos enviadas pelos clientes no storefront.
+
+#### Stats Cards
+
+| Card | Descrição |
+|------|-----------|
+| **Total** | Quantidade total de avaliações |
+| **Pendentes** | Aguardando moderação |
+| **Aprovadas** | Publicadas no storefront |
+| **Rejeitadas** | Recusadas pela moderação |
+
+#### Abas de Status
+
+| Aba | Descrição |
+|-----|-----------|
+| **Todas** | Todas as avaliações |
+| **Pendentes** | Aguardando moderação |
+| **Aprovadas** | Visíveis no storefront |
+| **Rejeitadas** | Recusadas |
+
+#### Filtros
+
+| Filtro | Descrição |
+|--------|-----------|
+| **Busca** | Por nome do cliente ou conteúdo |
+| **Produto** | Filtrar por produto específico |
+| **Estrelas** | Filtrar por quantidade de estrelas |
+
+#### Campos da Avaliação
+
+| Campo | Descrição |
+|-------|-----------|
+| **Produto** | Produto avaliado |
+| **Cliente** | Nome do avaliador |
+| **Estrelas** | 1 a 5 estrelas |
+| **Título** | Título da avaliação |
+| **Comentário** | Texto da avaliação |
+| **Data** | Data de envio |
+| **Status** | Pendente, Aprovada, Rejeitada |
+
+#### Ações
+
+| Ação | Descrição |
+|------|-----------|
+| **Aprovar** | Publicar no storefront |
+| **Rejeitar** | Recusar a avaliação |
+| **Excluir** | Remover definitivamente |
+
+#### Fluxo
+
+```
+1. Cliente envia avaliação no storefront
+2. Status inicial = pending
+3. Moderador revisa na área admin
+4. Aprova → status = approved → visível no storefront
+5. Rejeita → status = rejected → não visível
+```
+
+#### Backend
+
+| Recurso | Descrição |
+|---------|-----------|
+| **Tabela** | `product_reviews` |
+| **Campos** | `product_id`, `customer_name`, `rating`, `title`, `content`, `status`, `created_at` |
+| **RLS** | Storefront só vê `status = 'approved'` |
+
+---
+
+### 10. Meu Drive (`/files`)
+
+#### Visão Geral
+
+Gerenciador de arquivos e mídias do tenant, similar a um file explorer.
+
+#### Interface
+
+| Componente | Descrição |
+|------------|-----------|
+| **Breadcrumb** | Navegação por pastas |
+| **Grid/Lista** | Visualização de arquivos e pastas |
+| **Preview** | Preview de imagens/arquivos selecionados |
+
+#### Pasta do Sistema
+
+| Regra | Descrição |
+|-------|-----------|
+| **"Uploads do sistema"** | Pasta obrigatória, não pode ser excluída/renomeada |
+| **Arquivos do sistema** | Não podem sair da árvore do sistema |
+| **is_system_folder** | Flag que identifica pasta do sistema |
+
+#### Ações
+
+| Ação | Descrição |
+|------|-----------|
+| **Upload** | Enviar novos arquivos |
+| **Criar Pasta** | Nova pasta |
+| **Renomear** | Alterar nome de arquivo/pasta |
+| **Mover** | Mover para outra pasta |
+| **Excluir** | Remover arquivo/pasta |
+| **Copiar URL** | Copiar URL pública |
+
+#### Badge "Em Uso"
+
+| Regra | Descrição |
+|-------|-----------|
+| **Detecção** | Sistema detecta se arquivo está referenciado em algum módulo |
+| **Badge** | Arquivo em uso exibe indicador visual |
+| **Aviso ao excluir** | Confirmação extra ao excluir arquivo em uso |
+
+#### Integração com Outros Módulos
+
+| Componente | Uso |
+|------------|-----|
+| **MediaLibraryPicker** | Seletor de mídia do Drive em formulários |
+| **uploadAndRegisterToSystemDrive()** | Upload automático + registro |
+
+#### Backend
+
+| Recurso | Descrição |
+|---------|-----------|
+| **Tabela** | `files` |
+| **Campos** | `name`, `path`, `folder_id`, `is_system_folder`, `metadata`, `tenant_id` |
+| **Storage** | Bucket `tenant-files` |
+
+---
+
+## Regras de Proteção dos Módulos Aprovados
+
+> **REGRA CRÍTICA:** Módulos aprovados estão protegidos. Qualquer alteração estrutural requer aprovação explícita do usuário.
+
+### Proibições
+
+| ❌ Proibido | Motivo |
+|-------------|--------|
+| Remover campos existentes | Quebra funcionalidade em produção |
+| Alterar estrutura de tabelas | Pode causar perda de dados |
+| Modificar fluxos de negócio | Quebra expectativa do usuário |
+| Alterar comportamento de RLS | Pode expor dados sensíveis |
+
+### Permitido (sem aprovação)
+
+| ✅ Permitido | Exemplo |
+|--------------|---------|
+| Correção de bugs | Fix de erro de tipagem |
+| Melhorias de UI | Ajuste de espaçamento |
+| Otimização de performance | Memoização de componentes |
+| Adição de features complementares | Novo filtro na listagem |
+
+### Protocolo para Alterações Estruturais
+
+1. Identificar a necessidade de alteração
+2. Reportar ao usuário com justificativa
+3. Aguardar aprovação explícita
+4. Implementar com auditoria
+5. Documentar a alteração neste arquivo
