@@ -261,6 +261,79 @@ const handleAddToCart = (product: Product, e: React.MouseEvent) => {
 4. **NUNCA** duplicar lógica entre páginas - criar hooks/utils compartilhados
 5. **SEMPRE** seguir os defaults definidos neste documento
 
+### Dados Demo vs Dados Reais (REGRA GLOBAL OBRIGATÓRIA)
+
+> **REGRA CRÍTICA:** Dados demo/fictícios só podem aparecer no Builder (modo edição). O storefront público NUNCA deve exibir dados fictícios.
+
+#### Princípio Fundamental
+
+| Contexto | Comportamento |
+|----------|---------------|
+| **Builder** (`isEditing === true`) | Exibe dados demo como fallback quando não há dados reais |
+| **Storefront Público** (`isEditing === false`) | Exibe APENAS dados reais; se não houver, retorna `null` (bloco não renderiza) |
+
+#### Padrão de Implementação Obrigatório
+
+```typescript
+// PADRÃO CORRETO para todos os blocos com dados demo
+const hasRealData = data && data.length > 0;
+const displayData = hasRealData ? data : (isEditing ? defaultData : []);
+
+// Se não há dados para exibir, não renderiza nada
+if (displayData.length === 0) {
+  return null;
+}
+```
+
+#### Indicador Visual no Editor
+
+Quando um bloco está usando dados demo no builder, **DEVE** exibir uma mensagem indicativa:
+
+```tsx
+{isUsingDemoData && isEditing && (
+  <p className="text-xs text-center text-muted-foreground mt-4">
+    [Exemplo demonstrativo] Configure dados reais em <a href="/link">Módulo</a>
+  </p>
+)}
+```
+
+#### Componentes que Seguem esta Regra
+
+| Componente | Arquivo | Verificado |
+|------------|---------|------------|
+| ReviewsBlock | `src/components/builder/blocks/ReviewsBlock.tsx` | ✅ |
+| CrossSellSlotBlock | `src/components/builder/blocks/slots/CrossSellSlotBlock.tsx` | ✅ |
+| CompreJuntoSlotBlock | `src/components/builder/blocks/slots/CompreJuntoSlotBlock.tsx` | ✅ |
+| UpsellSlotBlock | `src/components/builder/blocks/slots/UpsellSlotBlock.tsx` | ✅ |
+| CheckoutTestimonials | `src/components/storefront/checkout/CheckoutTestimonials.tsx` | ✅ |
+| PersonalizedProductsBlock | `src/components/builder/blocks/interactive/PersonalizedProductsBlock.tsx` | ✅ |
+| FAQBlock | `src/components/builder/blocks/interactive/FAQBlock.tsx` | ✅ |
+| ContactFormBlock | `src/components/builder/blocks/interactive/ContactFormBlock.tsx` | ✅ |
+| TestimonialsBlock | `src/components/builder/blocks/interactive/TestimonialsBlock.tsx` | ✅ |
+| InfoHighlightsBlock | `src/components/builder/blocks/InfoHighlightsBlock.tsx` | ✅ |
+
+#### Fluxo de Publicação (Testimonials e dados com draft/published)
+
+Para dados que seguem fluxo de publicação (como Testimonials):
+
+1. Usar campo `published_at` para controlar visibilidade no público
+2. Regra: `is_active = true` + `published_at IS NOT NULL` = visível no storefront
+3. Publicar automaticamente quando o template é publicado (via `useTemplateSetSave`)
+
+```typescript
+// Hook useStorefrontTestimonials verifica:
+// - Se isEditing: mostra todos os ativos
+// - Se público: mostra apenas os que têm published_at
+```
+
+#### Regra Anti-Vazamento
+
+- **PROIBIDO:** Importar `demoData`/`defaultProducts`/`defaultItems` diretamente em componentes de produção
+- **PERMITIDO:** Manter dados demo apenas em:
+  - Arquivos `defaults.ts` para templates iniciais
+  - Props `defaultProps` do registry
+  - Constantes locais no próprio componente, controladas por `isEditing`
+
 ---
 
 ## Loja Virtual / Builder
