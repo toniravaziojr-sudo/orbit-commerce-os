@@ -313,9 +313,10 @@ export function VisualBuilder({
       ctx.afterHeaderSlot = categoryHeaderSlot;
     }
     
-    // For Category template, add category settings to context
+    // For Category AND Home templates, add category settings to context
     // REGRAS.md: categorySettings devem refletir no builder imediatamente
-    if (pageType === 'category') {
+    // Home page usa ProductCarouselBlock/ProductGridBlock que também precisam de categorySettings
+    if (pageType === 'category' || pageType === 'home') {
       (ctx as any).categorySettings = categorySettings;
     }
     
