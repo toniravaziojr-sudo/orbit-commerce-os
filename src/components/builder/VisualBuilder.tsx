@@ -313,12 +313,11 @@ export function VisualBuilder({
       ctx.afterHeaderSlot = categoryHeaderSlot;
     }
     
-    // For Category AND Home templates, add category settings to context
-    // REGRAS.md: categorySettings devem refletir no builder imediatamente
-    // Home page usa ProductCarouselBlock/ProductGridBlock que também precisam de categorySettings
-    if (pageType === 'category' || pageType === 'home') {
-      (ctx as any).categorySettings = categorySettings;
-    }
+    // SEMPRE passar categorySettings para o contexto
+    // REGRA: Blocos de produtos (ProductCarouselBlock, ProductGridBlock, etc.) podem ser usados
+    // em QUALQUER página (home, landing pages, páginas personalizadas, etc.)
+    // As configurações de exibição de produto são definidas em "Categorias" e devem refletir em todos os blocos
+    (ctx as any).categorySettings = categorySettings;
     
     // For Product template, add product settings to context
     if (pageType === 'product') {
