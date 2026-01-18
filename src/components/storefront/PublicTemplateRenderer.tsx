@@ -159,8 +159,8 @@ export function PublicTemplateRenderer({
     const DUPLICATE_BLOCKS_BY_PAGE_TYPE: Record<string, string[]> = {
       product: ['CompreJuntoSlot', 'ProductGrid'],
       cart: ['CrossSellSlot'],
-      // OrderBumpSlot removed - handled internally by Checkout block
-      checkout: [],
+      // OrderBumpSlot is legacy - filter it out
+      checkout: ['OrderBumpSlot'],
       thank_you: ['UpsellSlot'],
       obrigado: ['UpsellSlot'],
     };
