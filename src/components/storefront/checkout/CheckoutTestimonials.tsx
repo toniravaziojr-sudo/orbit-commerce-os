@@ -39,9 +39,10 @@ const defaultTestimonials: Testimonial[] = [
 interface CheckoutTestimonialsProps {
   tenantId?: string;
   productIds?: string[];
+  isEditing?: boolean; // True when in builder/editor mode
 }
 
-export function CheckoutTestimonials({ tenantId: propTenantId, productIds }: CheckoutTestimonialsProps) {
+export function CheckoutTestimonials({ tenantId: propTenantId, productIds, isEditing }: CheckoutTestimonialsProps) {
   const { tenantId: contextTenantId } = useStorefrontConfig();
   
   // Use prop tenantId first, fallback to context
@@ -54,8 +55,11 @@ export function CheckoutTestimonials({ tenantId: propTenantId, productIds }: Che
     productIds?.[0]
   );
 
-  // Use custom testimonials if available, otherwise fallback to defaults
-  const testimonials: Testimonial[] = customTestimonials && customTestimonials.length > 0
+  // IMPORTANT: Demo testimonials should ONLY appear in builder/editor mode
+  // In public storefront, show nothing if no real testimonials exist
+  const hasRealTestimonials = customTestimonials && customTestimonials.length > 0;
+  
+  const testimonials: Testimonial[] = hasRealTestimonials
     ? customTestimonials.map((t: CheckoutTestimonial) => ({
         name: t.name,
         content: t.content,
@@ -63,7 +67,9 @@ export function CheckoutTestimonials({ tenantId: propTenantId, productIds }: Che
         image_url: t.image_url,
         role: 'Cliente verificado(a)',
       }))
-    : defaultTestimonials;
+    : isEditing 
+      ? defaultTestimonials // Only show demo in builder
+      : []; // Empty in public - component won't render
 
   if (isLoading) {
     return (
@@ -82,6 +88,11 @@ export function CheckoutTestimonials({ tenantId: propTenantId, productIds }: Che
         </div>
       </div>
     );
+  }
+
+  // Don't render if no testimonials (real or demo)
+  if (testimonials.length === 0) {
+    return null;
   }
 
   return (
