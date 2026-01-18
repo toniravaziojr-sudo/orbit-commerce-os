@@ -5,6 +5,7 @@
 // =============================================
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { Json } from '@/integrations/supabase/types';
@@ -143,6 +144,12 @@ export const DEFAULT_THEME_FOOTER: ThemeFooterConfig = {
   showStoreInfo: true,
   showCopyright: true,
   copyrightText: '',
+  sacTitle: '',
+  footer1Title: '',
+  footer2Title: '',
+  footerBgColor: '',
+  footerTextColor: '',
+  footerTitlesColor: '',
 };
 
 export const DEFAULT_THEME_MINI_CART: ThemeMiniCartConfig = {
@@ -502,8 +509,14 @@ export function useThemeFooter(tenantId: string | undefined, templateSetId: stri
     ...themeSettings?.footer,
   };
 
-  const updateFooter = async (newFooter: Partial<ThemeFooterConfig>) => {
-    const updatedFooter = { ...footer, ...newFooter };
+  // Use ref to always have the latest footer value in the callback
+  const footerRef = useRef(footer);
+  footerRef.current = footer;
+
+  const updateFooter = useCallback(async (newFooter: Partial<ThemeFooterConfig>) => {
+    // Use ref to get latest footer value
+    const currentFooter = footerRef.current;
+    const updatedFooter = { ...currentFooter, ...newFooter };
     
     // Build footer block for global layout
     const footerBlock: BlockNode = {
@@ -534,23 +547,25 @@ export function useThemeFooter(tenantId: string | undefined, templateSetId: stri
           .maybeSingle();
         
         if (existing) {
-          await supabase
+          const { error } = await supabase
             .from('storefront_global_layout')
             .update({ footer_config: footerBlock as unknown as Json })
             .eq('tenant_id', tenantId);
+          if (error) console.error('[useThemeFooter] Update error:', error);
         } else {
-          await supabase
+          const { error } = await supabase
             .from('storefront_global_layout')
             .insert({
               tenant_id: tenantId,
               footer_config: footerBlock as unknown as Json,
             });
+          if (error) console.error('[useThemeFooter] Insert error:', error);
         }
       } catch (err) {
         console.error('[useThemeFooter] Error syncing to global layout:', err);
       }
     }
-  };
+  }, [tenantId, queryClient, saveThemeSettings]);
 
   return {
     footer,
