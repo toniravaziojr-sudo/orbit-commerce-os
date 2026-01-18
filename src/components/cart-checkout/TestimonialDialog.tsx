@@ -318,56 +318,86 @@ export function TestimonialDialog({
                 )}
               />
 
-              {/* Products Section - Highlighted for visibility */}
-              <div className="space-y-3 pt-4 border-t mt-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <Search className="h-4 w-4 text-primary" />
-                  </div>
-                  <div>
-                    <FormLabel className="text-base">Exibir para quais produtos?</FormLabel>
-                    <FormDescription className="text-xs">
-                      Deixe vazio para <strong>todos os produtos</strong>, ou selecione produtos específicos.
-                    </FormDescription>
-                  </div>
+              {/* Scope Selection - Show for all or specific products */}
+              <div className="space-y-4 pt-4 border-t">
+                <div>
+                  <FormLabel className="text-base font-medium">Exibir este depoimento para</FormLabel>
+                  <FormDescription className="mt-1">
+                    Escolha se o depoimento aparece no checkout de todos os produtos ou apenas de produtos específicos.
+                  </FormDescription>
                 </div>
 
-                {/* Selected Products */}
-                {selectedProducts.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {selectedProducts.map(product => (
-                      <Badge key={product.id} variant="secondary" className="gap-1">
-                        {product.name}
-                        <button
-                          type="button"
-                          onClick={() => removeProduct(product.id)}
-                          className="ml-1 hover:text-destructive"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-
-                {/* Product Search */}
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar produtos..."
-                    value={productSearch}
-                    onChange={(e) => {
-                      setProductSearch(e.target.value);
-                      setShowProductSelector(true);
-                    }}
-                    onFocus={() => setShowProductSelector(true)}
-                    className="pl-9"
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedProductIds([])}
+                    className={`p-4 border-2 rounded-lg text-left transition-all ${
+                      selectedProductIds.length === 0
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-muted-foreground/50'
+                    }`}
+                  >
+                    <div className="font-medium text-sm">Todos os produtos</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Aparece no checkout de qualquer produto
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowProductSelector(true)}
+                    className={`p-4 border-2 rounded-lg text-left transition-all ${
+                      selectedProductIds.length > 0
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-muted-foreground/50'
+                    }`}
+                  >
+                    <div className="font-medium text-sm">Produtos específicos</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {selectedProductIds.length > 0 
+                        ? `${selectedProductIds.length} produto(s) selecionado(s)`
+                        : 'Selecione os produtos'}
+                    </div>
+                  </button>
                 </div>
+              </div>
 
-                {/* Product List */}
-                {showProductSelector && (
-                  <div className="border rounded-lg max-h-48 overflow-y-auto">
+              {/* Product Selection - Only show when "Produtos específicos" is selected or has products */}
+              {(selectedProductIds.length > 0 || showProductSelector) && (
+                <div className="space-y-3 bg-muted/30 rounded-lg p-4">
+                  {/* Selected Products */}
+                  {selectedProducts.length > 0 && (
+                    <div className="space-y-2">
+                      <FormLabel className="text-sm">Produtos selecionados:</FormLabel>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedProducts.map(product => (
+                          <Badge key={product.id} variant="secondary" className="gap-1">
+                            {product.name}
+                            <button
+                              type="button"
+                              onClick={() => removeProduct(product.id)}
+                              className="ml-1 hover:text-destructive"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Product Search */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar produtos para adicionar..."
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+
+                  {/* Product List */}
+                  <div className="border rounded-lg max-h-48 overflow-y-auto bg-background">
                     {productsLoading ? (
                       <div className="p-4 text-center text-muted-foreground">
                         Carregando produtos...
@@ -407,16 +437,8 @@ export function TestimonialDialog({
                       </div>
                     )}
                   </div>
-                )}
-
-                {selectedProductIds.length === 0 && (
-                  <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-lg p-3">
-                    <p className="text-sm text-amber-800 dark:text-amber-200">
-                      Nenhum produto adicionado. Este depoimento será exibido para todos os produtos.
-                    </p>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </form>
           </Form>
         </ScrollArea>
