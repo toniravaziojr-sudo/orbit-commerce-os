@@ -59,10 +59,11 @@ const defaultReviews: ReviewItem[] = [
 
 export function ReviewsBlock({
   title = 'O que nossos clientes dizem',
-  reviews = defaultReviews,
+  reviews,
   visibleCount = 4,
   context,
-}: ReviewsBlockProps) {
+  isEditing = false,
+}: ReviewsBlockProps & { isEditing?: boolean }) {
   // Hook must be called unconditionally
   const isMobileDevice = useIsMobile();
   
@@ -79,11 +80,11 @@ export function ReviewsBlock({
   const scrollPrev = useCallback(() => emblaApi?.scrollPrev(), [emblaApi]);
   const scrollNext = useCallback(() => emblaApi?.scrollNext(), [emblaApi]);
 
-  if (reviews.length === 0) {
-    return null;
-  }
+  // Use default reviews if none provided (always show demo when empty)
+  const displayReviews = reviews && reviews.length > 0 ? reviews : defaultReviews;
+  const isUsingDemo = !reviews || reviews.length === 0;
 
-  const displayReviews = reviews.slice(0, visibleCount);
+  const actualReviews = displayReviews.slice(0, visibleCount);
 
   const renderStars = (rating: number) => (
     <div className="flex gap-0.5">
@@ -111,7 +112,7 @@ export function ReviewsBlock({
         <div className="relative">
           <div className="overflow-hidden" ref={emblaRef}>
             <div className="flex gap-4">
-              {displayReviews.map((review) => (
+              {actualReviews.map((review) => (
                 <div
                   key={review.id}
                   className={cn(

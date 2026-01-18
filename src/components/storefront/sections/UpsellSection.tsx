@@ -104,24 +104,55 @@ export function UpsellSection({ isEditing }: UpsellSectionProps) {
     return product.price;
   };
 
-  // In editing mode without active rules, show empty state with CTA
+  // In editing mode without active rules, show demo preview
   if (isEditing && (!activeRule || products.length === 0)) {
+    const demoProducts = [
+      { id: 'demo-1', name: 'Produto Premium', price: 199.90 },
+      { id: 'demo-2', name: 'Kit Especial', price: 149.90 },
+      { id: 'demo-3', name: 'Acessório Top', price: 89.90 },
+      { id: 'demo-4', name: 'Combo Exclusivo', price: 259.90 },
+    ];
+
     return (
-      <Card className="border-dashed border-2 border-muted-foreground/30 bg-muted/20 my-6">
-        <CardContent className="p-8 text-center">
-          <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
-            <Gift className="h-6 w-6 text-muted-foreground" />
+      <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-transparent my-6">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Gift className="h-5 w-5 text-primary" />
+            <h3 className="font-semibold text-lg">Oferta Especial para Você!</h3>
+            <Badge variant="destructive" className="ml-auto">-20%</Badge>
           </div>
-          <h3 className="font-semibold text-lg mb-2">Slot: Upsell (Pós-compra)</h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            Configure ofertas de upsell para aparecerem aqui após a compra.
+
+          <p className="text-sm text-muted-foreground mb-4">Aproveite esta oferta exclusiva pós-compra!</p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {demoProducts.map((product) => (
+              <Card key={product.id} className="overflow-hidden h-full pointer-events-none">
+                <div className="aspect-square relative bg-muted flex items-center justify-center">
+                  <ShoppingCart className="h-8 w-8 text-muted-foreground/40" />
+                </div>
+                <CardContent className="p-3">
+                  <h4 className="font-medium text-sm line-clamp-2 mb-2 text-muted-foreground">
+                    {product.name}
+                  </h4>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-muted-foreground line-through">
+                      {formatCurrency(product.price)}
+                    </span>
+                    <span className="text-base font-bold text-primary">
+                      {formatCurrency(product.price * 0.8)}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <p className="text-xs text-center text-muted-foreground mt-4">
+            [Exemplo demonstrativo]{' '}
+            <Link to="/offers" className="text-primary underline hover:no-underline">
+              Configure ofertas reais em Aumentar Ticket
+            </Link>
           </p>
-          <Link to="/offers">
-            <Button variant="outline" size="sm" className="gap-2">
-              <Settings className="h-4 w-4" />
-              Configurar em Aumentar Ticket
-            </Button>
-          </Link>
         </CardContent>
       </Card>
     );

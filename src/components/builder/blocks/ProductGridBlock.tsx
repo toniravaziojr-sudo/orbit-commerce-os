@@ -188,24 +188,59 @@ export function ProductGridBlock({
     );
   }
 
+  // Show demo products when editing and no products found
   if (displayProducts.length === 0) {
     if (isEditing) {
+      const demoProducts = Array.from({ length: limit }, (_, i) => ({
+        id: `demo-${i}`,
+        name: `Produto Exemplo ${i + 1}`,
+        price: 89.90 + (i * 25),
+        compare_at_price: i % 2 === 0 ? 119.90 + (i * 25) : null,
+      }));
+
       return (
-        <div className="p-4">
-          <div className="flex items-center justify-center py-12 border-2 border-dashed border-muted-foreground/30 rounded-lg bg-muted/20">
-            <div className="text-center">
-              <p className="text-muted-foreground mb-2">Nenhum produto encontrado</p>
-              <p className="text-sm text-muted-foreground">Adicione produtos em Produtos → Todos os Produtos</p>
-            </div>
+        <div className="relative">
+          <div className={cn('grid gap-3 sm:gap-4', gridCols)}>
+            {demoProducts.map((product) => (
+              <div
+                key={product.id}
+                className="group bg-card rounded-lg overflow-hidden border transition-shadow hover:shadow-md pointer-events-none"
+              >
+                <div className="aspect-square overflow-hidden bg-muted flex items-center justify-center">
+                  <span className="text-4xl text-muted-foreground/30">📦</span>
+                </div>
+                <div className="p-3">
+                  <h3 className="font-medium text-sm text-foreground line-clamp-2 mb-1">
+                    {product.name}
+                  </h3>
+                  {showPrice && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {product.compare_at_price && (
+                        <span className="text-xs text-muted-foreground line-through">
+                          {formatPrice(product.compare_at_price)}
+                        </span>
+                      )}
+                      <span className="text-sm font-semibold text-primary">
+                        {formatPrice(product.price)}
+                      </span>
+                    </div>
+                  )}
+                  {showButton && (
+                    <button className="mt-2 w-full py-1.5 text-xs bg-primary text-primary-foreground rounded-md">
+                      {buttonText}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
+          <p className="text-xs text-center text-muted-foreground mt-4">
+            [Exemplo demonstrativo] Adicione produtos reais em Produtos
+          </p>
         </div>
       );
     }
-    return (
-      <div className="p-4 text-center text-muted-foreground">
-        <p>Nenhum produto encontrado.</p>
-      </div>
-    );
+    return null;
   }
 
   return (

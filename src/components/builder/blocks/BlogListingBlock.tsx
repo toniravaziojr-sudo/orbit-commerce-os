@@ -182,23 +182,58 @@ export function BlogListingBlock({
     );
   }
 
-  // Empty state - sem demo posts interno
+  // Show demo blog posts when no posts exist (runtime - after isEditing check which already shows demo)
   if (!posts || posts.length === 0) {
+    const demoPosts = [
+      { id: 'demo-1', title: 'Dicas para escolher o produto ideal', excerpt: 'Confira nossas dicas para fazer a melhor escolha.', date: '15 de Jan, 2024', time: '5 min' },
+      { id: 'demo-2', title: 'Novidades da temporada', excerpt: 'Descubra o que há de novo em nossa loja.', date: '12 de Jan, 2024', time: '3 min' },
+      { id: 'demo-3', title: 'Guia completo de cuidados', excerpt: 'Aprenda a cuidar melhor dos seus produtos.', date: '10 de Jan, 2024', time: '8 min' },
+    ];
+
     return (
       <div className="container mx-auto py-8 px-4">
-        <div className="text-center mb-8">
+        <div className="text-center mb-12">
           <h1 className="text-4xl font-bold mb-3">{title}</h1>
           {description && <p className="text-xl text-muted-foreground">{description}</p>}
         </div>
 
-        <div className="flex items-center justify-center py-16 border-2 border-dashed border-muted-foreground/30 rounded-lg bg-muted/10">
-          <div className="text-center">
-            <p className="text-muted-foreground mb-3">Nenhum post publicado ainda</p>
-            <p className="text-sm text-muted-foreground">
-              Crie posts no menu Marketing → Blog
-            </p>
-          </div>
+        <div className="sf-blog-grid">
+          {demoPosts.map((post) => (
+            <Card key={post.id} className="overflow-hidden group pointer-events-none">
+              {showImage && (
+                <div className="aspect-video bg-muted flex items-center justify-center">
+                  <span className="text-4xl">📝</span>
+                </div>
+              )}
+              <CardHeader>
+                <CardTitle className="line-clamp-2 text-muted-foreground">
+                  {post.title}
+                </CardTitle>
+                <CardDescription className="flex items-center gap-4 text-xs">
+                  <span className="flex items-center gap-1">
+                    <Calendar className="w-3 h-3" />
+                    {post.date}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {post.time}
+                  </span>
+                </CardDescription>
+              </CardHeader>
+              {showExcerpt && (
+                <CardContent>
+                  <p className="text-muted-foreground text-sm line-clamp-2">
+                    {post.excerpt}
+                  </p>
+                </CardContent>
+              )}
+            </Card>
+          ))}
         </div>
+
+        <p className="text-xs text-center text-muted-foreground mt-8">
+          [Exemplo demonstrativo] Crie posts reais em Marketing → Blog
+        </p>
       </div>
     );
   }

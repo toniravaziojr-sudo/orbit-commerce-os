@@ -81,26 +81,62 @@ export function FeaturedProductsBlock({
     );
   }
 
-  // Show message when no products selected
-  if (!hasProducts) {
-    return (
-      <div className="py-8 text-center text-muted-foreground">
-        <p className="text-sm">Selecione produtos nas propriedades do bloco</p>
-      </div>
-    );
-  }
+  // Show demo products when editing and no products configured
+  if (!hasProducts || !products?.length) {
+    if (isEditing) {
+      const demoProducts = Array.from({ length: limit }, (_, i) => ({
+        id: `demo-${i}`,
+        name: `Produto Exemplo ${i + 1}`,
+        price: 99.90 + (i * 20),
+        compare_at_price: i % 2 === 0 ? 129.90 + (i * 20) : null,
+      }));
 
-  if (!products?.length) {
-    return (
-      <div className="py-8 text-center text-muted-foreground">
-        <p className="text-sm">Nenhum produto encontrado</p>
-        {isEditing && (
-          <p className="text-xs mt-1">
-            Os IDs informados não correspondem a produtos ativos
+      return (
+        <div className="py-8 px-4">
+          {title && (
+            <h2 className="text-2xl font-bold mb-6 text-foreground">{title}</h2>
+          )}
+          <div className={cn('grid gap-4', gridCols)}>
+            {demoProducts.map((product) => (
+              <div
+                key={product.id}
+                className="group block bg-card rounded-lg overflow-hidden border pointer-events-none"
+              >
+                <div className="aspect-square overflow-hidden bg-muted flex items-center justify-center">
+                  <span className="text-4xl text-muted-foreground/30">📦</span>
+                </div>
+                <div className="p-3">
+                  <h3 className="font-medium text-sm line-clamp-2 text-foreground">
+                    {product.name}
+                  </h3>
+                  {showPrice && (
+                    <div className="mt-1 flex items-center gap-2">
+                      {product.compare_at_price && (
+                        <span className="text-xs text-muted-foreground line-through">
+                          {formatProductPrice(product.compare_at_price)}
+                        </span>
+                      )}
+                      <span className="text-sm font-semibold text-primary">
+                        {formatProductPrice(product.price)}
+                      </span>
+                    </div>
+                  )}
+                  {showButton && (
+                    <button className="mt-2 w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md">
+                      {buttonText}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-center text-muted-foreground mt-4">
+            [Exemplo demonstrativo] Selecione produtos reais no painel lateral
           </p>
-        )}
-      </div>
-    );
+        </div>
+      );
+    }
+    return null;
   }
 
   return (

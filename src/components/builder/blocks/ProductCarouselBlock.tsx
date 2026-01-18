@@ -77,15 +77,68 @@ export function ProductCarouselBlock({
     );
   }
 
+  // Show demo carousel when editing and no products found
   if (!products?.length) {
-    return (
-      <div className="py-8 text-center text-muted-foreground">
-        <p className="text-sm">Nenhum produto encontrado</p>
-        {isEditing && (
-          <p className="text-xs mt-1">Adicione produtos na seção de Produtos do admin</p>
-        )}
-      </div>
-    );
+    if (isEditing) {
+      const demoProducts = Array.from({ length: limit }, (_, i) => ({
+        id: `demo-${i}`,
+        name: `Produto Exemplo ${i + 1}`,
+        price: 79.90 + (i * 15),
+        compare_at_price: i % 2 === 0 ? 99.90 + (i * 15) : null,
+      }));
+
+      return (
+        <div className="py-8 px-4">
+          {title && (
+            <h2 className="text-2xl font-bold mb-6 text-foreground">{title}</h2>
+          )}
+          <Carousel opts={{ align: 'start' }} className="w-full">
+            <CarouselContent className="-ml-2 md:-ml-4">
+              {demoProducts.map((product) => (
+                <CarouselItem
+                  key={product.id}
+                  className="pl-2 md:pl-4 basis-1/2 sm:basis-1/3 md:basis-1/4 lg:basis-1/5"
+                >
+                  <div className="block bg-card rounded-lg overflow-hidden border h-full pointer-events-none">
+                    <div className="aspect-square overflow-hidden bg-muted flex items-center justify-center">
+                      <span className="text-4xl text-muted-foreground/30">📦</span>
+                    </div>
+                    <div className="p-3">
+                      <h3 className="font-medium text-sm line-clamp-2 text-foreground">
+                        {product.name}
+                      </h3>
+                      {showPrice && (
+                        <div className="mt-1 flex items-center gap-2">
+                          {product.compare_at_price && (
+                            <span className="text-xs text-muted-foreground line-through">
+                              {formatProductPrice(product.compare_at_price)}
+                            </span>
+                          )}
+                          <span className="text-sm font-semibold text-primary">
+                            {formatProductPrice(product.price)}
+                          </span>
+                        </div>
+                      )}
+                      {showButton && (
+                        <button className="mt-2 w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md">
+                          {buttonText}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+            <CarouselPrevious className="hidden sm:flex -left-4" />
+            <CarouselNext className="hidden sm:flex -right-4" />
+          </Carousel>
+          <p className="text-xs text-center text-muted-foreground mt-4">
+            [Exemplo demonstrativo] Adicione produtos reais em Produtos
+          </p>
+        </div>
+      );
+    }
+    return null;
   }
 
   return (
