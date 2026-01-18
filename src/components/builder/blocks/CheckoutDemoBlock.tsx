@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
+import { CheckoutTestimonials } from '@/components/storefront/checkout/CheckoutTestimonials';
 
 interface DemoCartItem {
   id: string;
@@ -45,6 +46,8 @@ interface CheckoutDemoBlockProps {
   showTrustBadges?: boolean;
   showCouponField?: boolean;
   showTestimonials?: boolean;
+  // Tenant ID for fetching real testimonials
+  tenantId?: string;
   // Textos editáveis
   contactTitle?: string;
   shippingTitle?: string;
@@ -105,6 +108,7 @@ export function CheckoutDemoBlock({
   showTrustBadges = true,
   showCouponField = true,
   showTestimonials = true,
+  tenantId,
   contactTitle = 'Informações de Contato',
   shippingTitle = 'Endereço de Entrega',
   paymentTitle = 'Forma de Pagamento',
@@ -475,30 +479,18 @@ export function CheckoutDemoBlock({
                 </div>
               )}
 
-              {/* Testimonials */}
-              {showTestimonials && (
+              {/* Testimonials - uses real CheckoutTestimonials component with tenantId */}
+              {showTestimonials && tenantId && (
+                <CheckoutTestimonials tenantId={tenantId} />
+              )}
+              
+              {/* Fallback for builder without tenantId - empty state */}
+              {showTestimonials && !tenantId && (
                 <div className="pt-4 border-t">
                   <p className="text-xs font-medium text-muted-foreground uppercase mb-3">O que dizem nossos clientes</p>
-                  <div className="space-y-3">
-                    <div className="p-3 bg-muted/50 rounded-lg">
-                      <div className="flex gap-1 mb-1">
-                        {[1, 2, 3, 4, 5].map((i) => (
-                          <Star key={i} className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                        ))}
-                      </div>
-                      <p className="text-xs text-muted-foreground italic">"Entrega super rápida! Produto excelente."</p>
-                      <p className="text-xs font-medium mt-1">Maria S.</p>
-                    </div>
-                    <div className="p-3 bg-muted/50 rounded-lg">
-                      <div className="flex gap-1 mb-1">
-                        {[1, 2, 3, 4, 5].map((i) => (
-                          <Star key={i} className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                        ))}
-                      </div>
-                      <p className="text-xs text-muted-foreground italic">"Recomendo muito! Atendimento nota 10."</p>
-                      <p className="text-xs font-medium mt-1">João P.</p>
-                    </div>
-                  </div>
+                  <p className="text-xs text-muted-foreground italic text-center py-4">
+                    Configure depoimentos nas configurações do checkout
+                  </p>
                 </div>
               )}
 

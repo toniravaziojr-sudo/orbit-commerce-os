@@ -1260,6 +1260,7 @@ function CheckoutBlock({ isEditing, context, showOrderBump, showTimeline }: any)
         showCouponField={effectiveShowCoupon}
         showTestimonials={effectiveShowTestimonials}
         showTrustBadges={effectiveShowTrustBadges}
+        tenantId={tenantId}
         paymentMethodsOrder={paymentMethodsOrder}
         paymentMethodLabels={paymentMethodLabels}
         isEditing 
