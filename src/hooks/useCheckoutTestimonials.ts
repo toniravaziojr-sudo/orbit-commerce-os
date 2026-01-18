@@ -260,16 +260,16 @@ export function useStorefrontTestimonials(tenantId: string | undefined, productI
       });
 
       // Filter testimonials:
-      // - Include if no product associations (global)
-      // - Include if productId matches one of the associated products
+      // - If no productId provided, show all active testimonials (for checkout sidebar)
+      // - If productId provided, filter by product association or global (no associations)
       return testimonials.filter(t => {
         const associatedProducts = productMap.get(t.id) || [];
-        // No products = show for all
+        // No products = show for all (global testimonial)
         if (associatedProducts.length === 0) return true;
-        // Has products = check if current productId is included
+        // If productId provided, check if it matches one of the associated products
         if (productId) return associatedProducts.includes(productId);
-        // No productId provided and has associations = don't show
-        return false;
+        // No productId but has associations = still show in checkout (show all)
+        return true;
       }).map(t => ({
         ...t,
         product_ids: productMap.get(t.id) || [],
