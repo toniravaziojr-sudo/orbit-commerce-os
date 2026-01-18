@@ -61,7 +61,7 @@ export default function StorefrontProduct() {
     }
   }, [isPreviewMode, canPreview, template.isLoading, tenantSlug, productSlug, searchParams, navigate]);
 
-  // Fetch product settings AND miniCart config from PUBLISHED template set content
+  // Fetch product settings, miniCart config AND categorySettings from PUBLISHED template set content
   // CRITICAL: Must read from published_content, NOT from page_overrides (which reflects draft)
   const { data: templateSettings } = useQuery({
     queryKey: ['product-template-settings-published', tenantSlug, isPreviewMode],
@@ -85,16 +85,28 @@ export default function StorefrontProduct() {
       
       if (!templateSetId) {
         // Fallback to page_overrides if no published template (legacy)
-        const { data } = await supabase
+        const { data: productData } = await supabase
           .from('storefront_page_templates')
           .select('page_overrides')
           .eq('tenant_id', tenant.id)
           .eq('page_type', 'product')
           .maybeSingle();
         
-        const overrides = data?.page_overrides as Record<string, unknown> | null;
+        const productOverrides = productData?.page_overrides as Record<string, unknown> | null;
+        
+        // Also fetch categorySettings for product page blocks (e.g., related products)
+        const { data: categoryData } = await supabase
+          .from('storefront_page_templates')
+          .select('page_overrides')
+          .eq('tenant_id', tenant.id)
+          .eq('page_type', 'category')
+          .maybeSingle();
+        
+        const categoryOverrides = categoryData?.page_overrides as Record<string, unknown> | null;
+        
         return {
-          productSettings: overrides?.productSettings as ProductSettings | null,
+          productSettings: productOverrides?.productSettings as ProductSettings | null,
+          categorySettings: categoryOverrides?.categorySettings || null,
           miniCart: null,
         };
       }
@@ -116,6 +128,7 @@ export default function StorefrontProduct() {
       
       return {
         productSettings: (pageSettings?.product as ProductSettings) || null,
+        categorySettings: pageSettings?.category || null,
         miniCart: themeSettings?.miniCart || null,
       };
     },
@@ -124,6 +137,7 @@ export default function StorefrontProduct() {
 
   const productSettings = templateSettings?.productSettings;
   const miniCartConfig = templateSettings?.miniCart;
+  const categorySettings = templateSettings?.categorySettings;
 
   // If product not found and not loading - show 404, never redirect to home
   if (!product && !productLoading && !template.isLoading) {
@@ -148,12 +162,14 @@ export default function StorefrontProduct() {
   // IMPORTANT: Use tenant.id as primary source (loads first), fallback to storeSettings.tenant_id
   const tenantId = tenant?.id || storeSettings?.tenant_id;
   
-  const context: BlockRenderContext & { categories?: any[]; productSettings?: any; themeSettings?: any } = {
+  const context: BlockRenderContext & { categories?: any[]; productSettings?: any; themeSettings?: any; categorySettings?: any } = {
     tenantSlug: tenantSlug || '',
     isPreview: isPreviewMode,
     pageType: 'product',
     // Pass product settings for ProductDetailsBlock
     productSettings: productSettings || {},
+    // Pass categorySettings for product blocks (e.g., related products, carousels)
+    categorySettings: categorySettings || {},
     // Pass theme settings including miniCart config for cart action behavior
     themeSettings: {
       miniCart: miniCartConfig || undefined,

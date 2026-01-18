@@ -16,6 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { getDefaultTemplate } from '@/lib/builder/defaults';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
+import { CategorySettings } from '@/hooks/usePageSettings';
 
 // Hook specifically for landing pages - validates type = 'landing_page'
 // Supports preview mode for unpublished pages when user is authenticated
@@ -158,6 +159,73 @@ export default function StorefrontLandingPage() {
   const { storeSettings, headerMenu, footerMenu, categories, isPublished, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
   const { data: pageData, isLoading: pageLoading, error } = usePublicLandingPage(tenantSlug || '', pageSlug || '', isPreviewMode);
 
+  // Fetch category settings for product blocks
+  const defaultCategorySettings: CategorySettings = {
+    showCategoryName: true,
+    showBanner: true,
+    showRatings: true,
+    showAddToCartButton: true,
+    quickBuyEnabled: false,
+    showBadges: true,
+    buyNowButtonText: 'Comprar agora',
+    customButtonEnabled: false,
+    customButtonText: '',
+    customButtonColor: '',
+    customButtonLink: '',
+  };
+
+  const { data: categorySettings } = useQuery({
+    queryKey: ['category-settings-published', tenantSlug, isPreviewMode],
+    queryFn: async () => {
+      const { data: tenantData } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('slug', tenantSlug || '')
+        .single();
+      
+      if (!tenantData) return defaultCategorySettings;
+      
+      const { data: storeSettingsData } = await supabase
+        .from('store_settings')
+        .select('published_template_id')
+        .eq('tenant_id', tenantData.id)
+        .maybeSingle();
+      
+      const templateSetId = storeSettingsData?.published_template_id;
+      
+      if (!templateSetId) {
+        const { data } = await supabase
+          .from('storefront_page_templates')
+          .select('page_overrides')
+          .eq('tenant_id', tenantData.id)
+          .eq('page_type', 'category')
+          .maybeSingle();
+        
+        const overrides = data?.page_overrides as Record<string, unknown> | null;
+        const saved = (overrides?.categorySettings as CategorySettings) || {};
+        return { ...defaultCategorySettings, ...saved };
+      }
+      
+      const contentField = isPreviewMode ? 'draft_content' : 'published_content';
+      const { data: templateSet } = await supabase
+        .from('storefront_template_sets')
+        .select(contentField)
+        .eq('id', templateSetId)
+        .eq('tenant_id', tenantData.id)
+        .single();
+      
+      if (!templateSet) return defaultCategorySettings;
+      
+      const content = (templateSet as any)[contentField] as Record<string, unknown> | null;
+      const themeSettings = content?.themeSettings as Record<string, unknown> | undefined;
+      const pageSettings = themeSettings?.pageSettings as Record<string, unknown> | undefined;
+      const saved = (pageSettings?.category as CategorySettings) || {};
+      
+      return { ...defaultCategorySettings, ...saved };
+    },
+    enabled: !!tenantSlug,
+  });
+
   // Loading state
   if (pageLoading || storeLoading) {
     return (
@@ -200,9 +268,12 @@ export default function StorefrontLandingPage() {
   }
 
   // Build context for block rendering
-  const context: BlockRenderContext & { categories?: any[] } = {
+  const context: BlockRenderContext & { categories?: any[]; categorySettings?: CategorySettings } = {
     tenantSlug: tenantSlug || '',
     isPreview: isPreviewMode,
+    pageType: 'landing_page',
+    // Pass categorySettings for any product blocks on landing pages
+    categorySettings: categorySettings || defaultCategorySettings,
     settings: {
       store_name: storeSettings?.store_name || undefined,
       logo_url: storeSettings?.logo_url || undefined,
