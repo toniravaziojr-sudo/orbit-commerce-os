@@ -31,6 +31,7 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { TestimonialsManagerCompact } from '@/components/cart-checkout/TestimonialsManagerCompact';
+import { PaymentMethodsConfig } from './PaymentMethodsConfig';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { toast } from 'sonner';
@@ -796,7 +797,7 @@ export function PageSettingsContent({
       ) : hasGroups ? (
         // Grouped settings (for cart/checkout)
         <div className="space-y-2">
-          {getGroupedSettings(settingsConfig).map((group) => (
+          {getGroupedSettings(settingsConfig, pageType).map((group) => (
             <Collapsible
               key={group.id}
               open={openSections[group.id] !== false}
@@ -815,6 +816,10 @@ export function PageSettingsContent({
                 </button>
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-3 px-3 pb-3">
+                {/* Special: PaymentMethodsConfig for checkout payment group */}
+                {pageType === 'checkout' && group.id === 'payment' && (
+                  <PaymentMethodsConfig tenantId={tenantId} />
+                )}
                 {group.settings.map((config) => (
                   <div key={config.key} className="space-y-2">
                     <div className="flex items-center justify-between py-1">
@@ -1221,7 +1226,7 @@ interface SettingsGroup {
   settings: SettingConfig[];
 }
 
-function getGroupedSettings(configs: SettingConfig[]): SettingsGroup[] {
+function getGroupedSettings(configs: SettingConfig[], pageType?: string): SettingsGroup[] {
   const groupMap: Record<string, SettingsGroup> = {
     'structure': { 
       id: 'structure', 
@@ -1239,6 +1244,12 @@ function getGroupedSettings(configs: SettingConfig[]): SettingsGroup[] {
       id: 'features', 
       label: 'Funcionalidades', 
       icon: <Percent className="h-4 w-4 text-muted-foreground" />,
+      settings: [] 
+    },
+    'payment': { 
+      id: 'payment', 
+      label: 'Formas de Pagamento', 
+      icon: <ShoppingCart className="h-4 w-4 text-muted-foreground" />,
       settings: [] 
     },
     'offers': { 
@@ -1268,6 +1279,10 @@ function getGroupedSettings(configs: SettingConfig[]): SettingsGroup[] {
     }
   });
 
-  // Return only groups that have settings
-  return Object.values(groupMap).filter(g => g.settings.length > 0);
+  // Return only groups that have settings OR special groups for specific pages
+  return Object.values(groupMap).filter(g => {
+    // Always include 'payment' group for checkout (it has a special component)
+    if (pageType === 'checkout' && g.id === 'payment') return true;
+    return g.settings.length > 0;
+  });
 }
