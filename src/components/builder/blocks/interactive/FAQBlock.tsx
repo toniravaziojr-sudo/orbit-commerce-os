@@ -22,8 +22,16 @@ const defaultItems: FAQItem[] = [
   { question: 'Quais formas de pagamento?', answer: 'Aceitamos cartão, PIX e boleto.' },
 ];
 
-export function FAQBlock({ title = 'Perguntas Frequentes', items = defaultItems, isEditing }: FAQBlockProps) {
-  const faqItems = items?.length > 0 ? items : defaultItems;
+export function FAQBlock({ title = 'Perguntas Frequentes', items, isEditing }: FAQBlockProps) {
+  // IMPORTANT: Demo items should ONLY appear in builder/editor mode
+  // In public storefront, show nothing if no real FAQ items exist
+  const hasRealItems = items && items.length > 0;
+  const faqItems = hasRealItems ? items : (isEditing ? defaultItems : []);
+  
+  // Don't render anything in public mode if no real items
+  if (faqItems.length === 0) {
+    return null;
+  }
 
   return (
     <div className="py-8 container mx-auto px-4">

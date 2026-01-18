@@ -71,7 +71,15 @@ export function PersonalizedProductsBlock({
   products,
   isEditing = false,
 }: PersonalizedProductsBlockProps) {
-  const displayProducts = products?.length ? products : defaultProducts;
+  // IMPORTANT: Demo products should ONLY appear in builder/editor mode
+  // In public storefront, show nothing if no real products exist
+  const hasRealProducts = products && products.length > 0;
+  const displayProducts = hasRealProducts ? products : (isEditing ? defaultProducts : []);
+  
+  // Don't render anything in public mode if no real products
+  if (displayProducts.length === 0) {
+    return null;
+  }
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {

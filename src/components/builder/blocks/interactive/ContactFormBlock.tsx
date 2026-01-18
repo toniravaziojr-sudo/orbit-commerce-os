@@ -55,16 +55,30 @@ export function ContactFormBlock({
   buttonText = 'Enviar Mensagem',
   successMessage = 'Mensagem enviada com sucesso! Entraremos em contato em breve.',
   showContactInfo = true,
-  contactEmail = 'contato@sualojacom',
-  contactPhone = '(11) 99999-9999',
-  contactAddress = 'Rua Exemplo, 123 - São Paulo, SP',
-  contactHours = 'Seg - Sex: 9h às 18h',
+  // IMPORTANT: Contact info defaults should be empty in public mode
+  // Demo values only appear if explicitly set or in builder mode
+  contactEmail = '',
+  contactPhone = '',
+  contactAddress = '',
+  contactHours = '',
   backgroundColor,
   textColor,
   buttonBgColor,
   buttonTextColor,
   isEditing,
 }: ContactFormBlockProps) {
+  // Demo values for builder mode only
+  const demoEmail = 'contato@sualoja.com';
+  const demoPhone = '(11) 99999-9999';
+  const demoAddress = 'Rua Exemplo, 123 - São Paulo, SP';
+  const demoHours = 'Seg - Sex: 9h às 18h';
+  
+  // Use provided values, or show demo only in builder mode
+  const displayEmail = contactEmail || (isEditing ? demoEmail : '');
+  const displayPhone = contactPhone || (isEditing ? demoPhone : '');
+  const displayAddress = contactAddress || (isEditing ? demoAddress : '');
+  const displayHours = contactHours || (isEditing ? demoHours : '');
+  
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -242,54 +256,54 @@ export function ContactFormBlock({
 
   const ContactInfo = () => (
     <div className="space-y-6">
-      {contactEmail && (
+      {displayEmail && (
         <div className="flex items-start gap-4">
           <div className="p-2 rounded-lg bg-primary/10">
             <Mail className="w-5 h-5 text-primary" />
           </div>
           <div>
             <p className="font-medium">E-mail</p>
-            <a href={`mailto:${contactEmail}`} className="text-muted-foreground hover:text-primary transition-colors">
-              {contactEmail}
+            <a href={`mailto:${displayEmail}`} className="text-muted-foreground hover:text-primary transition-colors">
+              {displayEmail}
             </a>
           </div>
         </div>
       )}
 
-      {contactPhone && (
+      {displayPhone && (
         <div className="flex items-start gap-4">
           <div className="p-2 rounded-lg bg-primary/10">
             <Phone className="w-5 h-5 text-primary" />
           </div>
           <div>
             <p className="font-medium">Telefone</p>
-            <a href={`tel:${contactPhone.replace(/\D/g, '')}`} className="text-muted-foreground hover:text-primary transition-colors">
-              {contactPhone}
+            <a href={`tel:${displayPhone.replace(/\D/g, '')}`} className="text-muted-foreground hover:text-primary transition-colors">
+              {displayPhone}
             </a>
           </div>
         </div>
       )}
 
-      {contactAddress && (
+      {displayAddress && (
         <div className="flex items-start gap-4">
           <div className="p-2 rounded-lg bg-primary/10">
             <MapPin className="w-5 h-5 text-primary" />
           </div>
           <div>
             <p className="font-medium">Endereço</p>
-            <p className="text-muted-foreground">{contactAddress}</p>
+            <p className="text-muted-foreground">{displayAddress}</p>
           </div>
         </div>
       )}
 
-      {contactHours && (
+      {displayHours && (
         <div className="flex items-start gap-4">
           <div className="p-2 rounded-lg bg-primary/10">
             <Clock className="w-5 h-5 text-primary" />
           </div>
           <div>
             <p className="font-medium">Horário de Atendimento</p>
-            <p className="text-muted-foreground">{contactHours}</p>
+            <p className="text-muted-foreground">{displayHours}</p>
           </div>
         </div>
       )}
