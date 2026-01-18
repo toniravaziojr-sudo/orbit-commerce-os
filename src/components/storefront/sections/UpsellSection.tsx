@@ -21,6 +21,7 @@ interface UpsellSectionProps {
   tenantId?: string;
   orderId?: string;
   isEditing?: boolean;
+  tenantSlug?: string; // Allow passing tenantSlug directly for builder context
 }
 
 interface UpsellProduct {
@@ -42,8 +43,10 @@ interface UpsellProduct {
  * - Em produção: não renderiza nada
  * - Em edição: empty state com CTA para /offers
  */
-export function UpsellSection({ isEditing }: UpsellSectionProps) {
-  const tenantSlug = useTenantSlug();
+export function UpsellSection({ isEditing, tenantSlug: tenantSlugProp }: UpsellSectionProps) {
+  const hookTenantSlug = useTenantSlug();
+  // Use prop if provided (from builder context), fallback to hook
+  const tenantSlug = tenantSlugProp || hookTenantSlug;
   const urls = useStorefrontUrls(tenantSlug);
   
   // Fetch active upsell rules
