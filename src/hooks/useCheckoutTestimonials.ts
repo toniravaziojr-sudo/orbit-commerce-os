@@ -234,19 +234,26 @@ export function useCheckoutTestimonials() {
 }
 
 // Hook to get testimonials for storefront (filtered by product if applicable)
-export function useStorefrontTestimonials(tenantId: string | undefined, productId?: string) {
+// isEditing: true = builder mode (show all active), false = public (only published)
+export function useStorefrontTestimonials(tenantId: string | undefined, productId?: string, isEditing?: boolean) {
   return useQuery({
-    queryKey: ['storefront-testimonials', tenantId, productId],
+    queryKey: ['storefront-testimonials', tenantId, productId, isEditing],
     queryFn: async () => {
       if (!tenantId) return [];
 
-      // Get active testimonials
-      const { data: testimonials, error } = await supabase
+      // Build query - active testimonials only
+      let query = supabase
         .from('checkout_testimonials')
         .select('*')
         .eq('tenant_id', tenantId)
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true });
+        .eq('is_active', true);
+      
+      // CRITICAL: In public mode (not editing), only show published testimonials
+      if (!isEditing) {
+        query = query.not('published_at', 'is', null);
+      }
+      
+      const { data: testimonials, error } = await query.order('sort_order', { ascending: true });
 
       if (error) throw error;
       if (!testimonials || testimonials.length === 0) return [];
@@ -285,5 +292,33 @@ export function useStorefrontTestimonials(tenantId: string | undefined, productI
       })) as CheckoutTestimonial[];
     },
     enabled: !!tenantId,
+  });
+}
+
+// Hook to publish all active testimonials (called when template is published)
+export function usePublishTestimonials() {
+  const { currentTenant } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!currentTenant?.id) throw new Error('Nenhuma loja selecionada');
+
+      // Update all active testimonials to published
+      const { error } = await supabase
+        .from('checkout_testimonials')
+        .update({ published_at: new Date().toISOString() })
+        .eq('tenant_id', currentTenant.id)
+        .eq('is_active', true);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      // Invalidate storefront query so public sees new published testimonials
+      queryClient.invalidateQueries({ queryKey: ['storefront-testimonials', currentTenant?.id] });
+    },
+    onError: (error: Error) => {
+      console.error('Error publishing testimonials:', error);
+    },
   });
 }

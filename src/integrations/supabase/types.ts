@@ -1417,6 +1417,7 @@ export type Database = {
           image_url: string | null
           is_active: boolean
           name: string
+          published_at: string | null
           rating: number
           sort_order: number
           tenant_id: string
@@ -1429,6 +1430,7 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean
           name: string
+          published_at?: string | null
           rating?: number
           sort_order?: number
           tenant_id: string
@@ -1441,6 +1443,7 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean
           name?: string
+          published_at?: string | null
           rating?: number
           sort_order?: number
           tenant_id?: string
