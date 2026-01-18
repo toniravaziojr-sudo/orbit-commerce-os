@@ -19,7 +19,7 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   '/products': 'ready',
   '/categories': 'ready',
   '/customers': 'ready',
-  '/discounts': 'pending',
+  '/discounts': 'ready',
   
   // Loja Online
   '/storefront': 'pending',
