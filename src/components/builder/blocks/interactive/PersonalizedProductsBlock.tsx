@@ -3,12 +3,17 @@
 // USA ProductCard compartilhado para respeitar categorySettings do tema
 // =============================================
 
-import React from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { Sparkles, RefreshCw, ShoppingBag, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BlockRenderContext } from '@/lib/builder/types';
-import { ProductCard, formatPrice } from '../shared/ProductCard';
+import { ProductCard, formatPrice, ProductCardProduct } from '../shared/ProductCard';
 import type { CategorySettings } from '@/hooks/usePageSettings';
+import { useProductRatings } from '@/hooks/useProductRating';
+import { useProductBadgesForProducts } from '@/hooks/useProductBadges';
+import { useCart } from '@/contexts/CartContext';
+import { getPublicCheckoutUrl } from '@/lib/publicUrls';
+import { toast } from 'sonner';
 
 interface ProductItem {
   id?: string;
@@ -86,6 +91,8 @@ export function PersonalizedProductsBlock({
   context,
   isEditing = false,
 }: PersonalizedProductsBlockProps) {
+  const tenantSlug = context?.tenantSlug || '';
+  
   // Get categorySettings from context (passed from VisualBuilder)
   const categorySettings: Partial<CategorySettings> = (context as any)?.categorySettings || {};
 
@@ -94,6 +101,77 @@ export function PersonalizedProductsBlock({
   const hasRealProducts = products && products.length > 0;
   const displayProducts = hasRealProducts ? products : (isEditing ? defaultProducts : []);
   
+  // Normalize products to ProductCard format
+  const normalizedProducts: ProductCardProduct[] = useMemo(() => 
+    displayProducts.map(p => ({
+      id: p.id || '',
+      name: p.name || '',
+      slug: p.slug || '',
+      price: p.price || 0,
+      compare_at_price: p.compare_at_price || p.originalPrice || null,
+      product_images: p.product_images || (p.image ? [{ url: p.image, is_primary: true }] : []),
+    })), [displayProducts]);
+  
+  // Get product IDs for batch rating and badge fetch
+  const productIds = useMemo(() => normalizedProducts.map(p => p.id).filter(Boolean), [normalizedProducts]);
+  const { data: ratingsMap } = useProductRatings(productIds);
+  const { data: badgesMap } = useProductBadgesForProducts(productIds);
+
+  // Cart functionality
+  const { addItem: addToCart, items: cartItems } = useCart();
+  const [addedProducts, setAddedProducts] = useState<Set<string>>(new Set());
+
+  // Check if product is in cart
+  const isProductInCart = useCallback((productId: string) => {
+    return cartItems.some(item => item.product_id === productId) || addedProducts.has(productId);
+  }, [cartItems, addedProducts]);
+
+  // Handle add to cart
+  const handleAddToCart = useCallback((e: React.MouseEvent, product: ProductCardProduct) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (isEditing) return;
+    
+    const primaryImage = product.product_images?.find(img => img.is_primary)?.url || product.product_images?.[0]?.url;
+    
+    addToCart({
+      product_id: product.id,
+      name: product.name,
+      sku: product.slug,
+      price: product.price,
+      quantity: 1,
+      image_url: primaryImage,
+    });
+    
+    setAddedProducts(prev => new Set(prev).add(product.id));
+    toast.success('Produto adicionado ao carrinho!');
+  }, [addToCart, isEditing]);
+
+  // Handle quick buy (redirect to checkout)
+  const handleQuickBuy = useCallback((e: React.MouseEvent, product: ProductCardProduct) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (isEditing) return;
+    
+    const primaryImage = product.product_images?.find(img => img.is_primary)?.url || product.product_images?.[0]?.url;
+    
+    // Add to cart first
+    addToCart({
+      product_id: product.id,
+      name: product.name,
+      sku: product.slug,
+      price: product.price,
+      quantity: 1,
+      image_url: primaryImage,
+    });
+    
+    // Redirect to checkout
+    const checkoutUrl = getPublicCheckoutUrl(tenantSlug);
+    window.location.href = checkoutUrl;
+  }, [addToCart, tenantSlug, isEditing]);
+
   // Don't render anything in public mode if no real products
   if (displayProducts.length === 0) {
     return null;
@@ -105,16 +183,6 @@ export function PersonalizedProductsBlock({
     4: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4',
     5: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5',
   }[columns] || 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4';
-
-  // Normalize products to ProductCard format
-  const normalizedProducts = displayProducts.map(p => ({
-    id: p.id || '',
-    name: p.name || '',
-    slug: p.slug || '',
-    price: p.price || 0,
-    compare_at_price: p.compare_at_price || p.originalPrice || null,
-    product_images: p.product_images || (p.image ? [{ url: p.image, is_primary: true }] : []),
-  }));
 
   return (
     <section className="py-12 px-4">
@@ -158,16 +226,25 @@ export function PersonalizedProductsBlock({
 
         {/* Grid de produtos */}
         <div className={cn('grid gap-4 sm:gap-6', gridColsClass)}>
-          {normalizedProducts.map((product, index) => (
-            <ProductCard
-              key={product.id || index}
-              product={product}
-              tenantSlug={context?.tenantSlug || ''}
-              isEditing={isEditing}
-              settings={categorySettings}
-              variant="compact"
-            />
-          ))}
+          {normalizedProducts.map((product, index) => {
+            const rating = ratingsMap?.get(product.id);
+            const badges = badgesMap?.get(product.id);
+            return (
+              <ProductCard
+                key={product.id || index}
+                product={product}
+                tenantSlug={tenantSlug}
+                isEditing={isEditing}
+                settings={categorySettings}
+                rating={rating}
+                badges={badges}
+                isAddedToCart={isProductInCart(product.id)}
+                onAddToCart={handleAddToCart}
+                onQuickBuy={handleQuickBuy}
+                variant="compact"
+              />
+            );
+          })}
         </div>
 
         {isEditing && (
