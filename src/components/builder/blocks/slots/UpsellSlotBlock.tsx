@@ -162,9 +162,10 @@ export function UpsellSlotBlock({
     );
   }
 
-  // No active upsell rule or no products
+  // No active upsell rule or no products - IMPORTANT: Never show empty state in public
   if (!activeRule || products.length === 0) {
-    if (!showWhenEmpty) return null;
+    // Only show empty state CTA in editor mode
+    if (!isEditing || !showWhenEmpty) return null;
 
     return (
       <Card className="border-dashed border-2 bg-muted/20 my-6">

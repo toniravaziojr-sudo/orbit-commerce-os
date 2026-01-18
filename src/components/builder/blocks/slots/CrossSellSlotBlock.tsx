@@ -134,9 +134,10 @@ export function CrossSellSlotBlock({
     );
   }
 
-  // No rule or no products
+  // No rule or no products - IMPORTANT: Never show empty state in public
   if (!activeRule || products.length === 0) {
-    if (!showWhenEmpty) return null;
+    // Only show empty state CTA in editor mode
+    if (!isEditing || !showWhenEmpty) return null;
 
     return (
       <section className="py-6">

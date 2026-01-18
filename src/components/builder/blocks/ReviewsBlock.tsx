@@ -80,9 +80,16 @@ export function ReviewsBlock({
   const scrollPrev = useCallback(() => emblaApi?.scrollPrev(), [emblaApi]);
   const scrollNext = useCallback(() => emblaApi?.scrollNext(), [emblaApi]);
 
-  // Use default reviews if none provided (always show demo when empty)
-  const displayReviews = reviews && reviews.length > 0 ? reviews : defaultReviews;
-  const isUsingDemo = !reviews || reviews.length === 0;
+  // IMPORTANT: Demo reviews should ONLY appear in builder/editor mode
+  // In public storefront, show nothing if no real reviews exist
+  const hasRealReviews = reviews && reviews.length > 0;
+  const displayReviews = hasRealReviews ? reviews : (isEditing ? defaultReviews : []);
+  const isUsingDemo = !hasRealReviews && isEditing;
+
+  // Don't render anything in public mode if no real reviews
+  if (displayReviews.length === 0) {
+    return null;
+  }
 
   const actualReviews = displayReviews.slice(0, visibleCount);
 
@@ -186,6 +193,13 @@ export function ReviewsBlock({
             <span className="w-2 h-2 rounded-full bg-primary" />
             <span className="w-2 h-2 rounded-full bg-muted-foreground/30" />
           </div>
+        )}
+
+        {/* Demo indicator - only in editing mode */}
+        {isUsingDemo && isEditing && (
+          <p className="text-xs text-center text-muted-foreground mt-4">
+            [Exemplo demonstrativo] Configure avaliações reais para seus produtos
+          </p>
         )}
       </div>
     </section>
