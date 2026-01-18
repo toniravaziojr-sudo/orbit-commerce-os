@@ -164,7 +164,8 @@ export function ProductCard({
     );
   }
   
-  // Renderização compact (imagem + rating + nome + preço + um botão)
+  // Renderização compact (imagem + rating + nome + preço + botões conforme settings)
+  // REGRA: Variante compact também deve respeitar categorySettings do tema
   if (variant === 'compact') {
     return (
       <CardWrapper>
@@ -200,6 +201,72 @@ export function ProductCard({
             <span className="text-sm font-semibold text-primary">
               {formatPrice(product.price)}
             </span>
+          </div>
+          
+          {/* Botões conforme categorySettings - mesmo comportamento que variant default */}
+          <div className="mt-2 flex flex-col gap-1.5">
+            {/* 1º Botão "Adicionar ao carrinho" (se ativo) */}
+            {showAddToCartButton && onAddToCart && (
+              <button 
+                className={cn(
+                  "w-full py-1.5 px-3 text-xs rounded-md transition-colors flex items-center justify-center gap-1",
+                  isAddedToCart
+                    ? "bg-green-500 text-white border-green-500"
+                    : "border border-primary text-primary bg-transparent hover:bg-primary/10"
+                )}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onAddToCart(e, product);
+                }}
+                disabled={isAddedToCart}
+              >
+                {isAddedToCart ? (
+                  <>
+                    <Check className="h-3 w-3" />
+                    <span>Adicionado</span>
+                  </>
+                ) : (
+                  <>
+                    <ShoppingCart className="h-3 w-3" />
+                    <span>Adicionar</span>
+                  </>
+                )}
+              </button>
+            )}
+            
+            {/* 2º Botão personalizado (se ativo) */}
+            {customButtonEnabled && customButtonText && (
+              <a
+                href={customButtonLink || '#'}
+                className="w-full py-1.5 px-3 text-xs rounded-md text-center transition-colors"
+                style={{ 
+                  backgroundColor: customButtonColor || 'hsl(var(--primary))',
+                  color: '#ffffff'
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {customButtonText}
+              </a>
+            )}
+            
+            {/* 3º Botão principal "Comprar agora" */}
+            {quickBuyEnabled && onQuickBuy ? (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onQuickBuy(e, product);
+                }}
+                className="w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-center"
+              >
+                {buyNowButtonText}
+              </button>
+            ) : (
+              <span className="w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md text-center">
+                {buyNowButtonText}
+              </span>
+            )}
           </div>
         </div>
       </CardWrapper>
