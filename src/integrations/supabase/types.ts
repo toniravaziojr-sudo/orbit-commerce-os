@@ -7921,6 +7921,7 @@ export type Database = {
           customer_name: string
           id: string
           is_verified_purchase: boolean | null
+          media_urls: string[] | null
           product_id: string
           rating: number
           status: string
@@ -7938,6 +7939,7 @@ export type Database = {
           customer_name: string
           id?: string
           is_verified_purchase?: boolean | null
+          media_urls?: string[] | null
           product_id: string
           rating: number
           status?: string
@@ -7955,6 +7957,7 @@ export type Database = {
           customer_name?: string
           id?: string
           is_verified_purchase?: boolean | null
+          media_urls?: string[] | null
           product_id?: string
           rating?: number
           status?: string
