@@ -50,9 +50,11 @@ export function CheckoutTestimonials({ tenantId: propTenantId, productIds, isEdi
   
   // Fetch custom testimonials from database
   // Pass first productId if available for filtering
+  // isEditing determines if we show drafts (builder) or only published (public)
   const { data: customTestimonials, isLoading } = useStorefrontTestimonials(
     tenantId,
-    productIds?.[0]
+    productIds?.[0],
+    isEditing // Pass editing state to filter published_at
   );
 
   // IMPORTANT: Demo testimonials should ONLY appear in builder/editor mode
