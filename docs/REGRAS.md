@@ -774,11 +774,12 @@ if (result?.publicUrl) {
 | 3 | Produtos | `/products` | ✅ Ready |
 | 4 | Categorias | `/categories` | ✅ Ready |
 | 5 | Clientes | `/customers` | ✅ Ready |
-| 6 | Loja Virtual | `/storefront` | ✅ Ready |
-| 7 | Menus | `/menus` | ✅ Ready |
-| 8 | Aumentar Ticket | `/offers` | ✅ Ready |
-| 9 | Avaliações | `/reviews` | ✅ Ready |
-| 10 | Meu Drive | `/files` | ✅ Ready |
+| 6 | Descontos | `/discounts` | ✅ Ready |
+| 7 | Loja Virtual | `/storefront` | ✅ Ready |
+| 8 | Menus | `/menus` | ✅ Ready |
+| 9 | Aumentar Ticket | `/offers` | ✅ Ready |
+| 10 | Avaliações | `/reviews` | ✅ Ready |
+| 11 | Meu Drive | `/files` | ✅ Ready |
 
 ---
 
@@ -1075,7 +1076,104 @@ CRM completo com visão 360º do cliente, endereços e histórico de pedidos.
 
 ---
 
-### 6. Loja Virtual (`/storefront`)
+### 6. Descontos (`/discounts`)
+
+#### Visão Geral
+
+Gestão completa de cupons de desconto com validação em tempo real no checkout e rastreamento de uso.
+
+#### Listagem
+
+| Componente | Descrição |
+|------------|-----------|
+| **Stats** | Total de cupons, Ativos, Total de usos |
+| **Busca** | Por código ou nome do cupom |
+| **Filtros** | Status (Ativo, Agendado, Expirado, Inativo) |
+| **Ações rápidas** | Toggle ativo/inativo, Duplicar, Excluir |
+
+#### Formulário de Cupom
+
+| Seção | Campos |
+|-------|--------|
+| **Básico** | Nome do cupom, Código (auto-uppercase, sem espaços) |
+| **Tipo de Desconto** | Percentual (%), Valor Fixo (R$), Frete Grátis |
+| **Escopo** | Global (todos produtos), Produtos específicos, Categorias específicas |
+| **Limites** | Data de início, Data de expiração, Limite total de usos, Limite por cliente |
+| **Requisitos** | Subtotal mínimo do carrinho |
+| **Especial** | Aplicar automaticamente em primeira compra |
+
+#### Tipos de Desconto
+
+| Tipo | Código | Descrição |
+|------|--------|-----------|
+| **Percentual** | `order_percent` | Desconto em % sobre o subtotal |
+| **Valor Fixo** | `order_fixed` | Desconto em R$ sobre o subtotal |
+| **Frete Grátis** | `free_shipping` | Zera o valor do frete |
+
+#### Escopo de Aplicação
+
+| Escopo | Código | Descrição |
+|--------|--------|-----------|
+| **Global** | `all` | Aplica em todos os produtos |
+| **Produtos** | `specific_products` | Aplica apenas em produtos selecionados |
+| **Categorias** | `specific_categories` | Aplica apenas em categorias selecionadas |
+
+#### Regras de Negócio
+
+| Regra | Descrição |
+|-------|-----------|
+| **Código único** | Não pode haver dois cupons com mesmo código no tenant |
+| **Cupom usado** | Cupons já utilizados não podem ser excluídos, apenas desativados |
+| **Validação real-time** | Cupom é validado via Edge Function no checkout |
+| **Persistência** | Dados do desconto aplicado são salvos no pedido para auditoria |
+
+#### Fluxo de Validação no Checkout
+
+```
+1. Cliente insere código do cupom
+2. Frontend chama discount-validate Edge Function
+3. Validações:
+   - Cupom existe e está ativo
+   - Data atual está dentro do período válido
+   - Limite total de usos não foi atingido
+   - Limite por cliente não foi atingido
+   - Subtotal atende ao mínimo (se configurado)
+   - Produtos/categorias são elegíveis (se escopo específico)
+4. Se válido → retorna dados do desconto calculado
+5. Se inválido → retorna mensagem de erro específica
+```
+
+#### Primeira Compra (Auto-apply)
+
+| Etapa | Descrição |
+|-------|-----------|
+| **Configuração** | Cupom marcado como "primeira compra" |
+| **Detecção** | `check-first-purchase-eligibility` verifica se cliente nunca comprou |
+| **Aplicação** | Se elegível, cupom é aplicado automaticamente no checkout |
+
+#### Ações
+
+| Ação | Descrição |
+|------|-----------|
+| **Criar** | Novo cupom com todas as configurações |
+| **Editar** | Alterar configurações do cupom |
+| **Duplicar** | Cria cópia com código modificado |
+| **Ativar/Desativar** | Toggle de status rápido |
+| **Excluir** | Remove cupom (somente se nunca usado) |
+
+#### Backend
+
+| Recurso | Descrição |
+|---------|-----------|
+| **Tabelas** | `discounts`, `discount_redemptions` |
+| **Edge Functions** | `discount-validate`, `check-first-purchase-eligibility` |
+| **Campos discounts** | `code`, `name`, `type`, `value`, `scope`, `applies_to`, `starts_at`, `expires_at`, `max_uses`, `max_uses_per_customer`, `min_subtotal`, `is_first_purchase`, `is_active` |
+| **Campos redemptions** | `discount_id`, `order_id`, `customer_email`, `status` (reserved/applied/cancelled) |
+| **Persistência em orders** | `discount_code`, `discount_name`, `discount_type`, `discount_amount`, `free_shipping` |
+
+---
+
+### 7. Loja Virtual (`/storefront`)
 
 #### Visão Geral
 
@@ -1171,7 +1269,7 @@ Sistema multi-template com editor visual (Builder) para personalização complet
 
 ---
 
-### 7. Menus (`/menus`)
+### 8. Menus (`/menus`)
 
 #### Visão Geral
 
@@ -1222,7 +1320,7 @@ Gerenciamento de menus de navegação do storefront (Header e Footer).
 
 ---
 
-### 8. Aumentar Ticket (`/offers`)
+### 9. Aumentar Ticket (`/offers`)
 
 #### Visão Geral
 
@@ -1276,7 +1374,7 @@ Regras de ofertas para aumentar o ticket médio: Cross-sell, Order Bump, Upsell 
 
 ---
 
-### 9. Avaliações (`/reviews`)
+### 10. Avaliações (`/reviews`)
 
 #### Visão Geral
 
@@ -1348,7 +1446,7 @@ Moderação de avaliações de produtos enviadas pelos clientes no storefront.
 
 ---
 
-### 10. Meu Drive (`/files`)
+### 11. Meu Drive (`/files`)
 
 #### Visão Geral
 
