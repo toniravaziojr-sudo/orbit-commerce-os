@@ -3,6 +3,7 @@
 // Conforme docs/REGRAS.md - Pattern padrão para páginas do builder
 // =============================================
 // NOTA: Interface e hook vindos de usePageSettings.ts (fonte única de verdade)
+// FIX: Agora salva em draft_content quando templateSetId está disponível
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -28,19 +29,60 @@ interface ThankYouSettingsPanelProps {
   tenantId: string;
   settings: ThankYouSettings;
   onChange: (settings: ThankYouSettings) => void;
+  templateSetId?: string; // NEW: Support for template sets
 }
 
 export function ThankYouSettingsPanel({
   tenantId,
   settings,
   onChange,
+  templateSetId,
 }: ThankYouSettingsPanelProps) {
   const queryClient = useQueryClient();
 
-  // Save mutation
+  // Save mutation - follows ProductSettingsPanel pattern
   const saveMutation = useMutation({
     mutationFn: async (newSettings: ThankYouSettings) => {
-      // Fetch current page_overrides
+      // If templateSetId is available, save to draft_content (new system)
+      if (templateSetId) {
+        const { data: templateSet, error: fetchError } = await supabase
+          .from('storefront_template_sets')
+          .select('draft_content')
+          .eq('id', templateSetId)
+          .eq('tenant_id', tenantId)
+          .single();
+        
+        if (fetchError) throw fetchError;
+        
+        const currentDraftContent = (templateSet.draft_content as Record<string, unknown>) || {};
+        const currentThemeSettings = (currentDraftContent.themeSettings as Record<string, unknown>) || {};
+        const currentPageSettings = (currentThemeSettings.pageSettings as Record<string, unknown>) || {};
+        
+        const updatedDraftContent = {
+          ...currentDraftContent,
+          themeSettings: {
+            ...currentThemeSettings,
+            pageSettings: {
+              ...currentPageSettings,
+              thankYou: newSettings,
+            },
+          },
+        };
+        
+        const { error } = await supabase
+          .from('storefront_template_sets')
+          .update({ 
+            draft_content: updatedDraftContent as unknown as Json,
+            last_edited_at: new Date().toISOString(),
+          })
+          .eq('id', templateSetId)
+          .eq('tenant_id', tenantId);
+        
+        if (error) throw error;
+        return newSettings;
+      }
+      
+      // Fallback: save to legacy table (storefront_page_templates)
       const { data: template, error: fetchError } = await supabase
         .from('storefront_page_templates')
         .select('page_overrides')
@@ -67,8 +109,12 @@ export function ThankYouSettingsPanel({
       return newSettings;
     },
     onSuccess: () => {
+      // Invalidate all related queries
       queryClient.invalidateQueries({ queryKey: ['page-overrides', tenantId, 'thank_you'] });
       queryClient.invalidateQueries({ queryKey: ['thankYou-settings-builder', tenantId] });
+      if (templateSetId) {
+        queryClient.invalidateQueries({ queryKey: ['template-set-draft', templateSetId] });
+      }
     },
     onError: () => {
       toast.error('Erro ao salvar configurações');
