@@ -15,6 +15,7 @@ import { useOrderDetails } from '@/hooks/useOrderDetails';
 import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
 import { CreateAccountSection } from '@/components/storefront/CreateAccountSection';
 import { UpsellSection } from '@/components/storefront/sections/UpsellSection';
+import { SocialShareButtons } from '@/components/storefront/SocialShareButtons';
 import { useMarketingEvents } from '@/hooks/useMarketingEvents';
 import { useCheckoutConfig } from '@/contexts/StorefrontConfigContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -35,9 +36,11 @@ interface ThankYouContentProps {
   tenantSlug: string;
   isPreview?: boolean;
   whatsAppNumber?: string;
+  showSocialShare?: boolean;
+  storeName?: string;
 }
 
-export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber }: ThankYouContentProps) {
+export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSocialShare = false, storeName }: ThankYouContentProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const urls = useStorefrontUrls(tenantSlug);
@@ -470,6 +473,15 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber }: Thank
 
       {/* Upsell Section - Post-purchase offer from Aumentar Ticket */}
       <UpsellSection tenantId={undefined} orderId={order?.id} />
+
+      {/* Social Share - Optional */}
+      {showSocialShare && (
+        <SocialShareButtons 
+          storeName={storeName || 'a loja'} 
+          orderNumber={order?.order_number} 
+          className="my-6" 
+        />
+      )}
 
       {/* Actions */}
       <div className="flex flex-col gap-3">

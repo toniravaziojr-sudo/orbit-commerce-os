@@ -1204,6 +1204,7 @@ function getSettingsConfig(pageType: string): SettingConfig[] {
     thank_you: [
       { key: 'showUpsell', label: 'Mostrar Upsell', description: 'Ofertas pós-compra', defaultValue: true },
       { key: 'showWhatsApp', label: 'Mostrar WhatsApp', description: 'Link para suporte', defaultValue: true },
+      { key: 'showSocialShare', label: 'Compartilhamento Social', description: 'Botões para compartilhar a compra', defaultValue: false },
     ],
     tracking: [
       { key: 'showTitle', label: 'Mostrar título', defaultValue: true },

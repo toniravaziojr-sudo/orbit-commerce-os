@@ -88,6 +88,7 @@ import { StorefrontHeaderContent } from '@/components/storefront/StorefrontHeade
 import { ProductPageSections } from '@/components/storefront/ProductPageSections';
 import { MiniCartDrawer } from '@/components/storefront/MiniCartDrawer';
 import { CartContent } from '@/components/storefront/cart/CartContent';
+import { SocialShareButtons } from '@/components/storefront/SocialShareButtons';
 
 // Product page components (conforme REGRAS.md)
 import { ProductBadges } from '@/components/storefront/product/ProductBadges';
@@ -1283,6 +1284,7 @@ function ThankYouBlock({ isEditing, context, showTimeline = true, showWhatsApp =
   const effectiveShowTimeline = thankYouSettings?.showTimeline ?? showTimeline ?? true;
   const effectiveShowUpsell = thankYouSettings?.showUpsell ?? true;
   const effectiveShowWhatsApp = thankYouSettings?.showWhatsApp ?? showWhatsApp ?? true;
+  const effectiveShowSocialShare = thankYouSettings?.showSocialShare ?? false;
   
   if (isEditing) {
     return (
@@ -1316,6 +1318,10 @@ function ThankYouBlock({ isEditing, context, showTimeline = true, showWhatsApp =
           <UpsellSlotBlock isEditing={true} tenantSlug={tenantSlug} />
         )}
         
+        {effectiveShowSocialShare && (
+          <SocialShareButtons storeName="Minha Loja" className="my-6" />
+        )}
+        
         {effectiveShowWhatsApp && (
           <Button variant="outline" className="gap-2">
             <MessageCircle className="h-4 w-4" />
@@ -1326,7 +1332,14 @@ function ThankYouBlock({ isEditing, context, showTimeline = true, showWhatsApp =
     );
   }
   
-  return <ThankYouContent tenantSlug={tenantSlug} isPreview={isPreview} />;
+  return (
+    <ThankYouContent 
+      tenantSlug={tenantSlug} 
+      isPreview={isPreview} 
+      showSocialShare={effectiveShowSocialShare}
+      storeName={context?.storeSettings?.store_name}
+    />
+  );
 }
 
 // ========== ACCOUNT BLOCKS ==========
