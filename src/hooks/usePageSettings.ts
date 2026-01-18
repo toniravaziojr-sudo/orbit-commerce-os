@@ -85,6 +85,9 @@ export interface CheckoutSettings {
   testimonialsEnabled?: boolean;
   showTrustBadges?: boolean;
   showSecuritySeals?: boolean;
+  // Payment methods config (from store_settings.checkout_config)
+  paymentMethodsOrder?: ('pix' | 'credit_card' | 'boleto')[];
+  paymentMethodLabels?: Record<string, string>;
   // Legacy fields
   purchaseEventAllOrders?: boolean;
 }
@@ -171,6 +174,8 @@ export const DEFAULT_CHECKOUT_SETTINGS: CheckoutSettings = {
   testimonialsEnabled: true,
   showTrustBadges: true,
   showSecuritySeals: true,
+  paymentMethodsOrder: ['pix', 'credit_card', 'boleto'],
+  paymentMethodLabels: {},
   purchaseEventAllOrders: true,
 };
 
@@ -349,6 +354,8 @@ export function useCheckoutSettings(tenantId: string, templateSetId?: string) {
     queryFn: async () => {
       if (!tenantId) return null;
       
+      let baseSettings: CheckoutSettings | null = null;
+      
       if (templateSetId) {
         const { data: templateSet, error: tsError } = await supabase
           .from('storefront_template_sets')
@@ -363,22 +370,39 @@ export function useCheckoutSettings(tenantId: string, templateSetId?: string) {
           const pageSettings = themeSettings?.pageSettings as Record<string, unknown> | undefined;
           
           if (pageSettings?.checkout) {
-            return pageSettings.checkout as CheckoutSettings;
+            baseSettings = pageSettings.checkout as CheckoutSettings;
           }
         }
       }
       
-      const { data, error } = await supabase
-        .from('storefront_page_templates')
-        .select('page_overrides')
+      if (!baseSettings) {
+        const { data, error } = await supabase
+          .from('storefront_page_templates')
+          .select('page_overrides')
+          .eq('tenant_id', tenantId)
+          .eq('page_type', 'checkout')
+          .maybeSingle();
+
+        if (!error) {
+          const overrides = data?.page_overrides as Record<string, unknown> | null;
+          baseSettings = (overrides?.checkoutSettings as CheckoutSettings) || null;
+        }
+      }
+      
+      // Also fetch payment methods order and labels from store_settings.checkout_config
+      const { data: storeSettings } = await supabase
+        .from('store_settings')
+        .select('checkout_config')
         .eq('tenant_id', tenantId)
-        .eq('page_type', 'checkout')
         .maybeSingle();
-
-      if (error) throw error;
-
-      const overrides = data?.page_overrides as Record<string, unknown> | null;
-      return (overrides?.checkoutSettings as CheckoutSettings) || null;
+      
+      const checkoutConfig = storeSettings?.checkout_config as Record<string, unknown> | null;
+      
+      return {
+        ...baseSettings,
+        paymentMethodsOrder: checkoutConfig?.paymentMethodsOrder as ('pix' | 'credit_card' | 'boleto')[] || undefined,
+        paymentMethodLabels: checkoutConfig?.paymentMethodLabels as Record<string, string> || undefined,
+      };
     },
     enabled: !!tenantId,
     staleTime: 0,

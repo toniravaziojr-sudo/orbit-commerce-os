@@ -234,10 +234,32 @@ export function VisualBuilder({
     [initialContent, pageType]
   );
 
-  // Apply global layout to initial content for display (non-checkout pages)
+  // Apply global layout to initial content for display
   // Also apply page overrides for non-home pages
+  // Filter legacy blocks (like OrderBumpSlot) even for checkout pages
   const contentWithGlobalLayout = useMemo(() => {
-    if (!globalLayout || isCheckoutPage) return startingContent;
+    // For checkout pages, only filter legacy blocks without applying full global layout
+    if (isCheckoutPage) {
+      // Filter out legacy blocks like OrderBumpSlot from checkout content
+      const LEGACY_CHECKOUT_BLOCKS = ['OrderBumpSlot'];
+      if (startingContent?.children) {
+        const filterLegacyBlocks = (children: BlockNode[]): BlockNode[] => {
+          return children
+            .filter(child => !LEGACY_CHECKOUT_BLOCKS.includes(child.type))
+            .map(child => ({
+              ...child,
+              children: child.children ? filterLegacyBlocks(child.children) : undefined,
+            }));
+        };
+        return {
+          ...startingContent,
+          children: filterLegacyBlocks(startingContent.children),
+        };
+      }
+      return startingContent;
+    }
+    
+    if (!globalLayout) return startingContent;
     // For home page, no overrides; for other pages, apply overrides
     const overridesToApply = isHomePage ? null : pageOverrides;
     // isEditing=true so header/footer always appear in builder (with hidden prop if disabled)

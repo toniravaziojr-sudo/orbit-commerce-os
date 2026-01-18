@@ -35,6 +35,8 @@ interface DemoOrderBump {
   discountLabel: string;
 }
 
+type PaymentMethod = 'pix' | 'credit_card' | 'boleto';
+
 interface CheckoutDemoBlockProps {
   // Layout & Display
   showOrderBump?: boolean;
@@ -53,7 +55,10 @@ interface CheckoutDemoBlockProps {
   stepContactLabel?: string;
   stepShippingLabel?: string;
   stepPaymentLabel?: string;
-  // Payment options
+  // Payment options - NEW: dynamic order and labels from config
+  paymentMethodsOrder?: PaymentMethod[];
+  paymentMethodLabels?: Record<string, string>;
+  // Legacy props (kept for compatibility, overridden by paymentMethodLabels)
   creditCardLabel?: string;
   pixLabel?: string;
   boletoLabel?: string;
@@ -108,6 +113,10 @@ export function CheckoutDemoBlock({
   stepContactLabel = 'Contato',
   stepShippingLabel = 'Entrega',
   stepPaymentLabel = 'Pagamento',
+  // NEW: Dynamic payment methods order and labels from config
+  paymentMethodsOrder = ['pix', 'credit_card', 'boleto'],
+  paymentMethodLabels = {},
+  // Legacy props (fallback)
   creditCardLabel = 'Cartão de Crédito',
   pixLabel = 'PIX',
   boletoLabel = 'Boleto Bancário',
@@ -128,6 +137,28 @@ export function CheckoutDemoBlock({
     { id: 'shipping', label: stepShippingLabel, icon: Truck, completed: true },
     { id: 'payment', label: stepPaymentLabel, icon: CreditCard, completed: false, active: true },
   ];
+
+  // Payment methods config - order from props, labels from config or fallback
+  const PAYMENT_METHODS_CONFIG: Record<PaymentMethod, { label: string; icon: React.ReactNode; sublabel?: string }> = {
+    pix: { 
+      label: 'PIX', 
+      icon: <span className="text-lg">⚡</span>,
+      sublabel: paymentMethodLabels.pix || undefined,
+    },
+    credit_card: { 
+      label: 'Cartão de Crédito', 
+      icon: <CreditCard className="h-4 w-4" />,
+      sublabel: paymentMethodLabels.credit_card || 'até 12x sem juros',
+    },
+    boleto: { 
+      label: 'Boleto Bancário', 
+      icon: <span className="text-lg">📄</span>,
+      sublabel: paymentMethodLabels.boleto || undefined,
+    },
+  };
+
+  // Get ordered methods based on config
+  const orderedMethods = paymentMethodsOrder.filter(m => PAYMENT_METHODS_CONFIG[m]);
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -231,40 +262,39 @@ export function CheckoutDemoBlock({
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <RadioGroup defaultValue="credit" className="space-y-3">
-                  <div className="flex items-center space-x-3 border rounded-lg p-3 bg-primary/5 border-primary">
-                    <RadioGroupItem value="credit" id="credit" />
-                    <Label htmlFor="credit" className="flex-1 cursor-pointer">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <CreditCard className="h-4 w-4" />
-                          <span className="font-medium">{creditCardLabel}</span>
-                        </div>
-                        <span className="text-xs text-muted-foreground">até 12x sem juros</span>
+                <RadioGroup defaultValue={orderedMethods[0]} className="space-y-3">
+                  {orderedMethods.map((method, index) => {
+                    const config = PAYMENT_METHODS_CONFIG[method];
+                    const isFirst = index === 0;
+                    return (
+                      <div 
+                        key={method}
+                        className={cn(
+                          "flex items-center space-x-3 border rounded-lg p-3",
+                          isFirst && "bg-primary/5 border-primary"
+                        )}
+                      >
+                        <RadioGroupItem value={method} id={method} />
+                        <Label htmlFor={method} className="flex-1 cursor-pointer">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              {config.icon}
+                              <span className="font-medium">{config.label}</span>
+                            </div>
+                            {config.sublabel && (
+                              method === 'pix' || method === 'boleto' ? (
+                                <Badge variant="secondary" className="text-green-600 text-xs">
+                                  {config.sublabel}
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">{config.sublabel}</span>
+                              )
+                            )}
+                          </div>
+                        </Label>
                       </div>
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-3 border rounded-lg p-3">
-                    <RadioGroupItem value="pix" id="pix" />
-                    <Label htmlFor="pix" className="flex-1 cursor-pointer">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg">⚡</span>
-                          <span className="font-medium">{pixLabel}</span>
-                        </div>
-                        <Badge variant="secondary" className="text-green-600 text-xs">{pixDiscount}</Badge>
-                      </div>
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-3 border rounded-lg p-3">
-                    <RadioGroupItem value="boleto" id="boleto" />
-                    <Label htmlFor="boleto" className="flex-1 cursor-pointer">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">📄</span>
-                        <span className="font-medium">{boletoLabel}</span>
-                      </div>
-                    </Label>
-                  </div>
+                    );
+                  })}
                 </RadioGroup>
 
                 {/* Credit card form - uses sf-checkout-form-grid for responsiveness */}
