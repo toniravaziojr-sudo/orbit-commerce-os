@@ -215,21 +215,20 @@ export function BannerProductsBlock({
         </div>
 
         {/* CTA */}
-        {showCta && ctaText && !isEditing && (
+        {showCta && ctaText && (
           <div className="mt-6 text-center">
-            <Link
-              to={ctaUrl}
-              className="inline-flex items-center justify-center px-6 py-3 bg-primary text-primary-foreground rounded-md font-medium hover:bg-primary/90 transition-colors"
-            >
-              {ctaText}
-            </Link>
-          </div>
-        )}
-        {showCta && ctaText && isEditing && (
-          <div className="mt-6 text-center">
-            <span className="inline-flex items-center justify-center px-6 py-3 bg-primary text-primary-foreground rounded-md font-medium cursor-default">
-              {ctaText}
-            </span>
+            {isEditing ? (
+              <span className="inline-flex items-center justify-center px-6 py-3 bg-primary text-primary-foreground rounded-md font-medium cursor-default">
+                {ctaText}
+              </span>
+            ) : (
+              <Link
+                to={ctaUrl || '#'}
+                className="inline-flex items-center justify-center px-6 py-3 bg-primary text-primary-foreground rounded-md font-medium hover:bg-primary/90 transition-colors"
+              >
+                {ctaText}
+              </Link>
+            )}
           </div>
         )}
       </div>
