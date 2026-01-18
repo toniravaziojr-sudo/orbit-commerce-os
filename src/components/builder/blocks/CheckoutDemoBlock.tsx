@@ -479,19 +479,10 @@ export function CheckoutDemoBlock({
                 </div>
               )}
 
-              {/* Testimonials - uses real CheckoutTestimonials component with tenantId */}
-              {showTestimonials && tenantId && (
+              {/* Testimonials - uses real CheckoutTestimonials component */}
+              {/* Component handles fallback to demo testimonials when no real data exists */}
+              {showTestimonials && (
                 <CheckoutTestimonials tenantId={tenantId} />
-              )}
-              
-              {/* Fallback for builder without tenantId - empty state */}
-              {showTestimonials && !tenantId && (
-                <div className="pt-4 border-t">
-                  <p className="text-xs font-medium text-muted-foreground uppercase mb-3">O que dizem nossos clientes</p>
-                  <p className="text-xs text-muted-foreground italic text-center py-4">
-                    Configure depoimentos nas configurações do checkout
-                  </p>
-                </div>
               )}
 
               {/* Payment icons */}
