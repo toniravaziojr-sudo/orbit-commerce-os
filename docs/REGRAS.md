@@ -391,7 +391,54 @@ const urls = useStorefrontUrls(tenantSlug);
 
 ---
 
-### Páginas Padrão
+#### Layout Responsivo do Rodapé (REGRA GLOBAL OBRIGATÓRIA)
+
+> **REGRA CRÍTICA:** O footer deve centralizar automaticamente seus blocos quando há menos de 4 colunas ativas.
+
+**Problema que resolve:**
+- O footer tem 4 blocos possíveis: Logo/Info, SAC/Redes Sociais, Footer 1, Footer 2
+- Quando o cliente desativa alguns blocos (ex: não tem menus configurados), o layout ficava desorganizado com espaços vazios
+
+**Comportamento Obrigatório:**
+
+| Blocos Ativos | Comportamento |
+|---------------|---------------|
+| 4 blocos | Distribuídos uniformemente na largura |
+| 3 blocos | Centralizados com gap entre eles |
+| 2 blocos | Centralizados com gap entre eles |
+| 1 bloco | Centralizado na página |
+
+**Implementação CSS (Container Queries):**
+
+```css
+/* src/index.css - dentro de @container storefront (min-width: 640px) */
+.sf-footer-desktop {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: center !important;
+  gap: 3rem !important;
+}
+.sf-footer-desktop > div {
+  flex: 0 1 auto !important;
+  min-width: 180px !important;
+  max-width: 280px !important;
+}
+```
+
+**Lógica de Visibilidade dos Blocos:**
+
+| Bloco | Toggle | Condição Extra |
+|-------|--------|----------------|
+| Logo/Info | `showLogo` + `showStoreInfo` | Sempre renderiza container |
+| SAC | `showSac` | `hasContact = true` |
+| Redes Sociais | `showSocial` | `hasSocial = true` |
+| Footer 1 | `showFooter1` | `footer1Items.length > 0` |
+| Footer 2 | `showFooter2` | `footer2Items.length > 0` |
+
+**Componente:** `src/components/storefront/StorefrontFooterContent.tsx`
+
+---
+
 
 #### Página Inicial
 
