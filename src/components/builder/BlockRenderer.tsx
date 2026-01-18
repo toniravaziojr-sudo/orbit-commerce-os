@@ -1313,9 +1313,7 @@ function ThankYouBlock({ isEditing, context, showTimeline = true, showWhatsApp =
         )}
         
         {effectiveShowUpsell && (
-          <div className="border rounded-lg p-6 mb-6 bg-muted/50">
-            <p className="text-sm text-muted-foreground">[Upsell - Ofertas pós-compra aparecerão aqui]</p>
-          </div>
+          <UpsellSlotBlock isEditing={true} tenantSlug={tenantSlug} />
         )}
         
         {effectiveShowWhatsApp && (

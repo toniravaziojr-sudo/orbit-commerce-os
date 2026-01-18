@@ -26,6 +26,7 @@ interface UpsellSlotBlockProps {
   ctaLabel?: string;
   ctaHref?: string;
   isEditing?: boolean;
+  tenantSlug?: string; // Allow passing tenantSlug directly for builder context
 }
 
 interface UpsellProduct {
@@ -45,8 +46,11 @@ export function UpsellSlotBlock({
   ctaLabel = 'Configurar em Aumentar Ticket',
   ctaHref = '/offers',
   isEditing = false,
+  tenantSlug: tenantSlugProp,
 }: UpsellSlotBlockProps) {
-  const tenantSlug = useTenantSlug();
+  const hookTenantSlug = useTenantSlug();
+  // Use prop if provided (from builder context), fallback to hook
+  const tenantSlug = tenantSlugProp || hookTenantSlug;
   const urls = useStorefrontUrls(tenantSlug);
 
   // Fetch active upsell rules
@@ -84,7 +88,7 @@ export function UpsellSlotBlock({
         image_url: imageMap.get(p.id) || null,
       })) as UpsellProduct[];
     },
-    enabled: !!activeRule?.suggested_product_ids?.length && !isEditing,
+    enabled: !!activeRule?.suggested_product_ids?.length && !!tenantSlug,
   });
 
   const isLoading = rulesLoading || productsLoading;
@@ -106,8 +110,9 @@ export function UpsellSlotBlock({
     return product.price;
   };
 
-  // In editing mode, show EXAMPLE CARD demonstration (visual preview)
-  if (isEditing) {
+  // In editing mode: show REAL DATA if available, otherwise demo
+  if (isEditing && (!activeRule || products.length === 0)) {
+    // No real upsell configured - show demo preview
     return (
       <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-transparent my-6">
         <CardContent className="p-6">
