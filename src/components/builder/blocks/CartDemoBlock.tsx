@@ -363,23 +363,6 @@ export function CartDemoBlock({
                 {continueShoppingText}
               </Button>
 
-              {/* Trust badges */}
-              {showTrustBadges && (
-                <div className="grid grid-cols-3 gap-2 pt-4 border-t">
-                  <div className="text-center">
-                    <Truck className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
-                    <p className="text-[10px] text-muted-foreground">{trustBadge1Label}</p>
-                  </div>
-                  <div className="text-center">
-                    <Shield className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
-                    <p className="text-[10px] text-muted-foreground">{trustBadge2Label}</p>
-                  </div>
-                  <div className="text-center">
-                    <CreditCard className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
-                    <p className="text-[10px] text-muted-foreground">{trustBadge3Label}</p>
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
         </div>
