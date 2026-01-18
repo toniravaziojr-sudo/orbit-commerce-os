@@ -1,5 +1,5 @@
 // =============================================
-// CATEGORY MULTI-SELECT - Visual category picker with checkboxes and mini images
+// CATEGORY MULTI-SELECT - Visual category picker with prominent image upload
 // =============================================
 
 import { useState, useMemo } from 'react';
@@ -10,13 +10,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { X, Search, FolderOpen, ChevronDown, ChevronUp, Image as ImageIcon } from 'lucide-react';
+import { X, Search, FolderOpen, Upload, Image as ImageIcon, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ImageUploaderWithLibrary } from './ImageUploaderWithLibrary';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export interface CategoryItemConfig {
   categoryId: string;
@@ -28,6 +27,12 @@ interface CategoryMultiSelectProps {
   value: CategoryItemConfig[];
   onChange: (items: CategoryItemConfig[]) => void;
   maxItems?: number;
+  /** Dimensão recomendada para exibir nas instruções */
+  imageDimensions?: {
+    desktop: string;
+    mobile: string;
+    aspectRatio?: string;
+  };
 }
 
 interface CategoryData {
@@ -37,10 +42,20 @@ interface CategoryData {
   image_url?: string;
 }
 
-export function CategoryMultiSelect({ value = [], onChange, maxItems = 12 }: CategoryMultiSelectProps) {
+const DEFAULT_DIMENSIONS = {
+  desktop: '800×800px',
+  mobile: '400×400px',
+  aspectRatio: '1:1 (quadrada)'
+};
+
+export function CategoryMultiSelect({ 
+  value = [], 
+  onChange, 
+  maxItems = 12,
+  imageDimensions = DEFAULT_DIMENSIONS
+}: CategoryMultiSelectProps) {
   const { currentTenant } = useAuth();
   const [search, setSearch] = useState('');
-  const [expandedItem, setExpandedItem] = useState<string | null>(null);
 
   const { data: categories, isLoading } = useQuery({
     queryKey: ['category-multi-select', currentTenant?.id],
@@ -81,7 +96,6 @@ export function CategoryMultiSelect({ value = [], onChange, maxItems = 12 }: Cat
     const existingIndex = value.findIndex(v => v.categoryId === id);
     if (existingIndex >= 0) {
       onChange(value.filter(v => v.categoryId !== id));
-      if (expandedItem === id) setExpandedItem(null);
     } else if (value.length < maxItems) {
       onChange([...value, { categoryId: id }]);
     }
@@ -89,7 +103,6 @@ export function CategoryMultiSelect({ value = [], onChange, maxItems = 12 }: Cat
 
   const removeCategory = (id: string) => {
     onChange(value.filter(v => v.categoryId !== id));
-    if (expandedItem === id) setExpandedItem(null);
   };
 
   const updateItemImage = (categoryId: string, field: 'miniImageDesktop' | 'miniImageMobile', url: string) => {
@@ -101,7 +114,6 @@ export function CategoryMultiSelect({ value = [], onChange, maxItems = 12 }: Cat
   };
 
   const getCategoryImage = (category: CategoryData, config?: CategoryItemConfig) => {
-    // Priority: mini image > category.image_url > placeholder
     return config?.miniImageDesktop || category.image_url || null;
   };
 
@@ -115,83 +127,21 @@ export function CategoryMultiSelect({ value = [], onChange, maxItems = 12 }: Cat
   }
 
   return (
-    <div className="space-y-3">
-      {/* Selected categories with image config */}
-      {selectedCategories.length > 0 && (
-        <div className="space-y-2 border rounded-lg p-2 bg-muted/30">
-          <Label className="text-xs text-muted-foreground">Categorias selecionadas</Label>
-          {selectedCategories.map((item) => (
-            <Collapsible 
-              key={item.id}
-              open={expandedItem === item.id}
-              onOpenChange={(open) => setExpandedItem(open ? item.id : null)}
-            >
-              <div className="flex items-center justify-between gap-2 bg-background rounded-md px-2 py-1.5 border">
-                <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <div className="w-7 h-7 rounded bg-muted overflow-hidden flex-shrink-0">
-                    {getCategoryImage(item, item.config) ? (
-                      <img
-                        src={getCategoryImage(item, item.config)!}
-                        alt={item.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
-                      </div>
-                    )}
-                  </div>
-                  <span className="text-sm truncate">{item.name}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-6 w-6">
-                      {expandedItem === item.id ? (
-                        <ChevronUp className="h-3.5 w-3.5" />
-                      ) : (
-                        <ImageIcon className="h-3.5 w-3.5" />
-                      )}
-                    </Button>
-                  </CollapsibleTrigger>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                    onClick={() => removeCategory(item.id)}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
-              <CollapsibleContent className="pt-2 pb-1 px-2 space-y-3">
-                <div className="space-y-2">
-                  <Label className="text-xs">Mini Imagem (Desktop)</Label>
-                  <ImageUploaderWithLibrary
-                    value={item.config.miniImageDesktop || ''}
-                    onChange={(url) => updateItemImage(item.id, 'miniImageDesktop', url)}
-                    variant="desktop"
-                    aspectRatio="square"
-                    placeholder="Imagem Desktop"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs">Mini Imagem (Mobile)</Label>
-                  <ImageUploaderWithLibrary
-                    value={item.config.miniImageMobile || ''}
-                    onChange={(url) => updateItemImage(item.id, 'miniImageMobile', url)}
-                    variant="mobile"
-                    aspectRatio="square"
-                    placeholder="Imagem Mobile"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Se não definir, usará a imagem padrão da categoria.
-                </p>
-              </CollapsibleContent>
-            </Collapsible>
-          ))}
+    <div className="space-y-4">
+      {/* Instructions banner */}
+      <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+        <div className="flex items-start gap-2">
+          <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+          <div className="text-xs text-blue-700 dark:text-blue-300">
+            <p className="font-medium mb-1">📸 Imagem de Capa Personalizada</p>
+            <p>Selecione as categorias abaixo e adicione uma imagem de capa para cada uma.</p>
+            <p className="mt-1 text-blue-600 dark:text-blue-400">
+              <strong>Desktop:</strong> {imageDimensions.desktop} • <strong>Mobile:</strong> {imageDimensions.mobile}
+              {imageDimensions.aspectRatio && <> • <strong>Proporção:</strong> {imageDimensions.aspectRatio}</>}
+            </p>
+          </div>
         </div>
-      )}
+      </div>
 
       {/* Search */}
       <div className="relative">
@@ -204,8 +154,8 @@ export function CategoryMultiSelect({ value = [], onChange, maxItems = 12 }: Cat
         />
       </div>
 
-      {/* Category list */}
-      <ScrollArea className="h-40 border rounded-md">
+      {/* Category list to select */}
+      <ScrollArea className="h-36 border rounded-md">
         <div className="p-2 space-y-1">
           {filteredCategories.length === 0 ? (
             <div className="py-4 text-center text-muted-foreground text-sm">
@@ -221,7 +171,7 @@ export function CategoryMultiSelect({ value = [], onChange, maxItems = 12 }: Cat
                   key={category.id}
                   className={cn(
                     "flex items-center gap-2 p-2 rounded-md hover:bg-muted cursor-pointer transition-colors",
-                    isSelected && "bg-primary/10",
+                    isSelected && "bg-primary/10 border border-primary/30",
                     isDisabled && "opacity-50 cursor-not-allowed"
                   )}
                   onClick={() => !isDisabled && toggleCategory(category.id)}
@@ -259,6 +209,105 @@ export function CategoryMultiSelect({ value = [], onChange, maxItems = 12 }: Cat
       <p className="text-xs text-muted-foreground text-right">
         {value.length}/{maxItems} selecionadas
       </p>
+
+      {/* Selected categories with PROMINENT image upload */}
+      {selectedCategories.length > 0 && (
+        <div className="space-y-3">
+          <Label className="text-sm font-medium flex items-center gap-2">
+            <ImageIcon className="h-4 w-4" />
+            Imagens de Capa das Categorias Selecionadas
+          </Label>
+          
+          <div className="space-y-3">
+            {selectedCategories.map((item) => (
+              <div 
+                key={item.id}
+                className="border rounded-lg p-3 bg-card space-y-3"
+              >
+                {/* Category header */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded bg-muted overflow-hidden flex-shrink-0">
+                      {getCategoryImage(item, item.config) ? (
+                        <img
+                          src={getCategoryImage(item, item.config)!}
+                          alt={item.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">{item.slug}</p>
+                    </div>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                    onClick={() => removeCategory(item.id)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {/* Image upload section - PROMINENT */}
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs flex items-center gap-1.5">
+                        <Upload className="h-3 w-3" />
+                        Imagem de Capa (Desktop)
+                      </Label>
+                      <span className="text-[10px] text-muted-foreground">
+                        {imageDimensions.desktop}
+                      </span>
+                    </div>
+                    <ImageUploaderWithLibrary
+                      value={item.config.miniImageDesktop || ''}
+                      onChange={(url) => updateItemImage(item.id, 'miniImageDesktop', url)}
+                      variant="desktop"
+                      aspectRatio="square"
+                      placeholder="Clique para adicionar imagem desktop"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs flex items-center gap-1.5">
+                        <Upload className="h-3 w-3" />
+                        Imagem de Capa (Mobile)
+                      </Label>
+                      <span className="text-[10px] text-muted-foreground">
+                        {imageDimensions.mobile}
+                      </span>
+                    </div>
+                    <ImageUploaderWithLibrary
+                      value={item.config.miniImageMobile || ''}
+                      onChange={(url) => updateItemImage(item.id, 'miniImageMobile', url)}
+                      variant="mobile"
+                      aspectRatio="square"
+                      placeholder="Clique para adicionar imagem mobile"
+                    />
+                  </div>
+                </div>
+
+                {/* Helper text */}
+                {!item.config.miniImageDesktop && !item.config.miniImageMobile && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 p-2 rounded flex items-center gap-1.5">
+                    <Info className="h-3 w-3" />
+                    Sem imagem personalizada. Será usada a imagem padrão da categoria.
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

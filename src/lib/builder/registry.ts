@@ -1304,8 +1304,13 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'categoryMultiSelect',
         label: 'Categorias Selecionadas',
         max: 12,
-        helpText: 'Selecione categorias e adicione imagens de capa personalizadas. Recomendado: 800×800px (1:1) para desktop, 400×400px para mobile.',
+        helpText: '📐 Cards grandes. Recomendado: 800×800px para desktop, 400×400px para mobile.',
         showWhen: { source: 'custom' },
+        imageDimensions: {
+          desktop: '800×800px',
+          mobile: '400×400px',
+          aspectRatio: '1:1 (quadrada)'
+        }
       },
       layout: {
         type: 'select',
@@ -2160,6 +2165,12 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'categoryMultiSelect',
         label: 'Categorias',
         max: 12,
+        helpText: '📐 Formato circular. Recomendado: 200×200px para desktop, 120×120px para mobile.',
+        imageDimensions: {
+          desktop: '200×200px',
+          mobile: '120×120px',
+          aspectRatio: '1:1 (circular)'
+        }
       },
       showName: {
         type: 'boolean',
