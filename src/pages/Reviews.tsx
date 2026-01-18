@@ -2,7 +2,7 @@
 // REVIEWS PAGE - Moderate product reviews
 // =============================================
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -39,7 +39,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { AddReviewDialog } from '@/components/reviews/AddReviewDialog';
 import { GenerateReviewsDialog } from '@/components/reviews/GenerateReviewsDialog';
-import { registerReviewMediaToDrive } from '@/lib/registerReviewMediaToDrive';
+import { registerReviewMediaToDrive, ensureReviewFolderAndGetId } from '@/lib/registerReviewMediaToDrive';
 
 interface ProductReview {
   id: string;
@@ -63,6 +63,13 @@ export default function Reviews() {
   const [activeTab, setActiveTab] = useState<string>('pending');
   const [productFilter, setProductFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Ensure "Review clientes" folder exists on page load
+  useEffect(() => {
+    if (currentTenantId && user?.id) {
+      ensureReviewFolderAndGetId(currentTenantId, user.id).catch(console.error);
+    }
+  }, [currentTenantId, user?.id]);
 
   // Fetch products for filter
   const { data: products = [] } = useQuery({
