@@ -534,7 +534,137 @@ Para dados que seguem fluxo de publicação (como Testimonials):
 
 #### Checkout
 
-<!-- Placeholder - conteúdo a ser definido -->
+**Arquivos principais:**
+
+| Arquivo | Função |
+|---------|--------|
+| `src/pages/storefront/StorefrontCheckout.tsx` | Entrada pública do checkout |
+| `src/components/storefront/checkout/CheckoutStepWizard.tsx` | Gerencia etapas (wizard) |
+| `src/components/builder/blocks/CheckoutDemoBlock.tsx` | Preview no builder (apenas visual) |
+
+**Estrutura de Etapas (wizard):**
+
+| Etapa | Componente | Função |
+|-------|------------|--------|
+| 1. Dados | `CheckoutForm.tsx` | CPF, nome, email, telefone |
+| 2. Endereço | `CheckoutShipping.tsx` | CEP, rua, número, bairro, cidade, estado |
+| 3. Frete | `CheckoutShipping.tsx` | Seleção de opção de envio |
+| 4. Pagamento | `PaymentMethodSelector.tsx` | PIX, Boleto, Cartão de Crédito |
+
+**Estrutura visual:**
+
+| Área | Descrição |
+|------|-----------|
+| Wizard de etapas | Indicador visual das 4 etapas com navegação |
+| Formulário principal | Campos da etapa atual |
+| Order Bump | Oferta adicional (configurada em Aumentar Ticket) |
+| Resumo do pedido | Itens, subtotal, frete, descontos, total |
+| Testimonials | Prova social (depoimentos de clientes) |
+| Selos de segurança | Badges de confiança e segurança |
+
+**Componentes de UI:**
+
+| Componente | Arquivo | Função |
+|------------|---------|--------|
+| `CheckoutForm` | `checkout/CheckoutForm.tsx` | Formulário de dados pessoais |
+| `CheckoutShipping` | `checkout/CheckoutShipping.tsx` | Endereço e cálculo de frete |
+| `PaymentMethodSelector` | `checkout/PaymentMethodSelector.tsx` | Seleção de forma de pagamento |
+| `PaymentResult` | `checkout/PaymentResult.tsx` | Exibe resultado/status do pagamento |
+| `CheckoutOrderSummary` | `checkout/CheckoutOrderSummary.tsx` | Resumo lateral do pedido |
+| `OrderBumpSection` | `checkout/OrderBumpSection.tsx` | Ofertas de order bump |
+| `CheckoutTestimonials` | `checkout/CheckoutTestimonials.tsx` | Depoimentos de prova social |
+
+**Hooks de lógica:**
+
+| Hook | Arquivo | Função |
+|------|---------|--------|
+| `useCheckoutPayment` | `hooks/useCheckoutPayment.ts` | Processamento de pagamento |
+| `useCheckoutTestimonials` | `hooks/useCheckoutTestimonials.ts` | CRUD de testimonials |
+| `useActiveOfferRules` | `hooks/useOfferRules.ts` | Busca regras de Order Bump |
+
+**Edge Functions (backend):**
+
+| Function | Função |
+|----------|--------|
+| `checkout-create-order` | Criação atômica do pedido (items, customer, address) |
+| `pagarme-create-charge` | Processamento de pagamento via Pagar.me |
+
+**Configurações (store_settings.checkout_config):**
+
+| Campo | Tipo | Default | Descrição |
+|-------|------|---------|-----------|
+| `paymentOrder` | string[] | `['pix','boleto','card']` | Ordem de exibição dos métodos |
+| `paymentLabels` | object | `{}` | Labels personalizados para métodos |
+| `showCouponField` | boolean | true | Exibe campo de cupom |
+| `showTestimonials` | boolean | true | Exibe seção de testimonials |
+| `showOrderBump` | boolean | true | Exibe ofertas de order bump |
+| `showTrustBadges` | boolean | true | Exibe selos de confiança |
+| `showSecuritySeals` | boolean | true | Exibe selos de segurança |
+| `showTimeline` | boolean | true | Exibe timeline de etapas |
+
+**Regras de Testimonials (prova social):**
+
+| Contexto | Comportamento |
+|----------|---------------|
+| **Builder** (`isEditing=true`) | Exibe dados demo como fallback |
+| **Storefront Público** | Exibe APENAS testimonials com `published_at IS NOT NULL` |
+| **Publicação** | Ao publicar template, testimonials ativos são automaticamente publicados |
+
+Fluxo de publicação:
+```
+is_active = true → aparece no admin
+is_active = true + published_at IS NOT NULL → aparece no storefront público
+```
+
+**Regras de Order Bump:**
+
+- Ofertas vêm da tabela `offer_rules` com `type='order_bump'`
+- Apenas ofertas ativas (`is_active=true`) são exibidas
+- Produtos já no carrinho são filtrados automaticamente
+- Desconto pode ser: `percent`, `fixed` ou `none`
+
+**Formas de pagamento suportadas:**
+
+| Método | Gateway | Campos adicionais |
+|--------|---------|-------------------|
+| PIX | Pagar.me | Exibe QR Code + código copia/cola |
+| Boleto | Pagar.me | Exibe código de barras + link PDF |
+| Cartão de Crédito | Pagar.me | Número, validade, CVV, parcelas |
+
+**Fluxo de criação de pedido:**
+
+```
+1. Validação de dados do formulário
+2. Chamada à Edge Function `checkout-create-order`
+   → Cria/atualiza customer
+   → Cria address
+   → Cria order com items_snapshot
+   → Cria order_items
+3. Chamada à Edge Function `pagarme-create-charge`
+   → Processa pagamento no gateway
+   → Atualiza order.payment_status
+4. Redirecionamento para página de Obrigado
+```
+
+**Validações obrigatórias:**
+
+| Campo | Validação |
+|-------|-----------|
+| CPF | Formato válido (11 dígitos + algoritmo) |
+| Email | Formato de email válido |
+| Telefone | Mínimo 10 dígitos |
+| CEP | 8 dígitos + validação via API |
+| Cartão | Luhn algorithm + data de validade futura |
+
+**Regra crítica de ofertas (REGRA FIXA):**
+
+| Tipo de Oferta | Local Correto |
+|----------------|---------------|
+| Cross-sell | Carrinho |
+| **Order Bump** | **Checkout** |
+| Compre Junto | Página do Produto |
+
+**Localização das configurações:** Carrinho & Checkout → aba Checkout
 
 ---
 
