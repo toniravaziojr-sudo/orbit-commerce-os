@@ -417,3 +417,6 @@ verify_jwt = true
 
 [functions.command-assistant-execute]
 verify_jwt = true
+
+[functions.generate-reviews]
+verify_jwt = true
