@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useBuilderProducts, formatProductPrice, ProductSource } from '@/hooks/useBuilderProducts';
 import { useProductRatings } from '@/hooks/useProductRating';
+import { useProductBadgesForProducts } from '@/hooks/useProductBadges';
 import { ProductCard, formatPrice } from './shared/ProductCard';
 import type { CategorySettings } from '@/hooks/usePageSettings';
 import {
@@ -60,9 +61,10 @@ export function ProductCarouselBlock({
     limit,
   });
 
-  // Get product IDs for batch rating fetch
+  // Get product IDs for batch rating and badge fetch
   const productIds = useMemo(() => products.map(p => p.id), [products]);
   const { data: ratingsMap } = useProductRatings(productIds);
+  const { data: badgesMap } = useProductBadgesForProducts(productIds);
 
   if (isLoading) {
     return (
@@ -161,6 +163,7 @@ export function ProductCarouselBlock({
         <CarouselContent className="-ml-2 md:-ml-4">
           {products.map((product) => {
             const rating = ratingsMap?.get(product.id);
+            const badges = badgesMap?.get(product.id);
             return (
               <CarouselItem
                 key={product.id}
@@ -172,6 +175,7 @@ export function ProductCarouselBlock({
                   isEditing={isEditing}
                   settings={categorySettings}
                   rating={rating}
+                  badges={badges}
                   variant="compact"
                   className="h-full"
                 />

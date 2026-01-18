@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useBuilderProducts } from '@/hooks/useBuilderProducts';
 import { useProductRatings } from '@/hooks/useProductRating';
+import { useProductBadgesForProducts } from '@/hooks/useProductBadges';
 import { ProductCard, formatPrice } from './shared/ProductCard';
 import type { CategorySettings } from '@/hooks/usePageSettings';
 
@@ -56,9 +57,10 @@ export function FeaturedProductsBlock({
     limit: hasProducts ? parsedProductIds.length : limit,
   });
 
-  // Get product IDs for batch rating fetch
+  // Get product IDs for batch rating and badge fetch
   const productIdsForRating = useMemo(() => products.map(p => p.id), [products]);
   const { data: ratingsMap } = useProductRatings(productIdsForRating);
+  const { data: badgesMap } = useProductBadgesForProducts(productIdsForRating);
 
   const gridCols = {
     2: 'grid-cols-1 sm:grid-cols-2',
@@ -152,6 +154,7 @@ export function FeaturedProductsBlock({
       <div className={cn('grid gap-4', gridCols)}>
         {products.map((product) => {
           const rating = ratingsMap?.get(product.id);
+          const badges = badgesMap?.get(product.id);
           return (
             <ProductCard
               key={product.id}
@@ -160,6 +163,7 @@ export function FeaturedProductsBlock({
               isEditing={isEditing}
               settings={categorySettings}
               rating={rating}
+              badges={badges}
               variant="compact"
             />
           );

@@ -5,6 +5,7 @@
 
 import { useBuilderProducts, formatProductPrice, getProductImage } from '@/hooks/useBuilderProducts';
 import { useProductRatings } from '@/hooks/useProductRating';
+import { useProductBadgesForProducts } from '@/hooks/useProductBadges';
 import { BlockRenderContext } from '@/lib/builder/types';
 import { cn } from '@/lib/utils';
 import { Loader2, ImageIcon } from 'lucide-react';
@@ -78,9 +79,10 @@ export function BannerProductsBlock({
     limit,
   });
 
-  // Get product IDs for batch rating fetch
+  // Get product IDs for batch rating and badge fetch
   const productIdsForRating = useMemo(() => products.map(p => p.id), [products]);
   const { data: ratingsMap } = useProductRatings(productIdsForRating);
+  const { data: badgesMap } = useProductBadgesForProducts(productIdsForRating);
 
   const showEmptyState = (source === 'manual' && productIdArray.length === 0) ||
     (source === 'category' && !validCategoryId);
@@ -160,6 +162,7 @@ export function BannerProductsBlock({
             ) : productCount > 0 ? (
               displayProducts.map((product, index) => {
                 const rating = ratingsMap?.get(product.id);
+                const badges = badgesMap?.get(product.id);
                 
                 // For 3 products, make the 3rd span full width
                 const isLastOfThree = productCount === 3 && index === 2;
@@ -179,6 +182,7 @@ export function BannerProductsBlock({
                       isEditing={isEditing}
                       settings={categorySettings}
                       rating={rating}
+                      badges={badges}
                       variant="minimal"
                       className="h-full"
                     />
