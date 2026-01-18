@@ -32,7 +32,7 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   '/marketing': 'pending',
   '/marketing/atribuicao': 'pending',
   '/offers': 'pending',
-  '/reviews': 'pending',
+  '/reviews': 'ready',
   '/media': 'pending',
   '/campaigns': 'pending',
   
