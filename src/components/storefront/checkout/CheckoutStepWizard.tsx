@@ -26,6 +26,8 @@ import { Loader2, AlertTriangle, ShoppingCart, ArrowLeft, ArrowRight, Check, Use
 import { toast } from 'sonner';
 import { calculateCartTotals, formatCurrency } from '@/lib/cartTotals';
 import { useShipping, useCanonicalDomain, useCheckoutConfig } from '@/contexts/StorefrontConfigContext';
+import { OrderBumpSection } from './OrderBumpSection';
+import { CheckoutTestimonials } from './CheckoutTestimonials';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { getCanonicalOrigin } from '@/lib/canonicalUrls';
@@ -770,6 +772,13 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
               />
             )}
 
+            {/* Order Bump - Only on payment step */}
+            {currentStep === 4 && (
+              <div className="mt-6">
+                <OrderBumpSection tenantId={tenantId} disabled={isProcessing} />
+              </div>
+            )}
+
             {/* Navigation buttons */}
             <div className="flex justify-between mt-8 pt-6 border-t">
               <Button
@@ -846,6 +855,11 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
             appliedDiscount={appliedDiscount}
             freeShipping={appliedDiscount?.free_shipping}
           />
+
+          {/* Testimonials */}
+          {checkoutConfig.testimonialsEnabled && (
+            <CheckoutTestimonials productIds={items.map(item => item.product_id)} />
+          )}
         </div>
       </div>
     </div>
@@ -853,6 +867,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
 }
 
 // Progress Timeline Component (modern horizontal style like builder)
+// Mobile-friendly: wraps properly and shows smaller labels
 function ProgressTimeline({ 
   steps, 
   currentStep, 
@@ -863,37 +878,81 @@ function ProgressTimeline({
   onStepClick: (step: CheckoutStep) => void;
 }) {
   return (
-    <div className="flex items-center justify-center gap-2 mb-8 overflow-x-auto pb-2">
-      {steps.map((step, index) => {
-        const isCompleted = currentStep > step.id;
-        const isCurrent = currentStep === step.id;
-        const Icon = step.icon;
+    <div className="mb-6 md:mb-8">
+      {/* Desktop: horizontal pills with labels */}
+      <div className="hidden sm:flex items-center justify-center gap-2 flex-wrap">
+        {steps.map((step, index) => {
+          const isCompleted = currentStep > step.id;
+          const isCurrent = currentStep === step.id;
+          const Icon = step.icon;
 
-        return (
-          <React.Fragment key={step.id}>
-            <button
-              onClick={() => step.id <= currentStep && onStepClick(step.id as CheckoutStep)}
-              disabled={step.id > currentStep}
-              className={cn(
-                "flex items-center gap-2 px-3 py-2 rounded-full text-sm whitespace-nowrap transition-colors",
-                isCompleted && "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 cursor-pointer hover:bg-green-200 dark:hover:bg-green-900/50",
-                isCurrent && "bg-primary text-primary-foreground",
-                !isCompleted && !isCurrent && "bg-muted text-muted-foreground cursor-not-allowed"
+          return (
+            <React.Fragment key={step.id}>
+              <button
+                onClick={() => step.id <= currentStep && onStepClick(step.id as CheckoutStep)}
+                disabled={step.id > currentStep}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-2 rounded-full text-sm whitespace-nowrap transition-colors",
+                  isCompleted && "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 cursor-pointer hover:bg-green-200 dark:hover:bg-green-900/50",
+                  isCurrent && "bg-primary text-primary-foreground",
+                  !isCompleted && !isCurrent && "bg-muted text-muted-foreground cursor-not-allowed"
+                )}
+              >
+                {isCompleted ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <Icon className="h-4 w-4" />
+                )}
+                <span className="font-medium">{step.label}</span>
+              </button>
+              {index < steps.length - 1 && (
+                <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               )}
-            >
-              {isCompleted ? (
-                <Check className="h-4 w-4" />
-              ) : (
-                <Icon className="h-4 w-4" />
-              )}
-              <span className="font-medium">{step.label}</span>
-            </button>
-            {index < steps.length - 1 && (
-              <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-            )}
-          </React.Fragment>
-        );
-      })}
+            </React.Fragment>
+          );
+        })}
+      </div>
+
+      {/* Mobile: compact numbered circles with current step label */}
+      <div className="flex sm:hidden flex-col items-center gap-3">
+        <div className="flex items-center gap-1">
+          {steps.map((step, index) => {
+            const isCompleted = currentStep > step.id;
+            const isCurrent = currentStep === step.id;
+
+            return (
+              <React.Fragment key={step.id}>
+                <button
+                  onClick={() => step.id <= currentStep && onStepClick(step.id as CheckoutStep)}
+                  disabled={step.id > currentStep}
+                  className={cn(
+                    "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors",
+                    isCompleted && "bg-green-500 text-white",
+                    isCurrent && "bg-primary text-primary-foreground",
+                    !isCompleted && !isCurrent && "bg-muted text-muted-foreground"
+                  )}
+                >
+                  {isCompleted ? (
+                    <Check className="h-4 w-4" />
+                  ) : (
+                    step.id
+                  )}
+                </button>
+                {index < steps.length - 1 && (
+                  <div className={cn(
+                    "w-6 h-0.5",
+                    currentStep > step.id ? "bg-green-500" : "bg-muted"
+                  )} />
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
+        {/* Current step label */}
+        <span className="text-sm font-medium text-foreground">
+          {steps.find(s => s.id === currentStep)?.label}
+        </span>
+      </div>
     </div>
   );
 }
