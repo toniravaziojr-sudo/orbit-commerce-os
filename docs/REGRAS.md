@@ -342,6 +342,53 @@ Para dados que seguem fluxo de publicação (como Testimonials):
 
 > **NOTA OBRIGATÓRIA:** Estas regras valem para templates antigos, atuais e futuros. O template muda **apenas** o visual e o conteúdo inicial editável. **Nenhuma regra funcional pode variar por template.**
 
+#### Geração de URLs (REGRA GLOBAL OBRIGATÓRIA)
+
+> **REGRA CRÍTICA:** Todos os links internos do storefront DEVEM usar o hook `useStorefrontUrls()` para garantir compatibilidade com custom domains.
+
+**Problema que resolve:**
+- Quando um cliente configura um domínio customizado (ex: `minhaloja.com.br`), as URLs precisam ser relativas (ex: `/conta/pedidos`)
+- Se usarmos `getStoreBaseUrl()` ou paths fixos como `/loja/slug/...`, os links quebram no custom domain
+
+**Padrão Obrigatório:**
+
+```typescript
+// ❌ ERRADO - quebra em custom domains
+const basePath = `/loja/${tenantSlug}`;
+<Link to={`${basePath}/conta/pedidos`}>Meus Pedidos</Link>
+
+// ✅ CORRETO - funciona em qualquer domínio
+import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
+const urls = useStorefrontUrls(tenantSlug);
+<Link to={urls.accountOrders()}>Meus Pedidos</Link>
+```
+
+**Métodos disponíveis em `useStorefrontUrls()`:**
+
+| Método | Retorno | Uso |
+|--------|---------|-----|
+| `home()` | `/` ou `/loja/slug` | Link para home |
+| `product(slug)` | `/p/slug` | Link para produto |
+| `category(slug)` | `/c/slug` | Link para categoria |
+| `cart()` | `/carrinho` | Link para carrinho |
+| `checkout()` | `/checkout` | Link para checkout |
+| `thankYou(orderNumber?)` | `/obrigado?pedido=...` | Link para página de obrigado |
+| `account()` | `/conta` | Link para minha conta |
+| `accountOrders()` | `/conta/pedidos` | Link para lista de pedidos |
+| `accountOrderDetail(orderId)` | `/conta/pedidos/id` | Link para detalhe do pedido |
+| `page(slug)` | `/page/slug` | Link para página institucional |
+| `landing(slug)` | `/lp/slug` | Link para landing page |
+| `buildMenuUrl(item, categories, pages)` | `string` | Resolver URL de item de menu |
+
+**Componentes que seguem esta regra:**
+
+| Componente | Arquivo | Verificado |
+|------------|---------|------------|
+| AccountHubBlock | `src/components/builder/BlockRenderer.tsx` | ✅ |
+| StorefrontAccount | `src/pages/storefront/StorefrontAccount.tsx` | ✅ |
+| StorefrontOrdersList | `src/pages/storefront/StorefrontOrdersList.tsx` | ✅ |
+| StorefrontOrderDetail | `src/pages/storefront/StorefrontOrderDetail.tsx` | ✅ |
+
 ---
 
 ### Páginas Padrão
