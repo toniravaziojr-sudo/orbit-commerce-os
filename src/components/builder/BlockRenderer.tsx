@@ -1247,6 +1247,10 @@ function CheckoutBlock({ isEditing, context, showOrderBump, showTimeline }: any)
   const effectiveShowTestimonials = checkoutSettings?.testimonialsEnabled ?? true;
   const effectiveShowTrustBadges = checkoutSettings?.showTrustBadges ?? true;
   const effectiveShowSecuritySeals = checkoutSettings?.showSecuritySeals ?? true;
+  
+  // Payment methods order and custom labels from checkout config
+  const paymentMethodsOrder = checkoutSettings?.paymentMethodsOrder || ['pix', 'credit_card', 'boleto'];
+  const paymentMethodLabels = checkoutSettings?.paymentMethodLabels || {};
 
   if (isEditing) {
     return (
@@ -1256,6 +1260,8 @@ function CheckoutBlock({ isEditing, context, showOrderBump, showTimeline }: any)
         showCouponField={effectiveShowCoupon}
         showTestimonials={effectiveShowTestimonials}
         showTrustBadges={effectiveShowTrustBadges}
+        paymentMethodsOrder={paymentMethodsOrder}
+        paymentMethodLabels={paymentMethodLabels}
         isEditing 
       />
     );
