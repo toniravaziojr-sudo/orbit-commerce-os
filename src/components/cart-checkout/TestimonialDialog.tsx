@@ -120,7 +120,10 @@ export function TestimonialDialog({
           rating: testimonial.rating,
           image_url: testimonial.image_url,
         });
-        setSelectedProductIds(testimonial.product_ids || []);
+        const productIds = testimonial.product_ids || [];
+        setSelectedProductIds(productIds);
+        // Show product selector if there are products selected
+        setShowProductSelector(productIds.length > 0);
       } else {
         form.reset({
           name: '',
@@ -129,9 +132,9 @@ export function TestimonialDialog({
           image_url: null,
         });
         setSelectedProductIds([]);
+        setShowProductSelector(false);
       }
       setProductSearch('');
-      setShowProductSelector(false);
     }
   }, [open, testimonial, form]);
 
@@ -329,9 +332,12 @@ export function TestimonialDialog({
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
-                    onClick={() => setSelectedProductIds([])}
+                    onClick={() => {
+                      setSelectedProductIds([]);
+                      setShowProductSelector(false);
+                    }}
                     className={`p-4 border-2 rounded-lg text-left transition-all ${
-                      selectedProductIds.length === 0
+                      !showProductSelector && selectedProductIds.length === 0
                         ? 'border-primary bg-primary/5'
                         : 'border-border hover:border-muted-foreground/50'
                     }`}
@@ -345,7 +351,7 @@ export function TestimonialDialog({
                     type="button"
                     onClick={() => setShowProductSelector(true)}
                     className={`p-4 border-2 rounded-lg text-left transition-all ${
-                      selectedProductIds.length > 0
+                      showProductSelector || selectedProductIds.length > 0
                         ? 'border-primary bg-primary/5'
                         : 'border-border hover:border-muted-foreground/50'
                     }`}
@@ -360,8 +366,8 @@ export function TestimonialDialog({
                 </div>
               </div>
 
-              {/* Product Selection - Only show when "Produtos específicos" is selected or has products */}
-              {(selectedProductIds.length > 0 || showProductSelector) && (
+              {/* Product Selection - Only show when "Produtos específicos" is selected */}
+              {showProductSelector && (
                 <div className="space-y-3 bg-muted/30 rounded-lg p-4">
                   {/* Selected Products */}
                   {selectedProducts.length > 0 && (
