@@ -671,215 +671,219 @@ export function StorefrontFooterContent({
           {/* ============================================ */}
           {/* COLUNA 1: Informações do Negócio */}
           {/* ============================================ */}
-          <div className="flex flex-col items-start text-left">
-            {/* Logo */}
-            {showLogo && (
-              <div className="mb-4">
-                <Link to={baseUrl} onClick={e => isEditing && e.preventDefault()}>
-                  {logoUrl ? (
-                    <img
-                      src={logoUrl}
-                      alt={storeName}
-                      className="h-12 max-w-[180px] object-contain"
-                    />
-                  ) : (
-                    <span
-                      className="text-2xl font-bold block"
-                      style={{ color: footerTextColor || primaryColor }}
+          {(showLogo || showStoreInfo) && (
+            <div className="flex flex-col items-start text-left">
+              {/* Logo */}
+              {showLogo && (
+                <div className="mb-4">
+                  <Link to={baseUrl} onClick={e => isEditing && e.preventDefault()}>
+                    {logoUrl ? (
+                      <img
+                        src={logoUrl}
+                        alt={storeName}
+                        className="h-12 max-w-[180px] object-contain"
+                      />
+                    ) : (
+                      <span
+                        className="text-2xl font-bold block"
+                        style={{ color: footerTextColor || primaryColor }}
+                      >
+                        {storeName}
+                      </span>
+                    )}
+                  </Link>
+                </div>
+              )}
+              
+              {/* Nome Fantasia / Descrição - respects showStoreInfo */}
+              {showStoreInfo && (
+                <div className="space-y-2 w-full">
+                  {!showLogo && storeName && (
+                    <h4 
+                      className="text-lg font-semibold"
+                      style={footerTitlesColor ? { color: footerTitlesColor } : {}}
                     >
                       {storeName}
-                    </span>
+                    </h4>
                   )}
-                </Link>
-              </div>
-            )}
-            
-            {/* Nome Fantasia / Descrição - respects showStoreInfo */}
-            {showStoreInfo && (
-              <div className="space-y-2 w-full">
-                {!showLogo && storeName && (
-                  <h4 
-                    className="text-lg font-semibold"
-                    style={footerTitlesColor ? { color: footerTitlesColor } : {}}
-                  >
-                    {storeName}
-                  </h4>
-                )}
-                
-                {storeDescription && (
-                  <p 
-                    className="text-sm text-muted-foreground leading-relaxed"
-                    style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
-                  >
-                    {storeDescription}
-                  </p>
-                )}
-                
-                {/* CNPJ (formatted) */}
-                {cnpj && (
-                  <p 
-                    className="text-xs text-muted-foreground pt-1"
-                    style={footerTextColor ? { color: footerTextColor, opacity: 0.6 } : {}}
-                  >
-                    CNPJ: {formatCnpj(cnpj)}
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
+                  
+                  {storeDescription && (
+                    <p 
+                      className="text-sm text-muted-foreground leading-relaxed"
+                      style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
+                    >
+                      {storeDescription}
+                    </p>
+                  )}
+                  
+                  {/* CNPJ (formatted) */}
+                  {cnpj && (
+                    <p 
+                      className="text-xs text-muted-foreground pt-1"
+                      style={footerTextColor ? { color: footerTextColor, opacity: 0.6 } : {}}
+                    >
+                      CNPJ: {formatCnpj(cnpj)}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ============================================ */}
           {/* COLUNA 2: Atendimento + Redes Sociais */}
           {/* ============================================ */}
-          <div className="flex flex-col items-start text-left space-y-6">
-            
-            {/* Sub-bloco 2.1: Atendimento (SAC) */}
-            {showSac && hasContact && (
-              <div className="w-full">
-                <h4 
-                  className="font-semibold mb-3"
-                  style={footerTitlesColor ? { color: footerTitlesColor } : {}}
-                >
-                  {sacTitle}
-                </h4>
-                <div className="flex flex-col gap-2.5">
-                  {whatsAppHref && (
-                    <a
-                      href={whatsAppHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-2"
-                      onClick={e => isEditing && e.preventDefault()}
-                      style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
-                    >
-                      <MessageCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
-                      <span>WhatsApp</span>
-                    </a>
-                  )}
-                  {phoneHref && (
-                    <a
-                      href={phoneHref}
-                      className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-2"
-                      onClick={e => isEditing && e.preventDefault()}
-                      style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
-                    >
-                      <Phone className="h-4 w-4 text-blue-600 flex-shrink-0" />
-                      <span>{phone}</span>
-                    </a>
-                  )}
-                  {emailHref && (
-                    <a
-                      href={emailHref}
-                      className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-2"
-                      onClick={e => isEditing && e.preventDefault()}
-                      style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
-                    >
-                      <Mail className="h-4 w-4 text-red-600 flex-shrink-0" />
-                      <span className="break-all">{email}</span>
-                    </a>
-                  )}
-                  {address && (
-                    <div 
-                      className="text-sm text-muted-foreground flex items-start gap-2"
-                      style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
-                    >
-                      <span className="text-xs flex-shrink-0 pt-0.5">📍</span>
-                      <span className="leading-relaxed">{address}</span>
-                    </div>
-                  )}
-                  {supportHours && (
-                    <div 
-                      className="text-sm text-muted-foreground inline-flex items-center gap-2"
-                      style={footerTextColor ? { color: footerTextColor, opacity: 0.7 } : {}}
-                    >
-                      <span className="text-xs flex-shrink-0">🕐</span>
-                      <span>{supportHours}</span>
-                    </div>
-                  )}
+          {((showSac && hasContact) || (showSocial && hasSocialMedia)) && (
+            <div className="flex flex-col items-start text-left space-y-6">
+              
+              {/* Sub-bloco 2.1: Atendimento (SAC) */}
+              {showSac && hasContact && (
+                <div className="w-full">
+                  <h4 
+                    className="font-semibold mb-3"
+                    style={footerTitlesColor ? { color: footerTitlesColor } : {}}
+                  >
+                    {sacTitle}
+                  </h4>
+                  <div className="flex flex-col gap-2.5">
+                    {whatsAppHref && (
+                      <a
+                        href={whatsAppHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-2"
+                        onClick={e => isEditing && e.preventDefault()}
+                        style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
+                      >
+                        <MessageCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
+                        <span>WhatsApp</span>
+                      </a>
+                    )}
+                    {phoneHref && (
+                      <a
+                        href={phoneHref}
+                        className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-2"
+                        onClick={e => isEditing && e.preventDefault()}
+                        style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
+                      >
+                        <Phone className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                        <span>{phone}</span>
+                      </a>
+                    )}
+                    {emailHref && (
+                      <a
+                        href={emailHref}
+                        className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-2"
+                        onClick={e => isEditing && e.preventDefault()}
+                        style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
+                      >
+                        <Mail className="h-4 w-4 text-red-600 flex-shrink-0" />
+                        <span className="break-all">{email}</span>
+                      </a>
+                    )}
+                    {address && (
+                      <div 
+                        className="text-sm text-muted-foreground flex items-start gap-2"
+                        style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
+                      >
+                        <span className="text-xs flex-shrink-0 pt-0.5">📍</span>
+                        <span className="leading-relaxed">{address}</span>
+                      </div>
+                    )}
+                    {supportHours && (
+                      <div 
+                        className="text-sm text-muted-foreground inline-flex items-center gap-2"
+                        style={footerTextColor ? { color: footerTextColor, opacity: 0.7 } : {}}
+                      >
+                        <span className="text-xs flex-shrink-0">🕐</span>
+                        <span>{supportHours}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Sub-bloco 2.2: Redes Sociais */}
-            {showSocial && hasSocialMedia && (
-              <div className="w-full">
-                <h4 
-                  className="font-semibold mb-3"
-                  style={footerTitlesColor ? { color: footerTitlesColor } : {}}
-                >
-                  Redes Sociais
-                </h4>
-                <div className="flex gap-5 flex-wrap">
-                  {socialFacebook && (
-                    <a
-                      href={socialFacebook}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-muted-foreground hover:text-blue-600 transition-colors"
-                      onClick={e => isEditing && e.preventDefault()}
-                      style={footerTextColor ? { color: footerTextColor } : {}}
-                      aria-label="Facebook"
-                    >
-                      <Facebook className="h-5 w-5" />
-                    </a>
-                  )}
-                  {socialInstagram && (
-                    <a
-                      href={socialInstagram}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-muted-foreground hover:text-pink-600 transition-colors"
-                      onClick={e => isEditing && e.preventDefault()}
-                      style={footerTextColor ? { color: footerTextColor } : {}}
-                      aria-label="Instagram"
-                    >
-                      <Instagram className="h-5 w-5" />
-                    </a>
-                  )}
-                  {socialTiktok && (
-                    <a
-                      href={socialTiktok}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-muted-foreground hover:text-foreground transition-colors"
-                      onClick={e => isEditing && e.preventDefault()}
-                      style={footerTextColor ? { color: footerTextColor } : {}}
-                      aria-label="TikTok"
-                    >
-                      <TikTokIcon className="h-5 w-5" />
-                    </a>
-                  )}
-                  {socialYoutube && (
-                    <a
-                      href={socialYoutube}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-muted-foreground hover:text-red-600 transition-colors"
-                      onClick={e => isEditing && e.preventDefault()}
-                      style={footerTextColor ? { color: footerTextColor } : {}}
-                      aria-label="YouTube"
-                    >
-                      <Youtube className="h-5 w-5" />
-                    </a>
-                  )}
-                  {socialCustom && socialCustom.map((social, index) => (
-                    <a
-                      key={index}
-                      href={social.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                      title={social.label}
-                      onClick={e => isEditing && e.preventDefault()}
-                      style={footerTextColor ? { color: footerTextColor } : {}}
-                    >
-                      {social.label}
-                    </a>
-                  ))}
+              {/* Sub-bloco 2.2: Redes Sociais */}
+              {showSocial && hasSocialMedia && (
+                <div className="w-full">
+                  <h4 
+                    className="font-semibold mb-3"
+                    style={footerTitlesColor ? { color: footerTitlesColor } : {}}
+                  >
+                    Redes Sociais
+                  </h4>
+                  <div className="flex gap-5 flex-wrap">
+                    {socialFacebook && (
+                      <a
+                        href={socialFacebook}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-muted-foreground hover:text-blue-600 transition-colors"
+                        onClick={e => isEditing && e.preventDefault()}
+                        style={footerTextColor ? { color: footerTextColor } : {}}
+                        aria-label="Facebook"
+                      >
+                        <Facebook className="h-5 w-5" />
+                      </a>
+                    )}
+                    {socialInstagram && (
+                      <a
+                        href={socialInstagram}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-muted-foreground hover:text-pink-600 transition-colors"
+                        onClick={e => isEditing && e.preventDefault()}
+                        style={footerTextColor ? { color: footerTextColor } : {}}
+                        aria-label="Instagram"
+                      >
+                        <Instagram className="h-5 w-5" />
+                      </a>
+                    )}
+                    {socialTiktok && (
+                      <a
+                        href={socialTiktok}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                        onClick={e => isEditing && e.preventDefault()}
+                        style={footerTextColor ? { color: footerTextColor } : {}}
+                        aria-label="TikTok"
+                      >
+                        <TikTokIcon className="h-5 w-5" />
+                      </a>
+                    )}
+                    {socialYoutube && (
+                      <a
+                        href={socialYoutube}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-muted-foreground hover:text-red-600 transition-colors"
+                        onClick={e => isEditing && e.preventDefault()}
+                        style={footerTextColor ? { color: footerTextColor } : {}}
+                        aria-label="YouTube"
+                      >
+                        <Youtube className="h-5 w-5" />
+                      </a>
+                    )}
+                    {socialCustom && socialCustom.map((social, index) => (
+                      <a
+                        key={index}
+                        href={social.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                        title={social.label}
+                        onClick={e => isEditing && e.preventDefault()}
+                        style={footerTextColor ? { color: footerTextColor } : {}}
+                      >
+                        {social.label}
+                      </a>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           {/* ============================================ */}
           {/* COLUNA 3: Footer Menu 1 */}
