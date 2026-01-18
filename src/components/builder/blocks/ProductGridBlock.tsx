@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { ProductCard, formatPrice, getProductImage } from './shared/ProductCard';
 import { useProductRatings } from '@/hooks/useProductRating';
+import { useProductBadgesForProducts } from '@/hooks/useProductBadges';
 import type { CategorySettings } from '@/hooks/usePageSettings';
 
 interface ProductGridBlockProps {
@@ -150,9 +151,10 @@ export function ProductGridBlock({
     return [] as Product[];
   }, [products]);
 
-  // Get product IDs for batch rating fetch
+  // Get product IDs for batch rating and badge fetch
   const productIds = useMemo(() => displayProducts.map(p => p.id), [displayProducts]);
   const { data: ratingsMap } = useProductRatings(productIds);
+  const { data: badgesMap } = useProductBadgesForProducts(productIds);
 
   // Compute grid columns based on viewport
   const gridCols = useMemo(() => {
@@ -248,6 +250,7 @@ export function ProductGridBlock({
       <div className={cn('grid gap-3 sm:gap-4', gridCols)}>
         {displayProducts.map((product) => {
           const rating = ratingsMap?.get(product.id);
+          const badges = badgesMap?.get(product.id);
           
           return (
             <ProductCard
@@ -257,6 +260,7 @@ export function ProductGridBlock({
               isEditing={isEditing}
               settings={categorySettings}
               rating={rating}
+              badges={badges}
               variant="compact"
             />
           );

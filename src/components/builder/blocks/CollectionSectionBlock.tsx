@@ -5,6 +5,7 @@
 
 import { useBuilderProducts, formatProductPrice } from '@/hooks/useBuilderProducts';
 import { useProductRatings } from '@/hooks/useProductRating';
+import { useProductBadgesForProducts } from '@/hooks/useProductBadges';
 import { BlockRenderContext } from '@/lib/builder/types';
 import { cn } from '@/lib/utils';
 import { ChevronRight, Loader2, ImageIcon } from 'lucide-react';
@@ -59,9 +60,10 @@ export function CollectionSectionBlock({
     limit,
   });
 
-  // Get product IDs for batch rating fetch
+  // Get product IDs for batch rating and badge fetch
   const productIds = useMemo(() => products.map(p => p.id), [products]);
   const { data: ratingsMap } = useProductRatings(productIds);
+  const { data: badgesMap } = useProductBadgesForProducts(productIds);
 
   const [emblaRef, emblaApi] = useEmblaCarousel({
     align: 'start',
@@ -170,6 +172,7 @@ export function CollectionSectionBlock({
               <div className="flex gap-4">
                 {products.map((product) => {
                   const rating = ratingsMap?.get(product.id);
+                  const badges = badgesMap?.get(product.id);
                   return (
                     <div
                       key={product.id}
@@ -184,6 +187,7 @@ export function CollectionSectionBlock({
                         isEditing={isEditing}
                         settings={categorySettings}
                         rating={rating}
+                        badges={badges}
                         variant="compact"
                       />
                     </div>
@@ -220,6 +224,7 @@ export function CollectionSectionBlock({
           >
             {products.map((product) => {
               const rating = ratingsMap?.get(product.id);
+              const badges = badgesMap?.get(product.id);
               return (
                 <ProductCard
                   key={product.id}
@@ -228,6 +233,7 @@ export function CollectionSectionBlock({
                   isEditing={isEditing}
                   settings={categorySettings}
                   rating={rating}
+                  badges={badges}
                   variant="compact"
                 />
               );
