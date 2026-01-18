@@ -6,15 +6,18 @@
 // USA ProductCard compartilhado para respeitar categorySettings do tema
 // =============================================
 
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { BlockRenderContext } from '@/lib/builder/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { ProductCard, formatPrice, getProductImage } from './shared/ProductCard';
+import { ProductCard, formatPrice, getProductImage, ProductCardProduct } from './shared/ProductCard';
 import { useProductRatings } from '@/hooks/useProductRating';
 import { useProductBadgesForProducts } from '@/hooks/useProductBadges';
+import { useCart } from '@/contexts/CartContext';
+import { getPublicCheckoutUrl } from '@/lib/publicUrls';
+import { toast } from 'sonner';
 import type { CategorySettings } from '@/hooks/usePageSettings';
 
 interface ProductGridBlockProps {
@@ -156,6 +159,59 @@ export function ProductGridBlock({
   const { data: ratingsMap } = useProductRatings(productIds);
   const { data: badgesMap } = useProductBadgesForProducts(productIds);
 
+  // Cart functionality
+  const { addItem: addToCart, items: cartItems } = useCart();
+  const [addedProducts, setAddedProducts] = useState<Set<string>>(new Set());
+
+  // Check if product is in cart
+  const isProductInCart = useCallback((productId: string) => {
+    return cartItems.some(item => item.product_id === productId) || addedProducts.has(productId);
+  }, [cartItems, addedProducts]);
+
+  // Handle add to cart
+  const handleAddToCart = useCallback((e: React.MouseEvent, product: ProductCardProduct) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (isEditing) return;
+    
+    const primaryImage = product.product_images?.find(img => img.is_primary)?.url || product.product_images?.[0]?.url;
+    
+    addToCart({
+      product_id: product.id,
+      name: product.name,
+      sku: product.slug,
+      price: product.price,
+      quantity: 1,
+      image_url: primaryImage,
+    });
+    
+    setAddedProducts(prev => new Set(prev).add(product.id));
+    toast.success('Produto adicionado ao carrinho!');
+  }, [addToCart, isEditing]);
+
+  // Handle quick buy
+  const handleQuickBuy = useCallback((e: React.MouseEvent, product: ProductCardProduct) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (isEditing) return;
+    
+    const primaryImage = product.product_images?.find(img => img.is_primary)?.url || product.product_images?.[0]?.url;
+    
+    addToCart({
+      product_id: product.id,
+      name: product.name,
+      sku: product.slug,
+      price: product.price,
+      quantity: 1,
+      image_url: primaryImage,
+    });
+    
+    const checkoutUrl = getPublicCheckoutUrl(tenantSlug);
+    window.location.href = checkoutUrl;
+  }, [addToCart, tenantSlug, isEditing]);
+
   // Compute grid columns based on viewport
   const gridCols = useMemo(() => {
     if (viewport) {
@@ -261,6 +317,9 @@ export function ProductGridBlock({
               settings={categorySettings}
               rating={rating}
               badges={badges}
+              isAddedToCart={isProductInCart(product.id)}
+              onAddToCart={handleAddToCart}
+              onQuickBuy={handleQuickBuy}
               variant="compact"
             />
           );
