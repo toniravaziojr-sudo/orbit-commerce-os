@@ -41,14 +41,23 @@ export function CountdownTimerBlock({
 }: CountdownTimerBlockProps) {
   const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(null);
   const [isExpired, setIsExpired] = useState(false);
+  const [noDateConfigured, setNoDateConfigured] = useState(false);
 
   useEffect(() => {
     if (!endDate) {
-      setIsExpired(true);
+      setNoDateConfigured(true);
+      setIsExpired(false);
       return;
     }
 
+    setNoDateConfigured(false);
     const targetDate = new Date(endDate).getTime();
+
+    // Check if date is valid
+    if (isNaN(targetDate)) {
+      setNoDateConfigured(true);
+      return;
+    }
 
     const calculateTimeLeft = () => {
       const now = new Date().getTime();
@@ -56,9 +65,11 @@ export function CountdownTimerBlock({
 
       if (difference <= 0) {
         setIsExpired(true);
+        setTimeLeft(null);
         return;
       }
 
+      setIsExpired(false);
       setTimeLeft({
         days: Math.floor(difference / (1000 * 60 * 60 * 24)),
         hours: Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
@@ -126,8 +137,17 @@ export function CountdownTimerBlock({
           </p>
         )}
 
-        {/* Countdown or Expired Message */}
-        {isExpired ? (
+        {/* Countdown or Expired Message or No Date */}
+        {noDateConfigured ? (
+          <div 
+            className="text-lg md:text-xl opacity-80 py-4"
+            style={{ color: textColor }}
+          >
+            <p className="font-medium">⏰ Configure a data de término</p>
+            <p className="text-sm mt-1 opacity-70">Preencha o campo "Data de Término (ISO)" com uma data futura</p>
+            <p className="text-xs mt-1 opacity-50">Exemplo: 2025-02-01T23:59:59</p>
+          </div>
+        ) : isExpired ? (
           <p 
             className="text-xl md:text-2xl font-semibold"
             style={{ color: textColor }}
