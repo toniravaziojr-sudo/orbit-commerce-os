@@ -13,10 +13,10 @@ import { Badge } from '@/components/ui/badge';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/lib/cartTotals';
-import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { useActiveOfferRules, OfferRule } from '@/hooks/useOfferRules';
 import { Link } from 'react-router-dom';
 import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
+import type { BlockRenderContext } from '@/lib/builder/types';
 
 interface UpsellSlotBlockProps {
   title?: string;
@@ -27,6 +27,7 @@ interface UpsellSlotBlockProps {
   ctaHref?: string;
   isEditing?: boolean;
   tenantSlug?: string; // Allow passing tenantSlug directly for builder context
+  context?: BlockRenderContext;
 }
 
 interface UpsellProduct {
@@ -47,10 +48,10 @@ export function UpsellSlotBlock({
   ctaHref = '/offers',
   isEditing = false,
   tenantSlug: tenantSlugProp,
+  context,
 }: UpsellSlotBlockProps) {
-  const hookTenantSlug = useTenantSlug();
-  // Use prop if provided (from builder context), fallback to hook
-  const tenantSlug = tenantSlugProp || hookTenantSlug;
+  // Get tenantSlug from context (Builder provides this) or prop
+  const tenantSlug = tenantSlugProp || context?.tenantSlug || '';
   const urls = useStorefrontUrls(tenantSlug);
 
   // Fetch active upsell rules

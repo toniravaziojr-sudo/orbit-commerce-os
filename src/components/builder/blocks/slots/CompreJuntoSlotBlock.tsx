@@ -8,13 +8,13 @@
 import { Gift, Plus, ShoppingCart, Settings, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/lib/cartTotals';
 import { useCart } from '@/contexts/CartContext';
 import { toast } from 'sonner';
 import { useState } from 'react';
+import type { BlockRenderContext } from '@/lib/builder/types';
 
 interface CompreJuntoSlotBlockProps {
   productId?: string;
@@ -32,6 +32,7 @@ interface CompreJuntoSlotBlockProps {
     sku: string;
     images?: { url: string }[];
   };
+  context?: BlockRenderContext;
 }
 
 export function CompreJuntoSlotBlock({
@@ -45,9 +46,15 @@ export function CompreJuntoSlotBlock({
   isEditing = false,
   currentProduct,
   context,
-}: CompreJuntoSlotBlockProps & { context?: any }) {
-  const tenantSlug = useTenantSlug();
-  const { addItem } = useCart();
+}: CompreJuntoSlotBlockProps) {
+  // Get tenantSlug from context (Builder provides this)
+  const tenantSlug = context?.tenantSlug || '';
+  
+  // useCart must be called unconditionally to follow Rules of Hooks
+  // But we only use it when not editing
+  const cart = useCart();
+  const addItem = cart?.addItem;
+  
   const [isAdding, setIsAdding] = useState(false);
 
   // NOTA: A filtragem de blocos duplicados em páginas de produto é feita
