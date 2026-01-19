@@ -28,6 +28,8 @@ const moduleOptions = [
   { id: 'customers', label: 'Clientes Importados', description: 'Apenas clientes que vieram da importação (não afeta cadastros manuais)' },
   { id: 'orders', label: 'Pedidos Importados', description: 'Apenas pedidos que vieram da importação' },
   { id: 'structure', label: 'Estrutura Importada', description: 'Menus e páginas que vieram da importação' },
+  { id: 'all_categories', label: 'TODAS Categorias', description: '⚠️ LIMPA TODAS as categorias do tenant (manual + importado)' },
+  { id: 'all_menus', label: 'TODOS Menus', description: '⚠️ LIMPA TODOS os menus e itens do tenant' },
 ] as const;
 
 export function ClearDataDialog({ onClear, isClearing }: ClearDataDialogProps) {

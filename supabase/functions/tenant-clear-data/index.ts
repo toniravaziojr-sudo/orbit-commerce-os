@@ -7,7 +7,7 @@ const corsHeaders = {
 
 interface ClearDataRequest {
   tenantId: string;
-  modules: ('products' | 'categories' | 'customers' | 'orders' | 'structure' | 'all')[];
+  modules: ('products' | 'categories' | 'customers' | 'orders' | 'structure' | 'all' | 'all_categories' | 'all_menus')[];
 }
 
 Deno.serve(async (req) => {
@@ -254,6 +254,60 @@ Deno.serve(async (req) => {
         .delete()
         .eq('tenant_id', tenantId)
         .in('module', ['menus', 'pages']);
+    }
+
+    // ========================================
+    // FORCE CLEAR: ALL categories (not just imported)
+    // ========================================
+    if (modules.includes('all_categories')) {
+      console.log(`Force clearing ALL categories for tenant ${tenantId}`);
+      
+      // Get all category IDs for this tenant
+      const { data: allCategories } = await supabase
+        .from('categories')
+        .select('id')
+        .eq('tenant_id', tenantId);
+      
+      const allCategoryIds = (allCategories || []).map(c => c.id);
+      
+      if (allCategoryIds.length > 0) {
+        deleted['product_categories_force'] = await safeDelete('product_categories', 'category_id', allCategoryIds);
+        deleted['categories_force'] = await safeDelete('categories', 'id', allCategoryIds);
+      }
+      
+      // Also clean any import_items for categories
+      await supabase
+        .from('import_items')
+        .delete()
+        .eq('tenant_id', tenantId)
+        .eq('module', 'categories');
+    }
+
+    // ========================================
+    // FORCE CLEAR: ALL menus (not just imported)
+    // ========================================
+    if (modules.includes('all_menus')) {
+      console.log(`Force clearing ALL menus for tenant ${tenantId}`);
+      
+      // Get all menu IDs for this tenant
+      const { data: allMenus } = await supabase
+        .from('menus')
+        .select('id')
+        .eq('tenant_id', tenantId);
+      
+      const allMenuIds = (allMenus || []).map(m => m.id);
+      
+      if (allMenuIds.length > 0) {
+        deleted['menu_items_force'] = await safeDelete('menu_items', 'menu_id', allMenuIds);
+        deleted['menus_force'] = await safeDelete('menus', 'id', allMenuIds);
+      }
+      
+      // Also clean any import_items for menus
+      await supabase
+        .from('import_items')
+        .delete()
+        .eq('tenant_id', tenantId)
+        .eq('module', 'menus');
     }
 
     // ========================================
