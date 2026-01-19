@@ -308,7 +308,8 @@ async function saveMenus(
   tenantId: string,
   menuStructure: MenuStructure,
   categoryMap: Map<string, string>,
-  pageMap: Map<string, string>
+  pageMap: Map<string, string>,
+  importedMenuIds: string[]
 ): Promise<{ header: number; footer1: number; footer2: number }> {
   const stats = { header: 0, footer1: 0, footer2: 0 };
   
@@ -337,6 +338,9 @@ async function saveMenus(
       console.error(`[Menus] Error creating menu ${location}:`, menuError);
       return 0;
     }
+    
+    // Track menu ID for cleanup
+    importedMenuIds.push(menu.id);
     
     // Delete existing items
     await supabase.from('menu_items').delete().eq('menu_id', menu.id);
@@ -483,17 +487,37 @@ Deno.serve(async (req) => {
     // Extract menu structure
     const menuStructure = await extractMenuStructure(storeUrl, firecrawlApiKey);
 
+    // Track imported menu IDs
+    const importedMenuIds: string[] = [];
+
     // Save menus
-    const stats = await saveMenus(supabase, tenantId, menuStructure, categoryMap, pageMap);
+    const stats = await saveMenus(supabase, tenantId, menuStructure, categoryMap, pageMap, importedMenuIds);
+
+    // Register imported menus in import_items for cleanup tracking
+    for (const menuId of importedMenuIds) {
+      await supabase.from('import_items').upsert({
+        tenant_id: tenantId,
+        job_id: null, // Structure import doesn't have a specific job
+        module: 'menus',
+        internal_id: menuId,
+        external_id: `menu-${menuId}`,
+        status: 'success',
+        data: { storeUrl }
+      }, {
+        onConflict: 'tenant_id,module,external_id',
+        ignoreDuplicates: false
+      });
+    }
 
     const totalItems = stats.header + stats.footer1 + stats.footer2;
 
-    console.log(`[Menus] Import completed: ${totalItems} items`);
+    console.log(`[Menus] Import completed: ${totalItems} items, ${importedMenuIds.length} menus tracked`);
 
     return jsonResponse({
       success: true,
       stats,
       totalItems,
+      menusImported: importedMenuIds.length,
       message: `Importados ${totalItems} itens de menu`
     });
 

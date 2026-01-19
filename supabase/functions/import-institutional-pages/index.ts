@@ -259,6 +259,21 @@ Deno.serve(async (req) => {
       if (data) {
         importedPages.push(data);
         existingSlugs.add(candidate.slug); // Evitar duplicatas na mesma execução
+        
+        // Register in import_items for cleanup tracking
+        await supabase.from('import_items').upsert({
+          tenant_id: tenantId,
+          job_id: null, // Structure import doesn't have a specific job
+          module: 'pages',
+          internal_id: data.id,
+          external_id: candidate.url,
+          status: 'success',
+          data: { slug: candidate.slug, title: candidate.title }
+        }, {
+          onConflict: 'tenant_id,module,external_id',
+          ignoreDuplicates: false
+        });
+        
         console.log(`[import-pages] Criada: ${candidate.slug}`);
       }
     }
