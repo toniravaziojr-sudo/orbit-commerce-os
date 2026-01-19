@@ -57,40 +57,52 @@ export function usePageTemplates() {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '');
 
-      // Default content for new templates with PageContent slot
+      // Default content for new institutional pages
+      // Uses same structure as home template - direct editable content, no PageContent placeholder
+      const timestamp = Date.now().toString(36);
       const defaultContent = {
         id: 'root',
         type: 'Page',
         props: {},
         children: [
           {
-            id: 'header-slot',
+            id: `header-${timestamp}`,
             type: 'Header',
-            props: { menuId: '', showSearch: true, showCart: true, sticky: true }
+            props: { 
+              menuId: '', 
+              showSearch: true, 
+              showCart: true, 
+              sticky: true,
+              noticeEnabled: false,
+              noticeText: '',
+              noticeBgColor: '#1e40af',
+              noticeTextColor: '#ffffff',
+            }
           },
           {
-            id: 'content-slot',
+            id: `section-main-${timestamp}`,
             type: 'Section',
-            props: { padding: 'lg' },
-            children: [
-              {
-                id: 'content-container',
-                type: 'Container',
-                props: { maxWidth: 'md', centered: true },
-                children: [
-                  {
-                    id: 'page-content',
-                    type: 'PageContent',
-                    props: {}
-                  }
-                ]
-              }
-            ]
+            props: { 
+              padding: 'lg',
+              backgroundColor: 'transparent',
+              fullWidth: false,
+            },
+            children: []
           },
           {
-            id: 'footer-slot',
+            id: `footer-${timestamp}`,
             type: 'Footer',
-            props: { menuId: '', showSocial: true }
+            props: { 
+              menuId: '', 
+              showSocial: true,
+              copyrightText: '',
+              footerBgColor: '',
+              footerTextColor: '',
+              noticeEnabled: false,
+              noticeText: '',
+              noticeBgColor: '#1e40af',
+              noticeTextColor: '#ffffff',
+            }
           }
         ]
       };
