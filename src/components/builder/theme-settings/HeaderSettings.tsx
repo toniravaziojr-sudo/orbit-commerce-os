@@ -415,20 +415,20 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
               />
               
               {/* Thumbnail Upload - Desktop Only */}
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 pt-2 border-t border-border/50">
                 <div className="flex items-center gap-1.5">
                   <ImageIcon className="h-3 w-3 text-muted-foreground" />
-                  <Label className="text-[10px]">Miniatura (Desktop)</Label>
+                  <Label className="text-[10px] font-medium">Miniatura (Desktop)</Label>
                 </div>
-                <p className="text-[9px] text-muted-foreground">
+                <p className="text-[9px] text-muted-foreground leading-tight">
                   Exibida ao passar o mouse. 200x150px recomendado.
                 </p>
                 {localProps.featuredPromosThumbnail ? (
-                  <div className="relative group w-full">
+                  <div className="relative group w-full mt-2">
                     <img 
                       src={localProps.featuredPromosThumbnail} 
                       alt="Miniatura" 
-                      className="w-full h-20 object-cover rounded border"
+                      className="w-full h-16 object-cover rounded-md border bg-muted"
                     />
                     <Button
                       variant="destructive"
@@ -440,29 +440,34 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
                     </Button>
                   </div>
                 ) : (
-                  <ImageUpload
-                    label=""
-                    value=""
-                    onChange={() => {}}
-                    onUpload={async (file) => {
-                      if (!user?.id) return null;
-                      const { uploadAndRegisterToSystemDrive } = await import('@/lib/uploadAndRegisterToSystemDrive');
-                      const result = await uploadAndRegisterToSystemDrive({
-                        file,
-                        tenantId,
-                        userId: user.id,
-                        source: 'header_featured_promo',
-                        subPath: 'header',
-                      });
-                      if (result?.publicUrl) {
-                        updatePropImmediate('featuredPromosThumbnail', result.publicUrl);
-                        return result.publicUrl;
-                      }
-                      return null;
-                    }}
-                    accept="image/*"
-                    className="h-20"
-                  />
+                  <div 
+                    className="mt-2 border-2 border-dashed border-muted-foreground/20 rounded-lg p-3 text-center cursor-pointer hover:border-primary/40 hover:bg-muted/30 transition-colors"
+                    onClick={() => document.getElementById('featured-promo-upload')?.click()}
+                  >
+                    <ImageIcon className="h-5 w-5 mx-auto text-muted-foreground/50 mb-1" />
+                    <p className="text-[10px] text-muted-foreground">Clique para selecionar</p>
+                    <input
+                      id="featured-promo-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file || !user?.id) return;
+                        const { uploadAndRegisterToSystemDrive } = await import('@/lib/uploadAndRegisterToSystemDrive');
+                        const result = await uploadAndRegisterToSystemDrive({
+                          file,
+                          tenantId,
+                          userId: user.id,
+                          source: 'header_featured_promo',
+                          subPath: 'header',
+                        });
+                        if (result?.publicUrl) {
+                          updatePropImmediate('featuredPromosThumbnail', result.publicUrl);
+                        }
+                      }}
+                    />
+                  </div>
                 )}
               </div>
             </div>
