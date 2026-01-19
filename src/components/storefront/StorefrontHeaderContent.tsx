@@ -133,6 +133,10 @@ export function StorefrontHeaderContent({
   const featuredPromosLabel = String(props.featuredPromosLabel || 'Promoções');
   const featuredPromosTextColor = String(props.featuredPromosTextColor || '#d97706');
   const featuredPromosDestination = String(props.featuredPromosTarget || props.featuredPromosDestination || '');
+  const featuredPromosThumbnail = String(props.featuredPromosThumbnail || '');
+  
+  // Featured promo hover state
+  const [featuredPromoHover, setFeaturedPromoHover] = useState(false);
   
   // Social media - from store_settings
   const socialFacebook = storeSettings?.social_facebook || null;
@@ -812,17 +816,53 @@ export function StorefrontHeaderContent({
           </div>
         )}
         
-        {/* === DESKTOP SECONDARY NAV BAR: Header Menu Items + Featured Promos === */}
+        {/* === DESKTOP SECONDARY NAV BAR: Featured Promos (left) + Header Menu Items (center) === */}
         {(forceDesktop || !forceMobile) && (hierarchicalMenuItems.length > 0 || featuredPromosUrl || isEditing) && (
           <nav className={cn(
-            "flex items-center justify-center py-2 border-t border-muted/30",
+            "flex items-center py-2 border-t border-muted/30",
             forceMobile ? "hidden" : (forceDesktop ? "flex" : "hidden md:flex")
           )}
           style={{ 
             backgroundColor: headerBgColor ? `${headerBgColor}` : undefined,
-            minHeight: '32px'
+            minHeight: '36px'
           }}
           >
+            {/* Featured Promos - LEFT side with thumbnail on hover */}
+            <div className="flex-shrink-0">
+              {featuredPromosEnabled && featuredPromosUrl && (
+                <div 
+                  className="relative"
+                  onMouseEnter={() => setFeaturedPromoHover(true)}
+                  onMouseLeave={() => setFeaturedPromoHover(false)}
+                >
+                  <LinkWrapper
+                    to={featuredPromosUrl}
+                    className="text-xs font-bold hover:opacity-90 whitespace-nowrap px-3 py-1.5 rounded-md transition-all inline-flex items-center gap-1.5 bg-gradient-to-r from-amber-500/10 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20 border border-amber-500/20"
+                    style={{ color: featuredPromosTextColor }}
+                  >
+                    <span className="text-sm">✨</span>
+                    {featuredPromosLabel}
+                  </LinkWrapper>
+                  
+                  {/* Thumbnail popup on hover - Desktop only */}
+                  {featuredPromoHover && featuredPromosThumbnail && (
+                    <div className="absolute top-full left-0 mt-2 z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-top-2">
+                      <div className="bg-popover rounded-lg shadow-xl border border-primary/20 overflow-hidden">
+                        <img 
+                          src={featuredPromosThumbnail} 
+                          alt={featuredPromosLabel}
+                          className="w-48 h-36 object-cover"
+                        />
+                        <div className="p-2 text-center">
+                          <span className="text-xs font-medium text-popover-foreground">{featuredPromosLabel}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Header Menu Items Navigation - Centered */}
             <div className="flex items-center justify-center gap-6 flex-1">
               {hierarchicalMenuItems.length > 0 ? (
@@ -836,53 +876,61 @@ export function StorefrontHeaderContent({
                   >
                     <LinkWrapper
                       to={getMenuItemUrl(item)}
-                      className="text-xs font-medium hover:opacity-70 transition-colors whitespace-nowrap inline-flex items-center gap-1"
+                      className="text-xs font-medium hover:text-primary transition-colors whitespace-nowrap inline-flex items-center gap-1 py-1"
                       style={{ color: headerTextColor || undefined }}
                     >
                       {item.label}
-                      <ChevronDown className="h-3 w-3" />
+                      <ChevronDown className={cn(
+                        "h-3 w-3 transition-transform duration-200",
+                        openDropdown === item.id && "rotate-180"
+                      )} />
                     </LinkWrapper>
                     {openDropdown === item.id && (
                       <div 
-                        className="absolute top-full left-0 mt-2 bg-popover border border-primary/20 rounded-lg shadow-xl py-2 min-w-[200px] z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-top-2"
+                        className="absolute top-full left-1/2 -translate-x-1/2 mt-3 bg-popover/95 backdrop-blur-md border border-border/50 rounded-xl shadow-2xl py-2 min-w-[220px] z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-top-3 duration-200"
                         onMouseEnter={() => handleDropdownEnter(item.id)}
                         onMouseLeave={handleDropdownLeave}
                       >
-                        {item.children.map((child, index) => (
-                          <div key={child.id} className="relative group/submenu">
-                            <LinkWrapper
-                              to={getMenuItemUrl(child)}
-                              className={cn(
-                                "flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-popover-foreground hover:bg-primary/10 hover:text-primary transition-colors",
-                                index === 0 && "rounded-t-sm",
-                                index === item.children.length - 1 && !child.children?.length && "rounded-b-sm"
-                              )}
-                            >
-                              <span>{child.label}</span>
+                        {/* Dropdown arrow */}
+                        <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rotate-45 bg-popover border-l border-t border-border/50" />
+                        
+                        <div className="relative">
+                          {item.children.map((child, index) => (
+                            <div key={child.id} className="relative group/submenu">
+                              <LinkWrapper
+                                to={getMenuItemUrl(child)}
+                                className={cn(
+                                  "flex items-center justify-between gap-3 px-4 py-3 text-sm text-popover-foreground hover:bg-primary/5 hover:text-primary transition-all duration-150",
+                                  index === 0 && "rounded-t-lg",
+                                  index === item.children.length - 1 && !child.children?.length && "rounded-b-lg"
+                                )}
+                              >
+                                <span className="font-medium">{child.label}</span>
+                                {child.children && child.children.length > 0 && (
+                                  <ChevronRight className="h-4 w-4 opacity-40 group-hover/submenu:opacity-100 group-hover/submenu:translate-x-0.5 transition-all" />
+                                )}
+                              </LinkWrapper>
+                              {/* Sub-submenu (3rd level) */}
                               {child.children && child.children.length > 0 && (
-                                <ChevronRight className="h-3 w-3 opacity-60" />
+                                <div className="absolute left-full top-0 ml-2 bg-popover/95 backdrop-blur-md border border-border/50 rounded-xl shadow-2xl py-2 min-w-[200px] z-50 hidden group-hover/submenu:block animate-in fade-in-0 zoom-in-95 slide-in-from-left-3 duration-200">
+                                  {child.children.map((grandchild, gIndex) => (
+                                    <LinkWrapper
+                                      key={grandchild.id}
+                                      to={getMenuItemUrl(grandchild)}
+                                      className={cn(
+                                        "flex items-center gap-2 px-4 py-3 text-sm text-popover-foreground hover:bg-primary/5 hover:text-primary transition-all duration-150",
+                                        gIndex === 0 && "rounded-t-lg",
+                                        gIndex === child.children.length - 1 && "rounded-b-lg"
+                                      )}
+                                    >
+                                      <span className="font-medium">{grandchild.label}</span>
+                                    </LinkWrapper>
+                                  ))}
+                                </div>
                               )}
-                            </LinkWrapper>
-                            {/* Sub-submenu (3rd level) */}
-                            {child.children && child.children.length > 0 && (
-                              <div className="absolute left-full top-0 ml-1 bg-popover border border-primary/20 rounded-lg shadow-xl py-2 min-w-[180px] z-50 hidden group-hover/submenu:block animate-in fade-in-0 zoom-in-95 slide-in-from-left-2">
-                                {child.children.map((grandchild, gIndex) => (
-                                  <LinkWrapper
-                                    key={grandchild.id}
-                                    to={getMenuItemUrl(grandchild)}
-                                    className={cn(
-                                      "flex items-center gap-2 px-4 py-2.5 text-sm text-popover-foreground hover:bg-primary/10 hover:text-primary transition-colors",
-                                      gIndex === 0 && "rounded-t-sm",
-                                      gIndex === child.children.length - 1 && "rounded-b-sm"
-                                    )}
-                                  >
-                                    <span>{grandchild.label}</span>
-                                  </LinkWrapper>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        ))}
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -890,7 +938,7 @@ export function StorefrontHeaderContent({
                   <LinkWrapper
                     key={item.id}
                     to={getMenuItemUrl(item)}
-                    className="text-xs font-medium hover:opacity-70 transition-colors whitespace-nowrap"
+                    className="text-xs font-medium hover:text-primary transition-colors whitespace-nowrap py-1"
                     style={{ color: headerTextColor || undefined }}
                   >
                     {item.label}
@@ -916,16 +964,8 @@ export function StorefrontHeaderContent({
               ) : null}
             </div>
             
-            {/* Featured Promos - Right side */}
-            {featuredPromosEnabled && featuredPromosUrl && (
-              <LinkWrapper
-                to={featuredPromosUrl}
-                className="text-xs font-bold hover:opacity-80 ml-4 whitespace-nowrap"
-                style={{ color: featuredPromosTextColor }}
-              >
-                {featuredPromosLabel}
-              </LinkWrapper>
-            )}
+            {/* Spacer to balance the featured promos on left */}
+            <div className="flex-shrink-0 w-32" />
           </nav>
         )}
       </div>
