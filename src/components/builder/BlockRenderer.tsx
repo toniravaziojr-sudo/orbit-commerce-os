@@ -392,25 +392,7 @@ export function BlockRenderer({
         </div>
       )}
       
-      {/* Quick actions - NOT shown for Header/Footer (they use Theme Settings) */}
-      {isEditing && node.type !== 'Page' && !['Header', 'Footer'].includes(node.type) && (
-        <BlockQuickActions
-          blockId={node.id}
-          blockType={node.type}
-          isRemovable={isRemovable && canDelete}
-          isEssential={isLockedBlock}
-          essentialReason={essentialReason}
-          isHidden={node.hidden}
-          canMoveUp={canMoveUp}
-          canMoveDown={canMoveDown}
-          onMoveUp={() => onMoveBlock?.(node.id, 'up')}
-          onMoveDown={() => onMoveBlock?.(node.id, 'down')}
-          onDuplicate={() => onDuplicateBlock?.(node.id)}
-          onDelete={() => onDeleteBlock?.(node.id)}
-          onToggleHidden={() => onToggleHidden?.(node.id)}
-          viewport={context.viewport}
-        />
-      )}
+      {/* Quick actions removed - all block controls are now in the properties panel */}
       
       <BlockErrorBoundary
         blockId={node.id}
