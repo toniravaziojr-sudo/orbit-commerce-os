@@ -18,18 +18,17 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 
 interface ClearDataDialogProps {
-  onClear: (modules: ('products' | 'categories' | 'customers' | 'orders' | 'structure' | 'all')[]) => Promise<void>;
+  onClear: (modules: string[]) => Promise<void>;
   isClearing: boolean;
 }
 
 const moduleOptions = [
-  { id: 'products', label: 'Produtos Importados', description: 'Apenas produtos que vieram da importação (não afeta cadastros manuais)' },
-  { id: 'categories', label: 'Categorias Importadas', description: 'Apenas categorias que vieram da importação' },
-  { id: 'customers', label: 'Clientes Importados', description: 'Apenas clientes que vieram da importação (não afeta cadastros manuais)' },
-  { id: 'orders', label: 'Pedidos Importados', description: 'Apenas pedidos que vieram da importação' },
-  { id: 'structure', label: 'Estrutura Importada', description: 'Menus e páginas que vieram da importação' },
-  { id: 'all_categories', label: 'TODAS Categorias', description: '⚠️ LIMPA TODAS as categorias do tenant (manual + importado)' },
-  { id: 'all_menus', label: 'TODOS Menus', description: '⚠️ LIMPA TODOS os menus e itens do tenant' },
+  { id: 'products', label: 'Produtos', description: 'Limpa todos os produtos importados' },
+  { id: 'all_categories', label: 'Categorias', description: 'Limpa todas as categorias' },
+  { id: 'customers', label: 'Clientes', description: 'Limpa todos os clientes importados' },
+  { id: 'orders', label: 'Pedidos', description: 'Limpa todos os pedidos importados' },
+  { id: 'all_menus', label: 'Menus', description: 'Limpa todos os menus e itens' },
+  { id: 'all_pages', label: 'Páginas', description: 'Limpa todas as páginas da loja' },
 ] as const;
 
 export function ClearDataDialog({ onClear, isClearing }: ClearDataDialogProps) {
@@ -60,8 +59,8 @@ export function ClearDataDialog({ onClear, isClearing }: ClearDataDialogProps) {
 
   const handleClear = async () => {
     const modules = selectAll 
-      ? ['all'] as ('all')[]
-      : Array.from(selectedModules) as ('products' | 'categories' | 'customers' | 'orders' | 'structure')[];
+      ? moduleOptions.map(m => m.id)
+      : Array.from(selectedModules);
     
     await onClear(modules);
     setOpen(false);

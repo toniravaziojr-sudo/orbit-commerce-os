@@ -141,7 +141,7 @@ export function useImportJobs() {
   });
 
   const clearTenantData = useMutation({
-    mutationFn: async (modules: ('products' | 'categories' | 'customers' | 'orders' | 'structure' | 'visual' | 'storefront' | 'all')[]) => {
+    mutationFn: async (modules: string[]) => {
       if (!tenantId) throw new Error('Tenant ID required');
 
       const { data, error } = await supabase.functions.invoke('tenant-clear-data', {
@@ -159,7 +159,8 @@ export function useImportJobs() {
       queryClient.invalidateQueries({ queryKey: ['orders', tenantId] });
       queryClient.invalidateQueries({ queryKey: ['import-jobs', tenantId] });
       queryClient.invalidateQueries({ queryKey: ['store-pages', tenantId] });
-      queryClient.invalidateQueries({ queryKey: ['store-menus', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['menus'] });
+      queryClient.invalidateQueries({ queryKey: ['menu-items'] });
       queryClient.invalidateQueries({ queryKey: ['store-settings', tenantId] });
       queryClient.invalidateQueries({ queryKey: ['blog-posts', tenantId] });
       queryClient.invalidateQueries({ queryKey: ['storefront-templates', tenantId] });
