@@ -37,6 +37,7 @@ export const ROUTE_TO_PERMISSION: Record<string, { module: string; submodule?: s
   // Marketing
   '/marketing': { module: 'marketing', submodule: 'integrations' },
   '/marketing/atribuicao': { module: 'marketing', submodule: 'attribution' },
+  '/email-marketing': { module: 'marketing', submodule: 'email-marketing' },
   '/offers': { module: 'marketing', submodule: 'offers' },
   '/reviews': { module: 'marketing', submodule: 'reviews' },
   '/media': { module: 'marketing', submodule: 'media' },
@@ -111,10 +112,11 @@ export const MODULES: ModuleConfig[] = [
   {
     key: 'marketing',
     label: 'Marketing',
-    description: 'Integrações, atribuição, ofertas, avaliações e campanhas',
+    description: 'Integrações, atribuição, email marketing, ofertas, avaliações e campanhas',
     submodules: [
       { key: 'integrations', label: 'Integrações Marketing', route: '/marketing' },
       { key: 'attribution', label: 'Atribuição de Venda', route: '/marketing/atribuicao' },
+      { key: 'email-marketing', label: 'Email Marketing', route: '/email-marketing' },
       { key: 'offers', label: 'Aumentar Ticket', route: '/offers' },
       { key: 'reviews', label: 'Avaliações', route: '/reviews' },
       { key: 'media', label: 'Gestão de Mídias', route: '/media' },
