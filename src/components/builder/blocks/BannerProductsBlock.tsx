@@ -121,16 +121,11 @@ export function BannerProductsBlock({
   const displayProducts = products.slice(0, limit);
   const productCount = displayProducts.length;
 
-  // Determine grid class based on product count for proper filling
+  // Determine grid class based on product count
   const getProductGridClass = () => {
-    if (productCount === 1) return 'grid-cols-1 grid-rows-1';
-    if (productCount === 2) return 'grid-cols-1 grid-rows-2';
-    if (productCount === 3) return 'grid-cols-2 grid-rows-2';
-    return 'grid-cols-2 grid-rows-2'; // 4+
+    if (productCount <= 2) return 'grid-cols-1';
+    return 'grid-cols-2'; // 3+ products
   };
-  
-  // Always apply aspect ratio to match banner, regardless of product count
-  const shouldApplyAspectRatio = !isMobile && productCount >= 1;
 
   if (isLoading) {
     return (
@@ -155,13 +150,17 @@ export function BannerProductsBlock({
           )}
         </div>
 
-        {/* Content Grid */}
+        {/* Content Grid - Fixed height container */}
         <div className={cn(
           'grid gap-4',
-          isMobile ? 'grid-cols-1' : 'grid-cols-2'
+          isMobile ? 'grid-cols-1' : 'grid-cols-2',
+          !isMobile && 'min-h-[500px]'
         )}>
-          {/* Banner - aspect ratio drives the height */}
-          <div className="aspect-[4/5] bg-muted/30 rounded-lg overflow-hidden">
+          {/* Banner */}
+          <div className={cn(
+            'bg-muted/30 rounded-lg overflow-hidden',
+            isMobile ? 'aspect-[3/2]' : 'h-full min-h-[400px]'
+          )}>
             {imageUrl ? (
               <img
                 src={imageUrl}
@@ -178,66 +177,55 @@ export function BannerProductsBlock({
             )}
           </div>
 
-          {/* Products Grid - matches banner height */}
+          {/* Products Grid - Flex container for centering */}
           <div className={cn(
-            'grid gap-3 overflow-hidden',
-            isMobile ? 'grid-cols-2' : getProductGridClass(),
-            shouldApplyAspectRatio && 'aspect-[4/5]', // Match banner aspect ratio
-            // For single product, center content instead of stretching
-            productCount === 1 && 'items-center justify-center'
+            'flex flex-col',
+            productCount <= 2 ? 'justify-center' : 'justify-start'
           )}>
-            {showEmptyState ? (
-              <div className="col-span-2 row-span-2 flex items-center justify-center">
-                <p className="text-muted-foreground text-sm text-center">
-                  {source === 'manual' 
-                    ? 'Selecione produtos nas propriedades do bloco'
-                    : 'Selecione uma categoria nas propriedades do bloco'}
-                </p>
-              </div>
-            ) : productCount > 0 ? (
-              displayProducts.map((product, index) => {
-                const rating = ratingsMap?.get(product.id);
-                const badges = badgesMap?.get(product.id);
-                
-                // For 3 products, make the 3rd span full width
-                const isLastOfThree = productCount === 3 && index === 2;
-                
-                return (
-                  <div 
-                    key={product.id} 
-                    className={cn(
-                      'overflow-hidden',
-                      isLastOfThree && 'col-span-2',
-                      // Single product: don't stretch, use natural height
-                      productCount === 1 && 'max-h-[400px] w-full',
-                      productCount === 2 && 'row-span-1'
-                    )}
-                  >
-                    <ProductCard
-                      product={product}
-                      tenantSlug={context?.tenantSlug || ''}
-                      isEditing={isEditing}
-                      settings={categorySettings}
-                      rating={rating}
-                      badges={badges}
-                      isAddedToCart={isProductInCart(product.id)}
-                      onAddToCart={handleAddToCart}
-                      onQuickBuy={handleQuickBuy}
-                      variant="minimal"
-                      className="h-full"
-                    />
-                  </div>
-                );
-              })
-            ) : (
-              <div className="col-span-2 row-span-2 flex items-center justify-center">
-                <p className="text-muted-foreground text-sm">
-                  {source === 'category' 
-                    ? 'Nenhum produto nesta categoria' 
-                    : 'Nenhum produto disponível'}
-                </p>
-              </div>
-            )}
+            <div className={cn(
+              'grid gap-3',
+              isMobile ? 'grid-cols-2' : getProductGridClass()
+            )}>
+              {showEmptyState ? (
+                <div className="col-span-full flex items-center justify-center py-12">
+                  <p className="text-muted-foreground text-sm text-center">
+                    {source === 'manual' 
+                      ? 'Selecione produtos nas propriedades do bloco'
+                      : 'Selecione uma categoria nas propriedades do bloco'}
+                  </p>
+                </div>
+              ) : productCount > 0 ? (
+                displayProducts.map((product) => {
+                  const rating = ratingsMap?.get(product.id);
+                  const badges = badgesMap?.get(product.id);
+                  
+                  return (
+                    <div key={product.id} className="overflow-hidden">
+                      <ProductCard
+                        product={product}
+                        tenantSlug={context?.tenantSlug || ''}
+                        isEditing={isEditing}
+                        settings={categorySettings}
+                        rating={rating}
+                        badges={badges}
+                        isAddedToCart={isProductInCart(product.id)}
+                        onAddToCart={handleAddToCart}
+                        onQuickBuy={handleQuickBuy}
+                        variant="minimal"
+                      />
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="col-span-full flex items-center justify-center py-12">
+                  <p className="text-muted-foreground text-sm">
+                    {source === 'category' 
+                      ? 'Nenhum produto nesta categoria' 
+                      : 'Nenhum produto disponível'}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
