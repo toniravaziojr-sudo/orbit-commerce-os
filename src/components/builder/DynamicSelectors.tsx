@@ -82,18 +82,21 @@ export function CategorySelector({ value, onChange, placeholder = 'Selecione uma
 
   if (isLoading) return <Skeleton className="h-9 w-full" />;
 
+  // Filter out items with empty IDs to prevent Select.Item error
+  const validCategories = categories?.filter(cat => cat.id && cat.id.trim() !== '') || [];
+
   return (
     <Select value={value || ''} onValueChange={onChange}>
       <SelectTrigger>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent className="max-h-60">
-        {categories?.map((category) => (
+        {validCategories.map((category) => (
           <SelectItem key={category.id} value={category.id}>
             {category.name}
           </SelectItem>
         ))}
-        {(!categories || categories.length === 0) && (
+        {validCategories.length === 0 && (
           <div className="px-2 py-1.5 text-sm text-muted-foreground">
             Nenhuma categoria encontrada
           </div>
@@ -125,18 +128,21 @@ export function MenuSelector({ value, onChange, placeholder = 'Selecione um menu
 
   if (isLoading) return <Skeleton className="h-9 w-full" />;
 
+  // Filter out items with empty IDs to prevent Select.Item error
+  const validMenus = menus?.filter(menu => menu.id && menu.id.trim() !== '') || [];
+
   return (
     <Select value={value || ''} onValueChange={onChange}>
       <SelectTrigger>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent className="max-h-60">
-        {menus?.map((menu) => (
+        {validMenus.map((menu) => (
           <SelectItem key={menu.id} value={menu.id}>
             {menu.name} ({menu.location})
           </SelectItem>
         ))}
-        {(!menus || menus.length === 0) && (
+        {validMenus.length === 0 && (
           <div className="px-2 py-1.5 text-sm text-muted-foreground">
             Nenhum menu encontrado
           </div>
