@@ -703,6 +703,41 @@ export const defaultNeutralPageTemplate: BlockNode = {
   ],
 };
 
+// Default Blog Post template - NO title in content (title comes from blog_posts.title)
+export const defaultBlogPostTemplate: BlockNode = {
+  id: 'root',
+  type: 'Page',
+  props: {},
+  children: [
+    {
+      id: generateBlockId('Section'),
+      type: 'Section',
+      props: {
+        padding: 'lg',
+      },
+      children: [
+        {
+          id: generateBlockId('Container'),
+          type: 'Container',
+          props: {
+            maxWidth: 'md',
+            centered: true,
+          },
+          children: [
+            {
+              id: generateBlockId('RichText'),
+              type: 'RichText',
+              props: {
+                content: '<p>Escreva o conteúdo do seu post aqui...</p>',
+              },
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
 // Default Account Hub template
 export const defaultAccountTemplate: BlockNode = {
   id: 'root',

@@ -107,7 +107,7 @@ export default function Blog() {
         throw new Error('Este slug já está em uso. Escolha outro.');
       }
       
-      const { defaultNeutralPageTemplate } = await import('@/lib/builder/defaults');
+      const { defaultBlogPostTemplate } = await import('@/lib/builder/defaults');
       
       const { data: newPost, error } = await supabase
         .from('blog_posts')
@@ -118,7 +118,7 @@ export default function Blog() {
           excerpt: data.excerpt || null,
           seo_title: data.seo_title || null,
           seo_description: data.seo_description || null,
-          content: defaultNeutralPageTemplate as unknown as Json,
+          content: defaultBlogPostTemplate as unknown as Json,
           status: 'draft',
         }])
         .select()
