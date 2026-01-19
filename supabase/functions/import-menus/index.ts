@@ -18,6 +18,7 @@ interface ImportRequest {
 interface MenuItem {
   label: string;
   url: string;
+  originalUrl: string;
   type: 'category' | 'page' | 'external';
   refId?: string;
   children?: MenuItem[];
@@ -49,8 +50,19 @@ function slugToLabel(slug: string): string {
     .join(' ');
 }
 
+function extractSlugFromPath(pathname: string, patterns: RegExp[]): string | null {
+  for (const pattern of patterns) {
+    pattern.lastIndex = 0;
+    const match = pattern.exec(pathname);
+    if (match && match[1]) {
+      return match[1].toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    }
+  }
+  return null;
+}
+
 // ===========================================
-// MENU EXTRACTION
+// MENU EXTRACTION - IMPROVED
 // ===========================================
 
 async function extractMenuStructure(
@@ -93,44 +105,89 @@ async function extractMenuStructure(
     footer2: []
   };
 
-  // Category patterns
+  // Category URL patterns
   const categoryPatterns = [
     /\/(?:collections?|categoria|categorias|category|categories|c)\/([^/?#"']+)/gi,
     /\/(?:departamento|departamentos|department|departments|dept)\/([^/?#"']+)/gi,
     /\/(?:shop|loja|store)\/([^/?#"']+)/gi,
   ];
 
-  // Page patterns
+  // Page URL patterns
   const pagePatterns = [
     /\/(?:pages?|pagina|paginas)\/([^/?#"']+)/gi,
     /\/(?:policies|politicas?|termos|terms|privacy|privacidade)\/([^/?#"']+)/gi,
   ];
 
-  // Extract header navigation
+  // Blacklisted paths (skip these)
+  const blacklist = [
+    'cart', 'carrinho', 'checkout', 'login', 'cadastro', 'register', 
+    'search', 'busca', 'account', 'conta', 'minha-conta', 'my-account',
+    'wishlist', 'favoritos', 'track', 'rastreio'
+  ];
+
+  // ===========================================
+  // EXTRACT HEADER MENU
+  // ===========================================
   const headerMatch = html.match(/<header[^>]*>([\s\S]*?)<\/header>/i);
   if (headerMatch) {
     const headerHtml = headerMatch[1];
-    menuStructure.header = extractMenuItems(headerHtml, origin, categoryPatterns, pagePatterns);
+    menuStructure.header = extractHierarchicalMenu(headerHtml, origin, categoryPatterns, pagePatterns, blacklist);
+    console.log(`[Menus] Header items: ${menuStructure.header.length}`);
   }
 
-  // Extract footer navigation
+  // ===========================================
+  // EXTRACT FOOTER MENUS (may have multiple sections)
+  // ===========================================
   const footerMatch = html.match(/<footer[^>]*>([\s\S]*?)<\/footer>/i);
   if (footerMatch) {
     const footerHtml = footerMatch[1];
     
-    // Try to find multiple nav/menu sections in footer
-    const navSections = footerHtml.match(/<(?:nav|ul)[^>]*(?:class|id)="[^"]*(?:menu|nav|links)[^"]*"[^>]*>([\s\S]*?)<\/(?:nav|ul)>/gi) || [];
+    // Try to find distinct menu sections in footer
+    // Look for: <nav>, <ul class="...menu...">, <div class="...links...">
+    const menuSectionPatterns = [
+      /<nav[^>]*>([\s\S]*?)<\/nav>/gi,
+      /<ul[^>]*class="[^"]*(?:menu|nav|links|footer)[^"]*"[^>]*>([\s\S]*?)<\/ul>/gi,
+      /<div[^>]*class="[^"]*(?:footer-links|footer-menu|footer-nav|col)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+    ];
     
-    if (navSections.length >= 2) {
-      menuStructure.footer1 = extractMenuItems(navSections[0], origin, categoryPatterns, pagePatterns);
-      menuStructure.footer2 = extractMenuItems(navSections[1], origin, categoryPatterns, pagePatterns);
-    } else {
-      // Split footer items between footer1 and footer2 based on content
-      const allFooterItems = extractMenuItems(footerHtml, origin, categoryPatterns, pagePatterns);
+    const footerSections: string[] = [];
+    
+    for (const pattern of menuSectionPatterns) {
+      pattern.lastIndex = 0;
+      let match;
+      while ((match = pattern.exec(footerHtml)) !== null) {
+        const section = match[1] || match[0];
+        // Check if this section has links
+        if (/<a[^>]*href=/i.test(section)) {
+          footerSections.push(section);
+        }
+      }
+    }
+
+    console.log(`[Menus] Found ${footerSections.length} footer sections`);
+
+    if (footerSections.length >= 2) {
+      // Multiple sections - assign to footer1 and footer2
+      menuStructure.footer1 = extractHierarchicalMenu(footerSections[0], origin, categoryPatterns, pagePatterns, blacklist);
+      menuStructure.footer2 = extractHierarchicalMenu(footerSections[1], origin, categoryPatterns, pagePatterns, blacklist);
+    } else if (footerSections.length === 1) {
+      // Single section - analyze content to split
+      const allItems = extractHierarchicalMenu(footerSections[0], origin, categoryPatterns, pagePatterns, blacklist);
       
-      // Separate categories (footer1) from pages (footer2)
-      menuStructure.footer1 = allFooterItems.filter(item => item.type === 'category');
-      menuStructure.footer2 = allFooterItems.filter(item => item.type === 'page' || item.type === 'external');
+      // Separate categories from pages
+      menuStructure.footer1 = allItems.filter(item => item.type === 'category');
+      menuStructure.footer2 = allItems.filter(item => item.type === 'page' || item.type === 'external');
+      
+      // If all same type, just put in footer1
+      if (menuStructure.footer1.length === 0 || menuStructure.footer2.length === 0) {
+        menuStructure.footer1 = allItems;
+        menuStructure.footer2 = [];
+      }
+    } else {
+      // No structured sections, extract from entire footer
+      const allItems = extractHierarchicalMenu(footerHtml, origin, categoryPatterns, pagePatterns, blacklist);
+      menuStructure.footer1 = allItems.filter(item => item.type === 'category');
+      menuStructure.footer2 = allItems.filter(item => item.type === 'page' || item.type === 'external');
     }
   }
 
@@ -139,25 +196,58 @@ async function extractMenuStructure(
   return menuStructure;
 }
 
-function extractMenuItems(
+function extractHierarchicalMenu(
   html: string,
   origin: string,
   categoryPatterns: RegExp[],
-  pagePatterns: RegExp[]
+  pagePatterns: RegExp[],
+  blacklist: string[]
 ): MenuItem[] {
   const items: MenuItem[] = [];
   const seenUrls = new Set<string>();
   
-  // Find all nav/ul structures with potential hierarchy
-  const navStructures = html.match(/<(?:nav|ul)[^>]*>([\s\S]*?)<\/(?:nav|ul)>/gi) || [];
+  // Find list items with potential nested structure
+  const liPattern = /<li[^>]*>([\s\S]*?)<\/li>/gi;
+  let liMatch;
   
-  for (const nav of navStructures) {
-    // Extract top-level li items
-    const topLevelItems = extractTopLevelItems(nav, origin, categoryPatterns, pagePatterns, seenUrls);
-    items.push(...topLevelItems);
+  // First pass: extract from <li> elements (preserves hierarchy)
+  while ((liMatch = liPattern.exec(html)) !== null) {
+    const liContent = liMatch[1];
+    
+    // Get the first/main link
+    const linkMatch = liContent.match(/<a[^>]*href="([^"]+)"[^>]*>([^<]*(?:<[^a][^>]*>[^<]*)*)<\/a>/i);
+    if (!linkMatch) continue;
+    
+    const [, href, rawLabel] = linkMatch;
+    const label = rawLabel.replace(/<[^>]+>/g, '').trim();
+    
+    if (!href || !label || seenUrls.has(href)) continue;
+    if (href === '#' || href === 'javascript:void(0)') continue;
+    
+    const fullUrl = href.startsWith('/') ? `${origin}${href}` : href.startsWith('http') ? href : `${origin}/${href}`;
+    
+    // Skip blacklisted
+    const path = new URL(fullUrl).pathname.toLowerCase();
+    if (blacklist.some(term => path.includes(`/${term}`))) continue;
+    
+    seenUrls.add(href);
+    
+    const item = classifyLink(fullUrl, label, categoryPatterns, pagePatterns);
+    if (!item) continue;
+    
+    // Check for nested ul (submenu)
+    const nestedUl = liContent.match(/<ul[^>]*>([\s\S]*?)<\/ul>/i);
+    if (nestedUl) {
+      const childItems = extractHierarchicalMenu(nestedUl[1], origin, categoryPatterns, pagePatterns, blacklist);
+      if (childItems.length > 0) {
+        item.children = childItems;
+      }
+    }
+    
+    items.push(item);
   }
   
-  // Fallback: extract all links if no structured nav found
+  // If no li items found, try direct link extraction
   if (items.length === 0) {
     const linkPattern = /<a[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/gi;
     let match;
@@ -165,9 +255,17 @@ function extractMenuItems(
     while ((match = linkPattern.exec(html)) !== null) {
       const [, href, label] = match;
       if (!href || seenUrls.has(href)) continue;
+      if (href === '#' || href === 'javascript:void(0)') continue;
       
-      const fullUrl = href.startsWith('/') ? `${origin}${href}` : href;
-      if (!fullUrl.startsWith(origin)) continue;
+      const fullUrl = href.startsWith('/') ? `${origin}${href}` : href.startsWith('http') ? href : `${origin}/${href}`;
+      
+      // Skip blacklisted
+      try {
+        const path = new URL(fullUrl).pathname.toLowerCase();
+        if (blacklist.some(term => path.includes(`/${term}`))) continue;
+      } catch {
+        continue;
+      }
       
       seenUrls.add(href);
       
@@ -181,59 +279,16 @@ function extractMenuItems(
   return items;
 }
 
-function extractTopLevelItems(
-  navHtml: string,
-  origin: string,
-  categoryPatterns: RegExp[],
-  pagePatterns: RegExp[],
-  seenUrls: Set<string>
-): MenuItem[] {
-  const items: MenuItem[] = [];
-  
-  // Match li elements with potential nested ul
-  const liPattern = /<li[^>]*>([\s\S]*?)<\/li>/gi;
-  let liMatch;
-  
-  while ((liMatch = liPattern.exec(navHtml)) !== null) {
-    const liContent = liMatch[1];
-    
-    // Extract the main link
-    const linkMatch = liContent.match(/<a[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/i);
-    if (!linkMatch) continue;
-    
-    const [, href, label] = linkMatch;
-    if (!href || seenUrls.has(href)) continue;
-    
-    const fullUrl = href.startsWith('/') ? `${origin}${href}` : href;
-    if (!fullUrl.startsWith(origin) && !href.startsWith('#')) continue;
-    
-    seenUrls.add(href);
-    
-    const item = classifyLink(fullUrl, label.trim(), categoryPatterns, pagePatterns);
-    if (!item) continue;
-    
-    // Check for nested ul (submenu)
-    const nestedUl = liContent.match(/<ul[^>]*>([\s\S]*?)<\/ul>/i);
-    if (nestedUl) {
-      item.children = extractTopLevelItems(nestedUl[1], origin, categoryPatterns, pagePatterns, seenUrls);
-    }
-    
-    items.push(item);
-  }
-  
-  return items;
-}
-
 function classifyLink(
   url: string,
   label: string,
   categoryPatterns: RegExp[],
   pagePatterns: RegExp[]
 ): MenuItem | null {
-  // Skip blacklisted URLs
-  const blacklist = ['cart', 'carrinho', 'checkout', 'login', 'cadastro', 'search', 'busca', 'account', 'conta'];
-  const path = new URL(url).pathname.toLowerCase();
-  if (blacklist.some(term => path.includes(`/${term}`))) {
+  let path: string;
+  try {
+    path = new URL(url).pathname.toLowerCase();
+  } catch {
     return null;
   }
   
@@ -241,11 +296,12 @@ function classifyLink(
   for (const pattern of categoryPatterns) {
     pattern.lastIndex = 0;
     const match = pattern.exec(url);
-    if (match) {
-      const slug = match[1].toLowerCase();
+    if (match && match[1]) {
+      const slug = match[1].toLowerCase().replace(/[^a-z0-9-]/g, '-');
       return {
         label: label || slugToLabel(slug),
         url: `/categoria/${slug}`,
+        originalUrl: url,
         type: 'category'
       };
     }
@@ -255,45 +311,52 @@ function classifyLink(
   for (const pattern of pagePatterns) {
     pattern.lastIndex = 0;
     const match = pattern.exec(url);
-    if (match) {
-      const slug = match[1].toLowerCase();
+    if (match && match[1]) {
+      const slug = match[1].toLowerCase().replace(/[^a-z0-9-]/g, '-');
       return {
         label: label || slugToLabel(slug),
         url: `/pagina/${slug}`,
+        originalUrl: url,
         type: 'page'
       };
     }
   }
   
-  // Check for common institutional page patterns without /pages/ prefix
+  // Check for common institutional page patterns
   const institutionalPatterns = [
-    /\/(sobre|about|quem-somos|about-us)/i,
-    /\/(contato|contact|fale-conosco)/i,
-    /\/(politica|policy|privacidade|privacy)/i,
-    /\/(termos|terms|condicoes)/i,
-    /\/(troca|devolucao|exchange|return)/i,
-    /\/(faq|ajuda|help|perguntas)/i,
+    { pattern: /\/(sobre|about|quem-somos|about-us)/i, slug: 'sobre' },
+    { pattern: /\/(contato|contact|fale-conosco)/i, slug: 'contato' },
+    { pattern: /\/(politica|policy|privacidade|privacy)/i, slug: 'politica-privacidade' },
+    { pattern: /\/(termos|terms|condicoes)/i, slug: 'termos' },
+    { pattern: /\/(troca|devolucao|exchange|return)/i, slug: 'trocas-devolucoes' },
+    { pattern: /\/(faq|ajuda|help|perguntas)/i, slug: 'faq' },
+    { pattern: /\/(entrega|shipping|frete)/i, slug: 'entrega' },
   ];
   
-  for (const pattern of institutionalPatterns) {
-    const match = pattern.exec(path);
-    if (match) {
-      const slug = match[1].toLowerCase();
+  for (const { pattern, slug } of institutionalPatterns) {
+    if (pattern.test(path)) {
       return {
         label: label || slugToLabel(slug),
         url: `/pagina/${slug}`,
+        originalUrl: url,
         type: 'page'
       };
     }
   }
   
-  // External link
-  if (url.startsWith('http') && !url.includes(new URL(url).hostname)) {
-    return {
-      label,
-      url,
-      type: 'external'
-    };
+  // External link (different domain)
+  try {
+    const urlOrigin = new URL(url).origin;
+    if (!url.startsWith(urlOrigin)) {
+      return {
+        label,
+        url,
+        originalUrl: url,
+        type: 'external'
+      };
+    }
+  } catch {
+    // Invalid URL
   }
   
   return null;
@@ -313,7 +376,6 @@ async function saveMenus(
 ): Promise<{ header: number; footer1: number; footer2: number }> {
   const stats = { header: 0, footer1: 0, footer2: 0 };
   
-  // Helper to save a menu
   const saveMenu = async (
     location: 'header' | 'footer_1' | 'footer_2',
     name: string,
@@ -339,7 +401,6 @@ async function saveMenus(
       return 0;
     }
     
-    // Track menu ID for cleanup
     importedMenuIds.push(menu.id);
     
     // Delete existing items
@@ -350,11 +411,15 @@ async function saveMenus(
     let sortOrder = 0;
     
     for (const item of items) {
-      const refId = item.type === 'category' 
-        ? categoryMap.get(item.url.replace('/categoria/', ''))
-        : item.type === 'page'
-          ? pageMap.get(item.url.replace('/pagina/', ''))
-          : null;
+      // Try to find ref_id by matching slug
+      let refId: string | null = null;
+      if (item.type === 'category') {
+        const slug = item.url.replace('/categoria/', '').toLowerCase();
+        refId = categoryMap.get(slug) || null;
+      } else if (item.type === 'page') {
+        const slug = item.url.replace('/pagina/', '').toLowerCase();
+        refId = pageMap.get(slug) || null;
+      }
       
       const { data: parentItem, error: parentError } = await supabase
         .from('menu_items')
@@ -364,7 +429,7 @@ async function saveMenus(
           label: item.label,
           url: item.type === 'external' ? item.url : null,
           item_type: item.type,
-          ref_id: refId || null,
+          ref_id: refId,
           sort_order: sortOrder++,
           parent_id: null
         })
@@ -378,11 +443,14 @@ async function saveMenus(
         if (item.children && item.children.length > 0) {
           let childOrder = 0;
           for (const child of item.children) {
-            const childRefId = child.type === 'category'
-              ? categoryMap.get(child.url.replace('/categoria/', ''))
-              : child.type === 'page'
-                ? pageMap.get(child.url.replace('/pagina/', ''))
-                : null;
+            let childRefId: string | null = null;
+            if (child.type === 'category') {
+              const slug = child.url.replace('/categoria/', '').toLowerCase();
+              childRefId = categoryMap.get(slug) || null;
+            } else if (child.type === 'page') {
+              const slug = child.url.replace('/pagina/', '').toLowerCase();
+              childRefId = pageMap.get(slug) || null;
+            }
             
             const { error: childError } = await supabase
               .from('menu_items')
@@ -392,7 +460,7 @@ async function saveMenus(
                 label: child.label,
                 url: child.type === 'external' ? child.url : null,
                 item_type: child.type,
-                ref_id: childRefId || null,
+                ref_id: childRefId,
                 sort_order: childOrder++,
                 parent_id: parentItem.id
               });
@@ -484,6 +552,8 @@ Deno.serve(async (req) => {
     const pageMap = new Map<string, string>();
     (pages || []).forEach(page => pageMap.set(page.slug.toLowerCase(), page.id));
 
+    console.log(`[Menus] Available: ${categoryMap.size} categories, ${pageMap.size} pages`);
+
     // Extract menu structure
     const menuStructure = await extractMenuStructure(storeUrl, firecrawlApiKey);
 
@@ -497,28 +567,30 @@ Deno.serve(async (req) => {
     for (const menuId of importedMenuIds) {
       await supabase.from('import_items').upsert({
         tenant_id: tenantId,
-        job_id: null, // Structure import doesn't have a specific job
+        job_id: null,
         module: 'menus',
         internal_id: menuId,
-        external_id: `menu-${menuId}`,
+        external_id: storeUrl,
         status: 'success',
-        data: { storeUrl }
+        data: { 
+          headerItems: stats.header,
+          footer1Items: stats.footer1,
+          footer2Items: stats.footer2
+        }
       }, {
-        onConflict: 'tenant_id,module,external_id',
+        onConflict: 'tenant_id,module,internal_id',
         ignoreDuplicates: false
       });
     }
 
     const totalItems = stats.header + stats.footer1 + stats.footer2;
-
-    console.log(`[Menus] Import completed: ${totalItems} items, ${importedMenuIds.length} menus tracked`);
+    console.log(`[Menus] Import completed: ${totalItems} items total`);
 
     return jsonResponse({
       success: true,
       stats,
       totalItems,
-      menusImported: importedMenuIds.length,
-      message: `Importados ${totalItems} itens de menu`
+      message: `Importação concluída: ${stats.header} itens no header, ${stats.footer1} no footer 1, ${stats.footer2} no footer 2`
     });
 
   } catch (error) {
