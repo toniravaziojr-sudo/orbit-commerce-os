@@ -345,7 +345,7 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
           </div>
           
           {localProps.featuredPromosEnabled && (
-            <>
+            <div className="space-y-3 pl-2 border-l-2 border-primary/20 ml-1">
               <div className="space-y-1">
                 <Label className="text-[10px]">Label do Link</Label>
                 <Input
@@ -407,25 +407,25 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
               />
               
               {/* Thumbnail Upload - Desktop Only */}
-              <div className="space-y-2 pt-2 border-t border-muted/30">
-                <div className="flex items-center gap-2">
-                  <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                  <Label className="text-[10px] font-medium">Miniatura (Desktop)</Label>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <ImageIcon className="h-3 w-3 text-muted-foreground" />
+                  <Label className="text-[10px]">Miniatura (Desktop)</Label>
                 </div>
-                <p className="text-[10px] text-muted-foreground">
-                  Imagem exibida ao passar o mouse sobre o link. Tamanho recomendado: 200x150px
+                <p className="text-[9px] text-muted-foreground">
+                  Exibida ao passar o mouse. 200x150px recomendado.
                 </p>
                 {localProps.featuredPromosThumbnail ? (
-                  <div className="relative group">
+                  <div className="relative group w-full">
                     <img 
                       src={localProps.featuredPromosThumbnail} 
                       alt="Miniatura" 
-                      className="w-full h-24 object-cover rounded-lg border"
+                      className="w-full h-20 object-cover rounded border"
                     />
                     <Button
                       variant="destructive"
                       size="icon"
-                      className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-1 right-1 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
                       onClick={() => updatePropImmediate('featuredPromosThumbnail', '')}
                     >
                       <X className="h-3 w-3" />
@@ -453,11 +453,11 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
                       return null;
                     }}
                     accept="image/*"
-                    className="h-24"
+                    className="h-20"
                   />
                 )}
               </div>
-            </>
+            </div>
           )}
         </CollapsibleContent>
       </Collapsible>
