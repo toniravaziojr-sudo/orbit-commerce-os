@@ -402,8 +402,16 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
 
               <ColorInput
                 label="Cor do Texto"
-                value={localProps.featuredPromosTextColor || '#d97706'}
+                value={localProps.featuredPromosTextColor || ''}
                 onChange={(v) => updateProp('featuredPromosTextColor', v)}
+                placeholder="Padrão: cor primária"
+              />
+
+              <ColorInput
+                label="Cor do Destaque"
+                value={localProps.featuredPromosBgColor || ''}
+                onChange={(v) => updateProp('featuredPromosBgColor', v)}
+                placeholder="Padrão: cor primária"
               />
               
               {/* Thumbnail Upload - Desktop Only */}
