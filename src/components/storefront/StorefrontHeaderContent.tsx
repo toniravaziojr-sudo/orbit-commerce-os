@@ -894,45 +894,81 @@ export function StorefrontHeaderContent({
                     </LinkWrapper>
                     {openDropdown === item.id && (
                       <div 
-                        className="absolute top-full left-1/2 -translate-x-1/2 mt-4 bg-popover border border-border rounded-xl shadow-2xl py-1 min-w-[240px] z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200"
+                        className="absolute top-full left-1/2 -translate-x-1/2 mt-3 bg-popover/95 backdrop-blur-md border border-border/60 rounded-xl shadow-xl py-2 min-w-[260px] z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200"
                         onMouseEnter={() => handleDropdownEnter(item.id)}
                         onMouseLeave={handleDropdownLeave}
                       >
-                        {/* Dropdown arrow */}
-                        <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rotate-45 bg-popover border-l border-t border-border" />
+                        {/* Dropdown arrow - refined */}
+                        <div className="absolute -top-[6px] left-1/2 -translate-x-1/2 w-3 h-3 rotate-45 bg-popover/95 border-l border-t border-border/60" />
                         
-                        <div className="relative py-1">
+                        {/* Menu header */}
+                        <div className="px-4 py-2 border-b border-border/40 mb-1">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            {item.label}
+                          </span>
+                        </div>
+                        
+                        <div className="relative">
                           {item.children.map((child, index) => (
                             <div key={child.id} className="relative group/submenu">
                               <LinkWrapper
                                 to={getMenuItemUrl(child)}
                                 className={cn(
-                                  "flex items-center justify-between gap-3 px-4 py-2.5 text-sm text-popover-foreground transition-colors duration-100",
-                                  "hover:bg-accent hover:text-accent-foreground",
-                                  "focus:bg-accent focus:text-accent-foreground focus:outline-none"
+                                  "flex items-center justify-between gap-3 px-4 py-2.5 text-sm text-popover-foreground transition-all duration-150",
+                                  "hover:bg-primary/8 hover:text-primary hover:pl-5",
+                                  "focus:bg-primary/8 focus:text-primary focus:outline-none",
+                                  "relative"
                                 )}
                               >
-                                <span>{child.label}</span>
+                                {/* Left indicator on hover */}
+                                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-0 bg-primary rounded-r transition-all duration-200 group-hover/submenu:h-5" />
+                                
+                                <span className="font-medium">{child.label}</span>
                                 {child.children && child.children.length > 0 && (
-                                  <ChevronRight className="h-4 w-4 opacity-50 group-hover/submenu:opacity-100 transition-opacity" />
+                                  <ChevronRight className="h-4 w-4 opacity-40 group-hover/submenu:opacity-100 group-hover/submenu:translate-x-0.5 transition-all duration-150" />
                                 )}
                               </LinkWrapper>
-                              {/* Sub-submenu (3rd level) */}
+                              
+                              {/* Sub-submenu (3rd level) - improved */}
                               {child.children && child.children.length > 0 && (
-                                <div className="absolute left-full top-0 ml-1 bg-popover border border-border rounded-xl shadow-2xl py-1 min-w-[200px] z-50 hidden group-hover/submenu:block animate-in fade-in-0 zoom-in-95 slide-in-from-left-2 duration-150">
+                                <div className="absolute left-full top-0 ml-2 bg-popover/95 backdrop-blur-md border border-border/60 rounded-xl shadow-xl py-2 min-w-[200px] z-50 hidden group-hover/submenu:block animate-in fade-in-0 zoom-in-95 slide-in-from-left-2 duration-150">
+                                  {/* Submenu header */}
+                                  <div className="px-3 py-1.5 border-b border-border/40 mb-1">
+                                    <span className="text-[10px] font-medium text-muted-foreground">
+                                      {child.label}
+                                    </span>
+                                  </div>
                                   {child.children.map((grandchild) => (
                                     <LinkWrapper
                                       key={grandchild.id}
                                       to={getMenuItemUrl(grandchild)}
-                                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors duration-100"
+                                      className="group/item flex items-center gap-2 px-3 py-2 text-sm text-popover-foreground hover:bg-primary/8 hover:text-primary transition-all duration-150 relative"
                                     >
+                                      {/* Bullet point */}
+                                      <span className="w-1 h-1 rounded-full bg-muted-foreground/30 group-hover/item:bg-primary group-hover/item:scale-125 transition-all" />
                                       <span>{grandchild.label}</span>
                                     </LinkWrapper>
                                   ))}
                                 </div>
                               )}
+                              
+                              {/* Subtle separator between items */}
+                              {index < item.children.length - 1 && (
+                                <div className="mx-3 border-b border-border/20" />
+                              )}
                             </div>
                           ))}
+                        </div>
+                        
+                        {/* Optional footer with "Ver todos" */}
+                        <div className="px-4 pt-2 mt-1 border-t border-border/40">
+                          <LinkWrapper
+                            to={getMenuItemUrl(item)}
+                            className="text-xs text-primary hover:text-primary/80 font-medium transition-colors inline-flex items-center gap-1 group"
+                          >
+                            Ver todos
+                            <ChevronRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform" />
+                          </LinkWrapper>
                         </div>
                       </div>
                     )}
