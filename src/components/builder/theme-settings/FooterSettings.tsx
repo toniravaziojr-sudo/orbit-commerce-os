@@ -15,6 +15,7 @@ import { Palette, ChevronDown, Settings, Type, Loader2, CreditCard, Store, Plus,
 import { useThemeFooter, DEFAULT_THEME_FOOTER, ThemeFooterConfig, FooterImageItem, FooterImageSectionData } from '@/hooks/useThemeSettings';
 import { ImageUploader } from '../ImageUploader';
 import type { SvgPresetCategory } from '@/lib/builder/svg-presets';
+import { PaymentIconsQuickSelect } from './PaymentIconsQuickSelect';
 
 interface FooterSettingsProps {
   tenantId: string;
@@ -75,6 +76,7 @@ function FooterImageSection({
   toggleSection,
   requireLink = false,
   svgPresetCategory,
+  showQuickSelect = false,
 }: {
   title: string;
   icon: React.ReactNode;
@@ -85,6 +87,7 @@ function FooterImageSection({
   toggleSection: (key: string) => void;
   requireLink?: boolean;
   svgPresetCategory?: SvgPresetCategory;
+  showQuickSelect?: boolean;
 }) {
   const sectionData = (localProps[sectionKey] as FooterImageSectionData) || { title, items: [] };
   const items = sectionData.items || [];
@@ -102,6 +105,10 @@ function FooterImageSection({
     const newIndex = items.length;
     handleUpdateSection({ items: [...items, { imageUrl: '', linkUrl: '' }] });
     setOpenItems(prev => ({ ...prev, [newIndex]: true }));
+  };
+
+  const addMultipleItems = (newItems: { imageUrl: string; linkUrl: string }[]) => {
+    handleUpdateSection({ items: [...items, ...newItems] });
   };
 
   const removeItem = (index: number) => {
@@ -214,6 +221,14 @@ function FooterImageSection({
           </div>
         )}
 
+        {/* Quick select for payment icons */}
+        {showQuickSelect && (
+          <PaymentIconsQuickSelect 
+            onAddIcons={addMultipleItems}
+            existingUrls={items.map(i => i.imageUrl)}
+          />
+        )}
+
         <Button
           variant="outline"
           size="sm"
@@ -221,7 +236,7 @@ function FooterImageSection({
           onClick={addItem}
         >
           <Plus className="h-3 w-3" />
-          Adicionar Item
+          Adicionar Manualmente
         </Button>
       </CollapsibleContent>
     </Collapsible>
@@ -416,6 +431,7 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
         openSections={openSections}
         toggleSection={toggleSection}
         svgPresetCategory="payment"
+        showQuickSelect={true}
       />
 
       <Separator />
