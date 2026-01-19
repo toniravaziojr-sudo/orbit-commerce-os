@@ -32,6 +32,7 @@ Este diretório contém as regras e especificações separadas por módulo para 
 | [midias-uploads.md](./midias-uploads.md) | Mídias e Uploads | ✅ Ready |
 | [marketing-integracoes.md](./marketing-integracoes.md) | Marketing/Atribuição | 🟧 Pending |
 | **SISTEMA** |||
+| [tenants.md](./tenants.md) | Multi-Tenancy | ✅ Ready |
 | [usuarios-permissoes.md](./usuarios-permissoes.md) | Usuários e RBAC | ✅ Ready |
 | [planos-billing.md](./planos-billing.md) | Planos e Billing | 🟧 Pending |
 | [integracoes.md](./integracoes.md) | Integrações | 🟧 Pending |
