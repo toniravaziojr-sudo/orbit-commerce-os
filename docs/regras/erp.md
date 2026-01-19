@@ -1,0 +1,179 @@
+# ERP (Fiscal, Financeiro, Compras) — Regras e Especificações
+
+> **STATUS:** 🟧 Pending (em construção)
+
+## Visão Geral
+
+Módulo de gestão empresarial: fiscal (NF-e), financeiro, e compras/estoque.
+
+---
+
+## Submódulos
+
+| Submódulo | Rota | Status |
+|-----------|------|--------|
+| Fiscal | `/fiscal` | 🟧 Pending |
+| Financeiro | `/finance` | 🟧 Pending |
+| Compras | `/purchases` | 🟧 Pending |
+| Logística | `/shipping` | 🟧 Pending (ver logistica.md) |
+
+---
+
+## 1. Fiscal
+
+### Arquivos
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/pages/Fiscal.tsx` | Dashboard fiscal |
+| `src/pages/FiscalSettings.tsx` | Configurações |
+| `src/pages/FiscalProductsConfig.tsx` | NCM/CFOP por produto |
+
+### Funcionalidades
+| Feature | Status | Descrição |
+|---------|--------|-----------|
+| Emissão NF-e | 🟧 Pending | Via Focus NFe |
+| Consulta CNPJ | 🟧 Pending | Dados do cliente |
+| NCM/CFOP | ✅ Ready | Configuração por produto |
+| ICMS/PIS/COFINS | 🟧 Pending | Cálculo automático |
+| Manifestação | 🟧 Pending | Aceite de NF |
+
+### Campos Fiscais do Produto
+| Campo | Descrição |
+|-------|-----------|
+| `ncm` | Código NCM |
+| `cfop` | Código CFOP |
+| `origin` | Origem (0-8) |
+| `cest` | Código CEST |
+| `icms_cst` | CST do ICMS |
+| `pis_cst` | CST do PIS |
+| `cofins_cst` | CST do COFINS |
+
+### Integração Focus NFe
+```typescript
+// Configuração por tenant
+{
+  tenant_id: uuid,
+  focus_token: string,        // API Token
+  focus_environment: 'homologacao' | 'producao',
+  certificate_file: string,   // Caminho do certificado
+  certificate_password: string,
+  company_data: {
+    cnpj: string,
+    ie: string,
+    razao_social: string,
+    nome_fantasia: string,
+    crt: '1' | '2' | '3',     // Regime tributário
+    // ... endereço
+  }
+}
+```
+
+---
+
+## 2. Financeiro
+
+### Arquivos
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/pages/Finance.tsx` | Dashboard financeiro |
+
+### Funcionalidades
+| Feature | Status | Descrição |
+|---------|--------|-----------|
+| Contas a receber | 🟧 Pending | Entradas |
+| Contas a pagar | 🟧 Pending | Saídas |
+| Fluxo de caixa | 🟧 Pending | Previsão |
+| Conciliação | 🟧 Pending | Bancária |
+| DRE | 🟧 Pending | Demonstrativo |
+
+### Modelo de Dados
+```typescript
+// financial_transactions
+{
+  id: uuid,
+  tenant_id: uuid,
+  type: 'income' | 'expense',
+  category: string,
+  description: text,
+  amount_cents: int,
+  due_date: date,
+  paid_date: date,
+  status: 'pending' | 'paid' | 'overdue' | 'cancelled',
+  reference_type: 'order' | 'purchase' | 'manual',
+  reference_id: uuid,
+}
+
+// financial_categories
+{
+  id: uuid,
+  tenant_id: uuid,
+  name: string,
+  type: 'income' | 'expense',
+  parent_id: uuid,
+}
+```
+
+---
+
+## 3. Compras
+
+### Arquivos
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/pages/Purchases.tsx` | Gestão de compras |
+
+### Funcionalidades
+| Feature | Status | Descrição |
+|---------|--------|-----------|
+| Pedidos de compra | 🟧 Pending | Criação/gestão |
+| Fornecedores | 🟧 Pending | Cadastro |
+| Cotações | 🟧 Pending | Comparação |
+| Entrada de estoque | 🟧 Pending | Recebimento |
+
+### Modelo de Dados
+```typescript
+// purchase_orders
+{
+  id: uuid,
+  tenant_id: uuid,
+  supplier_id: uuid,
+  status: 'draft' | 'sent' | 'confirmed' | 'received' | 'cancelled',
+  total_cents: int,
+  expected_date: date,
+  received_date: date,
+  notes: text,
+}
+
+// purchase_order_items
+{
+  id: uuid,
+  purchase_order_id: uuid,
+  product_id: uuid,
+  variant_id: uuid,
+  quantity: int,
+  unit_cost_cents: int,
+  received_quantity: int,
+}
+```
+
+---
+
+## Integrações ERP
+
+| Sistema | Status | Descrição |
+|---------|--------|-----------|
+| Bling | 🟧 Coming Soon | Sincronização |
+| Tiny | 🟧 Coming Soon | Sincronização |
+| Omie | 🟧 Coming Soon | Sincronização |
+| ContaAzul | 🟧 Coming Soon | Financeiro |
+
+---
+
+## Pendências
+
+- [ ] Integração Focus NFe completa
+- [ ] Dashboard financeiro
+- [ ] Módulo de compras
+- [ ] Relatórios fiscais
+- [ ] Integração com ERPs externos
+- [ ] Importação de NF-e de entrada
