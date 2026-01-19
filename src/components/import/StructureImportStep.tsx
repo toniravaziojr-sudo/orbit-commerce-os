@@ -184,7 +184,7 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
   }, [tenantId, storeUrl]);
 
   // ========================================
-  // IMPORT MENUS (navigation structure)
+  // IMPORT MENUS via Edge Function (with hierarchy support)
   // ========================================
   const importMenus = useCallback(async () => {
     setIsProcessing(true);
@@ -192,126 +192,24 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
     setProgress(p => ({ ...p, menus: 'processing' }));
 
     try {
-      // Get scraped data with links
-      const { data: scrapeResult, error: scrapeError } = await supabase.functions.invoke('firecrawl-scrape', {
-        body: { 
-          url: storeUrl,
-          options: { formats: ['html', 'links'], onlyMainContent: false, waitFor: 2000 }
-        }
+      const { data: result, error } = await supabase.functions.invoke('import-menus', {
+        body: { tenantId, storeUrl }
       });
 
-      if (scrapeError) throw new Error(scrapeError.message);
+      if (error) throw new Error(error.message);
+      if (!result?.success) throw new Error(result?.error || 'Falha na importação');
 
-      const html = scrapeResult?.data?.html || scrapeResult?.html || '';
-      const links = scrapeResult?.data?.links || scrapeResult?.links || [];
-      const origin = new URL(storeUrl.startsWith('http') ? storeUrl : `https://${storeUrl}`).origin;
-
-      // Get existing categories and pages for linking
-      const { data: categories } = await supabase.from('categories').select('id, slug, name').eq('tenant_id', tenantId);
-      const { data: pages } = await supabase.from('store_pages').select('id, slug, title').eq('tenant_id', tenantId);
-
-      const categoryMap = new Map<string, { id: string; slug: string }>();
-      (categories || []).forEach(cat => {
-        categoryMap.set(cat.slug.toLowerCase(), { id: cat.id, slug: cat.slug });
-      });
-
-      const pageMap = new Map<string, { id: string; slug: string }>();
-      (pages || []).forEach(page => {
-        pageMap.set(page.slug.toLowerCase(), { id: page.id, slug: page.slug });
-      });
-
-      // Extract menu items from links
-      const categoryPattern = /\/(?:collections?|categoria|category|c)\/([^/?#]+)/i;
-      const pagePattern = /\/(?:pages?|pagina|policies)\/([^/?#]+)/i;
-
-      const headerItems: Array<{ label: string; url: string; type: string; refId?: string }> = [];
-      const footerItems: Array<{ label: string; url: string; type: string; refId?: string }> = [];
-      const seenUrls = new Set<string>();
-
-      for (const link of links) {
-        if (!link.startsWith(origin) || seenUrls.has(link)) continue;
-        seenUrls.add(link);
-
-        const catMatch = categoryPattern.exec(link);
-        const pageMatch = pagePattern.exec(link);
-
-        if (catMatch) {
-          const slug = catMatch[1].toLowerCase();
-          const cat = categoryMap.get(slug);
-          headerItems.push({
-            label: cat ? slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : slug,
-            url: `/categoria/${slug}`,
-            type: 'category',
-            refId: cat?.id,
-          });
-        } else if (pageMatch) {
-          const slug = pageMatch[1].toLowerCase();
-          const page = pageMap.get(slug);
-          footerItems.push({
-            label: page ? slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : slug,
-            url: `/pagina/${slug}`,
-            type: 'page',
-            refId: page?.id,
-          });
-        }
-      }
-
-      let totalMenuItems = 0;
-
-      // Create/update header menu
-      if (headerItems.length > 0) {
-        const { data: headerMenu } = await supabase.from('menus')
-          .upsert({ tenant_id: tenantId, name: 'Menu Header', location: 'header' }, { onConflict: 'tenant_id,location' })
-          .select('id').single();
-
-        if (headerMenu) {
-          await supabase.from('menu_items').delete().eq('menu_id', headerMenu.id);
-          for (let i = 0; i < Math.min(headerItems.length, 10); i++) {
-            const item = headerItems[i];
-            const { error } = await supabase.from('menu_items').insert({
-              tenant_id: tenantId,
-              menu_id: headerMenu.id,
-              label: item.label,
-              url: item.url,
-              item_type: item.type,
-              ref_id: item.refId || null,
-              sort_order: i,
-            });
-            if (!error) totalMenuItems++;
-          }
-        }
-      }
-
-      // Create/update footer menu
-      if (footerItems.length > 0) {
-        const { data: footerMenu } = await supabase.from('menus')
-          .upsert({ tenant_id: tenantId, name: 'Footer 2', location: 'footer_2' }, { onConflict: 'tenant_id,location' })
-          .select('id').single();
-
-        if (footerMenu) {
-          await supabase.from('menu_items').delete().eq('menu_id', footerMenu.id);
-          for (let i = 0; i < Math.min(footerItems.length, 10); i++) {
-            const item = footerItems[i];
-            const { error } = await supabase.from('menu_items').insert({
-              tenant_id: tenantId,
-              menu_id: footerMenu.id,
-              label: item.label,
-              url: item.url,
-              item_type: item.type,
-              ref_id: item.refId || null,
-              sort_order: i,
-            });
-            if (!error) totalMenuItems++;
-          }
-        }
-      }
-
-      setStats(s => ({ ...s, menuItems: totalMenuItems }));
+      const totalItems = result.totalItems || 0;
+      setStats(s => ({ ...s, menuItems: totalItems }));
       setProgress(p => ({ ...p, menus: 'completed' }));
-      toast.success(`${totalMenuItems} itens de menu importados`);
+      
+      if (totalItems > 0) {
+        toast.success(`${totalItems} itens de menu importados (header: ${result.stats?.header || 0}, footer: ${(result.stats?.footer1 || 0) + (result.stats?.footer2 || 0)})`);
+      } else {
+        toast.info('Nenhum menu encontrado para importar');
+      }
 
-      // Call onComplete with final stats
-      onComplete({ ...stats, menuItems: totalMenuItems });
+      onComplete({ ...stats, menuItems: totalItems });
     } catch (err: any) {
       console.error('Error importing menus:', err);
       setErrors(e => [...e, `Menus: ${err.message}`]);
