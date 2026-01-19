@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ChevronLeft, ChevronRight, Package, Users, ShoppingCart, CheckCircle2, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Package, Users, ShoppingCart, CheckCircle2 } from 'lucide-react';
 import { StoreUrlInput } from './StoreUrlInput';
 import { ImportStep } from './ImportStep';
 import { StructureImportStep, ImportStats as StructureImportStats } from './StructureImportStep';

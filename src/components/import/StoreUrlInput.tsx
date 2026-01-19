@@ -13,9 +13,32 @@ interface StoreUrlInputProps {
   analysisResult?: {
     success: boolean;
     platform?: string;
+    confidence?: string;
     error?: string;
   } | null;
 }
+
+// Mapa de logos/emojis por plataforma
+const PLATFORM_ICONS: Record<string, string> = {
+  'Shopify': '🛒',
+  'Nuvemshop': '☁️',
+  'Tray': '📦',
+  'WooCommerce': '🔧',
+  'Bagy': '🛍️',
+  'Yampi': '🎯',
+  'Loja Integrada': '🔗',
+  'Wix': '✨',
+  'VTEX': '🏢',
+  'Magento': '🧲',
+  'OpenCart': '🛒',
+  'PrestaShop': '🏪',
+};
+
+const CONFIDENCE_COLORS: Record<string, string> = {
+  'alta': 'bg-green-500',
+  'média': 'bg-yellow-500',
+  'baixa': 'bg-orange-500',
+};
 
 export function StoreUrlInput({ 
   url, 
@@ -33,7 +56,6 @@ export function StoreUrlInput({
 
   const isValidUrl = (urlString: string) => {
     if (!urlString.trim()) return false;
-    // Accept with or without protocol
     const urlToTest = urlString.startsWith('http') ? urlString : `https://${urlString}`;
     try {
       new URL(urlToTest);
@@ -43,6 +65,9 @@ export function StoreUrlInput({
     }
   };
 
+  const platformIcon = analysisResult?.platform ? PLATFORM_ICONS[analysisResult.platform] || '📦' : null;
+  const confidenceColor = analysisResult?.confidence ? CONFIDENCE_COLORS[analysisResult.confidence] || 'bg-muted' : null;
+
   return (
     <div className="space-y-6">
       <div className="text-center space-y-2">
@@ -51,7 +76,7 @@ export function StoreUrlInput({
         </div>
         <h3 className="text-xl font-semibold">Informe o link da sua loja</h3>
         <p className="text-muted-foreground max-w-md mx-auto">
-          Iremos analisar sua loja atual para extrair as categorias, visual, banners e toda a identidade visual.
+          Iremos analisar sua loja atual para identificar a plataforma e extrair os dados.
         </p>
       </div>
 
@@ -82,21 +107,38 @@ export function StoreUrlInput({
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Exemplo: respeiteohomem.com.br
+            Exemplo: minhaloja.com.br
           </p>
         </div>
 
         {analysisResult && (
-          <Alert variant={analysisResult.success ? 'default' : 'destructive'}>
+          <Alert variant={analysisResult.success ? 'default' : 'destructive'} className="border-2">
             {analysisResult.success ? (
-              <CheckCircle2 className="h-4 w-4" />
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
             ) : (
               <AlertCircle className="h-4 w-4" />
             )}
             <AlertDescription>
-              {analysisResult.success 
-                ? `Loja identificada! Plataforma: ${analysisResult.platform || 'Detectada'}`
-                : analysisResult.error || 'Não foi possível analisar a loja'}
+              {analysisResult.success ? (
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">{platformIcon}</span>
+                  <div className="flex-1">
+                    <div className="font-medium text-foreground">
+                      Plataforma: {analysisResult.platform || 'Detectada'}
+                    </div>
+                    {analysisResult.confidence && (
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-muted-foreground">Confiança:</span>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-white ${confidenceColor}`}>
+                          {analysisResult.confidence}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                analysisResult.error || 'Não foi possível analisar a loja'
+              )}
             </AlertDescription>
           </Alert>
         )}
