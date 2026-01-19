@@ -606,7 +606,7 @@ function ProductCarouselBlock({ title, source, categoryId, limit = 8, showPrice 
   );
 }
 
-function CategoryListBlock({ title, source, columns = 3, limit = 6, layout = 'grid', showImage = true, showDescription = false, context, isEditing }: any) {
+function CategoryListBlock({ title, source, columns = 3, limit = 6, layout = 'grid', showImage = true, showDescription = false, items, context, isEditing }: any) {
   return (
     <div className="py-8">
       {title && <h2 className="text-2xl font-bold mb-6 px-4">{title}</h2>}
@@ -617,6 +617,7 @@ function CategoryListBlock({ title, source, columns = 3, limit = 6, layout = 'gr
         columns={columns}
         showImage={showImage}
         showDescription={showDescription}
+        items={items}
         context={context}
         isEditing={isEditing}
       />
