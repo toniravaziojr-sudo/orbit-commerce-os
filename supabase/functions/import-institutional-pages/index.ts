@@ -1,5 +1,5 @@
 // =====================================================
-// IMPORT INSTITUTIONAL PAGES - Sistema Aprimorado
+// IMPORT INSTITUTIONAL PAGES - Sistema Aprimorado v2
 // =====================================================
 // COMPORTAMENTO: 
 // 1. Navegar nos links do footer e header
@@ -31,6 +31,7 @@ interface ContentBlock {
     alt?: string; // for images
     width?: number;
     height?: number;
+    videoId?: string; // for YouTube videos
   };
 }
 
@@ -55,11 +56,13 @@ const INSTITUTIONAL_URL_PATTERNS = [
   /\/(?:troca|devolucao|exchange|return|refund|trocas-e-devolucoes)/i,
   /\/(?:entrega|shipping|frete|envio|delivery|prazos)/i,
   /\/(?:garantia|warranty)/i,
-  /\/(?:faq|perguntas|duvidas|ajuda-frequente)/i,
+  /\/(?:faq|perguntas|duvidas|ajuda-frequente|perguntas-frequentes)/i,
   /\/(?:como-comprar|how-to-buy|passo-a-passo)/i,
   /\/(?:seguranca|security)/i,
   /\/(?:pagamento|payment|formas-de-pagamento)/i,
-  /\/(?:quem-somos|nossa-historia|historia|missao)/i,
+  /\/(?:como-funciona|how-it-works|funciona)/i,
+  /\/(?:feedback|depoimentos|testimonials)/i,
+  /\/(?:consulte|consulta)/i,
 ];
 
 // =====================================================
@@ -88,22 +91,29 @@ const EXCLUDED_URL_PATTERNS = [
 ];
 
 // =====================================================
-// COMPLEX FEATURE PATTERNS (exclusão)
+// YouTube/Vimeo noise patterns - text to filter out
 // =====================================================
-const COMPLEX_FEATURE_PATTERNS = [
-  // Product grids
-  /<(?:div|article|li)[^>]*class="[^"]*(?:product|item)-card[^"]*"/gi,
-  /<ul[^>]*class="[^"]*products[^"]*"/gi,
-  /<div[^>]*class="[^"]*product-grid[^"]*"/gi,
-  // Forms (complex)
-  /<form[^>]*(?:action|method)[^>]*>/gi,
-  // Login/register
-  /<input[^>]*type="(?:password|email)"[^>]*>/gi,
-  // Shopping features
-  /(?:add.?to.?cart|adicionar.?ao.?carrinho)/gi,
-  /data-product-id=/gi,
-  // Price indicators (multiple = product listing)
-  /R\$\s*\d+[,.]?\d*/g,
+const YOUTUBE_NOISE_PATTERNS = [
+  /^Tap to unmute$/i,
+  /^Watch on$/i,
+  /^Share$/i,
+  /^Copy link$/i,
+  /^Watch later$/i,
+  /^Info$/i,
+  /^Shopping$/i,
+  /^Search$/i,
+  /^Cancel$/i,
+  /^Confirm$/i,
+  /subscribers?$/i,
+  /^If playback doesn't begin/i,
+  /^You're signed out/i,
+  /^Videos you watch may be added/i,
+  /^To avoid this, cancel and sign in/i,
+  /^An error occurred while retrieving/i,
+  /^Include playlist$/i,
+  /^\d+:\d+$/,
+  /^Live$/i,
+  /^\d+\s*subscribers?$/i,
 ];
 
 // =====================================================
@@ -138,7 +148,6 @@ async function discoverLinks(storeUrl: string): Promise<string[]> {
     if (!response.ok) return [];
     const data = await response.json();
     
-    // Also extract links from footer specifically
     const html = data.data?.html || data?.html || '';
     const links = data.data?.links || data?.links || [];
     
@@ -182,6 +191,44 @@ function formatTitle(slug: string): string {
     .trim();
 }
 
+// Check if text is YouTube noise
+function isYouTubeNoise(text: string): boolean {
+  if (!text || text.length < 3) return true;
+  
+  const cleanText = text.trim();
+  
+  // Check against known noise patterns
+  for (const pattern of YOUTUBE_NOISE_PATTERNS) {
+    if (pattern.test(cleanText)) return true;
+  }
+  
+  // Check if text contains YouTube/Vimeo garbage
+  if (/youtube|vimeo|youtu\.be/i.test(cleanText)) return true;
+  if (/\d+:\d+\s*\/\s*\d+:\d+/.test(cleanText)) return true; // Time markers
+  if (/Watch on|Tap to unmute|subscribers?/i.test(cleanText)) return true;
+  
+  return false;
+}
+
+// Extract YouTube video ID from various URL formats
+function extractYouTubeId(url: string): string | null {
+  if (!url) return null;
+  
+  // Handle various YouTube URL formats
+  const patterns = [
+    /(?:youtube\.com\/(?:embed|v|watch\?v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
+    /youtube-nocookie\.com\/embed\/([a-zA-Z0-9_-]{11})/,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) return match[1];
+  }
+  
+  return null;
+}
+
 // =====================================================
 // PAGE ANALYSIS & CONTENT EXTRACTION
 // =====================================================
@@ -200,7 +247,7 @@ async function analyzePage(pageUrl: string): Promise<PageCandidate | null> {
       },
       body: JSON.stringify({
         url: pageUrl,
-        formats: ['html', 'markdown'],
+        formats: ['html'],
         onlyMainContent: false,
         waitFor: 2000,
       }),
@@ -210,130 +257,148 @@ async function analyzePage(pageUrl: string): Promise<PageCandidate | null> {
     const data = await response.json();
     
     const html = data.data?.html || data?.html || '';
-    const markdown = data.data?.markdown || data?.markdown || '';
-    
     if (!html) return null;
 
-    // Extract main content (remove header/footer/nav/sidebars/scripts)
-    let mainContent = html;
+    // =====================================================
+    // STEP 1: Clean HTML - Remove iframes FIRST to avoid extracting their text
+    // =====================================================
+    let cleanHtml = html;
     
-    // Remove common wrapper elements that contain products
-    mainContent = mainContent.replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '');
-    mainContent = mainContent.replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '');
-    mainContent = mainContent.replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '');
-    mainContent = mainContent.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
-    mainContent = mainContent.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+    // Remove ALL iframes (YouTube, Vimeo, etc.) - they pollute text extraction
+    cleanHtml = cleanHtml.replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '<!-- iframe-removed -->');
     
-    // Remove common product showcase sections (header/footer ads, related products, etc.)
-    mainContent = mainContent.replace(/<div[^>]*class="[^"]*(?:product-carousel|products-slider|related-products|upsell|cross-sell|announcement|promo-bar|top-bar|sticky-bar|floating)[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
-    mainContent = mainContent.replace(/<section[^>]*class="[^"]*(?:products|shop|collection|showcase|featured)[^"]*"[^>]*>[\s\S]*?<\/section>/gi, '');
-    mainContent = mainContent.replace(/<aside[^>]*>[\s\S]*?<\/aside>/gi, '');
+    // Remove script/style
+    cleanHtml = cleanHtml.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+    cleanHtml = cleanHtml.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+    cleanHtml = cleanHtml.replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '');
+    
+    // Remove header/footer/nav/aside
+    cleanHtml = cleanHtml.replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '');
+    cleanHtml = cleanHtml.replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '');
+    cleanHtml = cleanHtml.replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '');
+    cleanHtml = cleanHtml.replace(/<aside[^>]*>[\s\S]*?<\/aside>/gi, '');
+    
+    // Remove common product/promo sections
+    cleanHtml = cleanHtml.replace(/<div[^>]*class="[^"]*(?:product-carousel|products-slider|related-products|upsell|cross-sell|announcement|promo-bar|top-bar|sticky-bar|floating)[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+    cleanHtml = cleanHtml.replace(/<section[^>]*class="[^"]*(?:products|shop|collection|showcase|featured)[^"]*"[^>]*>[\s\S]*?<\/section>/gi, '');
 
-    // Try to find the actual main content area FIRST
-    const mainAreaMatch = mainContent.match(/<main[^>]*>([\s\S]*?)<\/main>/i) ||
-                          mainContent.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ||
-                          mainContent.match(/<div[^>]*class="[^"]*(?:page-content|main-content|entry-content|content-area|page-body|rte|shopify-policy)[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+    // =====================================================
+    // STEP 2: Find main content area
+    // =====================================================
+    const mainMatches = cleanHtml.match(/<main[^>]*>([\s\S]*?)<\/main>/i) ||
+                       cleanHtml.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ||
+                       cleanHtml.match(/<div[^>]*class="[^"]*(?:rte|shopify-policy|page-content|main-content|entry-content|content-area|page-body)[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
     
-    // If we found a specific content area, analyze only that
-    const contentToAnalyze = mainAreaMatch ? mainAreaMatch[1] : mainContent;
+    const contentArea = mainMatches ? mainMatches[1] : cleanHtml;
     
-    // Check for complex features (product grids, forms, etc.) - ONLY in content area
-    let complexFeatureCount = 0;
-    let priceCount = 0;
+    // =====================================================
+    // STEP 3: Check if it's a product page (many prices/cards)
+    // =====================================================
+    const productPrices = contentArea.match(/<(?:div|span)[^>]*class="[^"]*price[^"]*"[^>]*>[^<]*R\$[^<]*<\/(?:div|span)>/gi) || [];
+    const productCards = contentArea.match(/<(?:div|article|li)[^>]*class="[^"]*(?:product-card|product-item|card-product)[^"]*"[^>]*>/gi) || [];
+    const addToCartButtons = contentArea.match(/(?:add.?to.?cart|adicionar.?ao.?carrinho|comprar)/gi) || [];
     
-    // Count only prices that are in product card context
-    const productPricePattern = /<(?:div|span)[^>]*class="[^"]*price[^"]*"[^>]*>[^<]*R\$[^<]*<\/(?:div|span)>/gi;
-    const productPrices = contentToAnalyze.match(productPricePattern) || [];
-    priceCount = productPrices.length;
+    const hasProductGrid = productPrices.length >= 5 || productCards.length >= 2;
+    const hasComplexFeatures = productCards.length + Math.floor(addToCartButtons.length / 2) >= 4;
     
-    // Check for product card structures
-    const productCards = contentToAnalyze.match(/<(?:div|article|li)[^>]*class="[^"]*(?:product-card|product-item|card-product)[^"]*"[^>]*>/gi) || [];
-    
-    // Check for add to cart buttons
-    const addToCartButtons = contentToAnalyze.match(/(?:add.?to.?cart|adicionar.?ao.?carrinho|comprar)/gi) || [];
-    
-    complexFeatureCount = productCards.length + Math.floor(addToCartButtons.length / 2);
-    
-    // If page has actual product cards or many prices in product context, it's not institutional
-    const hasProductGrid = priceCount >= 5 || productCards.length >= 2;
-    const hasComplexFeatures = complexFeatureCount >= 4;
-    
-    // More lenient check - institutional pages can have SOME product mentions if it's mostly text
-    const textContent = contentToAnalyze.replace(/<[^>]+>/g, ' ').trim();
+    // Check text heaviness - institutional pages have lots of text
+    const textContent = contentArea.replace(/<[^>]+>/g, ' ').trim();
     const wordCount = textContent.split(/\s+/).length;
-    const isTextHeavy = wordCount > 200; // Significant text content
+    const isTextHeavy = wordCount > 150;
     
-    // If it's text-heavy, be more lenient with product detection
     if (hasProductGrid && !isTextHeavy) {
-      console.log(`[Pages] ✗ Product page (cards: ${productCards.length}, prices: ${priceCount}): ${pageUrl}`);
+      console.log(`[Pages] ✗ Product page (cards: ${productCards.length}, prices: ${productPrices.length}): ${pageUrl}`);
       return null;
     }
     
     if (hasComplexFeatures && !isTextHeavy) {
-      console.log(`[Pages] ✗ Complex page (features: ${complexFeatureCount}): ${pageUrl}`);
+      console.log(`[Pages] ✗ Complex page: ${pageUrl}`);
       return null;
     }
 
-    // Extract page title - prioritize H1, then clean title tag, fallback to slug
-    const h1Match = mainContent.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-    const h1Text = h1Match ? h1Match[1].replace(/<[^>]+>/g, '').trim() : null;
+    // =====================================================
+    // STEP 4: Extract title - BEFORE removing iframes from original HTML
+    // =====================================================
     
-    // Get title from <title> tag but filter out YouTube/iframe titles and bare URLs
-    const titleTagMatch = html.match(/<title>([^<]+)<\/title>/i);
-    let pageTitle = titleTagMatch ? titleTagMatch[1].trim() : null;
+    // First, try to get H1 from the CLEAN content (no iframes)
+    const h1Match = contentArea.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+    let extractedTitle = h1Match ? h1Match[1].replace(/<[^>]+>/g, '').trim() : null;
     
-    // Reject invalid titles (YouTube, URLs, empty, too short)
-    if (pageTitle && (
-      pageTitle.toLowerCase().includes('youtube') ||
-      pageTitle.toLowerCase().includes('vimeo') ||
-      pageTitle.startsWith('http') ||
-      pageTitle.startsWith('www.') ||
-      pageTitle.length < 3 ||
-      pageTitle === 'Untitled' ||
-      pageTitle === 'Document'
-    )) {
-      pageTitle = null;
+    // Filter out YouTube garbage from H1
+    if (extractedTitle && isYouTubeNoise(extractedTitle)) {
+      extractedTitle = null;
     }
     
-    // Priority: H1 > Valid title tag > Formatted slug
-    const title = h1Text && h1Text.length > 2 && h1Text.length < 150 
-      ? h1Text 
-      : (pageTitle || formatTitle(extractSlug(new URL(pageUrl).pathname)));
+    // Fallback: try og:title meta tag
+    if (!extractedTitle) {
+      const ogTitleMatch = html.match(/<meta[^>]*property="og:title"[^>]*content="([^"]+)"/i);
+      if (ogTitleMatch) {
+        extractedTitle = ogTitleMatch[1].trim();
+      }
+    }
+    
+    // Fallback: try <title> tag but filter out garbage
+    if (!extractedTitle) {
+      const titleTagMatch = html.match(/<title>([^<]+)<\/title>/i);
+      let pageTitle = titleTagMatch ? titleTagMatch[1].trim() : null;
+      
+      // Remove site name suffix (e.g., "Política de Privacidade - Respeite o Homem")
+      if (pageTitle) {
+        pageTitle = pageTitle.split(/[|\-–—]/)[0].trim();
+      }
+      
+      // Reject invalid titles
+      if (pageTitle && (
+        pageTitle.toLowerCase().includes('youtube') ||
+        pageTitle.toLowerCase().includes('vimeo') ||
+        pageTitle.startsWith('http') ||
+        pageTitle.startsWith('www.') ||
+        pageTitle.length < 3 ||
+        pageTitle === 'Untitled' ||
+        pageTitle === 'Document'
+      )) {
+        pageTitle = null;
+      }
+      
+      extractedTitle = pageTitle;
+    }
+    
+    // Final fallback: format slug
+    const slug = extractSlug(new URL(pageUrl).pathname);
+    const title = extractedTitle && extractedTitle.length > 2 && extractedTitle.length < 150
+      ? extractedTitle
+      : formatTitle(slug);
 
-    // Extract content blocks in order
+    // =====================================================
+    // STEP 5: Extract content blocks
+    // =====================================================
     const contentBlocks: ContentBlock[] = [];
     let order = 0;
 
-    // Find the main content area - more patterns for Shopify specifically
-    const mainMatches = mainContent.match(/<main[^>]*>([\s\S]*?)<\/main>/i) ||
-                       mainContent.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ||
-                       mainContent.match(/<div[^>]*class="[^"]*(?:rte|shopify-policy|page-content|main-content|entry-content|content-area|page-body)[^"]*"[^>]*>([\s\S]*?)<\/div>/i) ||
-                       mainContent.match(/<div[^>]*class="[^"]*(?:page|policy|terms|privacy)[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
-    
-    const contentArea = mainMatches ? mainMatches[1] : mainContent;
-
-    // Extract headings - more flexible pattern that handles inner tags
+    // Extract headings (h1-h6) - filter out YouTube noise
     const headingPattern = /<(h[1-6])[^>]*>([\s\S]*?)<\/\1>/gi;
     let headingMatch;
     while ((headingMatch = headingPattern.exec(contentArea)) !== null) {
       const level = parseInt(headingMatch[1].charAt(1));
-      // Strip all inner HTML tags to get text
       const text = headingMatch[2].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-      if (text && text.length > 1 && text.length < 200) { // Reasonable heading length
-        contentBlocks.push({
-          type: 'heading',
-          content: text,
-          order: order++,
-          metadata: { level }
-        });
+      
+      // Skip YouTube noise and very short/long headings
+      if (!text || text.length < 2 || text.length > 200 || isYouTubeNoise(text)) {
+        continue;
       }
+      
+      contentBlocks.push({
+        type: 'heading',
+        content: text,
+        order: order++,
+        metadata: { level }
+      });
     }
 
-    // Extract paragraphs - more flexible pattern
+    // Extract paragraphs - filter out YouTube noise
     const paragraphPattern = /<p[^>]*>([\s\S]*?)<\/p>/gi;
     let paragraphMatch;
     while ((paragraphMatch = paragraphPattern.exec(contentArea)) !== null) {
-      // Strip HTML tags and normalize whitespace
       const text = paragraphMatch[1]
         .replace(/<br\s*\/?>/gi, '\n')
         .replace(/<[^>]+>/g, '')
@@ -345,49 +410,54 @@ async function analyzePage(pageUrl: string): Promise<PageCandidate | null> {
         .replace(/\s+/g, ' ')
         .trim();
       
-      if (text && text.length > 15) { // Lower threshold
-        contentBlocks.push({
-          type: 'text',
-          content: text,
-          order: order++
-        });
+      // Skip YouTube noise and too short paragraphs
+      if (!text || text.length < 20 || isYouTubeNoise(text)) {
+        continue;
       }
+      
+      contentBlocks.push({
+        type: 'text',
+        content: text,
+        order: order++
+      });
     }
 
-    // Also extract list items as text
+    // Extract list items as bullet points
     const listItemPattern = /<li[^>]*>([\s\S]*?)<\/li>/gi;
     let listMatch;
+    const listItems: string[] = [];
     while ((listMatch = listItemPattern.exec(contentArea)) !== null) {
-      const text = listMatch[1]
-        .replace(/<[^>]+>/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
+      const text = listMatch[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
       
-      if (text && text.length > 10) {
-        contentBlocks.push({
-          type: 'text',
-          content: `• ${text}`,
-          order: order++
-        });
+      if (text && text.length > 10 && !isYouTubeNoise(text)) {
+        listItems.push(`• ${text}`);
       }
     }
+    
+    // Group list items together
+    if (listItems.length > 0) {
+      contentBlocks.push({
+        type: 'text',
+        content: listItems.join('\n'),
+        order: order++
+      });
+    }
 
-    // Extract divs with text content (fallback for poorly structured pages)
+    // Fallback: extract plain text if no structured content found
     if (contentBlocks.filter(b => b.type === 'text' || b.type === 'heading').length === 0) {
-      // Try to extract any meaningful text content
       const plainText = contentArea
-        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
         .replace(/<[^>]+>/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
       
-      if (plainText.length > 100) {
+      if (plainText.length > 100 && !isYouTubeNoise(plainText)) {
         // Split into paragraphs by sentence groups
         const sentences = plainText.match(/[^.!?]+[.!?]+/g) || [plainText];
         let currentParagraph = '';
         
         for (const sentence of sentences) {
+          if (isYouTubeNoise(sentence)) continue;
+          
           currentParagraph += sentence + ' ';
           if (currentParagraph.length > 200) {
             contentBlocks.push({
@@ -417,11 +487,10 @@ async function analyzePage(pageUrl: string): Promise<PageCandidate | null> {
     while ((imageMatch = imagePattern.exec(contentArea)) !== null) {
       let src = imageMatch[1];
       
-      // Extract alt from the full match
       const altMatch = imageMatch[0].match(/alt="([^"]*)"/i);
       const alt = altMatch ? altMatch[1] : '';
       
-      // Skip tracking pixels, icons, logos
+      // Skip tracking pixels, icons, logos, tiny images
       if (src.includes('pixel') || 
           src.includes('tracking') || 
           src.includes('icon') ||
@@ -430,7 +499,9 @@ async function analyzePage(pageUrl: string): Promise<PageCandidate | null> {
           src.includes('spinner') ||
           src.includes('loading') ||
           src.includes('1x1') ||
-          src.includes('placeholder')) {
+          src.includes('placeholder') ||
+          src.includes('youtube') ||
+          src.includes('ytimg')) {
         continue;
       }
       
@@ -446,41 +517,42 @@ async function analyzePage(pageUrl: string): Promise<PageCandidate | null> {
       });
     }
 
-    // Extract videos (YouTube, Vimeo, HTML5)
-    const videoPatterns = [
-      /<iframe[^>]*src="([^"]*(?:youtube|vimeo|youtu\.be)[^"]*)"/gi,
-      /<video[^>]*>[\s\S]*?<source[^>]*src="([^"]+)"/gi,
-    ];
-    
-    for (const pattern of videoPatterns) {
-      let videoMatch;
-      while ((videoMatch = pattern.exec(contentArea)) !== null) {
+    // =====================================================
+    // STEP 6: Extract YouTube videos from ORIGINAL HTML (before cleanup)
+    // =====================================================
+    const youtubePattern = /<iframe[^>]*src="([^"]*(?:youtube|youtu\.be|youtube-nocookie)[^"]*)"/gi;
+    let videoMatch;
+    while ((videoMatch = youtubePattern.exec(html)) !== null) {
+      const videoUrl = videoMatch[1];
+      const videoId = extractYouTubeId(videoUrl);
+      
+      if (videoId) {
         contentBlocks.push({
           type: 'video',
-          content: videoMatch[1],
-          order: order++
+          content: `https://www.youtube.com/watch?v=${videoId}`,
+          order: order++,
+          metadata: { videoId }
         });
       }
     }
 
-    // Sort blocks by their position in HTML
+    // Sort blocks by order
     contentBlocks.sort((a, b) => a.order - b.order);
 
-    // Validate: institutional pages should have at least some text
+    // Validate: institutional pages should have at least some content
     const textBlocks = contentBlocks.filter(b => b.type === 'text' || b.type === 'heading');
     const mediaBlocks = contentBlocks.filter(b => b.type === 'image' || b.type === 'video');
     
-    // More lenient: accept if there's any text OR if there's a title
-    if (textBlocks.length === 0 && title.length < 3) {
-      console.log(`[Pages] ✗ No text content: ${pageUrl}`);
+    if (textBlocks.length === 0 && mediaBlocks.length === 0 && title.length < 3) {
+      console.log(`[Pages] ✗ No content: ${pageUrl}`);
       return null;
     }
 
-    console.log(`[Pages] ✓ Institutional page: ${pageUrl} (${textBlocks.length} text, ${mediaBlocks.length} media blocks)`);
+    console.log(`[Pages] ✓ Institutional page: ${pageUrl} (title: "${title}", ${textBlocks.length} text, ${mediaBlocks.length} media blocks)`);
 
     return {
       url: pageUrl,
-      slug: extractSlug(new URL(pageUrl).pathname),
+      slug,
       title,
       isInstitutional: true,
       hasProductGrid: false,
@@ -494,11 +566,10 @@ async function analyzePage(pageUrl: string): Promise<PageCandidate | null> {
 }
 
 // =====================================================
-// BUILD PAGE CONTENT FOR BUILDER
+// BUILD PAGE CONTENT FOR BUILDER - FIXED BLOCK TYPES
 // =====================================================
 
 function buildPageContent(blocks: ContentBlock[]): any {
-  // Create builder-compatible structure
   const children: any[] = [];
   
   for (const block of blocks) {
@@ -508,42 +579,54 @@ function buildPageContent(blocks: ContentBlock[]): any {
           id: crypto.randomUUID(),
           type: 'RichText',
           props: {
-            content: `<h${block.metadata?.level || 2}>${block.content}</h${block.metadata?.level || 2}>`,
-            alignment: 'left'
+            content: `<h${block.metadata?.level || 2}>${escapeHtml(block.content)}</h${block.metadata?.level || 2}>`,
+            align: 'left'
           }
         });
         break;
       
       case 'text':
+        // Convert newlines to proper HTML
+        const htmlContent = block.content
+          .split('\n')
+          .map(line => line.trim())
+          .filter(line => line.length > 0)
+          .map(line => `<p>${escapeHtml(line)}</p>`)
+          .join('');
+        
         children.push({
           id: crypto.randomUUID(),
           type: 'RichText',
           props: {
-            content: `<p>${block.content}</p>`,
-            alignment: 'left'
+            content: htmlContent || `<p>${escapeHtml(block.content)}</p>`,
+            align: 'left'
           }
         });
         break;
       
       case 'image':
+        // FIXED: Use ImageBlock with imageDesktop prop
         children.push({
           id: crypto.randomUUID(),
-          type: 'Image',
+          type: 'ImageBlock',
           props: {
-            src: block.content,
+            imageDesktop: block.content,
             alt: block.metadata?.alt || '',
-            width: 'full'
+            aspectRatio: 'auto'
           }
         });
         break;
       
       case 'video':
+        // FIXED: Use YouTubeVideo with youtubeUrl prop
         children.push({
           id: crypto.randomUUID(),
-          type: 'Video',
+          type: 'YouTubeVideo',
           props: {
-            url: block.content,
-            autoplay: false
+            youtubeUrl: block.content,
+            title: '',
+            widthPreset: 'lg',
+            aspectRatio: '16:9'
           }
         });
         break;
@@ -554,6 +637,7 @@ function buildPageContent(blocks: ContentBlock[]): any {
   return {
     id: 'root',
     type: 'Page',
+    props: {},
     children: [
       {
         id: crypto.randomUUID(),
@@ -564,14 +648,16 @@ function buildPageContent(blocks: ContentBlock[]): any {
         id: crypto.randomUUID(),
         type: 'Section',
         props: {
-          padding: 'lg'
+          paddingY: 48,
+          paddingX: 16
         },
         children: [
           {
             id: crypto.randomUUID(),
             type: 'Container',
             props: {
-              maxWidth: 'md'
+              maxWidth: 'md',
+              gap: 24
             },
             children
           }
@@ -584,6 +670,16 @@ function buildPageContent(blocks: ContentBlock[]): any {
       }
     ]
   };
+}
+
+// Helper to escape HTML special characters
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // =====================================================
@@ -713,7 +809,7 @@ Deno.serve(async (req) => {
           tenant_id: tenantId,
           slug: analysis.slug,
           title: analysis.title,
-          content: JSON.stringify(pageContent),
+          content: pageContent, // Store as JSON object, not string
           status: 'draft',
           is_published: false,
           builder_enabled: true,
@@ -754,7 +850,7 @@ Deno.serve(async (req) => {
           ignoreDuplicates: false
         });
         
-        console.log(`[Pages] Created: ${analysis.slug} (${analysis.contentBlocks.length} blocks)`);
+        console.log(`[Pages] Created: ${analysis.slug} - "${analysis.title}" (${analysis.contentBlocks.length} blocks)`);
       }
 
       // Small delay to avoid rate limiting
