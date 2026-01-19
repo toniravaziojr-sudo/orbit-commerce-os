@@ -144,8 +144,7 @@ export function CountdownTimerBlock({
             style={{ color: textColor }}
           >
             <p className="font-medium">⏰ Configure a data de término</p>
-            <p className="text-sm mt-1 opacity-70">Preencha o campo "Data de Término (ISO)" com uma data futura</p>
-            <p className="text-xs mt-1 opacity-50">Exemplo: 2025-02-01T23:59:59</p>
+            <p className="text-sm mt-1 opacity-70">Use o seletor de data no painel lateral</p>
           </div>
         ) : isExpired ? (
           <p 
