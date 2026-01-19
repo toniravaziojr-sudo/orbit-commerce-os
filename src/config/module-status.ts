@@ -31,6 +31,7 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   // Marketing
   '/marketing': 'pending',
   '/marketing/atribuicao': 'pending',
+  '/email-marketing': 'pending',
   '/offers': 'ready',
   '/reviews': 'ready',
   '/media': 'pending',
