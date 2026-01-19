@@ -363,27 +363,27 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
                     <SelectValue placeholder="Selecione o destino" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="" className="text-xs">
+                    <SelectItem value="none" className="text-xs">
                       <span className="text-muted-foreground">Nenhum destino</span>
                     </SelectItem>
-                    {categories && categories.length > 0 && (
+                    {categories && categories.filter(cat => cat.id && cat.slug).length > 0 && (
                       <>
                         <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase">
                           Categorias
                         </div>
-                        {categories.map((cat) => (
+                        {categories.filter(cat => cat.id && cat.slug).map((cat) => (
                           <SelectItem key={cat.id} value={`category:${cat.slug}`} className="text-xs">
                             📁 {cat.name}
                           </SelectItem>
                         ))}
                       </>
                     )}
-                    {pages && pages.length > 0 && (
+                    {pages && pages.filter(page => page.id && page.slug).length > 0 && (
                       <>
                         <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase">
                           Páginas
                         </div>
-                        {pages.map((page) => (
+                        {pages.filter(page => page.id && page.slug).map((page) => (
                           <SelectItem key={page.id} value={`page:${page.slug}`} className="text-xs">
                             📄 {page.title}
                           </SelectItem>
