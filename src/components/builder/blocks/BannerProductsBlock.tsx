@@ -177,9 +177,9 @@ export function BannerProductsBlock({
 
           {/* Products Grid - matches banner height */}
           <div className={cn(
-            'grid gap-3',
+            'grid gap-3 overflow-hidden',
             isMobile ? 'grid-cols-2' : getProductGridClass(),
-            !isMobile && 'aspect-[4/5]' // Match banner aspect ratio on desktop
+            !isMobile && productCount >= 2 && 'aspect-[4/5]' // Match banner aspect ratio only with 2+ products
           )}>
             {showEmptyState ? (
               <div className="col-span-2 row-span-2 flex items-center justify-center">
@@ -201,8 +201,9 @@ export function BannerProductsBlock({
                   <div 
                     key={product.id} 
                     className={cn(
+                      'overflow-hidden',
                       isLastOfThree && 'col-span-2',
-                      productCount === 1 && 'row-span-1',
+                      productCount === 1 && 'col-span-2 row-span-2',
                       productCount === 2 && 'row-span-1'
                     )}
                   >
