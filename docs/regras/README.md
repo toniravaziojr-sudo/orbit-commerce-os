@@ -4,51 +4,55 @@ Este diretório contém as regras e especificações separadas por módulo para 
 
 ## Índice de Arquivos
 
-| Arquivo | Módulo | Arquivos Relacionados |
-|---------|--------|----------------------|
-| [regras-gerais.md](./regras-gerais.md) | Regras Gerais | TODO o sistema |
+| Arquivo | Módulo | Status |
+|---------|--------|--------|
+| [regras-gerais.md](./regras-gerais.md) | Regras Gerais | ✅ |
 | **LOJA VIRTUAL** |||
-| [loja-virtual.md](./loja-virtual.md) | **Módulo Completo** ✅ | Documentação central do módulo |
-| [header.md](./header.md) | Header/Cabeçalho ✅ | `src/components/storefront/StorefrontHeader*.tsx` |
-| [footer.md](./footer.md) | Footer/Rodapé ✅ | `src/components/storefront/StorefrontFooter*.tsx` |
-| [builder.md](./builder.md) | Builder/Editor ✅ | `src/components/builder/*`, `src/pages/storefront/*` |
-| [checkout.md](./checkout.md) | Checkout ✅ | `src/components/storefront/checkout/*` |
-| [carrinho.md](./carrinho.md) | Carrinho ✅ | `src/contexts/CartContext.tsx`, `src/components/storefront/cart/*` |
-| [pagina-produto.md](./pagina-produto.md) | Página de Produto ✅ | `src/pages/storefront/StorefrontProduct.tsx` |
-| [pagina-categoria.md](./pagina-categoria.md) | Página de Categoria ✅ | `src/pages/storefront/StorefrontCategory.tsx` |
-| [pagina-obrigado.md](./pagina-obrigado.md) | Página Obrigado ✅ | `src/pages/storefront/StorefrontThankYou.tsx` |
-| [paginas-institucionais.md](./paginas-institucionais.md) | Páginas Institucionais ✅ | `src/pages/Pages.tsx`, `src/pages/storefront/StorefrontPage.tsx` |
-| [blog.md](./blog.md) | Blog ✅ | `src/pages/Blog.tsx`, `src/pages/storefront/StorefrontBlog*.tsx` |
-| **MARKETING** |||
-| [ofertas.md](./ofertas.md) | Aumentar Ticket ✅ | `src/pages/Offers.tsx`, `src/components/offers/*` |
-| [avaliacoes.md](./avaliacoes.md) | Avaliações ✅ | `src/pages/Reviews.tsx`, `src/components/reviews/*` |
-| [midias-uploads.md](./midias-uploads.md) | Mídias e Uploads | `src/lib/upload*.ts`, `src/hooks/useSystemUpload.ts` |
+| [loja-virtual.md](./loja-virtual.md) | Módulo Completo | ✅ Ready |
+| [header.md](./header.md) | Header/Cabeçalho | ✅ Ready |
+| [footer.md](./footer.md) | Footer/Rodapé | ✅ Ready |
+| [builder.md](./builder.md) | Builder/Editor | ✅ Ready |
+| [checkout.md](./checkout.md) | Checkout | ✅ Ready |
+| [carrinho.md](./carrinho.md) | Carrinho | ✅ Ready |
+| [pagina-produto.md](./pagina-produto.md) | Página de Produto | ✅ Ready |
+| [pagina-categoria.md](./pagina-categoria.md) | Página de Categoria | ✅ Ready |
+| [pagina-obrigado.md](./pagina-obrigado.md) | Página Obrigado | ✅ Ready |
+| [paginas-institucionais.md](./paginas-institucionais.md) | Páginas Institucionais | ✅ Ready |
+| [blog.md](./blog.md) | Blog | ✅ Ready |
 | **E-COMMERCE** |||
-| [descontos.md](./descontos.md) | Cupons de Desconto ✅ | `src/pages/Discounts.tsx`, `src/components/discounts/*` |
-| [checkouts-abandonados.md](./checkouts-abandonados.md) | Checkouts Abandonados ✅ | `src/pages/AbandonedCheckouts.tsx`, `src/hooks/useCheckoutSessions.ts` |
+| [produtos.md](./produtos.md) | Produtos | ✅ Ready |
+| [pedidos.md](./pedidos.md) | Pedidos | ✅ Ready |
+| [clientes.md](./clientes.md) | Clientes/CRM | ✅ Ready |
+| [categorias.md](./categorias.md) | Categorias | ✅ Ready |
+| [descontos.md](./descontos.md) | Cupons de Desconto | ✅ Ready |
+| [checkouts-abandonados.md](./checkouts-abandonados.md) | Checkouts Abandonados | ✅ Ready |
+| **MARKETING** |||
+| [ofertas.md](./ofertas.md) | Aumentar Ticket | ✅ Ready |
+| [avaliacoes.md](./avaliacoes.md) | Avaliações | ✅ Ready |
+| [midias-uploads.md](./midias-uploads.md) | Mídias e Uploads | ✅ Ready |
+| [marketing-integracoes.md](./marketing-integracoes.md) | Marketing/Atribuição | 🟧 Pending |
 | **SISTEMA** |||
-| [edge-functions.md](./edge-functions.md) | Edge Functions | `supabase/functions/*` |
-| [platform-emails.md](./platform-emails.md) | Emails da Plataforma ✅ | `src/pages/SystemEmails.tsx`, `src/components/integrations/SystemEmail*.tsx` |
+| [usuarios-permissoes.md](./usuarios-permissoes.md) | Usuários e RBAC | ✅ Ready |
+| [planos-billing.md](./planos-billing.md) | Planos e Billing | 🟧 Pending |
+| [integracoes.md](./integracoes.md) | Integrações | 🟧 Pending |
+| [edge-functions.md](./edge-functions.md) | Edge Functions | ✅ |
+| [platform-emails.md](./platform-emails.md) | Emails da Plataforma | ✅ Ready |
+| **PARCERIAS** |||
+| [afiliados.md](./afiliados.md) | Programa de Afiliados | 🟧 Pending |
+| **ERP** |||
+| [erp.md](./erp.md) | Fiscal/Financeiro/Compras | 🟧 Pending |
+| [logistica.md](./logistica.md) | Logística/Shipping | 🟧 Pending |
+| **CRM** |||
+| [crm.md](./crm.md) | Notificações/Atendimento | 🟧 Pending |
 
 ---
 
-## Como Usar
+## Legenda de Status
 
-**Antes de editar qualquer arquivo, leia o doc de regras correspondente:**
-
-| Se for editar... | Leia... |
-|------------------|---------|
-| `src/components/storefront/StorefrontHeader*.tsx` | `header.md` |
-| `src/components/storefront/StorefrontFooter*.tsx` | `footer.md` |
-| `src/components/builder/*` | `builder.md` |
-| `src/components/storefront/checkout/*` | `checkout.md` |
-| `src/pages/Offers.tsx`, `src/components/offers/*` | `ofertas.md` |
-| `src/pages/Reviews.tsx`, `src/components/reviews/*` | `avaliacoes.md` |
-| `src/lib/upload*.ts`, upload de imagens | `midias-uploads.md` |
-| `supabase/functions/*` | `edge-functions.md` |
-| `src/pages/Discounts.tsx`, `src/components/discounts/*` | `descontos.md` |
-| `src/pages/AbandonedCheckouts.tsx`, `src/hooks/useCheckoutSessions.ts` | `checkouts-abandonados.md` |
-| `src/pages/SystemEmails.tsx`, `src/components/integrations/SystemEmail*.tsx` | `platform-emails.md` |
+| Status | Significado |
+|--------|-------------|
+| ✅ Ready | 100% funcional e validado |
+| 🟧 Pending | Em construção/incompleto |
 
 ---
 
@@ -64,5 +68,3 @@ Este diretório contém as regras e especificações separadas por módulo para 
 ## Documento Principal
 
 O documento principal com TODAS as regras continua sendo: [`docs/REGRAS.md`](../REGRAS.md)
-
-Estes arquivos por módulo são extrações para consulta rápida e devem estar sincronizados com o documento principal.
