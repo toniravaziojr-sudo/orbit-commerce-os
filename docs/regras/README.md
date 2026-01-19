@@ -6,9 +6,14 @@ Este diretório contém as regras e especificações separadas por módulo para 
 
 | Arquivo | Módulo | Arquivos Relacionados |
 |---------|--------|----------------------|
-| [header.md](./header.md) | Header/Cabeçalho | `src/components/storefront/StorefrontHeader*.tsx`, `src/components/builder/theme-settings/HeaderSettings.tsx` |
-| [footer.md](./footer.md) | Footer/Rodapé | `src/components/storefront/StorefrontFooter*.tsx`, `src/components/builder/theme-settings/FooterSettings.tsx` |
+| [regras-gerais.md](./regras-gerais.md) | Regras Gerais | TODO o sistema |
+| [header.md](./header.md) | Header/Cabeçalho | `src/components/storefront/StorefrontHeader*.tsx` |
+| [footer.md](./footer.md) | Footer/Rodapé | `src/components/storefront/StorefrontFooter*.tsx` |
 | [builder.md](./builder.md) | Builder/Editor | `src/components/builder/*`, `src/pages/storefront/*` |
+| [checkout.md](./checkout.md) | Checkout | `src/components/storefront/checkout/*` |
+| [ofertas.md](./ofertas.md) | Aumentar Ticket | `src/pages/Offers.tsx`, `src/components/offers/*` |
+| [avaliacoes.md](./avaliacoes.md) | Avaliações | `src/pages/Reviews.tsx`, `src/components/reviews/*` |
+| [midias-uploads.md](./midias-uploads.md) | Mídias e Uploads | `src/lib/upload*.ts`, `src/hooks/useSystemUpload.ts` |
 | [edge-functions.md](./edge-functions.md) | Edge Functions | `supabase/functions/*` |
 
 ---
@@ -19,13 +24,14 @@ Este diretório contém as regras e especificações separadas por módulo para 
 
 | Se for editar... | Leia... |
 |------------------|---------|
-| `src/components/storefront/StorefrontHeader*.tsx` | `docs/regras/header.md` |
-| `src/components/storefront/StorefrontFooter*.tsx` | `docs/regras/footer.md` |
-| `src/components/builder/theme-settings/HeaderSettings.tsx` | `docs/regras/header.md` |
-| `src/components/builder/theme-settings/FooterSettings.tsx` | `docs/regras/footer.md` |
-| `src/components/builder/*` | `docs/regras/builder.md` |
-| `src/pages/storefront/*` | `docs/regras/builder.md` |
-| `supabase/functions/*` | `docs/regras/edge-functions.md` |
+| `src/components/storefront/StorefrontHeader*.tsx` | `header.md` |
+| `src/components/storefront/StorefrontFooter*.tsx` | `footer.md` |
+| `src/components/builder/*` | `builder.md` |
+| `src/components/storefront/checkout/*` | `checkout.md` |
+| `src/pages/Offers.tsx`, `src/components/offers/*` | `ofertas.md` |
+| `src/pages/Reviews.tsx`, `src/components/reviews/*` | `avaliacoes.md` |
+| `src/lib/upload*.ts`, upload de imagens | `midias-uploads.md` |
+| `supabase/functions/*` | `edge-functions.md` |
 
 ---
 
@@ -33,9 +39,8 @@ Este diretório contém as regras e especificações separadas por módulo para 
 
 | Regra | Descrição |
 |-------|-----------|
-| **Proibição de edição autônoma** | A Lovable **NÃO PODE** editar, atualizar ou "melhorar" estes documentos por conta própria. |
+| **Proibição de edição autônoma** | A Lovable **NÃO PODE** editar estes documentos por conta própria. |
 | **Alteração somente por comando explícito** | Só pode ser alterado quando o usuário pedir usando: `ATUALIZAR REGRAS: [instruções]`. |
-| **Reporte de lacunas** | Se identificar inconsistência, apenas **REPORTAR** e propor texto para aprovação — **SEM ALTERAR**. |
 
 ---
 
