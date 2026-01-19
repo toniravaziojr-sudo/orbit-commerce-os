@@ -22,7 +22,7 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   '/discounts': 'ready',
   
   // Loja Online
-  '/storefront': 'pending',
+  '/storefront': 'ready',
   '/abandoned-checkouts': 'ready',
   '/menus': 'ready',
   '/pages': 'ready',
