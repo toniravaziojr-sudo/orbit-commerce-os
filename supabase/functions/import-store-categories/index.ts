@@ -21,11 +21,14 @@ interface CategoryCandidate {
   name: string;
   parentSlug?: string;
   fromNav: boolean;
-  score: number;
+  isProductGrid: boolean;
+  hasProducts: boolean;
+  productCount: number;
   sortOrder: number;
   bannerDesktopUrl?: string;
   bannerMobileUrl?: string;
   imageUrl?: string;
+  description?: string;
 }
 
 interface ImportStats {
@@ -55,7 +58,8 @@ const BLACKLIST_HARD = [
   'frete', 'shipping', 'entrega', 'delivery',
   'cupom', 'coupon', 'desconto', 'discount',
   'newsletter', 'assinar', 'subscribe',
-  'cookies', 'gdpr', 'lgpd'
+  'cookies', 'gdpr', 'lgpd',
+  'pages', 'pagina', 'paginas', 'institucional'
 ];
 
 // Category URL patterns (high confidence)
@@ -101,10 +105,14 @@ function extractSlugFromUrl(url: string): string | null {
 }
 
 function isBlacklistedUrl(url: string): boolean {
-  const path = new URL(url).pathname.toLowerCase();
-  return BLACKLIST_HARD.some(term => 
-    path.includes(`/${term}`) || path.includes(`/${term}/`)
-  );
+  try {
+    const path = new URL(url).pathname.toLowerCase();
+    return BLACKLIST_HARD.some(term => 
+      path.includes(`/${term}`) || path.includes(`/${term}/`) || path.endsWith(`/${term}`)
+    );
+  } catch {
+    return true;
+  }
 }
 
 function slugToName(slug: string): string {
@@ -116,33 +124,27 @@ function slugToName(slug: string): string {
     .join(' ');
 }
 
-function calculateScore(url: string, fromNav: boolean): number {
-  if (fromNav) return 1.0;
-  
-  let score = 0;
-  const path = new URL(url).pathname.toLowerCase();
-  
-  if (/\/(?:collections?|categoria|category|c)\//.test(path)) score += 0.5;
-  if (/\/(?:departamento|department)\//.test(path)) score += 0.4;
-  if (/\/(?:shop|loja)\//.test(path)) score += 0.3;
-  
-  if (url.includes('?variant=') || url.includes('?ref=')) score -= 0.3;
-  if (url.includes('/product') || url.includes('/produto')) score -= 0.5;
-  if (/\/[a-f0-9-]{36}/.test(path)) score -= 0.4;
-  
-  return Math.max(0, Math.min(1, score));
+// ===========================================
+// CATEGORY PAGE VERIFICATION
+// ===========================================
+
+interface CategoryPageAnalysis {
+  isCategory: boolean;
+  hasProductGrid: boolean;
+  productCount: number;
+  bannerDesktopUrl?: string;
+  bannerMobileUrl?: string;
+  imageUrl?: string;
+  title?: string;
+  description?: string;
 }
 
-// ===========================================
-// BANNER EXTRACTION
-// ===========================================
-
-async function extractCategoryBanners(
+async function analyzeCategoryPage(
   categoryUrl: string,
   firecrawlApiKey: string
-): Promise<{ bannerDesktopUrl?: string; bannerMobileUrl?: string; imageUrl?: string }> {
+): Promise<CategoryPageAnalysis> {
   try {
-    console.log(`[Categories] Extracting banners from ${categoryUrl}`);
+    console.log(`[Categories] Analyzing page: ${categoryUrl}`);
     
     const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
       method: 'POST',
@@ -154,73 +156,182 @@ async function extractCategoryBanners(
         url: categoryUrl,
         formats: ['html'],
         onlyMainContent: false,
-        waitFor: 2000
+        waitFor: 3000
       })
     });
 
     if (!response.ok) {
       console.log(`[Categories] Firecrawl failed for ${categoryUrl}`);
-      return {};
+      return { isCategory: false, hasProductGrid: false, productCount: 0 };
     }
 
     const result = await response.json();
     const html = result?.data?.html || result?.html || '';
     
-    if (!html) return {};
-
-    // Extract banner images from common patterns
-    const banners: { desktop?: string; mobile?: string; thumbnail?: string } = {};
-    
-    // Pattern 1: Shopify collection banner
-    const shopifyBannerMatch = html.match(/<img[^>]*class="[^"]*collection[^"]*banner[^"]*"[^>]*src="([^"]+)"/i);
-    if (shopifyBannerMatch) {
-      banners.desktop = shopifyBannerMatch[1];
+    if (!html) {
+      return { isCategory: false, hasProductGrid: false, productCount: 0 };
     }
+
+    // =====================================================
+    // DETECT PRODUCT GRID - This is the KEY characteristic
+    // =====================================================
     
-    // Pattern 2: Hero/banner section images
-    const heroPatterns = [
-      /<section[^>]*(?:class|id)="[^"]*(?:hero|banner|header)[^"]*"[^>]*>[\s\S]*?<img[^>]*src="([^"]+)"/i,
-      /<div[^>]*(?:class|id)="[^"]*(?:category-banner|collection-banner|page-banner)[^"]*"[^>]*>[\s\S]*?<img[^>]*src="([^"]+)"/i,
-      /<picture[^>]*>[\s\S]*?<source[^>]*srcset="([^"]+)"[^>]*media="\(min-width/i,
+    // Multiple patterns to detect product grids
+    const productGridPatterns = [
+      // Generic product cards/items
+      /<(?:div|article|li)[^>]*class="[^"]*(?:product|item|card)[^"]*"[^>]*>/gi,
+      // Product lists/grids
+      /<(?:ul|div)[^>]*class="[^"]*(?:products?-list|products?-grid|product-collection|collection-products)[^"]*"/gi,
+      // Shopify specific
+      /<div[^>]*class="[^"]*(?:collection-products|product-grid)[^"]*"/gi,
+      // WooCommerce
+      /<ul[^>]*class="[^"]*products[^"]*"/gi,
+      // Nuvemshop/Tray
+      /<div[^>]*class="[^"]*(?:js-product-table|product-table)[^"]*"/gi,
+      // Generic grid with product links
+      /<a[^>]*href="[^"]*\/(?:product|produto|p)\/[^"]+"/gi,
     ];
     
-    for (const pattern of heroPatterns) {
+    let totalProductMatches = 0;
+    for (const pattern of productGridPatterns) {
+      const matches = html.match(pattern) || [];
+      totalProductMatches += matches.length;
+    }
+    
+    // Count product links (more specific)
+    const productLinkPatterns = [
+      /<a[^>]*href="[^"]*\/(?:products?|produto|item|p)\/[^"]+"/gi,
+      /<a[^>]*class="[^"]*product[^"]*"[^>]*href="[^"]+"/gi,
+    ];
+    
+    let productLinkCount = 0;
+    for (const pattern of productLinkPatterns) {
+      const matches = html.match(pattern) || [];
+      productLinkCount += matches.length;
+    }
+    
+    // Count add to cart buttons (strong indicator)
+    const addToCartPatterns = [
+      /(?:add.?to.?cart|adicionar.?(?:ao|no|à).?carrinho|comprar|buy)/gi,
+      /<button[^>]*(?:class="[^"]*(?:add-to-cart|buy-button|btn-buy)[^"]*"|data-action="add")[^>]*>/gi,
+    ];
+    
+    let addToCartCount = 0;
+    for (const pattern of addToCartPatterns) {
+      const matches = html.match(pattern) || [];
+      addToCartCount += matches.length;
+    }
+    
+    // Check for price indicators
+    const pricePatterns = [
+      /R\$\s*\d+[,.]?\d*/g,
+      /<[^>]*class="[^"]*(?:price|preco)[^"]*"[^>]*>/gi,
+      /data-price="/gi,
+    ];
+    
+    let priceCount = 0;
+    for (const pattern of pricePatterns) {
+      const matches = html.match(pattern) || [];
+      priceCount += matches.length;
+    }
+
+    // Decision: Is this a category page?
+    // Category pages have: product grid + multiple products + prices
+    const hasProductGrid = totalProductMatches >= 3 || productLinkCount >= 3;
+    const hasMultipleProducts = productLinkCount >= 2 || priceCount >= 3;
+    const isCategory = hasProductGrid && hasMultipleProducts;
+    
+    const productCount = Math.max(productLinkCount, Math.floor(priceCount / 2));
+    
+    console.log(`[Categories] ${categoryUrl} - Grid: ${hasProductGrid}, Products: ${productCount}, IsCategory: ${isCategory}`);
+
+    if (!isCategory) {
+      return { isCategory: false, hasProductGrid: false, productCount: 0 };
+    }
+
+    // =====================================================
+    // EXTRACT BANNERS (only for confirmed category pages)
+    // =====================================================
+    
+    const banners: { desktop?: string; mobile?: string; thumbnail?: string } = {};
+    const origin = new URL(categoryUrl).origin;
+    
+    // Look for banners INSIDE the main content (not in header/footer)
+    // Remove header and footer from analysis for banner extraction
+    let mainContent = html;
+    mainContent = mainContent.replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '');
+    mainContent = mainContent.replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '');
+    
+    // Banner patterns - looking for large hero images at the top of content
+    const bannerPatterns = [
+      // Category/collection banner
+      /<img[^>]*class="[^"]*(?:category-banner|collection-banner|banner|hero)[^"]*"[^>]*src="([^"]+)"/i,
+      /<div[^>]*class="[^"]*(?:category-banner|collection-banner|banner-category|hero)[^"]*"[^>]*>[\s\S]*?<img[^>]*src="([^"]+)"/i,
+      // Picture element with srcset
+      /<picture[^>]*>[\s\S]*?<source[^>]*media="\(min-width[^"]*"[^>]*srcset="([^"]+)"/i,
+      // Background image
+      /style="[^"]*background(?:-image)?:\s*url\(['"]?([^'")\s]+)['"]?\)[^"]*"[^>]*class="[^"]*(?:banner|hero|category)[^"]*"/i,
+      // First large image after header (likely banner)
+      /<main[^>]*>[\s\S]*?<img[^>]*(?:class="[^"]*(?:banner|hero|full)[^"]*"[^>]*)?src="([^"]+)"[^>]*(?:width="[89]\d{2,}|style="[^"]*width:\s*100%)/i,
+    ];
+    
+    for (const pattern of bannerPatterns) {
       if (banners.desktop) break;
-      const match = html.match(pattern);
-      if (match) {
+      const match = mainContent.match(pattern);
+      if (match && match[1]) {
         banners.desktop = match[1];
       }
     }
     
-    // Pattern 3: Mobile banner (picture with media query)
-    const mobileSourceMatch = html.match(/<picture[^>]*>[\s\S]*?<source[^>]*srcset="([^"]+)"[^>]*media="\(max-width/i);
-    if (mobileSourceMatch) {
-      banners.mobile = mobileSourceMatch[1];
+    // Mobile banner
+    const mobileBannerPatterns = [
+      /<picture[^>]*>[\s\S]*?<source[^>]*media="\(max-width[^"]*"[^>]*srcset="([^"]+)"/i,
+      /data-mobile-src="([^"]+)"/i,
+      /<img[^>]*class="[^"]*mobile[^"]*banner[^"]*"[^>]*src="([^"]+)"/i,
+    ];
+    
+    for (const pattern of mobileBannerPatterns) {
+      if (banners.mobile) break;
+      const match = mainContent.match(pattern);
+      if (match && match[1]) {
+        banners.mobile = match[1];
+      }
     }
     
-    // Pattern 4: Data attributes for responsive images
-    const responsiveMatch = html.match(/data-desktop-src="([^"]+)"[^>]*data-mobile-src="([^"]+)"/i);
-    if (responsiveMatch) {
-      banners.desktop = banners.desktop || responsiveMatch[1];
-      banners.mobile = responsiveMatch[2];
-    }
-    
-    // Pattern 5: Category thumbnail/image
+    // Category thumbnail/image
     const thumbnailPatterns = [
       /<img[^>]*class="[^"]*category-image[^"]*"[^>]*src="([^"]+)"/i,
-      /<img[^>]*(?:alt|title)="[^"]*(?:category|collection)[^"]*"[^>]*src="([^"]+)"/i,
+      /<img[^>]*alt="[^"]*(?:category|collection|categoria)[^"]*"[^>]*src="([^"]+)"/i,
     ];
     
     for (const pattern of thumbnailPatterns) {
       if (banners.thumbnail) break;
-      const match = html.match(pattern);
-      if (match) {
+      const match = mainContent.match(pattern);
+      if (match && match[1]) {
         banners.thumbnail = match[1];
       }
     }
     
-    // Clean up URLs (ensure absolute)
-    const origin = new URL(categoryUrl).origin;
+    // Extract title (h1 inside content)
+    const titleMatch = mainContent.match(/<h1[^>]*>([^<]+)<\/h1>/i);
+    const title = titleMatch ? titleMatch[1].trim() : undefined;
+    
+    // Extract description
+    const descPatterns = [
+      /<div[^>]*class="[^"]*(?:category-description|collection-description)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+      /<p[^>]*class="[^"]*(?:category-desc|collection-desc)[^"]*"[^>]*>([^<]+)<\/p>/i,
+    ];
+    
+    let description: string | undefined;
+    for (const pattern of descPatterns) {
+      const match = mainContent.match(pattern);
+      if (match && match[1]) {
+        description = match[1].replace(/<[^>]+>/g, '').trim().slice(0, 500);
+        break;
+      }
+    }
+    
+    // Clean URLs
     const cleanUrl = (url?: string) => {
       if (!url) return undefined;
       if (url.startsWith('//')) return `https:${url}`;
@@ -229,13 +340,18 @@ async function extractCategoryBanners(
     };
     
     return {
+      isCategory: true,
+      hasProductGrid: true,
+      productCount,
       bannerDesktopUrl: cleanUrl(banners.desktop),
       bannerMobileUrl: cleanUrl(banners.mobile),
       imageUrl: cleanUrl(banners.thumbnail) || cleanUrl(banners.desktop),
+      title,
+      description,
     };
   } catch (error) {
-    console.error(`[Categories] Error extracting banners from ${categoryUrl}:`, error);
-    return {};
+    console.error(`[Categories] Error analyzing ${categoryUrl}:`, error);
+    return { isCategory: false, hasProductGrid: false, productCount: 0 };
   }
 }
 
@@ -245,8 +361,7 @@ async function extractCategoryBanners(
 
 async function discoverCategories(
   sourceUrl: string,
-  firecrawlApiKey: string,
-  extractBanners: boolean = true
+  firecrawlApiKey: string
 ): Promise<CategoryCandidate[]> {
   const candidates = new Map<string, CategoryCandidate>();
   const origin = new URL(sourceUrl.startsWith('http') ? sourceUrl : `https://${sourceUrl}`).origin;
@@ -264,7 +379,7 @@ async function discoverCategories(
       url: sourceUrl,
       formats: ['html', 'links'],
       onlyMainContent: false,
-      waitFor: 2000
+      waitFor: 3000
     })
   });
 
@@ -274,93 +389,113 @@ async function discoverCategories(
   }
 
   const result = await response.json();
+  const html = result?.data?.html || result?.html || '';
   const links = result?.data?.links || result?.links || [];
 
-  console.log(`[Categories] Fetched ${links.length} links`);
+  console.log(`[Categories] Fetched ${links.length} links from homepage`);
 
-  // Step 2: Extract from links
+  // Step 2: Extract category-like URLs from header and footer
+  const headerMatch = html.match(/<header[^>]*>([\s\S]*?)<\/header>/i);
+  const footerMatch = html.match(/<footer[^>]*>([\s\S]*?)<\/footer>/i);
+  
+  const navHtml = (headerMatch?.[1] || '') + (footerMatch?.[1] || '');
+  
+  // Extract links from nav areas
+  const navLinkPattern = /<a[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/gi;
+  let navMatch;
+  const navLinks = new Map<string, string>(); // url -> label
+  
+  while ((navMatch = navLinkPattern.exec(navHtml)) !== null) {
+    const [, href, label] = navMatch;
+    if (href && label) {
+      const fullUrl = href.startsWith('/') ? `${origin}${href}` : href;
+      if (fullUrl.startsWith(origin)) {
+        navLinks.set(fullUrl, label.trim());
+      }
+    }
+  }
+
+  console.log(`[Categories] Found ${navLinks.size} nav links`);
+
+  // Step 3: Collect candidate URLs
   let sortOrder = 0;
+  const urlsToCheck: Array<{ url: string; slug: string; name: string; fromNav: boolean }> = [];
+
+  // First priority: URLs from navigation
+  for (const [url, label] of navLinks.entries()) {
+    if (isBlacklistedUrl(url)) continue;
+    
+    const slug = extractSlugFromUrl(url);
+    if (!slug) continue;
+    if (candidates.has(slug)) continue;
+    
+    urlsToCheck.push({
+      url: normalizeUrl(url),
+      slug,
+      name: label || slugToName(slug),
+      fromNav: true
+    });
+  }
+
+  // Second priority: All category-pattern links
   for (const link of links) {
     if (typeof link !== 'string' || !link.startsWith(origin)) continue;
     if (isBlacklistedUrl(link)) continue;
 
     const slug = extractSlugFromUrl(link);
     if (!slug) continue;
-    if (candidates.has(slug)) continue;
+    if (urlsToCheck.some(u => u.slug === slug)) continue;
 
-    const normalizedUrl = normalizeUrl(link);
-    const score = calculateScore(link, false);
-
-    if (score < 0.4) continue;
-
-    candidates.set(slug, {
-      url: normalizedUrl,
+    urlsToCheck.push({
+      url: normalizeUrl(link),
       slug,
       name: slugToName(slug),
-      fromNav: false,
-      score,
-      sortOrder: sortOrder++
+      fromNav: false
     });
   }
 
-  // Step 3: Try sitemap for additional categories
-  try {
-    const sitemapUrl = `${origin}/sitemap.xml`;
-    const sitemapResponse = await fetch(sitemapUrl, { 
-      headers: { 'User-Agent': 'Mozilla/5.0' }
-    });
+  console.log(`[Categories] ${urlsToCheck.length} URLs to verify as category pages`);
+
+  // Step 4: Verify each URL is actually a category page (has product grid)
+  // Limit to first 30 to avoid timeout
+  const limitedUrls = urlsToCheck.slice(0, 30);
+  
+  for (const urlInfo of limitedUrls) {
+    const analysis = await analyzeCategoryPage(urlInfo.url, firecrawlApiKey);
     
-    if (sitemapResponse.ok) {
-      const sitemapText = await sitemapResponse.text();
-      const urlMatches = sitemapText.match(/<loc>([^<]+)<\/loc>/g) || [];
+    if (analysis.isCategory) {
+      candidates.set(urlInfo.slug, {
+        url: urlInfo.url,
+        slug: urlInfo.slug,
+        name: analysis.title || urlInfo.name,
+        fromNav: urlInfo.fromNav,
+        isProductGrid: analysis.hasProductGrid,
+        hasProducts: analysis.productCount > 0,
+        productCount: analysis.productCount,
+        sortOrder: sortOrder++,
+        bannerDesktopUrl: analysis.bannerDesktopUrl,
+        bannerMobileUrl: analysis.bannerMobileUrl,
+        imageUrl: analysis.imageUrl,
+        description: analysis.description,
+      });
       
-      for (const match of urlMatches.slice(0, 100)) {
-        const url = match.replace(/<\/?loc>/g, '');
-        if (!url.startsWith(origin)) continue;
-        if (isBlacklistedUrl(url)) continue;
-
-        const slug = extractSlugFromUrl(url);
-        if (!slug || candidates.has(slug)) continue;
-
-        const score = calculateScore(url, false);
-        if (score < 0.5) continue;
-
-        candidates.set(slug, {
-          url: normalizeUrl(url),
-          slug,
-          name: slugToName(slug),
-          fromNav: false,
-          score,
-          sortOrder: sortOrder++
-        });
-      }
+      console.log(`[Categories] ✓ Confirmed: ${urlInfo.slug} (${analysis.productCount} products)`);
+    } else {
+      console.log(`[Categories] ✗ Not a category: ${urlInfo.slug}`);
     }
-  } catch (e) {
-    console.log('[Categories] Sitemap not available or error:', e);
-  }
-
-  // Step 4: Extract banners for top categories (limit to avoid timeout)
-  if (extractBanners) {
-    const topCategories = Array.from(candidates.values())
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 10); // Limit banner extraction to top 10 categories
     
-    for (const category of topCategories) {
-      const banners = await extractCategoryBanners(category.url, firecrawlApiKey);
-      category.bannerDesktopUrl = banners.bannerDesktopUrl;
-      category.bannerMobileUrl = banners.bannerMobileUrl;
-      category.imageUrl = banners.imageUrl;
-      
-      // Update in map
-      candidates.set(category.slug, category);
-    }
+    // Small delay to avoid rate limiting
+    await new Promise(r => setTimeout(r, 200));
   }
 
   const resultCategories = Array.from(candidates.values())
-    .sort((a, b) => b.score - a.score || a.sortOrder - b.sortOrder)
-    .slice(0, 100);
+    .sort((a, b) => {
+      // Prioritize nav links, then by product count
+      if (a.fromNav !== b.fromNav) return a.fromNav ? -1 : 1;
+      return b.productCount - a.productCount;
+    });
 
-  console.log(`[Categories] Found ${resultCategories.length} candidates`);
+  console.log(`[Categories] Found ${resultCategories.length} verified categories`);
   return resultCategories;
 }
 
@@ -414,7 +549,6 @@ async function linkProductsToCategories(
       }
       
       // Also try to match product slug parts with category slugs
-      const productSlugParts = product.slug.split('-');
       for (const [catSlug, catId] of categorySlugToId.entries()) {
         // Check if category slug is contained in product slug or name
         if (product.slug.includes(catSlug) || 
@@ -498,6 +632,7 @@ async function importCategory(
         .from('categories')
         .update({
           name: candidate.name,
+          description: candidate.description || null,
           sort_order: candidate.sortOrder,
           banner_desktop_url: candidate.bannerDesktopUrl || null,
           banner_mobile_url: candidate.bannerMobileUrl || null,
@@ -518,7 +653,7 @@ async function importCategory(
         internal_id: categoryId,
         external_id: candidate.url,
         status: 'success',
-        data: { slug: candidate.slug, name: candidate.name }
+        data: { slug: candidate.slug, name: candidate.name, productCount: candidate.productCount }
       }, {
         onConflict: 'tenant_id,module,external_id',
         ignoreDuplicates: false
@@ -532,6 +667,7 @@ async function importCategory(
           tenant_id: tenantId,
           name: candidate.name,
           slug: candidate.slug,
+          description: candidate.description || null,
           is_active: true,
           sort_order: candidate.sortOrder,
           banner_desktop_url: candidate.bannerDesktopUrl || null,
@@ -551,7 +687,7 @@ async function importCategory(
         internal_id: categoryId,
         external_id: candidate.url,
         status: 'success',
-        data: { slug: candidate.slug, name: candidate.name }
+        data: { slug: candidate.slug, name: candidate.name, productCount: candidate.productCount }
       }, {
         onConflict: 'tenant_id,module,external_id',
         ignoreDuplicates: false
@@ -659,8 +795,8 @@ Deno.serve(async (req) => {
       })
       .eq('id', job_id);
 
-    // Discover categories with banner extraction
-    const categories = await discoverCategories(source_url, firecrawlApiKey, true);
+    // Discover categories with product grid verification
+    const categories = await discoverCategories(source_url, firecrawlApiKey);
 
     if (categories.length === 0) {
       await updateJobProgress(supabase, job_id, {

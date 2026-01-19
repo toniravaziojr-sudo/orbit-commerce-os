@@ -1,13 +1,11 @@
 // =====================================================
-// IMPORT INSTITUTIONAL PAGES - Sistema Simplificado
+// IMPORT INSTITUTIONAL PAGES - Sistema Aprimorado
 // =====================================================
-// NOVO COMPORTAMENTO: Apenas identificar URLs de páginas
-// institucionais e criar placeholders vazios (usuário preenche depois)
-// 
-// FLUXO:
-// 1. Descobrir TODOS os links do site via Firecrawl
-// 2. Filtrar candidatos por padrões de URL institucional
-// 3. Criar páginas vazias (slug + título derivado)
+// COMPORTAMENTO: 
+// 1. Navegar nos links do footer e header
+// 2. Identificar páginas SIMPLES (texto, imagem, vídeo)
+// 3. Excluir páginas com grid de produtos ou funcionalidades complexas
+// 4. Extrair conteúdo na ordem e montar blocos no builder
 // =====================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -21,24 +19,51 @@ const corsHeaders = {
 const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
 
 // =====================================================
+// TYPES
+// =====================================================
+
+interface ContentBlock {
+  type: 'text' | 'image' | 'video' | 'heading';
+  content: string;
+  order: number;
+  metadata?: {
+    level?: number; // for headings
+    alt?: string; // for images
+    width?: number;
+    height?: number;
+  };
+}
+
+interface PageCandidate {
+  url: string;
+  slug: string;
+  title: string;
+  isInstitutional: boolean;
+  hasProductGrid: boolean;
+  hasComplexFeatures: boolean;
+  contentBlocks: ContentBlock[];
+}
+
+// =====================================================
 // PADRÕES DE URL INSTITUCIONAL (candidatos)
 // =====================================================
 const INSTITUTIONAL_URL_PATTERNS = [
   /\/(?:pages?|pagina|paginas|policies|policy|institucional)\//i,
-  /\/(?:sobre|about|quem-somos|nossa-historia)/i,
+  /\/(?:sobre|about|quem-somos|nossa-historia|about-us)/i,
   /\/(?:politica|privacy|privacidade|lgpd)/i,
-  /\/(?:termos|terms|condicoes|regulamento)/i,
-  /\/(?:troca|devolucao|exchange|return|refund)/i,
-  /\/(?:entrega|shipping|frete|envio|delivery)/i,
+  /\/(?:termos|terms|condicoes|regulamento|terms-of-service)/i,
+  /\/(?:troca|devolucao|exchange|return|refund|trocas-e-devolucoes)/i,
+  /\/(?:entrega|shipping|frete|envio|delivery|prazos)/i,
   /\/(?:garantia|warranty)/i,
   /\/(?:faq|perguntas|duvidas|ajuda-frequente)/i,
   /\/(?:como-comprar|how-to-buy|passo-a-passo)/i,
   /\/(?:seguranca|security)/i,
-  /\/(?:pagamento|payment)/i,
+  /\/(?:pagamento|payment|formas-de-pagamento)/i,
+  /\/(?:quem-somos|nossa-historia|historia|missao)/i,
 ];
 
 // =====================================================
-// PADRÕES DE EXCLUSÃO POR URL (páginas funcionais)
+// PADRÕES DE EXCLUSÃO (páginas funcionais/complexas)
 // =====================================================
 const EXCLUDED_URL_PATTERNS = [
   /^\/?$/,                                    // Home
@@ -49,21 +74,49 @@ const EXCLUDED_URL_PATTERNS = [
   /\/account|\/minha-conta|\/my-account|\/perfil/i, // Conta
   /\/wishlist|\/favoritos/i,                  // Favoritos
   /\/search|\/busca|\/pesquisa/i,             // Busca
-  /\/track|\/rastreio|\/rastrear|\/tracking/i, // Rastreio (temos nativo)
+  /\/track|\/rastreio|\/rastrear|\/tracking/i, // Rastreio
   /\/blog|\/artigo|\/article|\/post|\/news/i, // Blog
   /\/contato|\/contact|\/fale-conosco/i,      // Contato (geralmente form)
   /\/produto|\/product|\/p\/|\/item\//i,      // Produto
   /\/categoria|\/category|\/colecao|\/collection|\/c\//i, // Categoria
+  /\/collections?\/[^/]+/i,                   // Collections (Shopify)
+  /\/departamento|\/department/i,             // Departamento
   /\/pedido|\/order|\/orders|\/meus-pedidos/i, // Pedidos
   /\/api\//i,                                 // API
   /\.(?:jpg|jpeg|png|gif|webp|svg|pdf|xml|json|css|js)$/i, // Arquivos
+  /\/shop\/|\/loja\//i,                       // Shop pages (usually category)
+];
+
+// =====================================================
+// COMPLEX FEATURE PATTERNS (exclusão)
+// =====================================================
+const COMPLEX_FEATURE_PATTERNS = [
+  // Product grids
+  /<(?:div|article|li)[^>]*class="[^"]*(?:product|item)-card[^"]*"/gi,
+  /<ul[^>]*class="[^"]*products[^"]*"/gi,
+  /<div[^>]*class="[^"]*product-grid[^"]*"/gi,
+  // Forms (complex)
+  /<form[^>]*(?:action|method)[^>]*>/gi,
+  // Login/register
+  /<input[^>]*type="(?:password|email)"[^>]*>/gi,
+  // Shopping features
+  /(?:add.?to.?cart|adicionar.?ao.?carrinho)/gi,
+  /data-product-id=/gi,
+  // Price indicators (multiple = product listing)
+  /R\$\s*\d+[,.]?\d*/g,
 ];
 
 // =====================================================
 // FUNÇÕES AUXILIARES
 // =====================================================
 
-// Descobrir links do site
+function jsonResponse(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+  });
+}
+
 async function discoverLinks(storeUrl: string): Promise<string[]> {
   if (!FIRECRAWL_API_KEY) return [];
 
@@ -76,26 +129,43 @@ async function discoverLinks(storeUrl: string): Promise<string[]> {
       },
       body: JSON.stringify({
         url: storeUrl,
-        formats: ['links'],
+        formats: ['html', 'links'],
         onlyMainContent: false,
-        waitFor: 2000,
+        waitFor: 3000,
       }),
     });
 
     if (!response.ok) return [];
     const data = await response.json();
-    return data.data?.links || [];
+    
+    // Also extract links from footer specifically
+    const html = data.data?.html || data?.html || '';
+    const links = data.data?.links || data?.links || [];
+    
+    // Extract footer links specifically
+    const footerMatch = html.match(/<footer[^>]*>([\s\S]*?)<\/footer>/i);
+    if (footerMatch) {
+      const footerHtml = footerMatch[1];
+      const linkPattern = /href="([^"]+)"/gi;
+      let match;
+      while ((match = linkPattern.exec(footerHtml)) !== null) {
+        const href = match[1];
+        if (href && !links.includes(href)) {
+          links.push(href);
+        }
+      }
+    }
+    
+    return links;
   } catch {
     return [];
   }
 }
 
-// Extrair slug do pathname
 function extractSlug(pathname: string): string {
   const pathParts = pathname.split('/').filter(Boolean);
   if (pathParts.length === 0) return '';
 
-  // Remover prefixos comuns de plataformas
   const platformPrefixes = ['pages', 'pagina', 'paginas', 'institucional', 'policies', 'policy', 'info'];
   let slugParts = pathParts;
   if (platformPrefixes.includes(pathParts[0].toLowerCase())) {
@@ -105,12 +175,291 @@ function extractSlug(pathname: string): string {
   return slugParts.join('-').toLowerCase() || pathParts[pathParts.length - 1].toLowerCase();
 }
 
-// Formatar título a partir do slug
 function formatTitle(slug: string): string {
   return slug
     .replace(/-/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase())
     .trim();
+}
+
+// =====================================================
+// PAGE ANALYSIS & CONTENT EXTRACTION
+// =====================================================
+
+async function analyzePage(pageUrl: string): Promise<PageCandidate | null> {
+  if (!FIRECRAWL_API_KEY) return null;
+
+  try {
+    console.log(`[Pages] Analyzing: ${pageUrl}`);
+    
+    const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        url: pageUrl,
+        formats: ['html', 'markdown'],
+        onlyMainContent: false,
+        waitFor: 2000,
+      }),
+    });
+
+    if (!response.ok) return null;
+    const data = await response.json();
+    
+    const html = data.data?.html || data?.html || '';
+    const markdown = data.data?.markdown || data?.markdown || '';
+    
+    if (!html) return null;
+
+    // Extract main content (remove header/footer)
+    let mainContent = html;
+    mainContent = mainContent.replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '');
+    mainContent = mainContent.replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '');
+    mainContent = mainContent.replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '');
+    mainContent = mainContent.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+    mainContent = mainContent.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+
+    // Check for complex features (product grids, forms, etc.)
+    let complexFeatureCount = 0;
+    let priceCount = 0;
+    
+    for (const pattern of COMPLEX_FEATURE_PATTERNS) {
+      pattern.lastIndex = 0;
+      const matches = mainContent.match(pattern) || [];
+      if (pattern.source.includes('R\\$')) {
+        priceCount += matches.length;
+      } else {
+        complexFeatureCount += matches.length;
+      }
+    }
+    
+    // If page has multiple prices or product-like elements, it's not institutional
+    const hasProductGrid = priceCount >= 3 || complexFeatureCount >= 2;
+    const hasComplexFeatures = complexFeatureCount >= 3;
+    
+    if (hasProductGrid || hasComplexFeatures) {
+      console.log(`[Pages] ✗ Complex page (products: ${priceCount}, features: ${complexFeatureCount}): ${pageUrl}`);
+      return null;
+    }
+
+    // Extract page title
+    const titleMatch = mainContent.match(/<h1[^>]*>([^<]+)<\/h1>/i) || 
+                       html.match(/<title>([^<]+)<\/title>/i);
+    const title = titleMatch ? titleMatch[1].trim() : formatTitle(extractSlug(new URL(pageUrl).pathname));
+
+    // Extract content blocks in order
+    const contentBlocks: ContentBlock[] = [];
+    let order = 0;
+
+    // Find the main content area
+    const mainMatches = mainContent.match(/<main[^>]*>([\s\S]*?)<\/main>/i) ||
+                       mainContent.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ||
+                       mainContent.match(/<div[^>]*class="[^"]*(?:content|page-content|main-content)[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+    
+    const contentArea = mainMatches ? mainMatches[1] : mainContent;
+
+    // Extract headings
+    const headingPattern = /<(h[1-6])[^>]*>([^<]+)<\/\1>/gi;
+    let headingMatch;
+    while ((headingMatch = headingPattern.exec(contentArea)) !== null) {
+      const level = parseInt(headingMatch[1].charAt(1));
+      const text = headingMatch[2].trim();
+      if (text && text.length > 1) {
+        contentBlocks.push({
+          type: 'heading',
+          content: text,
+          order: order++,
+          metadata: { level }
+        });
+      }
+    }
+
+    // Extract paragraphs
+    const paragraphPattern = /<p[^>]*>([^<]+(?:<[^>]+>[^<]*)*)<\/p>/gi;
+    let paragraphMatch;
+    while ((paragraphMatch = paragraphPattern.exec(contentArea)) !== null) {
+      const text = paragraphMatch[1].replace(/<[^>]+>/g, '').trim();
+      if (text && text.length > 20) { // Minimum meaningful content
+        contentBlocks.push({
+          type: 'text',
+          content: text,
+          order: order++
+        });
+      }
+    }
+
+    // Extract images (not icons, not tracking pixels)
+    const imagePattern = /<img[^>]*src="([^"]+)"[^>]*(?:alt="([^"]*)")?[^>]*>/gi;
+    let imageMatch;
+    const origin = new URL(pageUrl).origin;
+    
+    while ((imageMatch = imagePattern.exec(contentArea)) !== null) {
+      let src = imageMatch[1];
+      const alt = imageMatch[2] || '';
+      
+      // Skip tracking pixels, icons, logos
+      if (src.includes('pixel') || 
+          src.includes('tracking') || 
+          src.includes('icon') ||
+          src.includes('logo') ||
+          src.includes('data:image') ||
+          src.includes('1x1')) {
+        continue;
+      }
+      
+      // Normalize URL
+      if (src.startsWith('//')) src = `https:${src}`;
+      else if (src.startsWith('/')) src = `${origin}${src}`;
+      
+      contentBlocks.push({
+        type: 'image',
+        content: src,
+        order: order++,
+        metadata: { alt }
+      });
+    }
+
+    // Extract videos (YouTube, Vimeo, HTML5)
+    const videoPatterns = [
+      /<iframe[^>]*src="([^"]*(?:youtube|vimeo)[^"]*)"/gi,
+      /<video[^>]*>[\s\S]*?<source[^>]*src="([^"]+)"/gi,
+    ];
+    
+    for (const pattern of videoPatterns) {
+      let videoMatch;
+      while ((videoMatch = pattern.exec(contentArea)) !== null) {
+        contentBlocks.push({
+          type: 'video',
+          content: videoMatch[1],
+          order: order++
+        });
+      }
+    }
+
+    // Sort blocks by their position in HTML (approximate by order)
+    contentBlocks.sort((a, b) => a.order - b.order);
+
+    // Validate: institutional pages should have mostly text content
+    const textBlocks = contentBlocks.filter(b => b.type === 'text' || b.type === 'heading');
+    const mediaBlocks = contentBlocks.filter(b => b.type === 'image' || b.type === 'video');
+    
+    // If no meaningful text, it's probably not institutional
+    if (textBlocks.length === 0) {
+      console.log(`[Pages] ✗ No text content: ${pageUrl}`);
+      return null;
+    }
+
+    console.log(`[Pages] ✓ Institutional page: ${pageUrl} (${textBlocks.length} text, ${mediaBlocks.length} media blocks)`);
+
+    return {
+      url: pageUrl,
+      slug: extractSlug(new URL(pageUrl).pathname),
+      title,
+      isInstitutional: true,
+      hasProductGrid: false,
+      hasComplexFeatures: false,
+      contentBlocks
+    };
+  } catch (error) {
+    console.error(`[Pages] Error analyzing ${pageUrl}:`, error);
+    return null;
+  }
+}
+
+// =====================================================
+// BUILD PAGE CONTENT FOR BUILDER
+// =====================================================
+
+function buildPageContent(blocks: ContentBlock[]): any {
+  // Create builder-compatible structure
+  const children: any[] = [];
+  
+  for (const block of blocks) {
+    switch (block.type) {
+      case 'heading':
+        children.push({
+          id: crypto.randomUUID(),
+          type: 'RichText',
+          props: {
+            content: `<h${block.metadata?.level || 2}>${block.content}</h${block.metadata?.level || 2}>`,
+            alignment: 'left'
+          }
+        });
+        break;
+      
+      case 'text':
+        children.push({
+          id: crypto.randomUUID(),
+          type: 'RichText',
+          props: {
+            content: `<p>${block.content}</p>`,
+            alignment: 'left'
+          }
+        });
+        break;
+      
+      case 'image':
+        children.push({
+          id: crypto.randomUUID(),
+          type: 'Image',
+          props: {
+            src: block.content,
+            alt: block.metadata?.alt || '',
+            width: 'full'
+          }
+        });
+        break;
+      
+      case 'video':
+        children.push({
+          id: crypto.randomUUID(),
+          type: 'Video',
+          props: {
+            url: block.content,
+            autoplay: false
+          }
+        });
+        break;
+    }
+  }
+  
+  // Wrap in standard page structure
+  return {
+    id: 'root',
+    type: 'Page',
+    children: [
+      {
+        id: crypto.randomUUID(),
+        type: 'Header',
+        props: {}
+      },
+      {
+        id: crypto.randomUUID(),
+        type: 'Section',
+        props: {
+          padding: 'lg'
+        },
+        children: [
+          {
+            id: crypto.randomUUID(),
+            type: 'Container',
+            props: {
+              maxWidth: 'md'
+            },
+            children
+          }
+        ]
+      },
+      {
+        id: crypto.randomUUID(),
+        type: 'Footer',
+        props: {}
+      }
+    ]
+  };
 }
 
 // =====================================================
@@ -125,63 +474,53 @@ Deno.serve(async (req) => {
     const { tenantId, storeUrl } = await req.json();
 
     if (!tenantId || !storeUrl) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'tenantId e storeUrl são obrigatórios',
-          pages: [],
-          skipped: [],
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({
+        success: false,
+        error: 'tenantId e storeUrl são obrigatórios',
+        pages: [],
+        skipped: [],
+      });
     }
 
     if (!FIRECRAWL_API_KEY) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'FIRECRAWL_API_KEY não configurada',
-          pages: [],
-          skipped: [],
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({
+        success: false,
+        error: 'FIRECRAWL_API_KEY não configurada',
+        pages: [],
+        skipped: [],
+      });
     }
 
-    console.log(`[import-pages] Iniciando: ${storeUrl} para tenant ${tenantId}`);
+    console.log(`[Pages] Starting import: ${storeUrl} for tenant ${tenantId}`);
 
-    // Inicializar Supabase
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Normalizar URL
+    // Normalize URL
     let normalizedUrl = storeUrl.trim();
     if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
       normalizedUrl = `https://${normalizedUrl}`;
     }
     const origin = new URL(normalizedUrl).origin;
 
-    // 1. DESCOBRIR TODOS OS LINKS
+    // 1. DISCOVER ALL LINKS (focusing on footer)
     const allLinks = await discoverLinks(normalizedUrl);
-    console.log(`[import-pages] Links descobertos: ${allLinks.length}`);
+    console.log(`[Pages] Links discovered: ${allLinks.length}`);
 
     if (allLinks.length === 0) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Não foi possível descobrir links do site',
-          pages: [],
-          skipped: [],
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({
+        success: false,
+        error: 'Não foi possível descobrir links do site',
+        pages: [],
+        skipped: [],
+      });
     }
 
-    // 2. FILTRAR CANDIDATOS
+    // 2. FILTER CANDIDATES
     const seen = new Set<string>();
-    const candidates: Array<{ url: string; slug: string; title: string }> = [];
+    const candidateUrls: Array<{ url: string; slug: string }> = [];
 
     for (const link of allLinks) {
       if (!link.startsWith(origin)) continue;
@@ -197,25 +536,21 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Excluir páginas funcionais
+      // Exclude functional pages
       if (EXCLUDED_URL_PATTERNS.some(p => p.test(pathname))) continue;
 
-      // Verificar se é padrão institucional
+      // Check if matches institutional patterns
       if (!INSTITUTIONAL_URL_PATTERNS.some(p => p.test(pathname))) continue;
 
       const slug = extractSlug(pathname);
       if (!slug || slug.length < 2) continue;
 
-      candidates.push({
-        url: cleanUrl,
-        slug,
-        title: formatTitle(slug),
-      });
+      candidateUrls.push({ url: cleanUrl, slug });
     }
 
-    console.log(`[import-pages] Candidatos: ${candidates.length}`);
+    console.log(`[Pages] Candidates to analyze: ${candidateUrls.length}`);
 
-    // 3. BUSCAR SLUGS EXISTENTES
+    // 3. GET EXISTING SLUGS
     const { data: existingPages } = await supabase
       .from('store_pages')
       .select('slug')
@@ -223,27 +558,41 @@ Deno.serve(async (req) => {
 
     const existingSlugs = new Set((existingPages || []).map(p => p.slug));
 
-    // 4. CRIAR PÁGINAS VAZIAS
-    const importedPages: Array<{ id: string; title: string; slug: string }> = [];
+    // 4. ANALYZE EACH CANDIDATE AND EXTRACT CONTENT
+    const importedPages: Array<{ id: string; title: string; slug: string; blocksCount: number }> = [];
     const skippedPages: Array<{ url: string; reason: string }> = [];
 
-    for (const candidate of candidates) {
+    // Limit to 20 pages to avoid timeout
+    const limitedCandidates = candidateUrls.slice(0, 20);
+
+    for (const candidate of limitedCandidates) {
       if (existingSlugs.has(candidate.slug)) {
         skippedPages.push({ url: candidate.url, reason: 'Slug já existe' });
         continue;
       }
 
-      // Criar página vazia (placeholder)
+      // Analyze page content
+      const analysis = await analyzePage(candidate.url);
+      
+      if (!analysis) {
+        skippedPages.push({ url: candidate.url, reason: 'Não é página institucional' });
+        continue;
+      }
+
+      // Build page content for builder
+      const pageContent = buildPageContent(analysis.contentBlocks);
+
+      // Create page with extracted content
       const { data, error } = await supabase
         .from('store_pages')
         .insert({
           tenant_id: tenantId,
-          slug: candidate.slug,
-          title: candidate.title,
-          content: '', // VAZIO - usuário preenche depois
+          slug: analysis.slug,
+          title: analysis.title,
+          content: JSON.stringify(pageContent),
           status: 'draft',
           is_published: false,
-          builder_enabled: false,
+          builder_enabled: true, // Enable builder since we have content
           show_in_header: false,
           show_in_footer: true,
         })
@@ -251,60 +600,64 @@ Deno.serve(async (req) => {
         .single();
 
       if (error) {
-        console.error(`[import-pages] Erro ao criar ${candidate.slug}:`, error.message);
+        console.error(`[Pages] Error creating ${analysis.slug}:`, error.message);
         skippedPages.push({ url: candidate.url, reason: error.message });
         continue;
       }
 
       if (data) {
-        importedPages.push(data);
-        existingSlugs.add(candidate.slug); // Evitar duplicatas na mesma execução
+        importedPages.push({
+          ...data,
+          blocksCount: analysis.contentBlocks.length
+        });
+        existingSlugs.add(analysis.slug);
         
         // Register in import_items for cleanup tracking
         await supabase.from('import_items').upsert({
           tenant_id: tenantId,
-          job_id: null, // Structure import doesn't have a specific job
+          job_id: null,
           module: 'pages',
           internal_id: data.id,
           external_id: candidate.url,
           status: 'success',
-          data: { slug: candidate.slug, title: candidate.title }
+          data: { 
+            slug: analysis.slug, 
+            title: analysis.title,
+            blocksCount: analysis.contentBlocks.length 
+          }
         }, {
           onConflict: 'tenant_id,module,external_id',
           ignoreDuplicates: false
         });
         
-        console.log(`[import-pages] Criada: ${candidate.slug}`);
+        console.log(`[Pages] Created: ${analysis.slug} (${analysis.contentBlocks.length} blocks)`);
       }
+
+      // Small delay to avoid rate limiting
+      await new Promise(r => setTimeout(r, 300));
     }
 
-    console.log(`[import-pages] Importadas: ${importedPages.length}, Puladas: ${skippedPages.length}`);
+    console.log(`[Pages] Imported: ${importedPages.length}, Skipped: ${skippedPages.length}`);
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        pages: importedPages,
-        skipped: skippedPages,
-        stats: {
-          linksDiscovered: allLinks.length,
-          candidates: candidates.length,
-          imported: importedPages.length,
-          skipped: skippedPages.length,
-        },
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return jsonResponse({
+      success: true,
+      pages: importedPages,
+      skipped: skippedPages,
+      stats: {
+        linksDiscovered: allLinks.length,
+        candidates: candidateUrls.length,
+        imported: importedPages.length,
+        skipped: skippedPages.length,
+      },
+    });
 
   } catch (error) {
-    console.error('[import-pages] Erro:', error);
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: error instanceof Error ? error.message : 'Erro interno',
-        pages: [],
-        skipped: [],
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    console.error('[Pages] Error:', error);
+    return jsonResponse({
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro interno',
+      pages: [],
+      skipped: [],
+    });
   }
 });
