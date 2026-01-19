@@ -2491,7 +2491,7 @@ const blockDefinitions: BlockDefinition[] = [
     propsSchema: {
       title: { type: 'string', label: 'Título' },
       subtitle: { type: 'string', label: 'Subtítulo' },
-      endDate: { type: 'string', label: 'Data de Término (ISO)' },
+      endDate: { type: 'datetime', label: 'Data de Término', helpText: 'Selecione a data e hora que a oferta termina' },
       showDays: { type: 'boolean', label: 'Mostrar Dias' },
       showHours: { type: 'boolean', label: 'Mostrar Horas' },
       showMinutes: { type: 'boolean', label: 'Mostrar Minutos' },

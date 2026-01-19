@@ -515,6 +515,46 @@ function PropField({ name, schema, value, onChange, blockType, allProps }: PropF
           </div>
         );
 
+      case 'datetime': {
+        // Convert ISO string to datetime-local format (YYYY-MM-DDTHH:mm)
+        const toDatetimeLocal = (isoString: string) => {
+          if (!isoString) return '';
+          try {
+            const date = new Date(isoString);
+            if (isNaN(date.getTime())) return '';
+            // Format: YYYY-MM-DDTHH:mm
+            return date.toISOString().slice(0, 16);
+          } catch {
+            return '';
+          }
+        };
+
+        // Convert datetime-local value back to ISO string
+        const fromDatetimeLocal = (localValue: string) => {
+          if (!localValue) return '';
+          try {
+            const date = new Date(localValue);
+            return date.toISOString();
+          } catch {
+            return '';
+          }
+        };
+
+        return (
+          <div className="space-y-1.5">
+            <Input
+              type="datetime-local"
+              value={toDatetimeLocal((value as string) || '')}
+              onChange={(e) => onChange(fromDatetimeLocal(e.target.value))}
+              className="h-8 text-xs"
+            />
+            {schema.helpText && (
+              <p className="text-xs text-muted-foreground">{schema.helpText}</p>
+            )}
+          </div>
+        );
+      }
+
       case 'image': {
         // Check if field name indicates desktop or mobile variant
         const isDesktopField = name.toLowerCase().includes('desktop');
