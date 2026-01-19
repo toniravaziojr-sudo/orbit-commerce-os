@@ -12,9 +12,9 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/lib/cartTotals';
 import { useCart } from '@/contexts/CartContext';
-import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { useActiveOfferRules, OfferRule } from '@/hooks/useOfferRules';
 import { toast } from 'sonner';
+import type { BlockRenderContext } from '@/lib/builder/types';
 
 interface CrossSellSlotBlockProps {
   title?: string;
@@ -24,6 +24,7 @@ interface CrossSellSlotBlockProps {
   ctaLabel?: string;
   ctaHref?: string;
   isEditing?: boolean;
+  context?: BlockRenderContext;
 }
 
 interface Product {
@@ -43,9 +44,15 @@ export function CrossSellSlotBlock({
   ctaLabel = 'Configurar em Aumentar Ticket',
   ctaHref = '/offers',
   isEditing = false,
+  context,
 }: CrossSellSlotBlockProps) {
-  const tenantSlug = useTenantSlug();
-  const { items, addItem } = useCart();
+  // Get tenantSlug from context (Builder provides this)
+  const tenantSlug = context?.tenantSlug || '';
+  
+  // useCart must be called unconditionally to follow Rules of Hooks
+  const cart = useCart();
+  const items = cart?.items || [];
+  const addItem = cart?.addItem;
 
   // Fetch active cross-sell rules
   const { data: crossSellRules = [], isLoading: rulesLoading } = useActiveOfferRules('cross_sell', tenantSlug || '');

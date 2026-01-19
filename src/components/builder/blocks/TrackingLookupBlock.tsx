@@ -3,7 +3,6 @@
 // =============================================
 
 import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
 import { Package, Search, MapPin, Clock, CheckCircle2, Truck, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-// Note: useStorefrontConfig removed - calling hooks inside try-catch violates Rules of Hooks
+import type { BlockRenderContext } from '@/lib/builder/types';
 
 interface TrackingEvent {
   id: string;
@@ -37,7 +36,7 @@ interface ShipmentResult {
 interface TrackingLookupBlockProps {
   title?: string;
   description?: string;
-  context?: any;
+  context?: BlockRenderContext;
   isEditing?: boolean;
 }
 
@@ -71,12 +70,8 @@ export function TrackingLookupBlock({
   context,
   isEditing,
 }: TrackingLookupBlockProps) {
-  const { tenantSlug } = useParams<{ tenantSlug: string }>();
-  
-  // Get tenant ID from context first (provided by Builder), otherwise from storefront config
-  // Note: useStorefrontConfig must be called unconditionally (React Rules of Hooks)
-  // but it may throw if not in StorefrontConfigContext - that's why we handle via context first
-  const tenantId = context?.tenantId || context?.settings?.tenant_id;
+  // Get tenant ID from context (provided by Builder or storefront)
+  const tenantId = context?.settings?.tenant_id;
 
   const [activeTab, setActiveTab] = useState<'code' | 'email'>('code');
   const [trackingCode, setTrackingCode] = useState('');
