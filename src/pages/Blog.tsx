@@ -107,7 +107,11 @@ export default function Blog() {
         throw new Error('Este slug já está em uso. Escolha outro.');
       }
       
-      const { defaultBlogPostTemplate } = await import('@/lib/builder/defaults');
+      // Import the function that creates template with the title
+      const { createBlogPostTemplateWithTitle } = await import('@/lib/builder/defaults');
+      
+      // Create template with the actual post title
+      const contentWithTitle = createBlogPostTemplateWithTitle(data.title);
       
       const { data: newPost, error } = await supabase
         .from('blog_posts')
@@ -118,7 +122,7 @@ export default function Blog() {
           excerpt: data.excerpt || null,
           seo_title: data.seo_title || null,
           seo_description: data.seo_description || null,
-          content: defaultBlogPostTemplate as unknown as Json,
+          content: contentWithTitle as unknown as Json,
           status: 'draft',
         }])
         .select()
