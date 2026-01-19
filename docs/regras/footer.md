@@ -124,6 +124,38 @@
 | Frete | Logos de transportadoras |
 | Lojas Oficiais | Selos de marketplaces |
 
+### Seleção Rápida de Bandeiras de Pagamento
+
+O componente `PaymentIconsQuickSelect` permite adicionar ícones de pagamento pré-definidos em massa.
+
+| Componente | Arquivo |
+|------------|---------|
+| **Quick Select** | `src/components/builder/theme-settings/PaymentIconsQuickSelect.tsx` |
+
+**Bandeiras Disponíveis:**
+| ID | Nome |
+|----|------|
+| `visa` | Visa |
+| `mastercard` | Mastercard |
+| `elo` | Elo |
+| `amex` | American Express |
+| `hipercard` | Hipercard |
+| `pix` | PIX |
+| `boleto` | Boleto |
+| `mercadopago` | Mercado Pago |
+| `paypal` | PayPal |
+| `nubank` | Nubank |
+| `picpay` | PicPay |
+| `dinersclub` | Diners Club |
+
+**Comportamento:**
+- Botão "Seleção Rápida de Bandeiras" abre picker
+- Grid 4 colunas com ícones selecionáveis
+- Ícones já adicionados ficam desabilitados
+- Botão "Adicionar Todas" adiciona todas de uma vez
+- Botão "Adicionar (N)" adiciona apenas selecionadas
+- Ícones são SVGs inline (data URI), não dependem de CDN
+
 ---
 
 ## Responsividade — Container Queries
@@ -161,3 +193,12 @@
 | **Dados de contato** | Fonte única: `store_settings` (tenant-wide) |
 | **Reflexo automático** | Alterações em `store_settings` refletem em header E footer |
 | **Proibido duplicar** | Não criar props separadas para contato no rodapé |
+
+---
+
+## Histórico de Alterações
+
+| Data | Alteração |
+|------|-----------|
+| 2025-01-19 | Adicionado componente `PaymentIconsQuickSelect` para seleção rápida de bandeiras |
+| 2025-01-19 | 12 ícones de pagamento pré-definidos (Visa, Mastercard, Elo, PIX, Boleto, etc.) |

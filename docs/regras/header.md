@@ -17,6 +17,8 @@
 | `featuredPromosLabel` | string | Texto do link de destaque |
 | `featuredPromosTarget` | string | Destino (ex: `category:slug` ou `page:slug`) |
 | `featuredPromosTextColor` | string | Cor do texto de destaque |
+| `featuredPromosBgColor` | string | Cor de fundo do badge de destaque |
+| `featuredPromosThumbnail` | string | URL da miniatura exibida no hover (desktop) |
 
 > ⚠️ **ATENÇÃO:** O destino de promoções em destaque usa `featuredPromosTarget`, NÃO `featuredPromosDestination`.
 
@@ -57,9 +59,9 @@
 │  └─────────────┘  └───────────────────────────┘  └───────────────────┘  │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  LINHA SECUNDÁRIA                                                        │
-│  ┌─────────────────────────────────────────┐  ┌───────────────────────┐ │
-│  │  Menu Header (Categorias, Links...)      │  │ Promoções em Destaque │ │
-│  └─────────────────────────────────────────┘  └───────────────────────┘ │
+│  ┌───────────────────┐  ┌─────────────────────────────┐  ┌───────────┐ │
+│  │ Promo Destaque    │  │ Menu Header (Categorias...) │  │ (spacer)  │ │
+│  └───────────────────┘  └─────────────────────────────┘  └───────────┘ │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -121,9 +123,63 @@
 | Característica | Descrição |
 |----------------|-----------|
 | **Níveis** | Até 3 níveis de profundidade |
-| **Desktop** | Dropdowns em hover |
+| **Desktop** | Dropdowns em hover com animações |
 | **Mobile** | Accordion expansível |
 | **Tipos de item** | `category`, `page`, `external`, `landing_page` |
+
+### Estilo do Dropdown (Desktop)
+
+| Característica | Implementação |
+|----------------|---------------|
+| **Container** | `bg-popover/95 backdrop-blur-md rounded-xl shadow-xl` |
+| **Animação** | `animate-in fade-in-0 zoom-in-95 slide-in-from-top-2` |
+| **Header** | Título uppercase com separador |
+| **Hover** | Indicador lateral animado (barra vertical primary) |
+| **Subitems** | Slide para direita com header próprio |
+| **Footer** | Link "Ver todos" para categoria pai |
+| **Arrow** | Seta rotacionada apontando para trigger |
+
+### Menu Demo (Builder)
+
+Quando `isEditing=true` e não há menu real:
+
+| Item | Comportamento |
+|------|---------------|
+| **Categorias** | Dropdown interativo com subitens demo |
+| **Novidades** | Link simples (hover) |
+| **Promoções** | Link simples (hover) |
+| **Sobre** | Link simples (hover) |
+| **Badge** | "Demo • Configure em Menus" |
+
+**Subitens Demo de Categorias:**
+- Masculino → Camisetas, Calças, Acessórios
+- Feminino → Vestidos, Blusas, Saias
+- Infantil
+- Promoções
+
+---
+
+## Promoções em Destaque
+
+| Prop | Tipo | Descrição |
+|------|------|-----------|
+| `featuredPromosEnabled` | boolean | Habilita/desabilita seção |
+| `featuredPromosLabel` | string | Texto do badge (ex: "Ofertas da Semana") |
+| `featuredPromosTarget` | string | Destino no formato `type:slug` |
+| `featuredPromosTextColor` | string | Cor do texto do badge |
+| `featuredPromosBgColor` | string | Cor de fundo do badge (fallback: primary) |
+| `featuredPromosThumbnail` | string | URL da imagem exibida no hover (desktop) |
+
+**Formatos de Target:**
+- `category:slug` → Página de categoria
+- `page:slug` → Página institucional
+- `landing_page:slug` → Landing page
+
+**Comportamento do Thumbnail:**
+- Exibido apenas no desktop
+- Aparece em hover sobre o badge
+- Animação: `animate-in fade-in-0 zoom-in-95`
+- Posição: abaixo do badge, centralizado
 
 ---
 
@@ -146,7 +202,7 @@
 |----------|-----------|----------|
 | Nome da Loja | "Minha Loja" | Sem logo e sem nome |
 | Atendimento | Telefone, WhatsApp, Email, Endereço, Horário fictícios | Sem dados de contato |
-| Menu | "Categorias", "Novidades", "Promoções", "Sobre" | Sem menu configurado |
+| Menu | Categorias com dropdown interativo + Novidades, Promoções, Sobre | Sem menu configurado |
 
 ---
 
@@ -158,3 +214,15 @@
 | **Configuração** | Exclusivamente em "Configurações do tema" → "Cabeçalho" |
 | **Dados de contato** | Fonte única: `store_settings` (tenant-wide) |
 | **Proibido duplicar** | Não criar props separadas para contato no cabeçalho |
+
+---
+
+## Histórico de Alterações
+
+| Data | Alteração |
+|------|-----------|
+| 2025-01-19 | Adicionado `featuredPromosBgColor` para cor customizada do badge |
+| 2025-01-19 | Melhorado dropdown do menu com glassmorphism e indicadores visuais |
+| 2025-01-19 | Menu demo interativo com subitens e efeitos de hover |
+| 2025-01-19 | Removido emoji ✨ do badge de promoções |
+| 2025-01-19 | Upload de thumbnail refinado no builder |
