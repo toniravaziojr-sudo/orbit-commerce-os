@@ -48,6 +48,8 @@ export interface ThemeHeaderConfig {
   featuredPromosEnabled?: boolean;
   featuredPromosLabel?: string;
   featuredPromosTarget?: string;
+  featuredPromosTextColor?: string;
+  featuredPromosThumbnail?: string; // Desktop only - thumbnail shown on hover
   headerBgColor?: string;
   headerTextColor?: string;
   headerIconColor?: string;

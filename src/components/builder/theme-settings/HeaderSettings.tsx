@@ -14,8 +14,10 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Palette, ChevronDown, Settings, Bell, Loader2 } from 'lucide-react';
+import { Palette, ChevronDown, Settings, Bell, Loader2, Upload, X, Image as ImageIcon } from 'lucide-react';
 import { useThemeHeader, DEFAULT_THEME_HEADER, ThemeHeaderConfig } from '@/hooks/useThemeSettings';
+import { ImageUpload } from '@/components/settings/ImageUpload';
+import { useAuth } from '@/hooks/useAuth';
 
 interface HeaderSettingsProps {
   tenantId: string;
@@ -66,6 +68,7 @@ function ColorInput({
 }
 
 export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps) {
+  const { user } = useAuth();
   const { header: savedHeader, updateHeader, isLoading, isSaving } = useThemeHeader(tenantId, templateSetId);
   const [localProps, setLocalProps] = useState<ThemeHeaderConfig>(DEFAULT_THEME_HEADER);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -395,6 +398,64 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
                 <p className="text-[10px] text-muted-foreground">
                   Selecione uma categoria ou página para o link de promoções
                 </p>
+              </div>
+
+              <ColorInput
+                label="Cor do Texto"
+                value={localProps.featuredPromosTextColor || '#d97706'}
+                onChange={(v) => updateProp('featuredPromosTextColor', v)}
+              />
+              
+              {/* Thumbnail Upload - Desktop Only */}
+              <div className="space-y-2 pt-2 border-t border-muted/30">
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                  <Label className="text-[10px] font-medium">Miniatura (Desktop)</Label>
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  Imagem exibida ao passar o mouse sobre o link. Tamanho recomendado: 200x150px
+                </p>
+                {localProps.featuredPromosThumbnail ? (
+                  <div className="relative group">
+                    <img 
+                      src={localProps.featuredPromosThumbnail} 
+                      alt="Miniatura" 
+                      className="w-full h-24 object-cover rounded-lg border"
+                    />
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => updatePropImmediate('featuredPromosThumbnail', '')}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <ImageUpload
+                    label=""
+                    value=""
+                    onChange={() => {}}
+                    onUpload={async (file) => {
+                      if (!user?.id) return null;
+                      const { uploadAndRegisterToSystemDrive } = await import('@/lib/uploadAndRegisterToSystemDrive');
+                      const result = await uploadAndRegisterToSystemDrive({
+                        file,
+                        tenantId,
+                        userId: user.id,
+                        source: 'header_featured_promo',
+                        subPath: 'header',
+                      });
+                      if (result?.publicUrl) {
+                        updatePropImmediate('featuredPromosThumbnail', result.publicUrl);
+                        return result.publicUrl;
+                      }
+                      return null;
+                    }}
+                    accept="image/*"
+                    className="h-24"
+                  />
+                )}
               </div>
             </>
           )}
