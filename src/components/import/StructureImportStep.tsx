@@ -41,7 +41,7 @@ const STEP_CONFIG: Record<ImportStepKey, { label: string; description: string; i
   },
   pages: {
     label: 'Páginas Institucionais',
-    description: 'Políticas, Termos, Trocas e outras páginas (criadas como rascunho vazio)',
+    description: 'Políticas, Termos, Trocas e outras páginas com conteúdo extraído',
     icon: <FileText className="h-5 w-5" />,
   },
   menus: {
@@ -168,7 +168,7 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
       setProgress(p => ({ ...p, pages: 'completed' }));
       
       if (importedCount > 0) {
-        toast.success(`${importedCount} páginas criadas como rascunho`);
+        toast.success(`${importedCount} páginas importadas com conteúdo`);
       } else {
         toast.info('Nenhuma página institucional detectada');
       }
@@ -270,7 +270,7 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
       <Alert>
         <AlertTriangle className="h-4 w-4" />
         <AlertDescription>
-          Importe na ordem: Categorias → Páginas → Menus. Páginas são criadas como rascunho vazio para você preencher depois.
+          Importe na ordem: Categorias → Páginas → Menus.
         </AlertDescription>
       </Alert>
 
