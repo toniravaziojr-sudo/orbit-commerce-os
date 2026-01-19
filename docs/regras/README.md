@@ -35,6 +35,7 @@ Este diretório contém as regras e especificações separadas por módulo para 
 | [usuarios-permissoes.md](./usuarios-permissoes.md) | Usuários e RBAC | ✅ Ready |
 | [planos-billing.md](./planos-billing.md) | Planos e Billing | 🟧 Pending |
 | [integracoes.md](./integracoes.md) | Integrações | 🟧 Pending |
+| [dominios.md](./dominios.md) | Domínios e DNS | ✅ Ready |
 | [edge-functions.md](./edge-functions.md) | Edge Functions | ✅ |
 | [platform-emails.md](./platform-emails.md) | Emails da Plataforma | ✅ Ready |
 | **PARCERIAS** |||
