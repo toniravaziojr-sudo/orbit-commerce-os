@@ -131,7 +131,8 @@ export function StorefrontHeaderContent({
   // Featured promos props
   const featuredPromosEnabled = Boolean(props.featuredPromosEnabled);
   const featuredPromosLabel = String(props.featuredPromosLabel || 'Promoções');
-  const featuredPromosTextColor = String(props.featuredPromosTextColor || '#d97706');
+  const featuredPromosTextColor = String(props.featuredPromosTextColor || '');
+  const featuredPromosBgColor = String(props.featuredPromosBgColor || '');
   const featuredPromosDestination = String(props.featuredPromosTarget || props.featuredPromosDestination || '');
   const featuredPromosThumbnail = String(props.featuredPromosThumbnail || '');
   
@@ -837,8 +838,12 @@ export function StorefrontHeaderContent({
                 >
                   <LinkWrapper
                     to={featuredPromosUrl}
-                    className="text-xs font-bold hover:opacity-90 whitespace-nowrap px-3 py-1.5 rounded-md transition-all inline-flex items-center gap-1.5 bg-gradient-to-r from-amber-500/10 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20 border border-amber-500/20"
-                    style={{ color: featuredPromosTextColor }}
+                    className="text-xs font-bold hover:opacity-90 whitespace-nowrap px-3 py-1.5 rounded-md transition-all inline-flex items-center gap-1.5 border"
+                    style={{ 
+                      color: featuredPromosTextColor || primaryColor || 'hsl(var(--primary))',
+                      backgroundColor: featuredPromosBgColor ? `${featuredPromosBgColor}15` : (primaryColor ? `${primaryColor}15` : 'hsl(var(--primary) / 0.1)'),
+                      borderColor: featuredPromosBgColor ? `${featuredPromosBgColor}30` : (primaryColor ? `${primaryColor}30` : 'hsl(var(--primary) / 0.2)')
+                    }}
                   >
                     <span className="text-sm">✨</span>
                     {featuredPromosLabel}
@@ -846,14 +851,17 @@ export function StorefrontHeaderContent({
                   
                   {/* Thumbnail popup on hover - Desktop only */}
                   {featuredPromoHover && featuredPromosThumbnail && (
-                    <div className="absolute top-full left-0 mt-2 z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-top-2">
-                      <div className="bg-popover rounded-lg shadow-xl border border-primary/20 overflow-hidden">
+                    <div className="absolute top-full left-0 mt-2 z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200">
+                      <div 
+                        className="bg-popover rounded-lg shadow-xl border overflow-hidden"
+                        style={{ borderColor: featuredPromosBgColor ? `${featuredPromosBgColor}40` : 'hsl(var(--border))' }}
+                      >
                         <img 
                           src={featuredPromosThumbnail} 
                           alt={featuredPromosLabel}
                           className="w-48 h-36 object-cover"
                         />
-                        <div className="p-2 text-center">
+                        <div className="p-2 text-center" style={{ backgroundColor: featuredPromosBgColor ? `${featuredPromosBgColor}10` : undefined }}>
                           <span className="text-xs font-medium text-popover-foreground">{featuredPromosLabel}</span>
                         </div>
                       </div>
@@ -887,43 +895,39 @@ export function StorefrontHeaderContent({
                     </LinkWrapper>
                     {openDropdown === item.id && (
                       <div 
-                        className="absolute top-full left-1/2 -translate-x-1/2 mt-3 bg-popover/95 backdrop-blur-md border border-border/50 rounded-xl shadow-2xl py-2 min-w-[220px] z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-top-3 duration-200"
+                        className="absolute top-full left-1/2 -translate-x-1/2 mt-4 bg-popover border border-border rounded-xl shadow-2xl py-1 min-w-[240px] z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200"
                         onMouseEnter={() => handleDropdownEnter(item.id)}
                         onMouseLeave={handleDropdownLeave}
                       >
                         {/* Dropdown arrow */}
-                        <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rotate-45 bg-popover border-l border-t border-border/50" />
+                        <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rotate-45 bg-popover border-l border-t border-border" />
                         
-                        <div className="relative">
+                        <div className="relative py-1">
                           {item.children.map((child, index) => (
                             <div key={child.id} className="relative group/submenu">
                               <LinkWrapper
                                 to={getMenuItemUrl(child)}
                                 className={cn(
-                                  "flex items-center justify-between gap-3 px-4 py-3 text-sm text-popover-foreground hover:bg-primary/5 hover:text-primary transition-all duration-150",
-                                  index === 0 && "rounded-t-lg",
-                                  index === item.children.length - 1 && !child.children?.length && "rounded-b-lg"
+                                  "flex items-center justify-between gap-3 px-4 py-2.5 text-sm text-popover-foreground transition-colors duration-100",
+                                  "hover:bg-accent hover:text-accent-foreground",
+                                  "focus:bg-accent focus:text-accent-foreground focus:outline-none"
                                 )}
                               >
-                                <span className="font-medium">{child.label}</span>
+                                <span>{child.label}</span>
                                 {child.children && child.children.length > 0 && (
-                                  <ChevronRight className="h-4 w-4 opacity-40 group-hover/submenu:opacity-100 group-hover/submenu:translate-x-0.5 transition-all" />
+                                  <ChevronRight className="h-4 w-4 opacity-50 group-hover/submenu:opacity-100 transition-opacity" />
                                 )}
                               </LinkWrapper>
                               {/* Sub-submenu (3rd level) */}
                               {child.children && child.children.length > 0 && (
-                                <div className="absolute left-full top-0 ml-2 bg-popover/95 backdrop-blur-md border border-border/50 rounded-xl shadow-2xl py-2 min-w-[200px] z-50 hidden group-hover/submenu:block animate-in fade-in-0 zoom-in-95 slide-in-from-left-3 duration-200">
-                                  {child.children.map((grandchild, gIndex) => (
+                                <div className="absolute left-full top-0 ml-1 bg-popover border border-border rounded-xl shadow-2xl py-1 min-w-[200px] z-50 hidden group-hover/submenu:block animate-in fade-in-0 zoom-in-95 slide-in-from-left-2 duration-150">
+                                  {child.children.map((grandchild) => (
                                     <LinkWrapper
                                       key={grandchild.id}
                                       to={getMenuItemUrl(grandchild)}
-                                      className={cn(
-                                        "flex items-center gap-2 px-4 py-3 text-sm text-popover-foreground hover:bg-primary/5 hover:text-primary transition-all duration-150",
-                                        gIndex === 0 && "rounded-t-lg",
-                                        gIndex === child.children.length - 1 && "rounded-b-lg"
-                                      )}
+                                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors duration-100"
                                     >
-                                      <span className="font-medium">{grandchild.label}</span>
+                                      <span>{grandchild.label}</span>
                                     </LinkWrapper>
                                   ))}
                                 </div>

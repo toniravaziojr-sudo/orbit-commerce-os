@@ -49,6 +49,7 @@ export interface ThemeHeaderConfig {
   featuredPromosLabel?: string;
   featuredPromosTarget?: string;
   featuredPromosTextColor?: string;
+  featuredPromosBgColor?: string; // Background/accent color for the badge
   featuredPromosThumbnail?: string; // Desktop only - thumbnail shown on hover
   headerBgColor?: string;
   headerTextColor?: string;
