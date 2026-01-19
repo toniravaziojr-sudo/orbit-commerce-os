@@ -12,6 +12,7 @@ import { normalizeData } from '@/lib/import/platforms';
 import { parseCSV, consolidateShopifyProducts, consolidateShopifyCustomers, consolidateShopifyOrders } from '@/lib/import/utils';
 import type { PlatformType } from '@/lib/import/types';
 import { useAuth } from '@/hooks/useAuth';
+import { detectPlatform as detectPlatformFromHtml } from '@/lib/import/detector';
 
 interface GuidedImportWizardProps {
   onComplete?: () => void;
@@ -72,7 +73,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
 
       if (data?.success) {
         const html = data.data?.html || data.html || '';
-        const platform = detectPlatform(html);
+        const platform = detectPlatform(html, formattedUrl);
         setScrapedData(data.data || data);
         setAnalysisResult({ success: true, platform: platform.name, confidence: platform.confidence });
         toast.success(`Loja analisada! Plataforma: ${platform.name}`);
@@ -87,16 +88,35 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
     }
   }, [storeUrl]);
 
-  const detectPlatform = (html: string): { name: string; confidence: string } => {
-    const h = html.toLowerCase();
-    if (h.includes('shopify') || h.includes('cdn.shopify.com')) return { name: 'Shopify', confidence: 'alta' };
-    if (h.includes('woocommerce')) return { name: 'WooCommerce', confidence: 'alta' };
-    if (h.includes('nuvemshop') || h.includes('tiendanube')) return { name: 'Nuvemshop', confidence: 'alta' };
-    if (h.includes('vtex')) return { name: 'VTEX', confidence: 'alta' };
-    // TRAY detection - strong signals
-    if (h.includes('smb.tray') || h.includes('pixel-tray') || h.includes('tray.min.js') || h.includes('traycdn')) return { name: 'Tray', confidence: 'alta' };
-    if (h.includes('tray.com.br') || h.includes('traycorp')) return { name: 'Tray', confidence: 'alta' };
-    return { name: 'Não identificada', confidence: 'baixa' };
+  // Usar detector centralizado para detectar plataforma
+  const detectPlatform = (html: string, url: string): { name: string; confidence: string; platformId: PlatformType } => {
+    const result = detectPlatformFromHtml(html, url);
+    
+    // Mapear ID para nome amigável
+    const platformNames: Record<PlatformType, string> = {
+      shopify: 'Shopify',
+      nuvemshop: 'Nuvemshop',
+      tray: 'Tray',
+      woocommerce: 'WooCommerce',
+      bagy: 'Bagy',
+      yampi: 'Yampi',
+      loja_integrada: 'Loja Integrada',
+      wix: 'Wix',
+      vtex: 'VTEX',
+      magento: 'Magento',
+      opencart: 'OpenCart',
+      prestashop: 'PrestaShop',
+      unknown: 'Não identificada',
+    };
+    
+    // Mapear confiança numérica para texto
+    const confidenceText = result.confidence >= 70 ? 'alta' : result.confidence >= 40 ? 'média' : 'baixa';
+    
+    return {
+      name: platformNames[result.platform] || 'Não identificada',
+      confidence: confidenceText,
+      platformId: result.platform,
+    };
   };
 
   const handleFileImport = useCallback(async (stepId: string, file: File) => {

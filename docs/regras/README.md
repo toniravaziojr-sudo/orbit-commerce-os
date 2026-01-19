@@ -97,6 +97,7 @@ Este diretório contém as regras e especificações separadas por módulo para 
 | [integracoes.md](./integracoes.md) | Hub de Integrações | 🟧 Pending |
 | [platform-emails.md](./platform-emails.md) | Emails da Plataforma (Admin) | ✅ Ready |
 | [auxiliar-comando.md](./auxiliar-comando.md) | Auxiliar de Comando (IA) | 🟧 Pending |
+| [importacao.md](./importacao.md) | Importação de Dados (3 Etapas) | ✅ Ready |
 
 ---
 
@@ -104,7 +105,7 @@ Este diretório contém as regras e especificações separadas por módulo para 
 
 | Status | Quantidade | Significado |
 |--------|------------|-------------|
-| ✅ Ready | **24** | 100% funcional e validado |
+| ✅ Ready | **25** | 100% funcional e validado |
 | 🟧 Pending | **14** | Em construção/incompleto |
 
 ---
