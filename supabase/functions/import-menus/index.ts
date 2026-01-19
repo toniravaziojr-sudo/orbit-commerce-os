@@ -62,7 +62,7 @@ function extractSlugFromPath(pathname: string, patterns: RegExp[]): string | nul
 }
 
 // ===========================================
-// MENU EXTRACTION - IMPROVED
+// MENU EXTRACTION - IMPROVED FOR SHOPIFY + HIERARCHICAL
 // ===========================================
 
 async function extractMenuStructure(
@@ -122,17 +122,25 @@ async function extractMenuStructure(
   const blacklist = [
     'cart', 'carrinho', 'checkout', 'login', 'cadastro', 'register', 
     'search', 'busca', 'account', 'conta', 'minha-conta', 'my-account',
-    'wishlist', 'favoritos', 'track', 'rastreio'
+    'wishlist', 'favoritos', 'track', 'rastreio', 'all'
   ];
 
   // ===========================================
-  // EXTRACT HEADER MENU
+  // EXTRACT HEADER MENU (with Shopify mega-menu detection)
   // ===========================================
   const headerMatch = html.match(/<header[^>]*>([\s\S]*?)<\/header>/i);
   if (headerMatch) {
     const headerHtml = headerMatch[1];
-    menuStructure.header = extractHierarchicalMenu(headerHtml, origin, categoryPatterns, pagePatterns, blacklist);
-    console.log(`[Menus] Header items: ${menuStructure.header.length}`);
+    
+    // Try Shopify mega-menu patterns first
+    menuStructure.header = extractShopifyMegaMenu(headerHtml, origin, categoryPatterns, pagePatterns, blacklist);
+    
+    // Fallback to generic hierarchical extraction
+    if (menuStructure.header.length === 0) {
+      menuStructure.header = extractHierarchicalMenu(headerHtml, origin, categoryPatterns, pagePatterns, blacklist);
+    }
+    
+    console.log(`[Menus] Header items: ${menuStructure.header.length} (with ${menuStructure.header.filter(i => i.children?.length).length} having children)`);
   }
 
   // ===========================================
@@ -143,36 +151,19 @@ async function extractMenuStructure(
     const footerHtml = footerMatch[1];
     
     // Try to find distinct menu sections in footer
-    // Look for: <nav>, <ul class="...menu...">, <div class="...links...">
-    const menuSectionPatterns = [
-      /<nav[^>]*>([\s\S]*?)<\/nav>/gi,
-      /<ul[^>]*class="[^"]*(?:menu|nav|links|footer)[^"]*"[^>]*>([\s\S]*?)<\/ul>/gi,
-      /<div[^>]*class="[^"]*(?:footer-links|footer-menu|footer-nav|col)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
-    ];
+    // Look for titled sections with headings
+    const footerSections = extractFooterSections(footerHtml, origin, categoryPatterns, pagePatterns, blacklist);
     
-    const footerSections: string[] = [];
-    
-    for (const pattern of menuSectionPatterns) {
-      pattern.lastIndex = 0;
-      let match;
-      while ((match = pattern.exec(footerHtml)) !== null) {
-        const section = match[1] || match[0];
-        // Check if this section has links
-        if (/<a[^>]*href=/i.test(section)) {
-          footerSections.push(section);
-        }
-      }
-    }
-
     console.log(`[Menus] Found ${footerSections.length} footer sections`);
 
     if (footerSections.length >= 2) {
-      // Multiple sections - assign to footer1 and footer2
-      menuStructure.footer1 = extractHierarchicalMenu(footerSections[0], origin, categoryPatterns, pagePatterns, blacklist);
-      menuStructure.footer2 = extractHierarchicalMenu(footerSections[1], origin, categoryPatterns, pagePatterns, blacklist);
+      // Multiple sections - assign first non-empty to footer1, second to footer2
+      const nonEmptySections = footerSections.filter(s => s.length > 0);
+      menuStructure.footer1 = nonEmptySections[0] || [];
+      menuStructure.footer2 = nonEmptySections[1] || [];
     } else if (footerSections.length === 1) {
       // Single section - analyze content to split
-      const allItems = extractHierarchicalMenu(footerSections[0], origin, categoryPatterns, pagePatterns, blacklist);
+      const allItems = footerSections[0];
       
       // Separate categories from pages
       menuStructure.footer1 = allItems.filter(item => item.type === 'category');
@@ -194,6 +185,183 @@ async function extractMenuStructure(
   console.log(`[Menus] Extracted: header=${menuStructure.header.length}, footer1=${menuStructure.footer1.length}, footer2=${menuStructure.footer2.length}`);
   
   return menuStructure;
+}
+
+// ===========================================
+// SHOPIFY MEGA MENU EXTRACTION
+// Shopify uses specific classes: header__menu-item, menu-drawer__menu-item, etc.
+// ===========================================
+function extractShopifyMegaMenu(
+  html: string,
+  origin: string,
+  categoryPatterns: RegExp[],
+  pagePatterns: RegExp[],
+  blacklist: string[]
+): MenuItem[] {
+  const items: MenuItem[] = [];
+  const seenUrls = new Set<string>();
+  
+  // Shopify desktop mega menu patterns
+  // Look for top-level menu items that have submenus
+  const megaMenuPatterns = [
+    // Shopify 2.0 header__menu structure
+    /<li[^>]*class="[^"]*header__menu-item[^"]*"[^>]*>([\s\S]*?)(?=<li[^>]*class="[^"]*header__menu-item|<\/ul>|<\/nav>)/gi,
+    // Dawn theme mega-menu
+    /<details[^>]*class="[^"]*mega-menu[^"]*"[^>]*>([\s\S]*?)<\/details>/gi,
+    // Generic nav items with dropdowns
+    /<li[^>]*class="[^"]*(?:nav-item|menu-item|has-dropdown|has-submenu)[^"]*"[^>]*>([\s\S]*?)(?=<li[^>]*class="[^"]*(?:nav-item|menu-item)|<\/ul>|<\/nav>)/gi,
+  ];
+  
+  for (const pattern of megaMenuPatterns) {
+    pattern.lastIndex = 0;
+    let match;
+    
+    while ((match = pattern.exec(html)) !== null) {
+      const itemHtml = match[1] || match[0];
+      
+      // Get the main link (first link in the item)
+      const mainLinkMatch = itemHtml.match(/<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
+      if (!mainLinkMatch) continue;
+      
+      const [, href, rawLabel] = mainLinkMatch;
+      const label = rawLabel.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+      
+      if (!href || !label || seenUrls.has(href)) continue;
+      if (href === '#' || href === 'javascript:void(0)') continue;
+      if (blacklist.some(term => href.toLowerCase().includes(`/${term}`))) continue;
+      
+      seenUrls.add(href);
+      
+      const fullUrl = href.startsWith('/') ? `${origin}${href}` : href.startsWith('http') ? href : `${origin}/${href}`;
+      const item = classifyLink(fullUrl, label, categoryPatterns, pagePatterns);
+      if (!item) continue;
+      
+      // Look for submenu (nested ul or mega-menu content)
+      const submenuPatterns = [
+        /<ul[^>]*class="[^"]*(?:mega-menu|submenu|dropdown-menu|header__submenu)[^"]*"[^>]*>([\s\S]*?)<\/ul>/gi,
+        /<div[^>]*class="[^"]*(?:mega-menu|submenu|dropdown)[^"]*"[^>]*>[\s\S]*?<ul[^>]*>([\s\S]*?)<\/ul>/gi,
+        /<ul[^>]*>([\s\S]*?)<\/ul>/gi, // Fallback: any nested ul
+      ];
+      
+      for (const subPattern of submenuPatterns) {
+        subPattern.lastIndex = 0;
+        const subMatch = subPattern.exec(itemHtml);
+        if (subMatch) {
+          const childItems = extractLinksFlat(subMatch[1], origin, categoryPatterns, pagePatterns, blacklist, seenUrls);
+          if (childItems.length > 0) {
+            item.children = childItems;
+            break;
+          }
+        }
+      }
+      
+      items.push(item);
+    }
+    
+    if (items.length > 0) break; // Use first successful pattern
+  }
+  
+  return items;
+}
+
+// ===========================================
+// FOOTER SECTIONS EXTRACTION
+// Footer usually has titled sections with h3/h4 headings
+// ===========================================
+function extractFooterSections(
+  html: string,
+  origin: string,
+  categoryPatterns: RegExp[],
+  pagePatterns: RegExp[],
+  blacklist: string[]
+): MenuItem[][] {
+  const sections: MenuItem[][] = [];
+  
+  // Try to find footer columns/sections with headings
+  const sectionPatterns = [
+    // Sections with heading + list
+    /<(?:div|section)[^>]*class="[^"]*(?:footer-col|footer-block|footer-section|col-)[^"]*"[^>]*>([\s\S]*?)<\/(?:div|section)>/gi,
+    // Nav sections
+    /<nav[^>]*>([\s\S]*?)<\/nav>/gi,
+    // Divs with footer links
+    /<div[^>]*class="[^"]*(?:footer-links|footer-menu|footer-nav)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+  ];
+  
+  const processedHtml = new Set<string>();
+  
+  for (const pattern of sectionPatterns) {
+    pattern.lastIndex = 0;
+    let match;
+    
+    while ((match = pattern.exec(html)) !== null) {
+      const sectionHtml = match[1] || match[0];
+      
+      // Skip if no links
+      if (!/<a[^>]*href=/i.test(sectionHtml)) continue;
+      
+      // Skip duplicates (based on first 100 chars)
+      const key = sectionHtml.substring(0, 100);
+      if (processedHtml.has(key)) continue;
+      processedHtml.add(key);
+      
+      // Skip if this looks like social links or payment icons
+      if (/(?:instagram|facebook|twitter|youtube|linkedin|pinterest)/i.test(sectionHtml) &&
+          !/<a[^>]*href="[^"]*\/(?:page|collection|categoria)/i.test(sectionHtml)) {
+        continue;
+      }
+      
+      const items = extractHierarchicalMenu(sectionHtml, origin, categoryPatterns, pagePatterns, blacklist);
+      if (items.length >= 2) { // Only add if has meaningful content
+        sections.push(items);
+      }
+    }
+  }
+  
+  // If no sections found, try to split by dividers/breaks
+  if (sections.length === 0) {
+    const allItems = extractHierarchicalMenu(html, origin, categoryPatterns, pagePatterns, blacklist);
+    if (allItems.length > 0) {
+      sections.push(allItems);
+    }
+  }
+  
+  return sections;
+}
+
+// ===========================================
+// FLAT LINK EXTRACTION (for submenus)
+// ===========================================
+function extractLinksFlat(
+  html: string,
+  origin: string,
+  categoryPatterns: RegExp[],
+  pagePatterns: RegExp[],
+  blacklist: string[],
+  seenUrls: Set<string>
+): MenuItem[] {
+  const items: MenuItem[] = [];
+  
+  const linkPattern = /<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+  let match;
+  
+  while ((match = linkPattern.exec(html)) !== null) {
+    const [, href, rawLabel] = match;
+    const label = rawLabel.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+    
+    if (!href || !label || seenUrls.has(href)) continue;
+    if (href === '#' || href === 'javascript:void(0)') continue;
+    if (blacklist.some(term => href.toLowerCase().includes(`/${term}`))) continue;
+    
+    seenUrls.add(href);
+    
+    const fullUrl = href.startsWith('/') ? `${origin}${href}` : href.startsWith('http') ? href : `${origin}/${href}`;
+    const item = classifyLink(fullUrl, label, categoryPatterns, pagePatterns);
+    if (item) {
+      items.push(item);
+    }
+  }
+  
+  return items;
 }
 
 function extractHierarchicalMenu(
