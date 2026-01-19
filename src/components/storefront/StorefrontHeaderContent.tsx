@@ -132,7 +132,7 @@ export function StorefrontHeaderContent({
   const featuredPromosEnabled = Boolean(props.featuredPromosEnabled);
   const featuredPromosLabel = String(props.featuredPromosLabel || 'Promoções');
   const featuredPromosTextColor = String(props.featuredPromosTextColor || '#d97706');
-  const featuredPromosDestination = String(props.featuredPromosDestination || '');
+  const featuredPromosDestination = String(props.featuredPromosTarget || props.featuredPromosDestination || '');
   
   // Social media - from store_settings
   const socialFacebook = storeSettings?.social_facebook || null;
