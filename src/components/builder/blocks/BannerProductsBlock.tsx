@@ -128,6 +128,9 @@ export function BannerProductsBlock({
     if (productCount === 3) return 'grid-cols-2 grid-rows-2';
     return 'grid-cols-2 grid-rows-2'; // 4+
   };
+  
+  // Always apply aspect ratio to match banner, regardless of product count
+  const shouldApplyAspectRatio = !isMobile && productCount >= 1;
 
   if (isLoading) {
     return (
@@ -179,7 +182,7 @@ export function BannerProductsBlock({
           <div className={cn(
             'grid gap-3 overflow-hidden',
             isMobile ? 'grid-cols-2' : getProductGridClass(),
-            !isMobile && productCount >= 2 && 'aspect-[4/5]' // Match banner aspect ratio only with 2+ products
+            shouldApplyAspectRatio && 'aspect-[4/5]' // Match banner aspect ratio
           )}>
             {showEmptyState ? (
               <div className="col-span-2 row-span-2 flex items-center justify-center">
