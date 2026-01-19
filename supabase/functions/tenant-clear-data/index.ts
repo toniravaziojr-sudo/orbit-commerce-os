@@ -244,7 +244,6 @@ Deno.serve(async (req) => {
       }
 
       if (importedPageIds.length > 0) {
-        deleted['store_page_templates'] = await safeDelete('store_page_templates', 'page_id', importedPageIds);
         deleted['store_pages'] = await safeDelete('store_pages', 'id', importedPageIds);
       }
 

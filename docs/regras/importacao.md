@@ -326,6 +326,117 @@ Todas operações validam `tenant_id` via job (nunca confiar no frontend).
 
 ---
 
+## Limpador de Dados Importados
+
+### Objetivo
+
+Permitir que o cliente remova dados que vieram da importação, sem afetar dados cadastrados manualmente.
+
+### Comportamento
+
+1. Cliente acessa botão "Limpar Dados" na página de Importação
+2. Seleciona módulos a limpar (checkboxes)
+3. Digita "CONFIRMAR" para habilitar ação
+4. Sistema remove apenas dados rastreados na tabela `import_items`
+
+### Módulos de Limpeza
+
+| Módulo | ID | Descrição | Tabelas Afetadas |
+|--------|-------|-----------|------------------|
+| Produtos Importados | `products` | Apenas produtos que vieram da importação | `products`, `product_variants`, `product_images`, `product_categories`, `cart_items`, `buy_together_rules` |
+| Categorias Importadas | `categories` | Apenas categorias que vieram da importação | `categories`, `product_categories` |
+| Clientes Importados | `customers` | Apenas clientes que vieram da importação | `customers`, `customer_addresses`, `customer_notes`, `customer_tag_assignments`, `carts`, `checkouts`, etc. |
+| Pedidos Importados | `orders` | Apenas pedidos que vieram da importação | `orders`, `order_items`, `order_history`, `payment_transactions`, `shipments`, etc. |
+| Estrutura Importada | `structure` | Menus e páginas que vieram da importação | `menus`, `menu_items`, `store_pages` |
+| TODAS Categorias | `all_categories` | ⚠️ Limpa TODAS categorias (manual + importado) | `categories`, `product_categories` |
+| TODOS Menus | `all_menus` | ⚠️ Limpa TODOS menus (manual + importado) | `menus`, `menu_items` |
+
+### Sistema de Rastreamento
+
+Toda importação registra os itens na tabela `import_items`:
+
+```sql
+import_items (
+  id UUID,
+  tenant_id UUID,
+  job_id UUID,           -- ID do job de importação (pode ser null para estrutura)
+  module TEXT,           -- 'products', 'categories', 'customers', 'orders', 'menus', 'pages'
+  external_id TEXT,      -- ID/URL original da plataforma de origem
+  internal_id UUID,      -- ID no nosso sistema (FK para a tabela do módulo)
+  status TEXT,           -- 'success', 'failed', 'skipped'
+  data JSONB             -- Dados adicionais para auditoria
+)
+```
+
+### Edge Functions de Importação com Rastreamento
+
+| Edge Function | Módulo Rastreado |
+|---------------|------------------|
+| `import-batch` | `products`, `customers`, `orders` |
+| `import-store-categories` | `categories` |
+| `import-institutional-pages` | `pages` |
+| `import-menus` | `menus` |
+
+### Ordem de Deleção (FK Constraints)
+
+Para cada módulo, o limpador segue ordem específica para respeitar FK:
+
+**Produtos:**
+1. `product_categories` (FK product_id)
+2. `product_images` (FK product_id)
+3. `product_variants` (FK product_id)
+4. `cart_items` (FK product_id)
+5. `buy_together_rules` (FK trigger_product_id, suggested_product_id)
+6. `products`
+7. `import_items` (module = 'products')
+
+**Categorias:**
+1. `product_categories` (FK category_id)
+2. `categories`
+3. `import_items` (module = 'categories')
+
+**Clientes:**
+1. `orders.customer_id = NULL` (desvincula sem deletar)
+2. `customer_addresses`, `customer_notes`, `carts`, `checkouts`, etc.
+3. `customers`
+4. `import_items` (module = 'customers')
+
+**Pedidos:**
+1. `order_items`, `order_history`, `payment_transactions`, etc.
+2. `orders`
+3. `import_items` (module = 'orders')
+
+**Estrutura:**
+1. `menu_items` (FK menu_id)
+2. `menus`
+3. `store_pages`
+4. `import_items` (module IN ['menus', 'pages'])
+
+### Arquivos Relacionados
+
+- `src/components/import/ClearDataDialog.tsx` - Dialog de confirmação
+- `supabase/functions/tenant-clear-data/index.ts` - Edge Function de limpeza
+- `src/hooks/useImportJobs.ts` - Hook com mutation `clearTenantData`
+
+### Regras de Negócio
+
+#### RN-CLR-001: Rastreamento Obrigatório
+Toda Edge Function de importação DEVE registrar itens em `import_items` para que o limpador funcione.
+
+#### RN-CLR-002: Limpeza Seletiva
+O módulo `structure` limpa menus + páginas juntos. Não há opção separada.
+
+#### RN-CLR-003: Opções de Força
+As opções `all_categories` e `all_menus` limpam TUDO, não só importados. Usar com cuidado.
+
+#### RN-CLR-004: Pedidos Não Deletam Clientes
+Limpar pedidos NÃO deleta clientes. São módulos independentes.
+
+#### RN-CLR-005: Clientes Desvinculam Pedidos
+Limpar clientes desvincula pedidos (customer_id = NULL) mas não deleta os pedidos.
+
+---
+
 ## Rotas
 
 | Rota | Descrição |
@@ -358,3 +469,4 @@ Todas operações validam `tenant_id` via job (nunca confiar no frontend).
 | Data | Alteração |
 |------|-----------|
 | 2025-01-19 | Documento criado com especificação completa do fluxo de 3 etapas |
+| 2025-01-19 | Adicionada seção "Limpador de Dados Importados" com documentação completa |
