@@ -9,9 +9,12 @@ import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Palette, ChevronDown, Settings, Type, Loader2 } from 'lucide-react';
-import { useThemeFooter, DEFAULT_THEME_FOOTER, ThemeFooterConfig } from '@/hooks/useThemeSettings';
+import { Palette, ChevronDown, Settings, Type, Loader2, CreditCard, Store, Plus, Trash2 } from 'lucide-react';
+import { useThemeFooter, DEFAULT_THEME_FOOTER, ThemeFooterConfig, FooterImageItem, FooterImageSectionData } from '@/hooks/useThemeSettings';
+import { ImageUploader } from '../ImageUploader';
+import type { SvgPresetCategory } from '@/lib/builder/svg-presets';
 
 interface FooterSettingsProps {
   tenantId: string;
@@ -61,6 +64,170 @@ function ColorInput({
   );
 }
 
+// Footer Image Section component for payment methods and official stores
+function FooterImageSection({
+  title,
+  icon,
+  sectionKey,
+  localProps,
+  updateSection,
+  openSections,
+  toggleSection,
+  requireLink = false,
+  svgPresetCategory,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  sectionKey: 'paymentMethods' | 'securitySeals' | 'shippingMethods' | 'officialStores';
+  localProps: ThemeFooterConfig;
+  updateSection: (key: string, value: FooterImageSectionData) => void;
+  openSections: Record<string, boolean>;
+  toggleSection: (key: string) => void;
+  requireLink?: boolean;
+  svgPresetCategory?: SvgPresetCategory;
+}) {
+  const sectionData = (localProps[sectionKey] as FooterImageSectionData) || { title, items: [] };
+  const items = sectionData.items || [];
+  const [openItems, setOpenItems] = useState<Record<number, boolean>>({});
+
+  const toggleItem = (index: number) => {
+    setOpenItems(prev => ({ ...prev, [index]: !prev[index] }));
+  };
+
+  const handleUpdateSection = (newData: Partial<FooterImageSectionData>) => {
+    updateSection(sectionKey, { ...sectionData, ...newData });
+  };
+
+  const addItem = () => {
+    const newIndex = items.length;
+    handleUpdateSection({ items: [...items, { imageUrl: '', linkUrl: '' }] });
+    setOpenItems(prev => ({ ...prev, [newIndex]: true }));
+  };
+
+  const removeItem = (index: number) => {
+    const newItems = items.filter((_, i) => i !== index);
+    handleUpdateSection({ items: newItems });
+    const newOpenItems = { ...openItems };
+    delete newOpenItems[index];
+    setOpenItems(newOpenItems);
+  };
+
+  const updateItem = (index: number, field: keyof FooterImageItem, value: string) => {
+    const newItems = items.map((item, i) => 
+      i === index ? { ...item, [field]: value } : item
+    );
+    handleUpdateSection({ items: newItems });
+  };
+
+  const getItemPreview = (item: FooterImageItem) => {
+    if (item.imageUrl) {
+      if (item.imageUrl.startsWith('data:image/svg')) return 'SVG';
+      const filename = item.imageUrl.split('/').pop()?.split('?')[0];
+      return filename && filename.length > 20 ? filename.substring(0, 17) + '...' : filename || 'Imagem';
+    }
+    return 'Sem imagem';
+  };
+
+  return (
+    <Collapsible open={openSections[sectionKey]} onOpenChange={() => toggleSection(sectionKey)}>
+      <CollapsibleTrigger asChild>
+        <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
+          <div className="flex items-center gap-1.5">
+            {icon}
+            <span className="font-medium">{title}</span>
+            {items.length > 0 && (
+              <Badge variant="secondary" className="text-[10px] px-1 py-0">{items.length}</Badge>
+            )}
+          </div>
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openSections[sectionKey] ? 'rotate-180' : ''}`} />
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="px-2 pb-3 space-y-3">
+        <div className="space-y-1">
+          <Label className="text-[10px]">Título da Seção</Label>
+          <Input
+            value={sectionData.title || ''}
+            onChange={(e) => handleUpdateSection({ title: e.target.value })}
+            placeholder={title}
+            className="h-7 text-xs"
+          />
+        </div>
+
+        {items.length > 0 && (
+          <div className="space-y-2">
+            {items.map((item, index) => (
+              <Collapsible 
+                key={index} 
+                open={openItems[index]} 
+                onOpenChange={() => toggleItem(index)}
+              >
+                <div className="border rounded-lg bg-muted/30 overflow-hidden">
+                  <div className="flex items-center justify-between p-2 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => toggleItem(index)}>
+                    <div className="flex items-center gap-2">
+                      <ChevronDown className={`h-3 w-3 text-muted-foreground transition-transform ${openItems[index] ? 'rotate-180' : ''}`} />
+                      <span className="text-[10px] font-medium">Item {index + 1}</span>
+                      {item.imageUrl && (
+                        <span className="text-[10px] text-muted-foreground">• {getItemPreview(item)}</span>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeItem(index);
+                      }}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                  <CollapsibleContent>
+                    <div className="px-2 pb-2 pt-1 space-y-2 border-t">
+                      <div className="space-y-1">
+                        <Label className="text-[10px]">Imagem</Label>
+                        <ImageUploader
+                          value={item.imageUrl}
+                          onChange={(url) => updateItem(index, 'imageUrl', url)}
+                          placeholder="Upload ou cole URL"
+                          svgPresetCategory={svgPresetCategory}
+                          aspectRatio="square"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[10px]">
+                          Link {requireLink ? '' : '(opcional)'}
+                        </Label>
+                        <Input
+                          value={item.linkUrl || ''}
+                          onChange={(e) => updateItem(index, 'linkUrl', e.target.value)}
+                          placeholder="https://..."
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                    </div>
+                  </CollapsibleContent>
+                </div>
+              </Collapsible>
+            ))}
+          </div>
+        )}
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full gap-1.5 h-7 text-xs"
+          onClick={addItem}
+        >
+          <Plus className="h-3 w-3" />
+          Adicionar Item
+        </Button>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps) {
   const { footer: savedFooter, updateFooter, isLoading, isSaving } = useThemeFooter(tenantId, templateSetId);
   const [localProps, setLocalProps] = useState<ThemeFooterConfig>(DEFAULT_THEME_FOOTER);
@@ -68,6 +235,8 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
     colors: true,
     general: false,
     texts: false,
+    paymentMethods: false,
+    officialStores: false,
   });
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const initialLoadDone = useRef(false);
@@ -107,6 +276,18 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
         clearTimeout(saveTimeoutRef.current);
       }
       updateFooter({ [key]: value });
+      return updated;
+    });
+  }, [updateFooter]);
+
+  // Update image section
+  const updateImageSection = useCallback((key: string, value: FooterImageSectionData) => {
+    setLocalProps(prev => {
+      const updated = { ...prev, [key]: value };
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      updateFooter({ [key]: value } as Partial<ThemeFooterConfig>);
       return updated;
     });
   }, [updateFooter]);
@@ -222,6 +403,35 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
           </div>
         </CollapsibleContent>
       </Collapsible>
+
+      <Separator />
+
+      {/* === FORMAS DE PAGAMENTO === */}
+      <FooterImageSection
+        title="Formas de Pagamento"
+        icon={<CreditCard className="h-3.5 w-3.5 text-primary" />}
+        sectionKey="paymentMethods"
+        localProps={localProps}
+        updateSection={updateImageSection}
+        openSections={openSections}
+        toggleSection={toggleSection}
+        svgPresetCategory="payment"
+      />
+
+      <Separator />
+
+      {/* === LOJAS OFICIAIS === */}
+      <FooterImageSection
+        title="Lojas Oficiais"
+        icon={<Store className="h-3.5 w-3.5 text-primary" />}
+        sectionKey="officialStores"
+        localProps={localProps}
+        updateSection={updateImageSection}
+        openSections={openSections}
+        toggleSection={toggleSection}
+        requireLink={true}
+        svgPresetCategory="store"
+      />
 
       <Separator />
 

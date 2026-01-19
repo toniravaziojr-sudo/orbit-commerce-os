@@ -53,6 +53,18 @@ export interface ThemeHeaderConfig {
   headerIconColor?: string;
 }
 
+// Footer image section item
+export interface FooterImageItem {
+  imageUrl: string;
+  linkUrl?: string;
+}
+
+// Footer image section data
+export interface FooterImageSectionData {
+  title: string;
+  items: FooterImageItem[];
+}
+
 export interface ThemeFooterConfig {
   menuId?: string;
   showSocial?: boolean;
@@ -67,6 +79,11 @@ export interface ThemeFooterConfig {
   footerBgColor?: string;
   footerTextColor?: string;
   footerTitlesColor?: string;
+  // Image sections
+  paymentMethods?: FooterImageSectionData;
+  securitySeals?: FooterImageSectionData;
+  shippingMethods?: FooterImageSectionData;
+  officialStores?: FooterImageSectionData;
 }
 
 // Cart action type: what happens when user clicks "Add to cart"
@@ -150,6 +167,10 @@ export const DEFAULT_THEME_FOOTER: ThemeFooterConfig = {
   footerBgColor: '',
   footerTextColor: '',
   footerTitlesColor: '',
+  paymentMethods: { title: 'Formas de Pagamento', items: [] },
+  securitySeals: { title: 'Selos de Segurança', items: [] },
+  shippingMethods: { title: 'Formas de Envio', items: [] },
+  officialStores: { title: 'Lojas Oficiais', items: [] },
 };
 
 export const DEFAULT_THEME_MINI_CART: ThemeMiniCartConfig = {
