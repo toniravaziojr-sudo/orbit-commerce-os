@@ -170,52 +170,75 @@ export function ProductCard({
             </span>
           </div>
           
-          {/* Botões - respeitando categorySettings */}
-          {showAddToCartButton && (
-            <div className="mt-2">
-              {customButtonEnabled && customButtonText ? (
-                <a
-                  href={isEditing ? undefined : customButtonLink || productUrl}
-                  className="w-full inline-flex items-center justify-center px-3 py-1.5 text-xs rounded font-medium transition-colors"
-                  style={customButtonColor ? { backgroundColor: customButtonColor, color: '#fff' } : undefined}
-                  onClick={(e) => isEditing && e.preventDefault()}
-                >
-                  {customButtonText}
-                </a>
-              ) : quickBuyEnabled ? (
-                <button
-                  onClick={(e) => !isEditing && onQuickBuy?.(e, product)}
-                  disabled={isEditing}
-                  className="w-full flex items-center justify-center gap-1 px-3 py-1.5 bg-primary text-primary-foreground text-xs rounded font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-                >
-                  {buyNowButtonText}
-                </button>
-              ) : (
-                <button
-                  onClick={(e) => !isEditing && onAddToCart?.(e, product)}
-                  disabled={isEditing || isAddedToCart}
-                  className={cn(
-                    'w-full flex items-center justify-center gap-1 px-3 py-1.5 text-xs rounded font-medium transition-colors',
-                    isAddedToCart
-                      ? 'bg-green-500 text-white'
-                      : 'bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50'
-                  )}
-                >
-                  {isAddedToCart ? (
-                    <>
-                      <Check className="h-3 w-3" />
-                      <span>Adicionado</span>
-                    </>
-                  ) : (
-                    <>
-                      <ShoppingCart className="h-3 w-3" />
-                      <span>Adicionar</span>
-                    </>
-                  )}
-                </button>
-              )}
-            </div>
-          )}
+          {/* Botões - mesma lógica das outras variantes */}
+          <div className="mt-2 flex flex-col gap-1.5">
+            {/* 1º Botão "Adicionar ao carrinho" (se ativo) */}
+            {showAddToCartButton && onAddToCart && (
+              <button 
+                className={cn(
+                  "w-full py-1.5 px-3 text-xs rounded-md transition-colors flex items-center justify-center gap-1",
+                  isAddedToCart
+                    ? "bg-green-500 text-white border-green-500"
+                    : "border border-primary text-primary bg-transparent hover:bg-primary/10"
+                )}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!isEditing) onAddToCart(e, product);
+                }}
+                disabled={isAddedToCart || isEditing}
+              >
+                {isAddedToCart ? (
+                  <>
+                    <Check className="h-3 w-3" />
+                    <span>Adicionado</span>
+                  </>
+                ) : (
+                  <>
+                    <ShoppingCart className="h-3 w-3" />
+                    <span>Adicionar</span>
+                  </>
+                )}
+              </button>
+            )}
+            
+            {/* 2º Botão personalizado (se ativo) */}
+            {customButtonEnabled && customButtonText && (
+              <a
+                href={isEditing ? undefined : (customButtonLink || '#')}
+                className="w-full py-1.5 px-3 text-xs rounded-md text-center transition-colors"
+                style={{ 
+                  backgroundColor: customButtonColor || 'hsl(var(--primary))',
+                  color: '#ffffff'
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (isEditing) e.preventDefault();
+                }}
+              >
+                {customButtonText}
+              </a>
+            )}
+            
+            {/* 3º Botão principal "Comprar agora" */}
+            {quickBuyEnabled && onQuickBuy ? (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!isEditing) onQuickBuy(e, product);
+                }}
+                disabled={isEditing}
+                className="w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-center disabled:opacity-50"
+              >
+                {buyNowButtonText}
+              </button>
+            ) : (
+              <span className="w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md text-center">
+                {buyNowButtonText}
+              </span>
+            )}
+          </div>
         </div>
       </CardWrapper>
     );
