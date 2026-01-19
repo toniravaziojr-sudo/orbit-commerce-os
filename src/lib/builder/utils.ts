@@ -175,7 +175,8 @@ export function updateBlockProps(
   return cloned;
 }
 
-// Add a block as child
+// Add a block as child - MUTATES the root directly
+// The caller is responsible for providing a cloned root
 export function addBlockChild(
   root: BlockNode,
   parentId: string,
@@ -184,13 +185,17 @@ export function addBlockChild(
 ): BlockNode {
   console.log('[addBlockChild] Called with:', { parentId, newBlockId: newBlock.id, newBlockType: newBlock.type, index });
   
-  const cloned = cloneBlockNode(root);
-  const parent = findBlockById(cloned, parentId);
+  // Find parent in the provided tree (caller should have already cloned)
+  const parent = findBlockById(root, parentId);
   
   if (!parent) {
     console.error('[addBlockChild] Parent NOT found:', parentId);
     console.error('[addBlockChild] Root structure:', { rootId: root.id, rootType: root.type, childrenCount: root.children?.length });
-    return cloned; // Return unchanged
+    // Log more details about the tree structure
+    if (root.children) {
+      console.error('[addBlockChild] Root children:', root.children.map(c => ({ id: c.id, type: c.type })));
+    }
+    return root; // Return unchanged
   }
   
   console.log('[addBlockChild] Parent found:', { parentId: parent.id, parentType: parent.type, existingChildren: parent.children?.length || 0 });
@@ -205,7 +210,7 @@ export function addBlockChild(
     console.log('[addBlockChild] Pushed to end, new length:', parent.children.length);
   }
   
-  return cloned;
+  return root;
 }
 
 // Remove a block from tree
