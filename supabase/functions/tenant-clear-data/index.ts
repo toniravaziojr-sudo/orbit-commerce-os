@@ -7,7 +7,7 @@ const corsHeaders = {
 
 interface ClearDataRequest {
   tenantId: string;
-  modules: ('products' | 'categories' | 'customers' | 'orders' | 'structure' | 'all' | 'all_categories' | 'all_menus')[];
+  modules: string[];
 }
 
 Deno.serve(async (req) => {
@@ -310,7 +310,31 @@ Deno.serve(async (req) => {
     }
 
     // ========================================
-    // Clean up import_jobs when clearing all
+    // FORCE CLEAR: ALL pages (not just imported)
+    // ========================================
+    if (modules.includes('all_pages')) {
+      console.log(`Force clearing ALL store pages for tenant ${tenantId}`);
+      
+      // Delete all store pages for this tenant
+      const { count, error } = await supabase
+        .from('store_pages')
+        .delete({ count: 'exact' })
+        .eq('tenant_id', tenantId);
+      
+      if (error) {
+        console.warn('Error deleting store_pages:', error.message);
+        errors.push(`store_pages: ${error.message}`);
+      } else {
+        deleted['store_pages_force'] = count || 0;
+      }
+      
+      // Also clean any import_items for pages
+      await supabase
+        .from('import_items')
+        .delete()
+        .eq('tenant_id', tenantId)
+        .eq('module', 'pages');
+    }
     // ========================================
     if (shouldClearAll) {
       const { count } = await supabase
