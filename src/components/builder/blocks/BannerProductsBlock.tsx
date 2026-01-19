@@ -182,7 +182,9 @@ export function BannerProductsBlock({
           <div className={cn(
             'grid gap-3 overflow-hidden',
             isMobile ? 'grid-cols-2' : getProductGridClass(),
-            shouldApplyAspectRatio && 'aspect-[4/5]' // Match banner aspect ratio
+            shouldApplyAspectRatio && 'aspect-[4/5]', // Match banner aspect ratio
+            // For single product, center content instead of stretching
+            productCount === 1 && 'items-center justify-center'
           )}>
             {showEmptyState ? (
               <div className="col-span-2 row-span-2 flex items-center justify-center">
@@ -206,7 +208,8 @@ export function BannerProductsBlock({
                     className={cn(
                       'overflow-hidden',
                       isLastOfThree && 'col-span-2',
-                      productCount === 1 && 'col-span-2 row-span-2',
+                      // Single product: don't stretch, use natural height
+                      productCount === 1 && 'max-h-[400px] w-full',
                       productCount === 2 && 'row-span-1'
                     )}
                   >
