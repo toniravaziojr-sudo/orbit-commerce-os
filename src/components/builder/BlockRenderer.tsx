@@ -303,6 +303,10 @@ export function BlockRenderer({
   // Check if this is a structural Section (direct child of root) - should be completely invisible
   const isStructuralSection = node.type === 'Section' && parentId === 'root';
   
+  // Check if this is a structural Container (direct child of a structural Section)
+  // These also should not show AddBlockButton when empty - blocks are added via left menu
+  const isStructuralContainer = node.type === 'Container' && parentId?.startsWith('section-');
+  
   // For structural Sections: render children directly, NO wrappers, NO AddBlockButton
   // Blocks are added ONLY via the left menu. No extra spacing/margins.
   // This applies in ALL modes (editing, preview, public) - structural sections are always invisible
@@ -334,6 +338,33 @@ export function BlockRenderer({
           />
         ))}
       </>
+    );
+  }
+  
+  // For structural Containers: render without the empty placeholder when no children
+  // The Container itself renders, but when empty it should be minimal (no AddBlockButton placeholder)
+  if (isStructuralContainer && !node.children?.length && isEditing) {
+    // Render an empty container without the AddBlockButton - blocks are added via left menu
+    const Component = getBlockComponent(node.type);
+    return (
+      <div
+        data-block-id={node.id}
+        onClick={handleClick}
+        className={cn(
+          'relative transition-all group/block-actions',
+          isEditing && 'cursor-pointer hover:outline hover:outline-2 hover:outline-primary/50',
+          isSelected && isEditing && 'outline outline-2 outline-primary ring-2 ring-primary/20',
+        )}
+      >
+        {isSelected && isEditing && (
+          <div className="absolute -top-6 left-0 bg-primary text-primary-foreground text-xs px-2 py-1 rounded-t z-10">
+            {definition.label}
+          </div>
+        )}
+        <Component {...node.props} isEditing={isEditing} context={context}>
+          {/* Empty - no AddBlockButton, blocks added via left menu */}
+        </Component>
+      </div>
     );
   }
 
