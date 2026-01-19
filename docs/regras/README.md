@@ -8,6 +8,7 @@ Este diretório contém as regras e especificações separadas por módulo para 
 |---------|--------|----------------------|
 | [regras-gerais.md](./regras-gerais.md) | Regras Gerais | TODO o sistema |
 | **LOJA VIRTUAL** |||
+| [loja-virtual.md](./loja-virtual.md) | **Módulo Completo** ✅ | Documentação central do módulo |
 | [header.md](./header.md) | Header/Cabeçalho ✅ | `src/components/storefront/StorefrontHeader*.tsx` |
 | [footer.md](./footer.md) | Footer/Rodapé ✅ | `src/components/storefront/StorefrontFooter*.tsx` |
 | [builder.md](./builder.md) | Builder/Editor ✅ | `src/components/builder/*`, `src/pages/storefront/*` |
@@ -16,8 +17,8 @@ Este diretório contém as regras e especificações separadas por módulo para 
 | [pagina-produto.md](./pagina-produto.md) | Página de Produto ✅ | `src/pages/storefront/StorefrontProduct.tsx` |
 | [pagina-categoria.md](./pagina-categoria.md) | Página de Categoria ✅ | `src/pages/storefront/StorefrontCategory.tsx` |
 | [pagina-obrigado.md](./pagina-obrigado.md) | Página Obrigado ✅ | `src/pages/storefront/StorefrontThankYou.tsx` |
-| [paginas-institucionais.md](./paginas-institucionais.md) | Páginas Institucionais 🟧 | `src/pages/Pages.tsx`, `src/pages/storefront/StorefrontPage.tsx` |
-| [blog.md](./blog.md) | Blog 🟧 | `src/pages/Blog.tsx`, `src/pages/storefront/StorefrontBlog*.tsx` |
+| [paginas-institucionais.md](./paginas-institucionais.md) | Páginas Institucionais ✅ | `src/pages/Pages.tsx`, `src/pages/storefront/StorefrontPage.tsx` |
+| [blog.md](./blog.md) | Blog ✅ | `src/pages/Blog.tsx`, `src/pages/storefront/StorefrontBlog*.tsx` |
 | **MARKETING** |||
 | [ofertas.md](./ofertas.md) | Aumentar Ticket ✅ | `src/pages/Offers.tsx`, `src/components/offers/*` |
 | [avaliacoes.md](./avaliacoes.md) | Avaliações ✅ | `src/pages/Reviews.tsx`, `src/components/reviews/*` |
