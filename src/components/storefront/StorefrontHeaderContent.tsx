@@ -845,7 +845,6 @@ export function StorefrontHeaderContent({
                       borderColor: featuredPromosBgColor ? `${featuredPromosBgColor}30` : (primaryColor ? `${primaryColor}30` : 'hsl(var(--primary) / 0.2)')
                     }}
                   >
-                    <span className="text-sm">✨</span>
                     {featuredPromosLabel}
                   </LinkWrapper>
                   
