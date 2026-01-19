@@ -1024,6 +1024,7 @@ export function VisualBuilder({
             showMiniCartPreview={showMiniCartPreview}
             onToggleMiniCartPreview={setShowMiniCartPreview}
             miniCartConfig={miniCartConfig}
+            blogTitle={pageType === 'blog' ? pageTitle : undefined}
           />
         </div>
 
