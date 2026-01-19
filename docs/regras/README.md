@@ -15,6 +15,9 @@ Este diretório contém as regras e especificações separadas por módulo para 
 | [avaliacoes.md](./avaliacoes.md) | Avaliações | `src/pages/Reviews.tsx`, `src/components/reviews/*` |
 | [midias-uploads.md](./midias-uploads.md) | Mídias e Uploads | `src/lib/upload*.ts`, `src/hooks/useSystemUpload.ts` |
 | [edge-functions.md](./edge-functions.md) | Edge Functions | `supabase/functions/*` |
+| [descontos.md](./descontos.md) | Cupons de Desconto | `src/pages/Discounts.tsx`, `src/components/discounts/*`, `src/contexts/DiscountContext.tsx` |
+| [checkouts-abandonados.md](./checkouts-abandonados.md) | Checkouts Abandonados | `src/pages/AbandonedCheckouts.tsx`, `src/hooks/useCheckoutSessions.ts`, `src/lib/checkoutSession.ts` |
+| [platform-emails.md](./platform-emails.md) | Emails da Plataforma | `src/pages/SystemEmails.tsx`, `src/components/integrations/SystemEmail*.tsx` |
 
 ---
 
@@ -32,6 +35,9 @@ Este diretório contém as regras e especificações separadas por módulo para 
 | `src/pages/Reviews.tsx`, `src/components/reviews/*` | `avaliacoes.md` |
 | `src/lib/upload*.ts`, upload de imagens | `midias-uploads.md` |
 | `supabase/functions/*` | `edge-functions.md` |
+| `src/pages/Discounts.tsx`, `src/components/discounts/*` | `descontos.md` |
+| `src/pages/AbandonedCheckouts.tsx`, `src/hooks/useCheckoutSessions.ts` | `checkouts-abandonados.md` |
+| `src/pages/SystemEmails.tsx`, `src/components/integrations/SystemEmail*.tsx` | `platform-emails.md` |
 
 ---
 
