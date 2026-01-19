@@ -25,8 +25,8 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   '/storefront': 'pending',
   '/abandoned-checkouts': 'ready',
   '/menus': 'ready',
-  '/pages': 'pending',
-  '/blog': 'pending',
+  '/pages': 'ready',
+  '/blog': 'ready',
   
   // Marketing
   '/marketing': 'pending',
