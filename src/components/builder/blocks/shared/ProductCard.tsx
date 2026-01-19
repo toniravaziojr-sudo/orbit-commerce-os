@@ -125,7 +125,8 @@ export function ProductCard({
     );
   };
   
-  // Renderização minimal (sem botões, apenas imagem + nome + preço)
+  // Renderização minimal - RESPEITA categorySettings do tema
+  // Variante mais compacta, mas ainda segue as configurações globais
   if (variant === 'minimal') {
     return (
       <CardWrapper>
@@ -146,6 +147,15 @@ export function ProductCard({
           )}
         </div>
         <div className="p-2 sm:p-3">
+          {/* Rating - respeitando categorySettings.showRatings */}
+          {showRatings && rating && rating.count > 0 && (
+            <RatingSummary
+              average={rating.average}
+              count={rating.count}
+              variant="card"
+              className="mb-1"
+            />
+          )}
           <h3 className="font-medium text-xs sm:text-sm line-clamp-2 text-foreground">
             {product.name}
           </h3>
@@ -159,6 +169,53 @@ export function ProductCard({
               {formatPrice(product.price)}
             </span>
           </div>
+          
+          {/* Botões - respeitando categorySettings */}
+          {showAddToCartButton && (
+            <div className="mt-2">
+              {customButtonEnabled && customButtonText ? (
+                <a
+                  href={isEditing ? undefined : customButtonLink || productUrl}
+                  className="w-full inline-flex items-center justify-center px-3 py-1.5 text-xs rounded font-medium transition-colors"
+                  style={customButtonColor ? { backgroundColor: customButtonColor, color: '#fff' } : undefined}
+                  onClick={(e) => isEditing && e.preventDefault()}
+                >
+                  {customButtonText}
+                </a>
+              ) : quickBuyEnabled ? (
+                <button
+                  onClick={(e) => !isEditing && onQuickBuy?.(e, product)}
+                  disabled={isEditing}
+                  className="w-full flex items-center justify-center gap-1 px-3 py-1.5 bg-primary text-primary-foreground text-xs rounded font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  {buyNowButtonText}
+                </button>
+              ) : (
+                <button
+                  onClick={(e) => !isEditing && onAddToCart?.(e, product)}
+                  disabled={isEditing || isAddedToCart}
+                  className={cn(
+                    'w-full flex items-center justify-center gap-1 px-3 py-1.5 text-xs rounded font-medium transition-colors',
+                    isAddedToCart
+                      ? 'bg-green-500 text-white'
+                      : 'bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50'
+                  )}
+                >
+                  {isAddedToCart ? (
+                    <>
+                      <Check className="h-3 w-3" />
+                      <span>Adicionado</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingCart className="h-3 w-3" />
+                      <span>Adicionar</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </CardWrapper>
     );
