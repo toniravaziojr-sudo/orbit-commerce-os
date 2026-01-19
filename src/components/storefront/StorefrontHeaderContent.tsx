@@ -985,19 +985,117 @@ export function StorefrontHeaderContent({
                 )
               ))
               ) : isEditing ? (
-                // Demo menu items when no real menu in editor mode
+                // Demo menu items when no real menu in editor mode - INTERACTIVE
                 <>
-                  {['Categorias', 'Novidades', 'Promoções', 'Sobre'].map((label, i) => (
+                  {/* Demo: Categorias with dropdown */}
+                  <div 
+                    className="relative"
+                    onMouseEnter={() => handleDropdownEnter('demo-categorias')}
+                    onMouseLeave={handleDropdownLeave}
+                  >
                     <span
-                      key={i}
-                      className="text-xs font-medium text-muted-foreground/50 cursor-default whitespace-nowrap"
-                      style={{ color: headerTextColor ? `${headerTextColor}80` : undefined }}
+                      className="text-xs font-medium cursor-pointer whitespace-nowrap inline-flex items-center gap-1 py-1 transition-colors hover:text-primary"
+                      style={{ color: headerTextColor || undefined }}
+                    >
+                      Categorias
+                      <ChevronDown className={cn(
+                        "h-3 w-3 transition-transform duration-200",
+                        openDropdown === 'demo-categorias' && "rotate-180"
+                      )} />
+                    </span>
+                    {openDropdown === 'demo-categorias' && (
+                      <div 
+                        className="absolute top-full left-1/2 -translate-x-1/2 mt-3 bg-popover/95 backdrop-blur-md border border-border/60 rounded-xl shadow-xl py-2 min-w-[260px] z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200"
+                        onMouseEnter={() => handleDropdownEnter('demo-categorias')}
+                        onMouseLeave={handleDropdownLeave}
+                      >
+                        {/* Dropdown arrow */}
+                        <div className="absolute -top-[6px] left-1/2 -translate-x-1/2 w-3 h-3 rotate-45 bg-popover/95 border-l border-t border-border/60" />
+                        
+                        {/* Menu header */}
+                        <div className="px-4 py-2 border-b border-border/40 mb-1">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            Categorias
+                          </span>
+                        </div>
+                        
+                        <div className="relative">
+                          {[
+                            { label: 'Masculino', children: ['Camisetas', 'Calças', 'Acessórios'] },
+                            { label: 'Feminino', children: ['Vestidos', 'Blusas', 'Saias'] },
+                            { label: 'Infantil', children: [] },
+                            { label: 'Promoções', children: [] },
+                          ].map((item, index, arr) => (
+                            <div key={item.label} className="relative group/submenu">
+                              <span
+                                className={cn(
+                                  "flex items-center justify-between gap-3 px-4 py-2.5 text-sm text-popover-foreground transition-all duration-150 cursor-pointer",
+                                  "hover:bg-primary/8 hover:text-primary hover:pl-5",
+                                  "relative"
+                                )}
+                              >
+                                {/* Left indicator on hover */}
+                                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-0 bg-primary rounded-r transition-all duration-200 group-hover/submenu:h-5" />
+                                
+                                <span className="font-medium">{item.label}</span>
+                                {item.children.length > 0 && (
+                                  <ChevronRight className="h-4 w-4 opacity-40 group-hover/submenu:opacity-100 group-hover/submenu:translate-x-0.5 transition-all duration-150" />
+                                )}
+                              </span>
+                              
+                              {/* Sub-submenu (3rd level) */}
+                              {item.children.length > 0 && (
+                                <div className="absolute left-full top-0 ml-2 bg-popover/95 backdrop-blur-md border border-border/60 rounded-xl shadow-xl py-2 min-w-[180px] z-50 hidden group-hover/submenu:block animate-in fade-in-0 zoom-in-95 slide-in-from-left-2 duration-150">
+                                  {/* Submenu header */}
+                                  <div className="px-3 py-1.5 border-b border-border/40 mb-1">
+                                    <span className="text-[10px] font-medium text-muted-foreground">
+                                      {item.label}
+                                    </span>
+                                  </div>
+                                  {item.children.map((child) => (
+                                    <span
+                                      key={child}
+                                      className="group/item flex items-center gap-2 px-3 py-2 text-sm text-popover-foreground hover:bg-primary/8 hover:text-primary transition-all duration-150 cursor-pointer"
+                                    >
+                                      <span className="w-1 h-1 rounded-full bg-muted-foreground/30 group-hover/item:bg-primary group-hover/item:scale-125 transition-all" />
+                                      <span>{child}</span>
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              
+                              {/* Separator */}
+                              {index < arr.length - 1 && (
+                                <div className="mx-3 border-b border-border/20" />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {/* Footer */}
+                        <div className="px-4 pt-2 mt-1 border-t border-border/40">
+                          <span className="text-xs text-primary font-medium inline-flex items-center gap-1 group cursor-pointer hover:text-primary/80 transition-colors">
+                            Ver todos
+                            <ChevronRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform" />
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Demo: Simple menu items */}
+                  {['Novidades', 'Promoções', 'Sobre'].map((label) => (
+                    <span
+                      key={label}
+                      className="text-xs font-medium cursor-pointer whitespace-nowrap py-1 transition-colors hover:text-primary"
+                      style={{ color: headerTextColor || undefined }}
                     >
                       {label}
                     </span>
                   ))}
-                  <span className="text-xs text-muted-foreground/40 italic ml-2">
-                    [Demo] Configure em Menus
+                  
+                  <span className="text-[10px] text-muted-foreground/50 italic ml-2 px-2 py-0.5 bg-muted/30 rounded">
+                    Demo • Configure em Menus
                   </span>
                 </>
               ) : null}
