@@ -214,34 +214,63 @@ async function analyzePage(pageUrl: string): Promise<PageCandidate | null> {
     
     if (!html) return null;
 
-    // Extract main content (remove header/footer)
+    // Extract main content (remove header/footer/nav/sidebars/scripts)
     let mainContent = html;
+    
+    // Remove common wrapper elements that contain products
     mainContent = mainContent.replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '');
     mainContent = mainContent.replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '');
     mainContent = mainContent.replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '');
     mainContent = mainContent.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
     mainContent = mainContent.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+    
+    // Remove common product showcase sections (header/footer ads, related products, etc.)
+    mainContent = mainContent.replace(/<div[^>]*class="[^"]*(?:product-carousel|products-slider|related-products|upsell|cross-sell|announcement|promo-bar|top-bar|sticky-bar|floating)[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+    mainContent = mainContent.replace(/<section[^>]*class="[^"]*(?:products|shop|collection|showcase|featured)[^"]*"[^>]*>[\s\S]*?<\/section>/gi, '');
+    mainContent = mainContent.replace(/<aside[^>]*>[\s\S]*?<\/aside>/gi, '');
 
-    // Check for complex features (product grids, forms, etc.)
+    // Try to find the actual main content area FIRST
+    const mainAreaMatch = mainContent.match(/<main[^>]*>([\s\S]*?)<\/main>/i) ||
+                          mainContent.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ||
+                          mainContent.match(/<div[^>]*class="[^"]*(?:page-content|main-content|entry-content|content-area|page-body|rte|shopify-policy)[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+    
+    // If we found a specific content area, analyze only that
+    const contentToAnalyze = mainAreaMatch ? mainAreaMatch[1] : mainContent;
+    
+    // Check for complex features (product grids, forms, etc.) - ONLY in content area
     let complexFeatureCount = 0;
     let priceCount = 0;
     
-    for (const pattern of COMPLEX_FEATURE_PATTERNS) {
-      pattern.lastIndex = 0;
-      const matches = mainContent.match(pattern) || [];
-      if (pattern.source.includes('R\\$')) {
-        priceCount += matches.length;
-      } else {
-        complexFeatureCount += matches.length;
-      }
+    // Count only prices that are in product card context
+    const productPricePattern = /<(?:div|span)[^>]*class="[^"]*price[^"]*"[^>]*>[^<]*R\$[^<]*<\/(?:div|span)>/gi;
+    const productPrices = contentToAnalyze.match(productPricePattern) || [];
+    priceCount = productPrices.length;
+    
+    // Check for product card structures
+    const productCards = contentToAnalyze.match(/<(?:div|article|li)[^>]*class="[^"]*(?:product-card|product-item|card-product)[^"]*"[^>]*>/gi) || [];
+    
+    // Check for add to cart buttons
+    const addToCartButtons = contentToAnalyze.match(/(?:add.?to.?cart|adicionar.?ao.?carrinho|comprar)/gi) || [];
+    
+    complexFeatureCount = productCards.length + Math.floor(addToCartButtons.length / 2);
+    
+    // If page has actual product cards or many prices in product context, it's not institutional
+    const hasProductGrid = priceCount >= 5 || productCards.length >= 2;
+    const hasComplexFeatures = complexFeatureCount >= 4;
+    
+    // More lenient check - institutional pages can have SOME product mentions if it's mostly text
+    const textContent = contentToAnalyze.replace(/<[^>]+>/g, ' ').trim();
+    const wordCount = textContent.split(/\s+/).length;
+    const isTextHeavy = wordCount > 200; // Significant text content
+    
+    // If it's text-heavy, be more lenient with product detection
+    if (hasProductGrid && !isTextHeavy) {
+      console.log(`[Pages] ✗ Product page (cards: ${productCards.length}, prices: ${priceCount}): ${pageUrl}`);
+      return null;
     }
     
-    // If page has multiple prices or product-like elements, it's not institutional
-    const hasProductGrid = priceCount >= 3 || complexFeatureCount >= 2;
-    const hasComplexFeatures = complexFeatureCount >= 3;
-    
-    if (hasProductGrid || hasComplexFeatures) {
-      console.log(`[Pages] ✗ Complex page (products: ${priceCount}, features: ${complexFeatureCount}): ${pageUrl}`);
+    if (hasComplexFeatures && !isTextHeavy) {
+      console.log(`[Pages] ✗ Complex page (features: ${complexFeatureCount}): ${pageUrl}`);
       return null;
     }
 
@@ -254,20 +283,22 @@ async function analyzePage(pageUrl: string): Promise<PageCandidate | null> {
     const contentBlocks: ContentBlock[] = [];
     let order = 0;
 
-    // Find the main content area
+    // Find the main content area - more patterns for Shopify specifically
     const mainMatches = mainContent.match(/<main[^>]*>([\s\S]*?)<\/main>/i) ||
                        mainContent.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ||
-                       mainContent.match(/<div[^>]*class="[^"]*(?:content|page-content|main-content)[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+                       mainContent.match(/<div[^>]*class="[^"]*(?:rte|shopify-policy|page-content|main-content|entry-content|content-area|page-body)[^"]*"[^>]*>([\s\S]*?)<\/div>/i) ||
+                       mainContent.match(/<div[^>]*class="[^"]*(?:page|policy|terms|privacy)[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
     
     const contentArea = mainMatches ? mainMatches[1] : mainContent;
 
-    // Extract headings
-    const headingPattern = /<(h[1-6])[^>]*>([^<]+)<\/\1>/gi;
+    // Extract headings - more flexible pattern that handles inner tags
+    const headingPattern = /<(h[1-6])[^>]*>([\s\S]*?)<\/\1>/gi;
     let headingMatch;
     while ((headingMatch = headingPattern.exec(contentArea)) !== null) {
       const level = parseInt(headingMatch[1].charAt(1));
-      const text = headingMatch[2].trim();
-      if (text && text.length > 1) {
+      // Strip all inner HTML tags to get text
+      const text = headingMatch[2].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+      if (text && text.length > 1 && text.length < 200) { // Reasonable heading length
         contentBlocks.push({
           type: 'heading',
           content: text,
@@ -277,12 +308,23 @@ async function analyzePage(pageUrl: string): Promise<PageCandidate | null> {
       }
     }
 
-    // Extract paragraphs
-    const paragraphPattern = /<p[^>]*>([^<]+(?:<[^>]+>[^<]*)*)<\/p>/gi;
+    // Extract paragraphs - more flexible pattern
+    const paragraphPattern = /<p[^>]*>([\s\S]*?)<\/p>/gi;
     let paragraphMatch;
     while ((paragraphMatch = paragraphPattern.exec(contentArea)) !== null) {
-      const text = paragraphMatch[1].replace(/<[^>]+>/g, '').trim();
-      if (text && text.length > 20) { // Minimum meaningful content
+      // Strip HTML tags and normalize whitespace
+      const text = paragraphMatch[1]
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/&quot;/gi, '"')
+        .replace(/\s+/g, ' ')
+        .trim();
+      
+      if (text && text.length > 15) { // Lower threshold
         contentBlocks.push({
           type: 'text',
           content: text,
@@ -291,14 +333,72 @@ async function analyzePage(pageUrl: string): Promise<PageCandidate | null> {
       }
     }
 
+    // Also extract list items as text
+    const listItemPattern = /<li[^>]*>([\s\S]*?)<\/li>/gi;
+    let listMatch;
+    while ((listMatch = listItemPattern.exec(contentArea)) !== null) {
+      const text = listMatch[1]
+        .replace(/<[^>]+>/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      
+      if (text && text.length > 10) {
+        contentBlocks.push({
+          type: 'text',
+          content: `• ${text}`,
+          order: order++
+        });
+      }
+    }
+
+    // Extract divs with text content (fallback for poorly structured pages)
+    if (contentBlocks.filter(b => b.type === 'text' || b.type === 'heading').length === 0) {
+      // Try to extract any meaningful text content
+      const plainText = contentArea
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      
+      if (plainText.length > 100) {
+        // Split into paragraphs by sentence groups
+        const sentences = plainText.match(/[^.!?]+[.!?]+/g) || [plainText];
+        let currentParagraph = '';
+        
+        for (const sentence of sentences) {
+          currentParagraph += sentence + ' ';
+          if (currentParagraph.length > 200) {
+            contentBlocks.push({
+              type: 'text',
+              content: currentParagraph.trim(),
+              order: order++
+            });
+            currentParagraph = '';
+          }
+        }
+        
+        if (currentParagraph.trim().length > 30) {
+          contentBlocks.push({
+            type: 'text',
+            content: currentParagraph.trim(),
+            order: order++
+          });
+        }
+      }
+    }
+
     // Extract images (not icons, not tracking pixels)
-    const imagePattern = /<img[^>]*src="([^"]+)"[^>]*(?:alt="([^"]*)")?[^>]*>/gi;
+    const imagePattern = /<img[^>]*src="([^"]+)"[^>]*>/gi;
     let imageMatch;
     const origin = new URL(pageUrl).origin;
     
     while ((imageMatch = imagePattern.exec(contentArea)) !== null) {
       let src = imageMatch[1];
-      const alt = imageMatch[2] || '';
+      
+      // Extract alt from the full match
+      const altMatch = imageMatch[0].match(/alt="([^"]*)"/i);
+      const alt = altMatch ? altMatch[1] : '';
       
       // Skip tracking pixels, icons, logos
       if (src.includes('pixel') || 
@@ -306,7 +406,10 @@ async function analyzePage(pageUrl: string): Promise<PageCandidate | null> {
           src.includes('icon') ||
           src.includes('logo') ||
           src.includes('data:image') ||
-          src.includes('1x1')) {
+          src.includes('spinner') ||
+          src.includes('loading') ||
+          src.includes('1x1') ||
+          src.includes('placeholder')) {
         continue;
       }
       
@@ -324,7 +427,7 @@ async function analyzePage(pageUrl: string): Promise<PageCandidate | null> {
 
     // Extract videos (YouTube, Vimeo, HTML5)
     const videoPatterns = [
-      /<iframe[^>]*src="([^"]*(?:youtube|vimeo)[^"]*)"/gi,
+      /<iframe[^>]*src="([^"]*(?:youtube|vimeo|youtu\.be)[^"]*)"/gi,
       /<video[^>]*>[\s\S]*?<source[^>]*src="([^"]+)"/gi,
     ];
     
@@ -339,15 +442,15 @@ async function analyzePage(pageUrl: string): Promise<PageCandidate | null> {
       }
     }
 
-    // Sort blocks by their position in HTML (approximate by order)
+    // Sort blocks by their position in HTML
     contentBlocks.sort((a, b) => a.order - b.order);
 
-    // Validate: institutional pages should have mostly text content
+    // Validate: institutional pages should have at least some text
     const textBlocks = contentBlocks.filter(b => b.type === 'text' || b.type === 'heading');
     const mediaBlocks = contentBlocks.filter(b => b.type === 'image' || b.type === 'video');
     
-    // If no meaningful text, it's probably not institutional
-    if (textBlocks.length === 0) {
+    // More lenient: accept if there's any text OR if there's a title
+    if (textBlocks.length === 0 && title.length < 3) {
       console.log(`[Pages] ✗ No text content: ${pageUrl}`);
       return null;
     }
@@ -592,9 +695,9 @@ Deno.serve(async (req) => {
           content: JSON.stringify(pageContent),
           status: 'draft',
           is_published: false,
-          builder_enabled: true, // Enable builder since we have content
-          show_in_header: false,
-          show_in_footer: true,
+          builder_enabled: true,
+          show_in_menu: true,
+          menu_label: analysis.title,
         })
         .select('id, title, slug')
         .single();

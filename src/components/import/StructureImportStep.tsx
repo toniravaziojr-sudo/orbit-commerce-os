@@ -124,7 +124,25 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
         }
       });
 
-      if (error) throw new Error(error.message);
+      if (error) {
+        // Check if it's a timeout - data may have been imported anyway
+        if (error.message?.includes('connection') || error.message?.includes('timeout') || error.message?.includes('FunctionsHttpError')) {
+          // Verify if categories were actually created
+          const { count } = await supabase
+            .from('categories')
+            .select('*', { count: 'exact', head: true })
+            .eq('tenant_id', tenantId);
+          
+          if (count && count > 0) {
+            setStats(s => ({ ...s, categories: count }));
+            setProgress(p => ({ ...p, categories: 'completed' }));
+            toast.success(`Importação concluída! ${count} categorias encontradas`);
+            return;
+          }
+        }
+        throw new Error(error.message);
+      }
+      
       if (!result?.success) throw new Error(result?.error || 'Falha na importação');
 
       const importedCount = (result.stats?.created || 0) + (result.stats?.updated || 0);
