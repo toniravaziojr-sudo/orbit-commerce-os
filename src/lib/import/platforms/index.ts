@@ -225,17 +225,22 @@ export function getFieldMapping(
   return adapter.fieldMapping[type] || {};
 }
 
-// Obter todas as plataformas suportadas (apenas as que têm adaptador implementado)
-export function getSupportedPlatforms(): { id: PlatformType; name: string; logo?: string }[] {
+// Obter todas as plataformas suportadas para detecção
+// Nota: nem todas têm adaptadores de normalização completos
+export function getSupportedPlatforms(): { id: PlatformType; name: string; logo?: string; hasAdapter: boolean }[] {
   return [
-    { id: 'shopify', name: 'Shopify', logo: '🟢' },
-    { id: 'nuvemshop', name: 'Nuvemshop / Tiendanube', logo: '☁️' },
-    { id: 'tray', name: 'Tray', logo: '🔵' },
-    { id: 'woocommerce', name: 'WooCommerce', logo: '🟣' },
-    { id: 'bagy', name: 'Bagy', logo: '🟡' },
-    { id: 'yampi', name: 'Yampi', logo: '🔶' },
-    { id: 'loja_integrada', name: 'Loja Integrada', logo: '🟠' },
-    { id: 'wix', name: 'Wix', logo: '🔷' },
+    { id: 'shopify', name: 'Shopify', logo: '🛒', hasAdapter: true },
+    { id: 'nuvemshop', name: 'Nuvemshop', logo: '☁️', hasAdapter: true },
+    { id: 'tray', name: 'Tray', logo: '📦', hasAdapter: true },
+    { id: 'woocommerce', name: 'WooCommerce', logo: '🔧', hasAdapter: true },
+    { id: 'bagy', name: 'Bagy', logo: '🛍️', hasAdapter: true },
+    { id: 'yampi', name: 'Yampi', logo: '🎯', hasAdapter: true },
+    { id: 'loja_integrada', name: 'Loja Integrada', logo: '🔗', hasAdapter: true },
+    { id: 'wix', name: 'Wix', logo: '✨', hasAdapter: true },
+    { id: 'vtex', name: 'VTEX', logo: '🏢', hasAdapter: false },
+    { id: 'magento', name: 'Magento', logo: '🧲', hasAdapter: false },
+    { id: 'opencart', name: 'OpenCart', logo: '🛒', hasAdapter: false },
+    { id: 'prestashop', name: 'PrestaShop', logo: '🏪', hasAdapter: false },
   ];
 }
 
