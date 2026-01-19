@@ -703,7 +703,7 @@ export const defaultNeutralPageTemplate: BlockNode = {
   ],
 };
 
-// Default Blog Post template - NO title in content (title comes from blog_posts.title)
+// Default Blog Post template - Two separate blocks: one for title, one for content
 export const defaultBlogPostTemplate: BlockNode = {
   id: 'root',
   type: 'Page',
@@ -728,6 +728,13 @@ export const defaultBlogPostTemplate: BlockNode = {
               id: generateBlockId('RichText'),
               type: 'RichText',
               props: {
+                content: '<h1>Título do Post</h1>',
+              },
+            },
+            {
+              id: generateBlockId('RichText'),
+              type: 'RichText',
+              props: {
                 content: '<p>Escreva o conteúdo do seu post aqui...</p>',
               },
             },
@@ -737,6 +744,53 @@ export const defaultBlogPostTemplate: BlockNode = {
     },
   ],
 };
+
+/**
+ * Create a blog post template with the title pre-filled
+ * @param title The post title to use in the template
+ */
+export function createBlogPostTemplateWithTitle(title: string): BlockNode {
+  return {
+    id: 'root',
+    type: 'Page',
+    props: {},
+    children: [
+      {
+        id: generateBlockId('Section'),
+        type: 'Section',
+        props: {
+          padding: 'lg',
+        },
+        children: [
+          {
+            id: generateBlockId('Container'),
+            type: 'Container',
+            props: {
+              maxWidth: 'md',
+              centered: true,
+            },
+            children: [
+              {
+                id: generateBlockId('RichText'),
+                type: 'RichText',
+                props: {
+                  content: `<h1>${title}</h1>`,
+                },
+              },
+              {
+                id: generateBlockId('RichText'),
+                type: 'RichText',
+                props: {
+                  content: '<p>Escreva o conteúdo do seu post aqui...</p>',
+                },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
 
 // Default Account Hub template
 export const defaultAccountTemplate: BlockNode = {

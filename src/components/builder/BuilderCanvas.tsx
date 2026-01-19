@@ -52,8 +52,6 @@ interface BuilderCanvasProps {
   showMiniCartPreview?: boolean;
   onToggleMiniCartPreview?: (open: boolean) => void;
   miniCartConfig?: MiniCartConfig;
-  // Blog post title - shown as a separate header when editing blog posts
-  blogTitle?: string;
 }
 
 export function BuilderCanvas({ 
@@ -75,7 +73,6 @@ export function BuilderCanvas({
   showMiniCartPreview = false,
   onToggleMiniCartPreview,
   miniCartConfig,
-  blogTitle,
 }: BuilderCanvasProps) {
   const [internalViewport, setInternalViewport] = useState<ViewportMode>('desktop');
   const [zoom, setZoom] = useState<number>(100);
@@ -317,15 +314,6 @@ export function BuilderCanvas({
                   </div>
                 )}
 
-                {/* Blog Post Title Header - shown when editing blog posts */}
-                {blogTitle && (
-                  <div className="bg-background border-b px-6 py-8">
-                    <div className="max-w-4xl mx-auto">
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Título do Post</p>
-                      <h1 className="text-3xl md:text-4xl font-bold text-foreground">{blogTitle}</h1>
-                    </div>
-                  </div>
-                )}
                 
                 <BlockRenderer
                   node={content}
