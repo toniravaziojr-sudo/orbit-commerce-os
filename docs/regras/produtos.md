@@ -1,0 +1,325 @@
+# Módulo: Produtos (Admin)
+
+> **Status**: ✅ Funcional e Protegido  
+> **Última atualização**: 2025-01-19
+
+---
+
+## 1. Visão Geral
+
+O módulo de Produtos é o núcleo do catálogo do e-commerce. Permite gerenciar produtos simples, com variantes (cores, tamanhos) e kits/composições. Toda operação de escrita passa pela Edge Function `core-products` para garantir validação, auditoria e consistência.
+
+---
+
+## 2. Arquitetura de Componentes
+
+### 2.1 Páginas
+
+| Arquivo | Responsabilidade |
+|---------|------------------|
+| `src/pages/Products.tsx` | Página principal com alternância entre lista, criação e edição |
+
+### 2.2 Componentes
+
+| Arquivo | Responsabilidade |
+|---------|------------------|
+| `src/components/products/ProductList.tsx` | Tabela de produtos com busca, filtros, badges de status, duplicação |
+| `src/components/products/ProductForm.tsx` | Formulário completo com abas (descrição, preço, estoque, variantes, SEO) |
+| `src/components/products/ProductImageManager.tsx` | Gerenciador de imagens com suporte a upload e URLs externas |
+| `src/components/products/ProductImageUploader.tsx` | Upload de imagens para storage |
+| `src/components/products/ProductVariantPicker.tsx` | Seletor de variantes (opções 1-3) |
+| `src/components/products/ProductStructureEditor.tsx` | Editor para kits/composições |
+| `src/components/products/ProductPriceSection.tsx` | Seção de preços com promoção temporizada |
+| `src/components/products/ProductInventorySection.tsx` | Controle de estoque e backorder |
+| `src/components/products/ProductSeoSection.tsx` | Campos SEO (title, description) |
+
+### 2.3 Hooks
+
+| Arquivo | Responsabilidade |
+|---------|------------------|
+| `src/hooks/useProducts.ts` | CRUD via `coreProductsApi`, React Query, cache invalidation |
+| `src/hooks/useProductImages.ts` | Gerenciamento de imagens do produto |
+| `src/hooks/useProductVariants.ts` | CRUD de variantes |
+| `src/hooks/useProductComponents.ts` | Gerenciamento de componentes (kits) |
+
+### 2.4 Edge Functions
+
+| Função | Responsabilidade |
+|--------|------------------|
+| `core-products` | API canônica: create, update, delete, addImage, updateComponents, updateRelated |
+| `import-batch` | Importação em lote de produtos |
+
+---
+
+## 3. Modelo de Dados
+
+### 3.1 Tabela `products`
+
+```typescript
+interface Product {
+  id: string;                    // UUID PK
+  tenant_id: string;             // FK → tenants
+  sku: string;                   // Único por tenant
+  name: string;
+  slug: string;                  // Único por tenant
+  description: string | null;
+  short_description: string | null;
+  cost_price: number | null;     // Custo (não exibido)
+  price: number;                 // Preço de venda
+  compare_at_price: number | null; // Preço "de" (riscado)
+  promotion_start_date: string | null;
+  promotion_end_date: string | null;
+  stock_quantity: number;
+  low_stock_threshold: number;
+  manage_stock: boolean;
+  allow_backorder: boolean;
+  weight: number | null;         // Em gramas
+  width: number | null;          // Em cm
+  height: number | null;
+  depth: number | null;
+  barcode: string | null;
+  gtin: string | null;
+  ncm: string | null;            // Código fiscal
+  seo_title: string | null;
+  seo_description: string | null;
+  status: 'draft' | 'active' | 'inactive' | 'archived';
+  is_featured: boolean;          // Destaque
+  has_variants: boolean;
+  product_format: 'simple' | 'with_variants' | 'with_composition';
+  stock_type: 'physical' | 'virtual';
+  brand: string | null;
+  vendor: string | null;
+  product_type: string | null;
+  tags: string[] | null;
+  requires_shipping: boolean | null;
+  taxable: boolean | null;
+  tax_code: string | null;
+  cest: string | null;
+  origin_code: string | null;
+  uom: string | null;            // Unidade de medida
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+```
+
+### 3.2 Tabela `product_variants`
+
+```typescript
+interface ProductVariant {
+  id: string;
+  product_id: string;            // FK → products
+  sku: string;
+  name: string;
+  option1_name: string | null;   // Ex: "Cor"
+  option1_value: string | null;  // Ex: "Azul"
+  option2_name: string | null;
+  option2_value: string | null;
+  option3_name: string | null;
+  option3_value: string | null;
+  cost_price: number | null;
+  price: number | null;          // Sobrescreve produto pai
+  compare_at_price: number | null;
+  stock_quantity: number;
+  weight: number | null;
+  barcode: string | null;
+  gtin: string | null;
+  is_active: boolean;
+  position: number | null;
+  image_url: string | null;
+}
+```
+
+### 3.3 Tabela `product_images`
+
+```typescript
+interface ProductImage {
+  id: string;
+  product_id: string;
+  url: string;
+  alt_text: string | null;
+  is_primary: boolean;
+  sort_order: number;
+  file_id: string | null;        // Ref ao Drive (se upload local)
+}
+```
+
+### 3.4 Tabela `product_components` (Kits)
+
+```typescript
+interface ProductComponent {
+  id: string;
+  parent_product_id: string;     // Produto kit
+  component_product_id: string;  // Produto componente
+  quantity: number;
+  cost_price: number | null;
+  sale_price: number | null;
+}
+```
+
+### 3.5 Tabela `product_categories`
+
+```typescript
+interface ProductCategory {
+  id: string;
+  product_id: string;
+  category_id: string;
+  position: number;              // Ordem na categoria
+}
+```
+
+---
+
+## 4. Fluxos de Negócio
+
+### 4.1 Criação de Produto
+
+```mermaid
+graph TD
+    A[Admin clica "Novo Produto"] --> B[Abre ProductForm]
+    B --> C[Preenche dados básicos]
+    C --> D{Tipo de produto?}
+    D -->|Simples| E[Salva via coreProductsApi.create]
+    D -->|Com Variantes| F[Define opções 1-3]
+    F --> G[Gera variantes automaticamente]
+    G --> E
+    D -->|Kit| H[Adiciona componentes]
+    H --> E
+    E --> I[Invalida cache React Query]
+    I --> J[Retorna à lista]
+```
+
+### 4.2 Gestão de Estoque
+
+- **Estoque gerenciado**: `manage_stock = true` → quantidade é decrementada em vendas
+- **Backorder**: `allow_backorder = true` → permite vender mesmo sem estoque
+- **Alerta de baixo estoque**: `stock_quantity < low_stock_threshold`
+- **Variantes**: cada variante tem seu próprio `stock_quantity`
+
+### 4.3 Promoção Temporizada
+
+- `compare_at_price`: preço original (exibido riscado)
+- `promotion_start_date` / `promotion_end_date`: período da promoção
+- Storefront exibe preço promocional apenas no período ativo
+
+### 4.4 Slugs
+
+- Gerados automaticamente a partir do nome
+- Validados via `src/lib/slugPolicy.ts`
+- Únicos por tenant (não globalmente)
+- Não podem usar slugs reservados (cart, checkout, admin, etc.)
+
+---
+
+## 5. Integração com Outros Módulos
+
+| Módulo | Integração |
+|--------|------------|
+| **Categorias** | Produtos vinculados via `product_categories` |
+| **Pedidos** | Produtos referenciados em `order_items` |
+| **Descontos** | Regras podem aplicar a produtos específicos |
+| **Ofertas** | Order bump, upsell, cross-sell, buy-together |
+| **Avaliações** | Reviews vinculadas ao produto |
+| **Storefront** | Exibição pública via blocos do builder |
+| **Importação** | Migração de outras plataformas |
+
+---
+
+## 6. Formatos de Produto
+
+### 6.1 Simples (`simple`)
+- Produto único sem variações
+- SKU único, preço único, estoque único
+
+### 6.2 Com Variantes (`with_variants`)
+- Até 3 dimensões de opção (ex: Cor, Tamanho, Material)
+- Cada combinação gera uma variante com SKU próprio
+- Preço e estoque por variante
+
+### 6.3 Kit/Composição (`with_composition`)
+- Produto composto de outros produtos
+- Estoque calculado baseado nos componentes
+- Preço pode ser fixo ou soma dos componentes
+
+---
+
+## 7. UI/UX
+
+### 7.1 Lista de Produtos
+
+| Elemento | Comportamento |
+|----------|---------------|
+| Busca | Por nome, SKU, código de barras |
+| Filtros | Status, categoria, destaque |
+| Badges | Status, "Destaque", "Variantes", "Kit" |
+| Ações | Editar, Duplicar, Excluir |
+| Preview | Link para storefront (se slug válido) |
+
+### 7.2 Formulário de Produto
+
+| Aba | Campos |
+|-----|--------|
+| **Básico** | Nome, slug, descrição curta, descrição longa |
+| **Mídia** | Imagens (drag-drop, reordenar, definir principal) |
+| **Preço** | Custo, preço, compare_at, promoção temporizada |
+| **Estoque** | Quantidade, limiar, gerenciar, backorder |
+| **Variantes** | Opções 1-3, geração automática |
+| **Componentes** | Lista de produtos do kit |
+| **Fiscal** | NCM, CEST, código de origem |
+| **Dimensões** | Peso, largura, altura, profundidade |
+| **SEO** | Título, descrição, contador de caracteres |
+| **Categorias** | Vincular a múltiplas categorias |
+
+---
+
+## 8. Regras de Negócio
+
+### 8.1 Validações
+
+| Campo | Regra |
+|-------|-------|
+| `name` | Obrigatório, min 2 caracteres |
+| `sku` | Obrigatório, único por tenant |
+| `slug` | Obrigatório, único por tenant, formato válido |
+| `price` | Obrigatório, ≥ 0 |
+| `stock_quantity` | ≥ 0 |
+
+### 8.2 Exclusão
+
+- Produtos com pedidos não podem ser excluídos (soft delete via `status = 'archived'`)
+- `coreProductsApi.checkDependencies` verifica vínculos antes de excluir
+
+### 8.3 Duplicação
+
+- Copia todos os dados exceto: id, sku (gera novo), slug (gera novo)
+- Copia imagens, variantes, categorias
+
+---
+
+## 9. Permissões (RBAC)
+
+| Rota | Módulo | Submódulo |
+|------|--------|-----------|
+| `/products` | `ecommerce` | `products` |
+
+---
+
+## 10. Arquivos Relacionados
+
+- `src/pages/Products.tsx`
+- `src/components/products/*`
+- `src/hooks/useProducts.ts`
+- `src/hooks/useProductImages.ts`
+- `src/hooks/useProductVariants.ts`
+- `src/lib/coreApi.ts` (coreProductsApi)
+- `supabase/functions/core-products/`
+- `src/lib/slugPolicy.ts`
+
+---
+
+## 11. Pendências
+
+- [ ] Exportação em massa (CSV/Excel)
+- [ ] Histórico de alterações do produto
+- [ ] Bulk edit (edição em lote)
+- [ ] Produtos digitais (download)
