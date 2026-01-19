@@ -274,10 +274,31 @@ async function analyzePage(pageUrl: string): Promise<PageCandidate | null> {
       return null;
     }
 
-    // Extract page title
-    const titleMatch = mainContent.match(/<h1[^>]*>([^<]+)<\/h1>/i) || 
-                       html.match(/<title>([^<]+)<\/title>/i);
-    const title = titleMatch ? titleMatch[1].trim() : formatTitle(extractSlug(new URL(pageUrl).pathname));
+    // Extract page title - prioritize H1, then clean title tag, fallback to slug
+    const h1Match = mainContent.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+    const h1Text = h1Match ? h1Match[1].replace(/<[^>]+>/g, '').trim() : null;
+    
+    // Get title from <title> tag but filter out YouTube/iframe titles and bare URLs
+    const titleTagMatch = html.match(/<title>([^<]+)<\/title>/i);
+    let pageTitle = titleTagMatch ? titleTagMatch[1].trim() : null;
+    
+    // Reject invalid titles (YouTube, URLs, empty, too short)
+    if (pageTitle && (
+      pageTitle.toLowerCase().includes('youtube') ||
+      pageTitle.toLowerCase().includes('vimeo') ||
+      pageTitle.startsWith('http') ||
+      pageTitle.startsWith('www.') ||
+      pageTitle.length < 3 ||
+      pageTitle === 'Untitled' ||
+      pageTitle === 'Document'
+    )) {
+      pageTitle = null;
+    }
+    
+    // Priority: H1 > Valid title tag > Formatted slug
+    const title = h1Text && h1Text.length > 2 && h1Text.length < 150 
+      ? h1Text 
+      : (pageTitle || formatTitle(extractSlug(new URL(pageUrl).pathname)));
 
     // Extract content blocks in order
     const contentBlocks: ContentBlock[] = [];
