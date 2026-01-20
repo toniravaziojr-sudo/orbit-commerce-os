@@ -7,7 +7,6 @@ import React, { useRef, useCallback, useEffect, useState } from 'react';
 import { BlockRenderContext } from '@/lib/builder/types';
 import { useBuilderContext } from '@/components/builder/BuilderContext';
 import { useCanvasRichText } from '@/components/builder/CanvasRichTextContext';
-import { Bold, Italic, Link, List, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface RichTextBlockProps {
@@ -160,114 +159,7 @@ function sanitizeLinks(html: string): string {
   );
 }
 
-// Font size options
-const FONT_SIZE_OPTIONS = ['12', '14', '16', '18', '20', '24', '28', '32', '36', '40', '48'];
-
-// Floating Toolbar Component
-interface FloatingToolbarProps {
-  position: { top: number; left: number };
-  onBold: () => void;
-  onItalic: () => void;
-  onLink: () => void;
-  onList: () => void;
-  onAlign: (align: 'left' | 'center' | 'right') => void;
-  onFontSize: (size: string) => void;
-}
-
-function FloatingToolbar({ 
-  position,
-  onBold, 
-  onItalic, 
-  onLink, 
-  onList,
-  onAlign,
-  onFontSize
-}: FloatingToolbarProps) {
-  return (
-    <div 
-      className="fixed z-[9999] flex items-center gap-1 bg-background border rounded-lg shadow-lg p-1 animate-in fade-in-0 zoom-in-95 duration-100"
-      style={{ 
-        top: position.top,
-        left: position.left,
-        transform: 'translateX(-50%)'
-      }}
-      onMouseDown={(e) => e.preventDefault()}
-    >
-      <button
-        type="button"
-        className="p-1.5 hover:bg-muted rounded transition-colors"
-        onMouseDown={(e) => { e.preventDefault(); onBold(); }}
-        title="Negrito (Ctrl+B)"
-      >
-        <Bold className="h-4 w-4" />
-      </button>
-      <button
-        type="button"
-        className="p-1.5 hover:bg-muted rounded transition-colors"
-        onMouseDown={(e) => { e.preventDefault(); onItalic(); }}
-        title="Itálico (Ctrl+I)"
-      >
-        <Italic className="h-4 w-4" />
-      </button>
-      <button
-        type="button"
-        className="p-1.5 hover:bg-muted rounded transition-colors"
-        onMouseDown={(e) => { e.preventDefault(); onLink(); }}
-        title="Link (Ctrl+K)"
-      >
-        <Link className="h-4 w-4" />
-      </button>
-      <button
-        type="button"
-        className="p-1.5 hover:bg-muted rounded transition-colors"
-        onMouseDown={(e) => { e.preventDefault(); onList(); }}
-        title="Lista"
-      >
-        <List className="h-4 w-4" />
-      </button>
-      <div className="w-px h-5 bg-border mx-1" />
-      <button
-        type="button"
-        className="p-1.5 hover:bg-muted rounded transition-colors"
-        onMouseDown={(e) => { e.preventDefault(); onAlign('left'); }}
-        title="Esquerda"
-      >
-        <AlignLeft className="h-4 w-4" />
-      </button>
-      <button
-        type="button"
-        className="p-1.5 hover:bg-muted rounded transition-colors"
-        onMouseDown={(e) => { e.preventDefault(); onAlign('center'); }}
-        title="Centro"
-      >
-        <AlignCenter className="h-4 w-4" />
-      </button>
-      <button
-        type="button"
-        className="p-1.5 hover:bg-muted rounded transition-colors"
-        onMouseDown={(e) => { e.preventDefault(); onAlign('right'); }}
-        title="Direita"
-      >
-        <AlignRight className="h-4 w-4" />
-      </button>
-      <div className="w-px h-5 bg-border mx-1" />
-      <select
-        className="h-7 px-1.5 text-xs bg-background border rounded hover:bg-muted transition-colors cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary"
-        onChange={(e) => { onFontSize(e.target.value); e.target.value = ''; }}
-        onMouseDown={(e) => e.stopPropagation()}
-        defaultValue=""
-        title="Tamanho da fonte"
-      >
-        <option value="" disabled>px</option>
-        {FONT_SIZE_OPTIONS.map(size => (
-          <option key={size} value={size}>{size}px</option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-export function RichTextBlock({ 
+export function RichTextBlock({
   content, 
   align, 
   fontFamily, 
@@ -281,8 +173,6 @@ export function RichTextBlock({
 }: RichTextBlockProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
-  const [showToolbar, setShowToolbar] = useState(false);
-  const [toolbarPosition, setToolbarPosition] = useState({ top: 0, left: 0 });
   
   // CRITICAL: Draft content ref - this is the "uncontrolled" state
   // We NEVER overwrite innerHTML while editing
@@ -458,60 +348,13 @@ export function RichTextBlock({
     }
   }, [scheduleCommit]);
   
-  // Formatting commands for toolbar
+  // Formatting commands - exposed via context for right panel
   const formatBold = useCallback(() => applyCommand('bold'), [applyCommand]);
   const formatItalic = useCallback(() => applyCommand('italic'), [applyCommand]);
-  const formatList = useCallback(() => applyCommand('insertUnorderedList'), [applyCommand]);
   const formatLink = useCallback(() => {
     const url = prompt('Digite a URL do link:', 'https://');
     if (url) applyCommand('createLink', url);
   }, [applyCommand]);
-  const formatAlign = useCallback((alignment: 'left' | 'center' | 'right') => {
-    const alignCommand = { left: 'justifyLeft', center: 'justifyCenter', right: 'justifyRight' }[alignment];
-    applyCommand(alignCommand);
-  }, [applyCommand]);
-  const formatFontSize = useCallback((size: string) => {
-    applyFontSize(size);
-  }, [applyFontSize]);
-  
-  // Update toolbar position based on selection
-  const updateToolbarPosition = useCallback(() => {
-    const selection = window.getSelection();
-    
-    if (!selection || selection.isCollapsed || !editorRef.current) {
-      setShowToolbar(false);
-      return;
-    }
-    
-    const range = selection.getRangeAt(0);
-    if (!editorRef.current.contains(range.commonAncestorContainer)) {
-      setShowToolbar(false);
-      return;
-    }
-    
-    const rect = range.getBoundingClientRect();
-    
-    setToolbarPosition({
-      top: rect.top - 48,
-      left: rect.left + rect.width / 2
-    });
-    setShowToolbar(true);
-  }, []);
-  
-  // Listen for selection changes
-  useEffect(() => {
-    if (!isEditing) return;
-    
-    const handleSelectionChange = () => {
-      requestAnimationFrame(updateToolbarPosition);
-    };
-    
-    document.addEventListener('selectionchange', handleSelectionChange);
-    
-    return () => {
-      document.removeEventListener('selectionchange', handleSelectionChange);
-    };
-  }, [isEditing, updateToolbarPosition]);
   
   // Handle focus
   const handleFocus = useCallback(() => {
@@ -523,11 +366,9 @@ export function RichTextBlock({
   const handleBlur = useCallback(() => {
     // Delay to allow button clicks
     setTimeout(() => {
-      const selection = window.getSelection();
       const stillInEditor = editorRef.current?.contains(document.activeElement);
       
       if (!stillInEditor) {
-        setShowToolbar(false);
         setIsFocused(false);
         isEditingTextRef.current = false;
         
@@ -579,45 +420,30 @@ export function RichTextBlock({
   // Render editable version
   if (isEditing) {
     return (
-      <div className="relative">
-        {showToolbar && (
-          <FloatingToolbar
-            position={toolbarPosition}
-            onBold={formatBold}
-            onItalic={formatItalic}
-            onLink={formatLink}
-            onList={formatList}
-            onAlign={formatAlign}
-            onFontSize={formatFontSize}
-          />
+      <div 
+        ref={editorRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={handleInput}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        className={cn(
+          "prose prose-lg max-w-none focus:outline-none min-h-[1em] cursor-text",
+          "[&_a[data-editor-link]]:pointer-events-none [&_a[data-editor-link]]:cursor-text",
+          isSelected && "ring-2 ring-primary/20 rounded-sm"
         )}
-        <div 
-          ref={editorRef}
-          contentEditable
-          suppressContentEditableWarning
-          onInput={handleInput}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
-          onMouseUp={updateToolbarPosition}
-          onKeyUp={updateToolbarPosition}
-          onKeyDown={handleKeyDown}
-          className={cn(
-            "prose prose-lg max-w-none focus:outline-none min-h-[1em] cursor-text",
-            "[&_a[data-editor-link]]:pointer-events-none [&_a[data-editor-link]]:cursor-text",
-            isSelected && "ring-2 ring-primary/20 rounded-sm"
-          )}
-          style={{ 
-            textAlign: (align as any) || 'left',
-            fontFamily: fontFamily || 'inherit',
-            fontSize: fontSizeMap[fontSize || 'base'] || fontSizeMap.base,
-            fontWeight: fontWeight || 'normal',
-          }}
-          data-placeholder="Clique para editar..."
-          dangerouslySetInnerHTML={{ 
-            __html: sanitizeForEditor(content || '<p>Clique para editar...</p>') 
-          }}
-        />
-      </div>
+        style={{ 
+          textAlign: (align as any) || 'left',
+          fontFamily: fontFamily || 'inherit',
+          fontSize: fontSizeMap[fontSize || 'base'] || fontSizeMap.base,
+          fontWeight: fontWeight || 'normal',
+        }}
+        data-placeholder="Clique para editar..."
+        dangerouslySetInnerHTML={{ 
+          __html: sanitizeForEditor(content || '<p>Clique para editar...</p>') 
+        }}
+      />
     );
   }
   
