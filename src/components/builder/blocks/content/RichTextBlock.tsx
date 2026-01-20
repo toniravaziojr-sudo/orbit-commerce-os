@@ -341,6 +341,9 @@ export function RichTextBlock({
   const [isFocused, setIsFocused] = useState(false);
   const [showToolbar, setShowToolbar] = useState(false);
   const [toolbarPosition, setToolbarPosition] = useState({ top: 0, left: 0 });
+  // Track last known content to avoid overwriting during formatting
+  const lastContentRef = useRef<string>(content || '');
+  const isFormattingRef = useRef(false);
   
   // Get context for inline editing
   const builderCtx = useBuilderContext();
@@ -368,6 +371,7 @@ export function RichTextBlock({
   
   // Create onContentChange from context if not provided
   const onContentChange = useCallback((newContent: string) => {
+    lastContentRef.current = newContent;
     if (onContentChangeProp) {
       onContentChangeProp(newContent);
     } else if (builderCtx?.updateProps && blockId) {
@@ -375,15 +379,20 @@ export function RichTextBlock({
     }
   }, [onContentChangeProp, builderCtx, blockId]);
   
-  // Sync content when changed externally
+  // Sync content when changed externally (not during focus or formatting)
   useEffect(() => {
-    if (editorRef.current && !isFocused) {
+    // Check global formatting lock from context
+    const isGloballyLocked = canvasEditor?.isFormattingLocked?.() ?? false;
+    
+    // Don't sync if focused, formatting, or if content matches what we just set
+    if (editorRef.current && !isFocused && !isFormattingRef.current && !isGloballyLocked && content !== lastContentRef.current) {
       const processedContent = isEditing 
         ? sanitizeForEditor(content || '<p>Clique para editar...</p>')
         : sanitizeLinks(processContent(content || '', context));
       editorRef.current.innerHTML = processedContent;
+      lastContentRef.current = content || '';
     }
-  }, [content, isFocused, isEditing, context]);
+  }, [content, isFocused, isEditing, context, canvasEditor]);
   
   // Handle content changes
   const handleInput = useCallback(() => {
@@ -414,6 +423,9 @@ export function RichTextBlock({
   const formatFontSize = (size: string) => {
     if (!size || !editorRef.current) return;
     
+    // Mark as formatting to prevent content sync from overwriting
+    isFormattingRef.current = true;
+    
     // First restore saved selection (savedRange is set by FloatingToolbar)
     if (savedRange) {
       editorRef.current.focus();
@@ -426,7 +438,10 @@ export function RichTextBlock({
     
     // Use CSS font-size instead of deprecated fontSize command
     const selection = window.getSelection();
-    if (!selection || selection.isCollapsed) return;
+    if (!selection || selection.isCollapsed) {
+      isFormattingRef.current = false;
+      return;
+    }
     
     const range = selection.getRangeAt(0);
     const span = document.createElement('span');
@@ -451,8 +466,11 @@ export function RichTextBlock({
       }
     }
     
-    // Keep the toolbar visible by updating position
-    setTimeout(updateToolbarPosition, 10);
+    // Reset formatting flag after a short delay
+    setTimeout(() => {
+      isFormattingRef.current = false;
+      updateToolbarPosition();
+    }, 100);
   };
   
   // Check for text selection and position toolbar

@@ -194,6 +194,11 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
   const formatFontSize = useCallback((size: string) => {
     if (!size) return;
     
+    // Set formatting lock to prevent content sync
+    if (canvasEditor?.setFormattingLock) {
+      canvasEditor.setFormattingLock(true);
+    }
+    
     // First try to execute on canvas selection if available
     if (canvasEditor) {
       const activeEditor = canvasEditor.getActiveEditor();
@@ -218,6 +223,13 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
               range.surroundContents(span);
               activeEditor.dispatchEvent(new Event('input', { bubbles: true }));
               savedSelectionRef.current = null;
+              
+              // Release lock after delay
+              setTimeout(() => {
+                if (canvasEditor?.setFormattingLock) {
+                  canvasEditor.setFormattingLock(false);
+                }
+              }, 200);
               return;
             } catch (e) {
               // Fallback if surroundContents fails
@@ -238,7 +250,12 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
     }
     
     const selection = window.getSelection();
-    if (!selection || selection.isCollapsed) return;
+    if (!selection || selection.isCollapsed) {
+      if (canvasEditor?.setFormattingLock) {
+        canvasEditor.setFormattingLock(false);
+      }
+      return;
+    }
     
     const range = selection.getRangeAt(0);
     const span = document.createElement('span');
@@ -250,6 +267,13 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
       // Fallback
     }
     savedSelectionRef.current = null;
+    
+    // Release lock after delay
+    setTimeout(() => {
+      if (canvasEditor?.setFormattingLock) {
+        canvasEditor.setFormattingLock(false);
+      }
+    }, 200);
   }, [canvasEditor, handleInput]);
 
   // Save canvas selection when mouse enters the toolbar area
