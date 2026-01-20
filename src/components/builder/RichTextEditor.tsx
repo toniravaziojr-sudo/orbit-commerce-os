@@ -7,20 +7,12 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Bold, Italic, Link, List, AlignLeft, AlignCenter, AlignRight, Eye, Code, MousePointer, Type, Minus, Plus } from 'lucide-react';
+import { Bold, Italic, Link, List, AlignLeft, AlignCenter, AlignRight, Eye, Code, MousePointer } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCanvasEditor } from './CanvasEditorContext';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-const FONT_SIZES = [
-  { value: '1', label: 'Muito Pequeno' },
-  { value: '2', label: 'Pequeno' },
-  { value: '3', label: 'Normal' },
-  { value: '4', label: 'Médio' },
-  { value: '5', label: 'Grande' },
-  { value: '6', label: 'Muito Grande' },
-  { value: '7', label: 'Enorme' },
-];
+// Font size options in pixels
+const FONT_SIZE_OPTIONS = ['12', '14', '16', '18', '20', '24', '28', '32', '36', '40', '48'];
 
 interface RichTextEditorProps {
   value: string;
@@ -187,9 +179,43 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
     execCommand(alignCommand);
   };
 
-  // Font size control
+  // Font size control - uses CSS font-size
   const formatFontSize = (size: string) => {
-    execCommand('fontSize', size);
+    // First try to execute on canvas selection if available
+    if (canvasEditor) {
+      const activeEditor = canvasEditor.getActiveEditor();
+      if (activeEditor) {
+        const selection = window.getSelection();
+        if (selection && !selection.isCollapsed) {
+          const range = selection.getRangeAt(0);
+          if (activeEditor.contains(range.commonAncestorContainer)) {
+            const span = document.createElement('span');
+            span.style.fontSize = `${size}px`;
+            try {
+              range.surroundContents(span);
+              activeEditor.dispatchEvent(new Event('input', { bubbles: true }));
+              return;
+            } catch (e) {
+              // Fallback if surroundContents fails
+            }
+          }
+        }
+      }
+    }
+    
+    // Fallback to local editor
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed) return;
+    
+    const range = selection.getRangeAt(0);
+    const span = document.createElement('span');
+    span.style.fontSize = `${size}px`;
+    try {
+      range.surroundContents(span);
+      handleInput();
+    } catch (e) {
+      // Fallback
+    }
   };
 
   // Save canvas selection when mouse enters the toolbar area
@@ -266,22 +292,21 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
           className="flex items-center"
           onMouseDown={(e) => e.preventDefault()}
         >
-          <Select 
-            onValueChange={formatFontSize}
+          <select
+            className={cn(
+              "h-7 px-2 text-xs bg-background border rounded hover:bg-muted transition-colors cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary",
+              hasCanvasSelection && "ring-1 ring-primary/50"
+            )}
+            onChange={(e) => { formatFontSize(e.target.value); e.target.value = ''; }}
+            defaultValue=""
             disabled={mode === 'html'}
+            title="Tamanho da fonte"
           >
-            <SelectTrigger className={cn("h-7 w-[110px] text-xs", hasCanvasSelection && "ring-1 ring-primary/50")}>
-              <Type className="h-3 w-3 mr-1" />
-              <SelectValue placeholder="Tamanho" />
-            </SelectTrigger>
-            <SelectContent>
-              {FONT_SIZES.map(size => (
-                <SelectItem key={size.value} value={size.value} className="text-xs">
-                  {size.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <option value="" disabled>Tamanho</option>
+            {FONT_SIZE_OPTIONS.map(size => (
+              <option key={size} value={size}>{size}px</option>
+            ))}
+          </select>
         </div>
 
         <div className="w-px h-5 bg-border mx-1" />
