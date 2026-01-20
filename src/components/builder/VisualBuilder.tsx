@@ -911,7 +911,7 @@ export function VisualBuilder({
   }
 
   return (
-    <CanvasRichTextProvider>
+    <CanvasRichTextProvider onBlockSelect={store.selectBlock}>
     <CanvasEditorProvider>
     <>
     <BuilderDebugPanel pageType={pageType} queries={debugQueries} isSafeMode={isSafeMode} />

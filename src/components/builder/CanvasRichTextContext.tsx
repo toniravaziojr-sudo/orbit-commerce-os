@@ -36,13 +36,20 @@ interface CanvasRichTextContextValue {
   isFormattingLocked: () => boolean;
 }
 
+interface CanvasRichTextProviderProps {
+  children: ReactNode;
+  onBlockSelect?: (blockId: string) => void;
+}
+
 const CanvasRichTextContext = createContext<CanvasRichTextContextValue | null>(null);
 
-export function CanvasRichTextProvider({ children }: { children: ReactNode }) {
+export function CanvasRichTextProvider({ children, onBlockSelect }: CanvasRichTextProviderProps) {
   const editorsRef = useRef<Map<string, RichTextEditorInstance>>(new Map());
   const activeEditorIdRef = useRef<string | null>(null);
   const savedSelectionRef = useRef<Range | null>(null);
   const formattingLockRef = useRef(false);
+  // Track the last notified block to avoid duplicate calls
+  const lastNotifiedBlockRef = useRef<string | null>(null);
 
   const registerEditor = useCallback((id: string, instance: RichTextEditorInstance) => {
     editorsRef.current.set(id, instance);
@@ -88,6 +95,7 @@ export function CanvasRichTextProvider({ children }: { children: ReactNode }) {
   
   // Auto-save selection on any selection change within registered editors
   // This ensures we capture the selection even when mouse ends outside canvas
+  // Also notifies the builder to select the block for the properties panel
   const autoSaveSelection = useCallback(() => {
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
@@ -104,10 +112,17 @@ export function CanvasRichTextProvider({ children }: { children: ReactNode }) {
           activeEditorIdRef.current = editorId;
         }
         savedSelectionRef.current = range.cloneRange();
+        
+        // CRITICAL: Notify the builder to select this block
+        // This ensures the properties panel shows even when mouse ends outside canvas
+        if (onBlockSelect && lastNotifiedBlockRef.current !== editorId) {
+          lastNotifiedBlockRef.current = editorId;
+          onBlockSelect(editorId);
+        }
         return;
       }
     }
-  }, []);
+  }, [onBlockSelect]);
 
   const restoreSelection = useCallback((): boolean => {
     if (!savedSelectionRef.current) return false;
