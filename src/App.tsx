@@ -113,6 +113,7 @@ import StorefrontResetPassword from "@/pages/storefront/StorefrontResetPassword"
 import StorefrontBlogPost from "@/pages/storefront/StorefrontBlogPost";
 import StorefrontBlog from "@/pages/storefront/StorefrontBlog";
 import StorefrontTracking from "@/pages/storefront/StorefrontTracking";
+import StorefrontQuiz from "@/pages/storefront/StorefrontQuiz";
 
 // Helper to check if we're on a tenant host (custom domain or platform subdomain)
 import { isPlatformSubdomain, isAppDomain, SAAS_CONFIG } from "@/lib/canonicalDomainService";
@@ -205,6 +206,7 @@ const App = () => {
                   <Route path="minha-conta/redefinir-senha" element={<StorefrontResetPassword />} />
                   <Route path="conta/pedidos" element={<StorefrontOrdersList />} />
                   <Route path="conta/pedidos/:orderId" element={<StorefrontOrderDetail />} />
+                  <Route path="quiz/:quizSlug" element={<StorefrontQuiz />} />
                 </Route>
               )}
 
@@ -229,6 +231,7 @@ const App = () => {
                 <Route path="minha-conta/redefinir-senha" element={<StorefrontResetPassword />} />
                 <Route path="conta/pedidos" element={<StorefrontOrdersList />} />
                 <Route path="conta/pedidos/:orderId" element={<StorefrontOrderDetail />} />
+                <Route path="quiz/:quizSlug" element={<StorefrontQuiz />} />
               </Route>
 
               {/* Protected route without tenant requirement */}
