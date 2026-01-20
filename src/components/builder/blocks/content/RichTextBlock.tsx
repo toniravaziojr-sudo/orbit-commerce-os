@@ -5,6 +5,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { BlockRenderContext } from '@/lib/builder/types';
 import { useBuilderContext } from '@/components/builder/BuilderContext';
+import { useCanvasEditor } from '@/components/builder/CanvasEditorContext';
 import { Bold, Italic, Link, List, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -291,9 +292,26 @@ export function RichTextBlock({
   // Get context for inline editing
   const builderCtx = useBuilderContext();
   
+  // Get canvas editor context to register this editor
+  const canvasEditor = useCanvasEditor();
+  
   // Determine editing state from props or context
   const isEditing = isEditingProp ?? builderCtx?.isEditing ?? false;
   const isSelected = isSelectedProp ?? (builderCtx?.selectedBlockId === blockId);
+  
+  // Register this editor in the canvas context when focused
+  useEffect(() => {
+    if (isEditing && isFocused && editorRef.current && canvasEditor) {
+      canvasEditor.registerEditor(editorRef.current);
+    }
+  }, [isEditing, isFocused, canvasEditor]);
+  
+  // Also register when selected (even if not focused)
+  useEffect(() => {
+    if (isEditing && isSelected && editorRef.current && canvasEditor) {
+      canvasEditor.registerEditor(editorRef.current);
+    }
+  }, [isEditing, isSelected, canvasEditor]);
   
   // Create onContentChange from context if not provided
   const onContentChange = useCallback((newContent: string) => {
