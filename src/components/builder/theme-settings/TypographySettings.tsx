@@ -17,6 +17,7 @@ interface TypographySettingsProps {
 }
 
 const fontFamilies = [
+  // Sans-serif fonts
   { value: 'inter', label: 'Inter' },
   { value: 'roboto', label: 'Roboto' },
   { value: 'open-sans', label: 'Open Sans' },
@@ -24,7 +25,32 @@ const fontFamilies = [
   { value: 'montserrat', label: 'Montserrat' },
   { value: 'poppins', label: 'Poppins' },
   { value: 'nunito', label: 'Nunito' },
+  { value: 'raleway', label: 'Raleway' },
+  { value: 'source-sans-pro', label: 'Source Sans Pro' },
+  { value: 'ubuntu', label: 'Ubuntu' },
+  { value: 'mulish', label: 'Mulish' },
+  { value: 'work-sans', label: 'Work Sans' },
+  { value: 'quicksand', label: 'Quicksand' },
+  { value: 'dm-sans', label: 'DM Sans' },
+  { value: 'manrope', label: 'Manrope' },
+  { value: 'outfit', label: 'Outfit' },
+  { value: 'plus-jakarta-sans', label: 'Plus Jakarta Sans' },
+  // Serif fonts
   { value: 'playfair', label: 'Playfair Display' },
+  { value: 'merriweather', label: 'Merriweather' },
+  { value: 'lora', label: 'Lora' },
+  { value: 'pt-serif', label: 'PT Serif' },
+  { value: 'crimson-text', label: 'Crimson Text' },
+  { value: 'libre-baskerville', label: 'Libre Baskerville' },
+  { value: 'cormorant-garamond', label: 'Cormorant Garamond' },
+  { value: 'eb-garamond', label: 'EB Garamond' },
+  { value: 'bitter', label: 'Bitter' },
+  // Display fonts
+  { value: 'abril-fatface', label: 'Abril Fatface' },
+  { value: 'bebas-neue', label: 'Bebas Neue' },
+  { value: 'oswald', label: 'Oswald' },
+  { value: 'josefin-sans', label: 'Josefin Sans' },
+  { value: 'righteous', label: 'Righteous' },
 ];
 
 export function TypographySettings({ tenantId, templateSetId }: TypographySettingsProps) {
