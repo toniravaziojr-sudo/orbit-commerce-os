@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { 
   ArrowLeft, 
   Inbox, 
@@ -10,7 +11,8 @@ import {
   RefreshCw,
   PenSquare,
   Star,
-  Mail
+  Mail,
+  Search
 } from "lucide-react";
 import { useMailboxFolders, useMailboxes } from "@/hooks/useMailboxes";
 import { useEmailMessages } from "@/hooks/useEmailMessages";
@@ -40,12 +42,26 @@ export function MailboxInbox({ mailboxId, onBack }: MailboxInboxProps) {
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [isComposing, setIsComposing] = useState(false);
   const [replyToMessage, setReplyToMessage] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const mailbox = mailboxes.find(m => m.id === mailboxId);
   const inboxFolder = folders?.find(f => f.slug === 'inbox');
   const currentFolderId = selectedFolderId || inboxFolder?.id || null;
 
   const { data: messages, isLoading: messagesLoading, refetch } = useEmailMessages(mailboxId, currentFolderId);
+
+  // Filter messages by search query
+  const filteredMessages = useMemo(() => {
+    if (!messages || !searchQuery.trim()) return messages || [];
+    
+    const query = searchQuery.toLowerCase().trim();
+    return messages.filter(msg => 
+      msg.subject?.toLowerCase().includes(query) ||
+      msg.from_name?.toLowerCase().includes(query) ||
+      msg.from_email?.toLowerCase().includes(query) ||
+      msg.snippet?.toLowerCase().includes(query)
+    );
+  }, [messages, searchQuery]);
 
   const handleReply = (messageId: string) => {
     setReplyToMessage(messageId);
@@ -147,8 +163,21 @@ export function MailboxInbox({ mailboxId, onBack }: MailboxInboxProps) {
             </Button>
           </div>
 
+          {/* Search input */}
+          <div className="p-3 border-b">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por assunto, remetente..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 h-9"
+              />
+            </div>
+          </div>
+
           <EmailList
-            messages={messages || []}
+            messages={filteredMessages}
             isLoading={messagesLoading}
             selectedId={selectedMessageId}
             onSelect={setSelectedMessageId}
