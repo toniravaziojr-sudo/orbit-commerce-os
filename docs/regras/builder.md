@@ -223,3 +223,77 @@ const handleAddToCart = (product: Product, e: React.MouseEvent) => {
 | `.sf-*-desktop` | Container ≥ 768px | Exibe versão desktop |
 
 **Regra Fixa:** Usar classes `sf-*` (container queries) em vez de `md:`, `lg:` (media queries) dentro do storefront.
+
+---
+
+## Sistema de Edição de Texto Rico (RichText)
+
+### Arquitetura Canônica
+
+O sistema de edição inline usa uma arquitetura **uncontrolled** para estabilidade visual:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     CANVAS RICH TEXT CONTEXT                            │
+│  Arquivo: src/components/builder/CanvasRichTextContext.tsx              │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Responsabilidades:                                                      │
+│  • Registrar/desregistrar instâncias de editores ativos                 │
+│  • Salvar e restaurar seleções de texto                                 │
+│  • Sincronizar seleção com o estado global do Builder                   │
+│  • Gerenciar lock de formatação durante operações                       │
+│  • Capturar seleções via eventos globais (selectionchange + mouseup)    │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    ↓
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         RICH TEXT BLOCK                                  │
+│  Arquivo: src/components/builder/blocks/content/RichTextBlock.tsx       │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Responsabilidades:                                                      │
+│  • Renderizar contentEditable para edição inline                        │
+│  • Registrar instância no CanvasRichTextContext                         │
+│  • Bloquear atalhos globais (Backspace/Delete) durante edição           │
+│  • Sincronizar innerHTML com estado global via commit (debounce/blur)   │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    ↓
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    RICH TEXT EDITOR (PAINEL LATERAL)                    │
+│  Arquivo: src/components/builder/panels/RichTextEditor.tsx              │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Responsabilidades:                                                      │
+│  • Exibir controles de formatação (Negrito, Itálico, Fonte, Tamanho)   │
+│  • Restaurar seleção antes de aplicar comandos                          │
+│  • Aplicar comandos via execCommand no canvas                           │
+│  • Gerenciar tamanhos de fonte em PX (12px a 48px)                      │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Sincronização de Seleção
+
+| Evento | Ação | Propósito |
+|--------|------|-----------|
+| `selectionchange` | `autoSaveSelection()` | Captura seleções durante arraste |
+| `mouseup` | `autoSaveSelection()` + delay | Garante captura quando mouse termina fora do canvas |
+| `onBlockSelect` | `store.selectBlock(blockId)` | Sincroniza com estado global do Builder |
+
+**Regra Crítica:** A seleção de texto SEMPRE notifica o Builder para exibir o painel de propriedades, independentemente de onde o ponteiro do mouse termina.
+
+### Controles de Formatação
+
+| Controle | Fonte | Valores |
+|----------|-------|---------|
+| Negrito | Painel lateral | Toggle via execCommand |
+| Itálico | Painel lateral | Toggle via execCommand |
+| Sublinhado | Painel lateral | Toggle via execCommand |
+| Fonte | Painel lateral | Lista de fontes do tema |
+| Tamanho | Painel lateral | 12px, 14px, 16px, 18px, 20px, 24px, 28px, 32px, 36px, 40px, 48px |
+
+**Regra Fixa:** Editor flutuante foi REMOVIDO. Todos os controles são centralizados no painel lateral (menu principal).
+
+### Regras de Implementação
+
+1. **NUNCA** usar edição controlada (React state) para conteúdo inline — causa flickering
+2. **SEMPRE** usar commit via debounce ou blur para sincronizar com estado global
+3. **SEMPRE** bloquear eventos de teclado globais (Delete/Backspace) dentro do bloco
+4. **SEMPRE** registrar instância no CanvasRichTextContext ao montar
+5. **SEMPRE** restaurar seleção antes de aplicar formatação via painel lateral
