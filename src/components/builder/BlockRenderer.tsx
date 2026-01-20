@@ -352,7 +352,9 @@ export function BlockRenderer({
         onClick={handleClick}
         className={cn(
           'relative transition-all group/block-actions',
-          isEditing && 'cursor-pointer hover:outline hover:outline-2 hover:outline-primary/50',
+          isEditing && node.type !== 'RichText' && 'cursor-pointer',
+          isEditing && node.type === 'RichText' && 'cursor-text',
+          isEditing && 'hover:outline hover:outline-2 hover:outline-primary/50',
           isSelected && isEditing && 'outline outline-2 outline-primary ring-2 ring-primary/20',
         )}
       >
@@ -380,11 +382,13 @@ export function BlockRenderer({
     <div
       data-block-id={node.id}
       onClick={handleClick}
-      className={cn(
-        'relative transition-all group/block-actions',
-        isEditing && 'cursor-pointer hover:outline hover:outline-2 hover:outline-primary/50',
-        isSelected && isEditing && 'outline outline-2 outline-primary ring-2 ring-primary/20',
-        node.hidden && isEditing && 'opacity-40'
+        className={cn(
+          'relative transition-all group/block-actions',
+          isEditing && node.type !== 'RichText' && 'cursor-pointer',
+          isEditing && node.type === 'RichText' && 'cursor-text',
+          isEditing && 'hover:outline hover:outline-2 hover:outline-primary/50',
+          isSelected && isEditing && 'outline outline-2 outline-primary ring-2 ring-primary/20',
+          node.hidden && isEditing && 'opacity-40'
       )}
     >
       {isSelected && isEditing && (

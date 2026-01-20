@@ -182,50 +182,62 @@ function sanitizeForEditor(html: string): string {
   return container.innerHTML;
 }
 
-// Inline Toolbar Component
-function InlineToolbar({ 
-  onBold, 
-  onItalic, 
-  onLink, 
-  onList,
-  onAlign 
-}: {
+// Floating Toolbar Component - appears near text selection
+interface FloatingToolbarProps {
+  position: { top: number; left: number };
   onBold: () => void;
   onItalic: () => void;
   onLink: () => void;
   onList: () => void;
   onAlign: (align: 'left' | 'center' | 'right') => void;
-}) {
+}
+
+function FloatingToolbar({ 
+  position,
+  onBold, 
+  onItalic, 
+  onLink, 
+  onList,
+  onAlign 
+}: FloatingToolbarProps) {
   return (
-    <div className="absolute -top-10 left-0 z-50 flex items-center gap-1 bg-background border rounded-lg shadow-lg p-1">
+    <div 
+      className="fixed z-[9999] flex items-center gap-1 bg-background border rounded-lg shadow-lg p-1 animate-in fade-in-0 zoom-in-95 duration-100"
+      style={{ 
+        top: position.top,
+        left: position.left,
+        transform: 'translateX(-50%)'
+      }}
+      onMouseDown={(e) => e.preventDefault()} // Prevent blur on click
+    >
       <button
         type="button"
         className="p-1.5 hover:bg-muted rounded transition-colors"
-        onClick={onBold}
-        title="Negrito"
+        onMouseDown={(e) => { e.preventDefault(); onBold(); }}
+        title="Negrito (Ctrl+B)"
       >
         <Bold className="h-4 w-4" />
       </button>
       <button
         type="button"
         className="p-1.5 hover:bg-muted rounded transition-colors"
-        onClick={onItalic}
-        title="Itálico"
+        onMouseDown={(e) => { e.preventDefault(); onItalic(); }}
+        title="Itálico (Ctrl+I)"
       >
         <Italic className="h-4 w-4" />
       </button>
       <button
         type="button"
         className="p-1.5 hover:bg-muted rounded transition-colors"
-        onClick={onLink}
-        title="Link"
+        onMouseDown={(e) => { e.preventDefault(); onLink(); }}
+        title="Link (Ctrl+K)"
       >
         <Link className="h-4 w-4" />
       </button>
       <button
         type="button"
         className="p-1.5 hover:bg-muted rounded transition-colors"
-        onClick={onList}
+        onMouseDown={(e) => { e.preventDefault(); onList(); }}
         title="Lista"
       >
         <List className="h-4 w-4" />
@@ -234,7 +246,7 @@ function InlineToolbar({
       <button
         type="button"
         className="p-1.5 hover:bg-muted rounded transition-colors"
-        onClick={() => onAlign('left')}
+        onMouseDown={(e) => { e.preventDefault(); onAlign('left'); }}
         title="Esquerda"
       >
         <AlignLeft className="h-4 w-4" />
@@ -242,7 +254,7 @@ function InlineToolbar({
       <button
         type="button"
         className="p-1.5 hover:bg-muted rounded transition-colors"
-        onClick={() => onAlign('center')}
+        onMouseDown={(e) => { e.preventDefault(); onAlign('center'); }}
         title="Centro"
       >
         <AlignCenter className="h-4 w-4" />
@@ -250,7 +262,7 @@ function InlineToolbar({
       <button
         type="button"
         className="p-1.5 hover:bg-muted rounded transition-colors"
-        onClick={() => onAlign('right')}
+        onMouseDown={(e) => { e.preventDefault(); onAlign('right'); }}
         title="Direita"
       >
         <AlignRight className="h-4 w-4" />
@@ -274,6 +286,7 @@ export function RichTextBlock({
   const editorRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
   const [showToolbar, setShowToolbar] = useState(false);
+  const [toolbarPosition, setToolbarPosition] = useState({ top: 0, left: 0 });
   
   // Get context for inline editing
   const builderCtx = useBuilderContext();
@@ -328,17 +341,68 @@ export function RichTextBlock({
     execCommand(alignCommand);
   };
   
-  // Show toolbar when selected in edit mode
+  // Check for text selection and position toolbar
+  const updateToolbarPosition = useCallback(() => {
+    const selection = window.getSelection();
+    
+    if (!selection || selection.isCollapsed || !editorRef.current) {
+      setShowToolbar(false);
+      return;
+    }
+    
+    // Check if selection is within our editor
+    const range = selection.getRangeAt(0);
+    if (!editorRef.current.contains(range.commonAncestorContainer)) {
+      setShowToolbar(false);
+      return;
+    }
+    
+    // Get selection rect
+    const rect = range.getBoundingClientRect();
+    
+    // Position toolbar above the selection, centered
+    setToolbarPosition({
+      top: rect.top - 48, // 48px above selection
+      left: rect.left + rect.width / 2
+    });
+    setShowToolbar(true);
+  }, []);
+  
+  // Listen for selection changes
   useEffect(() => {
-    setShowToolbar(isEditing && isSelected && isFocused);
-  }, [isEditing, isSelected, isFocused]);
+    if (!isEditing) return;
+    
+    const handleSelectionChange = () => {
+      // Small delay to ensure selection is complete
+      requestAnimationFrame(updateToolbarPosition);
+    };
+    
+    document.addEventListener('selectionchange', handleSelectionChange);
+    
+    return () => {
+      document.removeEventListener('selectionchange', handleSelectionChange);
+    };
+  }, [isEditing, updateToolbarPosition]);
+  
+  // Hide toolbar on blur (with small delay to allow button clicks)
+  const handleBlur = useCallback(() => {
+    setTimeout(() => {
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed || !editorRef.current?.contains(document.activeElement)) {
+        setShowToolbar(false);
+      }
+      setIsFocused(false);
+      handleInput();
+    }, 150);
+  }, [handleInput]);
   
   // If in editing mode with content change handler, render editable
   if (isEditing && onContentChange) {
     return (
       <div className="relative">
         {showToolbar && (
-          <InlineToolbar
+          <FloatingToolbar
+            position={toolbarPosition}
             onBold={formatBold}
             onItalic={formatItalic}
             onLink={formatLink}
@@ -352,12 +416,11 @@ export function RichTextBlock({
           suppressContentEditableWarning
           onInput={handleInput}
           onFocus={() => setIsFocused(true)}
-          onBlur={() => {
-            setIsFocused(false);
-            handleInput();
-          }}
+          onBlur={handleBlur}
+          onMouseUp={updateToolbarPosition}
+          onKeyUp={updateToolbarPosition}
           className={cn(
-            "prose prose-lg max-w-none focus:outline-none min-h-[1em]",
+            "prose prose-lg max-w-none focus:outline-none min-h-[1em] cursor-text",
             "[&_a[data-editor-link]]:pointer-events-none [&_a[data-editor-link]]:cursor-text",
             isSelected && "ring-2 ring-primary/20 rounded-sm"
           )}
