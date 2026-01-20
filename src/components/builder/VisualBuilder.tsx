@@ -40,6 +40,7 @@ import {
 } from '@/hooks/useGlobalLayoutIntegration';
 import { usePageOverrides } from '@/hooks/usePageOverrides';
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { CanvasEditorProvider } from './CanvasEditorContext';
 
 // Isolation modes for debugging React #300
 type IsolateMode = 'app' | 'visual' | 'canvas' | 'blocks' | 'blocks-real' | 'full';
@@ -909,6 +910,7 @@ export function VisualBuilder({
   }
 
   return (
+    <CanvasEditorProvider>
     <>
     <BuilderDebugPanel pageType={pageType} queries={debugQueries} isSafeMode={isSafeMode} />
     <DndContext
@@ -1101,5 +1103,6 @@ export function VisualBuilder({
     </div>
     </DndContext>
     </>
+    </CanvasEditorProvider>
   );
 }

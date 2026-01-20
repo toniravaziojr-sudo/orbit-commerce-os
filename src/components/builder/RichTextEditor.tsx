@@ -1,13 +1,15 @@
 // =============================================
 // RICH TEXT EDITOR - Visual/HTML editor with functional toolbar
+// Connects to canvas editor when available for direct formatting
 // =============================================
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Bold, Italic, Link, List, AlignLeft, AlignCenter, AlignRight, Eye, Code } from 'lucide-react';
+import { Bold, Italic, Link, List, AlignLeft, AlignCenter, AlignRight, Eye, Code, MousePointer } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useCanvasEditor } from './CanvasEditorContext';
 
 interface RichTextEditorProps {
   value: string;
@@ -84,6 +86,27 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
   const [mode, setMode] = useState<'visual' | 'html'>('visual');
   const editorRef = useRef<HTMLDivElement>(null);
   const [htmlValue, setHtmlValue] = useState(value || '');
+  const [hasCanvasSelection, setHasCanvasSelection] = useState(false);
+  
+  // Get canvas editor context to apply commands to canvas selection
+  const canvasEditor = useCanvasEditor();
+
+  // Check for canvas selection periodically
+  useEffect(() => {
+    if (!canvasEditor) return;
+    
+    const checkSelection = () => {
+      setHasCanvasSelection(canvasEditor.hasActiveSelection());
+    };
+    
+    // Check on mount and when selection changes
+    document.addEventListener('selectionchange', checkSelection);
+    checkSelection();
+    
+    return () => {
+      document.removeEventListener('selectionchange', checkSelection);
+    };
+  }, [canvasEditor]);
 
   // Sync HTML value when switching modes
   const handleModeChange = (newMode: 'visual' | 'html') => {
@@ -113,12 +136,26 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
     onChange(sanitizeHtml(newValue));
   };
 
-  // Execute formatting command
-  const execCommand = (command: string, value?: string) => {
-    document.execCommand(command, false, value);
+  // Execute formatting command - tries canvas first, then local editor
+  const execCommand = useCallback((command: string, commandValue?: string) => {
+    // First try to execute on canvas selection if available
+    if (canvasEditor) {
+      const success = canvasEditor.execCommandOnCanvas(command, commandValue);
+      if (success) {
+        // Trigger input event on the canvas editor to sync changes
+        const activeEditor = canvasEditor.getActiveEditor();
+        if (activeEditor) {
+          activeEditor.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        return;
+      }
+    }
+    
+    // Fall back to local editor
+    document.execCommand(command, false, commandValue);
     editorRef.current?.focus();
     handleInput();
-  };
+  }, [canvasEditor, handleInput]);
 
   // Format buttons
   const formatBold = () => execCommand('bold');
@@ -139,16 +176,34 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
     execCommand(alignCommand);
   };
 
+  // Save canvas selection when mouse enters the toolbar area
+  const handleToolbarMouseEnter = useCallback(() => {
+    if (canvasEditor) {
+      canvasEditor.saveSelection();
+    }
+  }, [canvasEditor]);
+
   return (
     <div className="border rounded-lg overflow-hidden">
+      {/* Canvas selection indicator */}
+      {hasCanvasSelection && (
+        <div className="flex items-center gap-1.5 px-2 py-1 bg-primary/10 border-b text-xs text-primary">
+          <MousePointer className="h-3 w-3" />
+          <span>Texto selecionado no canvas - clique para formatar</span>
+        </div>
+      )}
+      
       {/* Toolbar */}
-      <div className="flex items-center gap-1 p-2 bg-muted/30 border-b flex-wrap">
+      <div 
+        className="flex items-center gap-1 p-2 bg-muted/30 border-b flex-wrap"
+        onMouseEnter={handleToolbarMouseEnter}
+      >
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className="h-7 w-7"
-          onClick={formatBold}
+          className={cn("h-7 w-7", hasCanvasSelection && "ring-1 ring-primary/50")}
+          onMouseDown={(e) => { e.preventDefault(); formatBold(); }}
           title="Negrito (Ctrl+B)"
           disabled={mode === 'html'}
         >
@@ -158,8 +213,8 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
           type="button"
           variant="ghost"
           size="icon"
-          className="h-7 w-7"
-          onClick={formatItalic}
+          className={cn("h-7 w-7", hasCanvasSelection && "ring-1 ring-primary/50")}
+          onMouseDown={(e) => { e.preventDefault(); formatItalic(); }}
           title="Itálico (Ctrl+I)"
           disabled={mode === 'html'}
         >
@@ -169,8 +224,8 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
           type="button"
           variant="ghost"
           size="icon"
-          className="h-7 w-7"
-          onClick={formatLink}
+          className={cn("h-7 w-7", hasCanvasSelection && "ring-1 ring-primary/50")}
+          onMouseDown={(e) => { e.preventDefault(); formatLink(); }}
           title="Inserir Link"
           disabled={mode === 'html'}
         >
@@ -180,8 +235,8 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
           type="button"
           variant="ghost"
           size="icon"
-          className="h-7 w-7"
-          onClick={formatUnorderedList}
+          className={cn("h-7 w-7", hasCanvasSelection && "ring-1 ring-primary/50")}
+          onMouseDown={(e) => { e.preventDefault(); formatUnorderedList(); }}
           title="Lista"
           disabled={mode === 'html'}
         >
@@ -194,8 +249,8 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
           type="button"
           variant="ghost"
           size="icon"
-          className="h-7 w-7"
-          onClick={() => formatAlign('left')}
+          className={cn("h-7 w-7", hasCanvasSelection && "ring-1 ring-primary/50")}
+          onMouseDown={(e) => { e.preventDefault(); formatAlign('left'); }}
           title="Alinhar à Esquerda"
           disabled={mode === 'html'}
         >
@@ -205,8 +260,8 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
           type="button"
           variant="ghost"
           size="icon"
-          className="h-7 w-7"
-          onClick={() => formatAlign('center')}
+          className={cn("h-7 w-7", hasCanvasSelection && "ring-1 ring-primary/50")}
+          onMouseDown={(e) => { e.preventDefault(); formatAlign('center'); }}
           title="Centralizar"
           disabled={mode === 'html'}
         >
@@ -216,8 +271,8 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
           type="button"
           variant="ghost"
           size="icon"
-          className="h-7 w-7"
-          onClick={() => formatAlign('right')}
+          className={cn("h-7 w-7", hasCanvasSelection && "ring-1 ring-primary/50")}
+          onMouseDown={(e) => { e.preventDefault(); formatAlign('right'); }}
           title="Alinhar à Direita"
           disabled={mode === 'html'}
         >
@@ -226,56 +281,44 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
 
         <div className="flex-1" />
 
-        {/* Mode Toggle */}
-        <div className="flex border rounded-md overflow-hidden">
-          <Button
-            type="button"
-            variant={mode === 'visual' ? 'secondary' : 'ghost'}
-            size="sm"
-            className="h-7 text-xs gap-1 px-2 rounded-none"
-            onClick={() => handleModeChange('visual')}
-          >
-            <Eye className="h-3 w-3" />
-            Visual
-          </Button>
-          <Button
-            type="button"
-            variant={mode === 'html' ? 'secondary' : 'ghost'}
-            size="sm"
-            className="h-7 text-xs gap-1 px-2 rounded-none"
-            onClick={() => handleModeChange('html')}
-          >
-            <Code className="h-3 w-3" />
-            HTML
-          </Button>
-        </div>
+        {/* Mode toggle */}
+        <Tabs value={mode} onValueChange={(v) => handleModeChange(v as 'visual' | 'html')} className="h-7">
+          <TabsList className="h-7 p-0.5">
+            <TabsTrigger value="visual" className="h-6 px-2 text-xs gap-1">
+              <Eye className="h-3 w-3" />
+              Visual
+            </TabsTrigger>
+            <TabsTrigger value="html" className="h-6 px-2 text-xs gap-1">
+              <Code className="h-3 w-3" />
+              HTML
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
-      {/* Content */}
-      <div className="min-h-[120px]">
-        {mode === 'visual' ? (
-          <div
-            ref={editorRef}
-            contentEditable
-            onInput={handleInput}
-            onBlur={handleInput}
-            className={cn(
-              'p-3 min-h-[120px] focus:outline-none',
-              'prose prose-sm max-w-none',
-              '[&_*]:outline-none'
-            )}
-            dangerouslySetInnerHTML={{ __html: sanitizeHtml(value) || '' }}
-            data-placeholder={placeholder || 'Digite seu conteúdo...'}
-          />
-        ) : (
-          <Textarea
-            value={htmlValue}
-            onChange={handleHtmlChange}
-            placeholder="<p>Digite HTML aqui...</p>"
-            className="border-0 rounded-none resize-none min-h-[120px] focus-visible:ring-0 font-mono text-sm"
-          />
-        )}
-      </div>
+      {/* Editor Area */}
+      {mode === 'visual' ? (
+        <div
+          ref={editorRef}
+          contentEditable
+          suppressContentEditableWarning
+          onInput={handleInput}
+          className={cn(
+            "min-h-[100px] p-3 text-sm focus:outline-none prose prose-sm max-w-none",
+            "[&_a]:text-primary [&_a]:underline"
+          )}
+          style={{ wordBreak: 'break-word' }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(value || '') }}
+          data-placeholder={placeholder || 'Digite seu texto aqui...'}
+        />
+      ) : (
+        <Textarea
+          value={htmlValue}
+          onChange={handleHtmlChange}
+          placeholder={placeholder || 'Cole o HTML aqui...'}
+          className="min-h-[100px] border-0 rounded-none focus-visible:ring-0 font-mono text-xs"
+        />
+      )}
     </div>
   );
 }
