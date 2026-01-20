@@ -24,7 +24,7 @@ interface AddBlockDrawerProps {
   onAddBlock: (type: string) => void;
 }
 
-// Category organization - 6 categorias consolidadas
+// Category organization - 7 categorias consolidadas
 type BlockCategoryType = 
   | 'banners'
   | 'products'
@@ -32,6 +32,7 @@ type BlockCategoryType =
   | 'galleries'
   | 'content'
   | 'engagement'
+  | 'forms'
   | 'layout';
 
 const categoryLabels: Record<BlockCategoryType, string> = {
@@ -41,6 +42,7 @@ const categoryLabels: Record<BlockCategoryType, string> = {
   galleries: 'Galerias',
   content: 'Conteúdo',
   engagement: 'Engajamento',
+  forms: 'Formulários',
   layout: 'Layout',
 };
 
@@ -90,6 +92,11 @@ const blockCategoryMapping: Record<string, BlockCategoryType> = {
   'PricingTable': 'engagement',
   'PopupModal': 'engagement',
   
+  // Formulários (Email Marketing / Quiz)
+  'NewsletterForm': 'forms',
+  'NewsletterPopup': 'forms',
+  'QuizEmbed': 'forms',
+  
   // Layout
   'Section': 'layout',
   'Container': 'layout',
@@ -114,6 +121,8 @@ const visibleBlockTypes = new Set([
   // Engajamento
   'Reviews', 'NewsletterBlock', 'ContactFormBlock', 'MapBlock', 'SocialFeedBlock',
   'PersonalizedProducts', 'LivePurchases', 'PricingTable', 'PopupModal',
+  // Formulários (Email Marketing / Quiz)
+  'NewsletterForm', 'NewsletterPopup', 'QuizEmbed',
   // Layout
   'Section', 'Container', 'Columns', 'Spacer', 'Divider',
 ]);
@@ -162,6 +171,7 @@ export function AddBlockDrawer({
       galleries: [],
       content: [],
       engagement: [],
+      forms: [],
       layout: [],
     };
 
@@ -186,6 +196,7 @@ export function AddBlockDrawer({
     'galleries',
     'content',
     'engagement',
+    'forms',
     'layout',
   ];
 
