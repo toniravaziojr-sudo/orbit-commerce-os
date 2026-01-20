@@ -31,6 +31,7 @@ type EssentialCategory =
   | 'content'
   | 'social-proof'
   | 'interactive'
+  | 'forms'
   | 'info'
   | 'layout';
 
@@ -42,6 +43,7 @@ const essentialCategoryLabels: Record<EssentialCategory, string> = {
   content: 'Conteúdo',
   'social-proof': 'Prova Social',
   interactive: 'Interativo',
+  forms: 'Formulários',
   info: 'Informações',
   layout: 'Layout',
 };
@@ -96,6 +98,11 @@ const blockCategoryMapping: Record<string, EssentialCategory> = {
   'LivePurchases': 'interactive',
   'PricingTable': 'interactive',
   'PopupModal': 'interactive',
+  
+  // Forms (Email Marketing / Quiz)
+  'NewsletterForm': 'forms',
+  'NewsletterPopup': 'forms',
+  'QuizEmbed': 'forms',
   
   // Info
   'InfoHighlights': 'info',
@@ -153,6 +160,10 @@ const visibleBlockTypes = new Set([
   'LivePurchases',
   'PricingTable',
   'PopupModal',
+  // Forms (Email Marketing / Quiz)
+  'NewsletterForm',
+  'NewsletterPopup',
+  'QuizEmbed',
   // Info
   'InfoHighlights',
   'FAQ',
@@ -222,6 +233,7 @@ export function BlockPalette({ onAddBlock }: BlockPaletteProps) {
       content: [],
       'social-proof': [],
       interactive: [],
+      forms: [],
       info: [],
       layout: [],
     };
@@ -273,6 +285,7 @@ export function BlockPalette({ onAddBlock }: BlockPaletteProps) {
     'content',
     'social-proof',
     'interactive',
+    'forms',
     'info',
     'layout',
   ];
