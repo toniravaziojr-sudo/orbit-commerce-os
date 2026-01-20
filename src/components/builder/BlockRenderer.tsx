@@ -361,7 +361,15 @@ export function BlockRenderer({
             {definition.label}
           </div>
         )}
-        <Component {...node.props} isEditing={isEditing} context={context}>
+        <Component 
+          {...node.props} 
+          isEditing={isEditing} 
+          isInteractMode={isInteractMode}
+          isSelected={isSelected}
+          context={context}
+          block={node}
+          blockId={node.id}
+        >
           {/* Empty - no AddBlockButton, blocks added via left menu */}
         </Component>
       </div>
