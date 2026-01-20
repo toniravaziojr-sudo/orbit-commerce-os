@@ -99,6 +99,8 @@ export function CanvasRichTextProvider({ children, onBlockSelect }: CanvasRichTe
   const autoSaveSelection = useCallback(() => {
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      // Selection collapsed or empty - reset the last notified block
+      lastNotifiedBlockRef.current = null;
       return;
     }
 
@@ -113,15 +115,19 @@ export function CanvasRichTextProvider({ children, onBlockSelect }: CanvasRichTe
         }
         savedSelectionRef.current = range.cloneRange();
         
-        // CRITICAL: Notify the builder to select this block
+        // CRITICAL: Always notify the builder to select this block
         // This ensures the properties panel shows even when mouse ends outside canvas
-        if (onBlockSelect && lastNotifiedBlockRef.current !== editorId) {
-          lastNotifiedBlockRef.current = editorId;
+        if (onBlockSelect) {
+          // Always notify - the builder will handle deduplication if needed
           onBlockSelect(editorId);
+          lastNotifiedBlockRef.current = editorId;
         }
         return;
       }
     }
+    
+    // Selection is outside all editors - reset tracking
+    lastNotifiedBlockRef.current = null;
   }, [onBlockSelect]);
 
   const restoreSelection = useCallback((): boolean => {
