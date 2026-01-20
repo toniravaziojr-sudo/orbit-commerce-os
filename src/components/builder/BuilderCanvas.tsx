@@ -5,6 +5,7 @@
 
 import { BlockNode, BlockRenderContext } from '@/lib/builder/types';
 import { BlockRenderer } from './BlockRenderer';
+import { BuilderContextProvider } from './BuilderContext';
 import { MiniCartPreview } from './MiniCartPreview';
 import { MiniCartConfig } from './theme-settings/MiniCartSettings';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -38,6 +39,7 @@ interface BuilderCanvasProps {
   onDuplicateBlock?: (blockId: string) => void;
   onDeleteBlock?: (blockId: string) => void;
   onToggleHidden?: (blockId: string) => void;
+  onUpdateProps?: (blockId: string, props: Record<string, unknown>) => void;
   isPreviewMode?: boolean;
   isInteractMode?: boolean;
   isSafeMode?: boolean;
@@ -64,6 +66,7 @@ export function BuilderCanvas({
   onDuplicateBlock,
   onDeleteBlock,
   onToggleHidden,
+  onUpdateProps,
   isPreviewMode = false,
   isInteractMode = false,
   isSafeMode = false,
@@ -315,20 +318,26 @@ export function BuilderCanvas({
                 )}
 
                 
-                <BlockRenderer
-                  node={content}
-                  context={{ ...context, viewport }}
-                  isSelected={selectedBlockId === content.id}
+                <BuilderContextProvider
+                  updateProps={onUpdateProps || (() => {})}
                   isEditing={!isPreviewMode && !isInteractMode}
-                  isInteractMode={isInteractMode}
-                  isSafeMode={isSafeMode}
-                  onSelect={isInteractMode ? undefined : onSelectBlock}
-                  onAddBlock={isInteractMode ? undefined : onAddBlock}
-                  onMoveBlock={isInteractMode ? undefined : onMoveBlock}
-                  onDuplicateBlock={isInteractMode ? undefined : onDuplicateBlock}
-                  onDeleteBlock={isInteractMode ? undefined : onDeleteBlock}
-                  onToggleHidden={isInteractMode ? undefined : onToggleHidden}
-                />
+                  selectedBlockId={selectedBlockId}
+                >
+                  <BlockRenderer
+                    node={content}
+                    context={{ ...context, viewport }}
+                    isSelected={selectedBlockId === content.id}
+                    isEditing={!isPreviewMode && !isInteractMode}
+                    isInteractMode={isInteractMode}
+                    isSafeMode={isSafeMode}
+                    onSelect={isInteractMode ? undefined : onSelectBlock}
+                    onAddBlock={isInteractMode ? undefined : onAddBlock}
+                    onMoveBlock={isInteractMode ? undefined : onMoveBlock}
+                    onDuplicateBlock={isInteractMode ? undefined : onDuplicateBlock}
+                    onDeleteBlock={isInteractMode ? undefined : onDeleteBlock}
+                    onToggleHidden={isInteractMode ? undefined : onToggleHidden}
+                  />
+                </BuilderContextProvider>
 
                 {/* Mini-cart preview overlay - rendered inside the canvas for realistic preview */}
                 <MiniCartPreview

@@ -4,6 +4,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { BlockRenderContext } from '@/lib/builder/types';
+import { useBuilderContext } from '@/components/builder/BuilderContext';
 import { Bold, Italic, Link, List, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -14,7 +15,8 @@ interface RichTextBlockProps {
   fontSize?: string;
   fontWeight?: string;
   context?: BlockRenderContext;
-  // Editing props
+  blockId?: string;
+  // Editing props (can come from parent or context)
   isEditing?: boolean;
   isSelected?: boolean;
   onContentChange?: (content: string) => void;
@@ -264,13 +266,30 @@ export function RichTextBlock({
   fontSize, 
   fontWeight, 
   context,
-  isEditing,
-  isSelected,
-  onContentChange
+  blockId,
+  isEditing: isEditingProp,
+  isSelected: isSelectedProp,
+  onContentChange: onContentChangeProp
 }: RichTextBlockProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
   const [showToolbar, setShowToolbar] = useState(false);
+  
+  // Get context for inline editing
+  const builderCtx = useBuilderContext();
+  
+  // Determine editing state from props or context
+  const isEditing = isEditingProp ?? builderCtx?.isEditing ?? false;
+  const isSelected = isSelectedProp ?? (builderCtx?.selectedBlockId === blockId);
+  
+  // Create onContentChange from context if not provided
+  const onContentChange = useCallback((newContent: string) => {
+    if (onContentChangeProp) {
+      onContentChangeProp(newContent);
+    } else if (builderCtx?.updateProps && blockId) {
+      builderCtx.updateProps(blockId, { content: newContent });
+    }
+  }, [onContentChangeProp, builderCtx, blockId]);
   
   // Sync content when changed externally
   useEffect(() => {
@@ -284,7 +303,7 @@ export function RichTextBlock({
   
   // Handle content changes
   const handleInput = useCallback(() => {
-    if (editorRef.current && onContentChange) {
+    if (editorRef.current) {
       const sanitized = sanitizeForEditor(editorRef.current.innerHTML);
       onContentChange(sanitized);
     }
