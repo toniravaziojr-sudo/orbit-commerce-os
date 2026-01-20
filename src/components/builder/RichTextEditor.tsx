@@ -7,9 +7,20 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Bold, Italic, Link, List, AlignLeft, AlignCenter, AlignRight, Eye, Code, MousePointer } from 'lucide-react';
+import { Bold, Italic, Link, List, AlignLeft, AlignCenter, AlignRight, Eye, Code, MousePointer, Type, Minus, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCanvasEditor } from './CanvasEditorContext';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+const FONT_SIZES = [
+  { value: '1', label: 'Muito Pequeno' },
+  { value: '2', label: 'Pequeno' },
+  { value: '3', label: 'Normal' },
+  { value: '4', label: 'Médio' },
+  { value: '5', label: 'Grande' },
+  { value: '6', label: 'Muito Grande' },
+  { value: '7', label: 'Enorme' },
+];
 
 interface RichTextEditorProps {
   value: string;
@@ -176,6 +187,11 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
     execCommand(alignCommand);
   };
 
+  // Font size control
+  const formatFontSize = (size: string) => {
+    execCommand('fontSize', size);
+  };
+
   // Save canvas selection when mouse enters the toolbar area
   const handleToolbarMouseEnter = useCallback(() => {
     if (canvasEditor) {
@@ -242,6 +258,31 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
         >
           <List className="h-4 w-4" />
         </Button>
+
+        <div className="w-px h-5 bg-border mx-1" />
+
+        {/* Font Size Control */}
+        <div 
+          className="flex items-center"
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <Select 
+            onValueChange={formatFontSize}
+            disabled={mode === 'html'}
+          >
+            <SelectTrigger className={cn("h-7 w-[110px] text-xs", hasCanvasSelection && "ring-1 ring-primary/50")}>
+              <Type className="h-3 w-3 mr-1" />
+              <SelectValue placeholder="Tamanho" />
+            </SelectTrigger>
+            <SelectContent>
+              {FONT_SIZES.map(size => (
+                <SelectItem key={size.value} value={size.value} className="text-xs">
+                  {size.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         <div className="w-px h-5 bg-border mx-1" />
 
