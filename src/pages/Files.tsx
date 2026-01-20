@@ -54,6 +54,7 @@ import { DeleteFileDialog } from "@/components/drive/DeleteFileDialog";
 import { MoveFileDialog } from "@/components/drive/MoveFileDialog";
 import { FileUsageBadge } from "@/components/drive/FileUsageBadge";
 import { CurrentLocationHint } from "@/components/drive/CurrentLocationHint";
+import { FileThumbnail } from "@/components/drive/FileThumbnail";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -616,11 +617,11 @@ export default function Files() {
           ) : viewMode === 'grid' ? (
             <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {filteredFiles.map((file) => {
-                const Icon = getFileIcon(file);
                 const isSystemFolder = file.is_system_folder === true;
                 const usages = getFileUsage(file);
                 const isDragging = draggedItem?.id === file.id;
                 const canBeDropTarget = file.is_folder && !isDragging && draggedItem?.id !== file.id;
+                const isImage = file.mime_type?.startsWith('image/') && !file.is_folder;
                 
                 return (
                   <div
@@ -638,7 +639,7 @@ export default function Files() {
                     onDoubleClick={() => handlePreview(file)}
                   >
                     {/* Badges row */}
-                    <div className="absolute top-1 left-1 flex flex-col gap-1">
+                    <div className="absolute top-1 left-1 flex flex-col gap-1 z-10">
                       {isSystemFolder && (
                         <Badge variant="secondary" className="text-xs">
                           <Lock className="h-3 w-3 mr-1" />
@@ -649,14 +650,26 @@ export default function Files() {
                     </div>
                     
                     {/* Actions */}
-                    <div className="absolute top-1 right-1">
+                    <div className="absolute top-1 right-1 z-10">
                       {renderFileActions(file, isSystemFolder)}
                     </div>
                     
-                    <Icon className={cn(
-                      "h-12 w-12 mb-2 mt-4",
-                      file.is_folder ? "text-amber-500" : "text-muted-foreground"
-                    )} />
+                    {/* Thumbnail or Icon */}
+                    {isImage ? (
+                      <FileThumbnail
+                        file={file}
+                        getFileUrl={getFileUrl}
+                        className="w-full h-20 mb-2 mt-4"
+                        iconClassName="h-12 w-12"
+                      />
+                    ) : (
+                      <FileThumbnail
+                        file={file}
+                        getFileUrl={getFileUrl}
+                        iconClassName="h-12 w-12 mb-2 mt-4"
+                      />
+                    )}
+                    
                     <span className="text-sm font-medium text-center truncate w-full">
                       {file.original_name}
                     </span>
