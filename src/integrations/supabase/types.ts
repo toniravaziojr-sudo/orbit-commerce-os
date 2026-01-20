@@ -2987,6 +2987,7 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          tag_id: string | null
           tenant_id: string
           updated_at: string
         }
@@ -2995,6 +2996,7 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          tag_id?: string | null
           tenant_id: string
           updated_at?: string
         }
@@ -3003,10 +3005,18 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          tag_id?: string | null
           tenant_id?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "email_marketing_lists_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "customer_tags"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "email_marketing_lists_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -3018,7 +3028,10 @@ export type Database = {
       }
       email_marketing_subscribers: {
         Row: {
+          birth_date: string | null
           created_at: string
+          created_from: string | null
+          customer_id: string | null
           email: string
           id: string
           metadata: Json | null
@@ -3028,10 +3041,14 @@ export type Database = {
           status: string
           tags: string[] | null
           tenant_id: string
+          unsubscribed_at: string | null
           updated_at: string
         }
         Insert: {
+          birth_date?: string | null
           created_at?: string
+          created_from?: string | null
+          customer_id?: string | null
           email: string
           id?: string
           metadata?: Json | null
@@ -3041,10 +3058,14 @@ export type Database = {
           status?: string
           tags?: string[] | null
           tenant_id: string
+          unsubscribed_at?: string | null
           updated_at?: string
         }
         Update: {
+          birth_date?: string | null
           created_at?: string
+          created_from?: string | null
+          customer_id?: string | null
           email?: string
           id?: string
           metadata?: Json | null
@@ -3054,9 +3075,17 @@ export type Database = {
           status?: string
           tags?: string[] | null
           tenant_id?: string
+          unsubscribed_at?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "email_marketing_subscribers_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "email_marketing_subscribers_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -6153,6 +6182,117 @@ export type Database = {
           },
         ]
       }
+      newsletter_popup_configs: {
+        Row: {
+          background_color: string | null
+          birth_date_required: boolean | null
+          button_bg_color: string | null
+          button_text: string | null
+          button_text_color: string | null
+          created_at: string
+          exclude_pages: string[] | null
+          id: string
+          image_url: string | null
+          is_active: boolean | null
+          layout: string
+          list_id: string | null
+          name: string
+          name_required: boolean | null
+          phone_required: boolean | null
+          show_birth_date: boolean | null
+          show_name: boolean | null
+          show_on_pages: string[] | null
+          show_once_per_session: boolean | null
+          show_phone: boolean | null
+          subtitle: string | null
+          success_message: string | null
+          tenant_id: string
+          text_color: string | null
+          title: string
+          trigger_delay_seconds: number | null
+          trigger_scroll_percent: number | null
+          trigger_type: string
+          updated_at: string
+        }
+        Insert: {
+          background_color?: string | null
+          birth_date_required?: boolean | null
+          button_bg_color?: string | null
+          button_text?: string | null
+          button_text_color?: string | null
+          created_at?: string
+          exclude_pages?: string[] | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean | null
+          layout?: string
+          list_id?: string | null
+          name: string
+          name_required?: boolean | null
+          phone_required?: boolean | null
+          show_birth_date?: boolean | null
+          show_name?: boolean | null
+          show_on_pages?: string[] | null
+          show_once_per_session?: boolean | null
+          show_phone?: boolean | null
+          subtitle?: string | null
+          success_message?: string | null
+          tenant_id: string
+          text_color?: string | null
+          title?: string
+          trigger_delay_seconds?: number | null
+          trigger_scroll_percent?: number | null
+          trigger_type?: string
+          updated_at?: string
+        }
+        Update: {
+          background_color?: string | null
+          birth_date_required?: boolean | null
+          button_bg_color?: string | null
+          button_text?: string | null
+          button_text_color?: string | null
+          created_at?: string
+          exclude_pages?: string[] | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean | null
+          layout?: string
+          list_id?: string | null
+          name?: string
+          name_required?: boolean | null
+          phone_required?: boolean | null
+          show_birth_date?: boolean | null
+          show_name?: boolean | null
+          show_on_pages?: string[] | null
+          show_once_per_session?: boolean | null
+          show_phone?: boolean | null
+          subtitle?: string | null
+          success_message?: string | null
+          tenant_id?: string
+          text_color?: string | null
+          title?: string
+          trigger_delay_seconds?: number | null
+          trigger_scroll_percent?: number | null
+          trigger_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "newsletter_popup_configs_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "email_marketing_lists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "newsletter_popup_configs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_attempts: {
         Row: {
           attempt_no: number
@@ -8716,6 +8856,7 @@ export type Database = {
           settings: Json | null
           slug: string
           status: string
+          tag_id: string | null
           tags_to_add: string[] | null
           tenant_id: string
           updated_at: string
@@ -8730,6 +8871,7 @@ export type Database = {
           settings?: Json | null
           slug: string
           status?: string
+          tag_id?: string | null
           tags_to_add?: string[] | null
           tenant_id: string
           updated_at?: string
@@ -8744,6 +8886,7 @@ export type Database = {
           settings?: Json | null
           slug?: string
           status?: string
+          tag_id?: string | null
           tags_to_add?: string[] | null
           tenant_id?: string
           updated_at?: string
@@ -8754,6 +8897,13 @@ export type Database = {
             columns: ["list_id"]
             isOneToOne: false
             referencedRelation: "email_marketing_lists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quizzes_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "customer_tags"
             referencedColumns: ["id"]
           },
           {
@@ -11471,6 +11621,16 @@ export type Database = {
         Args: { p_cidade: string; p_uf: string }
         Returns: string
       }
+      get_list_contacts_by_tag: {
+        Args: { p_list_id: string }
+        Returns: {
+          customer_id: string
+          email: string
+          full_name: string
+          phone: string
+        }[]
+      }
+      get_list_member_count: { Args: { p_list_id: string }; Returns: number }
       get_public_marketing_config: {
         Args: { p_tenant_id: string }
         Returns: {
@@ -11546,6 +11706,23 @@ export type Database = {
       record_ai_usage: {
         Args: { p_tenant_id: string; p_usage_cents: number }
         Returns: undefined
+      }
+      sync_subscriber_to_customer_with_tag: {
+        Args: {
+          p_birth_date?: string
+          p_email: string
+          p_list_id?: string
+          p_name?: string
+          p_phone?: string
+          p_source?: string
+          p_tenant_id: string
+        }
+        Returns: {
+          customer_id: string
+          is_new_customer: boolean
+          is_new_subscriber: boolean
+          subscriber_id: string
+        }[]
       }
       update_customer_order_stats: {
         Args: { p_tenant_id: string }

@@ -5,6 +5,9 @@
 export { FAQBlock } from './FAQBlock';
 export { TestimonialsBlock } from './TestimonialsBlock';
 export { NewsletterBlock } from './NewsletterBlock';
+export { NewsletterFormBlock } from './NewsletterFormBlock';
+export { NewsletterPopupBlock } from './NewsletterPopupBlock';
+export { QuizEmbedBlock } from './QuizEmbedBlock';
 export { ContactFormBlock } from './ContactFormBlock';
 export { MapBlock } from './MapBlock';
 export { SocialFeedBlock } from './SocialFeedBlock';
