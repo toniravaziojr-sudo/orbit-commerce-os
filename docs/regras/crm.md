@@ -1,6 +1,6 @@
 # CRM (Notificações, Atendimento, Emails) — Regras e Especificações
 
-> **STATUS:** 🟧 Pending (em construção)
+> **STATUS:** ✅ Ready (Emails e Notificações) / 🟧 Pending (Atendimento)
 
 ## Visão Geral
 
@@ -12,9 +12,9 @@ Módulo de relacionamento com cliente: notificações, atendimento/suporte, e ge
 
 | Submódulo | Rota | Status |
 |-----------|------|--------|
-| Notificações | `/notifications` | 🟧 Pending |
+| Notificações | `/notifications` | ✅ Ready |
 | Atendimento | `/support` | 🟧 Pending |
-| Emails | `/emails` | 🟧 Pending |
+| Emails | `/emails` | ✅ Ready |
 
 ---
 

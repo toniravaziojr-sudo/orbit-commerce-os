@@ -38,9 +38,9 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   '/campaigns': 'pending',
   
   // CRM
-  '/notifications': 'pending',
+  '/notifications': 'ready',
   '/support': 'pending',
-  '/emails': 'pending',
+  '/emails': 'ready',
   
   // ERP
   '/fiscal': 'pending',
