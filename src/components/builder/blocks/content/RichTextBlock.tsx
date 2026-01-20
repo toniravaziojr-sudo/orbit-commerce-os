@@ -1,11 +1,12 @@
 // =============================================
 // RICH TEXT BLOCK - Formatted text with inline editing
+// ARCHITECTURE: Uncontrolled contentEditable + commit on blur/debounce
 // =============================================
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useRef, useCallback, useEffect, useState } from 'react';
 import { BlockRenderContext } from '@/lib/builder/types';
 import { useBuilderContext } from '@/components/builder/BuilderContext';
-import { useCanvasEditor } from '@/components/builder/CanvasEditorContext';
+import { useCanvasRichText } from '@/components/builder/CanvasRichTextContext';
 import { Bold, Italic, Link, List, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -17,13 +18,12 @@ interface RichTextBlockProps {
   fontWeight?: string;
   context?: BlockRenderContext;
   blockId?: string;
-  // Editing props (can come from parent or context)
   isEditing?: boolean;
   isSelected?: boolean;
   onContentChange?: (content: string) => void;
 }
 
-// Font size map
+// Font size map for base styling
 const fontSizeMap: Record<string, string> = {
   xs: '0.75rem',
   sm: '0.875rem',
@@ -39,21 +39,18 @@ function replacePlaceholders(text: string, context?: BlockRenderContext): string
   
   let result = text;
   
-  // Replace category placeholders
   if (context?.category) {
     result = result.replace(/\{\{category\.name\}\}/g, context.category.name || '');
     result = result.replace(/\{\{category\.description\}\}/g, context.category.description || '');
     result = result.replace(/\{\{category\.id\}\}/g, context.category.id || '');
   }
   
-  // Replace product placeholders
   if (context?.product) {
     result = result.replace(/\{\{product\.name\}\}/g, context.product.name || '');
     result = result.replace(/\{\{product\.description\}\}/g, context.product.description || '');
     result = result.replace(/\{\{product\.price\}\}/g, context.product.price?.toString() || '');
   }
   
-  // Replace store placeholders
   if (context?.settings) {
     result = result.replace(/\{\{store\.name\}\}/g, context.settings.store_name || '');
   }
@@ -61,48 +58,32 @@ function replacePlaceholders(text: string, context?: BlockRenderContext): string
   return result;
 }
 
-// CRITICAL: Sanitize HTML to prevent CSS leakage from imported content
+// CRITICAL: Sanitize HTML to prevent CSS leakage
 function sanitizeImportedHtml(html: string): string {
   if (!html) return '';
   
-  let sanitized = html
-    // Remove <style> tags completely
+  return html
     .replace(/<style[\s\S]*?<\/style>/gi, '')
-    // Remove <link> tags (external CSS)
     .replace(/<link[^>]*>/gi, '')
-    // Remove <script> tags
     .replace(/<script[\s\S]*?<\/script>/gi, '')
-    // Remove <noscript> tags
     .replace(/<noscript[\s\S]*?<\/noscript>/gi, '')
-    // Remove <meta> tags
     .replace(/<meta[^>]*>/gi, '')
-    // Remove <base> tags
     .replace(/<base[^>]*>/gi, '')
-    // Remove inline style attributes (they can override app styles)
     .replace(/\s*style=["'][^"']*["']/gi, '')
-    // Remove onclick and other event handlers
     .replace(/\s*on\w+=["'][^"']*["']/gi, '')
-    // Remove data attributes that could cause issues
     .replace(/\s*data-(?!editor)[^=]*=["'][^"']*["']/gi, '');
-  
-  return sanitized;
 }
 
-// Convert markdown-like content to HTML
+// Convert markdown to HTML
 function processContent(text: string, context?: BlockRenderContext): string {
   if (!text) return '<p>Conteúdo de texto formatado...</p>';
   
-  // First replace placeholders
   let processed = replacePlaceholders(text, context);
-  
-  // CRITICAL: Sanitize HTML content from imports before rendering
   processed = sanitizeImportedHtml(processed);
   
-  // If already HTML, return as is
   if (processed.includes('<')) return processed;
   
-  // Simple markdown conversion
-  let html = processed
+  return processed
     .replace(/^### (.*$)/gim, '<h3>$1</h3>')
     .replace(/^## (.*$)/gim, '<h2>$1</h2>')
     .replace(/^# (.*$)/gim, '<h1>$1</h1>')
@@ -111,24 +92,9 @@ function processContent(text: string, context?: BlockRenderContext): string {
     .replace(/\[(.*?)\]\((.*?)\)/gim, '<a href="$2" class="text-primary underline">$1</a>')
     .replace(/^\- (.*$)/gim, '<li>$1</li>')
     .replace(/\n/gim, '<br />');
-
-  return html;
 }
 
-// Sanitize external links to prevent navigation in editor
-function sanitizeLinks(html: string): string {
-  if (!html) return html;
-  // Replace external hrefs with # to prevent navigation in editor mode
-  return html.replace(
-    /<a\s+([^>]*?)href=["']([^"']+)["']([^>]*)>/gi,
-    (match, before, href, after) => {
-      // Mark as editor-disabled link
-      return `<a ${before}href="#" data-original-href="${href}" data-editor-link="true"${after}>`;
-    }
-  );
-}
-
-// Whitelist of allowed HTML tags and attributes for security
+// Sanitize for editor view
 const ALLOWED_TAGS = ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'span', 'div'];
 const ALLOWED_ATTRIBUTES = ['href', 'target', 'class', 'style'];
 
@@ -183,10 +149,21 @@ function sanitizeForEditor(html: string): string {
   return container.innerHTML;
 }
 
-// Font size options in pixels
+// Sanitize links for readonly view
+function sanitizeLinks(html: string): string {
+  if (!html) return html;
+  return html.replace(
+    /<a\s+([^>]*?)href=["']([^"']+)["']([^>]*)>/gi,
+    (match, before, href, after) => {
+      return `<a ${before}href="#" data-original-href="${href}" data-editor-link="true"${after}>`;
+    }
+  );
+}
+
+// Font size options
 const FONT_SIZE_OPTIONS = ['12', '14', '16', '18', '20', '24', '28', '32', '36', '40', '48'];
 
-// Floating Toolbar Component - appears near text selection
+// Floating Toolbar Component
 interface FloatingToolbarProps {
   position: { top: number; left: number };
   onBold: () => void;
@@ -195,11 +172,7 @@ interface FloatingToolbarProps {
   onList: () => void;
   onAlign: (align: 'left' | 'center' | 'right') => void;
   onFontSize: (size: string) => void;
-  editorRef: React.RefObject<HTMLDivElement>;
 }
-
-// Store selection before opening dropdown
-let savedRange: Range | null = null;
 
 function FloatingToolbar({ 
   position,
@@ -208,37 +181,8 @@ function FloatingToolbar({
   onLink, 
   onList,
   onAlign,
-  onFontSize,
-  editorRef
+  onFontSize
 }: FloatingToolbarProps) {
-  
-  // Save selection when interacting with select
-  const saveSelection = () => {
-    const selection = window.getSelection();
-    if (selection && selection.rangeCount > 0) {
-      savedRange = selection.getRangeAt(0).cloneRange();
-    }
-  };
-  
-  // Restore selection and apply font size
-  const handleFontSizeChange = (size: string) => {
-    if (!size || !editorRef.current) return;
-    
-    // Restore saved selection
-    if (savedRange) {
-      editorRef.current.focus();
-      const selection = window.getSelection();
-      if (selection) {
-        selection.removeAllRanges();
-        selection.addRange(savedRange);
-      }
-    }
-    
-    // Apply font size
-    onFontSize(size);
-    savedRange = null;
-  };
-  
   return (
     <div 
       className="fixed z-[9999] flex items-center gap-1 bg-background border rounded-lg shadow-lg p-1 animate-in fade-in-0 zoom-in-95 duration-100"
@@ -247,7 +191,7 @@ function FloatingToolbar({
         left: position.left,
         transform: 'translateX(-50%)'
       }}
-      onMouseDown={(e) => e.preventDefault()} // Prevent blur on click
+      onMouseDown={(e) => e.preventDefault()}
     >
       <button
         type="button"
@@ -307,12 +251,10 @@ function FloatingToolbar({
         <AlignRight className="h-4 w-4" />
       </button>
       <div className="w-px h-5 bg-border mx-1" />
-      {/* Font Size Dropdown - saves selection before opening */}
       <select
         className="h-7 px-1.5 text-xs bg-background border rounded hover:bg-muted transition-colors cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary"
-        onChange={(e) => { handleFontSizeChange(e.target.value); e.target.value = ''; }}
-        onMouseDown={(e) => { e.stopPropagation(); saveSelection(); }}
-        onFocus={saveSelection}
+        onChange={(e) => { onFontSize(e.target.value); e.target.value = ''; }}
+        onMouseDown={(e) => e.stopPropagation()}
         defaultValue=""
         title="Tamanho da fonte"
       >
@@ -341,37 +283,28 @@ export function RichTextBlock({
   const [isFocused, setIsFocused] = useState(false);
   const [showToolbar, setShowToolbar] = useState(false);
   const [toolbarPosition, setToolbarPosition] = useState({ top: 0, left: 0 });
-  // Track last known content to avoid overwriting during formatting
-  const lastContentRef = useRef<string>(content || '');
-  const isFormattingRef = useRef(false);
   
-  // Get context for inline editing
+  // CRITICAL: Draft content ref - this is the "uncontrolled" state
+  // We NEVER overwrite innerHTML while editing
+  const draftContentRef = useRef<string>(content || '');
+  const isEditingTextRef = useRef(false);
+  const commitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastCommittedRef = useRef<string>(content || '');
+  
+  // Get contexts
   const builderCtx = useBuilderContext();
+  const canvasRichText = useCanvasRichText();
   
-  // Get canvas editor context to register this editor
-  const canvasEditor = useCanvasEditor();
-  
-  // Determine editing state from props or context
+  // Determine editing state
   const isEditing = isEditingProp ?? builderCtx?.isEditing ?? false;
   const isSelected = isSelectedProp ?? (builderCtx?.selectedBlockId === blockId);
   
-  // Register this editor in the canvas context when focused
-  useEffect(() => {
-    if (isEditing && isFocused && editorRef.current && canvasEditor) {
-      canvasEditor.registerEditor(editorRef.current);
-    }
-  }, [isEditing, isFocused, canvasEditor]);
-  
-  // Also register when selected (even if not focused)
-  useEffect(() => {
-    if (isEditing && isSelected && editorRef.current && canvasEditor) {
-      canvasEditor.registerEditor(editorRef.current);
-    }
-  }, [isEditing, isSelected, canvasEditor]);
-  
   // Create onContentChange from context if not provided
-  const onContentChange = useCallback((newContent: string) => {
-    lastContentRef.current = newContent;
+  const commitContent = useCallback((newContent: string) => {
+    if (newContent === lastCommittedRef.current) return;
+    
+    lastCommittedRef.current = newContent;
+    
     if (onContentChangeProp) {
       onContentChangeProp(newContent);
     } else if (builderCtx?.updateProps && blockId) {
@@ -379,101 +312,169 @@ export function RichTextBlock({
     }
   }, [onContentChangeProp, builderCtx, blockId]);
   
-  // Sync content when changed externally (not during focus or formatting)
-  useEffect(() => {
-    // Check global formatting lock from context
-    const isGloballyLocked = canvasEditor?.isFormattingLocked?.() ?? false;
-    
-    // Don't sync if focused, formatting, or if content matches what we just set
-    if (editorRef.current && !isFocused && !isFormattingRef.current && !isGloballyLocked && content !== lastContentRef.current) {
-      const processedContent = isEditing 
-        ? sanitizeForEditor(content || '<p>Clique para editar...</p>')
-        : sanitizeLinks(processContent(content || '', context));
-      editorRef.current.innerHTML = processedContent;
-      lastContentRef.current = content || '';
+  // Debounced commit - commits after 500ms of no changes
+  const scheduleCommit = useCallback(() => {
+    if (commitTimeoutRef.current) {
+      clearTimeout(commitTimeoutRef.current);
     }
-  }, [content, isFocused, isEditing, context, canvasEditor]);
-  
-  // Handle content changes
-  const handleInput = useCallback(() => {
-    if (editorRef.current) {
-      const sanitized = sanitizeForEditor(editorRef.current.innerHTML);
-      onContentChange(sanitized);
-    }
-  }, [onContentChange]);
-  
-  // Execute formatting command
-  const execCommand = useCallback((command: string, value?: string) => {
-    document.execCommand(command, false, value);
-    editorRef.current?.focus();
-    handleInput();
-  }, [handleInput]);
-  
-  const formatBold = () => execCommand('bold');
-  const formatItalic = () => execCommand('italic');
-  const formatList = () => execCommand('insertUnorderedList');
-  const formatLink = () => {
-    const url = prompt('Digite a URL do link:', 'https://');
-    if (url) execCommand('createLink', url);
-  };
-  const formatAlign = (alignment: 'left' | 'center' | 'right') => {
-    const alignCommand = { left: 'justifyLeft', center: 'justifyCenter', right: 'justifyRight' }[alignment];
-    execCommand(alignCommand);
-  };
-  const formatFontSize = (size: string) => {
-    if (!size || !editorRef.current) return;
     
-    // Mark as formatting to prevent content sync from overwriting
-    isFormattingRef.current = true;
-    
-    // First restore saved selection (savedRange is set by FloatingToolbar)
-    if (savedRange) {
-      editorRef.current.focus();
-      const selection = window.getSelection();
-      if (selection) {
-        selection.removeAllRanges();
-        selection.addRange(savedRange);
+    commitTimeoutRef.current = setTimeout(() => {
+      if (editorRef.current) {
+        const sanitized = sanitizeForEditor(editorRef.current.innerHTML);
+        draftContentRef.current = sanitized;
+        commitContent(sanitized);
       }
-    }
+    }, 500);
+  }, [commitContent]);
+  
+  // Apply formatting command - maintains selection
+  const applyCommand = useCallback((command: string, value?: string): boolean => {
+    if (!editorRef.current) return false;
     
-    // Use CSS font-size instead of deprecated fontSize command
     const selection = window.getSelection();
-    if (!selection || selection.isCollapsed) {
-      isFormattingRef.current = false;
-      return;
-    }
+    if (!selection || selection.rangeCount === 0) return false;
+    
+    // Execute command
+    document.execCommand(command, false, value);
+    
+    // Schedule commit
+    scheduleCommit();
+    
+    return true;
+  }, [scheduleCommit]);
+  
+  // Apply font size - uses span with inline style
+  const applyFontSize = useCallback((size: string): boolean => {
+    if (!editorRef.current || !size) return false;
+    
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) return false;
     
     const range = selection.getRangeAt(0);
+    
+    // Check if selection is within our editor
+    if (!editorRef.current.contains(range.commonAncestorContainer)) return false;
+    
     const span = document.createElement('span');
     span.style.fontSize = `${size}px`;
     
     try {
       range.surroundContents(span);
-      handleInput();
     } catch (e) {
-      // If surroundContents fails (crosses boundaries), use execCommand fallback
+      // Fallback for complex selections
       document.execCommand('fontSize', false, '7');
-      // Then fix the font size
-      if (editorRef.current) {
-        const fonts = editorRef.current.querySelectorAll('font[size="7"]');
-        fonts.forEach(font => {
-          const newSpan = document.createElement('span');
-          newSpan.style.fontSize = `${size}px`;
-          newSpan.innerHTML = font.innerHTML;
-          font.parentNode?.replaceChild(newSpan, font);
-        });
-        handleInput();
-      }
+      const fonts = editorRef.current.querySelectorAll('font[size="7"]');
+      fonts.forEach(font => {
+        const newSpan = document.createElement('span');
+        newSpan.style.fontSize = `${size}px`;
+        newSpan.innerHTML = font.innerHTML;
+        font.parentNode?.replaceChild(newSpan, font);
+      });
     }
     
-    // Reset formatting flag after a short delay
-    setTimeout(() => {
-      isFormattingRef.current = false;
-      updateToolbarPosition();
-    }, 100);
-  };
+    // Schedule commit
+    scheduleCommit();
+    
+    return true;
+  }, [scheduleCommit]);
   
-  // Check for text selection and position toolbar
+  // Get current selection
+  const getSelection = useCallback((): Range | null => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return null;
+    
+    const range = selection.getRangeAt(0);
+    if (!editorRef.current?.contains(range.commonAncestorContainer)) return null;
+    
+    return range.cloneRange();
+  }, []);
+  
+  // Focus the editor
+  const focusEditor = useCallback(() => {
+    editorRef.current?.focus();
+  }, []);
+  
+  // Get current content
+  const getContent = useCallback((): string => {
+    return editorRef.current?.innerHTML || '';
+  }, []);
+  
+  // Register this editor with the context when editing
+  useEffect(() => {
+    if (!isEditing || !canvasRichText || !blockId || !editorRef.current) return;
+    
+    const instance = {
+      element: editorRef.current,
+      applyCommand,
+      applyFontSize,
+      getSelection,
+      focus: focusEditor,
+      getContent
+    };
+    
+    canvasRichText.registerEditor(blockId, instance);
+    
+    return () => {
+      canvasRichText.unregisterEditor(blockId);
+    };
+  }, [isEditing, canvasRichText, blockId, applyCommand, applyFontSize, getSelection, focusEditor, getContent]);
+  
+  // Set as active editor when focused
+  useEffect(() => {
+    if (isFocused && canvasRichText && blockId) {
+      canvasRichText.setActiveEditor(blockId);
+    }
+  }, [isFocused, canvasRichText, blockId]);
+  
+  // CRITICAL: Only sync content when block changes or on initial mount
+  // NEVER sync while editing (isFocused or isEditingTextRef.current)
+  useEffect(() => {
+    if (!editorRef.current) return;
+    
+    // Skip if currently editing text
+    if (isEditingTextRef.current || isFocused) return;
+    
+    // Skip if formatting is locked
+    if (canvasRichText?.isFormattingLocked?.()) return;
+    
+    // Skip if content hasn't changed from what we last committed
+    if (content === lastCommittedRef.current) return;
+    
+    // Only sync if content actually changed externally
+    const processedContent = isEditing 
+      ? sanitizeForEditor(content || '<p>Clique para editar...</p>')
+      : sanitizeLinks(processContent(content || '', context));
+    
+    editorRef.current.innerHTML = processedContent;
+    draftContentRef.current = content || '';
+    lastCommittedRef.current = content || '';
+  }, [content, blockId]); // Only on content or blockId change
+  
+  // Handle input events - update draft, schedule commit
+  const handleInput = useCallback(() => {
+    if (editorRef.current) {
+      draftContentRef.current = editorRef.current.innerHTML;
+      scheduleCommit();
+    }
+  }, [scheduleCommit]);
+  
+  // Formatting commands for toolbar
+  const formatBold = useCallback(() => applyCommand('bold'), [applyCommand]);
+  const formatItalic = useCallback(() => applyCommand('italic'), [applyCommand]);
+  const formatList = useCallback(() => applyCommand('insertUnorderedList'), [applyCommand]);
+  const formatLink = useCallback(() => {
+    const url = prompt('Digite a URL do link:', 'https://');
+    if (url) applyCommand('createLink', url);
+  }, [applyCommand]);
+  const formatAlign = useCallback((alignment: 'left' | 'center' | 'right') => {
+    const alignCommand = { left: 'justifyLeft', center: 'justifyCenter', right: 'justifyRight' }[alignment];
+    applyCommand(alignCommand);
+  }, [applyCommand]);
+  const formatFontSize = useCallback((size: string) => {
+    applyFontSize(size);
+  }, [applyFontSize]);
+  
+  // Update toolbar position based on selection
   const updateToolbarPosition = useCallback(() => {
     const selection = window.getSelection();
     
@@ -482,19 +483,16 @@ export function RichTextBlock({
       return;
     }
     
-    // Check if selection is within our editor
     const range = selection.getRangeAt(0);
     if (!editorRef.current.contains(range.commonAncestorContainer)) {
       setShowToolbar(false);
       return;
     }
     
-    // Get selection rect
     const rect = range.getBoundingClientRect();
     
-    // Position toolbar above the selection, centered
     setToolbarPosition({
-      top: rect.top - 48, // 48px above selection
+      top: rect.top - 48,
       left: rect.left + rect.width / 2
     });
     setShowToolbar(true);
@@ -505,7 +503,6 @@ export function RichTextBlock({
     if (!isEditing) return;
     
     const handleSelectionChange = () => {
-      // Small delay to ensure selection is complete
       requestAnimationFrame(updateToolbarPosition);
     };
     
@@ -516,20 +513,71 @@ export function RichTextBlock({
     };
   }, [isEditing, updateToolbarPosition]);
   
-  // Hide toolbar on blur (with small delay to allow button clicks)
+  // Handle focus
+  const handleFocus = useCallback(() => {
+    setIsFocused(true);
+    isEditingTextRef.current = true;
+  }, []);
+  
+  // Handle blur - commit content
   const handleBlur = useCallback(() => {
+    // Delay to allow button clicks
     setTimeout(() => {
       const selection = window.getSelection();
-      if (!selection || selection.isCollapsed || !editorRef.current?.contains(document.activeElement)) {
+      const stillInEditor = editorRef.current?.contains(document.activeElement);
+      
+      if (!stillInEditor) {
         setShowToolbar(false);
+        setIsFocused(false);
+        isEditingTextRef.current = false;
+        
+        // Commit on blur
+        if (editorRef.current) {
+          const sanitized = sanitizeForEditor(editorRef.current.innerHTML);
+          draftContentRef.current = sanitized;
+          commitContent(sanitized);
+        }
       }
-      setIsFocused(false);
-      handleInput();
     }, 150);
-  }, [handleInput]);
+  }, [commitContent]);
   
-  // If in editing mode with content change handler, render editable
-  if (isEditing && onContentChange) {
+  // Handle keyboard shortcuts
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // Prevent builder from handling Backspace/Delete when editing text
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      e.stopPropagation();
+    }
+    
+    // Keyboard shortcuts
+    if (e.ctrlKey || e.metaKey) {
+      switch (e.key.toLowerCase()) {
+        case 'b':
+          e.preventDefault();
+          formatBold();
+          break;
+        case 'i':
+          e.preventDefault();
+          formatItalic();
+          break;
+        case 'k':
+          e.preventDefault();
+          formatLink();
+          break;
+      }
+    }
+  }, [formatBold, formatItalic, formatLink]);
+  
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (commitTimeoutRef.current) {
+        clearTimeout(commitTimeoutRef.current);
+      }
+    };
+  }, []);
+  
+  // Render editable version
+  if (isEditing) {
     return (
       <div className="relative">
         {showToolbar && (
@@ -541,7 +589,6 @@ export function RichTextBlock({
             onList={formatList}
             onAlign={formatAlign}
             onFontSize={formatFontSize}
-            editorRef={editorRef}
           />
         )}
         <div 
@@ -549,10 +596,11 @@ export function RichTextBlock({
           contentEditable
           suppressContentEditableWarning
           onInput={handleInput}
-          onFocus={() => setIsFocused(true)}
+          onFocus={handleFocus}
           onBlur={handleBlur}
           onMouseUp={updateToolbarPosition}
           onKeyUp={updateToolbarPosition}
+          onKeyDown={handleKeyDown}
           className={cn(
             "prose prose-lg max-w-none focus:outline-none min-h-[1em] cursor-text",
             "[&_a[data-editor-link]]:pointer-events-none [&_a[data-editor-link]]:cursor-text",
@@ -565,12 +613,15 @@ export function RichTextBlock({
             fontWeight: fontWeight || 'normal',
           }}
           data-placeholder="Clique para editar..."
+          dangerouslySetInnerHTML={{ 
+            __html: sanitizeForEditor(content || '<p>Clique para editar...</p>') 
+          }}
         />
       </div>
     );
   }
   
-  // Default read-only render (preview/storefront)
+  // Render readonly version (preview/storefront)
   return (
     <div 
       className="prose prose-lg max-w-none [&_a[data-editor-link]]:pointer-events-none [&_a[data-editor-link]]:cursor-text [&_a[data-editor-link]]:no-underline"
