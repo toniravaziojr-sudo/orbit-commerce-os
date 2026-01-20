@@ -283,18 +283,50 @@ async function analyzeCategoryPage(
       }
     }
     
-    // Mobile banner
+    // Mobile banner - Enhanced patterns for Shopify and other platforms
     const mobileBannerPatterns = [
+      // Picture with max-width media query (mobile first)
       /<picture[^>]*>[\s\S]*?<source[^>]*media="\(max-width[^"]*"[^>]*srcset="([^"]+)"/i,
+      // Smallest source in picture (usually mobile)
+      /<picture[^>]*>[\s\S]*?<source[^>]*srcset="([^"]+)"[^>]*media="\(max-width:\s*\d+px\)"/i,
+      // Shopify responsive image patterns
       /data-mobile-src="([^"]+)"/i,
-      /<img[^>]*class="[^"]*mobile[^"]*banner[^"]*"[^>]*src="([^"]+)"/i,
+      /data-src-mobile="([^"]+)"/i,
+      /data-srcset-mobile="([^"]+?)(?:,|\s+\d+[wx]|")/i,
+      // srcset with small viewport
+      /srcset="([^"]+?)(?:\s+320w|\s+480w|\s+375w)/i,
+      // Explicit mobile class
+      /<img[^>]*class="[^"]*mobile[^"]*"[^>]*src="([^"]+)"/i,
+      /<img[^>]*class="[^"]*(?:banner|hero)[^"]*mobile[^"]*"[^>]*src="([^"]+)"/i,
+      /<img[^>]*class="[^"]*mobile[^"]*(?:banner|hero)[^"]*"[^>]*src="([^"]+)"/i,
+      // Hidden on desktop, visible on mobile
+      /<img[^>]*class="[^"]*(?:d-none|hidden-md|hidden-lg|show-mobile|visible-xs)[^"]*"[^>]*src="([^"]+)"/i,
+      // Shopify srcset with small size last (mobile)
+      /<img[^>]*srcset="[^"]*?([^",\s]+)\s+(?:320w|375w|480w)"[^>]*/i,
     ];
     
     for (const pattern of mobileBannerPatterns) {
       if (banners.mobile) break;
       const match = mainContent.match(pattern);
       if (match && match[1]) {
-        banners.mobile = match[1];
+        // Clean srcset format - get just the URL
+        let mobileUrl = match[1].trim();
+        mobileUrl = mobileUrl.split(/\s+\d+[wx]/)[0].trim();
+        mobileUrl = mobileUrl.split(',')[0].trim();
+        if (mobileUrl && mobileUrl.length > 5) {
+          banners.mobile = mobileUrl;
+        }
+      }
+    }
+    
+    // If we have desktop but not mobile, try to find srcset version
+    if (banners.desktop && !banners.mobile) {
+      // Look for srcset with smaller sizes near the desktop image
+      const desktopContext = mainContent.match(new RegExp(`[^>]*(?:srcset|data-srcset)="([^"]*)"[^>]*src="${banners.desktop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`, 'i'));
+      if (desktopContext && desktopContext[1]) {
+        const srcset = desktopContext[1];
+        const mobileMatch = srcset.match(/([^,\s]+)\s+(?:320w|375w|480w)/);
+        if (mobileMatch) banners.mobile = mobileMatch[1];
       }
     }
     

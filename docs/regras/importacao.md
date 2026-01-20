@@ -115,30 +115,55 @@ Cada plataforma tem um adaptador que:
 
 ---
 
-## Etapa 3: Estrutura da Loja (Scraping)
+## Etapa 3: Estrutura da Loja (Scraping com IA)
+
+### Arquitetura
+
+A Etapa 3 utiliza uma arquitetura baseada em **IA + Firecrawl** para extração inteligente:
+
+```
+┌──────────────┐    ┌───────────────┐    ┌─────────────────┐    ┌──────────────┐
+│   URL Loja   │ →  │  Firecrawl    │ →  │  Lovable AI     │ →  │  Blocos do   │
+│              │    │  (Scraping)   │    │  (Gemini 2.5)   │    │  Builder     │
+└──────────────┘    └───────────────┘    └─────────────────┘    └──────────────┘
+```
 
 ### Comportamento
 
-1. Sistema usa a URL da Etapa 1 para fazer scraping
+1. Sistema usa a URL da Etapa 1 para fazer scraping via Firecrawl
 2. Navega pelos links do **header** e **footer** da loja alvo
-3. Identifica e extrai:
-   - **Categorias** - links de coleções/categorias
-   - **Páginas Institucionais** - políticas, sobre, termos, etc.
-   - **Menus** - estrutura de navegação exata
+3. **IA classifica** URLs e extrai conteúdo de forma inteligente
+4. Identifica e extrai:
+   - **Categorias** - via detecção de grid de produtos
+   - **Páginas Institucionais** - com conversão para blocos nativos do Builder
+   - **Menus** - estrutura hierárquica de navegação
 
 ### Sub-etapas (ordem obrigatória)
 
 | Ordem | Item | Fonte | Destino |
 |-------|------|-------|---------|
 | 1 | Categorias | Links `/collections/`, `/categoria/`, `/c/` | `categories` |
-| 2 | Páginas | Links `/pages/`, `/politica/`, `/sobre/` | `store_pages` (rascunho vazio) |
+| 2 | Páginas | Links `/pages/`, `/politica/`, `/sobre/` | `store_pages` (com blocos editáveis) |
 | 3 | Menus | Estrutura header/footer | `menus`, `menu_items` |
 
 > **Menus por último** pois dependem de categorias e páginas já existirem para vincular `ref_id`.
 
-### Detecção de Categorias
+---
 
-Padrões de URL que indicam categoria:
+## Categorias: Detecção e Extração
+
+### Detecção de Página de Categoria
+
+O sistema NÃO confia apenas em padrões de URL. Ele verifica se a página contém um **grid de produtos**:
+
+```typescript
+// Critérios para confirmar categoria
+- Mínimo 2 cards de produto (.product-card, .product-item)
+- Preços no formato R$ (indicam produtos à venda)
+- Botões de compra/adicionar ao carrinho
+```
+
+Padrões de URL que indicam categoria (candidatos):
 ```
 /collections/{slug}     (Shopify)
 /categoria/{slug}       (Genérico BR)
@@ -148,9 +173,97 @@ Padrões de URL que indicam categoria:
 /shop/{slug}            (WooCommerce)
 ```
 
-### Detecção de Páginas Institucionais
+### Extração de Banners
 
-Padrões de URL incluídos:
+O sistema extrai banners **desktop** e **mobile**:
+
+**Banner Desktop:**
+- Classes: `category-banner`, `collection-banner`, `hero`
+- Elemento `<picture>` com `media="(min-width...)"`
+- Primeiro `<img>` grande dentro do `<main>`
+
+**Banner Mobile:**
+- Elemento `<source>` com `media="(max-width...)"`
+- Atributos: `data-mobile-src`, `data-src-mobile`, `data-srcset-mobile`
+- Srcset com tamanhos pequenos: `320w`, `375w`, `480w`
+- Classes: `mobile`, `show-mobile`, `visible-xs`, `d-none` (desktop hidden)
+- Fallback: menor tamanho do srcset quando disponível
+
+### Campos Extraídos
+
+| Campo | Origem | Destino |
+|-------|--------|---------|
+| Nome | H1 da página ou slug formatado | `categories.name` |
+| Slug | URL path | `categories.slug` |
+| Descrição | `.category-description` | `categories.description` |
+| Banner Desktop | Imagens hero/banner | `categories.banner_desktop_url` |
+| Banner Mobile | Imagens mobile-specific | `categories.banner_mobile_url` |
+| Thumbnail | Banner ou imagem da categoria | `categories.image_url` |
+
+---
+
+## Páginas Institucionais: Extração com IA
+
+### Arquitetura de Extração
+
+As páginas institucionais são extraídas usando **Lovable AI (Gemini 2.5 Flash)**:
+
+```
+HTML Bruto → Limpeza → IA Analisa → JSON Estruturado → Blocos do Builder
+```
+
+### Tipos de Conteúdo Detectados
+
+A IA classifica e extrai automaticamente:
+
+| Tipo | Detecção | Bloco do Builder |
+|------|----------|------------------|
+| FAQ/Acordeões | Perguntas/respostas, toggle content | `FAQBlock` |
+| Parágrafos | Texto corrido | `RichText` |
+| Headings | H1-H6 | `RichText` (com tag apropriada) |
+| Imagens | URLs de imagens relevantes | `ImageBlock` |
+| Vídeos YouTube | Embeds de YouTube | `YouTubeVideo` |
+| Listas | UL/OL | `RichText` (com `<ul>`/`<ol>`) |
+
+### Prompt da IA
+
+A IA recebe instruções específicas para:
+1. Identificar o título REAL da página (ignorando navegação)
+2. Classificar como FAQ vs página genérica
+3. Extrair FAQs mantendo estrutura de categorias
+4. Extrair conteúdo na ordem correta de aparição
+5. Ignorar headers, footers, navegação, produtos
+
+### Estrutura de Blocos Gerada
+
+**IMPORTANTE:** Os blocos são adicionados **diretamente na Section**, sem Container intermediário:
+
+```json
+{
+  "id": "root",
+  "type": "Page",
+  "children": [
+    { "type": "Header" },
+    {
+      "type": "Section",
+      "props": { "paddingY": 48, "paddingX": 16, "maxWidth": "md" },
+      "children": [
+        { "type": "RichText", "props": { "content": "<h1>Título</h1>" } },
+        { "type": "RichText", "props": { "content": "<p>Parágrafo...</p>" } },
+        { "type": "FAQBlock", "props": { "items": [...] } },
+        { "type": "ImageBlock", "props": { "imageDesktop": "..." } }
+      ]
+    },
+    { "type": "Footer" }
+  ]
+}
+```
+
+Isso garante que cada bloco apareça individualmente no sidebar do Builder e seja 100% editável.
+
+### Padrões de URL
+
+**Incluídos:**
 ```
 /pages/{slug}           (Shopify)
 /pagina/{slug}          (Genérico BR)
@@ -161,7 +274,7 @@ Padrões de URL incluídos:
 /faq, /perguntas        (FAQ)
 ```
 
-Padrões excluídos (não são institucionais):
+**Excluídos (não são institucionais):**
 ```
 /cart, /checkout        (Fluxo de compra)
 /login, /cadastro       (Auth)
@@ -171,20 +284,54 @@ Padrões excluídos (não são institucionais):
 /rastreio               (Temos nativo)
 ```
 
-### Detecção de Menus
+---
 
-1. Scrape do HTML completo
-2. Extração de links do `<header>` → Menu Header
-3. Extração de links do `<footer>` → Menu Footer
-4. Pareamento com categorias/páginas já importadas
-5. Criação de `menu_items` com `ref_id` quando possível
+## Menus: Extração Hierárquica
 
-### Arquivos Relacionados
+### Detecção de Estrutura
 
-- `supabase/functions/import-store-categories/index.ts` - Edge Function categorias
-- `supabase/functions/import-institutional-pages/index.ts` - Edge Function páginas
-- `src/components/import/StructureImportStep.tsx` - UI da Etapa 3
-- `supabase/functions/_shared/platform-adapters/` - Adaptadores de extração
+O sistema detecta menus com múltiplos níveis:
+
+**Shopify Mega-menus:**
+```typescript
+// Classes detectadas para submenus
+- .header__menu-item com .mega-menu
+- .nav-item com .has-dropdown
+- .menu-item com .has-submenu
+- Qualquer link com dropdown/submenu aninhado
+```
+
+### Estrutura Extraída
+
+```
+Menu Header
+├── Início
+├── Produtos → (dropdown)
+│   ├── Categoria 1
+│   ├── Categoria 2
+│   └── Categoria 3
+├── Sobre
+└── Contato
+
+Menu Footer
+├── Institucional
+│   ├── Quem Somos
+│   └── Política de Privacidade
+├── Atendimento
+│   ├── Fale Conosco
+│   └── FAQ
+└── Social
+```
+
+### Vinculação com Entidades
+
+Após importação, menus são vinculados via `ref_id`:
+
+| Tipo | Vínculo |
+|------|---------|
+| Categoria | `menu_items.ref_id` → `categories.id` |
+| Página | `menu_items.ref_id` → `store_pages.id` |
+| URL Externa | `menu_items.url` (sem ref_id) |
 
 ---
 
@@ -233,7 +380,8 @@ supabase/functions/
 ├── import-batch/                     # Import em lote (produtos, clientes, pedidos)
 ├── import-customers/                 # Import específico de clientes
 ├── import-store-categories/          # Import de categorias via scraping
-├── import-institutional-pages/       # Import de páginas via scraping
+├── import-institutional-pages/       # Import de páginas via IA + Firecrawl
+├── import-menus/                     # Import de menus hierárquicos
 └── _shared/
     └── platform-adapters/            # Adaptadores de extração
         ├── types.ts
@@ -313,9 +461,8 @@ Se campo obrigatório nosso não existe na origem:
 ### RN-IMP-004: Menus Dependem de Categorias/Páginas
 Importar menus apenas após categorias e páginas, para poder vincular `ref_id`.
 
-### RN-IMP-005: Páginas como Rascunho
-Páginas institucionais importadas ficam com `status: 'draft'` e conteúdo vazio.
-Cliente preenche depois.
+### RN-IMP-005: Páginas com Blocos Editáveis
+Páginas institucionais são importadas com **blocos nativos do Builder** (RichText, FAQBlock, ImageBlock, YouTubeVideo), diretamente na Section, 100% editáveis pelo cliente.
 
 ### RN-IMP-006: Consolidação Shopify
 CSVs Shopify têm múltiplas linhas por produto (variantes).
@@ -323,6 +470,15 @@ Consolidar em produto único antes de normalizar.
 
 ### RN-IMP-007: Multi-tenant
 Todas operações validam `tenant_id` via job (nunca confiar no frontend).
+
+### RN-IMP-008: Categorias por Grid de Produtos
+Uma URL só é considerada categoria se contiver um **grid de produtos visível** (mínimo 2 product cards com preços).
+
+### RN-IMP-009: Banners Desktop + Mobile
+Importação de categorias extrai **ambos** banners quando disponíveis, com fallback de mobile para versões pequenas do srcset.
+
+### RN-IMP-010: FAQs para FAQBlock
+Acordeões e FAQs são convertidos para `FAQBlock` nativo, mantendo estrutura de pergunta/resposta editável.
 
 ---
 
@@ -449,24 +605,30 @@ Limpar clientes desvincula pedidos (customer_id = NULL) mas não deleta os pedid
 
 | Rota | Permissões |
 |------|------------|
-| `/import` | `owner`, `admin` |
+| `/import` | `admin`, `owner` |
 
 ---
 
-## Pendências
+## Validações
 
-- [ ] Importação visual (blocos da home page)
-- [ ] Importação de cupons
-- [ ] Importação de avaliações/reviews
-- [ ] Rollback de importação
-- [ ] Preview antes de confirmar import
-- [ ] Mapeamento manual de campos
+### Import de Arquivos
+- Arquivo deve ser CSV ou JSON válido
+- Encoding UTF-8
+- Tamanho máximo: 50MB
+- Headers devem corresponder ao esperado
+
+### Import de Estrutura
+- URL deve ser acessível publicamente
+- Domínio deve responder em < 30s
+- Mínimo 1 categoria, página ou menu para importar
 
 ---
 
-## Changelog
+## Pendências (Futuro)
 
-| Data | Alteração |
-|------|-----------|
-| 2025-01-19 | Documento criado com especificação completa do fluxo de 3 etapas |
-| 2025-01-19 | Adicionada seção "Limpador de Dados Importados" com documentação completa |
+- [ ] Preview antes de aplicar (staging tables)
+- [ ] Retry automático em falhas de rede
+- [ ] Import de imagens para storage próprio
+- [ ] Mapeamento de campos customizado
+- [ ] Import de cupons/descontos
+- [ ] Import de avaliações/reviews

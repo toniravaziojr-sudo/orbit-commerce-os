@@ -519,6 +519,8 @@ function buildPageContent(extraction: AIExtractionResult): any {
   }
   
   // Wrap in standard page structure
+  // IMPORTANTE: Blocos diretamente na Section para serem editáveis no sidebar
+  // NÃO usar Container intermediário que não aparece no sidebar
   return {
     id: 'root',
     type: 'Page',
@@ -534,19 +536,10 @@ function buildPageContent(extraction: AIExtractionResult): any {
         type: 'Section',
         props: {
           paddingY: 48,
-          paddingX: 16
+          paddingX: 16,
+          maxWidth: 'md'
         },
-        children: [
-          {
-            id: crypto.randomUUID(),
-            type: 'Container',
-            props: {
-              maxWidth: 'md',
-              gap: 24
-            },
-            children
-          }
-        ]
+        children: children // Blocos diretamente como filhos da Section
       },
       {
         id: crypto.randomUUID(),
