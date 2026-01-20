@@ -3,7 +3,7 @@
 // Manages the active editor instance and selection state
 // =============================================
 
-import { createContext, useContext, useRef, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useRef, useCallback, useEffect, ReactNode } from 'react';
 
 interface RichTextEditorInstance {
   element: HTMLElement;
@@ -85,6 +85,29 @@ export function CanvasRichTextProvider({ children }: { children: ReactNode }) {
       savedSelectionRef.current = range.cloneRange();
     }
   }, [getActiveEditor]);
+  
+  // Auto-save selection on any selection change within registered editors
+  // This ensures we capture the selection even when mouse ends outside canvas
+  const autoSaveSelection = useCallback(() => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    
+    // Check if selection is within ANY registered editor
+    for (const [editorId, editor] of editorsRef.current.entries()) {
+      if (editor.element.contains(range.commonAncestorContainer)) {
+        // Set this editor as active if not already
+        if (activeEditorIdRef.current !== editorId) {
+          activeEditorIdRef.current = editorId;
+        }
+        savedSelectionRef.current = range.cloneRange();
+        return;
+      }
+    }
+  }, []);
 
   const restoreSelection = useCallback((): boolean => {
     if (!savedSelectionRef.current) return false;
@@ -105,17 +128,37 @@ export function CanvasRichTextProvider({ children }: { children: ReactNode }) {
   }, [getActiveEditor]);
 
   const hasSelection = useCallback((): boolean => {
+    // Check saved selection first
     if (savedSelectionRef.current) return true;
     
+    // Check if there's a live selection within any registered editor
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed || selection.rangeCount === 0) return false;
     
-    const activeEditor = getActiveEditor();
-    if (!activeEditor) return false;
-    
     const range = selection.getRangeAt(0);
-    return activeEditor.element.contains(range.commonAncestorContainer);
-  }, [getActiveEditor]);
+    
+    // Check against ALL registered editors, not just the active one
+    for (const editor of editorsRef.current.values()) {
+      if (editor.element.contains(range.commonAncestorContainer)) {
+        return true;
+      }
+    }
+    
+    return false;
+  }, []);
+  
+  // Global selection listener - auto-saves selection whenever user selects text in a rich text editor
+  useEffect(() => {
+    const handleSelectionChange = () => {
+      autoSaveSelection();
+    };
+    
+    document.addEventListener('selectionchange', handleSelectionChange);
+    
+    return () => {
+      document.removeEventListener('selectionchange', handleSelectionChange);
+    };
+  }, [autoSaveSelection]);
 
   const setFormattingLock = useCallback((locked: boolean) => {
     formattingLockRef.current = locked;
