@@ -179,12 +179,35 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
     execCommand(alignCommand);
   };
 
+  // Store selection for font size dropdown
+  const savedSelectionRef = useRef<Range | null>(null);
+  
+  // Save current selection
+  const saveCurrentSelection = useCallback(() => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+      savedSelectionRef.current = selection.getRangeAt(0).cloneRange();
+    }
+  }, []);
+  
   // Font size control - uses CSS font-size
-  const formatFontSize = (size: string) => {
+  const formatFontSize = useCallback((size: string) => {
+    if (!size) return;
+    
     // First try to execute on canvas selection if available
     if (canvasEditor) {
       const activeEditor = canvasEditor.getActiveEditor();
       if (activeEditor) {
+        // Restore saved selection first
+        if (savedSelectionRef.current) {
+          activeEditor.focus();
+          const selection = window.getSelection();
+          if (selection) {
+            selection.removeAllRanges();
+            selection.addRange(savedSelectionRef.current);
+          }
+        }
+        
         const selection = window.getSelection();
         if (selection && !selection.isCollapsed) {
           const range = selection.getRangeAt(0);
@@ -194,6 +217,7 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
             try {
               range.surroundContents(span);
               activeEditor.dispatchEvent(new Event('input', { bubbles: true }));
+              savedSelectionRef.current = null;
               return;
             } catch (e) {
               // Fallback if surroundContents fails
@@ -204,6 +228,15 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
     }
     
     // Fallback to local editor
+    if (savedSelectionRef.current && editorRef.current) {
+      editorRef.current.focus();
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+        selection.addRange(savedSelectionRef.current);
+      }
+    }
+    
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) return;
     
@@ -216,14 +249,16 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
     } catch (e) {
       // Fallback
     }
-  };
+    savedSelectionRef.current = null;
+  }, [canvasEditor, handleInput]);
 
   // Save canvas selection when mouse enters the toolbar area
   const handleToolbarMouseEnter = useCallback(() => {
+    saveCurrentSelection();
     if (canvasEditor) {
       canvasEditor.saveSelection();
     }
-  }, [canvasEditor]);
+  }, [canvasEditor, saveCurrentSelection]);
 
   return (
     <div className="border rounded-lg overflow-hidden">
@@ -288,26 +323,23 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
         <div className="w-px h-5 bg-border mx-1" />
 
         {/* Font Size Control */}
-        <div 
-          className="flex items-center"
-          onMouseDown={(e) => e.preventDefault()}
+        <select
+          className={cn(
+            "h-7 px-2 text-xs bg-background border rounded hover:bg-muted transition-colors cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary",
+            hasCanvasSelection && "ring-1 ring-primary/50"
+          )}
+          onChange={(e) => { formatFontSize(e.target.value); e.target.value = ''; }}
+          onMouseDown={saveCurrentSelection}
+          onFocus={saveCurrentSelection}
+          defaultValue=""
+          disabled={mode === 'html'}
+          title="Tamanho da fonte"
         >
-          <select
-            className={cn(
-              "h-7 px-2 text-xs bg-background border rounded hover:bg-muted transition-colors cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary",
-              hasCanvasSelection && "ring-1 ring-primary/50"
-            )}
-            onChange={(e) => { formatFontSize(e.target.value); e.target.value = ''; }}
-            defaultValue=""
-            disabled={mode === 'html'}
-            title="Tamanho da fonte"
-          >
-            <option value="" disabled>Tamanho</option>
-            {FONT_SIZE_OPTIONS.map(size => (
-              <option key={size} value={size}>{size}px</option>
-            ))}
-          </select>
-        </div>
+          <option value="" disabled>Tamanho</option>
+          {FONT_SIZE_OPTIONS.map(size => (
+            <option key={size} value={size}>{size}px</option>
+          ))}
+        </select>
 
         <div className="w-px h-5 bg-border mx-1" />
 

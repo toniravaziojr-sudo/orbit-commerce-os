@@ -412,6 +412,18 @@ export function RichTextBlock({
     execCommand(alignCommand);
   };
   const formatFontSize = (size: string) => {
+    if (!size || !editorRef.current) return;
+    
+    // First restore saved selection (savedRange is set by FloatingToolbar)
+    if (savedRange) {
+      editorRef.current.focus();
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+        selection.addRange(savedRange);
+      }
+    }
+    
     // Use CSS font-size instead of deprecated fontSize command
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) return;
@@ -438,6 +450,9 @@ export function RichTextBlock({
         handleInput();
       }
     }
+    
+    // Keep the toolbar visible by updating position
+    setTimeout(updateToolbarPosition, 10);
   };
   
   // Check for text selection and position toolbar
