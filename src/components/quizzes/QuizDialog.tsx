@@ -232,8 +232,8 @@ export function QuizDialog({ open, onOpenChange, quiz, onSuccess }: QuizDialogPr
                   <FormItem>
                     <FormLabel>Lista de Email</FormLabel>
                     <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
+                      value={field.value || undefined}
+                      onValueChange={(val) => field.onChange(val === "__none__" ? "" : val)}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -241,8 +241,8 @@ export function QuizDialog({ open, onOpenChange, quiz, onSuccess }: QuizDialogPr
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">Nenhuma</SelectItem>
-                        {lists.map((list: any) => (
+                        <SelectItem value="__none__">Nenhuma</SelectItem>
+                        {(lists || []).map((list: any) => (
                           <SelectItem key={list.id} value={list.id}>
                             {list.name}
                           </SelectItem>
@@ -264,8 +264,8 @@ export function QuizDialog({ open, onOpenChange, quiz, onSuccess }: QuizDialogPr
                   <FormItem>
                     <FormLabel>Tag</FormLabel>
                     <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
+                      value={field.value || undefined}
+                      onValueChange={(val) => field.onChange(val === "__none__" ? "" : val)}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -273,8 +273,8 @@ export function QuizDialog({ open, onOpenChange, quiz, onSuccess }: QuizDialogPr
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">Nenhuma</SelectItem>
-                        {tags.map((tag: any) => (
+                        <SelectItem value="__none__">Nenhuma</SelectItem>
+                        {(tags || []).map((tag: any) => (
                           <SelectItem key={tag.id} value={tag.id}>
                             <span className="flex items-center gap-2">
                               <span
