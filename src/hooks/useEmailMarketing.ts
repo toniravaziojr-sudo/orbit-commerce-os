@@ -111,7 +111,7 @@ export function useEmailMarketing() {
 
   // Mutations
   const createList = useMutation({
-    mutationFn: async (data: { name: string; description?: string }) => {
+    mutationFn: async (data: { name: string; description?: string; tag_id?: string }) => {
       const { error } = await supabase.from("email_marketing_lists").insert({ ...data, tenant_id: tenantId });
       if (error) throw error;
     },

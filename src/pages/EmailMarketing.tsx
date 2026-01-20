@@ -1,13 +1,22 @@
+import { useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useEmailMarketing } from "@/hooks/useEmailMarketing";
-import { Mail, Users, FileText, Megaphone, ListPlus, BarChart3 } from "lucide-react";
+import { Mail, Users, Megaphone, ListPlus, Plus } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ListDialog } from "@/components/email-marketing/ListDialog";
+import { TemplateDialog } from "@/components/email-marketing/TemplateDialog";
+import { CampaignDialog } from "@/components/email-marketing/CampaignDialog";
+import { Badge } from "@/components/ui/badge";
 
 export default function EmailMarketing() {
-  const { lists, subscribers, templates, campaigns, forms, queueStats, listsLoading } = useEmailMarketing();
+  const { lists, subscribers, templates, campaigns, queueStats } = useEmailMarketing();
+  
+  const [listDialogOpen, setListDialogOpen] = useState(false);
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+  const [campaignDialogOpen, setCampaignDialogOpen] = useState(false);
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -31,7 +40,7 @@ export default function EmailMarketing() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Enviados (7d)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{queueStats?.sent || 0}</div>
+            <div className="text-2xl font-bold text-emerald-600">{queueStats?.sent || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -47,7 +56,7 @@ export default function EmailMarketing() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Falhas (7d)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{queueStats?.failed || 0}</div>
+            <div className="text-2xl font-bold text-destructive">{queueStats?.failed || 0}</div>
           </CardContent>
         </Card>
       </div>
@@ -56,7 +65,6 @@ export default function EmailMarketing() {
         <TabsList>
           <TabsTrigger value="lists" className="gap-2"><ListPlus className="h-4 w-4" />Listas</TabsTrigger>
           <TabsTrigger value="subscribers" className="gap-2"><Users className="h-4 w-4" />Assinantes</TabsTrigger>
-          <TabsTrigger value="forms" className="gap-2"><FileText className="h-4 w-4" />Formulários</TabsTrigger>
           <TabsTrigger value="templates" className="gap-2"><Mail className="h-4 w-4" />Templates</TabsTrigger>
           <TabsTrigger value="campaigns" className="gap-2"><Megaphone className="h-4 w-4" />Campanhas</TabsTrigger>
         </TabsList>
@@ -65,19 +73,33 @@ export default function EmailMarketing() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Listas de Email</CardTitle>
-              <Button size="sm"><ListPlus className="h-4 w-4 mr-2" />Nova Lista</Button>
+              <Button size="sm" onClick={() => setListDialogOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />Nova Lista
+              </Button>
             </CardHeader>
             <CardContent>
               {lists.length === 0 ? (
-                <EmptyState icon={ListPlus} title="Nenhuma lista" description="Crie sua primeira lista de emails" />
+                <EmptyState 
+                  icon={ListPlus} 
+                  title="Nenhuma lista" 
+                  description="Crie sua primeira lista para começar a capturar leads"
+                  action={{ label: "Criar Lista", onClick: () => setListDialogOpen(true) }}
+                />
               ) : (
                 <div className="space-y-2">
                   {lists.map((list: any) => (
-                    <div key={list.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div>
-                        <p className="font-medium">{list.name}</p>
-                        <p className="text-sm text-muted-foreground">{list.description || "Sem descrição"}</p>
+                    <div key={list.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div>
+                          <p className="font-medium">{list.name}</p>
+                          <p className="text-sm text-muted-foreground">{list.description || "Sem descrição"}</p>
+                        </div>
                       </div>
+                      {list.customer_tags?.name && (
+                        <Badge variant="secondary" style={{ backgroundColor: list.customer_tags.color }}>
+                          {list.customer_tags.name}
+                        </Badge>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -91,46 +113,18 @@ export default function EmailMarketing() {
             <CardHeader><CardTitle>Assinantes</CardTitle></CardHeader>
             <CardContent>
               {subscribers.length === 0 ? (
-                <EmptyState icon={Users} title="Nenhum assinante" description="Assinantes aparecerão aqui" />
+                <EmptyState icon={Users} title="Nenhum assinante" description="Assinantes capturados via formulários aparecerão aqui" />
               ) : (
                 <div className="space-y-2">
-                  {subscribers.slice(0, 20).map((sub: any) => (
+                  {subscribers.slice(0, 50).map((sub: any) => (
                     <div key={sub.id} className="flex items-center justify-between p-3 border rounded-lg">
                       <div>
                         <p className="font-medium">{sub.name || sub.email}</p>
                         <p className="text-sm text-muted-foreground">{sub.email}</p>
                       </div>
-                      <span className={`text-xs px-2 py-1 rounded ${sub.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                        {sub.status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="forms">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Formulários de Captura</CardTitle>
-              <Button size="sm"><FileText className="h-4 w-4 mr-2" />Novo Formulário</Button>
-            </CardHeader>
-            <CardContent>
-              {forms.length === 0 ? (
-                <EmptyState icon={FileText} title="Nenhum formulário" description="Crie formulários para capturar leads" />
-              ) : (
-                <div className="space-y-2">
-                  {forms.map((form: any) => (
-                    <div key={form.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div>
-                        <p className="font-medium">{form.name}</p>
-                        <p className="text-sm text-muted-foreground">/{form.slug}</p>
-                      </div>
-                      <span className={`text-xs px-2 py-1 rounded ${form.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
-                        {form.status}
-                      </span>
+                      <Badge variant={sub.status === 'active' ? 'default' : 'destructive'}>
+                        {sub.status === 'active' ? 'Ativo' : sub.status}
+                      </Badge>
                     </div>
                   ))}
                 </div>
@@ -143,15 +137,22 @@ export default function EmailMarketing() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Templates de Email</CardTitle>
-              <Button size="sm"><Mail className="h-4 w-4 mr-2" />Novo Template</Button>
+              <Button size="sm" onClick={() => setTemplateDialogOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />Novo Template
+              </Button>
             </CardHeader>
             <CardContent>
               {templates.length === 0 ? (
-                <EmptyState icon={Mail} title="Nenhum template" description="Crie templates reutilizáveis" />
+                <EmptyState 
+                  icon={Mail} 
+                  title="Nenhum template" 
+                  description="Crie templates reutilizáveis para suas campanhas"
+                  action={{ label: "Criar Template", onClick: () => setTemplateDialogOpen(true) }}
+                />
               ) : (
                 <div className="space-y-2">
                   {templates.map((tpl: any) => (
-                    <div key={tpl.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div key={tpl.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
                       <div>
                         <p className="font-medium">{tpl.name}</p>
                         <p className="text-sm text-muted-foreground">{tpl.subject}</p>
@@ -168,22 +169,29 @@ export default function EmailMarketing() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Campanhas</CardTitle>
-              <Button size="sm"><Megaphone className="h-4 w-4 mr-2" />Nova Campanha</Button>
+              <Button size="sm" onClick={() => setCampaignDialogOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />Nova Campanha
+              </Button>
             </CardHeader>
             <CardContent>
               {campaigns.length === 0 ? (
-                <EmptyState icon={Megaphone} title="Nenhuma campanha" description="Crie campanhas broadcast ou automações" />
+                <EmptyState 
+                  icon={Megaphone} 
+                  title="Nenhuma campanha" 
+                  description="Crie campanhas para enviar emails em massa"
+                  action={{ label: "Criar Campanha", onClick: () => setCampaignDialogOpen(true) }}
+                />
               ) : (
                 <div className="space-y-2">
                   {campaigns.map((camp: any) => (
-                    <div key={camp.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div key={camp.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
                       <div>
                         <p className="font-medium">{camp.name}</p>
                         <p className="text-sm text-muted-foreground">{camp.type} • {camp.sent_count || 0} enviados</p>
                       </div>
-                      <span className={`text-xs px-2 py-1 rounded ${camp.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
-                        {camp.status}
-                      </span>
+                      <Badge variant={camp.status === 'active' ? 'default' : 'secondary'}>
+                        {camp.status === 'active' ? 'Ativo' : camp.status}
+                      </Badge>
                     </div>
                   ))}
                 </div>
@@ -192,6 +200,11 @@ export default function EmailMarketing() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Dialogs */}
+      <ListDialog open={listDialogOpen} onOpenChange={setListDialogOpen} />
+      <TemplateDialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen} />
+      <CampaignDialog open={campaignDialogOpen} onOpenChange={setCampaignDialogOpen} />
     </div>
   );
 }
