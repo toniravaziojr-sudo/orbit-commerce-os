@@ -1,13 +1,16 @@
 # Quizzes — Regras e Especificações
 
 > **Status:** ✅ Ready  
-> **Última atualização:** 2025-01-20
+> **Última atualização:** 2025-01-20  
+> **Integração Tags:** Sistema unificado `customer_tags`
 
 ---
 
 ## Visão Geral
 
 Sistema de quizzes interativos para captura de leads com integração completa ao Email Marketing. Suporta diversos tipos de perguntas, segmentação via tags e sincronização automática com a base de clientes.
+
+**IMPORTANTE:** O sistema de tags do Quiz utiliza o **sistema unificado de tags** (`customer_tags`) do módulo de Clientes. NÃO existe sistema de tags separado para quizzes.
 
 ---
 
@@ -162,6 +165,55 @@ Isso garante:
 - Upsert em customers e email_marketing_subscribers
 - Tag aplicada automaticamente
 - Sem duplicatas na base
+
+---
+
+## Integração Unificada de Tags
+
+O QuizDialog utiliza o hook `useCustomerTags` do módulo de Clientes para gerenciar tags.
+
+### Hook Obrigatório
+
+```typescript
+import { useCustomerTags } from "@/hooks/useCustomers";
+
+const { tags, isLoading, createTag } = useCustomerTags();
+```
+
+### Comportamento no QuizDialog
+
+1. **Exibe tags existentes** da tabela `customer_tags` via Select
+2. **Mostra badges** das primeiras 5 tags para seleção rápida
+3. **Permite criar nova tag inline** com nome e cor
+4. **Auto-seleciona** a tag recém-criada no formulário
+
+### Criação Inline de Tag
+
+O componente QuizDialog inclui um criador inline que:
+
+| Ação | Resultado |
+|------|-----------|
+| Clica "Criar nova tag" | Exibe formulário inline |
+| Preenche nome + cor | Campos obrigatórios |
+| Clica "Criar" | Chama `createTag.mutateAsync()` |
+| Sucesso | Auto-seleciona via `form.setValue("tag_id", result.id)` |
+
+### Paleta de Cores Padrão
+
+```typescript
+const colorOptions = [
+  "#ef4444", "#f97316", "#eab308", "#22c55e",
+  "#14b8a6", "#3b82f6", "#8b5cf6", "#ec4899"
+];
+```
+
+### Anti-Patterns (Tags)
+
+| Proibido | Correto |
+|----------|---------|
+| Criar sistema de tags separado | Usar `useCustomerTags` |
+| Query direta em `customer_tags` | Usar hook centralizado |
+| Tag sem cor | Sempre atribuir cor da paleta |
 
 ---
 
