@@ -417,7 +417,14 @@ export function VisualBuilder({
         }
       }
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (store.selectedBlockId && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+        const activeEl = document.activeElement as HTMLElement | null;
+        const isInEditableField = 
+          activeEl?.tagName === 'INPUT' || 
+          activeEl?.tagName === 'TEXTAREA' || 
+          activeEl?.isContentEditable ||
+          activeEl?.closest('[contenteditable="true"]');
+        
+        if (store.selectedBlockId && !isInEditableField) {
           e.preventDefault();
           handleDeleteBlock();
         }
