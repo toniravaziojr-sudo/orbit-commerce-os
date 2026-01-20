@@ -183,6 +183,9 @@ function sanitizeForEditor(html: string): string {
   return container.innerHTML;
 }
 
+// Font size options in pixels
+const FONT_SIZE_OPTIONS = ['12', '14', '16', '18', '20', '24', '28', '32', '36', '40', '48'];
+
 // Floating Toolbar Component - appears near text selection
 interface FloatingToolbarProps {
   position: { top: number; left: number };
@@ -191,6 +194,7 @@ interface FloatingToolbarProps {
   onLink: () => void;
   onList: () => void;
   onAlign: (align: 'left' | 'center' | 'right') => void;
+  onFontSize: (size: string) => void;
 }
 
 function FloatingToolbar({ 
@@ -199,7 +203,8 @@ function FloatingToolbar({
   onItalic, 
   onLink, 
   onList,
-  onAlign 
+  onAlign,
+  onFontSize
 }: FloatingToolbarProps) {
   return (
     <div 
@@ -268,6 +273,20 @@ function FloatingToolbar({
       >
         <AlignRight className="h-4 w-4" />
       </button>
+      <div className="w-px h-5 bg-border mx-1" />
+      {/* Font Size Dropdown */}
+      <select
+        className="h-7 px-1.5 text-xs bg-background border rounded hover:bg-muted transition-colors cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary"
+        onChange={(e) => { onFontSize(e.target.value); e.target.value = ''; }}
+        onMouseDown={(e) => e.stopPropagation()}
+        defaultValue=""
+        title="Tamanho da fonte"
+      >
+        <option value="" disabled>px</option>
+        {FONT_SIZE_OPTIONS.map(size => (
+          <option key={size} value={size}>{size}px</option>
+        ))}
+      </select>
     </div>
   );
 }
@@ -358,6 +377,34 @@ export function RichTextBlock({
     const alignCommand = { left: 'justifyLeft', center: 'justifyCenter', right: 'justifyRight' }[alignment];
     execCommand(alignCommand);
   };
+  const formatFontSize = (size: string) => {
+    // Use CSS font-size instead of deprecated fontSize command
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed) return;
+    
+    const range = selection.getRangeAt(0);
+    const span = document.createElement('span');
+    span.style.fontSize = `${size}px`;
+    
+    try {
+      range.surroundContents(span);
+      handleInput();
+    } catch (e) {
+      // If surroundContents fails (crosses boundaries), use execCommand fallback
+      document.execCommand('fontSize', false, '7');
+      // Then fix the font size
+      if (editorRef.current) {
+        const fonts = editorRef.current.querySelectorAll('font[size="7"]');
+        fonts.forEach(font => {
+          const newSpan = document.createElement('span');
+          newSpan.style.fontSize = `${size}px`;
+          newSpan.innerHTML = font.innerHTML;
+          font.parentNode?.replaceChild(newSpan, font);
+        });
+        handleInput();
+      }
+    }
+  };
   
   // Check for text selection and position toolbar
   const updateToolbarPosition = useCallback(() => {
@@ -426,6 +473,7 @@ export function RichTextBlock({
             onLink={formatLink}
             onList={formatList}
             onAlign={formatAlign}
+            onFontSize={formatFontSize}
           />
         )}
         <div 
