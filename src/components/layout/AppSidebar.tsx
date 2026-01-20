@@ -108,6 +108,7 @@ const fullNavigation: NavGroup[] = [
       { title: "Integrações Marketing", href: "/marketing", icon: TrendingUp },
       { title: "Atribuição de venda", href: "/marketing/atribuicao", icon: TrendingUp },
       { title: "Email Marketing", href: "/email-marketing", icon: Mail },
+      { title: "Quizzes", href: "/quizzes", icon: FileText },
       { title: "Aumentar Ticket", href: "/offers", icon: TrendingUp },
       { title: "Avaliações", href: "/reviews", icon: Star },
       { title: "Gestão de Mídias", href: "/media", icon: Image },
