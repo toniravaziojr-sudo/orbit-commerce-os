@@ -189,17 +189,19 @@ export function useQuizzes() {
       
       const nextIndex = existing?.[0]?.order_index ?? -1;
       
+      const insertData = {
+        quiz_id: quizId,
+        order_index: nextIndex + 1,
+        type: question.type,
+        question: question.question,
+        is_required: question.is_required ?? true,
+        options: question.options ?? null,
+        mapping: question.mapping ?? null,
+      };
+      
       const { data, error } = await supabase
         .from("quiz_questions")
-        .insert({
-          quiz_id: quizId,
-          order_index: nextIndex + 1,
-          type: question.type,
-          question: question.question,
-          is_required: question.is_required ?? true,
-          options: question.options as any,
-          mapping: question.mapping as any,
-        })
+        .insert(insertData as any)
         .select()
         .single();
       

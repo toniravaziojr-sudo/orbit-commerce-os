@@ -423,3 +423,6 @@ verify_jwt = true
 
 [functions.import-menus]
 verify_jwt = false
+
+[functions.quiz-submit]
+verify_jwt = false
