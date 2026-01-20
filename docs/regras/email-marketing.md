@@ -1,7 +1,7 @@
 # Email Marketing — Regras e Especificações
 
-> **Status:** 🟧 Pending (não validado)  
-> **Última atualização:** 2025-01-19
+> **Status:** ✅ Ready  
+> **Última atualização:** 2025-01-20
 
 ---
 
@@ -173,9 +173,18 @@ POST /marketing-form-submit
 
 | Fonte | Comportamento |
 |-------|---------------|
-| Newsletter Block | Adiciona à lista configurada |
-| Quiz | Adiciona tags baseado em respostas |
+| NewsletterForm Block | Adiciona à lista via `marketing-form-submit` |
+| NewsletterPopup Block | Popup com trigger (delay/scroll/exit_intent) |
+| QuizEmbed Block | Quiz interativo via `quiz-submit` |
 | Checkout | Captura com consentimento marketing |
+
+### Builder Blocks (Categoria: Formulários)
+
+| Bloco | Descrição |
+|-------|-----------|
+| `NewsletterForm` | Formulário inline de captura |
+| `NewsletterPopup` | Popup com regras de exibição |
+| `QuizEmbed` | Incorpora quiz do módulo Marketing |
 
 ---
 
@@ -217,10 +226,13 @@ Configuração em `email_provider_configs`:
 
 ## Checklist
 
-- [ ] Listas CRUD funcional
-- [ ] Subscribers com status correto
-- [ ] Templates com variáveis
-- [ ] Broadcast enfileira corretamente
-- [ ] Dispatcher processa fila
-- [ ] Unsubscribe funciona
-- [ ] Newsletter block captura leads
+- [x] Listas CRUD funcional
+- [x] Subscribers com status correto
+- [x] Templates com variáveis
+- [x] Broadcast enfileira corretamente
+- [x] Dispatcher processa fila
+- [x] Unsubscribe funciona
+- [x] NewsletterForm block captura leads
+- [x] NewsletterPopup block com triggers
+- [x] QuizEmbed block integrado
+- [x] sync_subscriber_to_customer_with_tag unificado
