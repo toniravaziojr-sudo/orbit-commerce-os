@@ -27,12 +27,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { useQuizzes, Quiz, QuizFormData } from "@/hooks/useQuizzes";
 import { useEmailMarketing } from "@/hooks/useEmailMarketing";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
+import { useCustomerTags } from "@/hooks/useCustomers";
+
+const colorOptions = [
+  "#ef4444", "#f97316", "#f59e0b", "#84cc16", "#22c55e", 
+  "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899", "#6b7280"
+];
 
 const formSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -55,24 +59,13 @@ interface QuizDialogProps {
 export function QuizDialog({ open, onOpenChange, quiz, onSuccess }: QuizDialogProps) {
   const { createQuiz, updateQuiz } = useQuizzes();
   const { lists } = useEmailMarketing();
-  const { currentTenant } = useAuth();
+  const { tags, isLoading: isLoadingTags, createTag } = useCustomerTags();
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Fetch customer tags
-  const { data: tags = [] } = useQuery({
-    queryKey: ["customer-tags", currentTenant?.id],
-    queryFn: async () => {
-      if (!currentTenant?.id) return [];
-      const { data, error } = await supabase
-        .from("customer_tags")
-        .select("*")
-        .eq("tenant_id", currentTenant.id)
-        .order("name");
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!currentTenant?.id,
-  });
+  
+  // Inline tag creator state
+  const [showTagCreator, setShowTagCreator] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
+  const [newTagColor, setNewTagColor] = useState(colorOptions[0]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -146,6 +139,24 @@ export function QuizDialog({ open, onOpenChange, quiz, onSuccess }: QuizDialogPr
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleCreateTag = async () => {
+    if (!newTagName.trim()) return;
+
+    const result = await createTag.mutateAsync({
+      name: newTagName.trim(),
+      color: newTagColor,
+    });
+
+    // Auto-select the newly created tag
+    if (result?.id) {
+      form.setValue("tag_id", result.id);
+    }
+
+    setNewTagName("");
+    setNewTagColor(colorOptions[0]);
+    setShowTagCreator(false);
   };
 
   return (
@@ -261,32 +272,127 @@ export function QuizDialog({ open, onOpenChange, quiz, onSuccess }: QuizDialogPr
                 control={form.control}
                 name="tag_id"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="col-span-2 sm:col-span-1">
                     <FormLabel>Tag</FormLabel>
-                    <Select
-                      value={field.value || undefined}
-                      onValueChange={(val) => field.onChange(val === "__none__" ? "" : val)}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione..." />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="__none__">Nenhuma</SelectItem>
-                        {(tags || []).map((tag: any) => (
-                          <SelectItem key={tag.id} value={tag.id}>
-                            <span className="flex items-center gap-2">
+                    <div className="space-y-2">
+                      <Select
+                        value={field.value || undefined}
+                        onValueChange={(val) => field.onChange(val === "__none__" ? "" : val)}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder={isLoadingTags ? "Carregando..." : "Selecione..."} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="__none__">Nenhuma</SelectItem>
+                          {(tags || []).map((tag: any) => (
+                            <SelectItem key={tag.id} value={tag.id}>
+                              <span className="flex items-center gap-2">
+                                <span
+                                  className="w-3 h-3 rounded-full"
+                                  style={{ backgroundColor: tag.color }}
+                                />
+                                {tag.name}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      {/* Quick tag badges */}
+                      {tags.length > 0 && !showTagCreator && (
+                        <div className="flex flex-wrap gap-1">
+                          {tags.slice(0, 3).map((tag: any) => (
+                            <Badge
+                              key={tag.id}
+                              variant="outline"
+                              className="cursor-pointer hover:bg-accent text-xs"
+                              style={{ borderColor: tag.color, color: tag.color }}
+                              onClick={() => form.setValue("tag_id", tag.id)}
+                            >
                               <span
-                                className="w-3 h-3 rounded-full"
+                                className="h-2 w-2 rounded-full mr-1"
                                 style={{ backgroundColor: tag.color }}
                               />
                               {tag.name}
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                            </Badge>
+                          ))}
+                          {tags.length > 3 && (
+                            <Badge variant="secondary" className="text-xs">
+                              +{tags.length - 3}
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Button to show inline tag creator */}
+                      {!showTagCreator && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full gap-1 text-xs"
+                          onClick={() => setShowTagCreator(true)}
+                        >
+                          <Plus className="h-3 w-3" />
+                          Criar nova tag
+                        </Button>
+                      )}
+
+                      {/* Inline tag creator */}
+                      {showTagCreator && (
+                        <div className="border rounded-lg p-3 space-y-3 bg-muted/30">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">Nova Tag</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => {
+                                setShowTagCreator(false);
+                                setNewTagName("");
+                              }}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          
+                          <Input
+                            placeholder="Nome da tag"
+                            value={newTagName}
+                            onChange={(e) => setNewTagName(e.target.value)}
+                            className="h-8 text-sm"
+                          />
+
+                          <div className="flex flex-wrap gap-1.5">
+                            {colorOptions.map((color) => (
+                              <button
+                                key={color}
+                                type="button"
+                                className={`w-5 h-5 rounded-full border-2 transition-transform hover:scale-110 ${
+                                  newTagColor === color ? 'border-foreground scale-110' : 'border-transparent'
+                                }`}
+                                style={{ backgroundColor: color }}
+                                onClick={() => setNewTagColor(color)}
+                              />
+                            ))}
+                          </div>
+
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="w-full"
+                            disabled={!newTagName.trim() || createTag.isPending}
+                            onClick={handleCreateTag}
+                          >
+                            {createTag.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                            Criar Tag
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                     <FormDescription>
                       Tag aplicada aos contatos
                     </FormDescription>
