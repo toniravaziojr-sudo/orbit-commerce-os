@@ -406,7 +406,9 @@ export function BlockRenderer({
           context={context}
           isEditing={isEditing}
           isInteractMode={isInteractMode}
+          isSelected={isSelected}
           block={node}
+          blockId={node.id}
         >
           {renderChildren()}
         </BlockComponent>

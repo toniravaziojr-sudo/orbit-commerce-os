@@ -105,8 +105,8 @@ Este diretório contém as regras e especificações separadas por módulo para 
 
 | Status | Quantidade | Significado |
 |--------|------------|-------------|
-| ✅ Ready | **25** | 100% funcional e validado |
-| 🟧 Pending | **14** | Em construção/incompleto |
+| ✅ Ready | **26** | 100% funcional e validado |
+| 🟧 Pending | **13** | Em construção/incompleto |
 
 ---
 

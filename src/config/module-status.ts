@@ -50,7 +50,7 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   
   // Sistema
   '/integrations': 'pending',
-  '/import': 'pending',
+  '/import': 'ready',
   '/settings': 'pending',
   '/files': 'ready',
   '/marketplaces': 'pending',
