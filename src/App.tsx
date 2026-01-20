@@ -73,6 +73,8 @@ import EmailMarketing from "@/pages/EmailMarketing";
 import Import from "@/pages/Import";
 import Blog from "@/pages/Blog";
 import BlogPostEditor from "@/pages/BlogPostEditor";
+import Quizzes from "@/pages/Quizzes";
+import { QuizEditor } from "@/components/quizzes";
 import BlockSuggestions from "@/pages/BlockSuggestions";
 import DemoEstruturaPage from "@/pages/DemoEstruturaPage";
 import LateCallback from "@/pages/integrations/LateCallback";
@@ -329,6 +331,8 @@ const App = () => {
                   <Route path="/marketing" element={<Marketing />} />
                   <Route path="/marketing/atribuicao" element={<Attribution />} />
                   <Route path="/email-marketing" element={<EmailMarketing />} />
+                  <Route path="/quizzes" element={<Quizzes />} />
+                  <Route path="/quizzes/:quizId" element={<QuizEditor />} />
                   <Route path="/finance" element={<Finance />} />
                   <Route path="/payments" element={<Navigate to="/integrations" replace />} />
                   <Route path="/shipping" element={<Navigate to="/integrations" replace />} />
