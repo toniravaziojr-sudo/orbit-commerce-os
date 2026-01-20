@@ -17,10 +17,15 @@ interface CanvasEditorContextValue {
   getActiveEditor: () => HTMLElement | null;
   // Save current selection (call before clicking panel buttons)
   saveSelection: () => void;
+  // Get saved selection
+  getSavedSelection: () => Range | null;
   // Restore saved selection and execute command
   execCommandOnCanvas: (command: string, value?: string) => boolean;
   // Check if canvas has active selection
   hasActiveSelection: () => boolean;
+  // Formatting lock - prevents content sync during formatting
+  setFormattingLock: (locked: boolean) => void;
+  isFormattingLocked: () => boolean;
 }
 
 const CanvasEditorContext = createContext<CanvasEditorContextValue | null>(null);
@@ -28,6 +33,7 @@ const CanvasEditorContext = createContext<CanvasEditorContextValue | null>(null)
 export function CanvasEditorProvider({ children }: { children: ReactNode }) {
   const activeEditorRef = useRef<HTMLElement | null>(null);
   const savedSelectionRef = useRef<SavedSelection | null>(null);
+  const formattingLockRef = useRef(false);
 
   const registerEditor = useCallback((ref: HTMLElement | null) => {
     activeEditorRef.current = ref;
@@ -37,16 +43,23 @@ export function CanvasEditorProvider({ children }: { children: ReactNode }) {
     return activeEditorRef.current;
   }, []);
 
+  const setFormattingLock = useCallback((locked: boolean) => {
+    formattingLockRef.current = locked;
+  }, []);
+
+  const isFormattingLocked = useCallback(() => {
+    return formattingLockRef.current;
+  }, []);
+
   const saveSelection = useCallback(() => {
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) {
-      savedSelectionRef.current = null;
       return;
     }
 
     const range = selection.getRangeAt(0);
     
-    // Check if selection is within the active editor
+    // Check if selection is within the active editor OR if we have any selection with text
     if (activeEditorRef.current && activeEditorRef.current.contains(range.commonAncestorContainer)) {
       savedSelectionRef.current = {
         range: range.cloneRange(),
@@ -55,15 +68,26 @@ export function CanvasEditorProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const getSavedSelection = useCallback(() => {
+    return savedSelectionRef.current?.range ?? null;
+  }, []);
+
   const hasActiveSelection = useCallback(() => {
+    // First check saved selection
+    if (savedSelectionRef.current) return true;
+    
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) return false;
     
+    if (selection.rangeCount === 0) return false;
     const range = selection.getRangeAt(0);
     return !!(activeEditorRef.current && activeEditorRef.current.contains(range.commonAncestorContainer));
   }, []);
 
   const execCommandOnCanvas = useCallback((command: string, value?: string): boolean => {
+    // Set formatting lock
+    formattingLockRef.current = true;
+    
     // Try to use current selection first
     const selection = window.getSelection();
     
@@ -73,6 +97,9 @@ export function CanvasEditorProvider({ children }: { children: ReactNode }) {
         // Selection is in canvas, execute directly
         activeEditorRef.current.focus();
         document.execCommand(command, false, value);
+        
+        // Release lock after delay
+        setTimeout(() => { formattingLockRef.current = false; }, 200);
         return true;
       }
     }
@@ -84,6 +111,7 @@ export function CanvasEditorProvider({ children }: { children: ReactNode }) {
       // Ensure the editor is still in the DOM
       if (!document.body.contains(editorRef)) {
         savedSelectionRef.current = null;
+        formattingLockRef.current = false;
         return false;
       }
       
@@ -107,10 +135,13 @@ export function CanvasEditorProvider({ children }: { children: ReactNode }) {
           };
         }
         
+        // Release lock after delay
+        setTimeout(() => { formattingLockRef.current = false; }, 200);
         return true;
       }
     }
     
+    formattingLockRef.current = false;
     return false;
   }, []);
 
@@ -119,8 +150,11 @@ export function CanvasEditorProvider({ children }: { children: ReactNode }) {
       registerEditor,
       getActiveEditor,
       saveSelection,
+      getSavedSelection,
       execCommandOnCanvas,
-      hasActiveSelection
+      hasActiveSelection,
+      setFormattingLock,
+      isFormattingLocked
     }}>
       {children}
     </CanvasEditorContext.Provider>
