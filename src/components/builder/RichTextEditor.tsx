@@ -1,6 +1,6 @@
 // =============================================
 // RICH TEXT EDITOR - Visual/HTML editor with functional toolbar
-// Connects to canvas editor when available for direct formatting
+// Connects to canvas editor for direct formatting via CanvasRichTextContext
 // =============================================
 
 import { useState, useRef, useCallback, useEffect } from 'react';
@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Bold, Italic, Link, List, AlignLeft, AlignCenter, AlignRight, Eye, Code, MousePointer } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useCanvasEditor } from './CanvasEditorContext';
+import { useCanvasRichText } from './CanvasRichTextContext';
 
 // Font size options in pixels
 const FONT_SIZE_OPTIONS = ['12', '14', '16', '18', '20', '24', '28', '32', '36', '40', '48'];
@@ -27,10 +27,8 @@ const ALLOWED_ATTRIBUTES = ['href', 'target', 'class', 'style'];
 function sanitizeHtml(html: string): string {
   if (!html) return '';
   
-  // Create a DOM parser
   const doc = new DOMParser().parseFromString(html, 'text/html');
   
-  // Recursive function to sanitize nodes
   function sanitizeNode(node: Node): Node | null {
     if (node.nodeType === Node.TEXT_NODE) {
       return node;
@@ -40,7 +38,6 @@ function sanitizeHtml(html: string): string {
       const element = node as Element;
       const tagName = element.tagName.toLowerCase();
       
-      // Remove disallowed tags (but keep their text content)
       if (!ALLOWED_TAGS.includes(tagName)) {
         const fragment = document.createDocumentFragment();
         Array.from(element.childNodes).forEach(child => {
@@ -50,11 +47,9 @@ function sanitizeHtml(html: string): string {
         return fragment;
       }
       
-      // Clone the element and remove disallowed attributes
       const clone = document.createElement(tagName);
       Array.from(element.attributes).forEach(attr => {
         if (ALLOWED_ATTRIBUTES.includes(attr.name.toLowerCase())) {
-          // Additional check for href to prevent javascript:
           if (attr.name === 'href' && attr.value.toLowerCase().startsWith('javascript:')) {
             return;
           }
@@ -62,7 +57,6 @@ function sanitizeHtml(html: string): string {
         }
       });
       
-      // Recursively sanitize children
       Array.from(element.childNodes).forEach(child => {
         const sanitized = sanitizeNode(child);
         if (sanitized) clone.appendChild(sanitized);
@@ -91,32 +85,30 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
   const [htmlValue, setHtmlValue] = useState(value || '');
   const [hasCanvasSelection, setHasCanvasSelection] = useState(false);
   
-  // Get canvas editor context to apply commands to canvas selection
-  const canvasEditor = useCanvasEditor();
+  // Get canvas rich text context
+  const canvasRichText = useCanvasRichText();
 
   // Check for canvas selection periodically
   useEffect(() => {
-    if (!canvasEditor) return;
+    if (!canvasRichText) return;
     
     const checkSelection = () => {
-      setHasCanvasSelection(canvasEditor.hasActiveSelection());
+      setHasCanvasSelection(canvasRichText.hasSelection());
     };
     
-    // Check on mount and when selection changes
     document.addEventListener('selectionchange', checkSelection);
     checkSelection();
     
     return () => {
       document.removeEventListener('selectionchange', checkSelection);
     };
-  }, [canvasEditor]);
+  }, [canvasRichText]);
 
   // Sync HTML value when switching modes
   const handleModeChange = (newMode: 'visual' | 'html') => {
     if (newMode === 'html' && editorRef.current) {
       setHtmlValue(editorRef.current.innerHTML);
     } else if (newMode === 'visual') {
-      // When switching to visual, update the contenteditable with sanitized HTML
       if (editorRef.current) {
         editorRef.current.innerHTML = sanitizeHtml(htmlValue);
       }
@@ -142,14 +134,10 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
   // Execute formatting command - tries canvas first, then local editor
   const execCommand = useCallback((command: string, commandValue?: string) => {
     // First try to execute on canvas selection if available
-    if (canvasEditor) {
-      const success = canvasEditor.execCommandOnCanvas(command, commandValue);
+    const activeEditor = canvasRichText?.getActiveEditor();
+    if (activeEditor) {
+      const success = activeEditor.applyCommand(command, commandValue);
       if (success) {
-        // Trigger input event on the canvas editor to sync changes
-        const activeEditor = canvasEditor.getActiveEditor();
-        if (activeEditor) {
-          activeEditor.dispatchEvent(new Event('input', { bubbles: true }));
-        }
         return;
       }
     }
@@ -158,7 +146,7 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
     document.execCommand(command, false, commandValue);
     editorRef.current?.focus();
     handleInput();
-  }, [canvasEditor, handleInput]);
+  }, [canvasRichText, handleInput]);
 
   // Format buttons
   const formatBold = () => execCommand('bold');
@@ -179,83 +167,27 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
     execCommand(alignCommand);
   };
 
-  // Store selection for font size dropdown
-  const savedSelectionRef = useRef<Range | null>(null);
-  
-  // Save current selection
-  const saveCurrentSelection = useCallback(() => {
-    const selection = window.getSelection();
-    if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
-      savedSelectionRef.current = selection.getRangeAt(0).cloneRange();
-    }
-  }, []);
-  
-  // Font size control - uses CSS font-size
+  // Font size control - uses the canvas editor's applyFontSize
   const formatFontSize = useCallback((size: string) => {
     if (!size) return;
     
-    // Set formatting lock to prevent content sync
-    if (canvasEditor?.setFormattingLock) {
-      canvasEditor.setFormattingLock(true);
-    }
+    // Save selection before any operations
+    canvasRichText?.saveSelection();
     
-    // First try to execute on canvas selection if available
-    if (canvasEditor) {
-      const activeEditor = canvasEditor.getActiveEditor();
-      if (activeEditor) {
-        // Restore saved selection first
-        if (savedSelectionRef.current) {
-          activeEditor.focus();
-          const selection = window.getSelection();
-          if (selection) {
-            selection.removeAllRanges();
-            selection.addRange(savedSelectionRef.current);
-          }
-        }
-        
-        const selection = window.getSelection();
-        if (selection && !selection.isCollapsed) {
-          const range = selection.getRangeAt(0);
-          if (activeEditor.contains(range.commonAncestorContainer)) {
-            const span = document.createElement('span');
-            span.style.fontSize = `${size}px`;
-            try {
-              range.surroundContents(span);
-              activeEditor.dispatchEvent(new Event('input', { bubbles: true }));
-              savedSelectionRef.current = null;
-              
-              // Release lock after delay
-              setTimeout(() => {
-                if (canvasEditor?.setFormattingLock) {
-                  canvasEditor.setFormattingLock(false);
-                }
-              }, 200);
-              return;
-            } catch (e) {
-              // Fallback if surroundContents fails
-            }
-          }
-        }
+    // Try to apply on canvas first
+    const activeEditor = canvasRichText?.getActiveEditor();
+    if (activeEditor) {
+      // Restore selection then apply
+      canvasRichText?.restoreSelection();
+      const success = activeEditor.applyFontSize(size);
+      if (success) {
+        return;
       }
     }
     
     // Fallback to local editor
-    if (savedSelectionRef.current && editorRef.current) {
-      editorRef.current.focus();
-      const selection = window.getSelection();
-      if (selection) {
-        selection.removeAllRanges();
-        selection.addRange(savedSelectionRef.current);
-      }
-    }
-    
     const selection = window.getSelection();
-    if (!selection || selection.isCollapsed) {
-      if (canvasEditor?.setFormattingLock) {
-        canvasEditor.setFormattingLock(false);
-      }
-      return;
-    }
+    if (!selection || selection.isCollapsed) return;
     
     const range = selection.getRangeAt(0);
     const span = document.createElement('span');
@@ -266,23 +198,14 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
     } catch (e) {
       // Fallback
     }
-    savedSelectionRef.current = null;
-    
-    // Release lock after delay
-    setTimeout(() => {
-      if (canvasEditor?.setFormattingLock) {
-        canvasEditor.setFormattingLock(false);
-      }
-    }, 200);
-  }, [canvasEditor, handleInput]);
+  }, [canvasRichText, handleInput]);
 
   // Save canvas selection when mouse enters the toolbar area
   const handleToolbarMouseEnter = useCallback(() => {
-    saveCurrentSelection();
-    if (canvasEditor) {
-      canvasEditor.saveSelection();
+    if (canvasRichText) {
+      canvasRichText.saveSelection();
     }
-  }, [canvasEditor, saveCurrentSelection]);
+  }, [canvasRichText]);
 
   return (
     <div className="border rounded-lg overflow-hidden">
@@ -353,8 +276,11 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
             hasCanvasSelection && "ring-1 ring-primary/50"
           )}
           onChange={(e) => { formatFontSize(e.target.value); e.target.value = ''; }}
-          onMouseDown={saveCurrentSelection}
-          onFocus={saveCurrentSelection}
+          onMouseDown={(e) => { 
+            e.stopPropagation(); 
+            canvasRichText?.saveSelection();
+          }}
+          onFocus={() => canvasRichText?.saveSelection()}
           defaultValue=""
           disabled={mode === 'html'}
           title="Tamanho da fonte"
