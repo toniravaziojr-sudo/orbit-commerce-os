@@ -416,7 +416,7 @@ export function VisualBuilder({
           handleSave();
         }
       }
-      if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (e.key === 'Delete') {
         const activeEl = document.activeElement as HTMLElement | null;
         const isInEditableField = 
           activeEl?.tagName === 'INPUT' || 
