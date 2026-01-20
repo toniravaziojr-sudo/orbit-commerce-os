@@ -1011,6 +1011,7 @@ export function VisualBuilder({
             onDuplicateBlock={handleDuplicateBlockById}
             onDeleteBlock={handleDeleteBlockById}
             onToggleHidden={handleToggleHidden}
+            onUpdateProps={store.updateProps}
             isPreviewMode={isPreviewMode}
             isInteractMode={isInteractMode}
             isSafeMode={isSafeMode}
