@@ -195,7 +195,11 @@ interface FloatingToolbarProps {
   onList: () => void;
   onAlign: (align: 'left' | 'center' | 'right') => void;
   onFontSize: (size: string) => void;
+  editorRef: React.RefObject<HTMLDivElement>;
 }
+
+// Store selection before opening dropdown
+let savedRange: Range | null = null;
 
 function FloatingToolbar({ 
   position,
@@ -204,8 +208,37 @@ function FloatingToolbar({
   onLink, 
   onList,
   onAlign,
-  onFontSize
+  onFontSize,
+  editorRef
 }: FloatingToolbarProps) {
+  
+  // Save selection when interacting with select
+  const saveSelection = () => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      savedRange = selection.getRangeAt(0).cloneRange();
+    }
+  };
+  
+  // Restore selection and apply font size
+  const handleFontSizeChange = (size: string) => {
+    if (!size || !editorRef.current) return;
+    
+    // Restore saved selection
+    if (savedRange) {
+      editorRef.current.focus();
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+        selection.addRange(savedRange);
+      }
+    }
+    
+    // Apply font size
+    onFontSize(size);
+    savedRange = null;
+  };
+  
   return (
     <div 
       className="fixed z-[9999] flex items-center gap-1 bg-background border rounded-lg shadow-lg p-1 animate-in fade-in-0 zoom-in-95 duration-100"
@@ -274,11 +307,12 @@ function FloatingToolbar({
         <AlignRight className="h-4 w-4" />
       </button>
       <div className="w-px h-5 bg-border mx-1" />
-      {/* Font Size Dropdown */}
+      {/* Font Size Dropdown - saves selection before opening */}
       <select
         className="h-7 px-1.5 text-xs bg-background border rounded hover:bg-muted transition-colors cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary"
-        onChange={(e) => { onFontSize(e.target.value); e.target.value = ''; }}
-        onMouseDown={(e) => e.stopPropagation()}
+        onChange={(e) => { handleFontSizeChange(e.target.value); e.target.value = ''; }}
+        onMouseDown={(e) => { e.stopPropagation(); saveSelection(); }}
+        onFocus={saveSelection}
         defaultValue=""
         title="Tamanho da fonte"
       >
@@ -474,6 +508,7 @@ export function RichTextBlock({
             onList={formatList}
             onAlign={formatAlign}
             onFontSize={formatFontSize}
+            editorRef={editorRef}
           />
         )}
         <div 
