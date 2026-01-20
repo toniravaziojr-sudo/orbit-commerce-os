@@ -169,15 +169,28 @@ export function CanvasRichTextProvider({ children, onBlockSelect }: CanvasRichTe
   }, []);
   
   // Global selection listener - auto-saves selection whenever user selects text in a rich text editor
+  // CRITICAL: We use both selectionchange AND mouseup to ensure we capture the final selection
+  // even when the mouse ends outside the canvas
   useEffect(() => {
     const handleSelectionChange = () => {
       autoSaveSelection();
     };
     
+    // mouseup ensures we capture selection even if selectionchange doesn't fire
+    // after the mouse is released outside the editor
+    const handleMouseUp = () => {
+      // Small delay to ensure the selection is finalized
+      setTimeout(() => {
+        autoSaveSelection();
+      }, 0);
+    };
+    
     document.addEventListener('selectionchange', handleSelectionChange);
+    document.addEventListener('mouseup', handleMouseUp);
     
     return () => {
       document.removeEventListener('selectionchange', handleSelectionChange);
+      document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [autoSaveSelection]);
 
