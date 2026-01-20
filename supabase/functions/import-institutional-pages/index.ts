@@ -126,11 +126,138 @@ function formatTitle(slug: string): string {
 }
 
 // =====================================================
-// FIRECRAWL: DESCOBRIR LINKS
+// DESCOBERTA DE LINKS - Múltiplas fontes
 // =====================================================
 
+// 1. Tentar sitemap.xml primeiro (mais rápido e completo)
+async function fetchSitemap(origin: string): Promise<string[]> {
+  try {
+    const sitemapUrls = [
+      `${origin}/sitemap.xml`,
+      `${origin}/sitemap_index.xml`,
+      `${origin}/page-sitemap.xml`
+    ];
+    
+    for (const sitemapUrl of sitemapUrls) {
+      try {
+        const response = await fetch(sitemapUrl, { 
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ImportBot/1.0)' }
+        });
+        
+        if (response.ok) {
+          const xml = await response.text();
+          const urls: string[] = [];
+          
+          // Extract URLs from sitemap
+          const locPattern = /<loc>([^<]+)<\/loc>/gi;
+          let match;
+          while ((match = locPattern.exec(xml)) !== null) {
+            urls.push(match[1]);
+          }
+          
+          if (urls.length > 0) {
+            console.log(`[Pages] Sitemap found: ${sitemapUrl} (${urls.length} URLs)`);
+            return urls;
+          }
+        }
+      } catch {}
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+// 2. Extrair links de todas as áreas da página (nav, footer, menus)
+function extractLinksFromHtml(html: string, origin: string): string[] {
+  const links: string[] = [];
+  
+  // Áreas prioritárias para links de páginas institucionais
+  const areas = [
+    // Footers (múltiplos formatos)
+    /<footer[^>]*>([\s\S]*?)<\/footer>/gi,
+    // Navegação principal
+    /<nav[^>]*>([\s\S]*?)<\/nav>/gi,
+    // Menus com classe comum
+    /<(?:div|ul)[^>]*class="[^"]*(?:menu|navigation|nav-links|site-nav|footer-links|institutional)[^"]*"[^>]*>([\s\S]*?)<\/(?:div|ul)>/gi,
+    // Shopify sections de menu
+    /<div[^>]*id="[^"]*(?:footer|menu|links)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+  ];
+  
+  for (const pattern of areas) {
+    let areaMatch;
+    while ((areaMatch = pattern.exec(html)) !== null) {
+      const areaHtml = areaMatch[1] || areaMatch[0];
+      const linkPattern = /href=["']([^"']+)["']/gi;
+      let linkMatch;
+      while ((linkMatch = linkPattern.exec(areaHtml)) !== null) {
+        let href = linkMatch[1];
+        
+        // Normalizar URL
+        if (href.startsWith('/') && !href.startsWith('//')) {
+          href = origin + href;
+        } else if (href.startsWith('//')) {
+          href = 'https:' + href;
+        }
+        
+        if (href.startsWith(origin) && !links.includes(href)) {
+          links.push(href);
+        }
+      }
+    }
+  }
+  
+  // Também pegar todos os links <a> da página que parecem institucionais
+  const allLinksPattern = /<a[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let match;
+  while ((match = allLinksPattern.exec(html)) !== null) {
+    let href = match[1];
+    const text = match[2].replace(/<[^>]+>/g, '').trim().toLowerCase();
+    
+    // Normalizar URL
+    if (href.startsWith('/') && !href.startsWith('//')) {
+      href = origin + href;
+    } else if (href.startsWith('//')) {
+      href = 'https:' + href;
+    }
+    
+    // Detectar links institucionais pelo texto do link
+    const institutionalTexts = [
+      'sobre', 'about', 'quem somos', 'nossa história',
+      'política', 'privacidade', 'privacy', 'lgpd',
+      'termos', 'terms', 'condições',
+      'troca', 'devolução', 'exchange', 'return', 'reembolso',
+      'entrega', 'frete', 'shipping', 'envio', 'prazo',
+      'garantia', 'warranty',
+      'faq', 'perguntas', 'dúvidas', 'ajuda',
+      'como comprar', 'como funciona',
+      'pagamento', 'formas de pagamento',
+      'feedback', 'depoimentos', 'avaliações',
+      'consulte', 'consulta',
+    ];
+    
+    if (href.startsWith(origin) && institutionalTexts.some(t => text.includes(t)) && !links.includes(href)) {
+      links.push(href);
+    }
+  }
+  
+  return links;
+}
+
+// 3. Descoberta via Firecrawl (completo)
 async function discoverLinks(storeUrl: string): Promise<string[]> {
-  if (!FIRECRAWL_API_KEY) return [];
+  const allLinks: string[] = [];
+  const origin = new URL(storeUrl).origin;
+  
+  // Primeiro: tentar sitemap (mais rápido e completo)
+  const sitemapLinks = await fetchSitemap(origin);
+  if (sitemapLinks.length > 0) {
+    allLinks.push(...sitemapLinks);
+    console.log(`[Pages] Sitemap: ${sitemapLinks.length} links`);
+  }
+  
+  // Sempre: buscar via Firecrawl para pegar navegação dinâmica
+  if (!FIRECRAWL_API_KEY) return allLinks;
 
   try {
     const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
@@ -143,33 +270,37 @@ async function discoverLinks(storeUrl: string): Promise<string[]> {
         url: storeUrl,
         formats: ['html', 'links'],
         onlyMainContent: false,
-        waitFor: 3000,
+        waitFor: 4000, // Mais tempo para JS carregar menus
       }),
     });
 
-    if (!response.ok) return [];
+    if (!response.ok) return allLinks;
     const data = await response.json();
     
     const html = data.data?.html || data?.html || '';
-    const links = data.data?.links || data?.links || [];
+    const firecrawlLinks = data.data?.links || data?.links || [];
     
-    // Extract footer links specifically
-    const footerMatch = html.match(/<footer[^>]*>([\s\S]*?)<\/footer>/i);
-    if (footerMatch) {
-      const footerHtml = footerMatch[1];
-      const linkPattern = /href="([^"]+)"/gi;
-      let match;
-      while ((match = linkPattern.exec(footerHtml)) !== null) {
-        const href = match[1];
-        if (href && !links.includes(href)) {
-          links.push(href);
-        }
+    // Adicionar links retornados diretamente pelo Firecrawl
+    for (const link of firecrawlLinks) {
+      if (link.startsWith(origin) && !allLinks.includes(link)) {
+        allLinks.push(link);
       }
     }
     
-    return links;
-  } catch {
-    return [];
+    // Extrair links adicionais do HTML (footers, menus, nav)
+    const htmlLinks = extractLinksFromHtml(html, origin);
+    for (const link of htmlLinks) {
+      if (!allLinks.includes(link)) {
+        allLinks.push(link);
+      }
+    }
+    
+    console.log(`[Pages] Firecrawl: ${firecrawlLinks.length} diretos + ${htmlLinks.length} do HTML`);
+    
+    return allLinks;
+  } catch (error) {
+    console.error('[Pages] Firecrawl error:', error);
+    return allLinks;
   }
 }
 
