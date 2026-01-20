@@ -25,7 +25,7 @@ const AI_GATEWAY_URL = 'https://ai.gateway.lovable.dev/v1/chat/completions';
 // =====================================================
 
 interface ExtractedBlock {
-  type: 'heading' | 'paragraph' | 'image' | 'video' | 'faq' | 'list';
+  type: 'heading' | 'paragraph' | 'image' | 'video' | 'faq' | 'list' | 'button';
   content: string;
   metadata?: {
     level?: number;
@@ -33,6 +33,9 @@ interface ExtractedBlock {
     videoId?: string;
     items?: Array<{ question: string; answer: string }>;
     listItems?: string[];
+    // Button metadata
+    url?: string;
+    variant?: 'primary' | 'secondary' | 'outline';
   };
 }
 
@@ -239,15 +242,17 @@ async function extractContentWithAI(
 
     const systemPrompt = `Você é um especialista em extração de conteúdo de páginas web para um construtor de sites de e-commerce.
 
-Sua tarefa é analisar o HTML/Markdown de uma página institucional e extrair seu conteúdo de forma estruturada.
+Sua tarefa é analisar o HTML/Markdown de uma página institucional e extrair seu conteúdo de forma estruturada e CONSOLIDADA.
 
 REGRAS CRÍTICAS:
 1. Identifique o TÍTULO REAL da página (não URLs, não "YouTube", não lixo de iframes)
 2. Detecte se a página é um FAQ (perguntas e respostas em acordeões/listas)
 3. Para FAQs: extraia TODAS as perguntas e respostas mantendo a estrutura de categorias se houver
-4. Para outras páginas: extraia headings, parágrafos, imagens e vídeos na ordem correta
-5. IGNORE: menus de navegação, headers, footers, widgets de chat, pop-ups, tracking
-6. Retorne APENAS JSON válido, sem markdown ou explicações`;
+4. Para outras páginas: extraia headings, parágrafos, imagens, vídeos e BOTÕES na ordem correta
+5. IGNORE: menus de navegação, headers, footers, widgets de chat, pop-ups, tracking, tabela de parcelas, calculadora de frete
+6. AGRUPE parágrafos consecutivos em UM ÚNICO bloco paragraph (máximo 5 blocos de texto por seção)
+7. EXTRAIA botões/CTAs importantes (Comprar, Consultar, Saiba Mais, etc.)
+8. Retorne APENAS JSON válido, sem markdown ou explicações`;
 
     const userPrompt = `Analise esta página e extraia seu conteúdo estruturado.
 
@@ -271,17 +276,29 @@ Retorne um JSON com este formato EXATO:
       { "question": "Pergunta 2?", "answer": "Resposta completa 2" }
     ]}},
     
-    // Para outras páginas:
+    // Para outras páginas (parágrafos AGRUPADOS):
     { "type": "heading", "content": "Título da seção", "metadata": { "level": 2 } },
-    { "type": "paragraph", "content": "Texto do parágrafo..." },
+    { "type": "paragraph", "content": "Primeiro parágrafo completo. Segundo parágrafo relacionado. Terceiro parágrafo da mesma seção." },
+    { "type": "button", "content": "Consultar agora", "metadata": { "url": "/consulta", "variant": "primary" } },
     { "type": "image", "content": "https://url-da-imagem.jpg", "metadata": { "alt": "descrição" } },
     { "type": "video", "content": "https://youtube.com/watch?v=ID", "metadata": { "videoId": "ID" } },
     { "type": "list", "content": "", "metadata": { "listItems": ["item 1", "item 2"] } }
   ]
 }
 
+REGRAS DE AGRUPAMENTO:
+- AGRUPE todos os parágrafos consecutivos de uma mesma seção em UM ÚNICO bloco paragraph
+- Cada bloco paragraph deve conter MÚLTIPLOS parágrafos separados por ponto final
+- NÃO crie um bloco paragraph para cada linha/frase
+- Máximo 5-8 blocos de conteúdo total (exceto FAQs)
+- IGNORE listas de parcelas (1x, 2x, 3x...), calculadoras de frete, tabelas de preço
+
+BOTÕES - Extraia CTAs importantes:
+- Botões de ação (Comprar, Consultar, Saiba Mais, Ver Mais, Entrar em Contato)
+- variant: "primary" para ação principal, "secondary" para secundária, "outline" para links
+
 IMPORTANTE: 
-- Para FAQs com categorias (COMPRA & ENTREGA, USO & RESULTADOS, etc.), crie um heading para cada categoria
+- Para FAQs com categorias, crie um heading para cada categoria seguido de um bloco faq com os items
 - Extraia as perguntas/respostas COMPLETAS, não resumidas
 - Se não conseguir extrair, retorne { "title": "", "pageType": "general", "blocks": [] }`;
 
@@ -459,11 +476,11 @@ function buildPageContent(extraction: AIExtractionResult): any {
         break;
       
       case 'faq':
-        // Use FAQBlock for FAQ items
+        // Use FAQ block (type is 'FAQ' in BlockRenderer, not 'FAQBlock')
         if (block.metadata?.items && block.metadata.items.length > 0) {
           children.push({
             id: crypto.randomUUID(),
-            type: 'FAQBlock',
+            type: 'FAQ', // CORRETO: BlockRenderer usa 'FAQ', não 'FAQBlock'
             props: {
               title: '',
               items: block.metadata.items.map(item => ({
@@ -499,6 +516,23 @@ function buildPageContent(extraction: AIExtractionResult): any {
               title: '',
               widthPreset: 'lg',
               aspectRatio: '16:9'
+            }
+          });
+        }
+        break;
+      
+      case 'button':
+        // Use ButtonBlock for extracted CTAs
+        if (block.content) {
+          children.push({
+            id: crypto.randomUUID(),
+            type: 'Button',
+            props: {
+              text: block.content,
+              url: block.metadata?.url || '#',
+              variant: block.metadata?.variant || 'primary',
+              size: 'md',
+              align: 'left'
             }
           });
         }

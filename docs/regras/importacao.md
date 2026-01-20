@@ -477,8 +477,25 @@ Uma URL só é considerada categoria se contiver um **grid de produtos visível*
 ### RN-IMP-009: Banners Desktop + Mobile
 Importação de categorias extrai **ambos** banners quando disponíveis, com fallback de mobile para versões pequenas do srcset.
 
-### RN-IMP-010: FAQs para FAQBlock
-Acordeões e FAQs são convertidos para `FAQBlock` nativo, mantendo estrutura de pergunta/resposta editável.
+### RN-IMP-010: FAQs para FAQ Block
+Acordeões e FAQs são convertidos para bloco `FAQ` nativo (tipo `FAQ` no BlockRenderer), mantendo estrutura de pergunta/resposta editável.
+
+### RN-IMP-011: Agrupamento de Parágrafos
+A IA agrupa parágrafos consecutivos de uma mesma seção em UM ÚNICO bloco RichText, evitando fragmentação excessiva. Máximo 5-8 blocos de conteúdo por página (exceto FAQs).
+
+### RN-IMP-012: Extração de Botões/CTAs
+Botões importantes (Comprar, Consultar, Saiba Mais) são extraídos como blocos `Button` com:
+- `text`: Texto do botão
+- `url`: Link de destino
+- `variant`: primary, secondary ou outline
+
+### RN-IMP-013: Filtro de Conteúdo Irrelevante
+A IA ignora automaticamente:
+- Tabelas de parcelas (1x, 2x, 3x...)
+- Calculadoras de frete
+- Widgets de chat
+- Pop-ups e modais
+- Menus de navegação
 
 ---
 
