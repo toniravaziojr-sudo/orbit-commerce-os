@@ -426,3 +426,57 @@ verify_jwt = false
 
 [functions.quiz-submit]
 verify_jwt = false
+
+[functions.meli-oauth-start]
+verify_jwt = true
+
+[functions.meli-oauth-callback]
+verify_jwt = false
+
+[functions.meli-connection-status]
+verify_jwt = true
+
+[functions.meli-disconnect]
+verify_jwt = true
+
+[functions.meli-token-refresh]
+verify_jwt = false
+
+[functions.meli-sync-orders]
+verify_jwt = false
+
+[functions.meli-webhook]
+verify_jwt = false
+
+[functions.meli-sync-questions]
+verify_jwt = false
+
+[functions.meli-answer-question]
+verify_jwt = true
+
+[functions.meta-oauth-start]
+verify_jwt = true
+
+[functions.meta-oauth-callback]
+verify_jwt = false
+
+[functions.shopee-oauth-start]
+verify_jwt = true
+
+[functions.shopee-oauth-callback]
+verify_jwt = false
+
+[functions.shopee-connection-status]
+verify_jwt = true
+
+[functions.shopee-disconnect]
+verify_jwt = true
+
+[functions.shopee-token-refresh]
+verify_jwt = false
+
+[functions.shopee-sync-orders]
+verify_jwt = false
+
+[functions.shopee-webhook]
+verify_jwt = false
