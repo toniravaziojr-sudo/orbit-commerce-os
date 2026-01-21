@@ -1509,7 +1509,13 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
             </TabsContent>
           </Tabs>
 
-          <div className="flex justify-end gap-4">
+          <div className="flex items-center justify-end gap-4">
+            {Object.keys(form.formState.errors).length > 0 && (
+              <div className="flex items-center gap-2 text-destructive text-sm">
+                <AlertCircle className="h-4 w-4" />
+                <span>Falta preencher campos obrigatórios</span>
+              </div>
+            )}
             <Button type="button" variant="outline" onClick={onCancel}>
               Cancelar
             </Button>
