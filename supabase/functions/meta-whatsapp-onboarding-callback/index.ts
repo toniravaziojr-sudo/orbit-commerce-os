@@ -34,8 +34,8 @@ Deno.serve(async (req) => {
       
       if (error) {
         console.error(`[meta-whatsapp-onboarding-callback][${traceId}] OAuth error: ${error} - ${errorDescription}`);
-        // Redirect to frontend with error
-        const frontendUrl = supabaseUrl.replace('.supabase.co', '.lovable.app');
+        // Redirect to frontend with error (using public domain)
+        const frontendUrl = "https://app.comandocentral.com.br";
         return Response.redirect(`${frontendUrl}/integrations?whatsapp_error=${encodeURIComponent(errorDescription || error)}`, 302);
       }
     } else if (req.method === "POST") {
@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const redirectUri = `${supabaseUrl}/functions/v1/meta-whatsapp-onboarding-callback`;
+    const redirectUri = `https://app.comandocentral.com.br/integrations/meta/whatsapp-callback`;
 
     // Exchange code for access token
     const tokenUrl = `https://graph.facebook.com/${graphApiVersion}/oauth/access_token`;
@@ -262,7 +262,7 @@ Deno.serve(async (req) => {
 
     // If GET request (redirect from Meta), redirect to frontend
     if (req.method === "GET") {
-      const frontendUrl = supabaseUrl.replace('.supabase.co', '.lovable.app');
+      const frontendUrl = "https://app.comandocentral.com.br";
       return Response.redirect(`${frontendUrl}/integrations?whatsapp_connected=true`, 302);
     }
 

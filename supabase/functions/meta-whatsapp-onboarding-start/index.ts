@@ -120,8 +120,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Build the redirect URI (callback URL)
-    const redirectUri = `${supabaseUrl}/functions/v1/meta-whatsapp-onboarding-callback`;
+    // Build the redirect URI (callback URL via Cloudflare proxy - public domain)
+    const redirectUri = `https://app.comandocentral.com.br/integrations/meta/whatsapp-callback`;
 
     // Build the Embedded Signup URL
     // https://developers.facebook.com/docs/whatsapp/embedded-signup

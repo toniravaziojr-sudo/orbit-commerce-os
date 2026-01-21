@@ -177,9 +177,9 @@ serve(async (req) => {
         user_id: user.id,
       },
       back_urls: {
-        success: success_url || `${supabaseUrl.replace('.supabase.co', '')}/settings/billing?status=success`,
-        failure: cancel_url || `${supabaseUrl.replace('.supabase.co', '')}/settings/billing?status=failure`,
-        pending: `${supabaseUrl.replace('.supabase.co', '')}/settings/billing?status=pending`,
+        success: success_url || `https://app.comandocentral.com.br/settings/billing?status=success`,
+        failure: cancel_url || `https://app.comandocentral.com.br/settings/billing?status=failure`,
+        pending: `https://app.comandocentral.com.br/settings/billing?status=pending`,
       },
       auto_return: 'approved',
       external_reference: `${tenantId}|${plan_key}|${cycle}`,
