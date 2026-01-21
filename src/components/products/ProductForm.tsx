@@ -40,6 +40,7 @@ import { validateSlugFormat, generateSlug as generateSlugFromPolicy, RESERVED_SL
 import { useToast } from '@/hooks/use-toast';
 
 const productSchema = z.object({
+  // === CAMPOS OBRIGATÓRIOS BÁSICOS ===
   name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres').max(200),
   sku: z.string().min(1, 'SKU é obrigatório').max(100)
     .transform(val => val.replace(/['"]/g, '').trim()),
@@ -48,10 +49,28 @@ const productSchema = z.object({
       (slug) => validateSlugFormat(slug).isValid,
       (slug) => ({ message: validateSlugFormat(slug).error || 'Slug inválido' })
     ),
+  price: z.coerce.number().min(0.01, 'Preço deve ser maior que zero'),
+  
+  // === CAMPOS OBRIGATÓRIOS PARA FRETE ===
+  weight: z.coerce.number({ required_error: 'Peso é obrigatório para cálculo de frete' })
+    .min(0.001, 'Peso deve ser maior que 0 (obrigatório para frete)'),
+  width: z.coerce.number({ required_error: 'Largura é obrigatória para cálculo de frete' })
+    .min(0.1, 'Largura deve ser maior que 0 (obrigatória para frete)'),
+  height: z.coerce.number({ required_error: 'Altura é obrigatória para cálculo de frete' })
+    .min(0.1, 'Altura deve ser maior que 0 (obrigatória para frete)'),
+  depth: z.coerce.number({ required_error: 'Profundidade é obrigatória para cálculo de frete' })
+    .min(0.1, 'Profundidade deve ser maior que 0 (obrigatória para frete)'),
+  
+  // === CAMPOS OBRIGATÓRIOS PARA NF-e ===
+  ncm: z.string()
+    .min(8, 'NCM deve ter 8 dígitos (obrigatório para NF-e)')
+    .max(8, 'NCM deve ter exatamente 8 dígitos')
+    .transform(val => val.replace(/[^\d]/g, '')),
+  
+  // === CAMPOS OPCIONAIS ===
   description: z.string().max(10000).nullable().optional(),
   short_description: z.string().max(500).nullable().optional(),
   cost_price: z.coerce.number().min(0).nullable().optional(),
-  price: z.coerce.number().min(0, 'Preço deve ser maior que zero'),
   compare_at_price: z.coerce.number().min(0).nullable().optional(),
   promotion_start_date: z.string().nullable().optional(),
   promotion_end_date: z.string().nullable().optional(),
@@ -59,16 +78,8 @@ const productSchema = z.object({
   low_stock_threshold: z.coerce.number().int().min(0).default(5),
   manage_stock: z.boolean().default(true),
   allow_backorder: z.boolean().default(false),
-  weight: z.coerce.number().min(0).nullable().optional(),
-  width: z.coerce.number().min(0).nullable().optional(),
-  height: z.coerce.number().min(0).nullable().optional(),
-  depth: z.coerce.number().min(0).nullable().optional(),
   gtin: z.string().max(50).nullable().optional()
     .transform(val => val ? val.replace(/[^\d]/g, '') : val),
-  ncm: z.string()
-    .min(8, 'NCM deve ter 8 dígitos (obrigatório para NF-e)')
-    .max(8, 'NCM deve ter exatamente 8 dígitos')
-    .transform(val => val.replace(/[^\d]/g, '')),
   seo_title: z.string().max(70).nullable().optional(),
   seo_description: z.string().max(160).nullable().optional(),
   status: z.enum(['draft', 'active', 'inactive', 'archived']).default('draft'),
@@ -235,10 +246,10 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       low_stock_threshold: product?.low_stock_threshold ?? 5,
       manage_stock: product?.manage_stock ?? true,
       allow_backorder: product?.allow_backorder ?? false,
-      weight: product?.weight ?? null,
-      width: product?.width ?? null,
-      height: product?.height ?? null,
-      depth: product?.depth ?? null,
+      weight: product?.weight ?? undefined,
+      width: product?.width ?? undefined,
+      height: product?.height ?? undefined,
+      depth: product?.depth ?? undefined,
       gtin: product?.gtin ?? product?.barcode ?? '',
       ncm: product?.ncm ?? '',
       seo_title: product?.seo_title ?? '',
@@ -782,7 +793,10 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Informações Físicas</CardTitle>
+                  <CardTitle>Informações Físicas *</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Obrigatório para cálculo de frete. Preencha peso e dimensões corretamente.
+                  </p>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid gap-4 md:grid-cols-4">
@@ -791,16 +805,17 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       name="weight"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Peso (kg)</FormLabel>
+                          <FormLabel>Peso (kg) *</FormLabel>
                           <FormControl>
                             <Input
                               {...field}
                               type="number"
                               step="0.001"
+                              placeholder="Ex: 0.5"
                               value={field.value ?? ''}
                               onChange={(e) =>
                                 field.onChange(
-                                  e.target.value ? parseFloat(e.target.value) : null
+                                  e.target.value ? parseFloat(e.target.value) : undefined
                                 )
                               }
                             />
@@ -815,16 +830,17 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       name="width"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Largura (cm)</FormLabel>
+                          <FormLabel>Largura (cm) *</FormLabel>
                           <FormControl>
                             <Input
                               {...field}
                               type="number"
                               step="0.01"
+                              placeholder="Ex: 20"
                               value={field.value ?? ''}
                               onChange={(e) =>
                                 field.onChange(
-                                  e.target.value ? parseFloat(e.target.value) : null
+                                  e.target.value ? parseFloat(e.target.value) : undefined
                                 )
                               }
                             />
@@ -839,16 +855,17 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       name="height"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Altura (cm)</FormLabel>
+                          <FormLabel>Altura (cm) *</FormLabel>
                           <FormControl>
                             <Input
                               {...field}
                               type="number"
                               step="0.01"
+                              placeholder="Ex: 10"
                               value={field.value ?? ''}
                               onChange={(e) =>
                                 field.onChange(
-                                  e.target.value ? parseFloat(e.target.value) : null
+                                  e.target.value ? parseFloat(e.target.value) : undefined
                                 )
                               }
                             />
@@ -863,16 +880,17 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       name="depth"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Profundidade (cm)</FormLabel>
+                          <FormLabel>Profundidade (cm) *</FormLabel>
                           <FormControl>
                             <Input
                               {...field}
                               type="number"
                               step="0.01"
+                              placeholder="Ex: 5"
                               value={field.value ?? ''}
                               onChange={(e) =>
                                 field.onChange(
-                                  e.target.value ? parseFloat(e.target.value) : null
+                                  e.target.value ? parseFloat(e.target.value) : undefined
                                 )
                               }
                             />
