@@ -321,15 +321,15 @@ export function AppSidebar() {
       const lockedContent = (
         <div
           className={cn(
-            "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium cursor-not-allowed opacity-60",
-            "text-sidebar-foreground"
+            "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium cursor-not-allowed",
+            "text-sidebar-foreground/70"
           )}
         >
           <Icon className="h-4 w-4 flex-shrink-0" />
           {!collapsed && (
             <>
               <span className="flex-1 truncate">{item.title}</span>
-              <span className="text-[9px] font-medium bg-amber-500/20 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded">
+              <span className="text-[10px] font-semibold bg-amber-500/30 text-amber-500 px-1.5 py-0.5 rounded">
                 Em breve
               </span>
             </>
