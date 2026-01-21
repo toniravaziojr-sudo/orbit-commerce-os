@@ -53,6 +53,7 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   '/import': 'ready',
   '/settings': 'pending',
   '/files': 'ready',
+  '/reports': 'ready',
   '/marketplaces': 'pending',
   '/system/users': 'ready',
   

@@ -83,6 +83,7 @@ import NotFound from "@/pages/NotFound";
 import Marketplaces from "@/pages/Marketplaces";
 import MercadoLivre from "@/pages/marketplaces/MercadoLivre";
 import Files from "@/pages/Files";
+import Reports from "@/pages/Reports";
 import CommandCenter from "@/pages/CommandCenter";
 import PersonalData from "@/pages/account/PersonalData";
 import CompanyData from "@/pages/account/CompanyData";
@@ -328,6 +329,7 @@ const App = () => {
                   <Route path="/marketplaces" element={<Marketplaces />} />
                   <Route path="/marketplaces/mercadolivre" element={<MercadoLivre />} />
                   <Route path="/files" element={<Files />} />
+                  <Route path="/reports" element={<Reports />} />
                   <Route path="/marketing" element={<Marketing />} />
                   <Route path="/marketing/atribuicao" element={<Attribution />} />
                   <Route path="/email-marketing" element={<EmailMarketing />} />
