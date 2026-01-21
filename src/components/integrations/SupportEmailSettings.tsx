@@ -213,8 +213,8 @@ export function SupportEmailSettings() {
     : config.from_email;
   const effectiveSupportName = config.support_reply_from_name || config.from_name || "Atendimento";
 
-  // Webhook URL for SendGrid Inbound Parse
-  const webhookUrl = `https://ojssezfjhdvvncsqyhyq.supabase.co/functions/v1/support-email-inbound`;
+  // Webhook URL for SendGrid Inbound Parse (via Cloudflare proxy)
+  const webhookUrl = `https://app.comandocentral.com.br/integrations/emails/inbound`;
 
   return (
     <Card>

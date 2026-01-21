@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
     // Meta espera resposta com confirmation_code para data deletion requests
     // Se for apenas deauthorize, pode retornar vazio
     const confirmationCode = crypto.randomUUID();
-    const statusUrl = `${supabaseUrl}/functions/v1/meta-deletion-status?code=${confirmationCode}`;
+    const statusUrl = `https://app.comandocentral.com.br/integrations/meta/deletion-status?code=${confirmationCode}`;
 
     return new Response(JSON.stringify({
       url: statusUrl,

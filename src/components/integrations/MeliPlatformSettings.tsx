@@ -75,10 +75,9 @@ export function MeliPlatformSettings() {
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
 
-  // URLs para configuração
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const redirectUri = `${supabaseUrl}/functions/v1/meli-oauth-callback`;
-  const webhookUri = `${supabaseUrl}/functions/v1/meli-webhook`;
+  // URLs para configuração (via Cloudflare proxy - domínio público)
+  const redirectUri = `https://app.comandocentral.com.br/integrations/meli/callback`;
+  const webhookUri = `https://app.comandocentral.com.br/integrations/meli/webhook`;
 
   // Buscar status das credenciais
   const { data: integrationData, isLoading, refetch } = useQuery({

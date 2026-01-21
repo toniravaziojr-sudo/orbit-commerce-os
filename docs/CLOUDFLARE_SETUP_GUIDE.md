@@ -87,8 +87,8 @@ No painel do Lovable Cloud, adicione os secrets:
 | Variable | Value |
 |----------|-------|
 | ORIGIN_HOST | orbit-commerce-os.lovable.app |
-| SUPABASE_URL | https://ojssezfjhdvvncsqyhyq.supabase.co |
-| SUPABASE_ANON_KEY | (sua anon key do Supabase) |
+| SUPABASE_URL | (URL do seu projeto Lovable Cloud) |
+| SUPABASE_ANON_KEY | (sua anon key do Lovable Cloud) |
 
 ### 4.3 Configurar Rotas do Worker
 

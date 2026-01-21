@@ -74,7 +74,7 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const webhookUrl = `${supabaseUrl}/functions/v1/support-email-inbound`;
+    const webhookUrl = `https://app.comandocentral.com.br/integrations/emails/inbound`;
 
     if (action === 'check') {
       // Check if hostname is already configured

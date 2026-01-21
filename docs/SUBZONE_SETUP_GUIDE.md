@@ -69,7 +69,7 @@ Na nova zona:
 
 O Worker precisa das variáveis:
 - `ORIGIN_HOST`: `orbit-commerce-os.lovable.app`
-- `SUPABASE_URL`: `https://ojssezfjhdvvncsqyhyq.supabase.co`
+- `SUPABASE_URL`: (URL do seu projeto Lovable Cloud)
 - `SUPABASE_ANON_KEY`: sua chave anon
 
 ### 7. Aguardar Propagação DNS

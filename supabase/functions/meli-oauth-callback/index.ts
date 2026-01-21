@@ -66,8 +66,8 @@ serve(async (req) => {
       );
     }
 
-    // Construir redirect URI (deve ser igual ao cadastrado no app)
-    const redirectUri = `${supabaseUrl}/functions/v1/meli-oauth-callback`;
+    // Construir redirect URI (deve ser igual ao cadastrado no app - via Cloudflare proxy)
+    const redirectUri = `https://app.comandocentral.com.br/integrations/meli/callback`;
 
     // Trocar code por tokens
     const tokenResponse = await fetch("https://api.mercadolibre.com/oauth/token", {
