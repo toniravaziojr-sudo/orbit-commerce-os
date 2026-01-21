@@ -100,8 +100,11 @@ export function DomainSettingsContent() {
   // Find the platform subdomain (auto-provisioned)
   const platformSubdomain = domains.find(d => d.type === 'platform_subdomain');
   
-  // Check if there are any custom domains configured
-  const hasCustomDomains = domains.some(d => d.type === 'custom');
+  // Check if there are any ACTIVE custom domains (verified + SSL active)
+  // Only then does the "Activate" button make sense (to switch primary back to platform)
+  const hasActiveCustomDomains = domains.some(
+    d => d.type === 'custom' && d.status === 'verified' && d.ssl_status === 'active'
+  );
 
   // Handler for provisioning default domain
   const handleProvisionDefault = async () => {
@@ -208,12 +211,13 @@ export function DomainSettingsContent() {
                 {/* 
                   Show "Activate" button ONLY if:
                   1. Platform subdomain is not provisioned in DB
-                  2. AND there are custom domains configured (meaning user may want to re-enable default)
+                  2. AND there are ACTIVE custom domains (verified + SSL active)
                   
-                  If no custom domains exist, the platform subdomain is the only option
+                  If no active custom domains exist, the platform subdomain is the only option
                   and should be considered always active (ACM wildcard handles SSL).
+                  The button would only be useful to create a DB record for switching primary back.
                 */}
-                {!platformSubdomain && hasCustomDomains && (
+                {!platformSubdomain && hasActiveCustomDomains && (
                   <Button
                     variant="default"
                     size="sm"
