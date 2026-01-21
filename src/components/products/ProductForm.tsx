@@ -449,6 +449,16 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
   };
 
   const handleSubmit = async (data: ProductFormData) => {
+    // Validação customizada: estrutura obrigatória para kits
+    if (data.product_format === 'with_composition' && pendingComponents.length === 0) {
+      toast({ 
+        title: 'Estrutura obrigatória', 
+        description: 'Produtos com composição precisam ter pelo menos um componente na estrutura.',
+        variant: 'destructive' 
+      });
+      return;
+    }
+
     setIsSaving(true);
     try {
       if (isEditing && product) {
@@ -549,12 +559,15 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
             {/* Helper function to get errors per tab */}
             {(() => {
               const errors = form.formState.errors;
+              const productFormat = form.watch('product_format');
+              const hasStructureError = productFormat === 'with_composition' && pendingComponents.length === 0;
+              
               const tabErrors = {
                 basic: ['name', 'sku', 'slug', 'description', 'short_description', 'status', 'product_format', 'weight', 'width', 'height', 'depth', 'gtin'].filter(f => f in errors).length,
                 images: 0,
                 pricing: ['price', 'cost_price', 'compare_at_price', 'promotion_start_date', 'promotion_end_date'].filter(f => f in errors).length,
                 inventory: ['stock_quantity', 'low_stock_threshold', 'manage_stock', 'allow_backorder'].filter(f => f in errors).length,
-                structure: 0,
+                structure: hasStructureError ? 1 : 0,
                 related: 0,
                 seo: ['seo_title', 'seo_description'].filter(f => f in errors).length,
                 advanced: ['ncm', 'cest', 'origin_code', 'uom', 'brand', 'vendor', 'product_type', 'tax_code', 'requires_shipping', 'taxable'].filter(f => f in errors).length,
@@ -593,6 +606,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                   >
                     <Package className="h-4 w-4 mr-1" />
                     Estrutura
+                    <ErrorBadge count={tabErrors.structure} />
                   </TabsTrigger>
                   <TabsTrigger value="related" className="flex items-center gap-1">
                     <Link2 className="h-4 w-4 mr-1" />
@@ -808,16 +822,18 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                           <FormLabel>Peso (kg) *</FormLabel>
                           <FormControl>
                             <Input
-                              {...field}
                               type="number"
                               step="0.001"
                               placeholder="Ex: 0.5"
-                              value={field.value ?? ''}
+                              value={field.value !== undefined && field.value !== null ? field.value : ''}
                               onChange={(e) =>
                                 field.onChange(
                                   e.target.value ? parseFloat(e.target.value) : undefined
                                 )
                               }
+                              onBlur={field.onBlur}
+                              name={field.name}
+                              ref={field.ref}
                             />
                           </FormControl>
                           <FormMessage />
@@ -833,16 +849,18 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                           <FormLabel>Largura (cm) *</FormLabel>
                           <FormControl>
                             <Input
-                              {...field}
                               type="number"
                               step="0.01"
                               placeholder="Ex: 20"
-                              value={field.value ?? ''}
+                              value={field.value !== undefined && field.value !== null ? field.value : ''}
                               onChange={(e) =>
                                 field.onChange(
                                   e.target.value ? parseFloat(e.target.value) : undefined
                                 )
                               }
+                              onBlur={field.onBlur}
+                              name={field.name}
+                              ref={field.ref}
                             />
                           </FormControl>
                           <FormMessage />
@@ -858,16 +876,18 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                           <FormLabel>Altura (cm) *</FormLabel>
                           <FormControl>
                             <Input
-                              {...field}
                               type="number"
                               step="0.01"
                               placeholder="Ex: 10"
-                              value={field.value ?? ''}
+                              value={field.value !== undefined && field.value !== null ? field.value : ''}
                               onChange={(e) =>
                                 field.onChange(
                                   e.target.value ? parseFloat(e.target.value) : undefined
                                 )
                               }
+                              onBlur={field.onBlur}
+                              name={field.name}
+                              ref={field.ref}
                             />
                           </FormControl>
                           <FormMessage />
@@ -883,16 +903,18 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                           <FormLabel>Profundidade (cm) *</FormLabel>
                           <FormControl>
                             <Input
-                              {...field}
                               type="number"
                               step="0.01"
                               placeholder="Ex: 5"
-                              value={field.value ?? ''}
+                              value={field.value !== undefined && field.value !== null ? field.value : ''}
                               onChange={(e) =>
                                 field.onChange(
                                   e.target.value ? parseFloat(e.target.value) : undefined
                                 )
                               }
+                              onBlur={field.onBlur}
+                              name={field.name}
+                              ref={field.ref}
                             />
                           </FormControl>
                           <FormMessage />
