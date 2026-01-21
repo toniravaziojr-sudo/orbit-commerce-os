@@ -480,3 +480,9 @@ verify_jwt = false
 
 [functions.shopee-webhook]
 verify_jwt = false
+
+[functions.meta-deauthorize-callback]
+verify_jwt = false
+
+[functions.meta-deletion-status]
+verify_jwt = false
