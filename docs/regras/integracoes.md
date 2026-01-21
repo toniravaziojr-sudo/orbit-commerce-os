@@ -1,10 +1,10 @@
 # Integrações — Regras e Especificações
 
-> **STATUS:** 🟧 Pending (em construção)
+> **STATUS:** ✅ Ready
 
 ## Visão Geral
 
-Hub central de integrações com serviços externos: pagamentos, redes sociais, marketplaces, WhatsApp, email, ERP.
+Hub central de integrações com serviços externos: pagamentos, redes sociais, marketplaces, WhatsApp, email, domínios, ERP.
 
 ---
 
@@ -12,12 +12,52 @@ Hub central de integrações com serviços externos: pagamentos, redes sociais, 
 
 | Arquivo | Descrição |
 |---------|-----------|
-| `src/pages/Integrations.tsx` | Página principal |
+| `src/pages/Integrations.tsx` | Página principal de integrações (tenant) |
+| `src/pages/PlatformIntegrations.tsx` | Página de integrações (operador) |
+| `src/components/integrations/DomainAndEmailSettings.tsx` | Aba unificada Domínio/Email |
+| `src/components/settings/DomainSettingsContent.tsx` | Configuração de domínios da loja |
 | `src/components/payments/PaymentGatewaySettings.tsx` | Config de gateways |
 | `src/components/integrations/WhatsAppProviderTabs.tsx` | Config WhatsApp |
 | `src/components/integrations/MarketplacesIntegrationTab.tsx` | Marketplaces |
 | `src/components/integrations/MetaConnectionSettings.tsx` | Meta/Facebook |
 | `src/components/emails/EmailDnsSettings.tsx` | DNS de email |
+
+---
+
+## Estrutura de Abas (Tenant)
+
+| Tab | Valor | Componente | Descrição |
+|-----|-------|------------|-----------|
+| Pagamentos | `payments` | `PaymentGatewaySettings` | Gateways de pagamento |
+| Redes Sociais | `social` | `MetaConnectionSettings`, `LateConnectionSettings` | Meta, Late |
+| Marketplaces | `marketplaces` | `MarketplacesIntegrationTab` | Mercado Livre, etc |
+| WhatsApp | `whatsapp` | `WhatsAppProviderTabs` | Providers de WhatsApp |
+| **Domínio/Email** | `domain-email` | `DomainAndEmailSettings` | Domínio da loja + Email |
+| Outros | `outros` | Cards ERP | Integrações ERP (em breve) |
+| Plataforma | `platform` | Sub-tabs operador | Apenas para `isPlatformOperator` |
+
+---
+
+## Aba Domínio/Email
+
+A aba `domain-email` unifica duas seções:
+
+### 1. Domínio da Loja
+- **Componente:** `DomainSettingsContent`
+- **Funcionalidades:**
+  - URL padrão (grátis): `{tenantSlug}.shops.comandocentral.com.br`
+  - Domínios personalizados (custom domains)
+  - Verificação DNS (TXT)
+  - Provisionamento SSL (Cloudflare Custom Hostnames)
+  - Definir domínio principal
+- **Referência completa:** `docs/regras/dominios.md`
+
+### 2. Domínio de Email
+- **Componente:** `EmailDnsSettings`
+- **Funcionalidades:**
+  - Configuração de DNS para email (SPF, DKIM, DMARC)
+  - Verificação de domínio de envio
+  - Integração com SendGrid
 
 ---
 
@@ -36,6 +76,7 @@ Hub central de integrações com serviços externos: pagamentos, redes sociais, 
 |------------|--------|-----------|
 | Meta (FB/IG) | ✅ Ready | Catálogo, pixel |
 | Instagram | ✅ Ready | Via Meta |
+| Late | ✅ Ready | Agendamento de posts |
 | TikTok | 🟧 Pending | Planejado |
 | Google | 🟧 Pending | Merchant Center |
 
@@ -57,6 +98,7 @@ Hub central de integrações com serviços externos: pagamentos, redes sociais, 
 | Serviço | Status | Descrição |
 |---------|--------|-----------|
 | Resend | ✅ Ready | Transacional |
+| SendGrid | ✅ Ready | Transacional + Inbound |
 | SMTP | 🟧 Pending | Genérico |
 | DNS/SPF/DKIM | ✅ Ready | Configuração |
 
@@ -92,11 +134,13 @@ Disponível apenas para `isPlatformOperator`:
 | Tab | Descrição |
 |-----|-----------|
 | Resumo | Dashboard de status geral |
-| Email | Configuração global de email |
-| WhatsApp | Providers de WhatsApp |
-| Fiscal | Integrações fiscais |
-| Logística | Transportadoras |
-| IA | Configuração de AI |
+| Email e Domínios | SendGrid + Cloudflare |
+| WhatsApp | Z-API manager account |
+| Fiscal | Focus NFe |
+| Logística | Loggi OAuth |
+| IA | Firecrawl e AI config |
+| Late | Late integration |
+| Mercado Livre | Meli platform config |
 
 ---
 
@@ -123,10 +167,20 @@ Disponível apenas para `isPlatformOperator`:
 
 ---
 
+## Componentes Relacionados
+
+| Componente | Descrição |
+|------------|-----------|
+| `DomainAndEmailSettings` | Container unificado para domínio + email |
+| `DomainSettingsContent` | Lógica extraída de `Domains.tsx` para reutilização |
+| `AddDomainDialog` | Dialog para adicionar domínio personalizado |
+| `DomainInstructionsDialog` | Instruções de configuração DNS |
+
+---
+
 ## Pendências
 
-- [ ] Validar todos os fluxos OAuth
 - [ ] Implementar WhatsApp Cloud API
-- [ ] Implementar integrações ERP
-- [ ] Melhorar UX de reconexão
+- [ ] Implementar integrações ERP (Bling, Tiny)
+- [ ] Melhorar UX de reconexão OAuth
 - [ ] Logs de erro por integração
