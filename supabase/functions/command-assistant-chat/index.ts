@@ -6,26 +6,159 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Tool registry - defines available actions
+// Extended Tool registry - defines ALL available actions
 const TOOL_REGISTRY = {
+  // === PRODUTOS ===
+  bulkUpdateProductsNCM: {
+    description: "Atualizar NCM de todos os produtos ou produtos filtrados",
+    parameters: {
+      ncm: { type: "string", required: true, description: "Código NCM (8 dígitos)" },
+      productIds: { type: "array", required: false, description: "IDs específicos (opcional, se vazio aplica a todos)" },
+    },
+    requiredPermission: "products",
+  },
+  bulkUpdateProductsCEST: {
+    description: "Atualizar CEST de todos os produtos",
+    parameters: {
+      cest: { type: "string", required: true, description: "Código CEST" },
+      productIds: { type: "array", required: false, description: "IDs específicos (opcional)" },
+    },
+    requiredPermission: "products",
+  },
+  bulkUpdateProductsPrice: {
+    description: "Atualizar preços de produtos (aumento/desconto percentual ou valor fixo)",
+    parameters: {
+      type: { type: "string", required: true, description: "percent_increase, percent_decrease, fixed" },
+      value: { type: "number", required: true, description: "Valor (percentual ou fixo em reais)" },
+      productIds: { type: "array", required: false, description: "IDs específicos (opcional)" },
+      categoryId: { type: "string", required: false, description: "Filtrar por categoria" },
+    },
+    requiredPermission: "products",
+  },
+  bulkUpdateProductsStock: {
+    description: "Atualizar estoque de produtos",
+    parameters: {
+      operation: { type: "string", required: true, description: "set, add, subtract" },
+      quantity: { type: "number", required: true, description: "Quantidade" },
+      productIds: { type: "array", required: false, description: "IDs específicos (opcional)" },
+    },
+    requiredPermission: "products",
+  },
+  bulkActivateProducts: {
+    description: "Ativar ou desativar produtos em massa",
+    parameters: {
+      isActive: { type: "boolean", required: true, description: "true para ativar, false para desativar" },
+      productIds: { type: "array", required: false, description: "IDs específicos (opcional)" },
+      categoryId: { type: "string", required: false, description: "Filtrar por categoria" },
+    },
+    requiredPermission: "products",
+  },
+  createProduct: {
+    description: "Criar um novo produto",
+    parameters: {
+      name: { type: "string", required: true, description: "Nome do produto" },
+      price: { type: "number", required: true, description: "Preço em reais" },
+      sku: { type: "string", required: false, description: "SKU do produto" },
+      description: { type: "string", required: false, description: "Descrição" },
+      categoryId: { type: "string", required: false, description: "ID da categoria" },
+      stockQuantity: { type: "number", required: false, description: "Quantidade em estoque" },
+    },
+    requiredPermission: "products",
+  },
+  deleteProducts: {
+    description: "Excluir produtos",
+    parameters: {
+      productIds: { type: "array", required: true, description: "IDs dos produtos a excluir" },
+    },
+    requiredPermission: "products",
+  },
+
+  // === CATEGORIAS ===
   createCategory: {
     description: "Criar uma nova categoria de produtos",
     parameters: {
       name: { type: "string", required: true, description: "Nome da categoria" },
       slug: { type: "string", required: false, description: "Slug para URL" },
       description: { type: "string", required: false, description: "Descrição da categoria" },
+      parentId: { type: "string", required: false, description: "ID da categoria pai" },
     },
     requiredPermission: "products",
   },
+  updateCategory: {
+    description: "Atualizar uma categoria existente",
+    parameters: {
+      categoryId: { type: "string", required: true, description: "ID da categoria" },
+      name: { type: "string", required: false, description: "Novo nome" },
+      description: { type: "string", required: false, description: "Nova descrição" },
+      isActive: { type: "boolean", required: false, description: "Ativar/desativar" },
+    },
+    requiredPermission: "products",
+  },
+  deleteCategory: {
+    description: "Excluir uma categoria",
+    parameters: {
+      categoryId: { type: "string", required: true, description: "ID da categoria" },
+    },
+    requiredPermission: "products",
+  },
+
+  // === DESCONTOS/CUPONS ===
   createDiscount: {
     description: "Criar um novo cupom de desconto",
     parameters: {
       name: { type: "string", required: true, description: "Nome do cupom" },
       code: { type: "string", required: true, description: "Código do cupom" },
-      type: { type: "string", required: true, description: "percent ou amount" },
+      type: { type: "string", required: true, description: "percent ou fixed" },
       value: { type: "number", required: true, description: "Valor do desconto" },
+      minSubtotal: { type: "number", required: false, description: "Subtotal mínimo" },
+      startsAt: { type: "string", required: false, description: "Data de início" },
+      endsAt: { type: "string", required: false, description: "Data de fim" },
+      usageLimit: { type: "number", required: false, description: "Limite de usos" },
     },
     requiredPermission: "discounts",
+  },
+  updateDiscount: {
+    description: "Atualizar um cupom existente",
+    parameters: {
+      discountId: { type: "string", required: true, description: "ID do cupom" },
+      isActive: { type: "boolean", required: false, description: "Ativar/desativar" },
+      value: { type: "number", required: false, description: "Novo valor" },
+      endsAt: { type: "string", required: false, description: "Nova data de fim" },
+    },
+    requiredPermission: "discounts",
+  },
+  deleteDiscount: {
+    description: "Excluir um cupom",
+    parameters: {
+      discountId: { type: "string", required: true, description: "ID do cupom" },
+    },
+    requiredPermission: "discounts",
+  },
+
+  // === PEDIDOS ===
+  updateOrderStatus: {
+    description: "Atualizar status de um pedido",
+    parameters: {
+      orderId: { type: "string", required: true, description: "ID do pedido" },
+      status: { type: "string", required: true, description: "Novo status: pending, paid, shipped, delivered, cancelled" },
+    },
+    requiredPermission: "orders",
+  },
+  bulkUpdateOrderStatus: {
+    description: "Atualizar status de múltiplos pedidos",
+    parameters: {
+      orderIds: { type: "array", required: true, description: "IDs dos pedidos" },
+      status: { type: "string", required: true, description: "Novo status" },
+    },
+    requiredPermission: "orders",
+  },
+  addOrderNote: {
+    description: "Adicionar observação a um pedido",
+    parameters: {
+      orderId: { type: "string", required: true, description: "ID do pedido" },
+      note: { type: "string", required: true, description: "Texto da observação" },
+    },
+    requiredPermission: "orders",
   },
   salesReport: {
     description: "Gerar relatório de vendas",
@@ -36,6 +169,45 @@ const TOOL_REGISTRY = {
     },
     requiredPermission: "orders",
   },
+
+  // === CLIENTES ===
+  createCustomer: {
+    description: "Criar um novo cliente",
+    parameters: {
+      name: { type: "string", required: true, description: "Nome do cliente" },
+      email: { type: "string", required: true, description: "Email" },
+      phone: { type: "string", required: false, description: "Telefone" },
+      cpf: { type: "string", required: false, description: "CPF" },
+    },
+    requiredPermission: "customers",
+  },
+  updateCustomer: {
+    description: "Atualizar dados de um cliente",
+    parameters: {
+      customerId: { type: "string", required: true, description: "ID do cliente" },
+      name: { type: "string", required: false, description: "Novo nome" },
+      email: { type: "string", required: false, description: "Novo email" },
+      phone: { type: "string", required: false, description: "Novo telefone" },
+    },
+    requiredPermission: "customers",
+  },
+  addCustomerTag: {
+    description: "Adicionar tag a clientes",
+    parameters: {
+      customerIds: { type: "array", required: true, description: "IDs dos clientes" },
+      tagId: { type: "string", required: true, description: "ID da tag" },
+    },
+    requiredPermission: "customers",
+  },
+  searchCustomers: {
+    description: "Buscar clientes por nome, email ou telefone",
+    parameters: {
+      query: { type: "string", required: true, description: "Termo de busca" },
+    },
+    requiredPermission: "customers",
+  },
+
+  // === AGENDA ===
   createAgendaTask: {
     description: "Criar uma tarefa na Agenda",
     parameters: {
@@ -44,35 +216,122 @@ const TOOL_REGISTRY = {
       description: { type: "string", required: false, description: "Descrição" },
       reminderOffsets: { type: "array", required: false, description: "Offsets de lembretes em minutos" },
     },
-    requiredPermission: null, // Anyone can create tasks
+    requiredPermission: null,
+  },
+  listAgendaTasks: {
+    description: "Listar tarefas da agenda",
+    parameters: {
+      status: { type: "string", required: false, description: "Filtrar por status: pending, done, all" },
+      limit: { type: "number", required: false, description: "Limite de resultados" },
+    },
+    requiredPermission: null,
+  },
+  completeTask: {
+    description: "Marcar tarefa como concluída",
+    parameters: {
+      taskId: { type: "string", required: true, description: "ID da tarefa" },
+    },
+    requiredPermission: null,
+  },
+
+  // === FRETE/LOGÍSTICA ===
+  updateShippingSettings: {
+    description: "Atualizar configurações de frete",
+    parameters: {
+      freeShippingThreshold: { type: "number", required: false, description: "Valor mínimo para frete grátis (em reais)" },
+      defaultShippingPrice: { type: "number", required: false, description: "Preço padrão do frete (em reais)" },
+    },
+    requiredPermission: "shipping",
+  },
+
+  // === RELATÓRIOS ===
+  inventoryReport: {
+    description: "Relatório de estoque",
+    parameters: {
+      lowStockThreshold: { type: "number", required: false, description: "Limite para considerar estoque baixo" },
+    },
+    requiredPermission: "products",
+  },
+  customersReport: {
+    description: "Relatório de clientes",
+    parameters: {
+      period: { type: "string", required: true, description: "Período: week, month, year" },
+    },
+    requiredPermission: "customers",
+  },
+
+  // === CONFIGURAÇÕES DA LOJA ===
+  updateStoreSettings: {
+    description: "Atualizar configurações gerais da loja",
+    parameters: {
+      storeName: { type: "string", required: false, description: "Nome da loja" },
+      storeEmail: { type: "string", required: false, description: "Email da loja" },
+      storePhone: { type: "string", required: false, description: "Telefone da loja" },
+    },
+    requiredPermission: "settings",
   },
 };
 
-// System prompt for the assistant
-const SYSTEM_PROMPT = `Você é o Auxiliar de Comando, um assistente inteligente para e-commerce.
-Você pode ajudar o usuário a executar ações como:
-- Criar categorias de produtos
-- Criar cupons de desconto
-- Gerar relatórios de vendas
-- Criar tarefas na Agenda
+// Build dynamic system prompt with all available tools
+function buildSystemPrompt(): string {
+  const toolDescriptions = Object.entries(TOOL_REGISTRY)
+    .map(([name, tool]) => {
+      const params = Object.entries(tool.parameters)
+        .map(([pName, pDef]: [string, any]) => `  - ${pName}${pDef.required ? " (obrigatório)" : ""}: ${pDef.description}`)
+        .join("\n");
+      return `• ${name}: ${tool.description}\n${params}`;
+    })
+    .join("\n\n");
 
-Quando o usuário pedir para executar uma ação, você deve:
-1. Entender claramente o que ele quer
-2. Propor a ação com os parâmetros corretos
-3. Aguardar a confirmação antes de executar
+  return `Você é o Auxiliar de Comando, um assistente inteligente para e-commerce com poderes COMPLETOS para gerenciar a loja.
+
+Você pode executar QUALQUER operação que o usuário faria manualmente no painel, incluindo:
+- Operações em massa em produtos (NCM, CEST, preços, estoque, ativar/desativar)
+- Gerenciamento de categorias
+- Gerenciamento de cupons de desconto
+- Gerenciamento de pedidos e status
+- Gerenciamento de clientes e tags
+- Tarefas da agenda
+- Configurações da loja
+- Relatórios diversos
+
+## FERRAMENTAS DISPONÍVEIS:
+
+${toolDescriptions}
+
+## INSTRUÇÕES:
+
+1. Quando o usuário pedir para executar uma ação, entenda claramente o que ele quer
+2. Proponha a ação com os parâmetros corretos
+3. Aguarde a confirmação antes de executar
 
 IMPORTANTE: Você NÃO executa ações diretamente. Você apenas propõe ações que o usuário pode confirmar.
 
 Para propor uma ação, use o formato JSON no final da sua resposta:
 \`\`\`action
 {
-  "tool_name": "createCategory",
-  "tool_args": {"name": "Natal", "slug": "natal"},
-  "description": "Criar a categoria 'Natal'"
+  "tool_name": "bulkUpdateProductsNCM",
+  "tool_args": {"ncm": "33051000"},
+  "description": "Atualizar NCM de todos os produtos para 33051000"
 }
 \`\`\`
 
-Responda sempre em português brasileiro de forma amigável e profissional.`;
+## EXEMPLOS:
+
+Usuário: "Coloque o NCM 33051000 em todos os produtos"
+Resposta: Vou atualizar o NCM de todos os produtos para "33051000" (produtos de perfumaria/cosméticos).
+\`\`\`action
+{"tool_name": "bulkUpdateProductsNCM", "tool_args": {"ncm": "33051000"}, "description": "Atualizar NCM de todos os produtos para 33051000"}
+\`\`\`
+
+Usuário: "Aumente o preço de todos os produtos em 10%"
+Resposta: Vou aumentar o preço de todos os produtos em 10%.
+\`\`\`action
+{"tool_name": "bulkUpdateProductsPrice", "tool_args": {"type": "percent_increase", "value": 10}, "description": "Aumentar preços em 10%"}
+\`\`\`
+
+Responda sempre em português brasileiro de forma amigável e profissional. Seja proativo em sugerir as ferramentas disponíveis quando apropriado.`;
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -149,6 +408,8 @@ serve(async (req) => {
       .eq("conversation_id", conversation_id)
       .order("created_at", { ascending: true })
       .limit(20);
+
+    const SYSTEM_PROMPT = buildSystemPrompt();
 
     const messages = [
       { role: "system", content: SYSTEM_PROMPT },
