@@ -8,6 +8,7 @@ import { useTenantType } from "@/hooks/useTenantType";
 import { useTenantAccess } from "@/hooks/useTenantAccess";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsSpecialTenant } from "@/hooks/useIsSpecialTenant";
+import { useDemoMode } from "@/hooks/useDemoMode";
 import { usePermissions } from "@/hooks/usePermissions";
 import { PlatformAdminGate } from "@/components/auth/PlatformAdminGate";
 import { FeatureGate } from "@/components/layout/FeatureGate";
@@ -261,6 +262,7 @@ export function AppSidebar() {
   const { isPlatformTenant, isLoading: isTenantTypeLoading } = useTenantType();
   const { currentTenant, tenants } = useAuth();
   const { isSpecialTenant } = useIsSpecialTenant();
+  const { isDemoMode } = useDemoMode();
   const { isOwner, isSidebarItemVisible, isPlatformOperator: isPlatformOp } = usePermissions();
 
   // Persist open groups state
@@ -314,7 +316,8 @@ export function AppSidebar() {
     
     const Icon = item.icon;
     const active = isActive(item.href);
-    const status = isSpecialTenant ? getModuleStatus(item.href) : undefined;
+    // Hide module status indicators for demo users (e.g., Shopee reviewers)
+    const status = (isSpecialTenant && !isDemoMode) ? getModuleStatus(item.href) : undefined;
 
     // Locked items render differently - no navigation
     if (item.locked) {
