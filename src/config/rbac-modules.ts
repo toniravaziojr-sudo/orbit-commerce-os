@@ -66,7 +66,8 @@ export const ROUTE_TO_PERMISSION: Record<string, { module: string; submodule?: s
   // Sistema
   '/integrations': { module: 'system', submodule: 'integrations' },
   '/import': { module: 'system', submodule: 'import' },
-  '/files': { module: 'system', submodule: 'files' },
+  '/files': { module: 'utilities', submodule: 'files' },
+  '/reports': { module: 'utilities', submodule: 'reports' },
   '/settings': { module: 'system', submodule: 'settings' },
   '/settings/domains': { module: 'system', submodule: 'settings' },
   '/settings/billing': { module: 'system', submodule: 'settings' },
@@ -165,13 +166,21 @@ export const MODULES: ModuleConfig[] = [
   {
     key: 'system',
     label: 'Sistema',
-    description: 'Integrações, importação, arquivos e configurações',
+    description: 'Integrações, importação e configurações',
     submodules: [
       { key: 'integrations', label: 'Integrações', route: '/integrations' },
       { key: 'import', label: 'Importar Dados', route: '/import' },
-      { key: 'files', label: 'Meu Drive', route: '/files' },
       { key: 'settings', label: 'Configurações', route: '/settings' },
       { key: 'support-center', label: 'Suporte', route: '/support-center' },
+    ],
+  },
+  {
+    key: 'utilities',
+    label: 'Utilitários',
+    description: 'Meu Drive e Relatórios',
+    submodules: [
+      { key: 'files', label: 'Meu Drive', route: '/files' },
+      { key: 'reports', label: 'Relatórios', route: '/reports' },
     ],
   },
 ];
@@ -196,9 +205,9 @@ export const USER_TYPE_PRESETS: Record<string, {
       system: {
         integrations: true,
         import: true,
-        files: true,
         settings: true,
       },
+      utilities: true,
     },
   },
   editor: {
@@ -214,7 +223,7 @@ export const USER_TYPE_PRESETS: Record<string, {
         media: true,
         campaigns: true,
       },
-      system: {
+      utilities: {
         files: true,
       },
     },

@@ -20,7 +20,8 @@ import {
   ShoppingCart,
   DollarSign,
   Percent,
-  Store
+  Store,
+  Download
 } from "lucide-react";
 import { format, subDays, subMonths, startOfMonth, endOfMonth, startOfYear } from "date-fns";
 import { ptBR } from "date-fns/locale";

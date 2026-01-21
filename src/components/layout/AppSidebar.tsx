@@ -42,6 +42,7 @@ import {
   BookOpen,
   Sparkles,
   FolderOpen,
+  BarChart3,
   Building2,
   LifeBuoy,
   CreditCard,
@@ -160,9 +161,11 @@ const fullNavigation: NavGroup[] = [
     ],
   },
   {
-    label: "Meu Drive",
+    label: "Utilitários",
+    collapsible: true,
     items: [
       { title: "Meu Drive", href: "/files", icon: FolderOpen },
+      { title: "Relatórios", href: "/reports", icon: BarChart3 },
     ],
   },
   {
