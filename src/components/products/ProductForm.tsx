@@ -27,7 +27,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, ArrowLeft, ImageIcon, Link2, Package } from 'lucide-react';
+import { Loader2, ArrowLeft, ImageIcon, Link2, Package, AlertCircle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { ProductImageManager } from './ProductImageManager';
 import { ProductImageUploader, type PendingImage } from './ProductImageUploader';
 import { RelatedProductsSelect } from './RelatedProductsSelect';
@@ -534,29 +535,69 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
           <Tabs defaultValue="basic" className="w-full">
-            <TabsList className="grid w-full grid-cols-8">
-              <TabsTrigger value="basic">Básico</TabsTrigger>
-              <TabsTrigger value="images">
-                <ImageIcon className="h-4 w-4 mr-1" />
-                Imagens
-              </TabsTrigger>
-              <TabsTrigger value="pricing">Preços</TabsTrigger>
-              <TabsTrigger value="inventory">Estoque</TabsTrigger>
-              <TabsTrigger 
-                value="structure" 
-                disabled={form.watch('product_format') !== 'with_composition'}
-                title={form.watch('product_format') !== 'with_composition' ? 'Selecione "Com composição (Kit)" no formato para habilitar' : ''}
-              >
-                <Package className="h-4 w-4 mr-1" />
-                Estrutura
-              </TabsTrigger>
-              <TabsTrigger value="related">
-                <Link2 className="h-4 w-4 mr-1" />
-                Relacionados
-              </TabsTrigger>
-              <TabsTrigger value="seo">SEO</TabsTrigger>
-              <TabsTrigger value="advanced">Avançado</TabsTrigger>
-            </TabsList>
+            {/* Helper function to get errors per tab */}
+            {(() => {
+              const errors = form.formState.errors;
+              const tabErrors = {
+                basic: ['name', 'sku', 'slug', 'description', 'short_description', 'status', 'product_format', 'weight', 'width', 'height', 'depth', 'gtin'].filter(f => f in errors).length,
+                images: 0,
+                pricing: ['price', 'cost_price', 'compare_at_price', 'promotion_start_date', 'promotion_end_date'].filter(f => f in errors).length,
+                inventory: ['stock_quantity', 'low_stock_threshold', 'manage_stock', 'allow_backorder'].filter(f => f in errors).length,
+                structure: 0,
+                related: 0,
+                seo: ['seo_title', 'seo_description'].filter(f => f in errors).length,
+                advanced: ['ncm', 'cest', 'origin_code', 'uom', 'brand', 'vendor', 'product_type', 'tax_code', 'requires_shipping', 'taxable'].filter(f => f in errors).length,
+              };
+
+              const ErrorBadge = ({ count }: { count: number }) => 
+                count > 0 ? (
+                  <Badge variant="destructive" className="ml-1.5 h-5 w-5 p-0 flex items-center justify-center text-[10px] font-bold">
+                    {count}
+                  </Badge>
+                ) : null;
+
+              return (
+                <TabsList className="grid w-full grid-cols-8">
+                  <TabsTrigger value="basic" className="flex items-center gap-1">
+                    Básico
+                    <ErrorBadge count={tabErrors.basic} />
+                  </TabsTrigger>
+                  <TabsTrigger value="images" className="flex items-center gap-1">
+                    <ImageIcon className="h-4 w-4 mr-1" />
+                    Imagens
+                  </TabsTrigger>
+                  <TabsTrigger value="pricing" className="flex items-center gap-1">
+                    Preços
+                    <ErrorBadge count={tabErrors.pricing} />
+                  </TabsTrigger>
+                  <TabsTrigger value="inventory" className="flex items-center gap-1">
+                    Estoque
+                    <ErrorBadge count={tabErrors.inventory} />
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="structure" 
+                    disabled={form.watch('product_format') !== 'with_composition'}
+                    title={form.watch('product_format') !== 'with_composition' ? 'Selecione "Com composição (Kit)" no formato para habilitar' : ''}
+                    className="flex items-center gap-1"
+                  >
+                    <Package className="h-4 w-4 mr-1" />
+                    Estrutura
+                  </TabsTrigger>
+                  <TabsTrigger value="related" className="flex items-center gap-1">
+                    <Link2 className="h-4 w-4 mr-1" />
+                    Relacionados
+                  </TabsTrigger>
+                  <TabsTrigger value="seo" className="flex items-center gap-1">
+                    SEO
+                    <ErrorBadge count={tabErrors.seo} />
+                  </TabsTrigger>
+                  <TabsTrigger value="advanced" className="flex items-center gap-1">
+                    Avançado
+                    <ErrorBadge count={tabErrors.advanced} />
+                  </TabsTrigger>
+                </TabsList>
+              );
+            })()}
 
             <TabsContent value="basic" className="space-y-4 mt-4">
               <Card>
