@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Package, Loader2, Search } from 'lucide-react';
+import { Plus, Trash2, Package, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useProductComponents, type ProductComponent } from '@/hooks/useProductComponents';
@@ -40,8 +39,6 @@ export function ProductStructureEditor({
     addComponent,
     updateComponent,
     deleteComponent,
-    totalCost,
-    totalSale,
     virtualStock,
   } = useProductComponents(productId);
 
@@ -104,20 +101,6 @@ export function ProductStructureEditor({
     updateComponent.mutate({
       id: component.id,
       quantity: newQuantity,
-    });
-  };
-
-  const handleCostPriceChange = (component: ProductComponent, newPrice: number | null) => {
-    updateComponent.mutate({
-      id: component.id,
-      cost_price: newPrice,
-    });
-  };
-
-  const handleSalePriceChange = (component: ProductComponent, newPrice: number | null) => {
-    updateComponent.mutate({
-      id: component.id,
-      sale_price: newPrice,
     });
   };
 
@@ -248,120 +231,46 @@ export function ProductStructureEditor({
                   <TableRow>
                     <TableHead className="w-[40px]">#</TableHead>
                     <TableHead>Componente</TableHead>
-                    <TableHead className="w-[100px]">Código</TableHead>
-                    <TableHead className="w-[80px] text-center">Qtde</TableHead>
-                    <TableHead className="w-[80px] text-center">Estoque</TableHead>
-                    <TableHead className="w-[110px] text-right">P. Custo</TableHead>
-                    <TableHead className="w-[110px] text-right">Custo Total</TableHead>
-                    <TableHead className="w-[110px] text-right">P. Venda</TableHead>
-                    <TableHead className="w-[110px] text-right">Venda Total</TableHead>
+                    <TableHead className="w-[120px]">Código</TableHead>
+                    <TableHead className="w-[100px] text-center">Quantidade</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {components.map((component, index) => {
-                    const costPrice = component.cost_price ?? component.component?.cost_price ?? 0;
-                    const salePrice = component.sale_price ?? component.component?.price ?? 0;
-                    const costTotal = costPrice * component.quantity;
-                    const saleTotal = salePrice * component.quantity;
-                    const stock = component.component?.stock_quantity ?? 0;
-
-                    return (
-                      <TableRow key={component.id}>
-                        <TableCell className="text-muted-foreground">{index + 1}</TableCell>
-                        <TableCell className="font-medium">
-                          {component.component?.name ?? 'Produto não encontrado'}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">
-                          {component.component?.sku ?? '-'}
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            min={0.01}
-                            step={0.01}
-                            value={component.quantity}
-                            onChange={(e) => handleQuantityChange(component, parseFloat(e.target.value) || 1)}
-                            className="h-8 w-16 text-center"
-                          />
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant={stock > 0 ? 'outline' : 'destructive'}>
-                            {stock}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            min={0}
-                            step={0.01}
-                            value={component.cost_price ?? ''}
-                            onChange={(e) => handleCostPriceChange(
-                              component, 
-                              e.target.value ? parseFloat(e.target.value) : null
-                            )}
-                            placeholder={component.component?.cost_price?.toFixed(2) ?? '0.00'}
-                            className="h-8 w-24 text-right"
-                          />
-                        </TableCell>
-                        <TableCell className="text-right text-muted-foreground">
-                          {formatCurrency(costTotal)}
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            min={0}
-                            step={0.01}
-                            value={component.sale_price ?? ''}
-                            onChange={(e) => handleSalePriceChange(
-                              component,
-                              e.target.value ? parseFloat(e.target.value) : null
-                            )}
-                            placeholder={component.component?.price?.toFixed(2) ?? '0.00'}
-                            className="h-8 w-24 text-right"
-                          />
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(saleTotal)}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => deleteComponent.mutate(component.id)}
-                            disabled={deleteComponent.isPending}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {components.map((component, index) => (
+                    <TableRow key={component.id}>
+                      <TableCell className="text-muted-foreground">{index + 1}</TableCell>
+                      <TableCell className="font-medium">
+                        {component.component?.name ?? 'Produto não encontrado'}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {component.component?.sku ?? '-'}
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          min={0.01}
+                          step={0.01}
+                          value={component.quantity}
+                          onChange={(e) => handleQuantityChange(component, parseFloat(e.target.value) || 1)}
+                          className="h-8 w-20 text-center mx-auto"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => deleteComponent.mutate(component.id)}
+                          disabled={deleteComponent.isPending}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
-            </div>
-          )}
-
-          {/* Totals */}
-          {components.length > 0 && (
-            <div className="flex justify-end gap-6 pt-4 border-t">
-              <div className="text-right">
-                <p className="text-sm text-muted-foreground">Total de Custo</p>
-                <p className="text-lg font-semibold">{formatCurrency(totalCost)}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm text-muted-foreground">Total de Venda</p>
-                <p className="text-lg font-semibold text-primary">{formatCurrency(totalSale)}</p>
-              </div>
-              {totalCost > 0 && (
-                <div className="text-right">
-                  <p className="text-sm text-muted-foreground">Margem</p>
-                  <p className="text-lg font-semibold text-green-600">
-                    {((totalSale - totalCost) / totalCost * 100).toFixed(1)}%
-                  </p>
-                </div>
-              )}
             </div>
           )}
         </div>
