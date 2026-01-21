@@ -29,7 +29,12 @@ serve(async (req) => {
   }
 
   try {
-    const { product, quantity } = await req.json() as { product: ProductInfo; quantity: number };
+    const { product, quantity, gender = 'both', ratingDistribution = 'mixed' } = await req.json() as { 
+      product: ProductInfo; 
+      quantity: number;
+      gender?: 'both' | 'male' | 'female';
+      ratingDistribution?: 'all5' | 'mixed';
+    };
 
     if (!product?.name) {
       return new Response(
@@ -55,13 +60,25 @@ serve(async (req) => {
       product.price ? `Preço: R$ ${product.price.toFixed(2)}` : null,
     ].filter(Boolean).join('\n');
 
+    // Build gender instruction
+    const genderInstruction = gender === 'male' 
+      ? 'Use APENAS nomes masculinos brasileiros'
+      : gender === 'female'
+      ? 'Use APENAS nomes femininos brasileiros'
+      : 'Use nomes brasileiros variados (masculinos e femininos)';
+
+    // Build rating instruction
+    const ratingInstruction = ratingDistribution === 'all5'
+      ? 'TODAS as avaliações devem ter nota 5 (cinco estrelas)'
+      : 'Distribua as notas entre 4 e 5 estrelas (maioria 5 estrelas, algumas 4 estrelas)';
+
     const systemPrompt = `Você é um gerador de avaliações de produtos para e-commerce brasileiro. 
 Gere avaliações realistas, variadas e autênticas que pareçam escritas por clientes reais.
 
 Regras importantes:
-- Use nomes brasileiros variados (masculinos e femininos)
+- ${genderInstruction}
 - Varie o estilo de escrita (formal, informal, curto, detalhado)
-- Distribua as notas de forma realista (maioria 4-5 estrelas, alguns 3, poucos 2)
+- ${ratingInstruction}
 - Inclua detalhes específicos do produto nas avaliações
 - Evite avaliações genéricas demais
 - Alguns podem ter erros leves de digitação ou gramática (para parecer mais real)
@@ -82,8 +99,9 @@ Retorne as avaliações no seguinte formato JSON (array de objetos):
   }
 ]
 
-Lembre-se: 
-- Distribua as notas de forma realista (ex: para ${validQuantity} avaliações, ~60% nota 5, ~25% nota 4, ~10% nota 3, ~5% nota 2)
+IMPORTANTE:
+- ${ratingInstruction}
+- ${genderInstruction}
 - Varie muito o estilo de escrita entre as avaliações
 - Alguns títulos podem ser simples como "Recomendo!" ou "Ótimo produto"`;
 
