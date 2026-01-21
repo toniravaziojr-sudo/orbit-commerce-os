@@ -157,13 +157,39 @@ Disponível apenas para `isPlatformOperator`:
 
 ---
 
-## Webhooks
+## URLs de Integração (Domínio Público)
 
-| Provider | Endpoint | Descrição |
-|----------|----------|-----------|
-| Mercado Pago | `/webhooks/mercadopago` | Pagamentos |
-| Meta | `/webhooks/meta` | Catálogo |
-| Mercado Livre | `/webhooks/meli` | Pedidos |
+> **IMPORTANTE:** Todos os endpoints de webhook e callback devem usar o domínio público `app.comandocentral.com.br`, 
+> **NUNCA** o domínio interno do Supabase (`ojssezfjhdvvncsqyhyq.supabase.co`).
+>
+> O Cloudflare Worker faz proxy automático dessas rotas para as Edge Functions correspondentes.
+
+### Mapeamento de URLs
+
+| Integração | Tipo | URL Pública (usar esta) | Edge Function |
+|------------|------|-------------------------|---------------|
+| **Meta** | Deauthorize Callback | `https://app.comandocentral.com.br/integrations/meta/deauthorize` | `meta-deauthorize-callback` |
+| **Meta** | Data Deletion | `https://app.comandocentral.com.br/integrations/meta/deletion-status` | `meta-deletion-status` |
+| **Meta** | WhatsApp Onboarding | `https://app.comandocentral.com.br/integrations/meta/whatsapp-callback` | `meta-whatsapp-onboarding-callback` |
+| **Shopee** | OAuth Callback | `https://app.comandocentral.com.br/integrations/shopee/callback` | `shopee-oauth-callback` |
+| **Shopee** | Webhook | `https://app.comandocentral.com.br/integrations/shopee/webhook` | `shopee-webhook` |
+| **Mercado Pago** | Billing Webhook | `https://app.comandocentral.com.br/integrations/billing/webhook` | `billing-webhook` |
+| **SendGrid** | Inbound Parse | `https://app.comandocentral.com.br/integrations/emails/inbound` | `support-email-inbound` |
+| **Mercado Livre** | OAuth Callback | `https://app.comandocentral.com.br/integrations/meli/callback` | `meli-oauth-callback` |
+| **Mercado Livre** | Webhook | `https://app.comandocentral.com.br/integrations/meli/webhook` | `meli-webhook` |
+
+### Configuração no Cloudflare Worker
+
+O Worker `shops-router` deve ter a rota configurada:
+```
+app.comandocentral.com.br/integrations/* → shops-router
+```
+
+O mapeamento está definido em `docs/cloudflare-worker-template.js` na constante `EDGE_FUNCTION_ROUTES`.
+
+---
+
+## Webhooks
 
 ---
 
