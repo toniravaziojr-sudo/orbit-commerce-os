@@ -49,7 +49,7 @@ export function GenerateReviewsDialog({ trigger }: GenerateReviewsDialogProps) {
       const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
       const params = new URLSearchParams({
         tenant_id: `eq.${currentTenant.id}`,
-        is_active: 'eq.true',
+        status: 'eq.active',
         select: 'id,name,description,price,sku',
         order: 'name.asc',
       });
