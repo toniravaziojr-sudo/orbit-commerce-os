@@ -5,7 +5,6 @@ import {
   Boxes,
   MessageSquare,
   Globe,
-  Mail,
   MoreHorizontal,
   Shield,
 } from "lucide-react";
@@ -16,9 +15,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PaymentGatewaySettings } from "@/components/payments/PaymentGatewaySettings";
 import { WhatsAppProviderTabs } from "@/components/integrations/WhatsAppProviderTabs";
 import { LateConnectionSettings } from "@/components/integrations/LateConnectionSettings";
-import { EmailDnsSettings } from "@/components/emails/EmailDnsSettings";
 import { MetaConnectionSettings } from "@/components/integrations/MetaConnectionSettings";
 import { MarketplacesIntegrationTab } from "@/components/integrations/MarketplacesIntegrationTab";
+import { DomainAndEmailSettings } from "@/components/integrations/DomainAndEmailSettings";
 import { usePaymentProviders } from "@/hooks/usePaymentProviders";
 import { useLateConnection } from "@/hooks/useLateConnection";
 import { useMeliConnection } from "@/hooks/useMeliConnection";
@@ -150,9 +149,9 @@ export default function Integrations() {
             <MessageSquare className="h-4 w-4" />
             <span className="hidden sm:inline">WhatsApp</span>
           </TabsTrigger>
-          <TabsTrigger value="emails" className="gap-2">
-            <Mail className="h-4 w-4" />
-            <span className="hidden sm:inline">Emails</span>
+          <TabsTrigger value="domain-email" className="gap-2">
+            <Globe className="h-4 w-4" />
+            <span className="hidden sm:inline">Domínio/Email</span>
           </TabsTrigger>
           <TabsTrigger value="outros" className="gap-2">
             <MoreHorizontal className="h-4 w-4" />
@@ -184,21 +183,8 @@ export default function Integrations() {
           <WhatsAppProviderTabs />
         </TabsContent>
 
-        <TabsContent value="emails" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <Globe className="h-5 w-5 text-primary" />
-                <div>
-                  <CardTitle>Configuração de Domínio</CardTitle>
-                  <CardDescription>Configure o domínio para enviar e receber emails</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <EmailDnsSettings />
-            </CardContent>
-          </Card>
+        <TabsContent value="domain-email" className="space-y-6">
+          <DomainAndEmailSettings />
         </TabsContent>
 
         <TabsContent value="outros" className="space-y-6">
