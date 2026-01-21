@@ -8,8 +8,9 @@ import { LogisticsPlatformSettings } from "@/components/integrations/LogisticsPl
 import { AIPlatformSettings } from "@/components/integrations/AIPlatformSettings";
 import { LatePlatformSettings } from "@/components/integrations/platform/LatePlatformSettings";
 import { MeliPlatformSettings } from "@/components/integrations/MeliPlatformSettings";
+import { ShopeePlatformSettings } from "@/components/integrations/ShopeePlatformSettings";
 import { SmokeTestDialog } from "@/components/integrations/SmokeTestDialog";
-import { Shield, MessageCircle, Mail, FileText, Truck, Bot, LayoutGrid, Send, Calendar, ShoppingBag } from "lucide-react";
+import { Shield, MessageCircle, Mail, FileText, Truck, Bot, LayoutGrid, Send, Calendar, ShoppingBag, Store } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -101,6 +102,10 @@ export default function PlatformIntegrations() {
             <ShoppingBag className="h-4 w-4" />
             <span className="hidden sm:inline">Mercado Livre</span>
           </TabsTrigger>
+          <TabsTrigger value="shopee" className="gap-2">
+            <Store className="h-4 w-4" />
+            <span className="hidden sm:inline">Shopee</span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
@@ -133,6 +138,10 @@ export default function PlatformIntegrations() {
 
         <TabsContent value="mercadolivre">
           <MeliPlatformSettings />
+        </TabsContent>
+
+        <TabsContent value="shopee">
+          <ShopeePlatformSettings />
         </TabsContent>
       </Tabs>
 

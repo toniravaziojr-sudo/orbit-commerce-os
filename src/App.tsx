@@ -82,6 +82,7 @@ import MetaOAuthCallback from "@/pages/MetaOAuthCallback";
 import NotFound from "@/pages/NotFound";
 import Marketplaces from "@/pages/Marketplaces";
 import MercadoLivre from "@/pages/marketplaces/MercadoLivre";
+import Shopee from "@/pages/marketplaces/Shopee";
 import Files from "@/pages/Files";
 import Reports from "@/pages/Reports";
 import CommandCenter from "@/pages/CommandCenter";
@@ -328,6 +329,7 @@ const App = () => {
                   <Route path="/integrations" element={<Integrations />} />
                   <Route path="/marketplaces" element={<Marketplaces />} />
                   <Route path="/marketplaces/mercadolivre" element={<MercadoLivre />} />
+                  <Route path="/marketplaces/shopee" element={<Shopee />} />
                   <Route path="/files" element={<Files />} />
                   <Route path="/reports" element={<Reports />} />
                   <Route path="/marketing" element={<Marketing />} />
