@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ExternalLink, ShoppingBag, Info, CheckCircle2 } from "lucide-react";
 import { useMeliConnection } from "@/hooks/useMeliConnection";
+import { useShopeeConnection } from "@/hooks/useShopeeConnection";
 
 // Mercado Livre Logo Component
 function MercadoLivreLogo({ className }: { className?: string }) {
@@ -17,15 +18,28 @@ function MercadoLivreLogo({ className }: { className?: string }) {
   );
 }
 
-// Upcoming marketplaces
+// Shopee Logo Component
+function ShopeeLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 48 48" className={className}>
+      <rect width="48" height="48" rx="8" fill="#EE4D2D" />
+      <path
+        d="M24 10c-2.8 0-5.1 2.1-5.4 4.8h-2.1c-1.6 0-2.9 1.3-2.9 2.9v15.4c0 1.6 1.3 2.9 2.9 2.9h15c1.6 0 2.9-1.3 2.9-2.9V17.7c0-1.6-1.3-2.9-2.9-2.9h-2.1c-.3-2.7-2.6-4.8-5.4-4.8zm0 2.5c1.5 0 2.8 1.2 2.9 2.7h-5.8c.1-1.5 1.4-2.7 2.9-2.7zm0 8.3c2.2 0 4 1.8 4 4s-1.8 4-4 4-4-1.8-4-4 1.8-4 4-4z"
+        fill="white"
+      />
+    </svg>
+  );
+}
+
+// Upcoming marketplaces (Shopee removed - now functional)
 const UPCOMING_MARKETPLACES = [
-  { id: "shopee", name: "Shopee", icon: "🟠", url: "https://shopee.com.br" },
   { id: "amazon", name: "Amazon", icon: "📦", url: "https://amazon.com.br" },
   { id: "magalu", name: "Magalu", icon: "🔵", url: "https://magazineluiza.com.br" },
 ];
 
 export function MarketplacesIntegrationTab() {
-  const { isConnected, isLoading, platformConfigured } = useMeliConnection();
+  const { isConnected: meliConnected, isLoading: meliLoading, platformConfigured: meliConfigured } = useMeliConnection();
+  const { isConnected: shopeeConnected, isLoading: shopeeLoading, platformConfigured: shopeeConfigured } = useShopeeConnection();
 
   return (
     <div className="space-y-6">
@@ -49,13 +63,13 @@ export function MarketplacesIntegrationTab() {
               <div>
                 <CardTitle className="flex items-center gap-2">
                   Mercado Livre
-                  {isConnected && (
+                  {meliConnected && (
                     <Badge variant="default" className="bg-green-600">
                       <CheckCircle2 className="h-3 w-3 mr-1" />
                       Conectado
                     </Badge>
                   )}
-                  {!isConnected && !isLoading && (
+                  {!meliConnected && !meliLoading && (
                     <Badge variant="secondary">Não conectado</Badge>
                   )}
                 </CardTitle>
@@ -67,7 +81,7 @@ export function MarketplacesIntegrationTab() {
           </div>
         </CardHeader>
         <CardContent>
-          {!platformConfigured ? (
+          {!meliConfigured ? (
             <Alert variant="destructive">
               <AlertDescription>
                 O Mercado Livre precisa ser configurado pelo administrador da plataforma primeiro.
@@ -81,9 +95,60 @@ export function MarketplacesIntegrationTab() {
                 <Badge variant="outline">Anúncios</Badge>
               </div>
               <Button asChild>
-                <Link to="/marketplaces">
+                <Link to="/marketplaces/mercadolivre">
                   <ShoppingBag className="h-4 w-4 mr-2" />
-                  {isConnected ? "Gerenciar" : "Conectar"}
+                  {meliConnected ? "Gerenciar" : "Conectar"}
+                </Link>
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Shopee Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <ShopeeLogo className="h-10 w-10" />
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  Shopee
+                  {shopeeConnected && (
+                    <Badge variant="default" className="bg-green-600">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Conectado
+                    </Badge>
+                  )}
+                  {!shopeeConnected && !shopeeLoading && (
+                    <Badge variant="secondary">Não conectado</Badge>
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  Venda no marketplace que mais cresce no Brasil
+                </CardDescription>
+              </div>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {!shopeeConfigured ? (
+            <Alert variant="destructive">
+              <AlertDescription>
+                A Shopee precisa ser configurada pelo administrador da plataforma primeiro.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline">Pedidos</Badge>
+                <Badge variant="outline">Mensagens</Badge>
+                <Badge variant="outline">Anúncios</Badge>
+              </div>
+              <Button asChild>
+                <Link to="/marketplaces/shopee">
+                  <ShoppingBag className="h-4 w-4 mr-2" />
+                  {shopeeConnected ? "Gerenciar" : "Conectar"}
                 </Link>
               </Button>
             </div>
@@ -98,7 +163,7 @@ export function MarketplacesIntegrationTab() {
           <CardDescription>Novos marketplaces serão adicionados</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             {UPCOMING_MARKETPLACES.map((mp) => (
               <div
                 key={mp.id}
