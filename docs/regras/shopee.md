@@ -1,6 +1,6 @@
 # Shopee — Regras e Especificações
 
-> **Status:** 🟧 Pending (em implementação)  
+> **Status:** 🟢 Implementado  
 > **Última atualização:** 2025-01-21
 
 ---
@@ -8,6 +8,11 @@
 ## Visão Geral
 
 Integração OAuth com Shopee Open Platform (OpenAPI v2) para sincronização de pedidos, catálogo e mensagens.
+
+**Acesso:**
+- **Admin/Plataforma:** `/platform/integrations` (aba Shopee) → Configurar Partner ID/Key
+- **Tenant/Cliente:** `/marketplaces` (aba Shopee) → Conectar conta Shopee
+- **Dashboard Shopee:** `/marketplaces/shopee` → Pedidos, conexão e diagnóstico
 
 ---
 
@@ -29,12 +34,14 @@ Integração OAuth com Shopee Open Platform (OpenAPI v2) para sincronização de
 
 | Arquivo | Propósito |
 |---------|-----------|
-| `src/pages/marketplaces/Shopee.tsx` | Dashboard principal |
+| `src/pages/Marketplaces.tsx` | Hub de marketplaces (aba Shopee) |
+| `src/pages/marketplaces/Shopee.tsx` | Dashboard dedicado Shopee |
 | `src/components/marketplaces/ShopeeConnectionCard.tsx` | Card de conexão |
 | `src/components/marketplaces/ShopeeOrdersTab.tsx` | Listagem de pedidos |
 | `src/components/integrations/ShopeePlatformSettings.tsx` | Config admin (Partner ID/Key) |
 | `src/hooks/useShopeeConnection.ts` | Hook de conexão OAuth |
 | `src/hooks/useShopeeOrders.ts` | Hook de pedidos |
+| `src/hooks/useIntegrationStatus.ts` | Status centralizado (inclui Shopee) |
 
 ---
 
@@ -132,13 +139,17 @@ if (receivedSign !== expectedSign) throw new Error('Invalid signature');
 
 ## Funcionalidades
 
-### MVP (Fase 1)
+### MVP (Fase 1) ✅
 - [x] Conexão OAuth shop-level
 - [x] Sincronização de pedidos
 - [x] Webhook para notificações
-- [ ] Renovação automática de tokens (cron job)
+- [x] UI Admin: Configuração de Partner ID/Key
+- [x] UI Tenant: Card de conexão na aba Marketplaces
+- [x] Dashboard Shopee: Pedidos e status
+- [x] Hook `useIntegrationStatus` atualizado
 
 ### Fase 2
+- [ ] Renovação automática de tokens (cron job)
 - [ ] Gestão de catálogo (add_item, update_item)
 - [ ] Upload de imagens/vídeos
 - [ ] Sincronização de estoque

@@ -15,21 +15,15 @@ import {
   XCircle,
   Info,
   Settings,
+  MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 import { MeliConnectionCard } from "@/components/marketplaces/MeliConnectionCard";
-import { useMeliConnection } from "@/hooks/useMeliConnection";
+import { ShopeeConnectionCard } from "@/components/marketplaces/ShopeeConnectionCard";
 import { IntegrationRequiredAlert } from "@/components/ui/integration-required-alert";
 
 // Outros marketplaces (em breve)
 const UPCOMING_MARKETPLACES = [
-  {
-    id: "shopee",
-    name: "Shopee",
-    description: "Alcance milhões de clientes no marketplace que mais cresce",
-    logo: "🧡",
-    url: "https://shopee.com.br",
-  },
   {
     id: "amazon",
     name: "Amazon",
@@ -71,8 +65,9 @@ export default function Marketplaces() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState("mercadolivre");
 
-  // Processar callback do OAuth
+  // Processar callback do OAuth (Mercado Livre e Shopee)
   useEffect(() => {
+    // Mercado Livre
     const meliConnected = searchParams.get("meli_connected");
     const meliError = searchParams.get("meli_error");
 
@@ -81,7 +76,6 @@ export default function Marketplaces() {
         description: "Seus pedidos e mensagens serão sincronizados automaticamente.",
         icon: <CheckCircle2 className="h-4 w-4 text-green-500" />,
       });
-      // Limpar params
       searchParams.delete("meli_connected");
       setSearchParams(searchParams);
     }
@@ -102,8 +96,42 @@ export default function Marketplaces() {
         icon: <XCircle className="h-4 w-4 text-red-500" />,
       });
 
-      // Limpar params
       searchParams.delete("meli_error");
+      setSearchParams(searchParams);
+    }
+
+    // Shopee
+    const shopeeConnected = searchParams.get("shopee_connected");
+    const shopeeError = searchParams.get("shopee_error");
+
+    if (shopeeConnected === "true") {
+      toast.success("Shopee conectada com sucesso!", {
+        description: "Seus pedidos serão sincronizados automaticamente.",
+        icon: <CheckCircle2 className="h-4 w-4 text-green-500" />,
+      });
+      setActiveTab("shopee");
+      searchParams.delete("shopee_connected");
+      setSearchParams(searchParams);
+    }
+
+    if (shopeeError) {
+      const errorMessages: Record<string, string> = {
+        missing_params: "Parâmetros ausentes na resposta da Shopee",
+        invalid_state: "Estado inválido. Tente novamente.",
+        not_configured: "Integração Shopee não configurada. Contate o administrador.",
+        token_exchange_failed: "Falha ao obter token. Tente novamente.",
+        save_failed: "Erro ao salvar conexão. Tente novamente.",
+        internal_error: "Erro interno. Tente novamente.",
+        access_denied: "Acesso negado pela Shopee",
+      };
+
+      toast.error("Erro ao conectar Shopee", {
+        description: errorMessages[shopeeError] || shopeeError,
+        icon: <XCircle className="h-4 w-4 text-red-500" />,
+      });
+
+      setActiveTab("shopee");
+      searchParams.delete("shopee_error");
       setSearchParams(searchParams);
     }
   }, [searchParams, setSearchParams]);
@@ -125,15 +153,15 @@ export default function Marketplaces() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="mercadolivre">Mercado Livre</TabsTrigger>
+          <TabsTrigger value="shopee">Shopee</TabsTrigger>
           <TabsTrigger value="outros">Outros Marketplaces</TabsTrigger>
         </TabsList>
 
+        {/* Tab: Mercado Livre */}
         <TabsContent value="mercadolivre" className="mt-6">
           <div className="grid gap-6 lg:grid-cols-2">
-            {/* Card de conexão */}
             <MeliConnectionCard />
 
-            {/* Card de funcionalidades */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">O que você pode fazer</CardTitle>
@@ -185,6 +213,64 @@ export default function Marketplaces() {
           </div>
         </TabsContent>
 
+        {/* Tab: Shopee */}
+        <TabsContent value="shopee" className="mt-6">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <ShopeeConnectionCard />
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">O que você pode fazer</CardTitle>
+                <CardDescription>
+                  Funcionalidades disponíveis com a integração Shopee
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
+                      <ShoppingBag className="h-4 w-4 text-orange-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-sm">Pedidos</h4>
+                      <p className="text-xs text-muted-foreground">
+                        Sincronize e gerencie pedidos da Shopee junto com os da sua loja
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
+                      <Store className="h-4 w-4 text-orange-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-sm">Catálogo</h4>
+                      <p className="text-xs text-muted-foreground">
+                        Gerencie produtos e anúncios diretamente pelo sistema
+                      </p>
+                      <Badge variant="secondary" className="mt-1 text-xs">Em breve</Badge>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
+                      <MessageSquare className="h-4 w-4 text-orange-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-sm">Mensagens</h4>
+                      <p className="text-xs text-muted-foreground">
+                        Responda mensagens de compradores pelo módulo de atendimento
+                      </p>
+                      <Badge variant="secondary" className="mt-1 text-xs">Em breve</Badge>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Tab: Outros Marketplaces */}
         <TabsContent value="outros" className="mt-6">
           <Alert className="border-amber-500/30 bg-amber-50 dark:bg-amber-900/10 mb-6">
             <Construction className="h-4 w-4 text-amber-600" />

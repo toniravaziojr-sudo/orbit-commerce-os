@@ -1,10 +1,12 @@
 import { useMeliConnection } from "@/hooks/useMeliConnection";
+import { useShopeeConnection } from "@/hooks/useShopeeConnection";
 import { useLateConnection } from "@/hooks/useLateConnection";
 import { useFiscalSettings } from "@/hooks/useFiscal";
 import { usePaymentProviders } from "@/hooks/usePaymentProviders";
 
 export type IntegrationType = 
   | "mercadolivre" 
+  | "shopee"
   | "whatsapp" 
   | "redes_sociais" 
   | "fiscal" 
@@ -32,6 +34,13 @@ export function useIntegrationStatus() {
     isLoading: meliLoading 
   } = useMeliConnection();
 
+  // Shopee
+  const {
+    platformConfigured: shopeePlatformConfigured,
+    isConnected: shopeeConnected,
+    isLoading: shopeeLoading
+  } = useShopeeConnection();
+
   // Redes Sociais (Late)
   const { isConnected: lateConnected, isLoading: lateLoading } = useLateConnection();
 
@@ -52,6 +61,14 @@ export function useIntegrationStatus() {
       isLoading: meliLoading,
       redirectPath: "/marketplaces",
       buttonText: "Conectar Mercado Livre",
+    },
+    shopee: {
+      name: "Shopee",
+      isConfigured: shopeePlatformConfigured,
+      isConnected: shopeeConnected,
+      isLoading: shopeeLoading,
+      redirectPath: "/marketplaces",
+      buttonText: "Conectar Shopee",
     },
     whatsapp: {
       name: "WhatsApp",
@@ -116,6 +133,7 @@ export function useIntegrationStatus() {
     needsIntegration,
     // Quick access
     isMeliConnected: meliConnected,
+    isShopeeConnected: shopeeConnected,
     isLateConnected: lateConnected,
     isFiscalConfigured: fiscalConfigured && fiscalHasCertificate,
     hasActivePayment,
