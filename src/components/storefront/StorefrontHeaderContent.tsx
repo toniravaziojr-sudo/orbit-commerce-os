@@ -838,11 +838,10 @@ export function StorefrontHeaderContent({
                 >
                   <LinkWrapper
                     to={featuredPromosUrl}
-                    className="text-xs font-bold hover:opacity-90 whitespace-nowrap px-3 py-1.5 rounded-md transition-all inline-flex items-center gap-1.5 border"
+                    className="text-xs font-bold hover:opacity-90 whitespace-nowrap px-3 py-1.5 rounded-md transition-all inline-flex items-center gap-1.5"
                     style={{ 
-                      color: featuredPromosTextColor || primaryColor || 'hsl(var(--primary))',
-                      backgroundColor: featuredPromosBgColor ? `${featuredPromosBgColor}15` : (primaryColor ? `${primaryColor}15` : 'hsl(var(--primary) / 0.1)'),
-                      borderColor: featuredPromosBgColor ? `${featuredPromosBgColor}30` : (primaryColor ? `${primaryColor}30` : 'hsl(var(--primary) / 0.2)')
+                      color: featuredPromosTextColor || '#ffffff',
+                      backgroundColor: featuredPromosBgColor || primaryColor || 'hsl(var(--primary))'
                     }}
                   >
                     {featuredPromosLabel}
@@ -853,14 +852,14 @@ export function StorefrontHeaderContent({
                     <div className="absolute top-full left-0 mt-2 z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200">
                       <div 
                         className="bg-popover rounded-lg shadow-xl border overflow-hidden"
-                        style={{ borderColor: featuredPromosBgColor ? `${featuredPromosBgColor}40` : 'hsl(var(--border))' }}
+                        style={{ borderColor: featuredPromosBgColor || 'hsl(var(--border))' }}
                       >
                         <img 
                           src={featuredPromosThumbnail} 
                           alt={featuredPromosLabel}
                           className="w-48 h-36 object-cover"
                         />
-                        <div className="p-2 text-center" style={{ backgroundColor: featuredPromosBgColor ? `${featuredPromosBgColor}10` : undefined }}>
+                        <div className="p-2 text-center" style={{ backgroundColor: featuredPromosBgColor || undefined }}>
                           <span className="text-xs font-medium text-popover-foreground">{featuredPromosLabel}</span>
                         </div>
                       </div>
