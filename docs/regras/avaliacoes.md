@@ -16,11 +16,58 @@ O módulo de Avaliações permite gerenciar avaliações de produtos enviadas po
 | **Seção Pública** | `src/components/storefront/sections/ProductReviewsSection.tsx` | Exibição de avaliações aprovadas na página do produto |
 | **Formulário Público** | `src/components/storefront/sections/ReviewForm.tsx` | Formulário para clientes enviarem avaliações |
 | **Dialog Cadastro Manual** | `src/components/reviews/AddReviewDialog.tsx` | Cadastro manual de avaliações pelo admin |
-| **Dialog Geração IA** | `src/components/reviews/GenerateReviewsDialog.tsx` | Geração de avaliações com IA |
+| **Dialog Geração IA** | `src/components/reviews/GenerateReviewsDialog.tsx` | Geração de avaliações com IA (com filtros de gênero e notas) |
 | **Upload de Mídias** | `src/components/reviews/ReviewMediaUploader.tsx` | Componente de upload de imagens/vídeos |
 | **Bloco do Builder** | `src/components/builder/blocks/ReviewsBlock.tsx` | Bloco de avaliações para templates |
 | **Hooks de Rating** | `src/hooks/useProductRating.ts` | Hooks para buscar média e contagem de estrelas |
 | **Registro no Drive** | `src/lib/registerReviewMediaToDrive.ts` | Registra mídias aprovadas na pasta "Review clientes" |
+| **Edge Function** | `supabase/functions/generate-reviews/index.ts` | Geração de avaliações via IA (Lovable AI) |
+
+---
+
+## Gerador de Avaliações com IA
+
+O dialog `GenerateReviewsDialog.tsx` permite gerar avaliações automaticamente usando IA.
+
+### Opções Disponíveis
+
+| Opção | Valores | Descrição |
+|-------|---------|-----------|
+| **Produto** | Dropdown | Seleciona o produto (apenas `status: active`) |
+| **Quantidade** | 5-50 | Número de avaliações a gerar |
+| **Gênero dos Nomes** | `both`, `male`, `female` | Filtra os nomes gerados por gênero |
+| **Distribuição de Notas** | `all5`, `mixed` | `all5` = todas 5 estrelas, `mixed` = 4-5 estrelas |
+
+### Parâmetros da Edge Function `generate-reviews`
+
+```typescript
+interface RequestBody {
+  product: {
+    name: string;
+    description?: string;
+    price?: number;
+    sku?: string;
+  };
+  quantity: number;           // 5-50 (default: 10)
+  gender?: 'both' | 'male' | 'female';  // default: 'both'
+  ratingDistribution?: 'all5' | 'mixed'; // default: 'mixed'
+}
+```
+
+### Resposta
+
+```typescript
+interface Response {
+  success: boolean;
+  reviews?: Array<{
+    customer_name: string;
+    rating: number;
+    title: string;
+    content: string;
+  }>;
+  error?: string;
+}
+```
 
 ---
 
