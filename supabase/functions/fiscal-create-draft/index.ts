@@ -10,6 +10,7 @@ import { unbundleKitItems } from "../_shared/kit-unbundler.ts";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
 };
 
 // Determine CFOP based on origin and destination UF
@@ -116,8 +117,8 @@ serve(async (req) => {
 
     if (!profile?.current_tenant_id) {
       return new Response(
-        JSON.stringify({ success: false, error: 'No tenant selected' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'No tenant selected', code: 'NO_TENANT' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -126,8 +127,8 @@ serve(async (req) => {
 
     if (!order_id) {
       return new Response(
-        JSON.stringify({ success: false, error: 'order_id is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'order_id is required', code: 'MISSING_ORDER_ID' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -142,8 +143,8 @@ serve(async (req) => {
 
     if (settingsError || !fiscalSettings) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Configurações fiscais não encontradas.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Configurações fiscais não encontradas.', code: 'NO_FISCAL_SETTINGS' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -160,8 +161,8 @@ serve(async (req) => {
 
     if (orderError || !order) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Pedido não encontrado.' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Pedido não encontrado.', code: 'ORDER_NOT_FOUND' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -173,8 +174,8 @@ serve(async (req) => {
 
     if (!orderItems || orderItems.length === 0) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Pedido sem itens.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Pedido sem itens.', code: 'NO_ORDER_ITEMS' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -252,9 +253,10 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: `Produtos sem NCM cadastrado: ${missingNcm.map(i => i.descricao).join(', ')}. Configure o NCM em Configurações Fiscais > Produtos.` 
+          error: `Produtos sem NCM cadastrado: ${missingNcm.map(i => i.descricao).join(', ')}. Configure o NCM em Configurações Fiscais > Produtos.`,
+          code: 'MISSING_NCM'
         }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
