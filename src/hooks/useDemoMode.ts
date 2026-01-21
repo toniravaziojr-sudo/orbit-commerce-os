@@ -3,6 +3,7 @@ import { useAuth } from "./useAuth";
 // Lista de emails de usuários de demonstração/revisores que não devem ver indicadores internos
 const DEMO_USER_EMAILS = [
   'shopee-reviewer@comandocentral.com.br',
+  'shopee-avaliacao@comandocentral.com.br',
   'demo@comandocentral.com.br',
 ];
 
