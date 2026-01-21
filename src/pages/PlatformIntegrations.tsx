@@ -10,7 +10,8 @@ import { LatePlatformSettings } from "@/components/integrations/platform/LatePla
 import { MeliPlatformSettings } from "@/components/integrations/MeliPlatformSettings";
 import { ShopeePlatformSettings } from "@/components/integrations/ShopeePlatformSettings";
 import { SmokeTestDialog } from "@/components/integrations/SmokeTestDialog";
-import { Shield, MessageCircle, Mail, FileText, Truck, Bot, LayoutGrid, Send, Calendar, ShoppingBag, Store } from "lucide-react";
+import { Shield, MessageCircle, Mail, FileText, Truck, Bot, LayoutGrid, Send, Calendar, ShoppingBag, Store, CreditCard } from "lucide-react";
+import { MercadoPagoPlatformSettings } from "@/components/integrations/platform/MercadoPagoPlatformSettings";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
