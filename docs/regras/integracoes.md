@@ -84,8 +84,8 @@ A aba `domain-email` unifica duas seções:
 | Marketplace | Status | Descrição |
 |-------------|--------|-----------|
 | Mercado Livre | ✅ Ready | Sincronização de produtos |
+| Shopee | ✅ Ready | Sincronização de pedidos e OAuth |
 | Amazon | 🟧 Pending | Planejado |
-| Shopee | 🟧 Pending | Planejado |
 
 ### 4. WhatsApp
 | Provider | Status | Descrição |
