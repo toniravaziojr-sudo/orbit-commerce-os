@@ -77,7 +77,7 @@ A aba `domain-email` unifica duas seções:
 | Meta (FB/IG) | ✅ Ready | Catálogo, pixel |
 | Instagram | ✅ Ready | Via Meta |
 | Late | ✅ Ready | Agendamento de posts |
-| TikTok | 🟧 Pending | Planejado |
+| TikTok Ads | 🟧 Pending | Pixel/Conversions |
 | Google | 🟧 Pending | Merchant Center |
 
 ### 3. Marketplaces
@@ -85,6 +85,7 @@ A aba `domain-email` unifica duas seções:
 |-------------|--------|-----------|
 | Mercado Livre | ✅ Ready | Sincronização de produtos |
 | Shopee | ✅ Ready | Sincronização de pedidos e OAuth |
+| TikTok Shop | 🟧 Em Cadastro | Marketplace integrado |
 | Amazon | 🟧 Pending | Planejado |
 
 ### 4. WhatsApp
@@ -173,6 +174,8 @@ Disponível apenas para `isPlatformOperator`:
 | **Meta** | WhatsApp Onboarding | `https://app.comandocentral.com.br/integrations/meta/whatsapp-callback` | `meta-whatsapp-onboarding-callback` |
 | **Shopee** | OAuth Callback | `https://app.comandocentral.com.br/integrations/shopee/callback` | `shopee-oauth-callback` |
 | **Shopee** | Webhook | `https://app.comandocentral.com.br/integrations/shopee/webhook` | `shopee-webhook` |
+| **TikTok Shop** | OAuth Callback | `https://app.comandocentral.com.br/integrations/tiktok/callback` | `tiktok-oauth-callback` |
+| **TikTok Shop** | Webhook | `https://app.comandocentral.com.br/integrations/tiktok/webhook` | `tiktok-webhook` |
 | **Mercado Pago** | Billing Webhook | `https://app.comandocentral.com.br/integrations/billing/webhook` | `billing-webhook` |
 | **SendGrid** | Inbound Parse | `https://app.comandocentral.com.br/integrations/emails/inbound` | `support-email-inbound` |
 | **Mercado Livre** | OAuth Callback | `https://app.comandocentral.com.br/integrations/meli/callback` | `meli-oauth-callback` |
