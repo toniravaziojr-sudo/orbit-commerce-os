@@ -25,9 +25,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
-interface MenuItemWithChildren extends MenuItem {
-  children: MenuItemWithChildren[];
-}
 
 // Local item for pending changes (may not have all DB fields yet)
 interface LocalMenuItem {
@@ -58,27 +55,31 @@ interface LocalMenuItemWithChildren extends LocalMenuItem {
   children: LocalMenuItemWithChildren[];
 }
 
-interface SortableMenuItemRowProps {
+interface FlatRenderItem {
   item: LocalMenuItemWithChildren;
   depth: number;
-  isExpanded: boolean;
-  expandedIds: Set<string>;
-  onToggleExpand: (id: string) => void;
-  onEdit: (item: LocalMenuItem) => void;
-  onDelete: (id: string) => void;
-  isNestingTarget: boolean;
+  hasChildren: boolean;
 }
 
 function SortableMenuItemRow({
   item,
   depth,
   isExpanded,
-  expandedIds,
+  hasChildren,
   onToggleExpand,
   onEdit,
   onDelete,
   isNestingTarget,
-}: SortableMenuItemRowProps) {
+}: {
+  item: LocalMenuItemWithChildren;
+  depth: number;
+  isExpanded: boolean;
+  hasChildren: boolean;
+  onToggleExpand: (id: string) => void;
+  onEdit: (item: LocalMenuItem) => void;
+  onDelete: (id: string) => void;
+  isNestingTarget: boolean;
+}) {
   const {
     attributes,
     listeners,
@@ -93,89 +94,80 @@ function SortableMenuItemRow({
     transition,
   };
 
-  const isModified = item.isNew || item.isDeleted;
-
   return (
-    <div ref={setNodeRef} style={style}>
-      <div
-        className={cn(
-          "flex items-center gap-2 p-2 border rounded-md bg-card transition-all group",
-          isDragging && "opacity-50 ring-2 ring-primary",
-          isNestingTarget && "border-primary border-dashed bg-primary/5",
-          item.isNew && "border-green-500/50 bg-green-500/5",
-          item.isDeleted && "border-destructive/50 bg-destructive/5 opacity-50 line-through"
-        )}
-        style={{ marginLeft: depth * 20 }}
-      >
-        <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
-          <GripVertical className="h-4 w-4 text-muted-foreground" />
-        </div>
-
-        {item.children.length > 0 ? (
-          <button
-            onClick={() => onToggleExpand(item.id)}
-            className="p-0.5 hover:bg-muted rounded"
-          >
-            {isExpanded ? (
-              <ChevronDown className="h-3 w-3" />
-            ) : (
-              <ChevronRight className="h-3 w-3" />
-            )}
-          </button>
-        ) : (
-          <div className="w-4" />
-        )}
-
-        {item.children.length > 0 ? (
-          <FolderOpen className="h-3.5 w-3.5 text-primary shrink-0" />
-        ) : (
-          <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-        )}
-
-        <div className="flex-1 min-w-0">
-          <p className={cn("text-sm font-medium truncate", item.isDeleted && "line-through")}>
-            {item.label}
-          </p>
-        </div>
-
-        {item.isNew && (
-          <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-500/10 text-green-600 border-green-500/30">
-            Novo
-          </Badge>
-        )}
-
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-          {!item.isDeleted && (
-            <>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(item)}>
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onDelete(item.id)}>
-                <Trash2 className="h-3.5 w-3.5 text-destructive" />
-              </Button>
-            </>
-          )}
-        </div>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "flex items-center gap-2 p-2 border rounded-md bg-card transition-all group",
+        isDragging && "opacity-50 ring-2 ring-primary z-50",
+        isNestingTarget && "border-primary border-dashed bg-primary/5",
+        item.isNew && "border-green-500/50 bg-green-500/5",
+        item.isDeleted && "border-destructive/50 bg-destructive/5 opacity-50 line-through"
+      )}
+    >
+      {/* Indentation */}
+      {depth > 0 && <div style={{ width: depth * 20 }} className="flex-shrink-0" />}
+      
+      {/* Drag handle */}
+      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded touch-none">
+        <GripVertical className="h-4 w-4 text-muted-foreground" />
       </div>
 
-      {/* Render children */}
-      {isExpanded && item.children.length > 0 && (
-        <div className="mt-1 space-y-1">
-          {item.children.filter(c => !c.isDeleted).map(child => (
-            <SortableMenuItemRow
-              key={child.id}
-              item={child}
-              depth={depth + 1}
-              isExpanded={expandedIds.has(child.id)}
-              expandedIds={expandedIds}
-              onToggleExpand={onToggleExpand}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              isNestingTarget={false}
-            />
-          ))}
-        </div>
+      {/* Expand/collapse button */}
+      {hasChildren ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleExpand(item.id);
+          }}
+          className="p-0.5 hover:bg-muted rounded"
+        >
+          {isExpanded ? (
+            <ChevronDown className="h-3 w-3" />
+          ) : (
+            <ChevronRight className="h-3 w-3" />
+          )}
+        </button>
+      ) : (
+        <div className="w-4" />
       )}
+
+      {/* Icon */}
+      {hasChildren ? (
+        <FolderOpen className="h-3.5 w-3.5 text-primary shrink-0" />
+      ) : (
+        <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+      )}
+
+      {/* Label */}
+      <div className="flex-1 min-w-0">
+        <p className={cn("text-sm font-medium truncate", item.isDeleted && "line-through")}>
+          {item.label}
+        </p>
+      </div>
+
+      {/* New badge */}
+      {item.isNew && (
+        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-green-500/10 text-green-600 border-green-500/30">
+          Novo
+        </Badge>
+      )}
+
+      {/* Actions */}
+      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        {!item.isDeleted && (
+          <>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(item)}>
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onDelete(item.id)}>
+              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+            </Button>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -268,16 +260,38 @@ export default function MenuPanel({
 
   const visibleItems = localItems.filter(i => !i.isDeleted);
   const hierarchicalItems = useMemo(() => buildHierarchy(visibleItems), [visibleItems]);
-  const allItemIds = useMemo(() => visibleItems.map(i => i.id), [visibleItems]);
+  
+  // Create flat render list with proper order for DnD (respecting expand state)
+  const flatRenderList = useMemo((): FlatRenderItem[] => {
+    const result: FlatRenderItem[] = [];
+    const traverse = (items: LocalMenuItemWithChildren[], depth: number) => {
+      items.forEach(item => {
+        if (item.isDeleted) return;
+        const hasChildren = item.children.filter(c => !c.isDeleted).length > 0;
+        result.push({ item, depth, hasChildren });
+        
+        // Only include children if expanded
+        if (hasChildren && expandedIds.has(item.id)) {
+          traverse(item.children.filter(c => !c.isDeleted), depth + 1);
+        }
+      });
+    };
+    traverse(hierarchicalItems, 0);
+    return result;
+  }, [hierarchicalItems, expandedIds]);
+  
+  // IDs in render order for SortableContext
+  const sortableIds = useMemo(() => flatRenderList.map(r => r.item.id), [flatRenderList]);
 
-  // Get flat list to find "item above" for nesting
+  // Get flat list to find "item above" for nesting (includes all visible items, regardless of expand state)
   const flattenedItems = useMemo(() => {
     const result: LocalMenuItem[] = [];
     const flatten = (items: LocalMenuItemWithChildren[]) => {
       items.forEach(item => {
+        if (item.isDeleted) return;
         result.push(item);
         if (item.children.length > 0) {
-          flatten(item.children);
+          flatten(item.children.filter(c => !c.isDeleted));
         }
       });
     };
@@ -716,7 +730,7 @@ export default function MenuPanel({
         )}
 
         {/* Tree */}
-        {hierarchicalItems.length > 0 ? (
+        {flatRenderList.length > 0 ? (
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -724,15 +738,15 @@ export default function MenuPanel({
             onDragMove={handleDragMove}
             onDragEnd={handleDragEnd}
           >
-            <SortableContext items={allItemIds} strategy={verticalListSortingStrategy}>
+            <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
               <div className="space-y-1">
-                {hierarchicalItems.filter(i => !i.isDeleted).map(item => (
+                {flatRenderList.map(({ item, depth, hasChildren }) => (
                   <SortableMenuItemRow
                     key={item.id}
                     item={item}
-                    depth={0}
+                    depth={depth}
                     isExpanded={expandedIds.has(item.id)}
-                    expandedIds={expandedIds}
+                    hasChildren={hasChildren}
                     onToggleExpand={handleToggleExpand}
                     onEdit={handleEditItem}
                     onDelete={handleDeleteItem}
@@ -753,7 +767,7 @@ export default function MenuPanel({
         )}
 
         {/* Instructions at bottom */}
-        {hierarchicalItems.length > 0 && (
+        {flatRenderList.length > 0 && (
           <div className="pt-2 border-t">
             <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
               <Info className="h-3 w-3 mt-0.5 shrink-0" />
