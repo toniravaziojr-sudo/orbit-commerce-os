@@ -60,11 +60,11 @@ serve(async (req) => {
       product.price ? `Preço: R$ ${product.price.toFixed(2)}` : null,
     ].filter(Boolean).join('\n');
 
-    // Build gender instruction
+    // Build gender instruction - VERY STRICT
     const genderInstruction = gender === 'male' 
-      ? 'Use APENAS nomes masculinos brasileiros'
+      ? 'OBRIGATÓRIO: Use EXCLUSIVAMENTE nomes MASCULINOS brasileiros (exemplos: João, Pedro, Carlos, Marcos, Lucas, Rafael, Bruno, André, Felipe, Ricardo, Gustavo, Rodrigo, Fernando, Paulo, Roberto). PROIBIDO usar nomes femininos como Ana, Maria, Patrícia, etc.'
       : gender === 'female'
-      ? 'Use APENAS nomes femininos brasileiros'
+      ? 'OBRIGATÓRIO: Use EXCLUSIVAMENTE nomes FEMININOS brasileiros (exemplos: Maria, Ana, Juliana, Fernanda, Patrícia, Camila, Bruna, Larissa, Amanda, Carolina, Beatriz, Mariana). PROIBIDO usar nomes masculinos como João, Pedro, Carlos, etc.'
       : 'Use nomes brasileiros variados (masculinos e femininos)';
 
     // Build rating instruction
@@ -75,10 +75,12 @@ serve(async (req) => {
     const systemPrompt = `Você é um gerador de avaliações de produtos para e-commerce brasileiro. 
 Gere avaliações realistas, variadas e autênticas que pareçam escritas por clientes reais.
 
-Regras importantes:
-- ${genderInstruction}
+REGRAS CRÍTICAS E OBRIGATÓRIAS:
+1. ${genderInstruction}
+2. ${ratingInstruction}
+
+Outras diretrizes:
 - Varie o estilo de escrita (formal, informal, curto, detalhado)
-- ${ratingInstruction}
 - Inclua detalhes específicos do produto nas avaliações
 - Evite avaliações genéricas demais
 - Alguns podem ter erros leves de digitação ou gramática (para parecer mais real)
@@ -88,6 +90,9 @@ Regras importantes:
     const userPrompt = `Gere exatamente ${validQuantity} avaliações para o seguinte produto:
 
 ${productContext}
+
+REGRA CRÍTICA DE NOMES: ${genderInstruction}
+REGRA CRÍTICA DE NOTAS: ${ratingInstruction}
 
 Retorne as avaliações no seguinte formato JSON (array de objetos):
 [
@@ -99,11 +104,7 @@ Retorne as avaliações no seguinte formato JSON (array de objetos):
   }
 ]
 
-IMPORTANTE:
-- ${ratingInstruction}
-- ${genderInstruction}
-- Varie muito o estilo de escrita entre as avaliações
-- Alguns títulos podem ser simples como "Recomendo!" ou "Ótimo produto"`;
+LEMBRETE FINAL: Certifique-se de que TODOS os nomes sigam a regra de gênero especificada. Varie muito o estilo de escrita entre as avaliações. Alguns títulos podem ser simples como "Recomendo!" ou "Ótimo produto".`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
