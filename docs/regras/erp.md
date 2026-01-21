@@ -28,6 +28,15 @@ Módulo de gestão empresarial: fiscal (NF-e), financeiro, e compras/estoque.
 | `src/pages/FiscalSettings.tsx` | Configurações |
 | `src/pages/FiscalProductsConfig.tsx` | NCM/CFOP por produto |
 
+### Edge Functions Fiscais
+| Função | Descrição |
+|--------|-----------|
+| `fiscal-create-draft` | Cria rascunho de NF-e a partir de pedido |
+| `fiscal-create-manual` | Cria NF-e manualmente (sem pedido) |
+| `fiscal-auto-create-drafts` | Criação automática de rascunhos |
+| `fiscal-emit` | Emissão da NF-e via Focus NFe |
+| `fiscal-validate-order` | Validação pré-emissão |
+
 ### Funcionalidades
 | Feature | Status | Descrição |
 |---------|--------|-----------|
@@ -58,34 +67,39 @@ Kit vendido por R$ 100,00
 
 **Importante:** A estrutura do produto (componentes e quantidades) é apenas para listagem na NF. Os preços/custos no cadastro do componente não afetam o valor final - o que vale é o preço vendido no pedido.
 
+### Shared Module: Kit Unbundler
+```typescript
+// supabase/functions/_shared/kit-unbundler.ts
+// Desmembra kits em componentes individuais
+// Mantém rastreabilidade: original_kit_id, original_kit_name, is_from_kit
+```
+
 ### Campos Fiscais do Produto
 | Campo | Descrição |
 |-------|-----------|
-| `ncm` | Código NCM |
+| `ncm` | Código NCM (8 dígitos) |
 | `cfop` | Código CFOP |
-| `origin` | Origem (0-8) |
+| `origem` | Origem (0-8) |
 | `cest` | Código CEST |
-| `icms_cst` | CST do ICMS |
-| `pis_cst` | CST do PIS |
-| `cofins_cst` | CST do COFINS |
+| `csosn` | CSOSN (Simples Nacional) |
+| `cst` | CST (Lucro Real/Presumido) |
+| `unidade_comercial` | Unidade (UN, KG, etc) |
 
 ### Integração Focus NFe
 ```typescript
-// Configuração por tenant
+// Configuração por tenant em fiscal_settings
 {
   tenant_id: uuid,
-  focus_token: string,        // API Token
-  focus_environment: 'homologacao' | 'producao',
-  certificate_file: string,   // Caminho do certificado
-  certificate_password: string,
-  company_data: {
-    cnpj: string,
-    ie: string,
-    razao_social: string,
-    nome_fantasia: string,
-    crt: '1' | '2' | '3',     // Regime tributário
-    // ... endereço
-  }
+  focus_token: string,        // API Token (via platform_secrets)
+  ambiente: 'homologacao' | 'producao',
+  certificado_pfx: string,    // Certificado em base64
+  certificado_senha: string,  // Senha do certificado
+  razao_social: string,
+  cnpj: string,
+  ie: string,
+  crt: '1' | '2' | '3',       // Regime tributário
+  endereco_*: string,         // Dados do emitente
+  desmembrar_estrutura: boolean, // Desmembrar kits na NF
 }
 ```
 
