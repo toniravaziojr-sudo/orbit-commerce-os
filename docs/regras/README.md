@@ -86,6 +86,7 @@ Este diretório contém as regras e especificações separadas por módulo para 
 | Arquivo | Descrição | Status |
 |---------|-----------|--------|
 | [mercado-livre.md](./mercado-livre.md) | Integração Mercado Livre | 🟧 Pending |
+| [shopee.md](./shopee.md) | Integração Shopee | ✅ Ready |
 
 ---
 
@@ -105,7 +106,7 @@ Este diretório contém as regras e especificações separadas por módulo para 
 
 | Status | Quantidade | Significado |
 |--------|------------|-------------|
-| ✅ Ready | **26** | 100% funcional e validado |
+| ✅ Ready | **27** | 100% funcional e validado |
 | 🟧 Pending | **13** | Em construção/incompleto |
 
 ---
