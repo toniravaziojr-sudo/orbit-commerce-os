@@ -55,6 +55,8 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   '/files': 'ready',
   '/reports': 'ready',
   '/marketplaces': 'pending',
+  '/marketplaces/mercadolivre': 'pending',
+  '/marketplaces/shopee': 'pending',
   '/system/users': 'ready',
   
   // Plataforma
