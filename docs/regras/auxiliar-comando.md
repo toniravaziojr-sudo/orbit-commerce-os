@@ -96,23 +96,79 @@ while (true) {
 
 ## Ações Suportadas (Tools)
 
+### Produtos
+
 | Tool | Descrição | Permissões |
 |------|-----------|------------|
-| `createCategory` | Criar categoria de produtos | owner, admin, manager, editor |
-| `createDiscount` | Criar cupom de desconto | owner, admin, manager |
-| `salesReport` | Gerar relatório de vendas | owner, admin, manager, editor, viewer |
+| `createProduct` | Criar produto | owner, admin, manager, editor |
+| `updateProduct` | Atualizar produto | owner, admin, manager, editor |
+| `deleteProduct` | Deletar produto | owner, admin, manager |
+| `bulkUpdateProductsNCM` | Atualizar NCM em massa | owner, admin, manager |
+| `bulkUpdateProductsCEST` | Atualizar CEST em massa | owner, admin, manager |
+| `bulkUpdateProductsPrice` | Atualizar preços em massa | owner, admin, manager |
+| `bulkUpdateProductsStock` | Atualizar estoque em massa | owner, admin, manager |
+| `bulkActivateProducts` | Ativar/desativar em massa | owner, admin, manager |
+
+### Categorias
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `createCategory` | Criar categoria | owner, admin, manager, editor |
+| `updateCategory` | Atualizar categoria | owner, admin, manager, editor |
+| `deleteCategory` | Deletar categoria | owner, admin, manager |
+
+### Cupons/Descontos
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `createDiscount` | Criar cupom | owner, admin, manager |
+| `updateDiscount` | Atualizar cupom | owner, admin, manager |
+| `deleteDiscount` | Deletar cupom | owner, admin, manager |
+
+### Pedidos
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `updateOrderStatus` | Atualizar status do pedido | owner, admin, manager, attendant |
+| `bulkUpdateOrderStatus` | Atualizar status em massa | owner, admin, manager |
+| `addOrderNote` | Adicionar nota ao pedido | owner, admin, manager, attendant |
+
+### Clientes
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `createCustomer` | Criar cliente | owner, admin, manager, attendant |
+| `updateCustomer` | Atualizar cliente | owner, admin, manager, attendant |
+| `deleteCustomer` | Deletar cliente | owner, admin, manager |
+
+### Relatórios
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `salesReport` | Relatório de vendas | owner, admin, manager, editor, viewer |
+| `inventoryReport` | Relatório de estoque | owner, admin, manager, editor, viewer |
+| `customersReport` | Relatório de clientes | owner, admin, manager, editor, viewer |
+
+### Configurações
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `updateStoreSettings` | Atualizar configurações da loja | owner, admin |
+
+### Agenda
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
 | `createAgendaTask` | Criar tarefa na agenda | todos |
 
 ### Formato de Ação Proposta
 
 ```json
 {
-  "tool": "createDiscount",
+  "tool": "bulkUpdateProductsNCM",
   "params": {
-    "code": "PROMO10",
-    "type": "percentage",
-    "value": 10,
-    "min_subtotal": 100
+    "ncm": "33051000",
+    "productIds": ["all"]
   }
 }
 ```
