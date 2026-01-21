@@ -173,7 +173,7 @@ serve(async (req) => {
     const priceInReais = price / 100;
 
     // Criar preferência no Mercado Pago
-    const appUrl = Deno.env.get('APP_URL') || 'https://ojssezfjhdvvncsqyhyq.lovableproject.com';
+    const appUrl = Deno.env.get('APP_URL') || 'https://app.comandocentral.com.br';
     
     const preferencePayload = {
       items: [{
