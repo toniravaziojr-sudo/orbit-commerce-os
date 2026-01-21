@@ -21,6 +21,8 @@ interface GenerateReviewsDialogProps {
 }
 
 type QuantityOption = '10' | '30' | '50';
+type GenderOption = 'both' | 'male' | 'female';
+type RatingOption = 'all5' | 'mixed';
 
 interface GeneratedReview {
   customer_name: string;
@@ -35,6 +37,8 @@ export function GenerateReviewsDialog({ trigger }: GenerateReviewsDialogProps) {
   const [open, setOpen] = useState(false);
   const [productId, setProductId] = useState('');
   const [quantity, setQuantity] = useState<QuantityOption>('10');
+  const [gender, setGender] = useState<GenderOption>('both');
+  const [ratingDistribution, setRatingDistribution] = useState<RatingOption>('mixed');
   const [generatedReviews, setGeneratedReviews] = useState<GeneratedReview[]>([]);
   const [step, setStep] = useState<'select' | 'generating' | 'preview'>('select');
   const [progress, setProgress] = useState(0);
@@ -67,6 +71,8 @@ export function GenerateReviewsDialog({ trigger }: GenerateReviewsDialogProps) {
   const resetDialog = () => {
     setProductId('');
     setQuantity('10');
+    setGender('both');
+    setRatingDistribution('mixed');
     setGeneratedReviews([]);
     setStep('select');
     setProgress(0);
@@ -89,6 +95,8 @@ export function GenerateReviewsDialog({ trigger }: GenerateReviewsDialogProps) {
             sku: selectedProduct.sku,
           },
           quantity: parseInt(quantity),
+          gender,
+          ratingDistribution,
         },
       });
 
@@ -208,6 +216,40 @@ export function GenerateReviewsDialog({ trigger }: GenerateReviewsDialogProps) {
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="50" id="q50" />
                   <Label htmlFor="q50" className="font-normal cursor-pointer">50 avaliações</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {/* Gender Selection */}
+            <div className="space-y-3">
+              <Label>Gênero dos nomes</Label>
+              <RadioGroup value={gender} onValueChange={(v) => setGender(v as GenderOption)} className="flex gap-4">
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="both" id="gBoth" />
+                  <Label htmlFor="gBoth" className="font-normal cursor-pointer">Ambos</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="male" id="gMale" />
+                  <Label htmlFor="gMale" className="font-normal cursor-pointer">Masculino</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="female" id="gFemale" />
+                  <Label htmlFor="gFemale" className="font-normal cursor-pointer">Feminino</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {/* Rating Distribution */}
+            <div className="space-y-3">
+              <Label>Distribuição de estrelas</Label>
+              <RadioGroup value={ratingDistribution} onValueChange={(v) => setRatingDistribution(v as RatingOption)} className="flex gap-4">
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="mixed" id="rMixed" />
+                  <Label htmlFor="rMixed" className="font-normal cursor-pointer">Misto (4-5 estrelas)</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="all5" id="rAll5" />
+                  <Label htmlFor="rAll5" className="font-normal cursor-pointer">Todas 5 estrelas</Label>
                 </div>
               </RadioGroup>
             </div>
