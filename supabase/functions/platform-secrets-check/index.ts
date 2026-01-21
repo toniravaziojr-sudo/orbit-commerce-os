@@ -107,6 +107,10 @@ serve(async (req) => {
     const lateApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'LATE_API_KEY');
     const meliAppId = await checkCredential(supabaseUrl, supabaseServiceKey, 'MELI_APP_ID');
     const meliClientSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'MELI_CLIENT_SECRET');
+    // Mercado Pago Platform (SaaS Billing)
+    const mpAccessToken = await checkCredential(supabaseUrl, supabaseServiceKey, 'MP_ACCESS_TOKEN');
+    const mpPublicKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'MP_PUBLIC_KEY');
+    const mpWebhookSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'MP_WEBHOOK_SECRET');
     
     const secrets: Record<string, IntegrationConfig & { previews?: Record<string, string>; sources?: Record<string, string> }> = {
       focus_nfe: {
@@ -288,6 +292,27 @@ serve(async (req) => {
         sources: {
           MELI_APP_ID: meliAppId.source || '',
           MELI_CLIENT_SECRET: meliClientSecret.source || '',
+        },
+      },
+      mercadopago_platform: {
+        name: 'Mercado Pago (Billing)',
+        description: 'Credenciais para cobrar assinaturas do SaaS',
+        icon: 'CreditCard',
+        docs: 'https://www.mercadopago.com.br/developers',
+        secrets: {
+          MP_ACCESS_TOKEN: mpAccessToken.exists,
+          MP_PUBLIC_KEY: mpPublicKey.exists,
+          MP_WEBHOOK_SECRET: mpWebhookSecret.exists,
+        },
+        previews: {
+          MP_ACCESS_TOKEN: mpAccessToken.preview || '',
+          MP_PUBLIC_KEY: mpPublicKey.preview || '',
+          MP_WEBHOOK_SECRET: mpWebhookSecret.preview || '',
+        },
+        sources: {
+          MP_ACCESS_TOKEN: mpAccessToken.source || '',
+          MP_PUBLIC_KEY: mpPublicKey.source || '',
+          MP_WEBHOOK_SECRET: mpWebhookSecret.source || '',
         },
       },
     };

@@ -26,9 +26,13 @@ const EDITABLE_CREDENTIALS = [
   'OPENAI_API_KEY',
   'LATE_API_KEY',
   'LATE_WEBHOOK_SECRET',
-  // Mercado Livre
+  // Mercado Livre (Marketplace)
   'MELI_APP_ID',
   'MELI_CLIENT_SECRET',
+  // Mercado Pago (Platform Billing)
+  'MP_ACCESS_TOKEN',
+  'MP_PUBLIC_KEY',
+  'MP_WEBHOOK_SECRET',
   // Meta (Facebook/Instagram/WhatsApp)
   'META_APP_ID',
   'META_APP_SECRET',

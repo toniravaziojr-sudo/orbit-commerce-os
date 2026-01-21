@@ -102,6 +102,10 @@ export default function PlatformIntegrations() {
             <ShoppingBag className="h-4 w-4" />
             <span className="hidden sm:inline">Mercado Livre</span>
           </TabsTrigger>
+          <TabsTrigger value="mercadopago" className="gap-2">
+            <CreditCard className="h-4 w-4" />
+            <span className="hidden sm:inline">MP Billing</span>
+          </TabsTrigger>
           <TabsTrigger value="shopee" className="gap-2">
             <Store className="h-4 w-4" />
             <span className="hidden sm:inline">Shopee</span>
@@ -138,6 +142,10 @@ export default function PlatformIntegrations() {
 
         <TabsContent value="mercadolivre">
           <MeliPlatformSettings />
+        </TabsContent>
+
+        <TabsContent value="mercadopago">
+          <MercadoPagoPlatformSettings />
         </TabsContent>
 
         <TabsContent value="shopee">
