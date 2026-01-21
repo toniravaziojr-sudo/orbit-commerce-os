@@ -8,6 +8,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
 };
 
 // Helper to find IBGE code
@@ -79,8 +80,8 @@ serve(async (req) => {
 
     if (!profile?.current_tenant_id) {
       return new Response(
-        JSON.stringify({ success: false, error: 'No tenant selected' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'No tenant selected', code: 'NO_TENANT' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
