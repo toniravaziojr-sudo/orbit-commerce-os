@@ -131,6 +131,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
   const [pendingComponents, setPendingComponents] = useState<PendingComponent[]>([]);
   const [pendingVariants, setPendingVariants] = useState<PendingVariant[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [componentsLoaded, setComponentsLoaded] = useState(!product?.id); // true if new product, false if editing (will be set true after loading)
 
   // Load product data for editing
   useEffect(() => {
@@ -203,7 +204,10 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
   };
 
   const loadComponents = async () => {
-    if (!product?.id) return;
+    if (!product?.id) {
+      setComponentsLoaded(true);
+      return;
+    }
     
     const { data } = await supabase
       .from('product_components')
@@ -227,6 +231,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
         component: c.component as any,
       })));
     }
+    setComponentsLoaded(true);
   };
 
   const form = useForm<ProductFormData>({
@@ -449,8 +454,8 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
   };
 
   const handleSubmit = async (data: ProductFormData) => {
-    // Validação customizada: estrutura obrigatória para kits
-    if (data.product_format === 'with_composition' && pendingComponents.length === 0) {
+    // Validação customizada: estrutura obrigatória para kits (apenas se já carregou os componentes)
+    if (data.product_format === 'with_composition' && componentsLoaded && pendingComponents.length === 0) {
       toast({ 
         title: 'Estrutura obrigatória', 
         description: 'Produtos com composição precisam ter pelo menos um componente na estrutura.',
@@ -560,7 +565,8 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
             {(() => {
               const errors = form.formState.errors;
               const productFormat = form.watch('product_format');
-              const hasStructureError = productFormat === 'with_composition' && pendingComponents.length === 0;
+              // Só mostra erro de estrutura se os componentes já foram carregados
+              const hasStructureError = productFormat === 'with_composition' && componentsLoaded && pendingComponents.length === 0;
               
               const tabErrors = {
                 basic: ['name', 'sku', 'slug', 'description', 'short_description', 'status', 'product_format', 'weight', 'width', 'height', 'depth', 'gtin'].filter(f => f in errors).length,
