@@ -100,20 +100,38 @@ $$;
 ```
 1. Usuário faz signup (Auth.tsx)
    ↓
-2. Sistema chama create_tenant_for_user(name, slug)
+2. Usuário informa o nome da loja
+   - Sistema gera slug automaticamente a partir do nome
+   ↓
+3. Sistema chama create_tenant_for_user(name, slug)
    - Cria registro em tenants
    - Cria user_role (owner)
    - Atualiza profiles.current_tenant_id
    ↓
-3. Sistema chama domains-provision-default
-   - Cria domínio padrão: {slug}.shops.comandocentral.com.br
-   - Define status='verified', ssl_status='active'
+4. Sistema chama domains-provision-default AUTOMATICAMENTE
+   - Cria domínio GRATUITO: {slug}.shops.comandocentral.com.br
+   - Define status='verified', ssl_status='active' (SSL via ACM wildcard)
+   - Define is_primary=true (domínio principal até ter custom domain)
    ↓
-4. Sistema agenda emails de tutorial
+5. Sistema agenda emails de tutorial
    - schedule-tutorial-email + send-auth-email
    ↓
-5. Redirect para dashboard
+6. Redirect para dashboard
+   - Loja já acessível em: https://{slug}.shops.comandocentral.com.br
 ```
+
+### ⚡ Domínio Gratuito Automático
+
+**IMPORTANTE:** O cliente NÃO precisa fazer nada para ter sua loja online:
+
+| Ação do Cliente | Resultado Automático |
+|-----------------|---------------------|
+| Cria conta com nome "Minha Loja Incrível" | Slug gerado: `minha-loja-incrivel` |
+| Conclui cadastro | Domínio criado: `minha-loja-incrivel.shops.comandocentral.com.br` |
+| - | SSL ativo automaticamente (certificado wildcard) |
+| - | Loja online e funcional imediatamente |
+
+> **Nota:** O domínio gratuito é permanente e não pode ser removido. Serve como backup mesmo quando o cliente configura um domínio personalizado.
 
 ### Frontend: CreateStore.tsx
 
