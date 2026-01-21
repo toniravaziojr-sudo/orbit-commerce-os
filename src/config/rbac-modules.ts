@@ -62,6 +62,7 @@ export const ROUTE_TO_PERMISSION: Record<string, { module: string; submodule?: s
   // Marketplaces
   '/marketplaces': { module: 'marketplaces' },
   '/marketplaces/mercadolivre': { module: 'marketplaces', submodule: 'mercadolivre' },
+  '/marketplaces/shopee': { module: 'marketplaces', submodule: 'shopee' },
   
   // Sistema
   '/integrations': { module: 'system', submodule: 'integrations' },
@@ -161,6 +162,7 @@ export const MODULES: ModuleConfig[] = [
     description: 'Integrações com marketplaces',
     submodules: [
       { key: 'mercadolivre', label: 'Mercado Livre', route: '/marketplaces/mercadolivre' },
+      { key: 'shopee', label: 'Shopee', route: '/marketplaces/shopee' },
     ],
   },
   {
