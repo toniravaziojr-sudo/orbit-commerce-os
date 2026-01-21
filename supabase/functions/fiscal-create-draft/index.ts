@@ -5,6 +5,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { unbundleKitItems } from "../_shared/kit-unbundler.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -177,8 +178,36 @@ serve(async (req) => {
       );
     }
 
-    // Get fiscal product data
-    const productIds = orderItems.map(item => item.product_id).filter(Boolean);
+    // Preparar itens para processamento
+    let itemsToProcess: Array<{
+      id?: string;
+      product_id: string;
+      product_name: string;
+      sku: string;
+      quantity: number;
+      unit_price: number;
+      total_price: number;
+    }> = orderItems.map(item => ({
+      id: item.id,
+      product_id: item.product_id,
+      product_name: item.product_name || 'Produto',
+      sku: item.sku || '',
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      total_price: item.total_price,
+    }));
+
+    // Desmembrar kits se configuração ativa
+    // Isso lista os componentes separadamente na NF para conferência,
+    // mas mantém os valores proporcionais ao total do pedido
+    if (fiscalSettings.desmembrar_estrutura) {
+      console.log('[fiscal-create-draft] Unbundling kits for order:', order_id);
+      itemsToProcess = await unbundleKitItems(supabase, itemsToProcess);
+      console.log('[fiscal-create-draft] Unbundled to', itemsToProcess.length, 'items');
+    }
+
+    // Get fiscal product data (incluindo componentes desmembrados)
+    const productIds = itemsToProcess.map(item => item.product_id).filter(Boolean);
     const { data: fiscalProducts } = await supabase
       .from('fiscal_products')
       .select('*')
@@ -196,12 +225,12 @@ serve(async (req) => {
       fiscalSettings.cfop_interestadual
     );
 
-    // Build invoice items
-    const invoiceItems = orderItems.map((item, index) => {
+    // Build invoice items - usa os itens processados (desmembrados ou não)
+    const invoiceItems = itemsToProcess.map((item, index) => {
       const fiscalProduct = fiscalProductMap.get(item.product_id);
       return {
         numero_item: index + 1,
-        order_item_id: item.id,
+        order_item_id: item.id || null,
         codigo_produto: item.sku || item.product_id?.substring(0, 8) || `PROD${index + 1}`,
         descricao: item.product_name || 'Produto',
         ncm: fiscalProduct?.ncm || '',
@@ -332,7 +361,12 @@ serve(async (req) => {
         invoice_id: invoice.id,
         tenant_id: tenantId,
         event_type: existingDraft ? 'draft_updated' : 'draft_created',
-        event_data: { order_id, items_count: invoiceItems.length, ibge_code: destMunicipioCodigo },
+        event_data: { 
+          order_id, 
+          items_count: invoiceItems.length, 
+          ibge_code: destMunicipioCodigo,
+          kits_unbundled: fiscalSettings.desmembrar_estrutura || false,
+        },
         user_id: user.id,
       });
 

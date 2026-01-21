@@ -36,6 +36,27 @@ Módulo de gestão empresarial: fiscal (NF-e), financeiro, e compras/estoque.
 | NCM/CFOP | ✅ Ready | Configuração por produto |
 | ICMS/PIS/COFINS | 🟧 Pending | Cálculo automático |
 | Manifestação | 🟧 Pending | Aceite de NF |
+| Desmembrar Kits | ✅ Ready | Lista componentes separados na NF-e |
+
+### Desmembramento de Kits (Composições)
+
+Quando a configuração `desmembrar_estrutura` está ativa em `fiscal_settings`:
+
+1. **Valores do Pedido**: Os valores são extraídos do pedido original (preço de venda real)
+2. **Listagem na NF**: Os componentes são listados separadamente para facilitar conferência
+3. **Rateio Proporcional**: O valor total do kit é distribuído proporcionalmente entre os componentes
+4. **NCM por Componente**: Cada componente usa seu próprio NCM cadastrado em `fiscal_products`
+
+**Fluxo:**
+```
+Kit vendido por R$ 100,00
+├── Componente A (valor base R$ 60) → R$ 60,00 na NF
+└── Componente B (valor base R$ 40) → R$ 40,00 na NF
+                                     ────────────
+                                      Total: R$ 100,00 (igual ao pedido)
+```
+
+**Importante:** A estrutura do produto (componentes e quantidades) é apenas para listagem na NF. Os preços/custos no cadastro do componente não afetam o valor final - o que vale é o preço vendido no pedido.
 
 ### Campos Fiscais do Produto
 | Campo | Descrição |
