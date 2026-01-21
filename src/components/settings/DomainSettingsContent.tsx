@@ -1,17 +1,20 @@
 import { useState } from 'react';
-import { Globe, Plus, RefreshCw, Trash2, Star, Copy, CheckCircle, Clock, XCircle, ExternalLink, Info, Shield, ShieldCheck, ShieldAlert, ShieldOff } from 'lucide-react';
+import { Globe, Plus, RefreshCw, Trash2, Star, Copy, CheckCircle, Clock, XCircle, ExternalLink, Info, Shield, ShieldCheck, ShieldAlert, ShieldOff, ChevronDown } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useTenantDomains, TenantDomain, DEFAULT_TARGET_HOSTNAME, getPlatformSubdomainUrl } from '@/hooks/useTenantDomains';
 import { useAuth } from '@/hooks/useAuth';
-import { getDomainType } from '@/lib/normalizeDomain';
 import { toast } from 'sonner';
 import { AddDomainDialog } from '@/components/settings/AddDomainDialog';
 import { DomainInstructionsDialog } from '@/components/settings/DomainInstructionsDialog';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,12 +25,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { ChevronDown } from 'lucide-react';
 
 const STATUS_CONFIG = {
   pending: {
@@ -163,120 +160,136 @@ export function DomainSettingsContent() {
     <div className="space-y-6">
       {/* Storefront URL Card */}
       <Card>
-        <CardHeader>
+        <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
             <Globe className="h-5 w-5" />
             URL do Storefront
           </CardTitle>
           <CardDescription>
-            URLs públicas da sua loja
+            Endereço público da sua loja
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* URL padrão (grátis) */}
           {platformStorefrontUrl ? (
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-muted-foreground">URL padrão (grátis)</p>
-              <div className="flex items-center gap-3 flex-wrap">
-                <code className="bg-muted px-3 py-1.5 rounded text-sm font-mono break-all">
-                  {platformStorefrontUrl}
-                </code>
-                
-                {/* SSL status - Platform subdomain always has SSL via ACM wildcard */}
-                <Badge variant="default" className="bg-green-600">
-                  <ShieldCheck className="h-3 w-3 mr-1" />
-                  SSL Ativo
-                </Badge>
-                
-                {/* Show "Principal" badge only if no active custom domain */}
-                {!customDomainUrl && <Badge variant="outline">Principal</Badge>}
-                
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => window.open(platformStorefrontUrl, '_blank')}
-                >
-                  <ExternalLink className="h-4 w-4 mr-1" />
-                  Abrir
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleCopyUrl(platformStorefrontUrl)}
-                >
-                  <Copy className="h-4 w-4 mr-1" />
-                  Copiar
-                </Button>
-                
-                {/* 
-                  Show "Activate" button ONLY if:
-                  1. Platform subdomain is not provisioned in DB
-                  2. AND there are ACTIVE custom domains (verified + SSL active)
-                  
-                  If no active custom domains exist, the platform subdomain is the only option
-                  and should be considered always active (ACM wildcard handles SSL).
-                  The button would only be useful to create a DB record for switching primary back.
-                */}
-                {!platformSubdomain && hasActiveCustomDomains && (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={handleProvisionDefault}
-                    disabled={isProvisioningDefault}
-                  >
-                    {isProvisioningDefault ? (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
-                        Ativando...
-                      </>
-                    ) : (
-                      <>
-                        <Shield className="h-4 w-4 mr-1" />
-                        Ativar Domínio
-                      </>
-                    )}
-                  </Button>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">URL gratuita da plataforma</p>
+                {/* Only show "Principal" if this IS the primary (no active custom domain) */}
+                {!customDomainUrl && (
+                  <Badge variant="secondary" className="text-xs">
+                    <Star className="h-3 w-3 mr-1" />
+                    Em uso
+                  </Badge>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Formato: {currentTenant?.slug}.shops.comandocentral.com.br (SSL automático via certificado wildcard)
+              <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
+                <code className="flex-1 text-sm font-mono break-all">
+                  {platformStorefrontUrl}
+                </code>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800">
+                    <ShieldCheck className="h-3 w-3 mr-1" />
+                    SSL
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => window.open(platformStorefrontUrl, '_blank')}
+                    title="Abrir loja"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => handleCopyUrl(platformStorefrontUrl)}
+                    title="Copiar URL"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Este endereço é permanente e gratuito. SSL ativo automaticamente.
               </p>
+              
+              {/* 
+                Show "Activate" button ONLY if:
+                1. Platform subdomain is not provisioned in DB
+                2. AND there are ACTIVE custom domains (verified + SSL active)
+                
+                This allows switching primary back to platform subdomain.
+              */}
+              {!platformSubdomain && hasActiveCustomDomains && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleProvisionDefault}
+                  disabled={isProvisioningDefault}
+                  className="mt-2"
+                >
+                  {isProvisioningDefault ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Ativando...
+                    </>
+                  ) : (
+                    <>
+                      <Star className="h-4 w-4 mr-2" />
+                      Definir como Principal
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
           ) : (
             <p className="text-muted-foreground text-sm">Nenhum tenant selecionado</p>
           )}
 
-          {/* URL do domínio personalizado */}
+          {/* URL do domínio personalizado - mostrar apenas se ativo */}
           {customDomainUrl && (
-            <div className="space-y-1 pt-3 border-t">
-              <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-green-600" />
-                URL no domínio personalizado
-              </p>
-              <div className="flex items-center gap-3 flex-wrap">
-                <code className="bg-green-50 border border-green-200 px-3 py-1.5 rounded text-sm font-mono break-all text-green-800 dark:bg-green-900/30 dark:border-green-800 dark:text-green-300">
+            <div className="space-y-2 pt-4 border-t">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">Domínio personalizado</p>
+                <Badge variant="default" className="text-xs">
+                  <Star className="h-3 w-3 mr-1" />
+                  Principal
+                </Badge>
+              </div>
+              <div className="flex items-center gap-2 p-3 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg border border-emerald-200 dark:border-emerald-900">
+                <code className="flex-1 text-sm font-mono break-all text-emerald-800 dark:text-emerald-300">
                   {customDomainUrl}
                 </code>
-                <Badge variant="default" className="bg-green-600">Principal</Badge>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => window.open(customDomainUrl, '_blank')}
-                >
-                  <ExternalLink className="h-4 w-4 mr-1" />
-                  Abrir
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleCopyUrl(customDomainUrl)}
-                >
-                  <Copy className="h-4 w-4 mr-1" />
-                  Copiar
-                </Button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Badge variant="outline" className="bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900 dark:text-emerald-400 dark:border-emerald-700">
+                    <ShieldCheck className="h-3 w-3 mr-1" />
+                    SSL
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => window.open(customDomainUrl, '_blank')}
+                    title="Abrir loja"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => handleCopyUrl(customDomainUrl)}
+                    title="Copiar URL"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                Quando acessarem a URL padrão, serão redirecionados automaticamente para o domínio personalizado.
+              <p className="text-xs text-muted-foreground">
+                Visitantes da URL gratuita são redirecionados automaticamente para este domínio.
               </p>
             </div>
           )}
@@ -285,142 +298,140 @@ export function DomainSettingsContent() {
 
       {/* Custom Domains Card */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between pb-3">
           <div>
             <CardTitle className="text-lg">Domínios Personalizados</CardTitle>
             <CardDescription>
-              Adicione domínios próprios para sua loja (ex: minhaloja.com.br)
+              Use seu próprio domínio (ex: minhaloja.com.br)
             </CardDescription>
           </div>
-          <Button onClick={() => setAddDialogOpen(true)}>
+          <Button onClick={() => setAddDialogOpen(true)} size="sm">
             <Plus className="h-4 w-4 mr-2" />
-            Adicionar Domínio
+            Adicionar
           </Button>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <div className="space-y-3">
               {[1, 2].map((i) => (
-                <Skeleton key={i} className="h-12 w-full" />
+                <Skeleton key={i} className="h-16 w-full" />
               ))}
             </div>
           ) : domains.filter(d => d.type === 'custom').length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              <Globe className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p>Nenhum domínio personalizado cadastrado.</p>
-              <p className="text-sm mt-1">Clique em "Adicionar Domínio" para começar.</p>
+              <Globe className="h-10 w-10 mx-auto mb-3 opacity-40" />
+              <p className="font-medium">Nenhum domínio personalizado</p>
+              <p className="text-sm mt-1">Adicione um domínio próprio para sua loja.</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Domínio</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Verificação</TableHead>
-                  <TableHead>SSL</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {domains.filter(d => d.type === 'custom').map((domain) => {
-                  const statusConfig = STATUS_CONFIG[domain.status];
-                  const StatusIcon = statusConfig.icon;
-                  const sslConfig = SSL_STATUS_CONFIG[domain.ssl_status || 'none'];
-                  const SslIcon = sslConfig.icon;
-                  const domainType = getDomainType(domain.domain);
-                  const nextAction = getNextAction(domain);
+            <div className="space-y-3">
+              {domains.filter(d => d.type === 'custom').map((domain) => {
+                const statusConfig = STATUS_CONFIG[domain.status];
+                const StatusIcon = statusConfig.icon;
+                const sslConfig = SSL_STATUS_CONFIG[domain.ssl_status || 'none'];
+                const SslIcon = sslConfig.icon;
+                const nextAction = getNextAction(domain);
+                const isFullyActive = domain.status === 'verified' && domain.ssl_status === 'active';
 
-                  return (
-                    <TableRow key={domain.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <code className="font-mono text-sm">{domain.domain}</code>
-                          {domain.is_primary && (
-                            <Badge variant="default" className="gap-1">
-                              <Star className="h-3 w-3" />
-                              Principal
-                            </Badge>
-                          )}
-                        </div>
-                        {domain.last_error && (
-                          <p className="text-xs text-destructive mt-1 max-w-[250px]">
-                            {domain.last_error}
-                          </p>
+                return (
+                  <div 
+                    key={domain.id} 
+                    className={`p-4 rounded-lg border ${isFullyActive ? 'border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20' : 'border-border bg-muted/30'}`}
+                  >
+                    {/* Domain header */}
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <code className="font-mono text-sm truncate">{domain.domain}</code>
+                        {domain.is_primary && (
+                          <Badge variant="default" className="shrink-0 gap-1">
+                            <Star className="h-3 w-3" />
+                            Principal
+                          </Badge>
                         )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {domainType === 'apex' ? 'Raiz' : 'Subdomínio'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
                         <Badge variant={statusConfig.variant} className="gap-1">
                           <StatusIcon className="h-3 w-3" />
                           {statusConfig.label}
                         </Badge>
-                      </TableCell>
-                      <TableCell>
                         <Badge variant={sslConfig.variant} className="gap-1">
                           <SslIcon className="h-3 w-3" />
                           {sslConfig.label}
                         </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center justify-end gap-1">
-                          {nextAction && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={nextAction.action}
-                              disabled={nextAction.disabled}
-                            >
-                              {(isVerifying === domain.id || isProvisioning === domain.id) && (
-                                <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-                              )}
-                              {nextAction.label}
-                            </Button>
-                          )}
+                      </div>
+                    </div>
+
+                    {/* Error message - cleaner display */}
+                    {domain.last_error && (
+                      <Alert variant="destructive" className="mt-3 py-2">
+                        <XCircle className="h-4 w-4" />
+                        <AlertDescription className="text-xs">
+                          {domain.last_error}
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                    {/* Actions */}
+                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/50">
+                      <div className="flex items-center gap-2">
+                        {nextAction && (
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
-                            onClick={() => setInstructionsDialog(domain)}
-                            title="Ver instruções"
+                            onClick={nextAction.action}
+                            disabled={nextAction.disabled}
                           >
-                            <Info className="h-4 w-4" />
+                            {(isVerifying === domain.id || isProvisioning === domain.id) && (
+                              <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                            )}
+                            {nextAction.label}
                           </Button>
+                        )}
+                        {isFullyActive && !domain.is_primary && (
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
-                            onClick={() => handleCopyToken(domain)}
-                            title="Copiar token"
+                            onClick={() => setPrimaryDomain(domain.id)}
                           >
-                            <Copy className="h-4 w-4" />
+                            <Star className="h-3 w-3 mr-1" />
+                            Definir como Principal
                           </Button>
-                          {domain.status === 'verified' && domain.ssl_status === 'active' && !domain.is_primary && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setPrimaryDomain(domain.id)}
-                              title="Definir como principal"
-                            >
-                              <Star className="h-4 w-4" />
-                            </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setDeleteConfirm(domain)}
-                            title="Remover domínio"
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setInstructionsDialog(domain)}
+                          title="Ver instruções DNS"
+                        >
+                          <Info className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleCopyToken(domain)}
+                          title="Copiar token de verificação"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setDeleteConfirm(domain)}
+                          title="Remover domínio"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </CardContent>
       </Card>
