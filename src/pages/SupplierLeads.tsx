@@ -413,15 +413,21 @@ export default function SupplierLeads() {
                         <p className="text-sm text-muted-foreground truncate">
                           {[result.address.city, result.address.state].filter(Boolean).join(', ') || result.displayName.split(',').slice(0, 2).join(',')}
                         </p>
-                        <div className="flex items-center gap-3 mt-2 text-sm">
+                        <div className="flex items-center gap-3 mt-2 text-sm flex-wrap">
                           {result.phone && (
                             <a href={`tel:${result.phone}`} className="flex items-center gap-1 text-muted-foreground hover:text-primary">
                               <Phone className="h-3 w-3" />
                               {result.phone}
                             </a>
                           )}
+                          {result.email && (
+                            <a href={`mailto:${result.email}`} className="flex items-center gap-1 text-muted-foreground hover:text-primary">
+                              <Mail className="h-3 w-3" />
+                              {result.email}
+                            </a>
+                          )}
                           {result.website && (
-                            <a href={result.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-muted-foreground hover:text-primary">
+                            <a href={result.website.startsWith('http') ? result.website : `https://${result.website}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-muted-foreground hover:text-primary">
                               <Globe className="h-3 w-3" />
                               Site
                             </a>

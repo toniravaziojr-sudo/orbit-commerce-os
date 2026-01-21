@@ -25,6 +25,7 @@ export interface SearchResult {
   type: string;
   phone?: string;
   website?: string;
+  email?: string;
   distance?: number; // km from search location
 }
 
@@ -82,14 +83,34 @@ async function geocodeLocation(location: string): Promise<GeocodingResult | null
   }
 }
 
+// Extract main search term from compound queries
+// e.g., "Embalagens para cosméticos" -> "Embalagens"
+function extractMainTerm(query: string): string {
+  // Remove common prepositions and connectors
+  const stopWords = ['para', 'de', 'do', 'da', 'dos', 'das', 'em', 'com', 'e', 'ou'];
+  const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+  
+  // Return the first significant word (usually the main business type)
+  for (const word of words) {
+    if (!stopWords.includes(word)) {
+      return word;
+    }
+  }
+  return words[0] || query;
+}
+
 // Search for businesses/suppliers using Nominatim
 async function searchSuppliers(params: SearchParams, centerCoords?: GeocodingResult): Promise<SearchResult[]> {
   const { query, radiusKm = 50 } = params;
   
   try {
-    // Build the search query
+    // Extract main term for better Nominatim results
+    const mainTerm = extractMainTerm(query);
+    const fullQuery = query.toLowerCase();
+    
+    // Build the search query - search for businesses
     let searchUrl = `https://nominatim.openstreetmap.org/search?` +
-      `q=${encodeURIComponent(query + ' Brasil')}&format=json&limit=50&addressdetails=1&extratags=1`;
+      `q=${encodeURIComponent(mainTerm + ' Brasil')}&format=json&limit=100&addressdetails=1&extratags=1`;
     
     // If we have center coordinates, add viewbox for better results
     if (centerCoords) {
@@ -109,10 +130,31 @@ async function searchSuppliers(params: SearchParams, centerCoords?: GeocodingRes
     
     const data = await response.json();
     
-    // Map results to our format
+    // Map results to our format, extracting all available contact info
     const results: SearchResult[] = data.map((item: any) => {
       const lat = parseFloat(item.lat);
       const lon = parseFloat(item.lon);
+      const extratags = item.extratags || {};
+      
+      // Extract phone from multiple possible fields
+      const phone = extratags.phone || 
+                    extratags['contact:phone'] || 
+                    extratags.mobile ||
+                    extratags['contact:mobile'] ||
+                    extratags.fax ||
+                    null;
+      
+      // Extract website from multiple possible fields
+      const website = extratags.website || 
+                      extratags['contact:website'] || 
+                      extratags.url ||
+                      extratags['contact:url'] ||
+                      null;
+      
+      // Extract email
+      const email = extratags.email ||
+                    extratags['contact:email'] ||
+                    null;
       
       return {
         id: item.place_id?.toString() || `osm-${item.osm_id}`,
@@ -129,8 +171,9 @@ async function searchSuppliers(params: SearchParams, centerCoords?: GeocodingRes
         lon,
         category: item.class || 'place',
         type: item.type || 'business',
-        phone: item.extratags?.phone || item.extratags?.['contact:phone'],
-        website: item.extratags?.website || item.extratags?.['contact:website'],
+        phone,
+        website,
+        email,
         distance: centerCoords ? calculateDistance(centerCoords.lat, centerCoords.lon, lat, lon) : undefined,
       };
     });
@@ -141,6 +184,37 @@ async function searchSuppliers(params: SearchParams, centerCoords?: GeocodingRes
       filteredResults = results.filter(r => r.distance !== undefined && r.distance <= radiusKm);
       // Sort by distance
       filteredResults.sort((a, b) => (a.distance || 0) - (b.distance || 0));
+    }
+    
+    // Filter results that match the full query context (e.g., "cosméticos" for embalagens para cosméticos)
+    // This helps narrow down results for compound queries
+    const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+    if (queryWords.length > 1) {
+      // Score results based on how well they match the full query
+      filteredResults = filteredResults.map(r => {
+        let score = 0;
+        const nameLower = r.name.toLowerCase();
+        const displayLower = r.displayName.toLowerCase();
+        const typeLower = (r.type || '').toLowerCase();
+        const catLower = (r.category || '').toLowerCase();
+        
+        for (const word of queryWords) {
+          if (nameLower.includes(word)) score += 3;
+          if (displayLower.includes(word)) score += 1;
+          if (typeLower.includes(word)) score += 2;
+          if (catLower.includes(word)) score += 2;
+        }
+        
+        return { ...r, _score: score };
+      })
+      .filter(r => (r as any)._score > 0) // Only keep results that match at least something
+      .sort((a, b) => {
+        // Sort by score first, then by distance
+        const scoreDiff = ((b as any)._score || 0) - ((a as any)._score || 0);
+        if (scoreDiff !== 0) return scoreDiff;
+        return (a.distance || 0) - (b.distance || 0);
+      })
+      .map(({ _score, ...r }) => r as SearchResult);
     }
     
     // Deduplicate by name + city
