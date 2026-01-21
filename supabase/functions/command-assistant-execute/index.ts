@@ -219,24 +219,64 @@ async function executeTool(
     case "bulkUpdateProductsNCM": {
       const { ncm, productIds } = tool_args;
       
-      let query = supabase
+      // Primeiro, buscar produtos antes da atualização para relatório
+      let selectQuery = supabase
+        .from("products")
+        .select("id, name, sku, ncm_code")
+        .eq("tenant_id", tenant_id);
+      
+      if (productIds && productIds.length > 0 && !productIds.includes("all")) {
+        selectQuery = selectQuery.in("id", productIds);
+      }
+      
+      const { data: productsBefore, error: selectError } = await selectQuery;
+      if (selectError) throw new Error(selectError.message);
+      
+      const totalProducts = productsBefore?.length || 0;
+      const alreadyWithNCM = productsBefore?.filter((p: any) => p.ncm_code === ncm).length || 0;
+      const toUpdate = totalProducts - alreadyWithNCM;
+      
+      // Atualizar produtos
+      let updateQuery = supabase
         .from("products")
         .update({ ncm_code: ncm, updated_at: new Date().toISOString() })
         .eq("tenant_id", tenant_id);
       
-      if (productIds && productIds.length > 0) {
-        query = query.in("id", productIds);
+      if (productIds && productIds.length > 0 && !productIds.includes("all")) {
+        updateQuery = updateQuery.in("id", productIds);
       }
       
-      const { data, error, count } = await query.select("id");
+      const { data: updatedProducts, error } = await updateQuery.select("id, name, sku");
       
       if (error) throw new Error(error.message);
       
-      const affectedCount = data?.length || 0;
+      const affectedCount = updatedProducts?.length || 0;
+      
+      // Gerar relatório detalhado
+      const report = {
+        ncm,
+        summary: {
+          total_products: totalProducts,
+          updated: affectedCount,
+          already_had_ncm: alreadyWithNCM,
+        },
+        products_updated: updatedProducts?.slice(0, 10).map((p: any) => ({
+          name: p.name,
+          sku: p.sku,
+        })),
+        has_more: affectedCount > 10,
+      };
+      
       return {
         success: true,
-        message: `✅ NCM atualizado para "${ncm}" em ${affectedCount} produto(s)!`,
-        data: { affected: affectedCount, ncm },
+        message: `✅ **Relatório de Atualização NCM**\n\n` +
+          `📦 **NCM aplicado:** ${ncm}\n` +
+          `📊 **Total de produtos:** ${totalProducts}\n` +
+          `✏️ **Atualizados:** ${affectedCount}\n` +
+          `⏭️ **Já possuíam este NCM:** ${alreadyWithNCM}\n\n` +
+          (affectedCount > 0 ? `📋 **Exemplos atualizados:**\n${updatedProducts?.slice(0, 5).map((p: any) => `• ${p.name}`).join('\n')}` : '') +
+          (affectedCount > 5 ? `\n... e mais ${affectedCount - 5} produtos` : ''),
+        data: report,
       };
     }
 
