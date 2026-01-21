@@ -63,6 +63,7 @@ interface NavItem {
   featureKey?: string;
   adminOnly?: boolean;
   ownerOnly?: boolean; // Only visible to tenant owner
+  locked?: boolean; // Module is locked and shows "Em breve" tag
 }
 
 interface NavGroup {
@@ -139,7 +140,7 @@ const fullNavigation: NavGroup[] = [
     label: "Parcerias",
     collapsible: true,
     items: [
-      { title: "Influencers", href: "/influencers", icon: UserCheck },
+      { title: "Influencers", href: "/influencers", icon: UserCheck, locked: true },
       { title: "Fornecedores", href: "/suppliers", icon: Building2 },
       { title: "Afiliados", href: "/affiliates", icon: Handshake },
     ],
@@ -314,6 +315,44 @@ export function AppSidebar() {
     const Icon = item.icon;
     const active = isActive(item.href);
     const status = isSpecialTenant ? getModuleStatus(item.href) : undefined;
+
+    // Locked items render differently - no navigation
+    if (item.locked) {
+      const lockedContent = (
+        <div
+          className={cn(
+            "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium cursor-not-allowed opacity-60",
+            "text-sidebar-foreground"
+          )}
+        >
+          <Icon className="h-4 w-4 flex-shrink-0" />
+          {!collapsed && (
+            <>
+              <span className="flex-1 truncate">{item.title}</span>
+              <span className="text-[9px] font-medium bg-amber-500/20 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded">
+                Em breve
+              </span>
+            </>
+          )}
+        </div>
+      );
+
+      return (
+        <li key={item.href}>
+          {collapsed ? (
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>{lockedContent}</TooltipTrigger>
+              <TooltipContent side="right" className="font-medium">
+                {item.title}
+                <span className="ml-1 text-amber-500">Em breve</span>
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            lockedContent
+          )}
+        </li>
+      );
+    }
 
     const linkContent = (
       <NavLink
