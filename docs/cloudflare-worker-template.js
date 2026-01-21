@@ -293,7 +293,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const ORIGIN_HOST = env.ORIGIN_HOST || 'orbit-commerce-os.lovable.app';
-    const SUPABASE_URL = env.SUPABASE_URL || 'https://ojssezfjhdvvncsqyhyq.supabase.co';
+    const SUPABASE_URL = env.SUPABASE_URL; // Obrigatório: configure no Cloudflare Dashboard
 
     const edgeHost = url.hostname.toLowerCase();
     

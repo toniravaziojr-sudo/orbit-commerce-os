@@ -183,7 +183,7 @@ serve(async (req) => {
       },
       auto_return: 'approved',
       external_reference: `${tenantId}|${plan_key}|${cycle}`,
-      notification_url: `${supabaseUrl}/functions/v1/billing-webhook`,
+      notification_url: `https://app.comandocentral.com.br/integrations/billing/webhook`,
     };
 
     console.log('Creating MP preference:', JSON.stringify(preferenceBody, null, 2));

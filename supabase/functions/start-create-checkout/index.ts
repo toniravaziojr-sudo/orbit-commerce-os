@@ -202,7 +202,7 @@ serve(async (req) => {
         pending: `${appUrl}/start/pending?session=${session.id}`,
       },
       auto_return: 'approved',
-      notification_url: `${supabaseUrl}/functions/v1/billing-webhook`,
+      notification_url: `https://app.comandocentral.com.br/integrations/billing/webhook`,
       statement_descriptor: 'COMANDOCENTRAL',
     };
 

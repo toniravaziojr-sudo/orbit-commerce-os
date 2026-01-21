@@ -88,8 +88,8 @@ serve(async (req) => {
       );
     }
 
-    // Construir redirect URI
-    const redirectUri = `${supabaseUrl}/functions/v1/shopee-oauth-callback`;
+    // Construir redirect URI (via Cloudflare proxy - domínio público)
+    const redirectUri = `https://app.comandocentral.com.br/integrations/shopee/callback`;
 
     // Criar state com tenant_id
     const stateData = {

@@ -84,8 +84,8 @@ serve(async (req) => {
       );
     }
 
-    // Construir redirect URI
-    const redirectUri = `${supabaseUrl}/functions/v1/meli-oauth-callback`;
+    // Construir redirect URI (via Cloudflare proxy - domínio público)
+    const redirectUri = `https://app.comandocentral.com.br/integrations/meli/callback`;
 
     // Criar state com tenant_id (base64 encoded para segurança básica)
     // Em produção, considere criptografar com uma chave

@@ -69,10 +69,9 @@ export function ShopeePlatformSettings() {
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
 
-  // URLs para configuração
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const redirectUri = `${supabaseUrl}/functions/v1/shopee-oauth-callback`;
-  const webhookUri = `${supabaseUrl}/functions/v1/shopee-webhook`;
+  // URLs para configuração (via Cloudflare proxy - domínio público)
+  const redirectUri = `https://app.comandocentral.com.br/integrations/shopee/callback`;
+  const webhookUri = `https://app.comandocentral.com.br/integrations/shopee/webhook`;
 
   // Buscar status das credenciais
   const { data: integrationData, isLoading, refetch } = useQuery({

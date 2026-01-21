@@ -102,8 +102,8 @@ As credenciais são gerenciadas via `platform_credentials`:
 
 | Tipo | URL |
 |------|-----|
-| Redirect URI | `https://[PROJECT_ID].supabase.co/functions/v1/shopee-oauth-callback` |
-| Webhook URL | `https://[PROJECT_ID].supabase.co/functions/v1/shopee-webhook` |
+| Redirect URI | `https://app.comandocentral.com.br/integrations/shopee/callback` |
+| Webhook URL | `https://app.comandocentral.com.br/integrations/shopee/webhook` |
 
 ---
 

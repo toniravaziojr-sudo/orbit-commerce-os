@@ -67,7 +67,7 @@ O Worker roteia requisições por hostname para o tenant correto.
 2. Cole o código de `docs/cloudflare-worker-template.js`
 3. Configure as variáveis de ambiente:
    - `ORIGIN_HOST`: `orbit-commerce-os.lovable.app`
-   - `SUPABASE_URL`: `https://ojssezfjhdvvncsqyhyq.supabase.co`
+   - `SUPABASE_URL`: (URL do seu projeto Lovable Cloud)
 4. Configure as rotas:
    - `shops.respeiteohomem.com.br/*` → Worker
 
