@@ -35,13 +35,27 @@ const STATIC_PATHS = [
 
 // ========== EDGE FUNCTION PROXY ROUTES ==========
 // Mapeamento de paths públicos para Edge Functions do Supabase
-// Usado para endpoints de integrações (Meta, Stripe, etc.)
+// Usado para endpoints de integrações (Meta, Stripe, Shopee, etc.)
+// IMPORTANTE: Adicionar novas integrações aqui!
 const EDGE_FUNCTION_ROUTES = {
+  // Meta / Facebook / WhatsApp
   '/integrations/meta/deauthorize': 'meta-deauthorize-callback',
   '/integrations/meta/deletion-status': 'meta-deletion-status',
-  // Adicione mais rotas conforme necessário:
-  // '/integrations/stripe/webhook': 'stripe-webhook',
-  // '/integrations/mercadopago/webhook': 'mercadopago-webhook',
+  '/integrations/meta/whatsapp-callback': 'meta-whatsapp-onboarding-callback',
+  
+  // Shopee
+  '/integrations/shopee/callback': 'shopee-oauth-callback',
+  '/integrations/shopee/webhook': 'shopee-webhook',
+  
+  // Mercado Pago (Billing)
+  '/integrations/billing/webhook': 'billing-webhook',
+  
+  // Email (SendGrid Inbound Parse)
+  '/integrations/emails/inbound': 'support-email-inbound',
+  
+  // Mercado Livre
+  '/integrations/meli/callback': 'meli-oauth-callback',
+  '/integrations/meli/webhook': 'meli-webhook',
 };
 
 function isStaticPath(pathname) {
