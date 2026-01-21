@@ -131,9 +131,9 @@ export function CommandAssistantInline() {
       </PopoverTrigger>
 
       <PopoverContent
-        className="w-[420px] p-0 shadow-xl border-border/50"
-        align="start"
-        sideOffset={8}
+        className="w-[560px] p-0 shadow-2xl border-border/50"
+        align="center"
+        sideOffset={12}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
@@ -194,10 +194,10 @@ export function CommandAssistantInline() {
         </div>
 
         {/* Chat Area */}
-        <div className="flex flex-col" style={{ height: hasMessages ? "320px" : "auto" }}>
+        <div className="flex flex-col" style={{ height: hasMessages ? "480px" : "auto" }}>
           {hasMessages ? (
-            <ScrollArea className="flex-1 p-3" ref={scrollRef}>
-              <div className="space-y-3">
+            <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+              <div className="space-y-4">
                 {messages.map((message) => (
                   <MessageBubble
                     key={message.id}
@@ -208,11 +208,11 @@ export function CommandAssistantInline() {
 
                 {/* Streaming message */}
                 {isStreaming && streamingContent && (
-                  <div className="flex gap-2">
-                    <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
-                      <Bot className="h-3.5 w-3.5 text-primary" />
+                  <div className="flex gap-3">
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
+                      <Bot className="h-4 w-4 text-primary" />
                     </div>
-                    <div className="flex-1 rounded-lg bg-muted/50 px-3 py-2">
+                    <div className="flex-1 rounded-xl bg-muted/50 px-4 py-3">
                       <p className="whitespace-pre-wrap text-sm leading-relaxed">
                         {streamingContent}
                       </p>
@@ -222,13 +222,13 @@ export function CommandAssistantInline() {
                 )}
 
                 {isStreaming && !streamingContent && (
-                  <div className="flex gap-2">
-                    <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
-                      <Bot className="h-3.5 w-3.5 text-primary" />
+                  <div className="flex gap-3">
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
+                      <Bot className="h-4 w-4 text-primary" />
                     </div>
-                    <div className="flex-1 rounded-lg bg-muted/50 px-3 py-2">
+                    <div className="flex-1 rounded-xl bg-muted/50 px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
                         <span className="text-sm text-muted-foreground">Pensando...</span>
                       </div>
                     </div>
@@ -237,10 +237,20 @@ export function CommandAssistantInline() {
               </div>
             </ScrollArea>
           ) : (
-            <div className="px-3 py-4">
-              <p className="text-center text-sm text-muted-foreground">
-                Posso ajudar você a criar categorias, cupons, gerar relatórios e mais.
-              </p>
+            <div className="px-4 py-8">
+              <div className="text-center space-y-3">
+                <div className="flex justify-center">
+                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Sparkles className="h-6 w-6 text-primary" />
+                  </div>
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">Auxiliar de Comando</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Posso ajudar você a criar categorias, cupons, atualizar produtos em massa, gerar relatórios e muito mais.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 
@@ -302,50 +312,82 @@ function MessageBubble({
   const proposedActions = message.metadata?.proposed_actions || [];
   const toolResult = message.metadata?.tool_result;
 
+  // Parse markdown-like content for better display
+  const renderContent = (content: string) => {
+    // Handle **bold** syntax
+    const parts = content.split(/(\*\*[^*]+\*\*)/g);
+    return parts.map((part, idx) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={idx}>{part.slice(2, -2)}</strong>;
+      }
+      return part;
+    });
+  };
+
   return (
-    <div className={cn("flex gap-2", isUser && "flex-row-reverse")}>
+    <div className={cn("flex gap-3", isUser && "flex-row-reverse")}>
       <div
         className={cn(
-          "flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full",
-          isUser ? "bg-primary" : isTool ? "bg-warning/10" : "bg-primary/10"
+          "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full",
+          isUser ? "bg-primary" : isTool ? "bg-accent" : "bg-primary/10"
         )}
       >
         {isUser ? (
-          <User className="h-3.5 w-3.5 text-primary-foreground" />
+          <User className="h-4 w-4 text-primary-foreground" />
         ) : isTool ? (
-          <Wrench className="h-3.5 w-3.5 text-warning" />
+          <CheckCircle2 className="h-4 w-4 text-primary" />
         ) : (
-          <Bot className="h-3.5 w-3.5 text-primary" />
+          <Bot className="h-4 w-4 text-primary" />
         )}
       </div>
 
-      <div className={cn("flex max-w-[85%] flex-col gap-1.5", isUser && "items-end")}>
+      <div className={cn("flex max-w-[90%] flex-col gap-2", isUser && "items-end")}>
         <div
           className={cn(
-            "rounded-lg px-3 py-2",
+            "rounded-xl px-4 py-3",
             isUser
               ? "bg-primary text-primary-foreground"
               : isTool
-              ? "bg-warning/10 border border-warning/20"
+              ? "bg-accent border border-border"
               : "bg-muted/50"
           )}
         >
           {message.content && (
-            <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
+            <p className="whitespace-pre-wrap text-sm leading-relaxed">
+              {renderContent(message.content)}
+            </p>
           )}
 
-          {/* Tool result */}
+          {/* Tool result with report */}
           {isTool && toolResult && (
-            <div className="mt-1.5">
+            <div className="mt-2">
               {toolResult.success ? (
-                <div className="flex items-center gap-1.5 text-primary">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  <span className="text-xs">{toolResult.message || "Ação executada"}</span>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-primary">
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span className="text-sm font-medium">Executado com sucesso</span>
+                  </div>
+                  {toolResult.data && (
+                    <div className="mt-2 rounded-lg bg-background/50 p-3 text-xs space-y-1">
+                      {toolResult.data.summary && (
+                        <div className="grid grid-cols-2 gap-2">
+                          {Object.entries(toolResult.data.summary).map(([key, value]) => (
+                            <div key={key} className="flex justify-between">
+                              <span className="text-muted-foreground capitalize">
+                                {key.replace(/_/g, ' ')}:
+                              </span>
+                              <span className="font-medium">{String(value)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5 text-destructive">
-                  <XCircle className="h-3.5 w-3.5" />
-                  <span className="text-xs">{toolResult.error || "Erro"}</span>
+                <div className="flex items-center gap-2 text-destructive">
+                  <XCircle className="h-4 w-4" />
+                  <span className="text-sm">{toolResult.error || "Erro ao executar"}</span>
                 </div>
               )}
             </div>
@@ -354,22 +396,24 @@ function MessageBubble({
 
         {/* Proposed actions */}
         {proposedActions.length > 0 && (
-          <div className="space-y-1.5">
+          <div className="space-y-2 w-full">
             {proposedActions.map((action) => (
               <div
                 key={action.id}
-                className="rounded-lg border border-border bg-card p-2.5"
+                className="rounded-xl border border-primary/20 bg-primary/5 p-3"
               >
-                <p className="mb-2 text-xs font-medium">{action.description}</p>
-                <div className="flex gap-1.5">
+                <p className="mb-3 text-sm font-medium">{action.description}</p>
+                <div className="flex gap-2">
                   <Button
                     size="sm"
-                    className="h-7 text-xs"
+                    className="h-8"
                     onClick={() => onExecuteAction(action)}
                   >
+                    <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
                     Confirmar
                   </Button>
-                  <Button size="sm" variant="outline" className="h-7 text-xs">
+                  <Button size="sm" variant="outline" className="h-8">
+                    <XCircle className="h-3.5 w-3.5 mr-1.5" />
                     Cancelar
                   </Button>
                 </div>
