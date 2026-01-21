@@ -99,6 +99,9 @@ export function DomainSettingsContent() {
 
   // Find the platform subdomain (auto-provisioned)
   const platformSubdomain = domains.find(d => d.type === 'platform_subdomain');
+  
+  // Check if there are any custom domains configured
+  const hasCustomDomains = domains.some(d => d.type === 'custom');
 
   // Handler for provisioning default domain
   const handleProvisionDefault = async () => {
@@ -176,27 +179,19 @@ export function DomainSettingsContent() {
                   {platformStorefrontUrl}
                 </code>
                 
-                {/* SSL status - ACM handles SSL automatically */}
-                {platformSubdomain ? (
-                  <Badge variant="default" className="bg-green-600">
-                    <ShieldCheck className="h-3 w-3 mr-1" />
-                    SSL Ativo
-                  </Badge>
-                ) : (
-                  <Badge variant="outline">
-                    <Clock className="h-3 w-3 mr-1" />
-                    Não ativado
-                  </Badge>
-                )}
+                {/* SSL status - Platform subdomain always has SSL via ACM wildcard */}
+                <Badge variant="default" className="bg-green-600">
+                  <ShieldCheck className="h-3 w-3 mr-1" />
+                  SSL Ativo
+                </Badge>
                 
+                {/* Show "Principal" badge only if no active custom domain */}
                 {!customDomainUrl && <Badge variant="outline">Principal</Badge>}
                 
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => window.open(platformStorefrontUrl, '_blank')}
-                  disabled={!platformSubdomain}
-                  title={!platformSubdomain ? 'Ative o domínio primeiro' : 'Abrir loja'}
                 >
                   <ExternalLink className="h-4 w-4 mr-1" />
                   Abrir
@@ -210,8 +205,15 @@ export function DomainSettingsContent() {
                   Copiar
                 </Button>
                 
-                {/* Show "Activate" button if not provisioned */}
-                {!platformSubdomain && (
+                {/* 
+                  Show "Activate" button ONLY if:
+                  1. Platform subdomain is not provisioned in DB
+                  2. AND there are custom domains configured (meaning user may want to re-enable default)
+                  
+                  If no custom domains exist, the platform subdomain is the only option
+                  and should be considered always active (ACM wildcard handles SSL).
+                */}
+                {!platformSubdomain && hasCustomDomains && (
                   <Button
                     variant="default"
                     size="sm"
@@ -233,7 +235,7 @@ export function DomainSettingsContent() {
                 )}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Formato: {currentTenant?.slug}.shops.comandocentral.com.br (SSL automático)
+                Formato: {currentTenant?.slug}.shops.comandocentral.com.br (SSL automático via certificado wildcard)
               </p>
             </div>
           ) : (
