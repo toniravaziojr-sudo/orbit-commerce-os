@@ -281,8 +281,14 @@ graph TD
 | `name` | Obrigatório, min 2 caracteres |
 | `sku` | Obrigatório, único por tenant |
 | `slug` | Obrigatório, único por tenant, formato válido |
-| `price` | Obrigatório, ≥ 0 |
+| `price` | Obrigatório, ≥ 0.01 |
 | `stock_quantity` | ≥ 0 |
+| `weight` | Obrigatório para frete, > 0 |
+| `width` | Obrigatório para frete, > 0 |
+| `height` | Obrigatório para frete, > 0 |
+| `depth` | Obrigatório para frete, > 0 |
+| `ncm` | Obrigatório para NF-e, exatamente 8 dígitos |
+| **Estrutura (kits)** | Obrigatório pelo menos 1 componente quando `product_format === 'with_composition'` |
 
 ### 8.2 Exclusão
 
