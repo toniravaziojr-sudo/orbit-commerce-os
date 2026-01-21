@@ -33,6 +33,17 @@ const STATIC_PATHS = [
   '/manifest',
 ];
 
+// ========== EDGE FUNCTION PROXY ROUTES ==========
+// Mapeamento de paths públicos para Edge Functions do Supabase
+// Usado para endpoints de integrações (Meta, Stripe, etc.)
+const EDGE_FUNCTION_ROUTES = {
+  '/integrations/meta/deauthorize': 'meta-deauthorize-callback',
+  '/integrations/meta/deletion-status': 'meta-deletion-status',
+  // Adicione mais rotas conforme necessário:
+  // '/integrations/stripe/webhook': 'stripe-webhook',
+  // '/integrations/mercadopago/webhook': 'mercadopago-webhook',
+};
+
 function isStaticPath(pathname) {
   const p = pathname.toLowerCase();
   return STATIC_PATHS.some(prefix => p.startsWith(prefix) || p === prefix.replace(/\/$/, ''));
@@ -40,6 +51,14 @@ function isStaticPath(pathname) {
 
 function isApiPath(pathname) {
   return pathname.toLowerCase().startsWith('/api/');
+}
+
+function isEdgeFunctionRoute(pathname) {
+  return EDGE_FUNCTION_ROUTES.hasOwnProperty(pathname);
+}
+
+function getEdgeFunctionName(pathname) {
+  return EDGE_FUNCTION_ROUTES[pathname] || null;
 }
 
 function cleanPreviewParams(search) {
@@ -260,6 +279,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const ORIGIN_HOST = env.ORIGIN_HOST || 'orbit-commerce-os.lovable.app';
+    const SUPABASE_URL = env.SUPABASE_URL || 'https://ojssezfjhdvvncsqyhyq.supabase.co';
 
     const edgeHost = url.hostname.toLowerCase();
     
@@ -269,6 +289,54 @@ export default {
 
     const cfHost = request.headers.get('cf-connecting-host');
     const publicHost = (cfHost || edgeHost).toLowerCase().replace(/^www\./, '');
+
+    // ========== EDGE FUNCTION PROXY (app.comandocentral.com.br only) ==========
+    // Proxy de integrações: /integrations/meta/* → Edge Functions
+    if (publicHost === 'app.comandocentral.com.br' && isEdgeFunctionRoute(url.pathname)) {
+      const functionName = getEdgeFunctionName(url.pathname);
+      const targetUrl = `${SUPABASE_URL}/functions/v1/${functionName}`;
+      
+      // Forward headers (exceto Host)
+      const proxyHeaders = new Headers();
+      for (const [key, value] of request.headers.entries()) {
+        const lowerKey = key.toLowerCase();
+        if (!['host', 'connection', 'keep-alive', 'transfer-encoding', 'upgrade'].includes(lowerKey)) {
+          proxyHeaders.set(key, value);
+        }
+      }
+      
+      // Adicionar headers de contexto
+      proxyHeaders.set('X-Forwarded-Host', publicHost);
+      proxyHeaders.set('X-Forwarded-Proto', 'https');
+      proxyHeaders.set('X-Original-Path', url.pathname);
+      
+      try {
+        const proxyRes = await fetch(targetUrl, {
+          method: request.method,
+          headers: proxyHeaders,
+          body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
+        });
+        
+        // Retornar resposta da Edge Function
+        const resHeaders = new Headers();
+        for (const [key, value] of proxyRes.headers.entries()) {
+          resHeaders.set(key, value);
+        }
+        resHeaders.set('X-CC-Proxied-Function', functionName);
+        
+        return new Response(proxyRes.body, {
+          status: proxyRes.status,
+          statusText: proxyRes.statusText,
+          headers: resHeaders,
+        });
+      } catch (e) {
+        console.error(`[EdgeFunctionProxy] Error proxying to ${functionName}:`, e);
+        return new Response(
+          JSON.stringify({ error: 'Edge function proxy error', function: functionName }),
+          { status: 502, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+    }
 
     // ========== DEBUG ENDPOINT ==========
     if (url.pathname === '/_debug' || url.pathname === '/_health') {
@@ -294,6 +362,7 @@ export default {
             domainType: resolved?.domainType || null,
           },
           isCanonical,
+          edgeFunctionRoutes: Object.keys(EDGE_FUNCTION_ROUTES),
           strategy: 'path_translation_with_internal_follow',
           status: resolved?.tenantSlug ? 'OK' : 'TENANT_NOT_FOUND',
         }, null, 2),

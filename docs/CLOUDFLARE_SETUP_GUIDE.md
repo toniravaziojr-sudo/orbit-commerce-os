@@ -96,10 +96,13 @@ No painel do Lovable Cloud, adicione os secrets:
 2. Clique em **Add route**
 3. Adicione as rotas:
 
-| Route | Worker |
-|-------|--------|
-| `*.shops.comandocentral.com.br/*` | shops-router |
-| `shops.comandocentral.com.br/*` | shops-router |
+| Route | Worker | Propósito |
+|-------|--------|-----------|
+| `*.shops.comandocentral.com.br/*` | shops-router | Storefronts multi-tenant |
+| `shops.comandocentral.com.br/*` | shops-router | Redirect para app |
+| `app.comandocentral.com.br/integrations/*` | shops-router | Proxy para Edge Functions |
+
+> **Nota:** A rota `app.comandocentral.com.br/integrations/*` permite que webhooks de integrações (Meta, Stripe, etc.) usem URLs públicas do Comando Central em vez de URLs do Supabase.
 
 ---
 
