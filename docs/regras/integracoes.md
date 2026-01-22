@@ -117,6 +117,12 @@ Disponível em **Integrações → WhatsApp → Meta Oficial** (apenas platform 
 - [ ] Envio de mensagem via Cloud API
 - [ ] Webhook verificado pelo Meta
 - [ ] Evento recebido no Atendimento
+- [ ] Conversa criada automaticamente no módulo Suporte
+
+**Integração Completa:**
+- **Atendimento (Suporte):** `support-send-message` roteia automaticamente para `meta-whatsapp-send` quando `provider=meta`
+- **Notificações (Pedidos):** `run-notifications` detecta o provider e usa Meta ou Z-API conforme config
+- **Webhook Inbound:** `meta-whatsapp-webhook` cria conversas e mensagens no módulo de Atendimento
 
 ### 5. Email
 | Serviço | Status | Descrição |

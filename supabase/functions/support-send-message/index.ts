@@ -101,34 +101,55 @@ serve(async (req) => {
     // Route to appropriate channel handler
     switch (channelToUse) {
       case "whatsapp": {
-        // Get WhatsApp config for tenant
+        // Get WhatsApp config for tenant - check for Meta first, then Z-API
         const { data: waConfig } = await supabase
           .from("whatsapp_configs")
           .select("*")
           .eq("tenant_id", message.tenant_id)
           .eq("is_enabled", true)
+          .eq("connection_status", "connected")
           .single();
 
-        if (!waConfig || waConfig.connection_status !== "connected") {
+        if (!waConfig) {
           error = "WhatsApp not configured or disconnected";
           break;
         }
 
-        // Send via WhatsApp edge function
-        const { data: waResult, error: waError } = await supabase.functions.invoke("whatsapp-send", {
-          body: {
-            tenant_id: message.tenant_id,
-            to: conversation.customer_phone,
-            message: message.content,
-          },
-        });
+        // Route based on provider
+        if (waConfig.provider === "meta") {
+          // Send via Meta WhatsApp Cloud API
+          const { data: metaResult, error: metaError } = await supabase.functions.invoke("meta-whatsapp-send", {
+            body: {
+              tenant_id: message.tenant_id,
+              phone: conversation.customer_phone,
+              message: message.content,
+            },
+          });
 
-        if (waError || !waResult?.success) {
-          error = waError?.message || waResult?.error || "Failed to send WhatsApp";
+          if (metaError || !metaResult?.success) {
+            error = metaError?.message || metaResult?.error || "Failed to send via Meta WhatsApp";
+          } else {
+            success = true;
+            externalMessageId = metaResult.data?.message_id || null;
+            deliveryStatus = "sent";
+          }
         } else {
-          success = true;
-          externalMessageId = waResult.message_id;
-          deliveryStatus = "sent";
+          // Send via Z-API (legacy/default)
+          const { data: waResult, error: waError } = await supabase.functions.invoke("whatsapp-send", {
+            body: {
+              tenant_id: message.tenant_id,
+              to: conversation.customer_phone,
+              message: message.content,
+            },
+          });
+
+          if (waError || !waResult?.success) {
+            error = waError?.message || waResult?.error || "Failed to send WhatsApp";
+          } else {
+            success = true;
+            externalMessageId = waResult.message_id;
+            deliveryStatus = "sent";
+          }
         }
         break;
       }

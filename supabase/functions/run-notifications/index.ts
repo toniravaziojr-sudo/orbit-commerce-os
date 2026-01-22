@@ -277,11 +277,15 @@ const WHATSAPP_CACHE_TTL = 60000; // 1 minute
 interface WhatsAppConfig {
   id: string;
   tenant_id: string;
+  provider?: string; // 'zapi' | 'meta'
   instance_id: string;
   instance_token: string;
   client_token: string | null;
   connection_status: string;
   phone_number: string | null;
+  // Meta-specific fields
+  phone_number_id?: string;
+  access_token?: string;
 }
 
 // Get WhatsApp config for tenant with caching
@@ -291,10 +295,15 @@ async function getWhatsAppConfig(supabase: any, tenantId: string): Promise<Whats
     return cached.config;
   }
 
+  // Try to get connected config (prefer meta if both exist)
   const { data, error } = await supabase
     .from('whatsapp_configs')
     .select('*')
     .eq('tenant_id', tenantId)
+    .eq('connection_status', 'connected')
+    .eq('is_enabled', true)
+    .order('provider', { ascending: false }) // 'zapi' comes after 'meta'
+    .limit(1)
     .single();
 
   if (error || !data) {
@@ -307,7 +316,7 @@ async function getWhatsAppConfig(supabase: any, tenantId: string): Promise<Whats
   return data;
 }
 
-// Send WhatsApp via Z-API
+// Send WhatsApp - routes to Meta or Z-API based on provider
 async function sendWhatsApp(
   supabase: any,
   tenantId: string,
@@ -342,11 +351,144 @@ async function sendWhatsApp(
     };
   }
 
+  if (config.connection_status !== 'connected') {
+    return {
+      success: false,
+      error: `WhatsApp não está conectado (status: ${config.connection_status}). Conecte em Integrações.`,
+      response: { channel: 'whatsapp', to: recipient, status: config.connection_status }
+    };
+  }
+
+  // Route based on provider
+  if (config.provider === 'meta') {
+    return await sendWhatsAppViaMeta(supabase, tenantId, cleanPhone, message, config);
+  } else {
+    return await sendWhatsAppViaZAPI(supabase, tenantId, cleanPhone, message, config);
+  }
+}
+
+// Send WhatsApp via Meta Cloud API
+async function sendWhatsAppViaMeta(
+  supabase: any,
+  tenantId: string,
+  cleanPhone: string,
+  message: string,
+  config: WhatsAppConfig
+): Promise<{ success: boolean; error?: string; response?: Record<string, unknown>; messageId?: string }> {
+  console.log(`[RunNotifications] Sending via Meta WhatsApp to ${cleanPhone}`);
+
+  if (!config.phone_number_id || !config.access_token) {
+    return {
+      success: false,
+      error: 'Configuração Meta incompleta (phone_number_id ou access_token ausente).',
+      response: { channel: 'whatsapp', to: cleanPhone, provider: 'meta' }
+    };
+  }
+
+  try {
+    // Get graph API version from platform credentials
+    const { data: versionCred } = await supabase
+      .from("platform_credentials")
+      .select("credential_value")
+      .eq("credential_key", "META_GRAPH_API_VERSION")
+      .eq("is_active", true)
+      .single();
+
+    const graphApiVersion = versionCred?.credential_value || "v21.0";
+
+    // Build message payload (text message within 24h window, or use template for notifications)
+    const messagePayload = {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: cleanPhone,
+      type: "text",
+      text: { body: message },
+    };
+
+    const sendUrl = `https://graph.facebook.com/${graphApiVersion}/${config.phone_number_id}/messages`;
+    
+    const sendResponse = await fetch(sendUrl, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${config.access_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(messagePayload),
+    });
+
+    const sendResult = await sendResponse.json();
+
+    if (sendResult.error) {
+      console.error(`[RunNotifications] Meta WhatsApp error:`, sendResult.error);
+      
+      // Log failed message
+      await supabase.from('whatsapp_messages').insert({
+        tenant_id: tenantId,
+        direction: 'outbound',
+        phone: cleanPhone,
+        message: message.substring(0, 500),
+        status: 'failed',
+        provider: 'meta',
+        error_message: sendResult.error.message,
+      });
+
+      return {
+        success: false,
+        error: sendResult.error.message || 'Erro ao enviar via Meta WhatsApp',
+        response: sendResult
+      };
+    }
+
+    const messageId = sendResult.messages?.[0]?.id;
+    console.log(`[RunNotifications] Meta WhatsApp sent - ID: ${messageId}`);
+
+    // Log successful message
+    await supabase.from('whatsapp_messages').insert({
+      tenant_id: tenantId,
+      direction: 'outbound',
+      phone: cleanPhone,
+      message: message.substring(0, 500),
+      status: 'sent',
+      provider: 'meta',
+      external_message_id: messageId,
+    });
+
+    return {
+      success: true,
+      messageId: messageId,
+      response: {
+        channel: 'whatsapp',
+        provider: 'meta',
+        to: cleanPhone,
+        ...sendResult
+      }
+    };
+
+  } catch (error: any) {
+    console.error(`[RunNotifications] Meta WhatsApp exception:`, error);
+    return {
+      success: false,
+      error: error.message || 'Erro ao enviar via Meta WhatsApp',
+      response: { channel: 'whatsapp', provider: 'meta', to: cleanPhone }
+    };
+  }
+}
+
+// Send WhatsApp via Z-API (legacy)
+async function sendWhatsAppViaZAPI(
+  supabase: any,
+  tenantId: string,
+  cleanPhone: string,
+  message: string,
+  config: WhatsAppConfig
+): Promise<{ success: boolean; error?: string; response?: Record<string, unknown>; messageId?: string }> {
+  console.log(`[RunNotifications] Sending via Z-API to ${cleanPhone}`);
+
   if (!config.instance_id || !config.instance_token) {
     return {
       success: false,
       error: 'Credenciais do WhatsApp não configuradas (Instance ID/Token).',
-      response: { channel: 'whatsapp', to: recipient }
+      response: { channel: 'whatsapp', to: cleanPhone, provider: 'zapi' }
     };
   }
 
@@ -354,15 +496,7 @@ async function sendWhatsApp(
     return {
       success: false,
       error: 'Client Token Z-API não configurado. Configure em Plataforma → Integrações.',
-      response: { channel: 'whatsapp', to: recipient }
-    };
-  }
-
-  if (config.connection_status !== 'connected') {
-    return {
-      success: false,
-      error: `WhatsApp não está conectado (status: ${config.connection_status}). Conecte em Integrações.`,
-      response: { channel: 'whatsapp', to: recipient, status: config.connection_status }
+      response: { channel: 'whatsapp', to: cleanPhone, provider: 'zapi' }
     };
   }
 
@@ -421,6 +555,7 @@ async function sendWhatsApp(
       messageId: sendData.messageId || sendData.zapiMessageId,
       response: {
         channel: 'whatsapp',
+        provider: 'zapi',
         to: cleanPhone,
         from: config.phone_number,
         ...sendData
@@ -428,11 +563,11 @@ async function sendWhatsApp(
     };
 
   } catch (error: any) {
-    console.error(`[RunNotifications] WhatsApp send error:`, error);
+    console.error(`[RunNotifications] WhatsApp Z-API error:`, error);
     return {
       success: false,
       error: error.message || 'Erro ao enviar WhatsApp',
-      response: { channel: 'whatsapp', to: cleanPhone }
+      response: { channel: 'whatsapp', provider: 'zapi', to: cleanPhone }
     };
   }
 }
