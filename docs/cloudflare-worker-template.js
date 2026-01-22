@@ -336,7 +336,8 @@ export default {
     // Suporta: app.comandocentral.com.br e integrations.comandocentral.com.br
     if (isIntegrationHost(publicHost) && isEdgeFunctionRoute(url.pathname)) {
       const functionName = getEdgeFunctionName(url.pathname);
-      const targetUrl = `${SUPABASE_URL}/functions/v1/${functionName}`;
+      // CRITICAL: Include query string for webhook verification (hub.mode, hub.verify_token, hub.challenge)
+      const targetUrl = `${SUPABASE_URL}/functions/v1/${functionName}${url.search}`;
       
       // Forward headers (exceto Host)
       const proxyHeaders = new Headers();
