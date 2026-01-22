@@ -47,6 +47,7 @@ export function WhatsAppMetaPlatformSettings() {
     toPhone: "",
     message: "Olá! Esta é uma mensagem de teste do Comando Central.",
     templateName: "hello_world",
+    templateLanguage: "en_US", // hello_world default is en_US
     useTemplate: true,
     testTenantId: "", // Tenant where test messages will appear
   });
@@ -133,7 +134,7 @@ export function WhatsAppMetaPlatformSettings() {
           to_phone: testMode.toPhone,
           message: testMode.useTemplate ? undefined : testMode.message,
           template_name: testMode.useTemplate ? testMode.templateName : undefined,
-          template_language: "pt_BR",
+          template_language: testMode.useTemplate ? testMode.templateLanguage : undefined,
         },
       });
 
@@ -535,17 +536,31 @@ export function WhatsAppMetaPlatformSettings() {
           </div>
 
           {testMode.useTemplate ? (
-            <div className="space-y-2">
-              <Label htmlFor="test-template-name">Nome do Template</Label>
-              <Input
-                id="test-template-name"
-                value={testMode.templateName}
-                onChange={(e) => setTestMode((prev) => ({ ...prev, templateName: e.target.value }))}
-                placeholder="hello_world"
-              />
-              <p className="text-xs text-muted-foreground">
-                Use "hello_world" (template padrão do Meta) para testes iniciais.
-              </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="test-template-name">Nome do Template</Label>
+                <Input
+                  id="test-template-name"
+                  value={testMode.templateName}
+                  onChange={(e) => setTestMode((prev) => ({ ...prev, templateName: e.target.value }))}
+                  placeholder="hello_world"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Use "hello_world" (template padrão do Meta) para testes iniciais.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="test-template-language">Idioma do Template</Label>
+                <Input
+                  id="test-template-language"
+                  value={testMode.templateLanguage}
+                  onChange={(e) => setTestMode((prev) => ({ ...prev, templateLanguage: e.target.value }))}
+                  placeholder="en_US"
+                />
+                <p className="text-xs text-muted-foreground">
+                  O hello_world usa <code className="bg-muted px-1 rounded">en_US</code>
+                </p>
+              </div>
             </div>
           ) : (
             <div className="space-y-2">
