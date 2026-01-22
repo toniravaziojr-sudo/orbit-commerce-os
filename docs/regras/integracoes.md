@@ -91,9 +91,32 @@ A aba `domain-email` unifica duas seções:
 ### 4. WhatsApp
 | Provider | Status | Descrição |
 |----------|--------|-----------|
-| WhatsApp Cloud API | 🟧 Pending | Oficial Meta |
+| WhatsApp Cloud API | ✅ Modo Teste Ready | Oficial Meta |
 | Z-API | 🟧 Pending | Não-oficial |
 | Evolution API | 🟧 Pending | Self-hosted |
+
+#### Modo Teste – WhatsApp Cloud API (Meta)
+
+Disponível em **Integrações → WhatsApp → Meta Oficial** (apenas platform admin).
+
+| Campo | Descrição |
+|-------|-----------|
+| `phone_number_id` | ID do número de teste (Meta for Developers) |
+| `access_token` | Token temporário (NÃO salvo, NÃO logado) |
+| `to_phone` | Telefone destinatário (formato E.164) |
+| `template_name` | Nome do template (ex: `hello_world`) |
+
+**Edge Function:** `meta-whatsapp-test-send`
+
+**Segurança:**
+- Token temporário NUNCA é salvo no banco
+- Token NUNCA aparece em logs
+- Apenas `is_platform_admin = true` pode usar
+
+**Checklist de Validação:**
+- [ ] Envio de mensagem via Cloud API
+- [ ] Webhook verificado pelo Meta
+- [ ] Evento recebido no Atendimento
 
 ### 5. Email
 | Serviço | Status | Descrição |
