@@ -135,6 +135,8 @@ Deno.serve(async (req) => {
           if (value.messages && value.messages.length > 0) {
             for (const message of value.messages) {
               const contact = value.contacts?.[0];
+              const customerPhone = message.from;
+              const customerName = contact?.profile?.name || customerPhone;
               
               let messageContent = "";
               let messageType = message.type;
@@ -160,14 +162,14 @@ Deno.serve(async (req) => {
                 messageContent = `[Localização: ${message.location.latitude}, ${message.location.longitude}]`;
               }
 
-              // Save inbound message
+              // Save inbound message (for audit/logs)
               const { error: insertError } = await supabase
                 .from("whatsapp_inbound_messages")
                 .insert({
                   tenant_id: tenantId,
                   provider: "meta",
                   external_message_id: message.id,
-                  from_phone: message.from,
+                  from_phone: customerPhone,
                   to_phone: value.metadata.display_phone_number,
                   message_type: messageType,
                   message_content: messageContent,
@@ -177,9 +179,87 @@ Deno.serve(async (req) => {
                 });
 
               if (insertError) {
-                console.error(`[meta-whatsapp-webhook][${traceId}] Failed to save message:`, insertError);
+                console.error(`[meta-whatsapp-webhook][${traceId}] Failed to save inbound message:`, insertError);
+              }
+
+              // === INTEGRATION WITH SUPPORT MODULE ===
+              // Find or create conversation for this customer
+              let conversationId: string | null = null;
+
+              // Try to find existing open conversation for this phone
+              const { data: existingConv } = await supabase
+                .from("conversations")
+                .select("id")
+                .eq("tenant_id", tenantId)
+                .eq("customer_phone", customerPhone)
+                .eq("channel_type", "whatsapp")
+                .in("status", ["new", "open", "waiting_customer", "waiting_agent", "bot"])
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .single();
+
+              if (existingConv) {
+                conversationId = existingConv.id;
+                console.log(`[meta-whatsapp-webhook][${traceId}] Found existing conversation: ${conversationId}`);
               } else {
-                console.log(`[meta-whatsapp-webhook][${traceId}] Message saved - from: ${message.from}, type: ${messageType}`);
+                // Create new conversation
+                const { data: newConv, error: convError } = await supabase
+                  .from("conversations")
+                  .insert({
+                    tenant_id: tenantId,
+                    channel_type: "whatsapp",
+                    customer_phone: customerPhone,
+                    customer_name: customerName,
+                    external_conversation_id: `meta_${customerPhone}`,
+                    status: "new",
+                    priority: 1,
+                    subject: `WhatsApp - ${customerName}`,
+                    last_message_at: new Date().toISOString(),
+                  })
+                  .select("id")
+                  .single();
+
+                if (convError) {
+                  console.error(`[meta-whatsapp-webhook][${traceId}] Failed to create conversation:`, convError);
+                } else {
+                  conversationId = newConv.id;
+                  console.log(`[meta-whatsapp-webhook][${traceId}] Created new conversation: ${conversationId}`);
+                }
+              }
+
+              // Insert message into conversations module
+              if (conversationId) {
+                const { error: msgError } = await supabase
+                  .from("messages")
+                  .insert({
+                    conversation_id: conversationId,
+                    tenant_id: tenantId,
+                    direction: "inbound",
+                    sender_type: "customer",
+                    sender_id: null,
+                    sender_name: customerName,
+                    content: messageContent,
+                    content_type: messageType === "text" ? "text" : messageType,
+                    delivery_status: "delivered",
+                    is_ai_generated: false,
+                    is_internal: false,
+                    is_note: false,
+                  });
+
+                if (msgError) {
+                  console.error(`[meta-whatsapp-webhook][${traceId}] Failed to create message:`, msgError);
+                } else {
+                  console.log(`[meta-whatsapp-webhook][${traceId}] Message created in support module`);
+                  
+                  // Update conversation last_message_at
+                  await supabase
+                    .from("conversations")
+                    .update({ 
+                      last_message_at: new Date().toISOString(),
+                      status: "new" // Reset to new when customer sends message
+                    })
+                    .eq("id", conversationId);
+                }
               }
             }
           }
