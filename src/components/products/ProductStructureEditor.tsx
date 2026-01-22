@@ -16,6 +16,7 @@ interface ProductStructureEditorProps {
   productId: string;
   stockType: 'physical' | 'virtual';
   onStockTypeChange: (type: 'physical' | 'virtual') => void;
+  onComponentsChange?: (hasComponents: boolean) => void;
 }
 
 interface ProductOption {
@@ -30,7 +31,8 @@ interface ProductOption {
 export function ProductStructureEditor({ 
   productId, 
   stockType, 
-  onStockTypeChange 
+  onStockTypeChange,
+  onComponentsChange,
 }: ProductStructureEditorProps) {
   const { profile } = useAuth();
   const {
@@ -46,6 +48,11 @@ export function ProductStructureEditor({
   const [searchValue, setSearchValue] = useState('');
   const [productOptions, setProductOptions] = useState<ProductOption[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+
+  // Notify parent when components change
+  useEffect(() => {
+    onComponentsChange?.(components.length > 0);
+  }, [components.length, onComponentsChange]);
 
   // Search products for component selection
   useEffect(() => {

@@ -132,6 +132,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
   const [pendingVariants, setPendingVariants] = useState<PendingVariant[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [componentsLoaded, setComponentsLoaded] = useState(!product?.id); // true if new product, false if editing (will be set true after loading)
+  const [hasSavedComponents, setHasSavedComponents] = useState(false); // Track if editing product has components in DB
 
   // Load product data for editing
   useEffect(() => {
@@ -230,6 +231,9 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
         ...c,
         component: c.component as any,
       })));
+      setHasSavedComponents(data.length > 0);
+    } else {
+      setHasSavedComponents(false);
     }
     setComponentsLoaded(true);
   };
@@ -454,14 +458,28 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
   };
 
   const handleSubmit = async (data: ProductFormData) => {
-    // Validação customizada: estrutura obrigatória para kits (apenas se já carregou os componentes)
-    if (data.product_format === 'with_composition' && componentsLoaded && pendingComponents.length === 0) {
-      toast({ 
-        title: 'Estrutura obrigatória', 
-        description: 'Produtos com composição precisam ter pelo menos um componente na estrutura.',
-        variant: 'destructive' 
-      });
-      return;
+    // Validação customizada: estrutura obrigatória para kits
+    if (data.product_format === 'with_composition' && componentsLoaded) {
+      // Para edição, verificar componentes diretamente no banco (ProductStructureEditor salva direto)
+      // Para criação, verificar pendingComponents
+      let hasComponents = pendingComponents.length > 0;
+      
+      if (isEditing && product?.id) {
+        const { count } = await supabase
+          .from('product_components')
+          .select('id', { count: 'exact', head: true })
+          .eq('parent_product_id', product.id);
+        hasComponents = (count ?? 0) > 0;
+      }
+      
+      if (!hasComponents) {
+        toast({ 
+          title: 'Estrutura obrigatória', 
+          description: 'Produtos com composição precisam ter pelo menos um componente na estrutura.',
+          variant: 'destructive' 
+        });
+        return;
+      }
     }
 
     setIsSaving(true);
@@ -565,8 +583,9 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
             {(() => {
               const errors = form.formState.errors;
               const productFormat = form.watch('product_format');
-              // Só mostra erro de estrutura se os componentes já foram carregados
-              const hasStructureError = productFormat === 'with_composition' && componentsLoaded && pendingComponents.length === 0;
+              // Para edição, usa hasSavedComponents (sincronizado com DB); para criação, usa pendingComponents
+              const hasComponents = isEditing ? hasSavedComponents : pendingComponents.length > 0;
+              const hasStructureError = productFormat === 'with_composition' && componentsLoaded && !hasComponents;
               
               const tabErrors = {
                 basic: ['name', 'sku', 'slug', 'description', 'short_description', 'status', 'product_format', 'weight', 'width', 'height', 'depth', 'gtin'].filter(f => f in errors).length,
@@ -1204,6 +1223,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                     productId={product.id}
                     stockType={form.watch('stock_type')}
                     onStockTypeChange={(type) => form.setValue('stock_type', type)}
+                    onComponentsChange={setHasSavedComponents}
                   />
                 ) : (
                   <ProductComponentsPicker
