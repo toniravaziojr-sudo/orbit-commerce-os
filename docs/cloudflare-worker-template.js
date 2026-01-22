@@ -42,6 +42,7 @@ const EDGE_FUNCTION_ROUTES = {
   '/integrations/meta/deauthorize': 'meta-deauthorize-callback',
   '/integrations/meta/deletion-status': 'meta-deletion-status',
   '/integrations/meta/whatsapp-callback': 'meta-whatsapp-onboarding-callback',
+  '/integrations/meta/whatsapp-webhook': 'meta-whatsapp-webhook',
   
   // Shopee
   '/integrations/shopee/callback': 'shopee-oauth-callback',
