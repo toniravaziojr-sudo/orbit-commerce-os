@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, MessageCircle, CheckCircle, XCircle, AlertCircle, ExternalLink, Send, RefreshCw, Unplug } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Loader2, MessageCircle, CheckCircle, XCircle, AlertCircle, ExternalLink, Send, RefreshCw, Unplug, Settings, ChevronDown, Save } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -31,6 +32,13 @@ export function WhatsAppMetaSettings() {
   
   const [testPhone, setTestPhone] = useState("");
   const [testMessage, setTestMessage] = useState("Mensagem de teste via WhatsApp Oficial!");
+  const [showManualConfig, setShowManualConfig] = useState(false);
+  const [manualConfig, setManualConfig] = useState({
+    phoneNumberId: "",
+    accessToken: "",
+    wabaId: "",
+    displayPhoneNumber: "",
+  });
 
   // Fetch config
   const { data: config, isLoading, refetch } = useQuery({
@@ -68,7 +76,7 @@ export function WhatsAppMetaSettings() {
     }
   }, [refetch]);
 
-  // Connect mutation
+  // Connect mutation (OAuth flow)
   const connectMutation = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke("meta-whatsapp-onboarding-start", {
@@ -98,6 +106,47 @@ export function WhatsAppMetaSettings() {
     },
     onError: (error: any) => {
       toast.error(error.message || "Erro ao iniciar conexão");
+    },
+  });
+
+  // Manual config save mutation
+  const saveManualConfigMutation = useMutation({
+    mutationFn: async () => {
+      if (!tenantId) throw new Error("Tenant não identificado");
+      if (!manualConfig.phoneNumberId.trim()) throw new Error("Phone Number ID é obrigatório");
+      if (!manualConfig.accessToken.trim()) throw new Error("Access Token é obrigatório");
+
+      // Upsert the config
+      const { data, error } = await supabase
+        .from("whatsapp_configs")
+        .upsert({
+          tenant_id: tenantId,
+          provider: "meta",
+          phone_number_id: manualConfig.phoneNumberId.trim(),
+          access_token: manualConfig.accessToken.trim(),
+          waba_id: manualConfig.wabaId.trim() || null,
+          display_phone_number: manualConfig.displayPhoneNumber.trim() || null,
+          phone_number: manualConfig.displayPhoneNumber.trim() || null,
+          connection_status: "connected",
+          is_enabled: true,
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: "tenant_id,provider",
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Credenciais Meta WhatsApp salvas com sucesso!");
+      setShowManualConfig(false);
+      setManualConfig({ phoneNumberId: "", accessToken: "", wabaId: "", displayPhoneNumber: "" });
+      queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Erro ao salvar credenciais");
     },
   });
 
@@ -262,18 +311,27 @@ export function WhatsAppMetaSettings() {
         {/* Actions */}
         <div className="flex flex-wrap gap-2">
           {!isConnected ? (
-            <Button 
-              onClick={() => connectMutation.mutate()}
-              disabled={connectMutation.isPending}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              {connectMutation.isPending ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <MessageCircle className="h-4 w-4 mr-2" />
-              )}
-              Conectar WhatsApp
-            </Button>
+            <>
+              <Button 
+                onClick={() => connectMutation.mutate()}
+                disabled={connectMutation.isPending}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {connectMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <MessageCircle className="h-4 w-4 mr-2" />
+                )}
+                Conectar WhatsApp
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={() => setShowManualConfig(!showManualConfig)}
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Configuração Manual
+              </Button>
+            </>
           ) : (
             <>
               <Button 
@@ -283,6 +341,14 @@ export function WhatsAppMetaSettings() {
               >
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Atualizar Status
+              </Button>
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={() => setShowManualConfig(!showManualConfig)}
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Atualizar Credenciais
               </Button>
               <Button 
                 variant="destructive" 
@@ -304,6 +370,87 @@ export function WhatsAppMetaSettings() {
             </>
           )}
         </div>
+
+        {/* Manual Configuration Section */}
+        <Collapsible open={showManualConfig} onOpenChange={setShowManualConfig}>
+          <CollapsibleContent className="mt-4">
+            <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Settings className="h-4 w-4" />
+                Configuração Manual de Credenciais
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Insira as credenciais do Meta for Developers. Essas informações são encontradas no painel do seu App Meta.
+              </p>
+              
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="phone-number-id">Phone Number ID *</Label>
+                  <Input
+                    id="phone-number-id"
+                    value={manualConfig.phoneNumberId}
+                    onChange={(e) => setManualConfig(prev => ({ ...prev, phoneNumberId: e.target.value }))}
+                    placeholder="Ex: 123456789012345"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="waba-id">WhatsApp Business Account ID</Label>
+                  <Input
+                    id="waba-id"
+                    value={manualConfig.wabaId}
+                    onChange={(e) => setManualConfig(prev => ({ ...prev, wabaId: e.target.value }))}
+                    placeholder="Ex: 123456789012345"
+                  />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="access-token">Access Token *</Label>
+                  <Input
+                    id="access-token"
+                    type="password"
+                    value={manualConfig.accessToken}
+                    onChange={(e) => setManualConfig(prev => ({ ...prev, accessToken: e.target.value }))}
+                    placeholder="Token de acesso do Meta"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Use um token permanente do System User para produção, ou token temporário para testes.
+                  </p>
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="display-phone">Número do WhatsApp (para exibição)</Label>
+                  <Input
+                    id="display-phone"
+                    value={manualConfig.displayPhoneNumber}
+                    onChange={(e) => setManualConfig(prev => ({ ...prev, displayPhoneNumber: e.target.value }))}
+                    placeholder="Ex: 5511999999999"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button 
+                  onClick={() => saveManualConfigMutation.mutate()}
+                  disabled={saveManualConfigMutation.isPending || !manualConfig.phoneNumberId || !manualConfig.accessToken}
+                >
+                  {saveManualConfigMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4 mr-2" />
+                  )}
+                  Salvar Credenciais
+                </Button>
+                <Button 
+                  variant="ghost"
+                  onClick={() => {
+                    setShowManualConfig(false);
+                    setManualConfig({ phoneNumberId: "", accessToken: "", wabaId: "", displayPhoneNumber: "" });
+                  }}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
 
         {/* Test Message Section */}
         {isConnected && (
