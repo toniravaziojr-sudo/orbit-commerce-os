@@ -116,20 +116,50 @@ Deno.serve(async (req) => {
           }
 
           // Route to tenant by phone_number_id
-          const { data: config, error: configError } = await supabase
+          let tenantId: string | null = null;
+
+          // First try: whatsapp_configs (production connections)
+          const { data: config } = await supabase
             .from("whatsapp_configs")
             .select("tenant_id")
             .eq("phone_number_id", phoneNumberId)
             .eq("provider", "meta")
             .single();
 
-          if (configError || !config) {
+          if (config) {
+            tenantId = config.tenant_id;
+            console.log(`[meta-whatsapp-webhook][${traceId}] Routed via whatsapp_configs to tenant: ${tenantId}`);
+          }
+
+          // Second try: test mode - check platform_credentials for test tenant
+          if (!tenantId) {
+            const { data: testConfig } = await supabase
+              .from("platform_credentials")
+              .select("credential_value")
+              .eq("credential_key", "META_WHATSAPP_TEST_TENANT_ID")
+              .eq("is_active", true)
+              .single();
+
+            const { data: testPhoneConfig } = await supabase
+              .from("platform_credentials")
+              .select("credential_value")
+              .eq("credential_key", "META_WHATSAPP_TEST_PHONE_NUMBER_ID")
+              .eq("is_active", true)
+              .single();
+
+            // If this phone_number_id matches the test config, route to test tenant
+            if (testConfig && testPhoneConfig && testPhoneConfig.credential_value === phoneNumberId) {
+              tenantId = testConfig.credential_value;
+              console.log(`[meta-whatsapp-webhook][${traceId}] Routed via TEST MODE to tenant: ${tenantId}`);
+            }
+          }
+
+          if (!tenantId) {
             console.error(`[meta-whatsapp-webhook][${traceId}] No tenant found for phone_number_id: ${phoneNumberId}`);
             continue;
           }
 
-          const tenantId = config.tenant_id;
-          console.log(`[meta-whatsapp-webhook][${traceId}] Routed to tenant: ${tenantId}`);
+          console.log(`[meta-whatsapp-webhook][${traceId}] Processing messages for tenant: ${tenantId}`);
 
           // Process messages
           if (value.messages && value.messages.length > 0) {

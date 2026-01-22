@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,10 +6,11 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, MessageCircle, Copy, Check, ExternalLink, Shield, RefreshCw, Eye, EyeOff, FlaskConical, CheckCircle2, XCircle, Send, AlertTriangle } from "lucide-react";
+import { Loader2, MessageCircle, Copy, Check, ExternalLink, Shield, RefreshCw, Eye, EyeOff, FlaskConical, CheckCircle2, XCircle, Send, AlertTriangle, Save } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
 
 interface MetaCredentials {
   META_APP_ID: string;
@@ -28,6 +29,7 @@ interface TestModeChecklist {
 
 export function WhatsAppMetaPlatformSettings() {
   const queryClient = useQueryClient();
+  const { currentTenant } = useAuth();
   const [showSecret, setShowSecret] = useState(false);
   const [showTestToken, setShowTestToken] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -46,6 +48,7 @@ export function WhatsAppMetaPlatformSettings() {
     message: "Olá! Esta é uma mensagem de teste do Comando Central.",
     templateName: "hello_world",
     useTemplate: true,
+    testTenantId: "", // Tenant where test messages will appear
   });
   const [testChecklist, setTestChecklist] = useState<TestModeChecklist>({
     sendOk: null,
@@ -53,6 +56,14 @@ export function WhatsAppMetaPlatformSettings() {
     eventReceived: null,
   });
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [testConfigSaved, setTestConfigSaved] = useState(false);
+
+  // Set default test tenant to current tenant
+  useEffect(() => {
+    if (currentTenant?.id && !testMode.testTenantId) {
+      setTestMode(prev => ({ ...prev, testTenantId: currentTenant.id }));
+    }
+  }, [currentTenant?.id]);
 
   // Fetch existing credentials
   const { data: credentials, isLoading } = useQuery({
@@ -146,6 +157,39 @@ export function WhatsAppMetaPlatformSettings() {
       toast.error(error.message || "Erro ao enviar mensagem de teste");
     },
   });
+
+  // Mutation to save test config (tenant + phone_number_id for routing)
+  const saveTestConfigMutation = useMutation({
+    mutationFn: async () => {
+      // Save test tenant ID
+      await supabase
+        .from("platform_credentials")
+        .upsert({
+          credential_key: "META_WHATSAPP_TEST_TENANT_ID",
+          credential_value: testMode.testTenantId,
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "credential_key" });
+
+      // Save test phone number ID
+      await supabase
+        .from("platform_credentials")
+        .upsert({
+          credential_key: "META_WHATSAPP_TEST_PHONE_NUMBER_ID",
+          credential_value: testMode.phoneNumberId,
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "credential_key" });
+    },
+    onSuccess: () => {
+      setTestConfigSaved(true);
+      toast.success("Configuração de teste salva! Respostas do WhatsApp irão para o Atendimento.");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Erro ao salvar configuração de teste");
+    },
+  });
+
   const generateVerifyToken = () => {
     const token = crypto.randomUUID();
     setFormData((prev) => ({ ...prev, META_WEBHOOK_VERIFY_TOKEN: token }));
@@ -377,6 +421,42 @@ export function WhatsAppMetaPlatformSettings() {
             </AlertDescription>
           </Alert>
 
+          {/* Tenant de destino */}
+          <div className="space-y-2 p-3 bg-muted/50 rounded-lg border">
+            <Label htmlFor="test-tenant-id" className="flex items-center gap-2">
+              <span>Tenant de Destino (Atendimento)</span>
+              {testConfigSaved && <Badge variant="outline" className="text-green-600 border-green-500 text-xs">Salvo</Badge>}
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                id="test-tenant-id"
+                value={testMode.testTenantId}
+                onChange={(e) => {
+                  setTestMode((prev) => ({ ...prev, testTenantId: e.target.value }));
+                  setTestConfigSaved(false);
+                }}
+                placeholder="ID do tenant"
+                className="font-mono text-sm"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => saveTestConfigMutation.mutate()}
+                disabled={saveTestConfigMutation.isPending || !testMode.testTenantId || !testMode.phoneNumberId}
+              >
+                {saveTestConfigMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Seu tenant atual: <code className="bg-muted px-1 rounded">{currentTenant?.name || currentTenant?.id}</code>. 
+              As mensagens de resposta do WhatsApp aparecerão no Atendimento deste tenant.
+            </p>
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             {/* Phone Number ID */}
             <div className="space-y-2">
@@ -384,7 +464,10 @@ export function WhatsAppMetaPlatformSettings() {
               <Input
                 id="test-phone-number-id"
                 value={testMode.phoneNumberId}
-                onChange={(e) => setTestMode((prev) => ({ ...prev, phoneNumberId: e.target.value }))}
+                onChange={(e) => {
+                  setTestMode((prev) => ({ ...prev, phoneNumberId: e.target.value }));
+                  setTestConfigSaved(false);
+                }}
                 placeholder="123456789012345"
               />
             </div>
