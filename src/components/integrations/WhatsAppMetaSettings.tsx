@@ -5,8 +5,25 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Loader2, MessageCircle, CheckCircle, XCircle, AlertCircle, ExternalLink, Send, RefreshCw, Unplug, Settings, ChevronDown, Save } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
+import { 
+  Loader2, 
+  CheckCircle, 
+  XCircle, 
+  AlertCircle, 
+  ExternalLink, 
+  Send, 
+  RefreshCw, 
+  Unplug, 
+  Settings, 
+  Save,
+  Shield,
+  Zap,
+  Globe,
+  Building2,
+  Phone
+} from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -68,7 +85,6 @@ export function WhatsAppMetaSettings() {
     if (connected === "true") {
       toast.success("WhatsApp conectado com sucesso!");
       refetch();
-      // Clean URL
       window.history.replaceState({}, "", window.location.pathname);
     } else if (error) {
       toast.error(`Erro ao conectar: ${decodeURIComponent(error)}`);
@@ -88,7 +104,6 @@ export function WhatsAppMetaSettings() {
       return data.data;
     },
     onSuccess: (data) => {
-      // Open Meta Embedded Signup in new window
       if (data.embedded_signup_url) {
         const width = 700;
         const height = 700;
@@ -116,7 +131,6 @@ export function WhatsAppMetaSettings() {
       if (!manualConfig.phoneNumberId.trim()) throw new Error("Phone Number ID é obrigatório");
       if (!manualConfig.accessToken.trim()) throw new Error("Access Token é obrigatório");
 
-      // Upsert the config
       const { data, error } = await supabase
         .from("whatsapp_configs")
         .upsert({
@@ -140,7 +154,7 @@ export function WhatsAppMetaSettings() {
       return data;
     },
     onSuccess: () => {
-      toast.success("Credenciais Meta WhatsApp salvas com sucesso!");
+      toast.success("WhatsApp Cloud API conectado com sucesso!");
       setShowManualConfig(false);
       setManualConfig({ phoneNumberId: "", accessToken: "", wabaId: "", displayPhoneNumber: "" });
       queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
@@ -201,31 +215,21 @@ export function WhatsAppMetaSettings() {
     },
   });
 
-  const getStatusBadge = (status: string | null) => {
-    switch (status) {
-      case "connected":
-        return <Badge className="bg-green-500"><CheckCircle className="h-3 w-3 mr-1" /> Conectado</Badge>;
-      case "connecting":
-        return <Badge className="bg-yellow-500"><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Conectando</Badge>;
-      case "token_expired":
-        return <Badge className="bg-orange-500"><AlertCircle className="h-3 w-3 mr-1" /> Token Expirado</Badge>;
-      case "error":
-        return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" /> Erro</Badge>;
-      default:
-        return <Badge variant="secondary">Desconectado</Badge>;
-    }
-  };
-
   const formatPhone = (phone: string | null) => {
     if (!phone) return "—";
-    return phone.replace(/(\d{2})(\d{2})(\d{5})(\d{4})/, "+$1 ($2) $3-$4");
+    // Try to format Brazilian numbers
+    const cleaned = phone.replace(/\D/g, '');
+    if (cleaned.length === 13 && cleaned.startsWith('55')) {
+      return `+${cleaned.slice(0, 2)} (${cleaned.slice(2, 4)}) ${cleaned.slice(4, 9)}-${cleaned.slice(9)}`;
+    }
+    return phone.startsWith('+') ? phone : `+${phone}`;
   };
 
   if (isLoading) {
     return (
-      <Card>
-        <CardContent className="flex items-center justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <Card className="border-2">
+        <CardContent className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
       </Card>
     );
@@ -234,50 +238,261 @@ export function WhatsAppMetaSettings() {
   const isConnected = config?.connection_status === "connected";
   const isExpired = config?.connection_status === "token_expired";
 
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <MessageCircle className="h-5 w-5 text-green-600" />
-            <CardTitle className="text-base">WhatsApp Cloud API (Meta Oficial)</CardTitle>
-          </div>
-          {getStatusBadge(config?.connection_status || null)}
-        </div>
-        <CardDescription>
-          Conexão oficial via Meta Business Platform. Não requer aprovação individual de número.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Connection Info */}
-        {isConnected && config && (
-          <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
-            <div className="grid grid-cols-2 gap-4 text-sm">
+  // CONNECTED STATE - Show connection details
+  if (isConnected && config) {
+    return (
+      <Card className="border-2 border-green-200 dark:border-green-900">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-100 dark:bg-green-900/30">
+                <svg viewBox="0 0 24 24" className="h-7 w-7 text-green-600" fill="currentColor">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                </svg>
+              </div>
               <div>
-                <span className="text-muted-foreground">Número:</span>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  WhatsApp Cloud API
+                  <Badge className="bg-green-600 text-white">
+                    <CheckCircle className="h-3 w-3 mr-1" /> Conectado
+                  </Badge>
+                </CardTitle>
+                <CardDescription className="flex items-center gap-1">
+                  <Shield className="h-3 w-3" />
+                  API Oficial Meta • Criptografia Ponta-a-Ponta
+                </CardDescription>
+              </div>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-6">
+          {/* Connection Details */}
+          <div className="grid gap-4 sm:grid-cols-2 p-4 rounded-lg bg-muted/50">
+            <div className="flex items-start gap-3">
+              <Phone className="h-4 w-4 mt-0.5 text-muted-foreground" />
+              <div>
+                <p className="text-xs text-muted-foreground">Número Conectado</p>
                 <p className="font-medium">{formatPhone(config.display_phone_number || config.phone_number)}</p>
               </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <Building2 className="h-4 w-4 mt-0.5 text-muted-foreground" />
               <div>
-                <span className="text-muted-foreground">Nome Verificado:</span>
+                <p className="text-xs text-muted-foreground">Nome Verificado</p>
                 <p className="font-medium">{config.verified_name || "—"}</p>
               </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <Globe className="h-4 w-4 mt-0.5 text-muted-foreground" />
               <div>
-                <span className="text-muted-foreground">WABA ID:</span>
+                <p className="text-xs text-muted-foreground">WABA ID</p>
                 <p className="font-mono text-xs">{config.waba_id || "—"}</p>
               </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <Zap className="h-4 w-4 mt-0.5 text-muted-foreground" />
               <div>
-                <span className="text-muted-foreground">Phone Number ID:</span>
+                <p className="text-xs text-muted-foreground">Phone Number ID</p>
                 <p className="font-mono text-xs">{config.phone_number_id || "—"}</p>
               </div>
             </div>
-            
-            {config.token_expires_at && (
-              <p className="text-xs text-muted-foreground">
-                Token expira em: {new Date(config.token_expires_at).toLocaleDateString("pt-BR")}
-              </p>
-            )}
           </div>
-        )}
+
+          {config.token_expires_at && (
+            <p className="text-xs text-muted-foreground text-center">
+              Token expira em: {new Date(config.token_expires_at).toLocaleDateString("pt-BR", { 
+                day: '2-digit', month: 'long', year: 'numeric' 
+              })}
+            </p>
+          )}
+
+          {/* Actions */}
+          <div className="flex flex-wrap gap-2 justify-center">
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Atualizar Status
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowManualConfig(!showManualConfig)}>
+              <Settings className="h-4 w-4 mr-2" />
+              Atualizar Credenciais
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              className="text-destructive hover:text-destructive"
+              onClick={() => {
+                if (confirm("Tem certeza que deseja desconectar o WhatsApp?")) {
+                  disconnectMutation.mutate();
+                }
+              }}
+              disabled={disconnectMutation.isPending}
+            >
+              {disconnectMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Unplug className="h-4 w-4 mr-2" />
+              )}
+              Desconectar
+            </Button>
+          </div>
+
+          {/* Manual Config Collapsible */}
+          <Collapsible open={showManualConfig} onOpenChange={setShowManualConfig}>
+            <CollapsibleContent>
+              <div className="border rounded-lg p-4 space-y-4 bg-muted/30 mt-4">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Settings className="h-4 w-4" />
+                  Atualizar Credenciais
+                </div>
+                
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="phone-number-id-edit">Phone Number ID *</Label>
+                    <Input
+                      id="phone-number-id-edit"
+                      value={manualConfig.phoneNumberId}
+                      onChange={(e) => setManualConfig(prev => ({ ...prev, phoneNumberId: e.target.value }))}
+                      placeholder={config.phone_number_id || "Ex: 123456789012345"}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="waba-id-edit">WABA ID</Label>
+                    <Input
+                      id="waba-id-edit"
+                      value={manualConfig.wabaId}
+                      onChange={(e) => setManualConfig(prev => ({ ...prev, wabaId: e.target.value }))}
+                      placeholder={config.waba_id || "Ex: 123456789012345"}
+                    />
+                  </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label htmlFor="access-token-edit">Novo Access Token *</Label>
+                    <Input
+                      id="access-token-edit"
+                      type="password"
+                      value={manualConfig.accessToken}
+                      onChange={(e) => setManualConfig(prev => ({ ...prev, accessToken: e.target.value }))}
+                      placeholder="Cole o novo token aqui"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={() => saveManualConfigMutation.mutate()}
+                    disabled={saveManualConfigMutation.isPending || !manualConfig.phoneNumberId || !manualConfig.accessToken}
+                    size="sm"
+                  >
+                    {saveManualConfigMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4 mr-2" />
+                    )}
+                    Atualizar
+                  </Button>
+                  <Button 
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setShowManualConfig(false);
+                      setManualConfig({ phoneNumberId: "", accessToken: "", wabaId: "", displayPhoneNumber: "" });
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          <Separator />
+
+          {/* Test Message Section */}
+          <div className="space-y-3">
+            <h4 className="font-medium text-sm flex items-center gap-2">
+              <Send className="h-4 w-4" />
+              Enviar Mensagem de Teste
+            </h4>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <Input
+                  placeholder="(11) 99999-9999"
+                  value={testPhone}
+                  onChange={(e) => setTestPhone(e.target.value)}
+                />
+              </div>
+              <Button 
+                onClick={() => testMutation.mutate()}
+                disabled={testMutation.isPending || !testPhone.trim()}
+              >
+                {testMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 mr-2" />
+                    Enviar
+                  </>
+                )}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Mensagens de texto só podem ser enviadas dentro da janela de 24h. Fora dela, use templates aprovados.
+            </p>
+          </div>
+
+          {/* Documentation Link */}
+          <div className="text-xs text-muted-foreground text-center pt-2 border-t">
+            <a 
+              href="https://developers.facebook.com/docs/whatsapp/cloud-api" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 hover:text-primary"
+            >
+              <ExternalLink className="h-3 w-3" />
+              Documentação Meta WhatsApp Cloud API
+            </a>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // DISCONNECTED/EXPIRED STATE - Show connection options
+  return (
+    <Card className="border-2">
+      <CardHeader className="text-center pb-2">
+        <div className="flex justify-center mb-4">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-green-500 to-green-600 shadow-lg">
+            <svg viewBox="0 0 24 24" className="h-9 w-9 text-white" fill="currentColor">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+            </svg>
+          </div>
+        </div>
+        <CardTitle className="text-xl">WhatsApp Cloud API</CardTitle>
+        <CardDescription className="text-base">
+          Integração Oficial Meta Business Platform
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent className="space-y-6">
+        {/* Benefits */}
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="flex flex-col items-center text-center p-3 rounded-lg bg-muted/50">
+            <Shield className="h-6 w-6 text-green-600 mb-2" />
+            <p className="text-xs font-medium">API Oficial</p>
+            <p className="text-xs text-muted-foreground">Suporte Meta garantido</p>
+          </div>
+          <div className="flex flex-col items-center text-center p-3 rounded-lg bg-muted/50">
+            <Zap className="h-6 w-6 text-green-600 mb-2" />
+            <p className="text-xs font-medium">Alta Performance</p>
+            <p className="text-xs text-muted-foreground">Sem limites de mensagens</p>
+          </div>
+          <div className="flex flex-col items-center text-center p-3 rounded-lg bg-muted/50">
+            <Globe className="h-6 w-6 text-green-600 mb-2" />
+            <p className="text-xs font-medium">Templates HSM</p>
+            <p className="text-xs text-muted-foreground">Notificações aprovadas</p>
+          </div>
+        </div>
 
         {/* Token Expired Warning */}
         {isExpired && (
@@ -290,211 +505,122 @@ export function WhatsAppMetaSettings() {
         )}
 
         {/* Error Message */}
-        {config?.last_error && !isConnected && (
+        {config?.last_error && (
           <Alert variant="destructive">
             <XCircle className="h-4 w-4" />
             <AlertDescription>{config.last_error}</AlertDescription>
           </Alert>
         )}
 
-        {/* Not Connected Info */}
-        {!isConnected && !isExpired && (
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              Conecte seu WhatsApp Business usando a API oficial da Meta. 
-              Você precisará de uma conta Meta Business configurada.
-            </AlertDescription>
-          </Alert>
-        )}
+        <Separator />
 
-        {/* Actions */}
-        <div className="flex flex-wrap gap-2">
-          {!isConnected ? (
-            <>
-              <Button 
-                onClick={() => connectMutation.mutate()}
-                disabled={connectMutation.isPending}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                {connectMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <MessageCircle className="h-4 w-4 mr-2" />
-                )}
-                Conectar WhatsApp
-              </Button>
-              <Button 
-                variant="outline"
-                onClick={() => setShowManualConfig(!showManualConfig)}
-              >
-                <Settings className="h-4 w-4 mr-2" />
-                Configuração Manual
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => refetch()}
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Atualizar Status
-              </Button>
-              <Button 
-                variant="outline"
-                size="sm"
-                onClick={() => setShowManualConfig(!showManualConfig)}
-              >
-                <Settings className="h-4 w-4 mr-2" />
-                Atualizar Credenciais
-              </Button>
-              <Button 
-                variant="destructive" 
-                size="sm"
-                onClick={() => {
-                  if (confirm("Tem certeza que deseja desconectar o WhatsApp?")) {
-                    disconnectMutation.mutate();
-                  }
-                }}
-                disabled={disconnectMutation.isPending}
-              >
-                {disconnectMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Unplug className="h-4 w-4 mr-2" />
-                )}
-                Desconectar
-              </Button>
-            </>
-          )}
-        </div>
-
-        {/* Manual Configuration Section */}
-        <Collapsible open={showManualConfig} onOpenChange={setShowManualConfig}>
-          <CollapsibleContent className="mt-4">
-            <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <Settings className="h-4 w-4" />
-                Configuração Manual de Credenciais
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Insira as credenciais do Meta for Developers. Essas informações são encontradas no painel do seu App Meta.
-              </p>
-              
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="phone-number-id">Phone Number ID *</Label>
-                  <Input
-                    id="phone-number-id"
-                    value={manualConfig.phoneNumberId}
-                    onChange={(e) => setManualConfig(prev => ({ ...prev, phoneNumberId: e.target.value }))}
-                    placeholder="Ex: 123456789012345"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="waba-id">WhatsApp Business Account ID</Label>
-                  <Input
-                    id="waba-id"
-                    value={manualConfig.wabaId}
-                    onChange={(e) => setManualConfig(prev => ({ ...prev, wabaId: e.target.value }))}
-                    placeholder="Ex: 123456789012345"
-                  />
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="access-token">Access Token *</Label>
-                  <Input
-                    id="access-token"
-                    type="password"
-                    value={manualConfig.accessToken}
-                    onChange={(e) => setManualConfig(prev => ({ ...prev, accessToken: e.target.value }))}
-                    placeholder="Token de acesso do Meta"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Use um token permanente do System User para produção, ou token temporário para testes.
-                  </p>
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="display-phone">Número do WhatsApp (para exibição)</Label>
-                  <Input
-                    id="display-phone"
-                    value={manualConfig.displayPhoneNumber}
-                    onChange={(e) => setManualConfig(prev => ({ ...prev, displayPhoneNumber: e.target.value }))}
-                    placeholder="Ex: 5511999999999"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <Button 
-                  onClick={() => saveManualConfigMutation.mutate()}
-                  disabled={saveManualConfigMutation.isPending || !manualConfig.phoneNumberId || !manualConfig.accessToken}
-                >
-                  {saveManualConfigMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4 mr-2" />
-                  )}
-                  Salvar Credenciais
-                </Button>
-                <Button 
-                  variant="ghost"
-                  onClick={() => {
-                    setShowManualConfig(false);
-                    setManualConfig({ phoneNumberId: "", accessToken: "", wabaId: "", displayPhoneNumber: "" });
-                  }}
-                >
-                  Cancelar
-                </Button>
-              </div>
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-
-        {/* Test Message Section */}
-        {isConnected && (
-          <div className="border-t pt-4 mt-4 space-y-3">
-            <h4 className="font-medium text-sm">Enviar Mensagem de Teste</h4>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <Label htmlFor="test-phone" className="sr-only">Número</Label>
-                <Input
-                  id="test-phone"
-                  placeholder="(11) 99999-9999"
-                  value={testPhone}
-                  onChange={(e) => setTestPhone(e.target.value)}
-                />
-              </div>
-              <Button 
-                onClick={() => testMutation.mutate()}
-                disabled={testMutation.isPending || !testPhone.trim()}
-                size="sm"
-              >
-                {testMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Nota: Mensagens de texto só podem ser enviadas dentro da janela de 24h. 
-              Fora dela, use templates aprovados.
+        {/* Connection Method */}
+        <div className="space-y-4">
+          <div className="text-center">
+            <h3 className="font-medium mb-1">Conectar sua Conta</h3>
+            <p className="text-sm text-muted-foreground">
+              Vincule seu WhatsApp Business usando suas credenciais do Meta for Developers
             </p>
           </div>
-        )}
+
+          {/* Manual Config Form (Primary for production) */}
+          <div className="border rounded-lg p-4 space-y-4 bg-card">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="phone-number-id">Phone Number ID *</Label>
+                <Input
+                  id="phone-number-id"
+                  value={manualConfig.phoneNumberId}
+                  onChange={(e) => setManualConfig(prev => ({ ...prev, phoneNumberId: e.target.value }))}
+                  placeholder="Ex: 123456789012345"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Encontre em: Meta for Developers → WhatsApp → Configuração da API
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="waba-id">WABA ID (opcional)</Label>
+                <Input
+                  id="waba-id"
+                  value={manualConfig.wabaId}
+                  onChange={(e) => setManualConfig(prev => ({ ...prev, wabaId: e.target.value }))}
+                  placeholder="Ex: 123456789012345"
+                />
+                <p className="text-xs text-muted-foreground">
+                  WhatsApp Business Account ID
+                </p>
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="access-token">Access Token *</Label>
+                <Input
+                  id="access-token"
+                  type="password"
+                  value={manualConfig.accessToken}
+                  onChange={(e) => setManualConfig(prev => ({ ...prev, accessToken: e.target.value }))}
+                  placeholder="Token de acesso permanente ou temporário"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Use um token permanente do System User para produção
+                </p>
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="display-phone">Número do WhatsApp</Label>
+                <Input
+                  id="display-phone"
+                  value={manualConfig.displayPhoneNumber}
+                  onChange={(e) => setManualConfig(prev => ({ ...prev, displayPhoneNumber: e.target.value }))}
+                  placeholder="Ex: 5511999999999"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Número conectado (para exibição)
+                </p>
+              </div>
+            </div>
+
+            <Button 
+              onClick={() => saveManualConfigMutation.mutate()}
+              disabled={saveManualConfigMutation.isPending || !manualConfig.phoneNumberId || !manualConfig.accessToken}
+              className="w-full bg-green-600 hover:bg-green-700"
+              size="lg"
+            >
+              {saveManualConfigMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <CheckCircle className="h-4 w-4 mr-2" />
+              )}
+              Conectar WhatsApp
+            </Button>
+          </div>
+
+          {/* OAuth Alternative (Secondary) */}
+          <div className="text-center">
+            <p className="text-xs text-muted-foreground mb-2">ou conecte via</p>
+            <Button 
+              variant="outline"
+              onClick={() => connectMutation.mutate()}
+              disabled={connectMutation.isPending}
+              size="sm"
+            >
+              {connectMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <ExternalLink className="h-4 w-4 mr-2" />
+              )}
+              Login com Meta Business
+            </Button>
+          </div>
+        </div>
 
         {/* Documentation Link */}
-        <div className="text-xs text-muted-foreground pt-2 border-t">
+        <div className="text-xs text-muted-foreground text-center pt-2 border-t">
           <a 
-            href="https://developers.facebook.com/docs/whatsapp/cloud-api" 
+            href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started" 
             target="_blank" 
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 hover:text-primary"
           >
             <ExternalLink className="h-3 w-3" />
-            Documentação Meta WhatsApp Cloud API
+            Como obter suas credenciais Meta
           </a>
         </div>
       </CardContent>
