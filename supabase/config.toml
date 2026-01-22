@@ -486,3 +486,6 @@ verify_jwt = false
 
 [functions.meta-deletion-status]
 verify_jwt = false
+
+[functions.meta-whatsapp-test-send]
+verify_jwt = true

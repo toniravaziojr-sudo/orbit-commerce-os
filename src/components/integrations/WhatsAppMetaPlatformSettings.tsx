@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, MessageCircle, Copy, Check, ExternalLink, Shield, RefreshCw, Eye, EyeOff } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { Loader2, MessageCircle, Copy, Check, ExternalLink, Shield, RefreshCw, Eye, EyeOff, FlaskConical, CheckCircle2, XCircle, Send, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -19,9 +20,16 @@ interface MetaCredentials {
 
 const DEFAULT_GRAPH_VERSION = "v21.0";
 
+interface TestModeChecklist {
+  sendOk: boolean | null;
+  webhookVerified: boolean | null;
+  eventReceived: boolean | null;
+}
+
 export function WhatsAppMetaPlatformSettings() {
   const queryClient = useQueryClient();
   const [showSecret, setShowSecret] = useState(false);
+  const [showTestToken, setShowTestToken] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [formData, setFormData] = useState<MetaCredentials>({
     META_APP_ID: "",
@@ -29,6 +37,22 @@ export function WhatsAppMetaPlatformSettings() {
     META_GRAPH_API_VERSION: DEFAULT_GRAPH_VERSION,
     META_WEBHOOK_VERIFY_TOKEN: "",
   });
+  
+  // Test mode state
+  const [testMode, setTestMode] = useState({
+    phoneNumberId: "",
+    accessToken: "",
+    toPhone: "",
+    message: "Olá! Esta é uma mensagem de teste do Comando Central.",
+    templateName: "hello_world",
+    useTemplate: true,
+  });
+  const [testChecklist, setTestChecklist] = useState<TestModeChecklist>({
+    sendOk: null,
+    webhookVerified: null,
+    eventReceived: null,
+  });
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   // Fetch existing credentials
   const { data: credentials, isLoading } = useQuery({
@@ -86,7 +110,42 @@ export function WhatsAppMetaPlatformSettings() {
     },
   });
 
-  // Generate verify token
+  // Test send mutation - token is NOT persisted
+  const testSendMutation = useMutation({
+    mutationFn: async () => {
+      setTestResult(null);
+      
+      const { data, error } = await supabase.functions.invoke("meta-whatsapp-test-send", {
+        body: {
+          phone_number_id: testMode.phoneNumberId,
+          access_token: testMode.accessToken, // NOT logged or saved
+          to_phone: testMode.toPhone,
+          message: testMode.useTemplate ? undefined : testMode.message,
+          template_name: testMode.useTemplate ? testMode.templateName : undefined,
+          template_language: "pt_BR",
+        },
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        setTestResult({ success: true, message: `Mensagem enviada! ID: ${data.message_id}` });
+        setTestChecklist((prev) => ({ ...prev, sendOk: true }));
+        toast.success("Mensagem de teste enviada com sucesso!");
+      } else {
+        setTestResult({ success: false, message: data.error || "Erro desconhecido" });
+        setTestChecklist((prev) => ({ ...prev, sendOk: false }));
+        toast.error(data.error || "Falha ao enviar mensagem de teste");
+      }
+    },
+    onError: (error: any) => {
+      setTestResult({ success: false, message: error.message || "Erro de conexão" });
+      setTestChecklist((prev) => ({ ...prev, sendOk: false }));
+      toast.error(error.message || "Erro ao enviar mensagem de teste");
+    },
+  });
   const generateVerifyToken = () => {
     const token = crypto.randomUUID();
     setFormData((prev) => ({ ...prev, META_WEBHOOK_VERIFY_TOKEN: token }));
@@ -282,6 +341,216 @@ export function WhatsAppMetaPlatformSettings() {
               </ol>
             </AlertDescription>
           </Alert>
+        </CardContent>
+      </Card>
+
+      {/* Test Mode Card - Admin Only */}
+      <Card className="border-amber-500/50">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FlaskConical className="h-5 w-5 text-amber-500" />
+              <CardTitle className="text-base">Modo Teste – Cloud API</CardTitle>
+            </div>
+            <Badge variant="outline" className="text-amber-600 border-amber-500">
+              Validação Meta
+            </Badge>
+          </div>
+          <CardDescription>
+            Use os dados de teste do Meta para validar a integração antes da aprovação do app.
+            <strong className="block mt-1 text-amber-600">⚠️ O token NÃO é salvo no sistema.</strong>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert variant="default" className="bg-amber-50 border-amber-200">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <AlertDescription className="text-sm text-amber-800">
+              Obtenha os dados de teste (Phone Number ID, WABA ID, Token temporário) no{" "}
+              <a
+                href="https://developers.facebook.com/apps"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline font-medium"
+              >
+                Meta for Developers → WhatsApp → API Setup
+              </a>
+            </AlertDescription>
+          </Alert>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            {/* Phone Number ID */}
+            <div className="space-y-2">
+              <Label htmlFor="test-phone-number-id">Phone Number ID</Label>
+              <Input
+                id="test-phone-number-id"
+                value={testMode.phoneNumberId}
+                onChange={(e) => setTestMode((prev) => ({ ...prev, phoneNumberId: e.target.value }))}
+                placeholder="123456789012345"
+              />
+            </div>
+
+            {/* Destinatário */}
+            <div className="space-y-2">
+              <Label htmlFor="test-to-phone">Telefone Destinatário (E.164)</Label>
+              <Input
+                id="test-to-phone"
+                value={testMode.toPhone}
+                onChange={(e) => setTestMode((prev) => ({ ...prev, toPhone: e.target.value }))}
+                placeholder="5511999999999"
+              />
+            </div>
+          </div>
+
+          {/* Access Token - Masked */}
+          <div className="space-y-2">
+            <Label htmlFor="test-access-token">Access Token (temporário do Meta)</Label>
+            <div className="flex gap-2">
+              <Input
+                id="test-access-token"
+                type={showTestToken ? "text" : "password"}
+                value={testMode.accessToken}
+                onChange={(e) => setTestMode((prev) => ({ ...prev, accessToken: e.target.value }))}
+                placeholder="EAAxxxxxxx..."
+                className="font-mono text-sm"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => setShowTestToken(!showTestToken)}
+              >
+                {showTestToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Este token é usado apenas nesta requisição e NÃO é salvo.
+            </p>
+          </div>
+
+          {/* Template vs Text */}
+          <div className="flex items-center gap-4">
+            <Label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="test-message-type"
+                checked={testMode.useTemplate}
+                onChange={() => setTestMode((prev) => ({ ...prev, useTemplate: true }))}
+                className="accent-primary"
+              />
+              Usar Template (recomendado)
+            </Label>
+            <Label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="test-message-type"
+                checked={!testMode.useTemplate}
+                onChange={() => setTestMode((prev) => ({ ...prev, useTemplate: false }))}
+                className="accent-primary"
+              />
+              Texto livre (requer janela 24h)
+            </Label>
+          </div>
+
+          {testMode.useTemplate ? (
+            <div className="space-y-2">
+              <Label htmlFor="test-template-name">Nome do Template</Label>
+              <Input
+                id="test-template-name"
+                value={testMode.templateName}
+                onChange={(e) => setTestMode((prev) => ({ ...prev, templateName: e.target.value }))}
+                placeholder="hello_world"
+              />
+              <p className="text-xs text-muted-foreground">
+                Use "hello_world" (template padrão do Meta) para testes iniciais.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="test-message">Mensagem de Texto</Label>
+              <Input
+                id="test-message"
+                value={testMode.message}
+                onChange={(e) => setTestMode((prev) => ({ ...prev, message: e.target.value }))}
+                placeholder="Olá! Esta é uma mensagem de teste."
+              />
+            </div>
+          )}
+
+          {/* Send Button */}
+          <Button
+            onClick={() => testSendMutation.mutate()}
+            disabled={
+              testSendMutation.isPending ||
+              !testMode.phoneNumberId ||
+              !testMode.accessToken ||
+              !testMode.toPhone
+            }
+            className="w-full"
+            variant="outline"
+          >
+            {testSendMutation.isPending ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4 mr-2" />
+            )}
+            Enviar Mensagem de Teste
+          </Button>
+
+          {/* Test Result */}
+          {testResult && (
+            <Alert variant={testResult.success ? "default" : "destructive"}>
+              {testResult.success ? (
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+              ) : (
+                <XCircle className="h-4 w-4" />
+              )}
+              <AlertDescription className="text-sm">
+                {testResult.message}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <Separator />
+
+          {/* Checklist */}
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Checklist de Validação:</p>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-sm">
+                {testChecklist.sendOk === null ? (
+                  <div className="w-4 h-4 rounded-full border border-muted-foreground/30" />
+                ) : testChecklist.sendOk ? (
+                  <CheckCircle2 className="w-4 h-4 text-green-600" />
+                ) : (
+                  <XCircle className="w-4 h-4 text-destructive" />
+                )}
+                <span>Envio de mensagem via Cloud API</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                {testChecklist.webhookVerified === null ? (
+                  <div className="w-4 h-4 rounded-full border border-muted-foreground/30" />
+                ) : testChecklist.webhookVerified ? (
+                  <CheckCircle2 className="w-4 h-4 text-green-600" />
+                ) : (
+                  <XCircle className="w-4 h-4 text-destructive" />
+                )}
+                <span>Webhook verificado pelo Meta</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                {testChecklist.eventReceived === null ? (
+                  <div className="w-4 h-4 rounded-full border border-muted-foreground/30" />
+                ) : testChecklist.eventReceived ? (
+                  <CheckCircle2 className="w-4 h-4 text-green-600" />
+                ) : (
+                  <XCircle className="w-4 h-4 text-destructive" />
+                )}
+                <span>Evento recebido no Atendimento</span>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Após enviar uma mensagem de teste, responda pelo WhatsApp para verificar se o webhook está recebendo eventos.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
