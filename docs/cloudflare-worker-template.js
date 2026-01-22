@@ -37,27 +37,49 @@ const STATIC_PATHS = [
 // Mapeamento de paths públicos para Edge Functions do Supabase
 // Usado para endpoints de integrações (Meta, Stripe, Shopee, etc.)
 // IMPORTANTE: Adicionar novas integrações aqui!
+// 
+// SUPORTA DOIS FORMATOS:
+// 1. app.comandocentral.com.br/integrations/meta/... (legacy)
+// 2. integrations.comandocentral.com.br/meta/... (novo - subdomínio dedicado)
+
 const EDGE_FUNCTION_ROUTES = {
   // Meta / Facebook / WhatsApp
   '/integrations/meta/deauthorize': 'meta-deauthorize-callback',
   '/integrations/meta/deletion-status': 'meta-deletion-status',
   '/integrations/meta/whatsapp-callback': 'meta-whatsapp-onboarding-callback',
   '/integrations/meta/whatsapp-webhook': 'meta-whatsapp-webhook',
+  // Formato curto (subdomínio integrations)
+  '/meta/deauthorize': 'meta-deauthorize-callback',
+  '/meta/deletion-status': 'meta-deletion-status',
+  '/meta/whatsapp-callback': 'meta-whatsapp-onboarding-callback',
+  '/meta/whatsapp-webhook': 'meta-whatsapp-webhook',
   
   // Shopee
   '/integrations/shopee/callback': 'shopee-oauth-callback',
   '/integrations/shopee/webhook': 'shopee-webhook',
+  '/shopee/callback': 'shopee-oauth-callback',
+  '/shopee/webhook': 'shopee-webhook',
   
   // Mercado Pago (Billing)
   '/integrations/billing/webhook': 'billing-webhook',
+  '/billing/webhook': 'billing-webhook',
   
   // Email (SendGrid Inbound Parse)
   '/integrations/emails/inbound': 'support-email-inbound',
+  '/emails/inbound': 'support-email-inbound',
   
   // Mercado Livre
   '/integrations/meli/callback': 'meli-oauth-callback',
   '/integrations/meli/webhook': 'meli-webhook',
+  '/meli/callback': 'meli-oauth-callback',
+  '/meli/webhook': 'meli-webhook',
 };
+
+// Hosts permitidos para proxy de Edge Functions
+const INTEGRATION_HOSTS = [
+  'app.comandocentral.com.br',
+  'integrations.comandocentral.com.br',
+];
 
 function isStaticPath(pathname) {
   const p = pathname.toLowerCase();
@@ -66,6 +88,10 @@ function isStaticPath(pathname) {
 
 function isApiPath(pathname) {
   return pathname.toLowerCase().startsWith('/api/');
+}
+
+function isIntegrationHost(hostname) {
+  return INTEGRATION_HOSTS.includes(hostname.toLowerCase());
 }
 
 function isEdgeFunctionRoute(pathname) {
@@ -305,9 +331,10 @@ export default {
     const cfHost = request.headers.get('cf-connecting-host');
     const publicHost = (cfHost || edgeHost).toLowerCase().replace(/^www\./, '');
 
-    // ========== EDGE FUNCTION PROXY (app.comandocentral.com.br only) ==========
-    // Proxy de integrações: /integrations/meta/* → Edge Functions
-    if (publicHost === 'app.comandocentral.com.br' && isEdgeFunctionRoute(url.pathname)) {
+    // ========== EDGE FUNCTION PROXY ==========
+    // Proxy de integrações: /integrations/meta/* ou /meta/* → Edge Functions
+    // Suporta: app.comandocentral.com.br e integrations.comandocentral.com.br
+    if (isIntegrationHost(publicHost) && isEdgeFunctionRoute(url.pathname)) {
       const functionName = getEdgeFunctionName(url.pathname);
       const targetUrl = `${SUPABASE_URL}/functions/v1/${functionName}`;
       
