@@ -289,6 +289,50 @@ Deno.serve(async (req) => {
                       status: "new" // Reset to new when customer sends message
                     })
                     .eq("id", conversationId);
+
+                  // === TRIGGER AI RESPONSE ===
+                  // Check if AI is enabled for this tenant's WhatsApp channel
+                  const { data: aiConfig } = await supabase
+                    .from("ai_support_config")
+                    .select("is_enabled")
+                    .eq("tenant_id", tenantId)
+                    .single();
+
+                  const { data: channelAiConfig } = await supabase
+                    .from("ai_channel_config")
+                    .select("is_enabled")
+                    .eq("tenant_id", tenantId)
+                    .eq("channel_type", "whatsapp")
+                    .single();
+
+                  // AI is enabled if global config is on AND (no channel config OR channel config is on)
+                  const aiEnabled = aiConfig?.is_enabled && (channelAiConfig?.is_enabled !== false);
+
+                  if (aiEnabled) {
+                    console.log(`[meta-whatsapp-webhook][${traceId}] AI enabled, invoking ai-support-chat...`);
+                    try {
+                      const aiResponse = await fetch(
+                        `${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-support-chat`,
+                        {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                          },
+                          body: JSON.stringify({
+                            conversation_id: conversationId,
+                            tenant_id: tenantId,
+                          }),
+                        }
+                      );
+                      const aiResult = await aiResponse.text();
+                      console.log(`[meta-whatsapp-webhook][${traceId}] AI response (${aiResponse.status}):`, aiResult.substring(0, 300));
+                    } catch (aiError) {
+                      console.error(`[meta-whatsapp-webhook][${traceId}] AI invocation error:`, aiError);
+                    }
+                  } else {
+                    console.log(`[meta-whatsapp-webhook][${traceId}] AI not enabled for this tenant/channel`);
+                  }
                 }
               }
             }
