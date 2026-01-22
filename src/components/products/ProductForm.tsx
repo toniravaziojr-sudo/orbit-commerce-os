@@ -487,11 +487,10 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       if (isEditing && product) {
         await updateProduct.mutateAsync({ id: product.id, ...data });
         
-        // Update related products, components, and variants
+        // Update related products and variants
+        // Note: Components are managed directly by ProductStructureEditor (saves to DB on each action)
+        // so we don't call updateComponents here to avoid overwriting with empty pendingComponents
         await updateRelatedProducts(product.id);
-        if (data.product_format === 'with_composition') {
-          await updateComponents(product.id);
-        }
         if (data.product_format === 'with_variants') {
           await updateVariants(product.id);
         }
