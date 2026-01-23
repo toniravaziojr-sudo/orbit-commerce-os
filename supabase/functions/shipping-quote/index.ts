@@ -461,8 +461,9 @@ async function quoteCorreios(
 
 // Loggi Quote Adapter
 // Auth: OAuth2 com client_id/client_secret (secrets da plataforma)
-// Tenant fornece: integration_code, company_id, origin_cep
+// Tenant fornece: integration_code, company_id, origin_cep + endereço completo
 // Docs: https://docs.api.loggi.com/reference/quotationapi
+// IMPORTANTE: A API de cotação da Loggi exige endereço completo (correiosAddress), não apenas CEP
 async function quoteLoggi(
   provider: ProviderRecord,
   originCep: string,
@@ -476,6 +477,13 @@ async function quoteLoggi(
   // Tenant credentials
   const companyId = provider.credentials.company_id as string;
   const providerOriginCep = provider.credentials.origin_cep as string;
+  
+  // Tenant sender address (from credentials or settings)
+  const senderStreet = provider.credentials.origin_street as string || provider.settings.sender_street as string || '';
+  const senderNumber = provider.credentials.origin_number as string || provider.settings.sender_number as string || '';
+  const senderNeighborhood = provider.credentials.origin_neighborhood as string || provider.settings.sender_neighborhood as string || '';
+  const senderCity = provider.credentials.origin_city as string || provider.settings.sender_city as string || '';
+  const senderState = provider.credentials.origin_state as string || provider.settings.sender_state as string || '';
 
   if (!clientId || !clientSecret) {
     console.warn('[Loggi] Platform secrets not configured (LOGGI_CLIENT_ID, LOGGI_CLIENT_SECRET)');
@@ -489,6 +497,8 @@ async function quoteLoggi(
 
   // Use provider's origin_cep if available
   const effectiveOriginCep = (providerOriginCep || originCep).replace(/\D/g, '');
+  const effectiveRecipientCep = recipientCep.replace(/\D/g, '');
+  
   if (!effectiveOriginCep) {
     console.warn('[Loggi] No origin CEP available');
     return [];
@@ -525,28 +535,111 @@ async function quoteLoggi(
 
     console.log('[Loggi] OAuth2 authentication successful');
 
-    // Step 2: Fazer cotação
+    // Step 2: Lookup CEPs to get complete addresses if not provided
+    // We need full addresses for Loggi API to work correctly
+    let originAddress = {
+      logradouro: senderStreet,
+      numero: senderNumber,
+      bairro: senderNeighborhood,
+      cep: effectiveOriginCep,
+      cidade: senderCity,
+      uf: senderState,
+    };
+
+    let recipientAddress = {
+      logradouro: '',
+      numero: '',
+      bairro: '',
+      cep: effectiveRecipientCep,
+      cidade: '',
+      uf: '',
+    };
+
+    // If we don't have complete origin address, try CEP lookup
+    if (!originAddress.logradouro || !originAddress.cidade) {
+      console.log('[Loggi] Origin address incomplete, attempting CEP lookup...');
+      const originLookup = await lookupCep(effectiveOriginCep);
+      if (originLookup) {
+        originAddress = {
+          logradouro: originAddress.logradouro || originLookup.logradouro || 'Endereço',
+          numero: originAddress.numero || '1',
+          bairro: originAddress.bairro || originLookup.bairro || 'Centro',
+          cep: effectiveOriginCep,
+          cidade: originAddress.cidade || originLookup.localidade || 'São Paulo',
+          uf: originAddress.uf || originLookup.uf || 'SP',
+        };
+      } else {
+        // Fallback to generic address if CEP lookup fails
+        originAddress = {
+          logradouro: originAddress.logradouro || 'Rua Principal',
+          numero: originAddress.numero || '1',
+          bairro: originAddress.bairro || 'Centro',
+          cep: effectiveOriginCep,
+          cidade: originAddress.cidade || 'São Paulo',
+          uf: originAddress.uf || 'SP',
+        };
+      }
+    }
+
+    // Always lookup recipient CEP for complete address
+    const recipientLookup = await lookupCep(effectiveRecipientCep);
+    if (recipientLookup) {
+      recipientAddress = {
+        logradouro: recipientLookup.logradouro || 'Endereço',
+        numero: '1', // We don't know the number
+        bairro: recipientLookup.bairro || 'Centro',
+        cep: effectiveRecipientCep,
+        cidade: recipientLookup.localidade || 'São Paulo',
+        uf: recipientLookup.uf || 'SP',
+      };
+    } else {
+      // Fallback for recipient
+      recipientAddress = {
+        logradouro: 'Rua',
+        numero: '1',
+        bairro: 'Centro',
+        cep: effectiveRecipientCep,
+        cidade: 'Cidade',
+        uf: 'SP',
+      };
+    }
+
+    // Step 3: Build payload with complete addresses using correiosAddress format
     const quotePayload = {
-      pickup: {
+      shipFrom: {
         address: {
-          zip_code: effectiveOriginCep,
+          correiosAddress: {
+            logradouro: originAddress.logradouro,
+            numero: originAddress.numero,
+            bairro: originAddress.bairro,
+            cep: originAddress.cep,
+            cidade: originAddress.cidade,
+            uf: originAddress.uf,
+          },
         },
       },
-      delivery: {
+      shipTo: {
         address: {
-          zip_code: recipientCep.replace(/\D/g, ''),
+          correiosAddress: {
+            logradouro: recipientAddress.logradouro,
+            numero: recipientAddress.numero,
+            bairro: recipientAddress.bairro,
+            cep: recipientAddress.cep,
+            cidade: recipientAddress.cidade,
+            uf: recipientAddress.uf,
+          },
         },
       },
       packages: [{
-        weight_g: Math.max(100, Math.round(totals.weight * 1000)), // Convert to grams, min 100g
-        height_cm: Math.max(2, Math.round(totals.height)),
-        width_cm: Math.max(11, Math.round(totals.width)),
-        length_cm: Math.max(16, Math.round(totals.length)),
+        weightG: Math.max(100, Math.round(totals.weight * 1000)), // Convert to grams, min 100g
+        heightCm: Math.max(2, Math.round(totals.height)),
+        widthCm: Math.max(11, Math.round(totals.width)),
+        lengthCm: Math.max(16, Math.round(totals.length)),
       }],
-      declared_value: Math.round(totals.value * 100), // Convert to cents
+      declaredValue: Math.round(totals.value * 100), // Convert to cents
     };
 
-    console.log('[Loggi] Requesting quote with:', JSON.stringify(quotePayload));
+    console.log('[Loggi] Requesting quote with correiosAddress format:', JSON.stringify(quotePayload));
 
     const quoteResponse = await fetch(
       `https://api.loggi.com/v1/companies/${companyId}/quotations`,
@@ -602,6 +695,17 @@ async function quoteLoggi(
           quotation_id: quoteData.id,
         },
       });
+    } else if (quoteData.estimatedPrice) {
+      // Alternative response format
+      options.push({
+        source_provider: 'loggi',
+        carrier: 'Loggi',
+        service_code: 'loggi_express',
+        service_name: 'Loggi Express',
+        price: (quoteData.estimatedPrice || 0) / 100,
+        estimated_days: quoteData.estimatedDeliveryDays || 3,
+        metadata: {},
+      });
     }
 
     console.log(`[Loggi] Returning ${options.length} options`);
@@ -609,6 +713,33 @@ async function quoteLoggi(
   } catch (error) {
     console.error('[Loggi] Quote error:', error);
     return [];
+  }
+}
+
+// Helper function to lookup CEP via ViaCEP API (free, no auth required)
+async function lookupCep(cep: string): Promise<{ logradouro: string; bairro: string; localidade: string; uf: string } | null> {
+  try {
+    const cleanCep = cep.replace(/\D/g, '');
+    if (cleanCep.length !== 8) return null;
+    
+    const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+    });
+    
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    if (data.erro) return null;
+    
+    return {
+      logradouro: data.logradouro || '',
+      bairro: data.bairro || '',
+      localidade: data.localidade || '',
+      uf: data.uf || '',
+    };
+  } catch {
+    return null;
   }
 }
 
