@@ -127,10 +127,27 @@ export function useMetaConnection() {
         `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes`
       );
 
-      // Verificar periodicamente se o popup fechou (callback foi processado)
+      // Escutar mensagem do popup (quando o OAuth terminar)
+      const handleMessage = (event: MessageEvent) => {
+        if (event.data?.type === "meta:connected") {
+          window.removeEventListener("message", handleMessage);
+          // Invalidar query para atualizar status
+          queryClient.invalidateQueries({ queryKey: ["meta-connection-status"] });
+          
+          if (event.data.success) {
+            toast.success("Conta Meta conectada com sucesso!");
+          } else if (event.data.error) {
+            toast.error(event.data.error);
+          }
+        }
+      };
+      window.addEventListener("message", handleMessage);
+
+      // Fallback: verificar periodicamente se o popup fechou (caso postMessage falhe)
       const checkPopup = setInterval(() => {
         if (popup?.closed) {
           clearInterval(checkPopup);
+          window.removeEventListener("message", handleMessage);
           // Invalidar query para atualizar status
           queryClient.invalidateQueries({ queryKey: ["meta-connection-status"] });
         }
