@@ -200,7 +200,7 @@ async function quoteFrenet(
     const services = data.ShippingSevicesArray || [];
 
     return services
-      .filter((s: any) => !s.Error && s.ShippingPrice > 0)
+      .filter((s: any) => !s.Error && parseFloat(s.ShippingPrice) >= 0)
       .map((s: any) => ({
         source_provider: 'frenet',
         carrier: s.Carrier || 'Frenet',
