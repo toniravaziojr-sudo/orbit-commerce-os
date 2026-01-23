@@ -24,10 +24,30 @@ Sistema completo de email marketing com listas segmentadas, templates personaliz
 
 ---
 
+## Modelo de Dados: Listas Baseadas em Tags
+
+### REGRA FIXA: Toda lista DEVE ter uma tag vinculada
+
+```
+Tag (customer_tags) → Lista (email_marketing_lists) → Subscribers (email_marketing_subscribers)
+     ↑                         |                              ↑
+     |                         +---------- tag_id NOT NULL ---+
+     |                                                        |
+Customers ← customer_tag_assignments → Sync automático -------+
+```
+
+**Fluxo:**
+1. Admin cria uma tag (ex: "Leads Quentes")
+2. Admin cria lista vinculada à tag
+3. Sistema sincroniza automaticamente todos os customers com essa tag para `email_marketing_subscribers`
+4. Quando um customer recebe a tag, automaticamente vira subscriber
+
+---
+
 ## Tabelas do Banco
 
 ### email_marketing_lists
-Listas segmentadas de contatos.
+Listas segmentadas de contatos - **OBRIGATÓRIO vincular a uma tag**.
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
@@ -35,10 +55,10 @@ Listas segmentadas de contatos.
 | `tenant_id` | UUID | FK tenants |
 | `name` | TEXT | Nome da lista |
 | `description` | TEXT | Descrição |
-| `is_active` | BOOLEAN | Ativa para envio |
+| `tag_id` | UUID | **FK customer_tags (NOT NULL)** |
 
 ### email_marketing_subscribers
-Assinantes com status e tags.
+Assinantes com status - **sincronizados automaticamente via tags**.
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
@@ -48,9 +68,9 @@ Assinantes com status e tags.
 | `name` | TEXT | Nome do assinante |
 | `phone` | TEXT | Telefone |
 | `status` | ENUM | `active`, `unsubscribed`, `bounced` |
-| `source` | TEXT | Origem (ex: `form:newsletter`) |
-| `tags` | TEXT[] | Tags para segmentação |
-| `metadata` | JSONB | Dados extras |
+| `source` | TEXT | Origem (ex: `tag_sync`, `form:newsletter`) |
+| `customer_id` | UUID | FK customers (vínculo com cliente) |
+| `created_from` | TEXT | Origem da criação |
 
 ### email_marketing_templates
 Modelos de email com variáveis dinâmicas.
@@ -218,15 +238,38 @@ Configuração em `email_provider_configs`:
 
 | Proibido | Correto |
 |----------|---------|
+| Criar lista sem tag | Toda lista DEVE ter tag vinculada |
 | Enviar email sem verificar status | Sempre checar `status === 'active'` |
 | Hardcode de from_email | Usar config do tenant |
 | Enviar sem link de descadastro | Sempre incluir unsubscribe link |
+| Adicionar subscriber manualmente | Usar tags - sync é automático |
+
+---
+
+## Triggers Automáticos
+
+### trg_auto_tag_cliente_on_payment
+Quando `payment_status` de um pedido muda para `paid`:
+- Remove todas as tags do cliente
+- Adiciona tag "Cliente" (verde #10B981)
+- Se a tag não existir, cria automaticamente
+
+### trg_sync_subscriber_on_tag
+Quando um cliente recebe uma tag:
+- Para cada lista vinculada à tag, insere/atualiza subscriber
+
+### trg_auto_sync_list_subscribers
+Quando uma lista é criada:
+- Sincroniza automaticamente todos os customers que já têm a tag
 
 ---
 
 ## Checklist
 
 - [x] Listas CRUD funcional
+- [x] **Tag obrigatória em listas**
+- [x] **Sync automático de subscribers por tag**
+- [x] **Auto-tag "Cliente" ao aprovar pedido**
 - [x] Subscribers com status correto
 - [x] Templates com variáveis
 - [x] Broadcast enfileira corretamente
