@@ -3,7 +3,6 @@ import {
   CreditCard,
   Share2,
   Boxes,
-  MessageSquare,
   Globe,
   MoreHorizontal,
   Shield,
@@ -13,9 +12,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PaymentGatewaySettings } from "@/components/payments/PaymentGatewaySettings";
-import { WhatsAppProviderTabs } from "@/components/integrations/WhatsAppProviderTabs";
 import { LateConnectionSettings } from "@/components/integrations/LateConnectionSettings";
-import { MetaConnectionSettings } from "@/components/integrations/MetaConnectionSettings";
+import { MetaUnifiedSettings } from "@/components/integrations/MetaUnifiedSettings";
 import { MarketplacesIntegrationTab } from "@/components/integrations/MarketplacesIntegrationTab";
 import { DomainAndEmailSettings } from "@/components/integrations/DomainAndEmailSettings";
 import { usePaymentProviders } from "@/hooks/usePaymentProviders";
@@ -61,7 +59,7 @@ export default function Integrations() {
       />
 
       {/* Quick Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-3">
         <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setActiveTab("payments")}>
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
@@ -86,7 +84,7 @@ export default function Integrations() {
                 <Share2 className="h-6 w-6 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Redes Sociais</p>
+                <p className="text-sm text-muted-foreground">Meta</p>
                 <p className="text-2xl font-bold">
                   {socialAccountsCount}
                   <span className="text-sm font-normal text-muted-foreground ml-1">{lateConnected ? "conectado" : "pendente"}</span>
@@ -112,23 +110,6 @@ export default function Integrations() {
             </div>
           </CardContent>
         </Card>
-
-        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setActiveTab("whatsapp")}>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/30">
-                <MessageSquare className="h-6 w-6 text-green-600 dark:text-green-400" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">WhatsApp</p>
-                <p className="text-2xl font-bold">
-                  0
-                  <span className="text-sm font-normal text-muted-foreground ml-1">ativos</span>
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -139,15 +120,11 @@ export default function Integrations() {
           </TabsTrigger>
           <TabsTrigger value="social" className="gap-2">
             <Share2 className="h-4 w-4" />
-            <span className="hidden sm:inline">Redes Sociais</span>
+            <span className="hidden sm:inline">Meta</span>
           </TabsTrigger>
           <TabsTrigger value="marketplaces" className="gap-2">
             <Boxes className="h-4 w-4" />
             <span className="hidden sm:inline">Marketplaces</span>
-          </TabsTrigger>
-          <TabsTrigger value="whatsapp" className="gap-2">
-            <MessageSquare className="h-4 w-4" />
-            <span className="hidden sm:inline">WhatsApp</span>
           </TabsTrigger>
           <TabsTrigger value="domain-email" className="gap-2">
             <Globe className="h-4 w-4" />
@@ -171,16 +148,12 @@ export default function Integrations() {
         </TabsContent>
 
         <TabsContent value="social" className="space-y-6">
-          <MetaConnectionSettings />
+          <MetaUnifiedSettings />
           <LateConnectionSettings />
         </TabsContent>
 
         <TabsContent value="marketplaces" className="space-y-6">
           <MarketplacesIntegrationTab />
-        </TabsContent>
-
-        <TabsContent value="whatsapp" className="space-y-6">
-          <WhatsAppProviderTabs />
         </TabsContent>
 
         <TabsContent value="domain-email" className="space-y-6">
