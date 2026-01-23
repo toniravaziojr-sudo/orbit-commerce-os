@@ -8,23 +8,35 @@ import {
   Save,
   ExternalLink,
   RefreshCw,
-  TestTube,
   CreditCard,
-  Shield
+  Shield,
+  Unplug,
+  ChevronDown,
+  ChevronUp,
+  Plug
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { usePaymentProviders, PaymentProviderInput } from '@/hooks/usePaymentProviders';
 import { PlatformAdminGate } from '@/components/auth/PlatformAdminGate';
 import { Link } from 'react-router-dom';
+import { toast } from 'sonner';
 
 interface GatewayField {
   key: string;
@@ -72,11 +84,11 @@ const GATEWAY_DEFINITIONS: GatewayDefinition[] = [
 ];
 
 export function PaymentGatewaySettings() {
-  const { providers, isLoading, upsertProvider, getProvider } = usePaymentProviders();
+  const { providers, isLoading, upsertProvider, deleteProvider, getProvider } = usePaymentProviders();
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
+  const [expandedGateway, setExpandedGateway] = useState<string | null>(null);
+  const [disconnectDialog, setDisconnectDialog] = useState<string | null>(null);
   const [formData, setFormData] = useState<Record<string, {
-    enabled: boolean;
-    environment: 'sandbox' | 'production';
     fields: Record<string, string>;
   }>>({});
 
@@ -87,8 +99,6 @@ export function PaymentGatewaySettings() {
     GATEWAY_DEFINITIONS.forEach(gateway => {
       const saved = getProvider(gateway.id);
       initialData[gateway.id] = {
-        enabled: saved?.is_enabled ?? false,
-        environment: (saved?.environment as 'sandbox' | 'production') ?? 'sandbox',
         fields: gateway.fields.reduce((acc, field) => {
           acc[field.key] = saved?.credentials?.[field.key] || '';
           return acc;
@@ -117,38 +127,28 @@ export function PaymentGatewaySettings() {
     }));
   };
 
-  const toggleEnabled = (gatewayId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [gatewayId]: {
-        ...prev[gatewayId],
-        enabled: !prev[gatewayId]?.enabled,
-      },
-    }));
-  };
-
-  const setEnvironment = (gatewayId: string, env: 'sandbox' | 'production') => {
-    setFormData(prev => ({
-      ...prev,
-      [gatewayId]: {
-        ...prev[gatewayId],
-        environment: env,
-      },
-    }));
-  };
-
   const handleSave = async (gatewayId: string) => {
     const data = formData[gatewayId];
     if (!data) return;
 
     const input: PaymentProviderInput = {
       provider: gatewayId,
-      is_enabled: data.enabled,
-      environment: data.environment,
+      is_enabled: true,
+      environment: 'production',
       credentials: data.fields,
     };
 
     await upsertProvider.mutateAsync(input);
+    setExpandedGateway(null);
+  };
+
+  const handleDisconnect = async (gatewayId: string) => {
+    const saved = getProvider(gatewayId);
+    if (saved) {
+      await deleteProvider.mutateAsync(saved.id);
+      toast.success('Gateway desconectado');
+    }
+    setDisconnectDialog(null);
   };
 
   const isConfigured = (gatewayId: string) => {
@@ -159,242 +159,220 @@ export function PaymentGatewaySettings() {
     return gateway.fields.every(f => data.fields[f.key]?.trim() !== '');
   };
 
+  const isConnected = (gatewayId: string) => {
+    const saved = getProvider(gatewayId);
+    return saved && saved.is_enabled;
+  };
+
+  const maskCredential = (value: string) => {
+    if (!value || value.length < 8) return '••••••••';
+    return value.substring(0, 4) + '••••' + value.substring(value.length - 4);
+  };
+
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-32" />
-        <Skeleton className="h-64" />
-        <Skeleton className="h-64" />
+      <div className="space-y-4">
+        <Skeleton className="h-24" />
+        <Skeleton className="h-24" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            Gateways de Pagamento
-          </CardTitle>
-          <CardDescription>
-            Configure os gateways para processar pagamentos na sua loja
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="bg-primary/10 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <CheckCircle className="h-5 w-5 text-primary mt-0.5" />
-              <div className="text-sm">
-                <p className="font-medium">Integração ativa</p>
-                <p className="text-muted-foreground">
-                  Configure as credenciais abaixo. O checkout da loja usará automaticamente o gateway ativo.
-                </p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+        <Settings className="h-4 w-4" />
+        <span>Configure os gateways para processar pagamentos na sua loja</span>
+      </div>
 
       {GATEWAY_DEFINITIONS.map((gateway) => {
-        const data = formData[gateway.id] || { enabled: false, environment: 'sandbox', fields: {} };
-        const configured = isConfigured(gateway.id);
+        const data = formData[gateway.id] || { fields: {} };
+        const connected = isConnected(gateway.id);
         const saved = getProvider(gateway.id);
+        const isExpanded = expandedGateway === gateway.id;
 
         return (
-          <Card key={gateway.id}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{gateway.logo}</span>
-                  <div>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      {gateway.name}
-                      {configured && data.enabled && (
-                        <Badge variant="default" className="gap-1">
-                          <CheckCircle className="h-3 w-3" />
-                          Ativo
-                        </Badge>
-                      )}
-                      {configured && !data.enabled && (
-                        <Badge variant="secondary">Configurado</Badge>
-                      )}
-                      {saved && (
-                        <Badge variant={data.environment === 'production' ? 'destructive' : 'outline'}>
-                          {data.environment === 'production' ? 'Produção' : 'Sandbox'}
-                        </Badge>
-                      )}
-                    </CardTitle>
-                    <CardDescription>{gateway.description}</CardDescription>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor={`${gateway.id}-enabled`} className="text-sm">
-                      Ativo
-                    </Label>
-                    <Switch
-                      id={`${gateway.id}-enabled`}
-                      checked={data.enabled}
-                      onCheckedChange={() => toggleEnabled(gateway.id)}
-                    />
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-wrap gap-2">
-                {gateway.supportedMethods.map(method => (
-                  <Badge key={method} variant="outline">{method}</Badge>
-                ))}
-              </div>
-
-              <Separator />
-
-              {/* Environment selector */}
-              <div className="space-y-2">
-                <Label>Ambiente</Label>
-                <Select
-                  value={data.environment}
-                  onValueChange={(v) => setEnvironment(gateway.id, v as 'sandbox' | 'production')}
-                >
-                  <SelectTrigger className="w-48">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sandbox">
+          <Card key={gateway.id} className={connected ? 'border-primary/50 bg-primary/5' : ''}>
+            <Collapsible open={isExpanded} onOpenChange={(open) => setExpandedGateway(open ? gateway.id : null)}>
+              <CardHeader className="py-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{gateway.logo}</span>
+                    <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <TestTube className="h-4 w-4" />
-                        Sandbox (Teste)
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="production">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4" />
-                        Produção
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                {data.environment === 'production' && (
-                  <p className="text-xs text-destructive flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    Transações reais serão processadas
-                  </p>
-                )}
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                {gateway.fields.map((field) => {
-                  const secretKey = `${gateway.id}-${field.key}`;
-                  const isVisible = showSecrets[secretKey] || field.type === 'text';
-                  
-                  return (
-                    <div key={field.key} className="space-y-2">
-                      <Label htmlFor={`${gateway.id}-${field.key}`}>{field.label}</Label>
-                      <div className="relative">
-                        <Input
-                          id={`${gateway.id}-${field.key}`}
-                          type={isVisible ? 'text' : 'password'}
-                          placeholder={field.placeholder}
-                          value={data.fields[field.key] || ''}
-                          onChange={(e) => updateField(gateway.id, field.key, e.target.value)}
-                          className="pr-10"
-                        />
-                        {field.type === 'password' && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                            onClick={() => toggleSecret(gateway.id, field.key)}
-                          >
-                            {isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </Button>
+                        <CardTitle className="text-base">{gateway.name}</CardTitle>
+                        {connected ? (
+                          <Badge variant="default" className="gap-1">
+                            <CheckCircle className="h-3 w-3" />
+                            Conectado
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="gap-1">
+                            <AlertCircle className="h-3 w-3" />
+                            Não conectado
+                          </Badge>
                         )}
                       </div>
+                      {connected && saved && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {gateway.fields.map(f => f.label).join(' • ')} configurados
+                        </p>
+                      )}
+                      {!connected && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {gateway.supportedMethods.join(' • ')}
+                        </p>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {connected && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDisconnectDialog(gateway.id);
+                        }}
+                      >
+                        <Unplug className="h-4 w-4 mr-1" />
+                        Desconectar
+                      </Button>
+                    )}
+                    <CollapsibleTrigger asChild>
+                      <Button variant="ghost" size="sm">
+                        {connected ? 'Editar' : 'Configurar'}
+                        {isExpanded ? (
+                          <ChevronUp className="h-4 w-4 ml-1" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 ml-1" />
+                        )}
+                      </Button>
+                    </CollapsibleTrigger>
+                  </div>
+                </div>
+              </CardHeader>
 
-              <div className="flex items-center justify-between pt-2">
-                <Button variant="outline" size="sm" asChild>
-                  <a href={gateway.docsUrl} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Documentação
-                  </a>
-                </Button>
-                <Button 
-                  onClick={() => handleSave(gateway.id)}
-                  disabled={upsertProvider.isPending}
-                >
-                  {upsertProvider.isPending ? (
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4 mr-2" />
-                  )}
-                  Salvar
-                </Button>
-              </div>
-            </CardContent>
-        </Card>
+              <CollapsibleContent>
+                <CardContent className="pt-0 space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {gateway.fields.map((field) => {
+                      const secretKey = `${gateway.id}-${field.key}`;
+                      const isVisible = showSecrets[secretKey] || field.type === 'text';
+                      
+                      return (
+                        <div key={field.key} className="space-y-2">
+                          <Label htmlFor={`${gateway.id}-${field.key}`}>{field.label}</Label>
+                          <div className="relative">
+                            <Input
+                              id={`${gateway.id}-${field.key}`}
+                              type={isVisible ? 'text' : 'password'}
+                              placeholder={field.placeholder}
+                              value={data.fields[field.key] || ''}
+                              onChange={(e) => updateField(gateway.id, field.key, e.target.value)}
+                              className="pr-10"
+                            />
+                            {field.type === 'password' && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+                                onClick={() => toggleSecret(gateway.id, field.key)}
+                              >
+                                {isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={gateway.docsUrl} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Documentação
+                      </a>
+                    </Button>
+                    <Button 
+                      onClick={() => handleSave(gateway.id)}
+                      disabled={upsertProvider.isPending || !isConfigured(gateway.id)}
+                    >
+                      {upsertProvider.isPending ? (
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      ) : connected ? (
+                        <Save className="h-4 w-4 mr-2" />
+                      ) : (
+                        <Plug className="h-4 w-4 mr-2" />
+                      )}
+                      {connected ? 'Salvar' : 'Conectar'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </CollapsibleContent>
+            </Collapsible>
+          </Card>
         );
       })}
+
+      {/* Disconnect confirmation dialog */}
+      <AlertDialog open={!!disconnectDialog} onOpenChange={() => setDisconnectDialog(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Desconectar Gateway</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja desconectar este gateway de pagamento? 
+              As credenciais serão removidas e você precisará reconfigurá-las para usar novamente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => disconnectDialog && handleDisconnect(disconnectDialog)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              <Unplug className="h-4 w-4 mr-2" />
+              Desconectar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Platform Admin - Mercado Pago Billing Integration */}
       <PlatformAdminGate>
         <Card className="border-primary/30 bg-primary/5">
-          <CardHeader>
+          <CardHeader className="py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-primary/10">
-                  <CreditCard className="h-6 w-6 text-primary" />
+                  <CreditCard className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    Mercado Pago - Billing da Plataforma
+                  <CardTitle className="text-base flex items-center gap-2">
+                    Mercado Pago - Billing
                     <Badge variant="outline" className="gap-1">
                       <Shield className="h-3 w-3" />
                       Admin
                     </Badge>
                   </CardTitle>
-                  <CardDescription>
-                    Integração para cobranças de assinaturas dos tenants da plataforma
+                  <CardDescription className="text-xs">
+                    Cobranças de assinaturas dos tenants
                   </CardDescription>
                 </div>
               </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" asChild>
+                  <Link to="/platform/billing">
+                    <CreditCard className="h-4 w-4 mr-1" />
+                    Gerenciar
+                  </Link>
+                </Button>
+              </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <Alert>
-              <Shield className="h-4 w-4" />
-              <AlertDescription>
-                Esta integração é configurada via secrets do Cloud e é usada para o sistema de billing da plataforma.
-                As credenciais <code className="text-xs bg-muted px-1 rounded">MP_ACCESS_TOKEN</code> e{' '}
-                <code className="text-xs bg-muted px-1 rounded">MP_PUBLIC_KEY</code> devem estar configuradas.
-              </AlertDescription>
-            </Alert>
-
-            <div className="flex items-center gap-4">
-              <Button asChild>
-                <Link to="/platform/billing">
-                  <CreditCard className="h-4 w-4 mr-2" />
-                  Gerenciar Billing
-                </Link>
-              </Button>
-              <Button variant="outline" asChild>
-                <a 
-                  href="https://www.mercadopago.com.br/developers/panel/app" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                >
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Painel Mercado Pago
-                </a>
-              </Button>
-            </div>
-          </CardContent>
         </Card>
       </PlatformAdminGate>
     </div>
