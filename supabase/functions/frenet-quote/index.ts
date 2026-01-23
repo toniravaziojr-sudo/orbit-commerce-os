@@ -234,8 +234,9 @@ serve(async (req) => {
 
     const services: FrenetShippingService[] = frenetData.ShippingSevicesArray || [];
     
+    // CRITICAL: Include options with price >= 0 (including free shipping)
     const options = services
-      .filter(s => !s.Error && parseFloat(String(s.ShippingPrice)) >= 0)
+      .filter(s => !s.Error && !isNaN(parseFloat(String(s.ShippingPrice))) && parseFloat(String(s.ShippingPrice)) >= 0)
       .map(s => {
         const price = parseFloat(String(s.ShippingPrice)) || 0;
         const deliveryDays = parseInt(String(s.DeliveryTime), 10) || 5;
