@@ -244,9 +244,8 @@ serve(async (req) => {
       .from('order_history')
       .insert({
         order_id: orderId,
-        status: 'pending',
-        changed_by: 'system',
-        notes: 'Pedido criado via checkout',
+        action: 'created',
+        description: 'Pedido criado via checkout',
       });
 
     if (historyError) {
