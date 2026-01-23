@@ -111,6 +111,25 @@ Este diretório contém as regras e especificações separadas por módulo para 
 
 ---
 
+## ⚠️ WORKFLOW OBRIGATÓRIO (NÃO NEGOCIÁVEL)
+
+**ANTES de qualquer implementação, ajuste ou análise:**
+
+1. Identificar quais arquivos serão afetados
+2. Consultar mapeamento na seção [Custom Knowledge]
+3. **LER o documento de regras correspondente usando `lov-view`**
+4. Verificar regras específicas que impactam a mudança
+5. Seguir especificações à risca (sem interpretar ou "melhorar")
+6. Só então iniciar implementação
+
+| Proibido | Motivo |
+|----------|--------|
+| Alterar arquivos SEM ler doc de regras | Causa regressões |
+| Interpretar/melhorar regras por conta | Documento é fonte de verdade |
+| Assumir que sabe as regras de memória | Sempre ler na sessão atual |
+
+---
+
 ## Regra de Imutabilidade
 
 | Regra | Descrição |
