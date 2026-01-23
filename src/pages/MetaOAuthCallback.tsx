@@ -15,7 +15,9 @@ import { supabase } from "@/integrations/supabase/client";
  * 1. Meta redireciona para esta página com ?code=...&state=...
  * 2. Esta página chama meta-oauth-callback via POST com code e state
  * 3. A edge function valida, troca tokens, salva conexão
- * 4. Esta página mostra sucesso/erro e redireciona
+ * 4. Esta página mostra sucesso/erro
+ * 5. Se em popup: notifica janela pai e fecha
+ * 6. Se não em popup: redireciona
  */
 export default function MetaOAuthCallback() {
   const [searchParams] = useSearchParams();
@@ -23,6 +25,39 @@ export default function MetaOAuthCallback() {
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const processedRef = useRef(false);
+
+  // Função para notificar janela pai e fechar popup
+  const notifyParentAndClose = (success: boolean, error?: string) => {
+    const messageData = {
+      type: "meta:connected",
+      success,
+      error,
+    };
+
+    // Tentar comunicar com janela pai (se aberto como popup)
+    if (window.opener && !window.opener.closed) {
+      try {
+        window.opener.postMessage(messageData, "*");
+        console.log("[MetaOAuthCallback] Mensagem enviada para janela pai");
+      } catch (e) {
+        console.error("[MetaOAuthCallback] Falha ao enviar postMessage:", e);
+      }
+
+      // Fechar popup após mostrar resultado
+      setTimeout(() => {
+        window.close();
+      }, 1500);
+    } else {
+      // Sem opener - redirecionar após delay
+      setTimeout(() => {
+        const baseUrl = window.location.origin;
+        const redirectUrl = success
+          ? `${baseUrl}/integrations?meta_connected=true`
+          : `${baseUrl}/integrations?meta_error=${encodeURIComponent(error || 'Erro')}`;
+        window.location.href = redirectUrl;
+      }, 2000);
+    }
+  };
 
   useEffect(() => {
     // Evitar processamento duplo (React StrictMode)
@@ -35,19 +70,20 @@ export default function MetaOAuthCallback() {
     
     // Se já veio com success=true (redirect antigo), tratar como sucesso
     const successParam = searchParams.get("success");
-    const returnPath = searchParams.get("return_path") || "/integrations";
 
     if (successParam === "true") {
       setStatus("success");
-      setTimeout(() => navigate(returnPath, { replace: true }), 2000);
+      notifyParentAndClose(true);
       return;
     }
 
     // Se veio com erro do Meta
     if (error) {
       processedRef.current = true;
+      const errMsg = getErrorMessage(error, errorDescription || "");
       setStatus("error");
-      setErrorMessage(getErrorMessage(error, errorDescription || ""));
+      setErrorMessage(errMsg);
+      notifyParentAndClose(false, errMsg);
       return;
     }
 
@@ -60,9 +96,11 @@ export default function MetaOAuthCallback() {
 
     // Se não tem nenhum parâmetro válido
     processedRef.current = true;
+    const errMsg = "Acesso inválido. Inicie a conexão pelo módulo de Integrações.";
     setStatus("error");
-    setErrorMessage("Acesso inválido. Inicie a conexão pelo módulo de Integrações.");
-  }, [searchParams, navigate]);
+    setErrorMessage(errMsg);
+    notifyParentAndClose(false, errMsg);
+  }, [searchParams]);
 
   async function processOAuthCallback(code: string, state: string) {
     try {
@@ -72,25 +110,33 @@ export default function MetaOAuthCallback() {
 
       if (error || !data?.success) {
         console.error("[MetaOAuthCallback] Erro:", error || data);
+        const errMsg = data?.error || error?.message || "Erro ao processar autorização";
         setStatus("error");
-        setErrorMessage(data?.error || error?.message || "Erro ao processar autorização");
+        setErrorMessage(errMsg);
+        notifyParentAndClose(false, errMsg);
         return;
       }
 
       setStatus("success");
-      
-      // Redirecionar após 2 segundos
-      const returnPath = data.returnPath || "/integrations";
-      setTimeout(() => {
-        navigate(returnPath, { replace: true });
-      }, 2000);
+      notifyParentAndClose(true);
 
     } catch (err) {
       console.error("[MetaOAuthCallback] Erro inesperado:", err);
+      const errMsg = "Erro inesperado. Tente novamente.";
       setStatus("error");
-      setErrorMessage("Erro inesperado. Tente novamente.");
+      setErrorMessage(errMsg);
+      notifyParentAndClose(false, errMsg);
     }
   }
+
+  // Função para fechar manualmente
+  const handleClose = () => {
+    if (window.opener && !window.opener.closed) {
+      window.close();
+    } else {
+      navigate("/integrations", { replace: true });
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -114,18 +160,23 @@ export default function MetaOAuthCallback() {
           </CardTitle>
           <CardDescription>
             {status === "loading" && "Finalizando a conexão com o Meta..."}
-            {status === "success" && "Sua conta Meta foi conectada. Redirecionando..."}
+            {status === "success" && "Sua conta Meta foi conectada. Fechando..."}
             {status === "error" && errorMessage}
           </CardDescription>
         </CardHeader>
         <CardContent className="text-center">
           {status === "error" && (
             <Button
-              onClick={() => navigate("/integrations", { replace: true })}
+              onClick={handleClose}
               className="mt-4"
             >
-              Voltar para Integrações
+              {window.opener ? "Fechar" : "Voltar para Integrações"}
             </Button>
+          )}
+          {status === "success" && (
+            <p className="text-sm text-muted-foreground mt-2">
+              Esta janela será fechada automaticamente...
+            </p>
           )}
         </CardContent>
       </Card>
