@@ -125,6 +125,17 @@ interface CustomShippingRule {
 
 ---
 
+## Regra Crítica: Filtro de Preço (REGRA FIXA)
+
+| Regra | Descrição |
+|-------|-----------|
+| **Filtro de preço** | `ShippingPrice >= 0` (inclui frete grátis) |
+| **Proibido** | Filtrar com `> 0` pois exclui opções grátis |
+
+Todas as Edge Functions de cotação (frenet-quote, shipping-quote) DEVEM usar `>= 0` para não excluir opções de frete grátis promocional.
+
+---
+
 ## Campos de Envio no Pedido
 
 | Campo | Descrição |
