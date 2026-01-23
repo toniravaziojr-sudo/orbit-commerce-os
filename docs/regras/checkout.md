@@ -117,8 +117,9 @@ is_active = true + published_at IS NOT NULL → aparece no storefront público
 ## Fluxo de Criação de Pedido
 
 ```
-1. Validação de dados do formulário
+1. Validação de dados do formulário (cliente)
 2. Chamada à Edge Function `checkout-create-order`
+   → VALIDAÇÃO DE PRODUTOS (verifica se todos os product_ids existem)
    → Cria/atualiza customer
    → Cria address
    → Cria order com items_snapshot
@@ -128,6 +129,26 @@ is_active = true + published_at IS NOT NULL → aparece no storefront público
    → Atualiza order.payment_status
 4. Redirecionamento para página de Obrigado
 ```
+
+---
+
+## Validação de Produtos no Checkout (REGRA CRÍTICA)
+
+| Cenário | Comportamento |
+|---------|---------------|
+| Produto deletado após adicionar ao carrinho | Edge Function retorna erro `INVALID_PRODUCTS` |
+| Produto de outro tenant | Edge Function retorna erro `INVALID_PRODUCTS` |
+| Erro de validação | Lista de IDs inválidos retornada para limpeza do carrinho |
+
+### Códigos de Erro da Edge Function
+
+| Código | Descrição |
+|--------|-----------|
+| `MISSING_REQUIRED_FIELDS` | Dados obrigatórios ausentes |
+| `PRODUCT_VALIDATION_ERROR` | Erro interno ao validar produtos |
+| `INVALID_PRODUCTS` | Produtos no carrinho não existem mais |
+| `ORDER_NUMBER_ERROR` | Erro ao gerar número do pedido |
+| `INTERNAL_ERROR` | Erro interno inesperado |
 
 ---
 
