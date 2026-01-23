@@ -497,6 +497,21 @@ A IA ignora automaticamente:
 - Pop-ups e modais
 - Menus de navegação
 
+### RN-IMP-014: Tag e Lista "Cliente" Automática (REGRA FIXA)
+Ao importar clientes:
+1. Sistema cria/obtém tag `"Cliente"` (cor verde #10B981)
+2. Sistema cria/obtém lista `"Clientes"` no email marketing (vinculada à tag)
+3. **Todos os clientes importados recebem a tag "Cliente" automaticamente**
+4. A lista "Clientes" mostra automaticamente todos com a tag
+
+Isso garante que clientes importados apareçam na lista de email marketing.
+
+### RN-IMP-015: Numeração de Pedidos Após Importação (REGRA FIXA)
+- Se importar N pedidos, `next_order_number` é atualizado para `MAX(order_number) + 1`
+- O próximo pedido feito na loja será N + 1
+- **Não pode haver duplicação de números de pedido**
+- Default para novos tenants: `next_order_number = 1` (não mais 1000)
+
 ---
 
 ## Limpador de Dados Importados
