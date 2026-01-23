@@ -190,3 +190,15 @@ Carrinho & Checkout → aba Checkout (no Builder)
 | `src/hooks/useCheckoutTestimonials.ts` | Este documento |
 | `supabase/functions/checkout-create-order/*` | Este documento + `edge-functions.md` |
 | `supabase/functions/pagarme-create-charge/*` | Este documento + `edge-functions.md` |
+| `supabase/functions/get-order/*` | Este documento + `edge-functions.md` |
+
+---
+
+## Regra de Busca de Pedido (get-order)
+
+| Regra | Descrição |
+|-------|-----------|
+| **tenant_id obrigatório** | Sempre passar para desambiguação |
+| **Duplicatas** | Ordenar por `created_at DESC` + `LIMIT 1` |
+| **Busca por order_number** | Aceita com ou sem `#` (normaliza internamente) |
+| **Fallback** | Tenta `#XXXX`, depois `XXXX`, depois formatos legados |
