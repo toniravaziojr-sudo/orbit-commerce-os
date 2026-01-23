@@ -111,13 +111,20 @@ export function useEmailMarketing() {
 
   // Mutations
   const createList = useMutation({
-    mutationFn: async (data: { name: string; description?: string; tag_id?: string }) => {
-      const { error } = await supabase.from("email_marketing_lists").insert({ ...data, tenant_id: tenantId });
+    mutationFn: async (data: { name: string; description?: string; tag_id: string }) => {
+      if (!tenantId) throw new Error("Tenant não encontrado");
+      const { error } = await supabase.from("email_marketing_lists").insert({
+        name: data.name,
+        description: data.description,
+        tag_id: data.tag_id,
+        tenant_id: tenantId,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["email-marketing-lists"] });
-      toast.success("Lista criada");
+      queryClient.invalidateQueries({ queryKey: ["email-marketing-subscribers"] });
+      toast.success("Lista criada - subscribers sincronizados automaticamente!");
     },
   });
 

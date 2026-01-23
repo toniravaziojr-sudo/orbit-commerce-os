@@ -2987,7 +2987,7 @@ export type Database = {
           description: string | null
           id: string
           name: string
-          tag_id: string | null
+          tag_id: string
           tenant_id: string
           updated_at: string
         }
@@ -2996,7 +2996,7 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
-          tag_id?: string | null
+          tag_id: string
           tenant_id: string
           updated_at?: string
         }
@@ -3005,7 +3005,7 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
-          tag_id?: string | null
+          tag_id?: string
           tenant_id?: string
           updated_at?: string
         }
@@ -11706,6 +11706,10 @@ export type Database = {
       record_ai_usage: {
         Args: { p_tenant_id: string; p_usage_cents: number }
         Returns: undefined
+      }
+      sync_list_subscribers_from_tag: {
+        Args: { p_list_id: string }
+        Returns: Json
       }
       sync_subscriber_to_customer_with_tag: {
         Args: {

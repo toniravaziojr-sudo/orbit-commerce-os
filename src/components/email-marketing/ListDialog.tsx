@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 const formSchema = z.object({
   name: z.string().min(1, "Nome obrigatório"),
   description: z.string().optional(),
-  tag_id: z.string().optional(),
+  tag_id: z.string().min(1, "Tag obrigatória - toda lista precisa de uma tag vinculada"),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -59,10 +59,13 @@ export function ListDialog({ open, onOpenChange }: ListDialogProps) {
   });
 
   const onSubmit = async (values: FormValues) => {
+    if (!values.tag_id) {
+      return; // Schema validation should prevent this
+    }
     await createList.mutateAsync({
       name: values.name,
       description: values.description,
-      tag_id: values.tag_id || undefined,
+      tag_id: values.tag_id,
     });
     form.reset();
     setShowTagCreator(false);
@@ -130,7 +133,10 @@ export function ListDialog({ open, onOpenChange }: ListDialogProps) {
               name="tag_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Tag Vinculada (opcional)</FormLabel>
+                  <FormLabel>Tag Vinculada *</FormLabel>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    A lista será automaticamente populada com todos os clientes que possuem esta tag.
+                  </p>
                   <div className="space-y-3">
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
