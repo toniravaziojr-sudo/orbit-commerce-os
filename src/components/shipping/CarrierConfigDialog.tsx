@@ -343,6 +343,30 @@ export function CarrierConfigDialog({ carrierId, open, onOpenChange }: CarrierCo
                 ))}
               </RadioGroup>
               
+              {/* Important password clarification for Correios OAuth mode */}
+              {carrier.id === 'correios' && formData.fields['auth_mode'] === 'oauth' && (
+                <Alert className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <AlertTitle className="text-amber-800 dark:text-amber-200">Atenção: Senha do Portal CWS</AlertTitle>
+                  <AlertDescription className="text-amber-700 dark:text-amber-300 text-sm space-y-2">
+                    <p>
+                      A senha necessária é a do <strong>portal CWS (Correios Web Services)</strong>, 
+                      não a senha do "Meu Correios".
+                    </p>
+                    <p className="text-xs">
+                      Acesse <a 
+                        href="https://cws.correios.com.br" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="underline font-medium hover:text-amber-900 dark:hover:text-amber-100"
+                      >
+                        cws.correios.com.br
+                      </a> → Cadastre-se ou faça login com seu CNPJ → Use essa senha aqui.
+                    </p>
+                  </AlertDescription>
+                </Alert>
+              )}
+              
               {/* Token status for Correios token mode */}
               {carrier.id === 'correios' && formData.fields['auth_mode'] === 'token' && (() => {
                 const tokenStatus = getTokenStatus(formData.fields['token']);
