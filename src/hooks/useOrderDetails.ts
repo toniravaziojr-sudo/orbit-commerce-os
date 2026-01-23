@@ -57,21 +57,22 @@ export interface OrderDetails {
 }
 
 // Fetch order by ID or order_number via edge function (secure, bypasses RLS)
-export function useOrderDetails(orderIdOrNumber?: string) {
+// CRITICAL: tenant_id is required to disambiguate duplicate order_numbers
+export function useOrderDetails(orderIdOrNumber?: string, tenantId?: string) {
   return useQuery({
-    queryKey: ['order-details', orderIdOrNumber],
+    queryKey: ['order-details', orderIdOrNumber, tenantId],
     queryFn: async (): Promise<OrderDetails | null> => {
       if (!orderIdOrNumber) return null;
 
-      console.log('[useOrderDetails] Fetching order via edge function:', orderIdOrNumber);
+      console.log('[useOrderDetails] Fetching order via edge function:', orderIdOrNumber, 'tenant:', tenantId);
 
       // Check if it looks like a UUID
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderIdOrNumber);
 
       const { data, error } = await supabase.functions.invoke('get-order', {
         body: isUUID 
-          ? { order_id: orderIdOrNumber }
-          : { order_number: orderIdOrNumber },
+          ? { order_id: orderIdOrNumber, tenant_id: tenantId }
+          : { order_number: orderIdOrNumber, tenant_id: tenantId },
       });
 
       if (error) {

@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { formatCurrency } from '@/lib/cartTotals';
 import { useOrderDetails } from '@/hooks/useOrderDetails';
 import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
+import { usePublicStorefront } from '@/hooks/useStorefront';
 import { CreateAccountSection } from '@/components/storefront/CreateAccountSection';
 import { UpsellSection } from '@/components/storefront/sections/UpsellSection';
 import { SocialShareButtons } from '@/components/storefront/SocialShareButtons';
@@ -50,6 +51,9 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
   const { config: checkoutConfig } = useCheckoutConfig();
   const purchaseTrackedRef = useRef<string | null>(null);
   
+  // CRITICAL: Get tenant ID for order disambiguation
+  const { tenant } = usePublicStorefront(tenantSlug);
+  
   // Get order identifier from URL - normalize by removing # and trimming
   // CRITICAL: The # in URL becomes fragment, so we also need to check window.location.hash
   const rawOrderParam = searchParams.get('pedido') || searchParams.get('orderId') || searchParams.get('orderNumber');
@@ -69,10 +73,11 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
     return null;
   }, [rawOrderParam, hashValue]);
 
-  console.log('[ThankYou] Order param:', { rawOrderParam, hashValue, orderParam });
+  console.log('[ThankYou] Order param:', { rawOrderParam, hashValue, orderParam, tenantId: tenant?.id });
   
   // Fetch real order data from database (includes payment_instructions)
-  const { data: order, isLoading, error } = useOrderDetails(orderParam || undefined);
+  // CRITICAL: Pass tenant.id to disambiguate duplicate order_numbers
+  const { data: order, isLoading, error } = useOrderDetails(orderParam || undefined, tenant?.id);
 
   // Extract payment instructions from server response
   const paymentInstructions = useMemo<PaymentInstructions | null>(() => {

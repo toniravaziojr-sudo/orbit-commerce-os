@@ -18,6 +18,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 interface GetOrderRequest {
   order_id?: string;
   order_number?: string;
+  tenant_id?: string; // Required for disambiguation
 }
 
 serve(async (req) => {
@@ -33,6 +34,7 @@ serve(async (req) => {
     // The DB stores order_number WITH # (e.g., "#5001")
     // The client may send "5001" or "#5001" - we need to handle both
     const order_id = payload.order_id;
+    const tenant_id = payload.tenant_id;
     const rawOrderNumber = payload.order_number?.replace(/^#/, '').trim();
     
     // The DB has the # prefix, so we need to search with it
@@ -40,7 +42,7 @@ serve(async (req) => {
     // Also keep version without hash for fallback search
     const order_number_without_hash = rawOrderNumber;
 
-    console.log('[get-order] Normalized:', { order_id, order_number_with_hash, order_number_without_hash });
+    console.log('[get-order] Normalized:', { order_id, tenant_id, order_number_with_hash, order_number_without_hash });
 
     if (!order_id && !rawOrderNumber) {
       return new Response(JSON.stringify({
@@ -82,9 +84,11 @@ serve(async (req) => {
     }
 
     // If not found by ID, try by order_number (with # prefix as stored in DB)
+    // CRITICAL: Order by created_at DESC to handle duplicates + filter by tenant_id
     if (!order && order_number_with_hash) {
-      console.log('[get-order] Searching by order_number with hash:', order_number_with_hash);
-      const { data, error } = await supabase
+      console.log('[get-order] Searching by order_number with hash:', order_number_with_hash, 'tenant:', tenant_id);
+      
+      let query = supabase
         .from('orders')
         .select(`
           id, order_number, status, payment_status, shipping_status, payment_method,
@@ -95,20 +99,32 @@ serve(async (req) => {
           shipping_street, shipping_number, shipping_complement,
           shipping_neighborhood, shipping_city, shipping_state, shipping_postal_code
         `)
-        .eq('order_number', order_number_with_hash)
+        .eq('order_number', order_number_with_hash);
+      
+      // Filter by tenant_id if provided (handles duplicates across tenants)
+      if (tenant_id) {
+        query = query.eq('tenant_id', tenant_id);
+      }
+      
+      // Get most recent to handle duplicates within same tenant
+      const { data, error } = await query
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
       
       if (error) {
         console.error('[get-order] Error finding by order_number:', error);
-        throw error;
+        // Don't throw, try fallback
+      } else {
+        order = data;
       }
-      order = data;
     }
 
     // Fallback: try without # prefix (for legacy order formats like PED-25-000057)
     if (!order && order_number_without_hash) {
-      console.log('[get-order] Fallback search without hash:', order_number_without_hash);
-      const { data, error } = await supabase
+      console.log('[get-order] Fallback search without hash:', order_number_without_hash, 'tenant:', tenant_id);
+      
+      let query = supabase
         .from('orders')
         .select(`
           id, order_number, status, payment_status, shipping_status, payment_method,
@@ -119,19 +135,28 @@ serve(async (req) => {
           shipping_street, shipping_number, shipping_complement,
           shipping_neighborhood, shipping_city, shipping_state, shipping_postal_code
         `)
-        .eq('order_number', order_number_without_hash)
+        .eq('order_number', order_number_without_hash);
+      
+      if (tenant_id) {
+        query = query.eq('tenant_id', tenant_id);
+      }
+      
+      const { data, error } = await query
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
       
       if (error) {
         console.error('[get-order] Error finding without hash:', error);
-        throw error;
+        // Don't throw, try next fallback
+      } else {
+        order = data;
       }
-      order = data;
     }
 
     // Also try order_id as order_number (fallback for UUID-like strings)
     if (!order && order_id && !isUUID) {
-      const { data, error } = await supabase
+      let query = supabase
         .from('orders')
         .select(`
           id, order_number, status, payment_status, shipping_status, payment_method,
@@ -142,12 +167,20 @@ serve(async (req) => {
           shipping_street, shipping_number, shipping_complement,
           shipping_neighborhood, shipping_city, shipping_state, shipping_postal_code
         `)
-        .eq('order_number', order_id)
+        .eq('order_number', order_id);
+      
+      if (tenant_id) {
+        query = query.eq('tenant_id', tenant_id);
+      }
+      
+      const { data, error } = await query
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
       
       if (error) {
         console.error('[get-order] Error finding by order_id as order_number:', error);
-        throw error;
+        // Don't throw, return not found
       }
       order = data;
     }
