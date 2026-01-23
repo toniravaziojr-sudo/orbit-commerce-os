@@ -760,8 +760,19 @@ RESTRIÇÕES DA SHOPEE:
       console.log(`Sending WhatsApp response to ${conversation.customer_phone}...`);
       
       try {
+        // Check which provider to use for this tenant
+        const { data: waConfig } = await supabase
+          .from("whatsapp_configs")
+          .select("provider")
+          .eq("tenant_id", tenant_id)
+          .eq("connection_status", "connected")
+          .maybeSingle();
+
+        const sendFunction = waConfig?.provider === "meta" ? "meta-whatsapp-send" : "whatsapp-send";
+        console.log(`Using WhatsApp provider: ${waConfig?.provider || "default"}, function: ${sendFunction}`);
+
         const sendResponse = await fetch(
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/whatsapp-send`,
+          `${Deno.env.get("SUPABASE_URL")}/functions/v1/${sendFunction}`,
           {
             method: "POST",
             headers: {
