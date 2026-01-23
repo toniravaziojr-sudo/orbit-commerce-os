@@ -236,9 +236,39 @@ O mapeamento está definido em `docs/cloudflare-worker-template.js` na constante
 
 ---
 
+## Credenciais de Plataforma (Meta)
+
+Para o OAuth da Meta funcionar, as seguintes credenciais devem estar na tabela `platform_credentials`:
+
+| Credential Key | Descrição | Onde Obter |
+|----------------|-----------|------------|
+| `META_APP_ID` | ✅ Configurado | App ID do Meta for Developers |
+| `META_APP_SECRET` | ❌ **PENDENTE** | App Secret do Meta for Developers |
+
+### Como Obter o META_APP_SECRET
+
+1. Acesse [Meta for Developers](https://developers.facebook.com/apps/)
+2. Selecione seu App
+3. Vá em **Configurações do App → Básico**
+4. Copie o **Chave Secreta do Aplicativo** (App Secret)
+
+### Como Adicionar
+
+Inserir diretamente no banco via SQL:
+
+```sql
+INSERT INTO platform_credentials (credential_key, credential_value, is_active)
+VALUES ('META_APP_SECRET', 'seu_app_secret_aqui', true)
+ON CONFLICT (credential_key) 
+DO UPDATE SET credential_value = EXCLUDED.credential_value, updated_at = now();
+```
+
+Ou via Edge Function `platform-credentials-update` (requer `is_platform_admin`).
+
+---
+
 ## Pendências
 
-- [ ] Implementar WhatsApp Cloud API
 - [ ] Implementar integrações ERP (Bling, Tiny)
 - [ ] Melhorar UX de reconexão OAuth
 - [ ] Logs de erro por integração
