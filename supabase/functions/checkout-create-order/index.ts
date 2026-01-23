@@ -100,7 +100,14 @@ serve(async (req) => {
 
     // Validate required fields
     if (!payload.tenant_id || !payload.customer?.email || !payload.items?.length) {
-      throw new Error('Missing required fields: tenant_id, customer.email, items');
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Dados obrigatórios ausentes: tenant_id, email ou itens',
+        code: 'MISSING_REQUIRED_FIELDS',
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // Create Supabase client with service role (bypasses RLS)
@@ -110,13 +117,60 @@ serve(async (req) => {
     const normalizedEmail = normalizeEmail(payload.customer.email);
     console.log('[checkout-create-order] Normalized email:', normalizedEmail);
 
+    // === VALIDATE PRODUCT IDs BEFORE PROCEEDING ===
+    const productIds = payload.items.map(item => item.product_id);
+    console.log('[checkout-create-order] Validating products:', productIds);
+
+    const { data: existingProducts, error: productsError } = await supabase
+      .from('products')
+      .select('id, name')
+      .eq('tenant_id', payload.tenant_id)
+      .in('id', productIds);
+
+    if (productsError) {
+      console.error('[checkout-create-order] Error validating products:', productsError);
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Erro ao validar produtos do carrinho',
+        code: 'PRODUCT_VALIDATION_ERROR',
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const existingProductIds = new Set(existingProducts?.map(p => p.id) || []);
+    const invalidProducts = payload.items.filter(item => !existingProductIds.has(item.product_id));
+
+    if (invalidProducts.length > 0) {
+      console.error('[checkout-create-order] Invalid products found:', invalidProducts.map(p => ({ id: p.product_id, name: p.product_name })));
+      return new Response(JSON.stringify({
+        success: false,
+        error: `Alguns produtos no carrinho não estão mais disponíveis: ${invalidProducts.map(p => p.product_name).join(', ')}. Por favor, limpe o carrinho e adicione os produtos novamente.`,
+        code: 'INVALID_PRODUCTS',
+        invalid_product_ids: invalidProducts.map(p => p.product_id),
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.log('[checkout-create-order] All products validated successfully');
+
     // 1. Generate order number
     const { data: orderNumberData, error: orderNumberError } = await supabase
       .rpc('generate_order_number', { p_tenant_id: payload.tenant_id });
 
     if (orderNumberError) {
       console.error('[checkout-create-order] Error generating order number:', orderNumberError);
-      throw new Error(`Erro ao gerar número do pedido: ${orderNumberError.message}`);
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Erro ao gerar número do pedido',
+        code: 'ORDER_NUMBER_ERROR',
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const orderNumber = orderNumberData || `PED-${Date.now()}`;
@@ -393,12 +447,13 @@ serve(async (req) => {
     });
 
   } catch (error: any) {
-    console.error('[checkout-create-order] Error:', error);
+    console.error('[checkout-create-order] Unexpected error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message || 'Unknown error',
+      error: 'Erro interno ao processar pedido. Tente novamente.',
+      code: 'INTERNAL_ERROR',
     }), {
-      status: 400,
+      status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
