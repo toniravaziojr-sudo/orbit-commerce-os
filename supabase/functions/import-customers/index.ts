@@ -172,9 +172,102 @@ serve(async (req) => {
 
     const existingEmails = new Set((existingCustomers || []).map(c => c.email.toLowerCase()));
 
+    // === CREATE OR GET "Cliente" TAG AND "Clientes" LIST ===
+    // First, try to find existing "Cliente" tag
+    let clienteTagId: string | null = null;
+    const { data: existingTag } = await supabaseAdmin
+      .from('customer_tags')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('name', 'Cliente')
+      .maybeSingle();
+
+    if (existingTag) {
+      clienteTagId = existingTag.id;
+      console.log('Found existing "Cliente" tag:', clienteTagId);
+    } else {
+      // Create the "Cliente" tag
+      const { data: newTag, error: tagError } = await supabaseAdmin
+        .from('customer_tags')
+        .insert({
+          tenant_id: tenantId,
+          name: 'Cliente',
+          color: '#10B981', // Green color
+          description: 'Tag automática para clientes importados'
+        })
+        .select('id')
+        .single();
+
+      if (!tagError && newTag) {
+        clienteTagId = newTag.id;
+        console.log('Created "Cliente" tag:', clienteTagId);
+      } else {
+        console.error('Error creating Cliente tag:', tagError);
+      }
+    }
+
+    // Create or get "Clientes" list in email marketing (linked to tag)
+    let clientesListId: string | null = null;
+    if (clienteTagId) {
+      const { data: existingList } = await supabaseAdmin
+        .from('email_marketing_lists')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('tag_id', clienteTagId)
+        .maybeSingle();
+
+      if (existingList) {
+        clientesListId = existingList.id;
+        console.log('Found existing "Clientes" list:', clientesListId);
+      } else {
+        const { data: newList, error: listError } = await supabaseAdmin
+          .from('email_marketing_lists')
+          .insert({
+            tenant_id: tenantId,
+            name: 'Clientes',
+            description: 'Lista automática de clientes importados',
+            tag_id: clienteTagId
+          })
+          .select('id')
+          .single();
+
+        if (!listError && newList) {
+          clientesListId = newList.id;
+          console.log('Created "Clientes" list:', clientesListId);
+        } else {
+          console.error('Error creating Clientes list:', listError);
+        }
+      }
+    }
+
     // Prepare customers for insert
-    const customersToInsert = [];
-    const addressesToInsert = [];
+    const customersToInsert: Array<{
+      id: string;
+      tenant_id: string;
+      email: string;
+      full_name: string;
+      phone: string | null;
+      status: string;
+      accepts_marketing: boolean;
+      total_orders: number;
+      total_spent: number;
+      average_ticket: number;
+    }> = [];
+    const addressesToInsert: Array<{
+      customer_id: string;
+      label: string;
+      is_default: boolean;
+      recipient_name: string;
+      street: string;
+      number: string;
+      complement: string | null;
+      neighborhood: string;
+      city: string;
+      state: string;
+      postal_code: string;
+      country: string;
+    }> = [];
+    const tagAssignments: Array<{ customer_id: string; tag_id: string }> = [];
     const skipped: string[] = [];
     const errors: string[] = [];
 
@@ -214,6 +307,14 @@ serve(async (req) => {
         total_spent: totalSpent,
         average_ticket: totalOrders > 0 ? totalSpent / totalOrders : 0,
       });
+
+      // Add tag assignment for "Cliente" tag
+      if (clienteTagId) {
+        tagAssignments.push({
+          customer_id: customerId,
+          tag_id: clienteTagId
+        });
+      }
 
       // If has address, prepare it
       if (sc['Default Address Address1'] && sc['Default Address City']) {
@@ -269,7 +370,26 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Import complete: ${insertedCustomers} customers, ${insertedAddresses} addresses`);
+    // Insert tag assignments in batches
+    let insertedTags = 0;
+    if (tagAssignments.length > 0) {
+      console.log(`Assigning "Cliente" tag to ${tagAssignments.length} customers...`);
+      for (let i = 0; i < tagAssignments.length; i += BATCH_SIZE) {
+        const batch = tagAssignments.slice(i, i + BATCH_SIZE);
+        const { error: tagError } = await supabaseAdmin
+          .from('customer_tag_assignments')
+          .insert(batch);
+
+        if (tagError) {
+          console.error('Error inserting tag assignments batch:', tagError);
+        } else {
+          insertedTags += batch.length;
+        }
+      }
+      console.log(`Assigned "Cliente" tag to ${insertedTags} customers`);
+    }
+
+    console.log(`Import complete: ${insertedCustomers} customers, ${insertedAddresses} addresses, ${insertedTags} tags`);
 
     return new Response(
       JSON.stringify({

@@ -389,9 +389,17 @@ type PaymentMethod =
 
 ### 10.1 Numeração
 
-- Formato: `ORD-XXXX` (sequencial por tenant)
-- Gerenciado pelo campo `order_number_seq` na tabela `tenants`
+- Formato: `#XXXX` (sequencial por tenant)
+- Gerenciado pelo campo `next_order_number` na tabela `tenants`
+- **Default para novos tenants: 1** (não mais 1000)
+- Após importação, `next_order_number` é atualizado para MAX + 1
 - Nunca reutilizado
+- Próximo pedido após importar N pedidos = N + 1
+
+### 10.2 Ordenação na Lista de Pedidos
+
+- Pedidos são ordenados por `created_at DESC` (mais recente primeiro)
+- Número maior = pedido mais recente = aparece primeiro
 
 ### 10.2 Exclusão
 
