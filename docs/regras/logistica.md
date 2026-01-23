@@ -101,13 +101,90 @@ interface CustomShippingRule {
 
 ## Integrações de Transportadora
 
-| Transportadora | Status | Descrição |
-|----------------|--------|-----------|
-| Correios | 🟧 Pending | PAC, SEDEX |
-| Melhor Envio | 🟧 Pending | Agregador |
-| Jadlog | 🟧 Pending | Rodoviário |
-| Loggi | 🟧 Pending | Último mile |
-| Intelipost | 🟧 Pending | Gateway |
+### Arquitetura de Níveis
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    ADMIN PLATAFORMA                     │
+│         /integrations → tab "logistics"                 │
+│  ┌───────────────┐   ┌──────────────────────────────┐   │
+│  │ Loggi OAuth   │   │ Correios                     │   │
+│  │ Client ID     │   │ (não tem nível plataforma -  │   │
+│  │ Client Secret │   │ cada lojista tem contrato)   │   │
+│  └───────────────┘   └──────────────────────────────┘   │
+└─────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│                  PAINEL DO LOJISTA                      │
+│           /shipping/settings                            │
+│  ┌───────────────┐   ┌──────────────────────────────┐   │
+│  │ Loggi         │   │ Correios                     │   │
+│  │ - Company ID  │   │ - CNPJ (usuário)             │   │
+│  │ - Endereço    │   │ - Senha portal CWS           │   │
+│  │   origem      │   │ - Cartão de Postagem         │   │
+│  └───────────────┘   └──────────────────────────────┘   │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Loggi — Modelo Híbrido
+
+| Nível | Configuração | Local |
+|-------|--------------|-------|
+| **Plataforma** | OAuth2 global (`LOGGI_CLIENT_ID`, `LOGGI_CLIENT_SECRET`) | Admin → Integrações → Logística |
+| **Tenant** | `company_id` (ID do Embarcador) + endereço de origem completo | Loja → Envios → Configurações |
+
+**Fluxo:** Plataforma obtém token OAuth → Tenant só informa seu embarcador e endereço.
+
+**Campos obrigatórios do tenant:**
+- `company_id` — ID do Embarcador fornecido pela Loggi
+- `origin_cep`, `origin_street`, `origin_number`, `origin_neighborhood`, `origin_city`, `origin_state`
+
+---
+
+### Correios — Modelo 100% Tenant
+
+| Nível | Configuração | Local |
+|-------|--------------|-------|
+| **Tenant** | CNPJ + Senha CWS + Cartão de Postagem **ou** Token manual | Loja → Envios → Configurações |
+
+**Fluxo:** Cada lojista tem seu próprio contrato (Meu Correios Empresas) e configura credenciais diretamente.
+
+**Modos de autenticação:**
+- **OAuth2 (Recomendado)** — CNPJ, Senha do portal CWS, Cartão de Postagem. Token renovado automaticamente.
+- **Token Manual** — Token do portal CWS. Expira a cada 24h.
+
+**Endpoints utilizados:**
+- `POST /token/v1/autentica/cartaopostagem` — Autenticação OAuth2
+- `GET /cep/v2/enderecos/{cep}` — Consulta de CEP
+- `POST /preco/v1/nacional` — Cotação de frete
+- `GET /rastro/v1/objetos/{codigo}` — Rastreamento SRO
+- `POST /prepostagem/v2/prepostagens` — Criação de pré-postagem
+- `GET /prepostagem/v2/etiquetas` — Geração de etiquetas
+
+---
+
+### Frenet — Modelo Tenant (Gateway)
+
+| Nível | Configuração | Local |
+|-------|--------------|-------|
+| **Tenant** | Token de API + CEP de origem | Loja → Envios → Configurações |
+
+**Fluxo:** Gateway que agrega múltiplas transportadoras. Cada tenant tem seu token Frenet.
+
+---
+
+### Status das Integrações
+
+| Transportadora | Cotação | Rastreamento | Etiquetas | Status |
+|----------------|---------|--------------|-----------|--------|
+| Frenet | ✅ | ✅ (via gateway) | ✅ (via gateway) | **Produção** |
+| Correios | ✅ | ✅ | ✅ | **Produção** |
+| Loggi | ✅ | 🟧 | 🟧 | **Em progresso** |
+| Melhor Envio | 🟧 | 🟧 | 🟧 | **Pendente** |
+| Jadlog | 🟧 | 🟧 | 🟧 | **Pendente** |
 
 ---
 
@@ -152,9 +229,8 @@ Todas as Edge Functions de cotação (frenet-quote, shipping-quote) DEVEM usar `
 
 ## Pendências
 
-- [ ] Integração Correios API
 - [ ] Integração Melhor Envio
-- [ ] Cálculo automático por peso
-- [ ] Etiquetas de envio
-- [ ] Rastreamento automático
-- [ ] Notificações de status
+- [ ] Integração Jadlog
+- [ ] Rastreamento Loggi
+- [ ] Etiquetas Loggi
+- [ ] Notificações de status automáticas
