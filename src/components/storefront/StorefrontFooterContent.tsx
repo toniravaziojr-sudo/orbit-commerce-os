@@ -7,6 +7,7 @@ import { getWhatsAppHref, getPhoneHref, getEmailHref, isValidWhatsApp, isValidPh
 import { formatCnpj } from '@/lib/formatCnpj';
 import { cn } from '@/lib/utils';
 import type { BlockNode } from '@/lib/builder/types';
+import { FooterNewsletterForm } from './footer/FooterNewsletterForm';
 
 
 // TikTok icon component (not in lucide)
@@ -387,6 +388,34 @@ export function StorefrontFooterContent({
     securitySeals.items.length > 0 || 
     shippingMethods.items.length > 0 || 
     officialStores.items.length > 0;
+
+  // ============================================
+  // NEWSLETTER CONFIG
+  // ============================================
+  const showNewsletter = getBoolean('showNewsletter', false);
+  const newsletterTitle = getString('newsletterTitle', null, 'Receba nossas promoções') || 'Receba nossas promoções';
+  const newsletterSubtitle = getString('newsletterSubtitle', null, 'Inscreva-se para receber descontos exclusivos direto no seu e-mail!');
+  const newsletterPlaceholder = getString('newsletterPlaceholder', null, 'Seu e-mail') || 'Seu e-mail';
+  const newsletterButtonText = getString('newsletterButtonText', null, '');
+  const newsletterSuccessMessage = getString('newsletterSuccessMessage', null, 'Inscrito com sucesso!') || 'Inscrito com sucesso!';
+  const newsletterListId = getString('newsletterListId', null, '');
+
+  // Fetch tenant_id for newsletter form
+  const { data: tenantData } = useQuery({
+    queryKey: ['tenant-id-footer', tenantSlug],
+    queryFn: async () => {
+      if (!tenantSlug) return null;
+      const { data: tenant } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('slug', tenantSlug)
+        .single();
+      return tenant;
+    },
+    enabled: !!tenantSlug && showNewsletter,
+    staleTime: 1000 * 60 * 30,
+  });
+  const tenantId = tenantData?.id;
 
   // Footer custom styles
   const footerStyle: React.CSSProperties = {
@@ -773,6 +802,25 @@ export function StorefrontFooterContent({
                 </nav>
               </div>
             )}
+
+            {/* MOBILE BLOCO 6: Newsletter */}
+            {showNewsletter && (
+              <div className="flex flex-col items-center text-center">
+                <FooterNewsletterForm
+                  tenantId={tenantId}
+                  title={newsletterTitle}
+                  subtitle={newsletterSubtitle || undefined}
+                  placeholder={newsletterPlaceholder}
+                  buttonText={newsletterButtonText || undefined}
+                  successMessage={newsletterSuccessMessage}
+                  listId={newsletterListId || undefined}
+                  textColor={footerTextColor || undefined}
+                  buttonBgColor={primaryColor}
+                  buttonTextColor={undefined}
+                  isEditing={isEditing}
+                />
+              </div>
+            )}
             
           </div>
         </div>
@@ -1096,6 +1144,27 @@ export function StorefrontFooterContent({
                   </>
                 ) : null}
               </nav>
+            </div>
+          )}
+
+          {/* ============================================ */}
+          {/* COLUNA 5: Newsletter */}
+          {/* ============================================ */}
+          {showNewsletter && (
+            <div className="text-left">
+              <FooterNewsletterForm
+                tenantId={tenantId}
+                title={newsletterTitle}
+                subtitle={newsletterSubtitle || undefined}
+                placeholder={newsletterPlaceholder}
+                buttonText={newsletterButtonText || undefined}
+                successMessage={newsletterSuccessMessage}
+                listId={newsletterListId || undefined}
+                textColor={footerTextColor || undefined}
+                buttonBgColor={primaryColor}
+                buttonTextColor={undefined}
+                isEditing={isEditing}
+              />
             </div>
           )}
         </div>

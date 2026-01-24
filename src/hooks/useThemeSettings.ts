@@ -87,6 +87,14 @@ export interface ThemeFooterConfig {
   securitySeals?: FooterImageSectionData;
   shippingMethods?: FooterImageSectionData;
   officialStores?: FooterImageSectionData;
+  // Newsletter section
+  showNewsletter?: boolean;
+  newsletterTitle?: string;
+  newsletterSubtitle?: string;
+  newsletterPlaceholder?: string;
+  newsletterButtonText?: string;
+  newsletterSuccessMessage?: string;
+  newsletterListId?: string;
 }
 
 // Cart action type: what happens when user clicks "Add to cart"
@@ -174,6 +182,14 @@ export const DEFAULT_THEME_FOOTER: ThemeFooterConfig = {
   securitySeals: { title: 'Selos de Segurança', items: [] },
   shippingMethods: { title: 'Formas de Envio', items: [] },
   officialStores: { title: 'Lojas Oficiais', items: [] },
+  // Newsletter defaults
+  showNewsletter: false,
+  newsletterTitle: 'Receba nossas promoções',
+  newsletterSubtitle: 'Inscreva-se para receber descontos exclusivos direto no seu e-mail!',
+  newsletterPlaceholder: 'Seu e-mail',
+  newsletterButtonText: '',
+  newsletterSuccessMessage: 'Inscrito com sucesso!',
+  newsletterListId: '',
 };
 
 export const DEFAULT_THEME_MINI_CART: ThemeMiniCartConfig = {

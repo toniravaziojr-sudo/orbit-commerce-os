@@ -11,11 +11,12 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Palette, ChevronDown, Settings, Type, Loader2, CreditCard, Store, Plus, Trash2 } from 'lucide-react';
+import { Palette, ChevronDown, Settings, Type, Loader2, CreditCard, Store, Plus, Trash2, Mail } from 'lucide-react';
 import { useThemeFooter, DEFAULT_THEME_FOOTER, ThemeFooterConfig, FooterImageItem, FooterImageSectionData } from '@/hooks/useThemeSettings';
 import { ImageUploader } from '../ImageUploader';
 import type { SvgPresetCategory } from '@/lib/builder/svg-presets';
 import { PaymentIconsQuickSelect } from './PaymentIconsQuickSelect';
+import { EmailListSelector } from '../DynamicSelectors';
 
 interface FooterSettingsProps {
   tenantId: string;
@@ -252,6 +253,7 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
     texts: false,
     paymentMethods: false,
     officialStores: false,
+    newsletter: false,
   });
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const initialLoadDone = useRef(false);
@@ -451,7 +453,100 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
 
       <Separator />
 
-      {/* === PERSONALIZAR TÍTULOS RODAPÉ === */}
+      {/* === NEWSLETTER DO RODAPÉ === */}
+      <Collapsible open={openSections.newsletter} onOpenChange={() => toggleSection('newsletter')}>
+        <CollapsibleTrigger asChild>
+          <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
+            <div className="flex items-center gap-1.5">
+              <Mail className="h-3.5 w-3.5 text-primary" />
+              <span className="font-medium">Newsletter</span>
+              {localProps.showNewsletter && (
+                <Badge variant="secondary" className="text-[10px] px-1 py-0">Ativo</Badge>
+              )}
+            </div>
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openSections.newsletter ? 'rotate-180' : ''}`} />
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="px-2 pb-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0">
+              <Label className="text-[11px]">Exibir Newsletter</Label>
+              <p className="text-[10px] text-muted-foreground">Formulário de captura no rodapé</p>
+            </div>
+            <Switch className="scale-90"
+              checked={Boolean(localProps.showNewsletter ?? false)}
+              onCheckedChange={(v) => updatePropImmediate('showNewsletter', v)}
+            />
+          </div>
+          
+          {localProps.showNewsletter && (
+            <>
+              <div className="space-y-1">
+                <Label className="text-[10px]">Lista de Destino *</Label>
+                <EmailListSelector
+                  value={localProps.newsletterListId || ''}
+                  onChange={(v) => updateProp('newsletterListId', v)}
+                  placeholder="Selecione uma lista"
+                />
+                <p className="text-[10px] text-muted-foreground">Para qual lista os leads serão enviados</p>
+              </div>
+              
+              <div className="space-y-1">
+                <Label className="text-[10px]">Título</Label>
+                <Input
+                  value={localProps.newsletterTitle || ''}
+                  onChange={(e) => updateProp('newsletterTitle', e.target.value)}
+                  placeholder="Receba nossas promoções"
+                  className="h-7 text-xs"
+                />
+              </div>
+              
+              <div className="space-y-1">
+                <Label className="text-[10px]">Subtítulo</Label>
+                <Input
+                  value={localProps.newsletterSubtitle || ''}
+                  onChange={(e) => updateProp('newsletterSubtitle', e.target.value)}
+                  placeholder="Inscreva-se para receber descontos..."
+                  className="h-7 text-xs"
+                />
+              </div>
+              
+              <div className="space-y-1">
+                <Label className="text-[10px]">Placeholder do campo</Label>
+                <Input
+                  value={localProps.newsletterPlaceholder || ''}
+                  onChange={(e) => updateProp('newsletterPlaceholder', e.target.value)}
+                  placeholder="Seu e-mail"
+                  className="h-7 text-xs"
+                />
+              </div>
+              
+              <div className="space-y-1">
+                <Label className="text-[10px]">Texto do botão</Label>
+                <Input
+                  value={localProps.newsletterButtonText || ''}
+                  onChange={(e) => updateProp('newsletterButtonText', e.target.value)}
+                  placeholder="Vazio = mostra ícone"
+                  className="h-7 text-xs"
+                />
+                <p className="text-[10px] text-muted-foreground">Deixe vazio para mostrar apenas o ícone de envio</p>
+              </div>
+              
+              <div className="space-y-1">
+                <Label className="text-[10px]">Mensagem de sucesso</Label>
+                <Input
+                  value={localProps.newsletterSuccessMessage || ''}
+                  onChange={(e) => updateProp('newsletterSuccessMessage', e.target.value)}
+                  placeholder="Inscrito com sucesso!"
+                  className="h-7 text-xs"
+                />
+              </div>
+            </>
+          )}
+        </CollapsibleContent>
+      </Collapsible>
+
+      <Separator />
       <Collapsible open={openSections.texts} onOpenChange={() => toggleSection('texts')}>
         <CollapsibleTrigger asChild>
           <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
