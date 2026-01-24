@@ -151,25 +151,41 @@ export default function EmailMarketingListDetail() {
     enabled: !!listId,
   });
 
-  // Stats
+  // Stats - use separate count queries to bypass 1000 row limit
   const { data: stats } = useQuery({
     queryKey: ["list-subscribers-stats", listId],
     queryFn: async () => {
-      if (!listId) return { active: 0, unsubscribed: 0, bounced: 0 };
+      if (!listId) return { active: 0, unsubscribed: 0, bounced: 0, total: 0 };
       
-      const { data } = await supabase
-        .from("email_marketing_subscribers")
-        .select("status")
-        .like("source", `%${listId}%`);
+      // Run parallel count queries for each status
+      const [activeResult, unsubscribedResult, bouncedResult] = await Promise.all([
+        supabase
+          .from("email_marketing_subscribers")
+          .select("id", { count: "exact", head: true })
+          .like("source", `%${listId}%`)
+          .eq("status", "active"),
+        supabase
+          .from("email_marketing_subscribers")
+          .select("id", { count: "exact", head: true })
+          .like("source", `%${listId}%`)
+          .eq("status", "unsubscribed"),
+        supabase
+          .from("email_marketing_subscribers")
+          .select("id", { count: "exact", head: true })
+          .like("source", `%${listId}%`)
+          .eq("status", "bounced"),
+      ]);
       
-      const result = { active: 0, unsubscribed: 0, bounced: 0 };
-      data?.forEach((s: any) => {
-        if (s.status === "active") result.active++;
-        else if (s.status === "unsubscribed") result.unsubscribed++;
-        else if (s.status === "bounced") result.bounced++;
-      });
+      const active = activeResult.count || 0;
+      const unsubscribed = unsubscribedResult.count || 0;
+      const bounced = bouncedResult.count || 0;
       
-      return result;
+      return { 
+        active, 
+        unsubscribed, 
+        bounced, 
+        total: active + unsubscribed + bounced 
+      };
     },
     enabled: !!listId,
   });
@@ -281,7 +297,7 @@ export default function EmailMarketingListDetail() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{(stats?.active || 0) + (stats?.unsubscribed || 0) + (stats?.bounced || 0)}</div>
+            <div className="text-2xl font-bold">{(stats?.total || 0).toLocaleString("pt-BR")}</div>
           </CardContent>
         </Card>
         <Card>

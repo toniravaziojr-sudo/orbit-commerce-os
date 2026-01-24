@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Trash2, Copy, Settings2, ChevronDown, Lock } from 'lucide-react';
-import { ProductSelector, CategorySelector, MenuSelector } from './DynamicSelectors';
+import { ProductSelector, CategorySelector, MenuSelector, EmailListSelector } from './DynamicSelectors';
 import { ProductMultiSelect } from './ProductMultiSelect';
 import { CategoryMultiSelect, CategoryItemConfig } from './CategoryMultiSelect';
 import { FAQEditor, TestimonialsEditor, InfoHighlightsEditor, FeaturesEditor, StepsEditor, StatsEditor, AccordionItemsEditor, LogosEditor } from './ArrayEditor';
@@ -649,6 +649,15 @@ function PropField({ name, schema, value, onChange, blockType, allProps }: PropF
             value={(value as string) || ''}
             onChange={onChange}
             placeholder={schema.placeholder}
+          />
+        );
+
+      case 'emailList':
+        return (
+          <EmailListSelector
+            value={(value as string) || ''}
+            onChange={onChange}
+            placeholder={schema.placeholder || 'Selecione uma lista'}
           />
         );
 

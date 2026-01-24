@@ -101,7 +101,6 @@ const blockCategoryMapping: Record<string, EssentialCategory> = {
   
   // Forms (Email Marketing / Quiz)
   'NewsletterForm': 'forms',
-  'NewsletterPopup': 'forms',
   'QuizEmbed': 'forms',
   
   // Info
@@ -162,7 +161,6 @@ const visibleBlockTypes = new Set([
   'PopupModal',
   // Forms (Email Marketing / Quiz)
   'NewsletterForm',
-  'NewsletterPopup',
   'QuizEmbed',
   // Info
   'InfoHighlights',

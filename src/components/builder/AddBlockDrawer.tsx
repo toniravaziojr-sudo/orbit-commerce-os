@@ -94,7 +94,6 @@ const blockCategoryMapping: Record<string, BlockCategoryType> = {
   
   // Formulários (Email Marketing / Quiz)
   'NewsletterForm': 'forms',
-  'NewsletterPopup': 'forms',
   'QuizEmbed': 'forms',
   
   // Layout
@@ -122,7 +121,7 @@ const visibleBlockTypes = new Set([
   'Reviews', 'NewsletterBlock', 'ContactFormBlock', 'MapBlock', 'SocialFeedBlock',
   'PersonalizedProducts', 'LivePurchases', 'PricingTable', 'PopupModal',
   // Formulários (Email Marketing / Quiz)
-  'NewsletterForm', 'NewsletterPopup', 'QuizEmbed',
+  'NewsletterForm', 'QuizEmbed',
   // Layout
   'Section', 'Container', 'Columns', 'Spacer', 'Divider',
 ]);
