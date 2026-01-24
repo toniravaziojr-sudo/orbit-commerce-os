@@ -75,10 +75,15 @@ const CARRIER_DEFINITIONS: CarrierDefinition[] = [
     hasAuthModes: true,
     authModes: [
       { 
-        value: 'oauth', 
-        label: 'OAuth2 (Recomendado)', 
-        description: 'Autenticação automática via CNPJ + senha + cartão.',
+        value: 'api_code', 
+        label: 'Código de Acesso (Recomendado)', 
+        description: 'Método estável: código permanente gerado no portal CWS.',
         recommended: true
+      },
+      { 
+        value: 'oauth', 
+        label: 'OAuth2 (CNPJ + Senha)', 
+        description: 'Autenticação via senha do portal. Pode dar problemas se a senha mudar.'
       },
       { 
         value: 'token', 
@@ -87,13 +92,20 @@ const CARRIER_DEFINITIONS: CarrierDefinition[] = [
       },
     ],
     fields: [
+      // Campos para modo api_code (recomendado)
+      { key: 'usuario', label: 'Usuário (CNPJ)', type: 'text', placeholder: '00000000000000', showWhen: { field: 'auth_mode', value: 'api_code' } },
+      { key: 'codigo_acesso', label: 'Código de Acesso às APIs', type: 'password', placeholder: 'Código gerado no portal CWS', showWhen: { field: 'auth_mode', value: 'api_code' } },
+      { key: 'contrato', label: 'Número do Contrato', type: 'text', placeholder: '9912689847', showWhen: { field: 'auth_mode', value: 'api_code' } },
+      { key: 'cartao_postagem', label: 'Cartão de Postagem', type: 'text', placeholder: '0079102786', showWhen: { field: 'auth_mode', value: 'api_code' } },
+      // Campos para modo oauth (legado)
       { key: 'usuario', label: 'Usuário (CNPJ)', type: 'text', placeholder: '00000000000000', showWhen: { field: 'auth_mode', value: 'oauth' } },
-      { key: 'senha', label: 'Senha', type: 'password', placeholder: 'Senha do portal', showWhen: { field: 'auth_mode', value: 'oauth' } },
+      { key: 'senha', label: 'Senha', type: 'password', placeholder: 'Senha do portal CWS', showWhen: { field: 'auth_mode', value: 'oauth' } },
       { key: 'cartao_postagem', label: 'Cartão de Postagem', type: 'text', placeholder: '0067599079', showWhen: { field: 'auth_mode', value: 'oauth' } },
+      // Campos para modo token manual
       { key: 'token', label: 'Token CWS', type: 'password', placeholder: 'Token do portal cws.correios.com.br', showWhen: { field: 'auth_mode', value: 'token' } },
     ],
-    features: ['Rastreamento Automático', 'Cotação de Frete', 'Etiquetas'],
-    docsUrl: 'https://cws.correios.com.br/dashboard/pesquisa',
+    features: ['Rastreamento Automático', 'Cotação de Frete', 'Etiquetas', 'Pré-postagem'],
+    docsUrl: 'https://cws.correios.com.br/acesso-componentes',
   },
   {
     id: 'loggi',
@@ -148,8 +160,10 @@ export function CarrierConfigDialog({ carrierId, open, onOpenChange }: CarrierCo
     
     if (carrier.hasAuthModes) {
       const savedAuthMode = saved?.credentials?.auth_mode as string;
+      // Default to api_code for Correios (most stable method)
       fields['auth_mode'] = savedAuthMode || 
-        (saved?.credentials?.token && !saved?.credentials?.usuario ? 'token' : 'oauth');
+        (saved?.credentials?.codigo_acesso ? 'api_code' :
+         saved?.credentials?.token && !saved?.credentials?.usuario ? 'token' : 'api_code');
     }
     
     carrier.fields.forEach(field => {
@@ -209,8 +223,10 @@ export function CarrierConfigDialog({ carrierId, open, onOpenChange }: CarrierCo
     
     // Check required fields based on auth mode
     if (carrier.id === 'correios') {
-      const authMode = formData.fields['auth_mode'] || 'oauth';
-      if (authMode === 'oauth') {
+      const authMode = formData.fields['auth_mode'] || 'api_code';
+      if (authMode === 'api_code') {
+        return !!(formData.fields['usuario'] && formData.fields['codigo_acesso'] && formData.fields['contrato'] && formData.fields['cartao_postagem']);
+      } else if (authMode === 'oauth') {
         return !!(formData.fields['usuario'] && formData.fields['senha'] && formData.fields['cartao_postagem']);
       } else {
         return !!formData.fields['token'];
@@ -318,7 +334,7 @@ export function CarrierConfigDialog({ carrierId, open, onOpenChange }: CarrierCo
                 <Label className="text-sm font-medium">Modo de Autenticação</Label>
               </div>
               <RadioGroup
-                value={formData.fields['auth_mode'] || 'oauth'}
+                value={formData.fields['auth_mode'] || 'api_code'}
                 onValueChange={(value) => updateField('auth_mode', value)}
                 className="grid gap-3"
               >
@@ -342,6 +358,30 @@ export function CarrierConfigDialog({ carrierId, open, onOpenChange }: CarrierCo
                   </div>
                 ))}
               </RadioGroup>
+              
+              {/* Instructions for api_code mode (recommended) */}
+              {carrier.id === 'correios' && formData.fields['auth_mode'] === 'api_code' && (
+                <Alert className="border-primary/50 bg-primary/5">
+                  <ShieldCheck className="h-4 w-4 text-primary" />
+                  <AlertTitle>Método Estável (igual ao Bling)</AlertTitle>
+                  <AlertDescription className="text-sm space-y-2">
+                    <p>
+                      O <strong>Código de Acesso às APIs</strong> é um código permanente gerado no portal CWS 
+                      que não muda quando você altera sua senha.
+                    </p>
+                    <p className="text-xs">
+                      Acesse <a 
+                        href="https://cws.correios.com.br/acesso-componentes" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="underline font-medium hover:text-primary"
+                      >
+                        cws.correios.com.br/acesso-componentes
+                      </a> → Gere ou copie seu "Código de acesso às APIs".
+                    </p>
+                  </AlertDescription>
+                </Alert>
+              )}
               
               {/* Important password clarification for Correios OAuth mode */}
               {carrier.id === 'correios' && formData.fields['auth_mode'] === 'oauth' && (
