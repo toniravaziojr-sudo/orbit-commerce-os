@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ListDialog } from "@/components/email-marketing/ListDialog";
 import { TemplateDialog } from "@/components/email-marketing/TemplateDialog";
 import { CampaignDialog } from "@/components/email-marketing/CampaignDialog";
+import { SubscribersTab } from "@/components/email-marketing/SubscribersTab";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -17,26 +18,19 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Search, Tag } from "lucide-react";
+import { Tag } from "lucide-react";
 
 export default function EmailMarketing() {
   const navigate = useNavigate();
-  const { lists, subscribers, templates, campaigns, queueStats } = useEmailMarketing();
+  const { lists, templates, campaigns, queueStats, subscribersCount } = useEmailMarketing();
   
   const [listDialogOpen, setListDialogOpen] = useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [campaignDialogOpen, setCampaignDialogOpen] = useState(false);
-  const [subscriberSearch, setSubscriberSearch] = useState("");
 
   const handleViewList = (list: any) => {
     navigate(`/email-marketing/list/${list.id}`);
   };
-
-  const filteredSubscribers = subscribers.filter((sub: any) =>
-    (sub.name?.toLowerCase() || "").includes(subscriberSearch.toLowerCase()) ||
-    sub.email.toLowerCase().includes(subscriberSearch.toLowerCase())
-  );
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -52,7 +46,7 @@ export default function EmailMarketing() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Assinantes</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{subscribers.length}</div>
+            <div className="text-2xl font-bold">{subscribersCount?.toLocaleString("pt-BR") || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -60,7 +54,7 @@ export default function EmailMarketing() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Enviados (7d)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-emerald-600">{queueStats?.sent || 0}</div>
+            <div className="text-2xl font-bold text-primary">{queueStats?.sent || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -68,7 +62,7 @@ export default function EmailMarketing() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Na Fila</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-600">{queueStats?.queued || 0}</div>
+            <div className="text-2xl font-bold text-muted-foreground">{queueStats?.queued || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -156,56 +150,7 @@ export default function EmailMarketing() {
         </TabsContent>
 
         <TabsContent value="subscribers">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Assinantes</CardTitle>
-              <div className="relative w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar assinantes..."
-                  className="pl-9"
-                  value={subscriberSearch}
-                  onChange={(e) => setSubscriberSearch(e.target.value)}
-                />
-              </div>
-            </CardHeader>
-            <CardContent>
-              {subscribers.length === 0 ? (
-                <EmptyState icon={Users} title="Nenhum assinante" description="Assinantes capturados via formulários aparecerão aqui" />
-              ) : (
-                <div className="space-y-2">
-                  {filteredSubscribers.slice(0, 50).map((sub: any) => (
-                    <div key={sub.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/30 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                          <Mail className="h-4 w-4 text-primary" />
-                        </div>
-                        <div>
-                          <p className="font-medium">{sub.name || sub.email}</p>
-                          <p className="text-sm text-muted-foreground">{sub.email}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        {sub.source && (
-                          <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-                            {sub.source}
-                          </span>
-                        )}
-                        <Badge variant={sub.status === 'active' ? 'default' : 'destructive'}>
-                          {sub.status === 'active' ? 'Ativo' : sub.status === 'unsubscribed' ? 'Descadastrado' : sub.status}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
-                  {filteredSubscribers.length > 50 && (
-                    <p className="text-sm text-center text-muted-foreground py-2">
-                      Mostrando 50 de {filteredSubscribers.length} assinantes
-                    </p>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <SubscribersTab />
         </TabsContent>
 
         <TabsContent value="templates">
