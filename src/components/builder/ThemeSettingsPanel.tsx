@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ChevronRight, Palette, Type, FileCode, Layout, X, PanelTop, PanelBottom, ShoppingCart } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Palette, Type, FileCode, Layout, X, PanelTop, PanelBottom, ShoppingCart, Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -18,6 +18,7 @@ import { PageSettingsContent } from './theme-settings/PageSettingsContent';
 import { HeaderSettings } from './theme-settings/HeaderSettings';
 import { FooterSettings } from './theme-settings/FooterSettings';
 import { MiniCartSettings } from './theme-settings/MiniCartSettings';
+import { PopupSettings } from './theme-settings/PopupSettings';
 
 import { MiniCartConfig } from './theme-settings/MiniCartSettings';
 
@@ -32,7 +33,7 @@ interface ThemeSettingsPanelProps {
   onMiniCartConfigChange?: (config: MiniCartConfig) => void;
 }
 
-type SettingsView = 'menu' | 'pages' | 'header' | 'footer' | 'mini-cart' | 'typography' | 'colors' | 'css' | 'page-detail';
+type SettingsView = 'menu' | 'pages' | 'header' | 'footer' | 'mini-cart' | 'popup' | 'typography' | 'colors' | 'css' | 'page-detail';
 
 interface MenuItem {
   id: SettingsView;
@@ -65,6 +66,12 @@ const menuItems: MenuItem[] = [
     label: 'Carrinho Suspenso',
     icon: <ShoppingCart className="h-4 w-4" />,
     description: 'Mini-carrinho lateral',
+  },
+  {
+    id: 'popup',
+    label: 'Popup Newsletter',
+    icon: <Bell className="h-4 w-4" />,
+    description: 'Captura de leads',
   },
   {
     id: 'colors',
@@ -229,6 +236,8 @@ export function ThemeSettingsPanel({
             onConfigChange={onMiniCartConfigChange}
           />
         );
+      case 'popup':
+        return <PopupSettings tenantId={tenantId} templateSetId={templateSetId} />;
       case 'typography':
         return <TypographySettings tenantId={tenantId} templateSetId={templateSetId} />;
       case 'colors':
@@ -252,6 +261,8 @@ export function ThemeSettingsPanel({
         return 'Rodapé';
       case 'mini-cart':
         return 'Carrinho Suspenso';
+      case 'popup':
+        return 'Popup Newsletter';
       case 'typography':
         return 'Tipografia';
       case 'colors':
