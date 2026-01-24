@@ -194,16 +194,32 @@ POST /marketing-form-submit
 | Fonte | Comportamento |
 |-------|---------------|
 | NewsletterForm Block | Adiciona à lista via `marketing-form-submit` |
-| NewsletterPopup Block | Popup com trigger (delay/scroll/exit_intent) |
+| **Popup Newsletter** | **Configurado em Configurações do Tema > Popup Newsletter** |
 | QuizEmbed Block | Quiz interativo via `quiz-submit` |
 | Checkout | Captura com consentimento marketing |
+
+### Popup Newsletter (Configurações do Tema)
+
+O popup de newsletter foi movido para **Configurações do Tema > Popup Newsletter** no Builder.
+
+| Configuração | Descrição |
+|--------------|-----------|
+| `is_active` | Ativa/desativa o popup |
+| `list_id` | Lista de email para adicionar leads |
+| `layout` | centered, side-image, corner, fullscreen |
+| `trigger_type` | delay, scroll, exit_intent, immediate |
+| `trigger_delay_seconds` | Segundos de atraso (se trigger=delay) |
+| `trigger_scroll_percent` | % de scroll (se trigger=scroll) |
+| `show_on_pages` | Páginas onde exibir (home, category, product, cart, blog) |
+| `show_once_per_session` | Exibir apenas 1x por sessão |
+
+**Tabela:** `newsletter_popup_configs`
 
 ### Builder Blocks (Categoria: Formulários)
 
 | Bloco | Descrição |
 |-------|-----------|
 | `NewsletterForm` | Formulário inline de captura |
-| `NewsletterPopup` | Popup com regras de exibição |
 | `QuizEmbed` | Incorpora quiz do módulo Marketing |
 
 ---
