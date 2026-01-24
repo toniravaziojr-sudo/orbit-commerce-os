@@ -6182,6 +6182,45 @@ export type Database = {
           },
         ]
       }
+      module_tutorials: {
+        Row: {
+          created_at: string
+          description: string | null
+          duration_minutes: number | null
+          id: string
+          is_active: boolean
+          module_key: string
+          thumbnail_url: string | null
+          title: string
+          updated_at: string
+          video_url: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number | null
+          id?: string
+          is_active?: boolean
+          module_key: string
+          thumbnail_url?: string | null
+          title: string
+          updated_at?: string
+          video_url: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number | null
+          id?: string
+          is_active?: boolean
+          module_key?: string
+          thumbnail_url?: string | null
+          title?: string
+          updated_at?: string
+          video_url?: string
+        }
+        Relationships: []
+      }
       newsletter_popup_configs: {
         Row: {
           background_color: string | null
@@ -7596,6 +7635,45 @@ export type Database = {
           permissions?: Json | null
           role?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      platform_announcements: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          ends_at: string | null
+          id: string
+          is_active: boolean
+          message: string
+          starts_at: string | null
+          title: string
+          updated_at: string
+          variant: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string | null
+          id?: string
+          is_active?: boolean
+          message: string
+          starts_at?: string | null
+          title: string
+          updated_at?: string
+          variant?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string | null
+          id?: string
+          is_active?: boolean
+          message?: string
+          starts_at?: string | null
+          title?: string
+          updated_at?: string
+          variant?: string
         }
         Relationships: []
       }
