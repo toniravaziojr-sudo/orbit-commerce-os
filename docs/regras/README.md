@@ -51,6 +51,7 @@ Este diretório contém as regras e especificações separadas por módulo para 
 | [ofertas.md](./ofertas.md) | Aumentar Ticket (Bump/Upsell) | ✅ Ready |
 | [avaliacoes.md](./avaliacoes.md) | Avaliações de Produtos | ✅ Ready |
 | [midias-uploads.md](./midias-uploads.md) | Meu Drive / Uploads | ✅ Ready |
+| [geracao-imagens-ai.md](./geracao-imagens-ai.md) | Geração de Imagens com IA | ✅ Ready |
 | [marketing-integracoes.md](./marketing-integracoes.md) | Integrações de Marketing | 🟧 Pending |
 | [email-marketing.md](./email-marketing.md) | Email Marketing | 🟧 Pending |
 | [campanhas.md](./campanhas.md) | Criador de Campanhas | 🟧 Pending |
