@@ -15,8 +15,11 @@ Sistema completo de email marketing com listas segmentadas, templates personaliz
 
 | Arquivo | Propósito |
 |---------|-----------|
-| `src/pages/EmailMarketing.tsx` | Dashboard principal |
+| `src/pages/EmailMarketing.tsx` | Dashboard principal com abas |
 | `src/hooks/useEmailMarketing.ts` | Hook CRUD centralizado |
+| `src/components/email-marketing/ListDialog.tsx` | Modal criar lista |
+| `src/components/email-marketing/ListDetailDrawer.tsx` | Drawer detalhes da lista + subscribers |
+| `src/components/builder/theme-settings/PopupSettings.tsx` | Config popup newsletter (tema) |
 | `supabase/functions/email-campaign-broadcast/` | Disparo em massa |
 | `supabase/functions/email-dispatcher/` | Worker de processamento |
 | `supabase/functions/marketing-form-submit/` | Captura de leads |
@@ -239,14 +242,27 @@ Configuração em `email_provider_configs`:
 
 ## Interface do Admin
 
-### Abas do Dashboard
+### Abas do Dashboard (`EmailMarketing.tsx`)
 
 1. **Listas** - CRUD de listas segmentadas
-2. **Assinantes** - Visualização/busca de subscribers
+   - Clique na lista abre `ListDetailDrawer` com subscribers
+   - Menu dropdown: Ver detalhes, Excluir
+   - Badge com cor da tag vinculada
+2. **Assinantes** - Visualização/busca de subscribers com filtro
 3. **Formulários** - Configuração de forms de captura
 4. **Templates** - Editor de templates com preview
 5. **Campanhas** - Gerenciamento de broadcasts/automações
 6. **Estatísticas** - Métricas de envio
+
+### Popup Newsletter (Builder → Configurações do Tema)
+
+Configurado em **Configurações do Tema > Popup Newsletter** no Builder visual.
+
+| Componente | Arquivo |
+|------------|---------|
+| Settings UI | `src/components/builder/theme-settings/PopupSettings.tsx` |
+| Tabela | `newsletter_popup_configs` |
+| Menu item | `ThemeSettingsPanel.tsx` → view `popup` |
 
 ---
 
