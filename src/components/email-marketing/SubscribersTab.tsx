@@ -1,35 +1,12 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { PageHeader } from "@/components/ui/page-header";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { 
-  ArrowLeft, 
-  Users, 
-  Mail, 
-  Tag, 
-  Search, 
-  Trash2, 
-  ChevronLeft, 
-  ChevronRight,
-  Loader2,
-  AlertTriangle,
-  UserCheck,
-  UserX
-} from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -45,22 +22,29 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { toast } from "sonner";
+import { EmptyState } from "@/components/ui/empty-state";
+import { 
+  Users, 
+  Mail, 
+  Search, 
+  ChevronLeft, 
+  ChevronRight,
+  UserCheck,
+  UserX
+} from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 const PAGE_SIZE = 50;
 
-export default function EmailMarketingListDetail() {
-  const { listId } = useParams<{ listId: string }>();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
+export function SubscribersTab() {
+  const { currentTenant } = useAuth();
+  const tenantId = currentTenant?.id;
   
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   // Debounce search
   useEffect(() => {
@@ -76,33 +60,16 @@ export default function EmailMarketingListDetail() {
     setCurrentPage(1);
   }, [statusFilter]);
 
-  // Fetch list details
-  const { data: list, isLoading: listLoading } = useQuery({
-    queryKey: ["email-marketing-list", listId],
-    queryFn: async () => {
-      if (!listId) return null;
-      const { data, error } = await supabase
-        .from("email_marketing_lists")
-        .select("*, customer_tags(id, name, color)")
-        .eq("id", listId)
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!listId,
-  });
-
-  // Fetch subscribers count for this list
+  // Fetch total count
   const { data: totalCount = 0 } = useQuery({
-    queryKey: ["list-subscribers-count", listId, debouncedSearch, statusFilter],
+    queryKey: ["all-subscribers-count", tenantId, debouncedSearch, statusFilter],
     queryFn: async () => {
-      if (!listId) return 0;
+      if (!tenantId) return 0;
       
-      // Subscribers are linked via source field containing list_id
       let query = supabase
         .from("email_marketing_subscribers")
         .select("id", { count: "exact", head: true })
-        .like("source", `%${listId}%`);
+        .eq("tenant_id", tenantId);
       
       if (debouncedSearch) {
         query = query.or(`email.ilike.%${debouncedSearch}%,name.ilike.%${debouncedSearch}%`);
@@ -116,23 +83,22 @@ export default function EmailMarketingListDetail() {
       if (error) throw error;
       return count || 0;
     },
-    enabled: !!listId,
+    enabled: !!tenantId,
   });
 
   // Fetch paginated subscribers
-  const { data: subscribers = [], isLoading: subscribersLoading } = useQuery({
-    queryKey: ["list-subscribers", listId, currentPage, debouncedSearch, statusFilter],
+  const { data: subscribers = [], isLoading } = useQuery({
+    queryKey: ["all-subscribers", tenantId, currentPage, debouncedSearch, statusFilter],
     queryFn: async () => {
-      if (!listId) return [];
+      if (!tenantId) return [];
       
       const from = (currentPage - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
       
-      // Subscribers are linked via source field containing list_id
       let query = supabase
         .from("email_marketing_subscribers")
-        .select("id, email, name, phone, status, source, created_at, customer_id")
-        .like("source", `%${listId}%`)
+        .select("id, email, name, phone, status, source, created_at")
+        .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false })
         .range(from, to);
       
@@ -148,130 +114,46 @@ export default function EmailMarketingListDetail() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!listId,
+    enabled: !!tenantId,
   });
 
   // Stats
   const { data: stats } = useQuery({
-    queryKey: ["list-subscribers-stats", listId],
+    queryKey: ["all-subscribers-stats", tenantId],
     queryFn: async () => {
-      if (!listId) return { active: 0, unsubscribed: 0, bounced: 0 };
+      if (!tenantId) return { active: 0, unsubscribed: 0, total: 0 };
       
-      const { data } = await supabase
+      const { count: activeCount } = await supabase
         .from("email_marketing_subscribers")
-        .select("status")
-        .like("source", `%${listId}%`);
-      
-      const result = { active: 0, unsubscribed: 0, bounced: 0 };
-      data?.forEach((s: any) => {
-        if (s.status === "active") result.active++;
-        else if (s.status === "unsubscribed") result.unsubscribed++;
-        else if (s.status === "bounced") result.bounced++;
-      });
-      
-      return result;
-    },
-    enabled: !!listId,
-  });
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId)
+        .eq("status", "active");
 
-  // Delete list mutation
-  const deleteList = useMutation({
-    mutationFn: async () => {
-      if (!listId) throw new Error("Lista não encontrada");
-      const { error } = await supabase
-        .from("email_marketing_lists")
-        .delete()
-        .eq("id", listId);
-      if (error) throw error;
+      const { count: unsubscribedCount } = await supabase
+        .from("email_marketing_subscribers")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId)
+        .eq("status", "unsubscribed");
+      
+      const { count: totalCount } = await supabase
+        .from("email_marketing_subscribers")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId);
+      
+      return { 
+        active: activeCount || 0, 
+        unsubscribed: unsubscribedCount || 0, 
+        total: totalCount || 0 
+      };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["email-marketing-lists"] });
-      toast.success("Lista excluída com sucesso");
-      navigate("/email-marketing");
-    },
-    onError: (error: any) => {
-      toast.error("Erro ao excluir: " + error.message);
-    },
+    enabled: !!tenantId,
   });
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
-  if (listLoading) {
-    return (
-      <div className="space-y-8 animate-fade-in">
-        <div className="flex items-center gap-4">
-          <Skeleton className="h-10 w-10" />
-          <div className="space-y-2">
-            <Skeleton className="h-6 w-48" />
-            <Skeleton className="h-4 w-32" />
-          </div>
-        </div>
-        <div className="grid grid-cols-3 gap-4">
-          <Skeleton className="h-24" />
-          <Skeleton className="h-24" />
-          <Skeleton className="h-24" />
-        </div>
-        <Skeleton className="h-96" />
-      </div>
-    );
-  }
-
-  if (!list) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <AlertTriangle className="h-12 w-12 text-muted-foreground mb-4" />
-        <h2 className="text-xl font-semibold mb-2">Lista não encontrada</h2>
-        <p className="text-muted-foreground mb-4">A lista que você está procurando não existe ou foi excluída.</p>
-        <Button onClick={() => navigate("/email-marketing")}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Voltar para Email Marketing
-        </Button>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-2">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/email-marketing")}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Voltar
-        </Button>
-      </div>
-      
-      <PageHeader
-        title={list.name}
-        description={list.description || "Visualize e gerencie os assinantes desta lista"}
-        actions={
-          <div className="flex items-center gap-3">
-            {list.customer_tags && (
-              <Badge
-                variant="outline"
-                className="gap-1.5 text-sm px-3 py-1"
-                style={{
-                  borderColor: list.customer_tags.color,
-                  color: list.customer_tags.color,
-                  backgroundColor: list.customer_tags.color + "15",
-                }}
-              >
-                <Tag className="h-3.5 w-3.5" />
-                {list.customer_tags.name}
-              </Badge>
-            )}
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setDeleteDialogOpen(true)}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Excluir Lista
-            </Button>
-          </div>
-        }
-      />
-
-      {/* Stats Cards */}
+    <div className="space-y-4">
+      {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
@@ -281,7 +163,7 @@ export default function EmailMarketingListDetail() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{(stats?.active || 0) + (stats?.unsubscribed || 0) + (stats?.bounced || 0)}</div>
+            <div className="text-2xl font-bold">{stats?.total?.toLocaleString("pt-BR") || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -292,7 +174,7 @@ export default function EmailMarketingListDetail() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary">{stats?.active || 0}</div>
+            <div className="text-2xl font-bold text-primary">{stats?.active?.toLocaleString("pt-BR") || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -303,12 +185,12 @@ export default function EmailMarketingListDetail() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-muted-foreground">{stats?.unsubscribed || 0}</div>
+            <div className="text-2xl font-bold text-muted-foreground">{stats?.unsubscribed?.toLocaleString("pt-BR") || 0}</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Página Atual</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Página</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{currentPage}</div>
@@ -350,7 +232,7 @@ export default function EmailMarketingListDetail() {
         <CardHeader className="pb-0">
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">
-              Assinantes ({totalCount.toLocaleString("pt-BR")})
+              Todos os Assinantes ({totalCount.toLocaleString("pt-BR")})
             </CardTitle>
             {totalCount > 0 && (
               <span className="text-sm text-muted-foreground">
@@ -360,24 +242,21 @@ export default function EmailMarketingListDetail() {
           </div>
         </CardHeader>
         <CardContent className="pt-4">
-          {subscribersLoading ? (
+          {isLoading ? (
             <div className="space-y-2">
               {Array.from({ length: 10 }).map((_, i) => (
                 <Skeleton key={i} className="h-14 w-full" />
               ))}
             </div>
           ) : subscribers.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Mail className="h-12 w-12 text-muted-foreground/30 mb-3" />
-              <p className="text-muted-foreground font-medium">
-                {debouncedSearch || statusFilter !== "all"
-                  ? "Nenhum assinante encontrado com esses filtros"
-                  : "Nenhum assinante nesta lista ainda"}
-              </p>
-              <p className="text-sm text-muted-foreground/70 mt-1">
-                Clientes com a tag vinculada serão sincronizados automaticamente
-              </p>
-            </div>
+            <EmptyState 
+              icon={Users} 
+              title="Nenhum assinante" 
+              description={debouncedSearch || statusFilter !== "all" 
+                ? "Nenhum assinante encontrado com esses filtros"
+                : "Assinantes capturados via formulários aparecerão aqui"
+              } 
+            />
           ) : (
             <>
               <div className="rounded-md border">
@@ -406,7 +285,7 @@ export default function EmailMarketingListDetail() {
                         <TableCell>
                           {sub.source && (
                             <span className="text-xs bg-muted px-2 py-1 rounded">
-                              {sub.source}
+                              {sub.source.includes("tag_sync") ? "Tag Sync" : sub.source}
                             </span>
                           )}
                         </TableCell>
@@ -492,35 +371,6 @@ export default function EmailMarketingListDetail() {
           )}
         </CardContent>
       </Card>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-5 w-5" />
-              Excluir Lista
-            </DialogTitle>
-            <DialogDescription>
-              Tem certeza que deseja excluir a lista "{list.name}"? Esta ação não pode ser desfeita.
-              Os assinantes não serão removidos, apenas a lista.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => deleteList.mutate()}
-              disabled={deleteList.isPending}
-            >
-              {deleteList.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Sim, Excluir
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

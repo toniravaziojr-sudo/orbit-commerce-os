@@ -25,7 +25,22 @@ export function useEmailMarketing() {
     enabled: !!tenantId,
   });
 
-  // Subscribers
+  // Subscribers count (efficient - doesn't load all data)
+  const { data: subscribersCount = 0 } = useQuery({
+    queryKey: ["email-marketing-subscribers-count", tenantId],
+    queryFn: async () => {
+      if (!tenantId) return 0;
+      const { count, error } = await supabase
+        .from("email_marketing_subscribers")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId);
+      if (error) throw error;
+      return count || 0;
+    },
+    enabled: !!tenantId,
+  });
+
+  // Subscribers (limited for quick display if needed)
   const { data: subscribers = [], isLoading: subscribersLoading } = useQuery({
     queryKey: ["email-marketing-subscribers", tenantId],
     queryFn: async () => {
@@ -34,7 +49,8 @@ export function useEmailMarketing() {
         .from("email_marketing_subscribers")
         .select("*")
         .eq("tenant_id", tenantId)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(100); // Limit for dashboard preview
       if (error) throw error;
       return data;
     },
@@ -163,7 +179,7 @@ export function useEmailMarketing() {
 
   return {
     lists, listsLoading,
-    subscribers, subscribersLoading,
+    subscribers, subscribersLoading, subscribersCount,
     templates, templatesLoading,
     campaigns, campaignsLoading,
     forms, formsLoading,
