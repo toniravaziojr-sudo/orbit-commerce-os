@@ -5,11 +5,8 @@ import {
   Save, 
   ExternalLink, 
   Calculator, 
-  Package, 
-  Key,
-  AlertTriangle,
+  Package,
   ShieldCheck,
-  ShieldAlert,
   Loader2,
   Plug,
   CheckCircle2,
@@ -28,7 +25,6 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useShippingProviders, ShippingProviderInput, TestConnectionResult } from '@/hooks/useShippingProviders';
 
@@ -37,7 +33,6 @@ interface CarrierField {
   label: string;
   type: 'text' | 'password';
   placeholder: string;
-  showWhen?: { field: string; value: string };
 }
 
 interface CarrierDefinition {
@@ -48,11 +43,7 @@ interface CarrierDefinition {
   fields: CarrierField[];
   features: string[];
   docsUrl: string;
-  hasAuthModes?: boolean;
-  authModes?: { value: string; label: string; description: string; recommended?: boolean }[];
 }
-
-import { getTokenStatus } from '@/lib/tokenUtils';
 
 const CARRIER_DEFINITIONS: CarrierDefinition[] = [
   {
@@ -72,37 +63,11 @@ const CARRIER_DEFINITIONS: CarrierDefinition[] = [
     name: 'Correios',
     logo: '📦',
     description: 'Serviço postal brasileiro - PAC, SEDEX e mais.',
-    hasAuthModes: true,
-    authModes: [
-      { 
-        value: 'api_code', 
-        label: 'Código de Acesso (Recomendado)', 
-        description: 'Método estável: código permanente gerado no portal CWS.',
-        recommended: true
-      },
-      { 
-        value: 'oauth', 
-        label: 'OAuth2 (CNPJ + Senha)', 
-        description: 'Autenticação via senha do portal. Pode dar problemas se a senha mudar.'
-      },
-      { 
-        value: 'token', 
-        label: 'Token Manual', 
-        description: 'Token do portal CWS. Expira a cada 24h.'
-      },
-    ],
     fields: [
-      // Campos para modo api_code (recomendado)
-      { key: 'usuario', label: 'Usuário (CNPJ)', type: 'text', placeholder: '00000000000000', showWhen: { field: 'auth_mode', value: 'api_code' } },
-      { key: 'codigo_acesso', label: 'Código de Acesso às APIs', type: 'password', placeholder: 'Código gerado no portal CWS', showWhen: { field: 'auth_mode', value: 'api_code' } },
-      { key: 'contrato', label: 'Número do Contrato', type: 'text', placeholder: '9912689847', showWhen: { field: 'auth_mode', value: 'api_code' } },
-      { key: 'cartao_postagem', label: 'Cartão de Postagem', type: 'text', placeholder: '0079102786', showWhen: { field: 'auth_mode', value: 'api_code' } },
-      // Campos para modo oauth (legado)
-      { key: 'usuario', label: 'Usuário (CNPJ)', type: 'text', placeholder: '00000000000000', showWhen: { field: 'auth_mode', value: 'oauth' } },
-      { key: 'senha', label: 'Senha', type: 'password', placeholder: 'Senha do portal CWS', showWhen: { field: 'auth_mode', value: 'oauth' } },
-      { key: 'cartao_postagem', label: 'Cartão de Postagem', type: 'text', placeholder: '0067599079', showWhen: { field: 'auth_mode', value: 'oauth' } },
-      // Campos para modo token manual
-      { key: 'token', label: 'Token CWS', type: 'password', placeholder: 'Token do portal cws.correios.com.br', showWhen: { field: 'auth_mode', value: 'token' } },
+      { key: 'usuario', label: 'Usuário (CNPJ)', type: 'text', placeholder: '00000000000000' },
+      { key: 'codigo_acesso', label: 'Código de Acesso às APIs', type: 'password', placeholder: 'Código gerado no portal CWS' },
+      { key: 'contrato', label: 'Número do Contrato', type: 'text', placeholder: '9912689847' },
+      { key: 'cartao_postagem', label: 'Cartão de Postagem', type: 'text', placeholder: '0079102786' },
     ],
     features: ['Rastreamento Automático', 'Cotação de Frete', 'Etiquetas', 'Pré-postagem'],
     docsUrl: 'https://cws.correios.com.br/acesso-componentes',
@@ -158,12 +123,9 @@ export function CarrierConfigDialog({ carrierId, open, onOpenChange }: CarrierCo
 
     const fields: Record<string, string> = {};
     
-    if (carrier.hasAuthModes) {
-      const savedAuthMode = saved?.credentials?.auth_mode as string;
-      // Default to api_code for Correios (most stable method)
-      fields['auth_mode'] = savedAuthMode || 
-        (saved?.credentials?.codigo_acesso ? 'api_code' :
-         saved?.credentials?.token && !saved?.credentials?.usuario ? 'token' : 'api_code');
+    // For Correios, always use api_code mode
+    if (carrier.id === 'correios') {
+      fields['auth_mode'] = 'api_code';
     }
     
     carrier.fields.forEach(field => {
@@ -221,16 +183,9 @@ export function CarrierConfigDialog({ carrierId, open, onOpenChange }: CarrierCo
     // Check if this carrier supports test connection
     if (!['correios', 'loggi'].includes(carrier.id)) return false;
     
-    // Check required fields based on auth mode
+    // Check required fields
     if (carrier.id === 'correios') {
-      const authMode = formData.fields['auth_mode'] || 'api_code';
-      if (authMode === 'api_code') {
-        return !!(formData.fields['usuario'] && formData.fields['codigo_acesso'] && formData.fields['contrato'] && formData.fields['cartao_postagem']);
-      } else if (authMode === 'oauth') {
-        return !!(formData.fields['usuario'] && formData.fields['senha'] && formData.fields['cartao_postagem']);
-      } else {
-        return !!formData.fields['token'];
-      }
+      return !!(formData.fields['usuario'] && formData.fields['codigo_acesso'] && formData.fields['contrato'] && formData.fields['cartao_postagem']);
     }
     
     if (carrier.id === 'loggi') {
@@ -253,11 +208,6 @@ export function CarrierConfigDialog({ carrierId, open, onOpenChange }: CarrierCo
 
     await upsertProvider.mutateAsync(input);
     onOpenChange(false);
-  };
-
-  const shouldShowField = (field: CarrierField): boolean => {
-    if (!field.showWhen) return true;
-    return formData.fields[field.showWhen.field] === field.showWhen.value;
   };
 
   if (!carrier) return null;
@@ -326,121 +276,34 @@ export function CarrierConfigDialog({ carrierId, open, onOpenChange }: CarrierCo
 
           <Separator />
 
-          {/* Auth Mode Selection (for carriers that support it) */}
-          {carrier.hasAuthModes && carrier.authModes && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Key className="h-4 w-4 text-muted-foreground" />
-                <Label className="text-sm font-medium">Modo de Autenticação</Label>
-              </div>
-              <RadioGroup
-                value={formData.fields['auth_mode'] || 'api_code'}
-                onValueChange={(value) => updateField('auth_mode', value)}
-                className="grid gap-3"
-              >
-                {carrier.authModes.map((mode) => (
-                  <div 
-                    key={mode.value} 
-                    className={`flex items-start space-x-3 p-3 rounded-lg border ${
-                      mode.recommended ? 'border-primary/50 bg-primary/5' : 'border-border'
-                    }`}
+          {/* Correios API Code Instructions */}
+          {carrier.id === 'correios' && (
+            <Alert className="border-primary/50 bg-primary/5">
+              <ShieldCheck className="h-4 w-4 text-primary" />
+              <AlertTitle>Método Estável (igual ao Bling)</AlertTitle>
+              <AlertDescription className="text-sm space-y-2">
+                <p>
+                  O <strong>Código de Acesso às APIs</strong> é um código permanente gerado no portal CWS 
+                  que não muda quando você altera sua senha.
+                </p>
+                <p className="text-xs">
+                  Acesse <a 
+                    href="https://cws.correios.com.br/acesso-componentes" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="underline font-medium hover:text-primary"
                   >
-                    <RadioGroupItem value={mode.value} id={`auth-${mode.value}`} className="mt-1" />
-                    <Label htmlFor={`auth-${mode.value}`} className="flex flex-col cursor-pointer flex-1">
-                      <span className="font-medium flex items-center gap-2">
-                        {mode.label}
-                        {mode.recommended && (
-                          <Badge variant="secondary" className="text-xs">Recomendado</Badge>
-                        )}
-                      </span>
-                      <span className="text-xs text-muted-foreground">{mode.description}</span>
-                    </Label>
-                  </div>
-                ))}
-              </RadioGroup>
-              
-              {/* Instructions for api_code mode (recommended) */}
-              {carrier.id === 'correios' && formData.fields['auth_mode'] === 'api_code' && (
-                <Alert className="border-primary/50 bg-primary/5">
-                  <ShieldCheck className="h-4 w-4 text-primary" />
-                  <AlertTitle>Método Estável (igual ao Bling)</AlertTitle>
-                  <AlertDescription className="text-sm space-y-2">
-                    <p>
-                      O <strong>Código de Acesso às APIs</strong> é um código permanente gerado no portal CWS 
-                      que não muda quando você altera sua senha.
-                    </p>
-                    <p className="text-xs">
-                      Acesse <a 
-                        href="https://cws.correios.com.br/acesso-componentes" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="underline font-medium hover:text-primary"
-                      >
-                        cws.correios.com.br/acesso-componentes
-                      </a> → Gere ou copie seu "Código de acesso às APIs".
-                    </p>
-                  </AlertDescription>
-                </Alert>
-              )}
-              
-              {/* Important password clarification for Correios OAuth mode */}
-              {carrier.id === 'correios' && formData.fields['auth_mode'] === 'oauth' && (
-                <Alert className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
-                  <AlertTriangle className="h-4 w-4 text-amber-600" />
-                  <AlertTitle className="text-amber-800 dark:text-amber-200">Atenção: Senha do Portal CWS</AlertTitle>
-                  <AlertDescription className="text-amber-700 dark:text-amber-300 text-sm space-y-2">
-                    <p>
-                      A senha necessária é a do <strong>portal CWS (Correios Web Services)</strong>, 
-                      não a senha do "Meu Correios".
-                    </p>
-                    <p className="text-xs">
-                      Acesse <a 
-                        href="https://cws.correios.com.br" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="underline font-medium hover:text-amber-900 dark:hover:text-amber-100"
-                      >
-                        cws.correios.com.br
-                      </a> → Cadastre-se ou faça login com seu CNPJ → Use essa senha aqui.
-                    </p>
-                  </AlertDescription>
-                </Alert>
-              )}
-              
-              {/* Token status for Correios token mode */}
-              {carrier.id === 'correios' && formData.fields['auth_mode'] === 'token' && (() => {
-                const tokenStatus = getTokenStatus(formData.fields['token']);
-                
-                if (tokenStatus.status === 'none') return null;
-                
-                return (
-                  <Alert variant={tokenStatus.status === 'expired' ? 'destructive' : 'default'} className="mt-3">
-                    {tokenStatus.status === 'ok' && <ShieldCheck className="h-4 w-4" />}
-                    {tokenStatus.status === 'expiring' && <AlertTriangle className="h-4 w-4" />}
-                    {tokenStatus.status === 'expired' && <ShieldAlert className="h-4 w-4" />}
-                    <AlertTitle>
-                      {tokenStatus.status === 'ok' && 'Token válido'}
-                      {tokenStatus.status === 'expiring' && 'Token expirando'}
-                      {tokenStatus.status === 'expired' && 'Token expirado'}
-                      {tokenStatus.status === 'invalid' && 'Token inválido'}
-                    </AlertTitle>
-                    <AlertDescription className="text-sm">
-                      {tokenStatus.status === 'ok' && tokenStatus.expiresAt && (
-                        <>Expira em: {tokenStatus.expiresAt.toLocaleString('pt-BR')}</>
-                      )}
-                      {tokenStatus.status === 'expiring' && 'Atualize o token ou mude para OAuth2.'}
-                      {tokenStatus.status === 'expired' && 'Atualize o token para continuar usando.'}
-                    </AlertDescription>
-                  </Alert>
-                );
-              })()}
-            </div>
+                    cws.correios.com.br/acesso-componentes
+                  </a> → Gere ou copie seu "Código de acesso às APIs".
+                </p>
+              </AlertDescription>
+            </Alert>
           )}
 
           {/* Fields */}
           <div className="space-y-4">
             <Label className="text-sm font-medium">Credenciais</Label>
-            {carrier.fields.filter(shouldShowField).map((field) => (
+            {carrier.fields.map((field) => (
               <div key={field.key} className="space-y-2">
                 <Label htmlFor={field.key} className="text-sm">{field.label}</Label>
                 <div className="relative">
