@@ -51,8 +51,11 @@ serve(async (req: Request): Promise<Response> => {
     let formData = null;
     let tagsToAdd: string[] = [];
 
-    // If form_slug provided, fetch form config
-    if (form_slug) {
+    // If form_slug provided AND it's not a system form (popup/footer), fetch form config
+    // System forms (popup-*, footer_newsletter) use list_id directly from the request
+    const isSystemForm = form_slug?.startsWith('popup-') || form_slug === 'footer_newsletter';
+    
+    if (form_slug && !isSystemForm) {
       const { data: form, error: formError } = await supabase
         .from("email_marketing_forms")
         .select("*")
