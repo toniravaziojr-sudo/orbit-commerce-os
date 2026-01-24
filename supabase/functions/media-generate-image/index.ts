@@ -329,8 +329,8 @@ serve(async (req) => {
       .insert({
         tenant_id: tenantId,
         calendar_item_id: calendar_item_id,
-        provider: "google", // Lovable AI usa Gemini
-        model: "gemini-2.5-flash-image-preview",
+        provider: "fal-ai", // Fal.AI para geração de imagens
+        model: productWithImage ? "gpt-image-1.5/edit" : "gpt-image-1.5",
         prompt_final: promptFinal,
         brand_context_snapshot: brandContext || null,
         settings: {
