@@ -15,11 +15,14 @@ const CORREIOS_TOKEN_URL = "https://api.correios.com.br/token/v1/autentica/carta
 const CORREIOS_CEP_URL = "https://api.correios.com.br/cep/v2/enderecos";
 
 interface TestRequest {
-  auth_mode: 'oauth' | 'token';
+  auth_mode: 'oauth' | 'token' | 'api_code';
   usuario?: string;
   senha?: string;
   cartao_postagem?: string;
   token?: string;
+  // New fields for api_code mode (like Bling)
+  codigo_acesso?: string;
+  contrato?: string;
 }
 
 interface TestResult {
@@ -63,13 +66,27 @@ serve(async (req) => {
 
     // Parse request
     const body: TestRequest = await req.json();
-    const { auth_mode, usuario, senha, cartao_postagem, token } = body;
+    const { auth_mode, usuario, senha, cartao_postagem, token, codigo_acesso, contrato } = body;
 
     console.log(`[correios-test] Testing auth_mode=${auth_mode} for user=${user.id}`);
 
     let result: TestResult;
 
-    if (auth_mode === 'oauth') {
+    if (auth_mode === 'api_code') {
+      // API Code mode (like Bling) - most stable
+      if (!usuario || !codigo_acesso || !cartao_postagem) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: "Campos obrigatórios: usuário, código de acesso e cartão de postagem",
+            error_code: "MISSING_FIELDS"
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      result = await testApiCodeAuth(usuario, codigo_acesso, cartao_postagem);
+    } else if (auth_mode === 'oauth') {
       // Validate required fields
       if (!usuario || !senha || !cartao_postagem) {
         return new Response(
@@ -127,6 +144,90 @@ serve(async (req) => {
     );
   }
 });
+
+// API Code mode - like Bling uses (more stable)
+// Uses the "Código de Acesso às APIs" as the password for Basic Auth
+async function testApiCodeAuth(usuario: string, codigo_acesso: string, cartao_postagem: string): Promise<TestResult> {
+  try {
+    console.log(`[correios-test] API Code mode - using codigo_acesso as password`);
+    
+    // Step 1: Authenticate using API Code as password (like Bling does)
+    const authResponse = await fetch(CORREIOS_TOKEN_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Basic ${btoa(`${usuario}:${codigo_acesso}`)}`,
+      },
+      body: JSON.stringify({ numero: cartao_postagem }),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!authResponse.ok) {
+      const errorText = await authResponse.text();
+      console.error(`[correios-test] API Code auth failed: ${authResponse.status} - ${errorText}`);
+
+      if (authResponse.status === 401) {
+        return {
+          success: false,
+          auth_mode: 'api_code',
+          error: "Código de acesso inválido. Verifique se copiou corretamente do portal CWS → Gestão de acesso a API's.",
+          error_code: "INVALID_API_CODE"
+        };
+      }
+
+      if (authResponse.status === 400) {
+        return {
+          success: false,
+          auth_mode: 'api_code',
+          error: "Cartão de postagem inválido ou não vinculado ao CNPJ.",
+          error_code: "INVALID_POSTAGE_CARD"
+        };
+      }
+
+      return {
+        success: false,
+        auth_mode: 'api_code',
+        error: `Erro na autenticação: ${authResponse.status}`,
+        error_code: "AUTH_ERROR"
+      };
+    }
+
+    const authData = await authResponse.json();
+    const accessToken = authData.token;
+    const expiresAt = authData.expiraEm;
+
+    console.log(`[correios-test] API Code auth successful, token expires at: ${expiresAt}`);
+
+    // Step 2: Test a simple CEP lookup to validate permissions
+    const cepResult = await testCepLookup(accessToken);
+
+    return {
+      success: true,
+      auth_mode: 'api_code',
+      token_expires_at: expiresAt,
+      cep_lookup_works: cepResult.success,
+      ...(cepResult.success ? {} : { error: cepResult.error })
+    };
+
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'TimeoutError') {
+      return {
+        success: false,
+        auth_mode: 'api_code',
+        error: "Timeout na conexão com Correios. Tente novamente.",
+        error_code: "TIMEOUT"
+      };
+    }
+
+    console.error("[correios-test] API Code error:", error);
+    return {
+      success: false,
+      auth_mode: 'api_code',
+      error: error instanceof Error ? error.message : "Erro desconhecido",
+      error_code: "UNKNOWN_ERROR"
+    };
+  }
+}
 
 async function testOAuthAuth(usuario: string, senha: string, cartao_postagem: string): Promise<TestResult> {
   try {
