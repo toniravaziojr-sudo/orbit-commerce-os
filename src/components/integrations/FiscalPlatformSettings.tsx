@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { FileText, CheckCircle2, AlertCircle, ExternalLink, Info, Shield, RefreshCw, Loader2 } from "lucide-react";
+import { FileText, CheckCircle2, AlertCircle, ExternalLink, Info, Shield, RefreshCw, Loader2, Cloud } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -13,7 +13,7 @@ export function FiscalPlatformSettings() {
   const queryClient = useQueryClient();
   
   const { data: secretStatus, isLoading } = useQuery({
-    queryKey: ['platform-secrets-status', 'focus_nfe'],
+    queryKey: ['platform-secrets-status', 'nuvem_fiscal'],
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Não autenticado');
@@ -27,8 +27,8 @@ export function FiscalPlatformSettings() {
       if (response.error) throw response.error;
       if (!response.data.success) throw new Error(response.data.error);
       
-      const focusNfe = response.data.integrations?.find((i: any) => i.key === 'focus_nfe');
-      return focusNfe || null;
+      const nuvemFiscal = response.data.integrations?.find((i: any) => i.key === 'nuvem_fiscal');
+      return nuvemFiscal || null;
     },
   });
 
@@ -53,9 +53,9 @@ export function FiscalPlatformSettings() {
     },
   });
 
-  const isConfigured = secretStatus?.status === 'configured';
-  const tokenPreview = secretStatus?.previews?.FOCUS_NFE_TOKEN;
-  const tokenSource = secretStatus?.sources?.FOCUS_NFE_TOKEN;
+  const isClientIdConfigured = secretStatus?.secrets?.NUVEM_FISCAL_CLIENT_ID || false;
+  const isClientSecretConfigured = secretStatus?.secrets?.NUVEM_FISCAL_CLIENT_SECRET || false;
+  const isConfigured = isClientIdConfigured && isClientSecretConfigured;
 
   if (isLoading) {
     return (
@@ -69,10 +69,10 @@ export function FiscalPlatformSettings() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <div className="p-3 rounded-lg bg-blue-500/10">
-          <FileText className="h-6 w-6 text-blue-600" />
+          <Cloud className="h-6 w-6 text-blue-600" />
         </div>
         <div>
-          <h2 className="text-xl font-semibold">Fiscal (Focus NFe)</h2>
+          <h2 className="text-xl font-semibold">Fiscal (Nuvem Fiscal)</h2>
           <p className="text-sm text-muted-foreground">
             Emissão de NF-e para todos os tenants da plataforma
           </p>
@@ -82,7 +82,7 @@ export function FiscalPlatformSettings() {
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          O token Focus NFe é utilizado globalmente para todos os tenants. 
+          As credenciais Nuvem Fiscal (Client ID e Secret) são utilizadas globalmente para todos os tenants. 
           Cada tenant configura seu próprio CNPJ e certificado digital.
         </AlertDescription>
       </Alert>
@@ -93,10 +93,10 @@ export function FiscalPlatformSettings() {
             <div>
               <CardTitle className="text-base flex items-center gap-2">
                 <Shield className="h-4 w-4" />
-                Token Focus NFe
+                Credenciais Nuvem Fiscal
               </CardTitle>
               <CardDescription>
-                Token de API para comunicação com a SEFAZ
+                Credenciais OAuth2 para comunicação com a API
               </CardDescription>
             </div>
             {isConfigured ? (
@@ -115,21 +115,23 @@ export function FiscalPlatformSettings() {
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <CredentialEditor
-              credentialKey="FOCUS_NFE_TOKEN"
-              label="Novo Token"
-              description="Token de autenticação da API Focus NFe"
-              isConfigured={secretStatus?.secrets?.FOCUS_NFE_TOKEN || false}
-              preview={tokenPreview}
-              source={tokenSource as 'db' | 'env' | null}
-              placeholder="Cole o token aqui..."
+              credentialKey="NUVEM_FISCAL_CLIENT_ID"
+              label="Client ID"
+              description="ID do cliente OAuth2 da Nuvem Fiscal"
+              isConfigured={isClientIdConfigured}
+              preview={secretStatus?.previews?.NUVEM_FISCAL_CLIENT_ID}
+              source={secretStatus?.sources?.NUVEM_FISCAL_CLIENT_ID as 'db' | 'env' | null}
+              placeholder="Cole o Client ID aqui..."
             />
-            <div className="p-4 rounded-lg border bg-muted/30">
-              <p className="text-xs font-medium text-muted-foreground mb-1">Ambiente</p>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline">Produção</Badge>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">Conectado à SEFAZ oficial</p>
-            </div>
+            <CredentialEditor
+              credentialKey="NUVEM_FISCAL_CLIENT_SECRET"
+              label="Client Secret"
+              description="Secret do cliente OAuth2 da Nuvem Fiscal"
+              isConfigured={isClientSecretConfigured}
+              preview={secretStatus?.previews?.NUVEM_FISCAL_CLIENT_SECRET}
+              source={secretStatus?.sources?.NUVEM_FISCAL_CLIENT_SECRET as 'db' | 'env' | null}
+              placeholder="Cole o Client Secret aqui..."
+            />
           </div>
 
           <div className="flex gap-2">
@@ -155,7 +157,7 @@ export function FiscalPlatformSettings() {
             <ul className="text-sm text-muted-foreground space-y-1">
               <li className="flex items-start gap-2">
                 <span className="text-primary">1.</span>
-                Configure o token clicando em "Alterar" ou "Configurar"
+                Configure o Client ID e Client Secret clicando em "Alterar" ou "Configurar"
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary">2.</span>
@@ -163,11 +165,11 @@ export function FiscalPlatformSettings() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary">3.</span>
-                As NF-e são emitidas usando o token global + certificado do tenant
+                As NF-e são emitidas usando as credenciais globais + certificado do tenant
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary">4.</span>
-                Focus NFe se comunica com a SEFAZ de cada estado
+                Nuvem Fiscal se comunica com a SEFAZ de cada estado automaticamente
               </li>
             </ul>
           </div>
@@ -202,7 +204,7 @@ export function FiscalPlatformSettings() {
             </div>
             <div className="flex items-center gap-2 text-sm">
               <CheckCircle2 className="h-4 w-4 text-green-500" />
-              <span>Webhooks de status</span>
+              <span>Consulta de status em tempo real</span>
             </div>
           </div>
         </CardContent>
@@ -210,15 +212,15 @@ export function FiscalPlatformSettings() {
 
       <div className="flex gap-3">
         <Button variant="outline" asChild>
-          <a href="https://focusnfe.com.br/doc/" target="_blank" rel="noopener noreferrer">
+          <a href="https://dev.nuvemfiscal.com.br/docs" target="_blank" rel="noopener noreferrer">
             <ExternalLink className="h-4 w-4 mr-2" />
-            Documentação Focus NFe
+            Documentação Nuvem Fiscal
           </a>
         </Button>
         <Button variant="outline" asChild>
-          <a href="https://app.focusnfe.com.br/" target="_blank" rel="noopener noreferrer">
+          <a href="https://app.nuvemfiscal.com.br/" target="_blank" rel="noopener noreferrer">
             <ExternalLink className="h-4 w-4 mr-2" />
-            Painel Focus NFe
+            Painel Nuvem Fiscal
           </a>
         </Button>
       </div>

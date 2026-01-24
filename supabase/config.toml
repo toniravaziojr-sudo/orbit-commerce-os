@@ -271,6 +271,9 @@ verify_jwt = true
 [functions.fiscal-sync-nuvem-fiscal]
 verify_jwt = true
 
+[functions.fiscal-emit]
+verify_jwt = true
+
 [functions.fiscal-check-status]
 verify_jwt = true
 
