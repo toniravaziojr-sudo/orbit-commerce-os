@@ -9,14 +9,14 @@ export function useEmailMarketing() {
   const queryClient = useQueryClient();
   const tenantId = currentTenant?.id;
 
-  // Lists
+  // Lists - include tag relationship
   const { data: lists = [], isLoading: listsLoading } = useQuery({
     queryKey: ["email-marketing-lists", tenantId],
     queryFn: async () => {
       if (!tenantId) return [];
       const { data, error } = await supabase
         .from("email_marketing_lists")
-        .select("*")
+        .select("*, customer_tags(id, name, color)")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
       if (error) throw error;
