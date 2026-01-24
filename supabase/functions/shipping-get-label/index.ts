@@ -192,8 +192,10 @@ async function getCorreiosLabel(
   console.log('[Correios] Getting label for:', trackingCode);
 
   try {
-    // Authenticate
-    const authMode = credentials.auth_mode as string || (credentials.token ? 'token' : 'oauth');
+    // Authenticate - support api_code (like Bling), token, and oauth modes
+    const authMode = credentials.auth_mode as string || 
+      (credentials.codigo_acesso ? 'api_code' : 
+       credentials.token ? 'token' : 'oauth');
     let token: string;
 
     if (authMode === 'token') {
@@ -201,7 +203,35 @@ async function getCorreiosLabel(
       if (!token) {
         return { success: false, error: 'Token Correios não configurado' };
       }
+    } else if (authMode === 'api_code') {
+      // API Code mode (like Bling) - use codigo_acesso as password
+      const usuario = credentials.usuario as string;
+      const codigoAcesso = credentials.codigo_acesso as string;
+      const cartaoPostagem = credentials.cartao_postagem as string;
+
+      if (!usuario || !codigoAcesso || !cartaoPostagem) {
+        return { success: false, error: 'Credenciais Correios incompletas' };
+      }
+
+      const authString = btoa(`${usuario}:${codigoAcesso}`);
+      const authResponse = await fetch('https://api.correios.com.br/token/v1/autentica/cartaopostagem', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${authString}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({ numero: cartaoPostagem }),
+      });
+
+      if (!authResponse.ok) {
+        return { success: false, error: 'Falha na autenticação Correios (verifique o código de acesso)' };
+      }
+
+      const authData = await authResponse.json();
+      token = authData.token;
     } else {
+      // OAuth mode (legacy - uses portal password)
       const usuario = credentials.usuario as string;
       const senha = credentials.senha as string;
       const cartaoPostagem = credentials.cartao_postagem as string;

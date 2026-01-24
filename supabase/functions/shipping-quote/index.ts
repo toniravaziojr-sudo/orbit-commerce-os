@@ -228,15 +228,16 @@ async function quoteCorreios(
   recipientCep: string,
   totals: { weight: number; height: number; width: number; length: number; value: number }
 ): Promise<ShippingOption[]> {
-  // Check auth mode - default to 'token' if token is provided, otherwise 'oauth'
+  // Check auth mode - default to 'api_code' (like Bling, most stable)
   const authMode = provider.credentials.auth_mode as string || 
-    (provider.credentials.token ? 'token' : 'oauth');
+    (provider.credentials.codigo_acesso ? 'api_code' : 
+     provider.credentials.token ? 'token' : 'oauth');
   
   let token: string;
 
   try {
     if (authMode === 'token') {
-      // Token mode - use static token from CWS portal
+      // Token mode - use static token from CWS portal (legacy)
       token = provider.credentials.token as string;
       
       if (!token) {
@@ -245,8 +246,48 @@ async function quoteCorreios(
       }
       
       console.log('[Correios] Using static token from CWS (auth_mode: token)');
+    } else if (authMode === 'api_code') {
+      // API Code mode (like Bling) - use codigo_acesso as password
+      const usuario = provider.credentials.usuario as string;
+      const codigoAcesso = provider.credentials.codigo_acesso as string;
+      const cartaoPostagem = provider.credentials.cartao_postagem as string;
+
+      if (!usuario || !codigoAcesso) {
+        console.log('[Correios] API Code mode but missing credentials - usuario:', !!usuario, 'codigo_acesso:', !!codigoAcesso);
+        return [];
+      }
+
+      console.log('[Correios] Authenticating via API Code (like Bling) - user:', usuario);
+      
+      const authString = btoa(`${usuario}:${codigoAcesso}`);
+      const authHeaders: Record<string, string> = {
+        'Authorization': `Basic ${authString}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
+      
+      const authUrl = 'https://api.correios.com.br/token/v1/autentica/cartaopostagem';
+      const authBody = JSON.stringify({ numero: cartaoPostagem });
+      
+      console.log('[Correios] Auth URL:', authUrl);
+      
+      const authResponse = await fetch(authUrl, {
+        method: 'POST',
+        headers: authHeaders,
+        body: authBody,
+      });
+
+      if (!authResponse.ok) {
+        const errorText = await authResponse.text();
+        console.error('[Correios] API Code auth failed:', authResponse.status, errorText);
+        return [];
+      }
+
+      const authData = await authResponse.json();
+      token = authData.token;
+      console.log('[Correios] API Code auth successful, token obtained');
     } else {
-      // OAuth mode - authenticate with usuario/senha
+      // OAuth mode - authenticate with usuario/senha (legacy)
       const usuario = provider.credentials.usuario as string;
       const senha = provider.credentials.senha as string;
       const cartaoPostagem = provider.credentials.cartao_postagem as string;
