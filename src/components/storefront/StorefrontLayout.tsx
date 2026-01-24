@@ -87,6 +87,7 @@ function StorefrontLayoutContent({
 
   const DomainDisabledGuard = lazy(() => import('./DomainDisabledGuard'));
   const SupportChatWidget = lazy(() => import('./SupportChatWidget').then(m => ({ default: m.SupportChatWidget })));
+  const NewsletterPopupLoader = lazy(() => import('./NewsletterPopupLoader').then(m => ({ default: m.NewsletterPopupLoader })));
 
   return (
     <StorefrontConfigProvider tenantId={tenant.id} customDomain={customDomain}>
@@ -105,6 +106,9 @@ function StorefrontLayoutContent({
               </main>
               <Suspense fallback={null}>
                 <SupportChatWidget />
+              </Suspense>
+              <Suspense fallback={null}>
+                <NewsletterPopupLoader tenantId={tenant.id} />
               </Suspense>
             </div>
           </DomainDisabledGuard>
