@@ -70,6 +70,7 @@ import PlatformIntegrations from "@/pages/PlatformIntegrations";
 import Attribution from "@/pages/Attribution";
 import Emails from "@/pages/Emails";
 import EmailMarketing from "@/pages/EmailMarketing";
+import EmailMarketingListDetail from "@/pages/EmailMarketingListDetail";
 import Import from "@/pages/Import";
 import Blog from "@/pages/Blog";
 import BlogPostEditor from "@/pages/BlogPostEditor";
@@ -335,6 +336,7 @@ const App = () => {
                   <Route path="/marketing" element={<Marketing />} />
                   <Route path="/marketing/atribuicao" element={<Attribution />} />
                   <Route path="/email-marketing" element={<EmailMarketing />} />
+                  <Route path="/email-marketing/list/:listId" element={<EmailMarketingListDetail />} />
                   <Route path="/quizzes" element={<Quizzes />} />
                   <Route path="/quizzes/:quizId" element={<QuizEditor />} />
                   <Route path="/finance" element={<Finance />} />
