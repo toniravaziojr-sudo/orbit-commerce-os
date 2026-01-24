@@ -36,6 +36,8 @@ const EDITABLE_CREDENTIALS = [
   // Meta (Facebook/Instagram/WhatsApp)
   'META_APP_ID',
   'META_APP_SECRET',
+  // Fal.AI (Geração de Imagens e Vídeos)
+  'FAL_API_KEY',
 ];
 
 serve(async (req) => {

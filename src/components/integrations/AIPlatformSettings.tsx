@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { CredentialEditor } from "./CredentialEditor";
+import { FalAIPlatformSettings } from "./platform/FalAIPlatformSettings";
 
 export function AIPlatformSettings() {
   const { data: secretsStatus, isLoading } = useQuery({
@@ -192,6 +193,9 @@ export function AIPlatformSettings() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Fal.AI */}
+      <FalAIPlatformSettings />
 
       {/* Lovable AI */}
       <Card>
