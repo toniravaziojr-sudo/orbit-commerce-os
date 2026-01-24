@@ -14,9 +14,10 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Loader2, ChevronRight, Mail, Eye, Palette, Settings2, Image as ImageIcon, Bell } from 'lucide-react';
+import { Loader2, ChevronRight, Mail, Eye, Palette, Settings2, Image as ImageIcon, Bell, Play } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { PopupPreview } from './PopupPreview';
 
 interface PopupSettingsProps {
   tenantId: string;
@@ -108,6 +109,7 @@ export function PopupSettings({ tenantId, templateSetId }: PopupSettingsProps) {
     trigger: false,
     fields: false,
   });
+  const [showPreview, setShowPreview] = useState(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const initialLoadDone = useRef(false);
 
@@ -290,6 +292,16 @@ export function PopupSettings({ tenantId, templateSetId }: PopupSettingsProps) {
 
   return (
     <div className="space-y-4">
+      {/* Preview Button */}
+      <Button
+        variant="outline"
+        className="w-full gap-2"
+        onClick={() => setShowPreview(true)}
+      >
+        <Play className="h-4 w-4" />
+        Visualizar Popup
+      </Button>
+
       {/* Active Toggle - Prominent */}
       <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border">
         <div className="flex items-center gap-3">
@@ -304,6 +316,13 @@ export function PopupSettings({ tenantId, templateSetId }: PopupSettingsProps) {
           onCheckedChange={(v) => updatePropImmediate('is_active', v)}
         />
       </div>
+
+      {/* Popup Preview Modal */}
+      <PopupPreview
+        config={localConfig}
+        isOpen={showPreview}
+        onClose={() => setShowPreview(false)}
+      />
 
       {/* General Section */}
       <Collapsible open={openSections.general} onOpenChange={() => toggleSection('general')}>
