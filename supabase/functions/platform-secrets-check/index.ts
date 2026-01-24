@@ -114,6 +114,8 @@ serve(async (req) => {
     // Nuvem Fiscal
     const nuvemFiscalClientId = await checkCredential(supabaseUrl, supabaseServiceKey, 'NUVEM_FISCAL_CLIENT_ID');
     const nuvemFiscalClientSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'NUVEM_FISCAL_CLIENT_SECRET');
+    // Fal.AI (Geração de Imagens e Vídeos)
+    const falApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'FAL_API_KEY');
     
     const secrets: Record<string, IntegrationConfig & { previews?: Record<string, string>; sources?: Record<string, string> }> = {
       nuvem_fiscal: {
@@ -334,6 +336,21 @@ serve(async (req) => {
           MP_ACCESS_TOKEN: mpAccessToken.source || '',
           MP_PUBLIC_KEY: mpPublicKey.source || '',
           MP_WEBHOOK_SECRET: mpWebhookSecret.source || '',
+        },
+      },
+      fal_ai: {
+        name: 'Fal.AI',
+        description: 'Geração de imagens e vídeos com IA (Flux, Kling, Runway)',
+        icon: 'Wand2',
+        docs: 'https://fal.ai/docs',
+        secrets: {
+          FAL_API_KEY: falApiKey.exists,
+        },
+        previews: {
+          FAL_API_KEY: falApiKey.preview || '',
+        },
+        sources: {
+          FAL_API_KEY: falApiKey.source || '',
         },
       },
     };
