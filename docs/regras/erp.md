@@ -34,13 +34,14 @@ Módulo de gestão empresarial: fiscal (NF-e), financeiro, e compras/estoque.
 | `fiscal-create-draft` | Cria rascunho de NF-e a partir de pedido |
 | `fiscal-create-manual` | Cria NF-e manualmente (sem pedido) |
 | `fiscal-auto-create-drafts` | Criação automática de rascunhos |
-| `fiscal-emit` | Emissão da NF-e via Focus NFe |
+| `fiscal-emit` | Emissão da NF-e via Nuvem Fiscal |
 | `fiscal-validate-order` | Validação pré-emissão |
+| `fiscal-sync-nuvem-fiscal` | Sincroniza empresa na Nuvem Fiscal |
 
 ### Funcionalidades
 | Feature | Status | Descrição |
 |---------|--------|-----------|
-| Emissão NF-e | 🟧 Pending | Via Focus NFe |
+| Emissão NF-e | ✅ Ready | Via Nuvem Fiscal |
 | Consulta CNPJ | 🟧 Pending | Dados do cliente |
 | NCM/CFOP | ✅ Ready | Configuração por produto |
 | ICMS/PIS/COFINS | 🟧 Pending | Cálculo automático |
@@ -85,23 +86,34 @@ Kit vendido por R$ 100,00
 | `cst` | CST (Lucro Real/Presumido) |
 | `unidade_comercial` | Unidade (UN, KG, etc) |
 
-### Integração Focus NFe
+### Integração Nuvem Fiscal
 ```typescript
 // Configuração por tenant em fiscal_settings
 {
   tenant_id: uuid,
-  focus_token: string,        // API Token (via platform_secrets)
+  nuvem_fiscal_client_id: string,   // Client ID (via platform_secrets)
+  nuvem_fiscal_client_secret: string, // Client Secret (via platform_secrets)
   ambiente: 'homologacao' | 'producao',
-  certificado_pfx: string,    // Certificado em base64
-  certificado_senha: string,  // Senha do certificado
+  certificado_pfx: string,    // Certificado em base64 (criptografado)
+  certificado_senha: string,  // Senha do certificado (criptografada)
   razao_social: string,
   cnpj: string,
   ie: string,
   crt: '1' | '2' | '3',       // Regime tributário
+  codigo_municipio: string,   // Código IBGE do município
   endereco_*: string,         // Dados do emitente
   desmembrar_estrutura: boolean, // Desmembrar kits na NF
 }
 ```
+
+### Edge Functions Fiscais (Nuvem Fiscal)
+| Função | Descrição |
+|--------|-----------|
+| `fiscal-sync-nuvem-fiscal` | Sincroniza empresa na Nuvem Fiscal |
+| `fiscal-emit` | Emissão da NF-e |
+| `fiscal-cancel` | Cancelamento de NF-e |
+| `fiscal-download-xml` | Download do XML |
+| `fiscal-download-pdf` | Download do DANFE |
 
 ---
 
@@ -206,7 +218,7 @@ Kit vendido por R$ 100,00
 
 ## Pendências
 
-- [ ] Integração Focus NFe completa
+- [x] Migração Focus NFe → Nuvem Fiscal
 - [ ] Dashboard financeiro
 - [ ] Módulo de compras
 - [ ] Relatórios fiscais
