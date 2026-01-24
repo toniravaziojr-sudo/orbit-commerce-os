@@ -472,6 +472,56 @@ export function StorefrontFooterContent({
       style={footerStyle}
     >
       {/* 
+        NEWSLETTER BANNER - Full width section at the top of footer
+        Shown when newsletter is enabled
+      */}
+      {showNewsletter && (
+        <div 
+          className="w-full py-8 md:py-10 border-b"
+          style={{ backgroundColor: footerBgColor || undefined }}
+        >
+          <div className="container mx-auto px-4 md:px-6">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6 md:gap-8">
+              {/* Text content */}
+              <div className="text-center md:text-left flex-shrink-0">
+                <h3 
+                  className="text-lg md:text-xl font-semibold uppercase tracking-wide mb-1"
+                  style={{ color: footerTitlesColor || footerTextColor || undefined }}
+                >
+                  {newsletterTitle}
+                </h3>
+                {newsletterSubtitle && (
+                  <p 
+                    className="text-sm opacity-80"
+                    style={{ color: footerTextColor || undefined }}
+                  >
+                    {newsletterSubtitle}
+                  </p>
+                )}
+              </div>
+              
+              {/* Form - horizontal on desktop */}
+              <div className="w-full md:w-auto md:min-w-[400px] md:max-w-[500px]">
+                <FooterNewsletterForm
+                  tenantId={tenantId}
+                  title="" 
+                  subtitle=""
+                  placeholder={newsletterPlaceholder}
+                  buttonText={newsletterButtonText || undefined}
+                  successMessage={newsletterSuccessMessage}
+                  listId={newsletterListId || undefined}
+                  textColor={footerTextColor || undefined}
+                  buttonBgColor={primaryColor}
+                  buttonTextColor={undefined}
+                  isEditing={isEditing}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 
         Footer Container:
         - Mobile (xs/sm): centered with good padding
         - Desktop (md+): full container
@@ -803,24 +853,7 @@ export function StorefrontFooterContent({
               </div>
             )}
 
-            {/* MOBILE BLOCO 6: Newsletter */}
-            {showNewsletter && (
-              <div className="flex flex-col items-center text-center">
-                <FooterNewsletterForm
-                  tenantId={tenantId}
-                  title={newsletterTitle}
-                  subtitle={newsletterSubtitle || undefined}
-                  placeholder={newsletterPlaceholder}
-                  buttonText={newsletterButtonText || undefined}
-                  successMessage={newsletterSuccessMessage}
-                  listId={newsletterListId || undefined}
-                  textColor={footerTextColor || undefined}
-                  buttonBgColor={primaryColor}
-                  buttonTextColor={undefined}
-                  isEditing={isEditing}
-                />
-              </div>
-            )}
+            {/* Newsletter is now shown as a full-width banner at the top of footer */}
             
           </div>
         </div>
@@ -1147,26 +1180,7 @@ export function StorefrontFooterContent({
             </div>
           )}
 
-          {/* ============================================ */}
-          {/* COLUNA 5: Newsletter */}
-          {/* ============================================ */}
-          {showNewsletter && (
-            <div className="text-left">
-              <FooterNewsletterForm
-                tenantId={tenantId}
-                title={newsletterTitle}
-                subtitle={newsletterSubtitle || undefined}
-                placeholder={newsletterPlaceholder}
-                buttonText={newsletterButtonText || undefined}
-                successMessage={newsletterSuccessMessage}
-                listId={newsletterListId || undefined}
-                textColor={footerTextColor || undefined}
-                buttonBgColor={primaryColor}
-                buttonTextColor={undefined}
-                isEditing={isEditing}
-              />
-            </div>
-          )}
+          {/* Newsletter is now shown as a full-width banner at the top of footer */}
         </div>
 
         {/* Image Sections: Payment, Security, Shipping, Official Stores */}
