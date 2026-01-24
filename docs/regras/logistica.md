@@ -1,6 +1,6 @@
 # Logística (Shipping) — Regras e Especificações
 
-> **STATUS:** 🟧 Pending (em construção)
+> **STATUS:** ✅ Produção (Correios e Frenet operacionais)
 
 ## Visão Geral
 
@@ -15,6 +15,7 @@ Módulo de gestão de envios, transportadoras, regras de frete grátis e frete p
 | `src/pages/Shipping.tsx` | Página principal |
 | `src/hooks/useShipments.ts` | Hook de envios |
 | `src/components/shipping/ShippingCarrierSettings.tsx` | Config transportadoras |
+| `src/components/shipping/CarrierConfigDialog.tsx` | Diálogo de configuração |
 | `src/components/shipping/FreeShippingRulesTab.tsx` | Regras frete grátis |
 | `src/components/shipping/CustomShippingRulesTab.tsx` | Frete personalizado |
 
@@ -25,11 +26,13 @@ Módulo de gestão de envios, transportadoras, regras de frete grátis e frete p
 | Feature | Status | Descrição |
 |---------|--------|-----------|
 | Lista de envios | ✅ Ready | Com filtros por status |
-| Rastreamento | ✅ Ready | Código de rastreio |
-| Transportadoras | 🟧 Pending | Configuração |
+| Rastreamento | ✅ Ready | Código de rastreio + polling automático |
+| Transportadoras | ✅ Ready | Correios (API Code), Frenet, Loggi |
 | Frete grátis | ✅ Ready | Regras condicionais |
 | Frete personalizado | ✅ Ready | Tabelas por região |
-| Cálculo automático | 🟧 Pending | Via APIs |
+| Cálculo automático | ✅ Ready | Via APIs (Correios, Frenet) |
+| Etiquetas | ✅ Ready | PDF e ZPL via Correios |
+| Pré-postagem | ✅ Ready | PLP via Correios |
 
 ---
 
@@ -104,27 +107,28 @@ interface CustomShippingRule {
 ### Arquitetura de Níveis
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    ADMIN PLATAFORMA                     │
-│         /integrations → tab "logistics"                 │
-│  ┌───────────────┐   ┌──────────────────────────────┐   │
-│  │ Loggi OAuth   │   │ Correios                     │   │
-│  │ Client ID     │   │ (não tem nível plataforma -  │   │
-│  │ Client Secret │   │ cada lojista tem contrato)   │   │
-│  └───────────────┘   └──────────────────────────────┘   │
-└─────────────────────────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────┐
-│                  PAINEL DO LOJISTA                      │
-│           /shipping/settings                            │
-│  ┌───────────────┐   ┌──────────────────────────────┐   │
-│  │ Loggi         │   │ Correios                     │   │
-│  │ - Company ID  │   │ - CNPJ (usuário)             │   │
-│  │ - Endereço    │   │ - Senha portal CWS           │   │
-│  │   origem      │   │ - Cartão de Postagem         │   │
-│  └───────────────┘   └──────────────────────────────┘   │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                       ADMIN PLATAFORMA                               │
+│                /integrations → tab "logistics"                       │
+│  ┌─────────────────────────┐   ┌─────────────────────────────────┐   │
+│  │ Loggi OAuth             │   │ Correios                        │   │
+│  │ - LOGGI_CLIENT_ID       │   │ (não tem nível plataforma -     │   │
+│  │ - LOGGI_CLIENT_SECRET   │   │ cada lojista tem contrato)      │   │
+│  └─────────────────────────┘   └─────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────┘
+                                 │
+                                 ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                      PAINEL DO LOJISTA                               │
+│                   /shipping/settings                                 │
+│  ┌─────────────────────────┐   ┌─────────────────────────────────┐   │
+│  │ Loggi                   │   │ Correios (Código de Acesso)     │   │
+│  │ - Company ID            │   │ - Usuário (CNPJ)                │   │
+│  │ - Endereço origem       │   │ - Código de Acesso às APIs      │   │
+│  │                         │   │ - Número do Contrato            │   │
+│  │                         │   │ - Cartão de Postagem            │   │
+│  └─────────────────────────┘   └─────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -144,25 +148,30 @@ interface CustomShippingRule {
 
 ---
 
-### Correios — Modelo 100% Tenant
+### Correios — Modelo 100% Tenant (Código de Acesso às APIs)
 
 | Nível | Configuração | Local |
 |-------|--------------|-------|
-| **Tenant** | CNPJ + Senha CWS + Cartão de Postagem **ou** Token manual | Loja → Envios → Configurações |
+| **Tenant** | CNPJ + Código de Acesso às APIs + Contrato + Cartão de Postagem | Loja → Envios → Configurações |
 
-**Fluxo:** Cada lojista tem seu próprio contrato (Meu Correios Empresas) e configura credenciais diretamente.
+**Fluxo:** Cada lojista tem seu próprio contrato (Meu Correios Empresas) e configura credenciais diretamente usando o método do Código de Acesso.
 
-**Modos de autenticação:**
-- **OAuth2 (Recomendado)** — CNPJ, Senha do portal CWS, Cartão de Postagem. Token renovado automaticamente.
-- **Token Manual** — Token do portal CWS. Expira a cada 24h.
+**Método de autenticação (ÚNICO):**
+- **Código de Acesso às APIs** — Igual ao método utilizado pelo Bling. Usa um código permanente gerado no portal CWS em vez da senha do portal. Mais estável e não quebra se o lojista trocar a senha.
+
+**Campos obrigatórios:**
+- `usuario` — CNPJ do contrato (sem pontuação)
+- `codigo_acesso` — Código permanente gerado em cws.correios.com.br → Gestão de acesso a API's
+- `contrato` — Número do contrato (ex: 9912689847)
+- `cartao_postagem` — Cartão de postagem vinculado (ex: 0079102786)
 
 **Endpoints utilizados:**
-- `POST /token/v1/autentica/cartaopostagem` — Autenticação OAuth2
+- `POST /token/v1/autentica/cartaopostagem` — Autenticação via Código de Acesso
 - `GET /cep/v2/enderecos/{cep}` — Consulta de CEP
-- `POST /preco/v1/nacional` — Cotação de frete
+- `POST /preco/v1/nacional` — Cotação de frete (PAC, SEDEX)
 - `GET /rastro/v1/objetos/{codigo}` — Rastreamento SRO
-- `POST /prepostagem/v2/prepostagens` — Criação de pré-postagem
-- `GET /prepostagem/v2/etiquetas` — Geração de etiquetas
+- `POST /prepostagem/v1/prepostagens` — Criação de pré-postagem (PLP)
+- `GET /prepostagem/v1/prepostagens/{codigo}/etiqueta` — Geração de etiquetas PDF/ZPL
 
 ---
 
@@ -178,13 +187,13 @@ interface CustomShippingRule {
 
 ### Status das Integrações
 
-| Transportadora | Cotação | Rastreamento | Etiquetas | Status |
-|----------------|---------|--------------|-----------|--------|
-| Frenet | ✅ | ✅ (via gateway) | ✅ (via gateway) | **Produção** |
-| Correios | ✅ | ✅ | ✅ | **Produção** |
-| Loggi | ✅ | 🟧 | 🟧 | **Em progresso** |
-| Melhor Envio | 🟧 | 🟧 | 🟧 | **Pendente** |
-| Jadlog | 🟧 | 🟧 | 🟧 | **Pendente** |
+| Transportadora | Cotação | Rastreamento | Etiquetas | Pré-postagem | Status |
+|----------------|---------|--------------|-----------|--------------|--------|
+| Frenet | ✅ | ✅ (via gateway) | ✅ (via gateway) | ✅ | **Produção** |
+| Correios (API Code) | ✅ | ✅ SRO | ✅ PDF/ZPL | ✅ PLP | **Produção** |
+| Loggi | ✅ | 🟧 | 🟧 | 🟧 | **Em progresso** |
+| Melhor Envio | 🟧 | 🟧 | 🟧 | 🟧 | **Pendente** |
+| Jadlog | 🟧 | 🟧 | 🟧 | 🟧 | **Pendente** |
 
 ---
 
