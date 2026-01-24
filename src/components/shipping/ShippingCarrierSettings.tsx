@@ -366,7 +366,7 @@ export function ShippingCarrierSettings() {
                     <Label className="text-sm font-medium">Modo de Autenticação</Label>
                   </div>
                   <RadioGroup
-                    value={data.fields['auth_mode'] || 'oauth'}
+                    value={data.fields['auth_mode'] || 'api_code'}
                     onValueChange={(value) => updateField(carrier.id, 'auth_mode', value)}
                     className="grid gap-3 md:grid-cols-2"
                   >
