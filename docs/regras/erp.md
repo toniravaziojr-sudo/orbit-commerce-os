@@ -27,21 +27,24 @@ Módulo de gestão empresarial: fiscal (NF-e via Nuvem Fiscal), financeiro, e co
 | `src/pages/Fiscal.tsx` | Dashboard fiscal |
 | `src/pages/FiscalSettings.tsx` | Configurações |
 | `src/pages/FiscalProductsConfig.tsx` | NCM/CFOP por produto |
+| `src/components/integrations/FiscalPlatformSettings.tsx` | Config global Nuvem Fiscal |
 
 ### Edge Functions Fiscais
 | Função | Descrição |
 |--------|-----------|
+| `fiscal-sync-nuvem-fiscal` | Sincroniza empresa + certificado na Nuvem Fiscal |
+| `fiscal-emit` | Emissão da NF-e via Nuvem Fiscal |
 | `fiscal-create-draft` | Cria rascunho de NF-e a partir de pedido |
 | `fiscal-create-manual` | Cria NF-e manualmente (sem pedido) |
 | `fiscal-auto-create-drafts` | Criação automática de rascunhos |
-| `fiscal-emit` | Emissão da NF-e via Nuvem Fiscal |
 | `fiscal-validate-order` | Validação pré-emissão |
-| `fiscal-sync-nuvem-fiscal` | Sincroniza empresa na Nuvem Fiscal |
 
 ### Funcionalidades
 | Feature | Status | Descrição |
 |---------|--------|-----------|
 | Emissão NF-e | ✅ Ready | Via Nuvem Fiscal |
+| Sincronização Empresa | ✅ Ready | Cadastro automático na Nuvem Fiscal |
+| Upload Certificado | ✅ Ready | A3/A1 via Nuvem Fiscal |
 | Consulta CNPJ | 🟧 Pending | Dados do cliente |
 | NCM/CFOP | ✅ Ready | Configuração por produto |
 | ICMS/PIS/COFINS | 🟧 Pending | Cálculo automático |
@@ -86,34 +89,102 @@ Kit vendido por R$ 100,00
 | `cst` | CST (Lucro Real/Presumido) |
 | `unidade_comercial` | Unidade (UN, KG, etc) |
 
-### Integração Nuvem Fiscal
+---
+
+## Integração Nuvem Fiscal
+
+### Credenciais (Platform-level)
+Configuradas via `platform_secrets`:
+| Secret | Descrição |
+|--------|-----------|
+| `NUVEM_FISCAL_CLIENT_ID` | Client ID OAuth2 |
+| `NUVEM_FISCAL_CLIENT_SECRET` | Client Secret OAuth2 |
+
+### Configuração por Tenant (`fiscal_settings`)
 ```typescript
-// Configuração por tenant em fiscal_settings
 {
   tenant_id: uuid,
-  nuvem_fiscal_client_id: string,   // Client ID (via platform_secrets)
-  nuvem_fiscal_client_secret: string, // Client Secret (via platform_secrets)
   ambiente: 'homologacao' | 'producao',
-  certificado_pfx: string,    // Certificado em base64 (criptografado)
-  certificado_senha: string,  // Senha do certificado (criptografada)
+  certificado_pfx: string,      // Certificado em base64 (criptografado)
+  certificado_senha: string,    // Senha do certificado (criptografada)
   razao_social: string,
   cnpj: string,
   ie: string,
-  crt: '1' | '2' | '3',       // Regime tributário
-  codigo_municipio: string,   // Código IBGE do município
-  endereco_*: string,         // Dados do emitente
-  desmembrar_estrutura: boolean, // Desmembrar kits na NF
+  crt: '1' | '2' | '3',         // Regime tributário
+  codigo_municipio: string,     // Código IBGE do município
+  endereco_*: string,           // Dados do emitente
+  desmembrar_estrutura: boolean,// Desmembrar kits na NF
+  nuvem_fiscal_id: string,      // ID da empresa na Nuvem Fiscal
+  sync_status: 'pending' | 'synced' | 'error',
+  last_sync_at: timestamp,
+  sync_error: string,
 }
 ```
 
-### Edge Functions Fiscais (Nuvem Fiscal)
-| Função | Descrição |
-|--------|-----------|
-| `fiscal-sync-nuvem-fiscal` | Sincroniza empresa na Nuvem Fiscal |
-| `fiscal-emit` | Emissão da NF-e |
-| `fiscal-cancel` | Cancelamento de NF-e |
-| `fiscal-download-xml` | Download do XML |
-| `fiscal-download-pdf` | Download do DANFE |
+### Arquitetura Nuvem Fiscal
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    SHARED MODULES                                │
+├─────────────────────────────────────────────────────────────────┤
+│  nuvem-fiscal-client.ts     │  nuvem-fiscal-adapter.ts          │
+│  ─────────────────────────  │  ────────────────────────────     │
+│  • OAuth2 token management  │  • buildEmpresaPayload()          │
+│  • syncEmpresa()            │  • buildCertificadoPayload()      │
+│  • cadastrarCertificado()   │  • buildNFePayload()              │
+│  • emitirNFe()              │  • parseNFeResponse()             │
+│  • consultarNFe()           │  • CRT/UF/Payment mappings        │
+│  • cancelarNFe()            │                                   │
+│  • downloadXML/PDF()        │                                   │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    EDGE FUNCTIONS                                │
+├─────────────────────────────────────────────────────────────────┤
+│  fiscal-sync-nuvem-fiscal   │  fiscal-emit                      │
+│  ─────────────────────────  │  ────────────────────────────     │
+│  1. Load fiscal_settings    │  1. Load invoice + items          │
+│  2. Build empresa payload   │  2. Build NF-e payload            │
+│  3. syncEmpresa()           │  3. emitirNFe()                   │
+│  4. cadastrarCertificado()  │  4. Map Sefaz status              │
+│  5. Update sync_status      │  5. Update fiscal_invoices        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Fluxo de Sincronização
+```
+1. Tenant configura dados fiscais (CNPJ, certificado, endereço)
+2. Chama fiscal-sync-nuvem-fiscal
+3. Edge function:
+   a. Carrega fiscal_settings
+   b. Descriptografa certificado (FISCAL_ENCRYPTION_KEY)
+   c. Resolve código IBGE via RPC
+   d. Chama NuvemFiscalClient.syncEmpresa()
+   e. Cadastra certificado na Nuvem Fiscal
+   f. Atualiza fiscal_settings com nuvem_fiscal_id
+```
+
+### Fluxo de Emissão
+```
+1. Invoice em status 'draft' ou 'pending'
+2. Chama fiscal-emit com invoice_id
+3. Edge function:
+   a. Carrega invoice + items + fiscal_settings
+   b. Monta payload via buildNFePayload()
+   c. Chama NuvemFiscalClient.emitirNFe()
+   d. Mapeia status Sefaz → status interno
+   e. Atualiza fiscal_invoices (chave, protocolo, URLs)
+```
+
+### Mapeamento de Status
+| Status Sefaz | Status Interno |
+|--------------|----------------|
+| `autorizada` | `authorized` |
+| `rejeitada` | `rejected` |
+| `denegada` | `denied` |
+| `cancelada` | `cancelled` |
+| `processando` | `processing` |
 
 ---
 
@@ -219,8 +290,13 @@ Kit vendido por R$ 100,00
 ## Pendências
 
 - [x] Migração Focus NFe → Nuvem Fiscal
+- [x] Sincronização de empresa na Nuvem Fiscal
+- [x] Upload de certificado via Nuvem Fiscal
+- [x] Emissão de NF-e via Nuvem Fiscal
 - [ ] Dashboard financeiro
 - [ ] Módulo de compras
 - [ ] Relatórios fiscais
 - [ ] Integração com ERPs externos
 - [ ] Importação de NF-e de entrada
+- [ ] Cancelamento de NF-e
+- [ ] Carta de correção (CC-e)
