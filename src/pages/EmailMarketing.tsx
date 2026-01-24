@@ -1,15 +1,15 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useEmailMarketing } from "@/hooks/useEmailMarketing";
-import { Mail, Users, Megaphone, ListPlus, Plus, MoreHorizontal, Eye, Trash2, Edit } from "lucide-react";
+import { Mail, Users, Megaphone, ListPlus, Plus, MoreHorizontal, Eye, Trash2, Edit, ChevronRight } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ListDialog } from "@/components/email-marketing/ListDialog";
 import { TemplateDialog } from "@/components/email-marketing/TemplateDialog";
 import { CampaignDialog } from "@/components/email-marketing/CampaignDialog";
-import { ListDetailDrawer } from "@/components/email-marketing/ListDetailDrawer";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -21,18 +21,16 @@ import { Input } from "@/components/ui/input";
 import { Search, Tag } from "lucide-react";
 
 export default function EmailMarketing() {
+  const navigate = useNavigate();
   const { lists, subscribers, templates, campaigns, queueStats } = useEmailMarketing();
   
   const [listDialogOpen, setListDialogOpen] = useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [campaignDialogOpen, setCampaignDialogOpen] = useState(false);
-  const [selectedList, setSelectedList] = useState<any>(null);
-  const [listDrawerOpen, setListDrawerOpen] = useState(false);
   const [subscriberSearch, setSubscriberSearch] = useState("");
 
   const handleViewList = (list: any) => {
-    setSelectedList(list);
-    setListDrawerOpen(true);
+    navigate(`/email-marketing/list/${list.id}`);
   };
 
   const filteredSubscribers = subscribers.filter((sub: any) =>
@@ -147,31 +145,7 @@ export default function EmailMarketing() {
                             {list.customer_tags.name}
                           </Badge>
                         )}
-                        
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-40">
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleViewList(list); }}>
-                              <Eye className="h-4 w-4 mr-2" />
-                              Ver Detalhes
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={(e) => { e.stopPropagation(); handleViewList(list); }}
-                              className="text-destructive focus:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Excluir
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <ChevronRight className="h-5 w-5 text-muted-foreground" />
                       </div>
                     </div>
                   ))}
@@ -356,13 +330,6 @@ export default function EmailMarketing() {
       <ListDialog open={listDialogOpen} onOpenChange={setListDialogOpen} />
       <TemplateDialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen} />
       <CampaignDialog open={campaignDialogOpen} onOpenChange={setCampaignDialogOpen} />
-      
-      {/* List Detail Drawer */}
-      <ListDetailDrawer 
-        open={listDrawerOpen} 
-        onOpenChange={setListDrawerOpen}
-        list={selectedList}
-      />
     </div>
   );
 }
