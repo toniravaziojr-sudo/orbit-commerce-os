@@ -196,9 +196,38 @@ O componente `PaymentIconsQuickSelect` permite adicionar ícones de pagamento pr
 
 ---
 
+## Newsletter no Footer
+
+| Prop | Tipo | Default | Descrição |
+|------|------|---------|-----------|
+| `showNewsletter` | boolean | false | Exibe formulário de newsletter |
+| `newsletterTitle` | string | "Receba nossas promoções" | Título da seção |
+| `newsletterSubtitle` | string | "Inscreva-se para..." | Subtítulo descritivo |
+| `newsletterPlaceholder` | string | "Seu e-mail" | Placeholder do input |
+| `newsletterButtonText` | string | "" | Texto do botão (ícone se vazio) |
+| `newsletterSuccessMessage` | string | "Inscrito com sucesso!" | Mensagem pós-envio |
+| `newsletterListId` | string | "" | ID da lista de marketing destino |
+
+### Componente
+
+| Componente | Arquivo | Responsabilidade |
+|------------|---------|------------------|
+| **FooterNewsletterForm** | `src/components/storefront/footer/FooterNewsletterForm.tsx` | Formulário horizontal de captura |
+
+### Integração
+
+- Usa Edge Function `marketing-form-submit` para envio
+- Source identificado como `footer_newsletter`
+- Suporta seleção de lista via `EmailListSelector` nas configurações
+
+---
+
 ## Histórico de Alterações
 
 | Data | Alteração |
 |------|-----------|
+| 2025-01-24 | Adicionado formulário horizontal de newsletter no footer |
+| 2025-01-24 | Nova seção "Newsletter" em FooterSettings.tsx |
+| 2025-01-24 | Integração com EmailListSelector para seleção de lista destino |
 | 2025-01-19 | Adicionado componente `PaymentIconsQuickSelect` para seleção rápida de bandeiras |
 | 2025-01-19 | 12 ícones de pagamento pré-definidos (Visa, Mastercard, Elo, PIX, Boleto, etc.) |
