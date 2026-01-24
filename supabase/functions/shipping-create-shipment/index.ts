@@ -68,6 +68,7 @@ interface ProviderCredentials {
   dr?: string;
   auth_mode?: string;
   token?: string;
+  codigo_acesso?: string; // API Code mode (like Bling)
   // Loggi
   client_id?: string;
   client_secret?: string;
@@ -88,8 +89,10 @@ async function createCorreiosShipment(
 ): Promise<ShipmentResult> {
   console.log('[Correios] Creating pre-shipment for order:', order.id);
   
-  // Authenticate
-  const authMode = credentials.auth_mode || (credentials.token ? 'token' : 'oauth');
+  // Authenticate - support api_code (like Bling), token, and oauth modes
+  const authMode = credentials.auth_mode || 
+    (credentials.codigo_acesso ? 'api_code' : 
+     credentials.token ? 'token' : 'oauth');
   let token: string;
 
   try {
@@ -98,8 +101,37 @@ async function createCorreiosShipment(
       if (!token) {
         return { success: false, error: 'Token Correios não configurado' };
       }
+    } else if (authMode === 'api_code') {
+      // API Code mode (like Bling) - use codigo_acesso as password
+      const usuario = credentials.usuario;
+      const codigoAcesso = credentials.codigo_acesso;
+      const cartaoPostagem = credentials.cartao_postagem;
+
+      if (!usuario || !codigoAcesso || !cartaoPostagem) {
+        return { success: false, error: 'Credenciais Correios incompletas (usuário, código de acesso, cartão postagem)' };
+      }
+
+      const authString = btoa(`${usuario}:${codigoAcesso}`);
+      const authResponse = await fetch('https://api.correios.com.br/token/v1/autentica/cartaopostagem', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${authString}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({ numero: cartaoPostagem }),
+      });
+
+      if (!authResponse.ok) {
+        const errorText = await authResponse.text();
+        console.error('[Correios] API Code auth failed:', authResponse.status, errorText);
+        return { success: false, error: 'Falha na autenticação Correios (verifique o código de acesso)' };
+      }
+
+      const authData = await authResponse.json();
+      token = authData.token;
     } else {
-      // OAuth2 authentication
+      // OAuth2 authentication (legacy - uses portal password)
       const usuario = credentials.usuario;
       const senha = credentials.senha;
       const cartaoPostagem = credentials.cartao_postagem;

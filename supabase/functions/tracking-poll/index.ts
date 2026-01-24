@@ -123,9 +123,9 @@ async function getCorreiosToken(
   credentials: Record<string, unknown>,
   tenantId: string
 ): Promise<string | null> {
-  const authMode = credentials.auth_mode as string || 'oauth2';
+  const authMode = credentials.auth_mode as string || 'api_code';
   
-  // Mode 1: Pre-generated token (CWS portal)
+  // Mode 1: Pre-generated token (CWS portal) - legacy
   if (authMode === 'token' || authMode === 'token_cws') {
     const preToken = credentials.token as string;
     if (preToken && preToken.length > 50) {
@@ -136,7 +136,62 @@ async function getCorreiosToken(
     return null;
   }
   
-  // Mode 2: OAuth2 (usuario/senha + cartão postagem)
+  // Mode 2: API Code (like Bling) - recommended, most stable
+  // Uses codigo_acesso as password instead of portal password
+  if (authMode === 'api_code') {
+    const usuario = credentials.usuario as string;
+    const codigoAcesso = credentials.codigo_acesso as string;
+    const cartaoPostagem = credentials.cartao_postagem as string;
+
+    if (!usuario || !codigoAcesso || !cartaoPostagem) {
+      console.error('[Correios] Missing API Code credentials (usuario, codigo_acesso, cartao_postagem)');
+      return null;
+    }
+
+    // Check cache
+    const cached = tokenCache.get(tenantId);
+    if (cached && cached.expiresAt > new Date()) {
+      console.log('[Correios] Using cached token');
+      return cached.token;
+    }
+
+    try {
+      // Use codigo_acesso as password (like Bling does)
+      const authString = btoa(`${usuario}:${codigoAcesso}`);
+      
+      const response = await fetch(CORREIOS_AUTH_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${authString}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          numero: cartaoPostagem,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[Correios] API Code auth error:', response.status, errorText);
+        return null;
+      }
+
+      const data: CorreiosToken = await response.json();
+      
+      // Cache token (expires in ~1 hour, cache for 50 min to be safe)
+      const expiresAt = new Date(Date.now() + 50 * 60 * 1000);
+      tokenCache.set(tenantId, { token: data.token, expiresAt });
+      
+      console.log('[Correios] API Code token obtained successfully');
+      return data.token;
+    } catch (error) {
+      console.error('[Correios] API Code token fetch error:', error);
+      return null;
+    }
+  }
+  
+  // Mode 3: OAuth2 (usuario/senha + cartão postagem) - legacy
   const usuario = credentials.usuario as string;
   const senha = credentials.senha as string;
   const cartaoPostagem = credentials.cartao_postagem as string;
