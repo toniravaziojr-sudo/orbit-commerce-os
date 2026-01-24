@@ -8,6 +8,44 @@ Hub central de integrações com serviços externos: pagamentos, redes sociais, 
 
 ---
 
+## ⚠️ REGRA CRÍTICA: Separação de Módulos de Integração
+
+> **NÃO NEGOCIÁVEL** — Esta regra foi definida para evitar duplicação e confusão na navegação.
+
+### Módulo "Integrações" (`/integrations`)
+
+**Escopo:** Integrações que o **usuário admin** configura para **seu tenant/loja**.
+
+| Tab | Descrição |
+|-----|-----------|
+| Pagamentos | Gateways de pagamento (Mercado Pago, etc) |
+| Meta | Facebook/Instagram (Pixel, Catálogo) |
+| Marketplaces | Mercado Livre, Shopee, etc |
+| Domínio/Email | Domínio da loja + Email transacional |
+| Outros | ERPs, etc |
+
+**PROIBIDO:** Adicionar configurações de plataforma (SendGrid, Fal.AI, Loggi global, etc) neste módulo.
+
+### Módulo "Integrações da Plataforma" (`/platform-integrations`)
+
+**Escopo:** Configurações **globais da plataforma** (apenas para `isPlatformOperator`).
+
+| Tab | Descrição |
+|-----|-----------|
+| Email e Domínios | SendGrid, Cloudflare (plataforma) |
+| WhatsApp | Z-API manager, Meta Cloud API (plataforma) |
+| Fiscal | Nuvem Fiscal, Focus NFe |
+| Logística | Loggi OAuth global |
+| IA | Fal.AI, Firecrawl |
+| Late | Late integration |
+| Mercado Livre | Meli platform config |
+| Mercado Pago | MP platform config |
+| Shopee | Shopee platform config |
+
+**NUNCA** criar aba "Plataforma" dentro do módulo `/integrations`. Use `/platform-integrations`.
+
+---
+
 ## Arquivos Principais
 
 | Arquivo | Descrição |
@@ -24,17 +62,17 @@ Hub central de integrações com serviços externos: pagamentos, redes sociais, 
 
 ---
 
-## Estrutura de Abas (Tenant)
+## Estrutura de Abas (Tenant - `/integrations`)
 
 | Tab | Valor | Componente | Descrição |
 |-----|-------|------------|-----------|
 | Pagamentos | `payments` | `PaymentGatewaySettings` | Gateways de pagamento |
-| Redes Sociais | `social` | `MetaConnectionSettings`, `LateConnectionSettings` | Meta, Late |
+| Meta | `social` | `MetaUnifiedSettings`, `LateConnectionSettings` | Meta, Late |
 | Marketplaces | `marketplaces` | `MarketplacesIntegrationTab` | Mercado Livre, etc |
-| WhatsApp | `whatsapp` | `WhatsAppProviderTabs` | Providers de WhatsApp |
 | **Domínio/Email** | `domain-email` | `DomainAndEmailSettings` | Domínio da loja + Email |
 | Outros | `outros` | Cards ERP | Integrações ERP (em breve) |
-| Plataforma | `platform` | Sub-tabs operador | Apenas para `isPlatformOperator` |
+
+> **NOTA:** A aba "Plataforma" foi **REMOVIDA** deste módulo. Use `/platform-integrations`.
 
 ---
 

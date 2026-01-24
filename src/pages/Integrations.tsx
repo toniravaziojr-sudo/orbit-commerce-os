@@ -5,12 +5,10 @@ import {
   Boxes,
   Globe,
   MoreHorizontal,
-  Shield,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PaymentGatewaySettings } from "@/components/payments/PaymentGatewaySettings";
 import { LateConnectionSettings } from "@/components/integrations/LateConnectionSettings";
 import { MetaUnifiedSettings } from "@/components/integrations/MetaUnifiedSettings";
@@ -19,14 +17,6 @@ import { DomainAndEmailSettings } from "@/components/integrations/DomainAndEmail
 import { usePaymentProviders } from "@/hooks/usePaymentProviders";
 import { useLateConnection } from "@/hooks/useLateConnection";
 import { useMeliConnection } from "@/hooks/useMeliConnection";
-import { usePlatformOperator } from "@/hooks/usePlatformOperator";
-import { PlatformAdminGate } from "@/components/auth/PlatformAdminGate";
-import { PlatformIntegrationsDashboard } from "@/components/integrations/PlatformIntegrationsDashboard";
-import { EmailAndDomainsPlatformSettings } from "@/components/integrations/EmailAndDomainsPlatformSettings";
-import { WhatsAppPlatformSettings } from "@/components/integrations/WhatsAppPlatformSettings";
-import { FiscalPlatformSettings } from "@/components/integrations/FiscalPlatformSettings";
-import { LogisticsPlatformSettings } from "@/components/integrations/LogisticsPlatformSettings";
-import { AIPlatformSettings } from "@/components/integrations/AIPlatformSettings";
 import { StatusBadge } from "@/components/ui/status-badge";
 
 // Future ERP integrations
@@ -44,7 +34,6 @@ export default function Integrations() {
   const { providers: paymentProviders, isLoading: loadingPayments } = usePaymentProviders();
   const { isConnected: lateConnected } = useLateConnection();
   const { isConnected: meliConnected } = useMeliConnection();
-  const { isPlatformOperator } = usePlatformOperator();
   const [activeTab, setActiveTab] = useState("payments");
 
   const activePaymentGateways = paymentProviders.filter(p => p.is_enabled).length;
@@ -134,13 +123,6 @@ export default function Integrations() {
             <MoreHorizontal className="h-4 w-4" />
             <span className="hidden sm:inline">Outros</span>
           </TabsTrigger>
-          {/* Platform Admin Tab */}
-          {isPlatformOperator && (
-            <TabsTrigger value="platform" className="gap-2 border-l ml-2 pl-4">
-              <Shield className="h-4 w-4" />
-              <span className="hidden sm:inline">Plataforma</span>
-            </TabsTrigger>
-          )}
         </TabsList>
 
         <TabsContent value="payments">
@@ -200,55 +182,6 @@ export default function Integrations() {
             ))}
           </div>
         </TabsContent>
-
-        {/* Platform Admin Tab Content */}
-        {isPlatformOperator && (
-          <TabsContent value="platform" className="space-y-6">
-            <PlatformAdminGate>
-              <Alert className="border-primary/30 bg-primary/5">
-                <Shield className="h-4 w-4 text-primary" />
-                <AlertDescription>
-                  <strong>Área do Operador:</strong> Configurações globais de integração da plataforma.
-                </AlertDescription>
-              </Alert>
-
-              <Tabs defaultValue="overview" className="space-y-6">
-                <TabsList className="flex flex-wrap gap-1 h-auto p-1">
-                  <TabsTrigger value="overview">Resumo</TabsTrigger>
-                  <TabsTrigger value="email">Email</TabsTrigger>
-                  <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
-                  <TabsTrigger value="fiscal">Fiscal</TabsTrigger>
-                  <TabsTrigger value="logistics">Logística</TabsTrigger>
-                  <TabsTrigger value="ai">IA</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="overview">
-                  <PlatformIntegrationsDashboard onNavigateToTab={() => {}} />
-                </TabsContent>
-
-                <TabsContent value="email">
-                  <EmailAndDomainsPlatformSettings />
-                </TabsContent>
-
-                <TabsContent value="whatsapp">
-                  <WhatsAppPlatformSettings />
-                </TabsContent>
-
-                <TabsContent value="fiscal">
-                  <FiscalPlatformSettings />
-                </TabsContent>
-
-                <TabsContent value="logistics">
-                  <LogisticsPlatformSettings />
-                </TabsContent>
-
-                <TabsContent value="ai">
-                  <AIPlatformSettings />
-                </TabsContent>
-              </Tabs>
-            </PlatformAdminGate>
-          </TabsContent>
-        )}
       </Tabs>
     </div>
   );
