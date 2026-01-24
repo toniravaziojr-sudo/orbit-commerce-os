@@ -4,7 +4,7 @@
 // =============================================
 
 import { useState } from 'react';
-import { Send, Loader2, Check, Mail } from 'lucide-react';
+import { Send, Loader2, Check } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 
@@ -105,9 +105,9 @@ export function FooterNewsletterForm({
   }
 
   return (
-    <div className="flex flex-col gap-3 w-full max-w-xs">
-      {/* Title */}
-      {title && (
+    <div className="flex flex-col gap-2 w-full">
+      {/* Title - only show if provided and not empty */}
+      {title && title.trim() !== '' && (
         <h4 
           className="text-sm font-semibold uppercase tracking-wide"
           style={{ color: textColor || undefined }}
@@ -116,8 +116,8 @@ export function FooterNewsletterForm({
         </h4>
       )}
       
-      {/* Subtitle */}
-      {subtitle && (
+      {/* Subtitle - only show if provided and not empty */}
+      {subtitle && subtitle.trim() !== '' && (
         <p 
           className="text-xs opacity-80"
           style={{ color: textColor || undefined }}
@@ -126,13 +126,9 @@ export function FooterNewsletterForm({
         </p>
       )}
 
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="flex items-stretch">
+      {/* Form - full width horizontal layout */}
+      <form onSubmit={handleSubmit} className="flex items-stretch w-full">
         <div className="relative flex-1">
-          <Mail 
-            className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-50 pointer-events-none"
-            style={{ color: textColor || undefined }}
-          />
           <input
             type="email"
             value={email}
@@ -143,9 +139,9 @@ export function FooterNewsletterForm({
             placeholder={placeholder}
             disabled={isLoading || isEditing}
             className={cn(
-              "w-full h-10 pl-9 pr-3 text-sm rounded-l-md",
-              "border border-r-0 bg-background/10 backdrop-blur-sm",
-              "placeholder:opacity-60 focus:outline-none focus:ring-1 focus:ring-primary/50",
+              "w-full h-11 px-4 text-sm rounded-l-md",
+              "border border-r-0 bg-white/10 backdrop-blur-sm",
+              "placeholder:opacity-60 focus:outline-none focus:ring-2 focus:ring-primary/30",
               "disabled:opacity-50 disabled:cursor-not-allowed",
               error && "border-destructive"
             )}
@@ -160,10 +156,10 @@ export function FooterNewsletterForm({
           type="submit"
           disabled={isLoading || isEditing || !email.trim()}
           className={cn(
-            "h-10 px-4 rounded-r-md flex items-center justify-center",
+            "h-11 px-5 rounded-r-md flex items-center justify-center",
             "transition-all duration-200",
             "disabled:opacity-50 disabled:cursor-not-allowed",
-            "hover:opacity-90 active:scale-95"
+            "hover:opacity-90 active:scale-[0.98]"
           )}
           style={{
             backgroundColor: buttonBgColor || 'hsl(var(--primary))',
@@ -174,7 +170,7 @@ export function FooterNewsletterForm({
           {isLoading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : buttonText ? (
-            <span className="text-sm font-medium">{buttonText}</span>
+            <span className="text-sm font-medium whitespace-nowrap">{buttonText}</span>
           ) : (
             <Send className="h-4 w-4" />
           )}
