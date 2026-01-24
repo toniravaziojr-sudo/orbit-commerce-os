@@ -89,9 +89,7 @@ const fullNavigation: NavGroup[] = [
       { title: "Pedidos", href: "/orders", icon: ShoppingCart },
       { title: "Checkout Abandonado", href: "/abandoned-checkouts", icon: ShoppingBag },
       { title: "Produtos", href: "/products", icon: Package },
-      { title: "Categorias", href: "/categories", icon: FolderTree },
       { title: "Clientes", href: "/customers", icon: Users },
-      { title: "Descontos", href: "/discounts", icon: Percent },
     ],
   },
   {
@@ -99,6 +97,7 @@ const fullNavigation: NavGroup[] = [
     collapsible: true,
     items: [
       { title: "Loja Virtual", href: "/storefront", icon: Store },
+      { title: "Categorias", href: "/categories", icon: FolderTree },
       { title: "Menus", href: "/menus", icon: Menu },
       { title: "Páginas da Loja", href: "/pages", icon: FileText },
       { title: "Blog", href: "/blog", icon: BookOpen },
@@ -112,6 +111,7 @@ const fullNavigation: NavGroup[] = [
       { title: "Atribuição de venda", href: "/marketing/atribuicao", icon: TrendingUp },
       { title: "Email Marketing", href: "/email-marketing", icon: Mail },
       { title: "Quizzes", href: "/quizzes", icon: FileText },
+      { title: "Descontos", href: "/discounts", icon: Percent },
       { title: "Aumentar Ticket", href: "/offers", icon: TrendingUp },
       { title: "Avaliações", href: "/reviews", icon: Star },
       { title: "Gestão de Mídias", href: "/media", icon: Image },
