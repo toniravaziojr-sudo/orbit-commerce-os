@@ -150,8 +150,14 @@ export function useShippingProviders() {
         throw new Error(`Teste de conexão não disponível para ${provider}`);
       }
 
+      // For correios, ensure auth_mode defaults to 'api_code' if not specified
+      const body = { ...credentials };
+      if (provider === 'correios' && !body.auth_mode) {
+        body.auth_mode = 'api_code';
+      }
+
       const { data, error } = await supabase.functions.invoke(endpoint, {
-        body: credentials,
+        body,
       });
 
       if (error) throw error;

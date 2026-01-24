@@ -72,27 +72,30 @@ const CARRIER_DEFINITIONS: CarrierDefinition[] = [
     hasAuthModes: true,
     authModes: [
       { 
-        value: 'oauth', 
-        label: 'OAuth2 (Recomendado)', 
-        description: 'Autenticação automática via CNPJ + senha + cartão. Token é renovado automaticamente.',
+        value: 'api_code', 
+        label: 'Código de Acesso (Recomendado)', 
+        description: 'Igual ao Bling: usa o código permanente gerado no portal CWS. Mais estável e não depende da senha.',
         recommended: true
       },
       { 
-        value: 'token', 
-        label: 'Token Manual', 
-        description: 'Token do portal CWS. Expira a cada 24h e precisa ser atualizado manualmente.'
+        value: 'oauth', 
+        label: 'OAuth2 com Senha', 
+        description: 'Usa a senha do portal CWS. Se mudar a senha, a integração quebra.'
       },
     ],
     fields: [
-      // OAuth mode fields (recommended)
+      // API Code mode fields (recommended - like Bling)
+      { key: 'usuario', label: 'Usuário do Portal Meu Correios', type: 'text', placeholder: '51519325000116', showWhen: { field: 'auth_mode', value: 'api_code' } },
+      { key: 'codigo_acesso', label: 'Código de Acesso às APIs', type: 'password', placeholder: 'Código gerado em cws.correios.com.br → Gestão de acesso a APIs', showWhen: { field: 'auth_mode', value: 'api_code' } },
+      { key: 'contrato', label: 'Contrato', type: 'text', placeholder: '9912689847', showWhen: { field: 'auth_mode', value: 'api_code' } },
+      { key: 'cartao_postagem', label: 'Cartão de Postagem', type: 'text', placeholder: '0079102786', showWhen: { field: 'auth_mode', value: 'api_code' } },
+      // OAuth mode fields (legacy)
       { key: 'usuario', label: 'Usuário (CNPJ)', type: 'text', placeholder: '00000000000000', showWhen: { field: 'auth_mode', value: 'oauth' } },
-      { key: 'senha', label: 'Senha', type: 'password', placeholder: 'Senha do portal', showWhen: { field: 'auth_mode', value: 'oauth' } },
+      { key: 'senha', label: 'Senha do Portal CWS', type: 'password', placeholder: 'Senha (não do Meu Correios)', showWhen: { field: 'auth_mode', value: 'oauth' } },
       { key: 'cartao_postagem', label: 'Cartão de Postagem', type: 'text', placeholder: '0067599079', showWhen: { field: 'auth_mode', value: 'oauth' } },
-      // Token mode fields
-      { key: 'token', label: 'Token CWS', type: 'password', placeholder: 'Token do portal cws.correios.com.br', showWhen: { field: 'auth_mode', value: 'token' } },
     ],
     features: ['Rastreamento Automático', 'Cotação de Frete', 'Etiquetas'],
-    docsUrl: 'https://cws.correios.com.br/dashboard/pesquisa',
+    docsUrl: 'https://cws.correios.com.br/acesso-componentes',
   },
   {
     id: 'loggi',
@@ -134,12 +137,13 @@ export function ShippingCarrierSettings() {
       // Build fields with auth_mode support
       const fields: Record<string, string> = {};
       
-      // Initialize auth_mode with saved value or default to 'oauth' for correios (recommended)
+      // Initialize auth_mode with saved value or default to 'api_code' for correios (recommended - like Bling)
       if (carrier.hasAuthModes) {
         const savedAuthMode = saved?.credentials?.auth_mode as string;
-        // If saved has token but no auth_mode, infer token mode; otherwise default to oauth
+        // Default to api_code (most stable, like Bling), but preserve saved mode if exists
         fields['auth_mode'] = savedAuthMode || 
-          (saved?.credentials?.token && !saved?.credentials?.usuario ? 'token' : 'oauth');
+          (saved?.credentials?.codigo_acesso ? 'api_code' : 
+           saved?.credentials?.senha ? 'oauth' : 'api_code');
       }
       
       // Initialize other fields
@@ -429,13 +433,24 @@ export function ShippingCarrierSettings() {
                     );
                   })()}
                   
-                  {/* OAuth mode info */}
-                  {carrier.id === 'correios' && (data.fields['auth_mode'] || 'oauth') === 'oauth' && (
+                  {/* API Code mode info (like Bling) */}
+                  {carrier.id === 'correios' && (data.fields['auth_mode'] || 'api_code') === 'api_code' && (
                     <Alert className="mt-3 border-primary/30 bg-primary/5">
                       <ShieldCheck className="h-4 w-4 text-primary" />
-                      <AlertTitle>Renovação automática</AlertTitle>
+                      <AlertTitle>Método mais estável (igual ao Bling)</AlertTitle>
                       <AlertDescription className="text-sm">
-                        Com OAuth2, o token é gerado e renovado automaticamente pelo sistema. Você não precisa se preocupar com expiração.
+                        O código de acesso é permanente e não depende da sua senha do portal. 
+                        Gere-o em <a href="https://cws.correios.com.br/acesso-componentes" target="_blank" rel="noopener" className="underline font-medium">cws.correios.com.br → Gestão de acesso a API's</a>.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  {/* OAuth mode warning */}
+                  {carrier.id === 'correios' && data.fields['auth_mode'] === 'oauth' && (
+                    <Alert className="mt-3 border-amber-500/30 bg-amber-500/5">
+                      <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      <AlertTitle>Menos estável</AlertTitle>
+                      <AlertDescription className="text-sm">
+                        Se você mudar a senha do portal CWS, a integração vai quebrar. Considere usar o "Código de Acesso" que é mais estável.
                       </AlertDescription>
                     </Alert>
                   )}
@@ -447,7 +462,8 @@ export function ShippingCarrierSettings() {
                   .filter((field) => {
                     // Filter fields based on showWhen condition
                     if (!field.showWhen) return true;
-                    const currentValue = data.fields[field.showWhen.field] || 'token';
+                    // Default to 'api_code' for correios (most stable, like Bling)
+                    const currentValue = data.fields[field.showWhen.field] || (carrier.id === 'correios' ? 'api_code' : 'oauth');
                     return currentValue === field.showWhen.value;
                   })
                   .map((field) => {
