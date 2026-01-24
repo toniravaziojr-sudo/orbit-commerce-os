@@ -37,7 +37,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getPublicHomeUrl } from '@/lib/publicUrls';
+import { usePrimaryPublicHost } from '@/hooks/usePrimaryPublicHost';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -83,8 +83,15 @@ export function StorefrontTemplatesTab() {
   const [publishTarget, setPublishTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
-  const storeUrl = getPublicHomeUrl(currentTenant?.slug || '', false);
-  const previewUrl = getPublicHomeUrl(currentTenant?.slug || '', true);
+  // Use the correct public host for the tenant (platform subdomain or custom domain)
+  const { primaryOrigin, isLoading: isLoadingHost } = usePrimaryPublicHost(
+    currentTenant?.id,
+    currentTenant?.slug
+  );
+  
+  // Build store and preview URLs from the correct public origin
+  const storeUrl = primaryOrigin || `https://${currentTenant?.slug}.shops.comandocentral.com.br`;
+  const previewUrl = `${storeUrl}?preview=1`;
 
   const handleCreateTemplate = async (name: string) => {
     if (!createPreset) return;
