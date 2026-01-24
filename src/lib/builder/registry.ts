@@ -3269,7 +3269,7 @@ const blockDefinitions: BlockDefinition[] = [
     },
     propsSchema: {
       listId: {
-        type: 'string',
+        type: 'emailList',
         label: 'Lista de Email',
         placeholder: 'Selecione uma lista',
         required: true,
