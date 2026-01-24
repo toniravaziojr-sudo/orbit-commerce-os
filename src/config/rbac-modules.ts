@@ -22,13 +22,12 @@ export const ROUTE_TO_PERMISSION: Record<string, { module: string; submodule?: s
   // E-commerce
   '/orders': { module: 'ecommerce', submodule: 'orders' },
   '/products': { module: 'ecommerce', submodule: 'products' },
-  '/categories': { module: 'ecommerce', submodule: 'categories' },
   '/customers': { module: 'ecommerce', submodule: 'customers' },
-  '/discounts': { module: 'ecommerce', submodule: 'discounts' },
   '/abandoned-checkouts': { module: 'ecommerce', submodule: 'abandoned-checkouts' },
   
   // Loja Online
   '/storefront': { module: 'storefront', submodule: 'storefront' },
+  '/categories': { module: 'storefront', submodule: 'categories' },
   '/menus': { module: 'storefront', submodule: 'menus' },
   '/pages': { module: 'storefront', submodule: 'pages' },
   '/page-templates': { module: 'storefront', submodule: 'pages' },
@@ -38,6 +37,7 @@ export const ROUTE_TO_PERMISSION: Record<string, { module: string; submodule?: s
   '/marketing': { module: 'marketing', submodule: 'integrations' },
   '/marketing/atribuicao': { module: 'marketing', submodule: 'attribution' },
   '/email-marketing': { module: 'marketing', submodule: 'email-marketing' },
+  '/discounts': { module: 'marketing', submodule: 'discounts' },
   '/offers': { module: 'marketing', submodule: 'offers' },
   '/reviews': { module: 'marketing', submodule: 'reviews' },
   '/media': { module: 'marketing', submodule: 'media' },
@@ -90,22 +90,21 @@ export const MODULES: ModuleConfig[] = [
   {
     key: 'ecommerce',
     label: 'E-commerce',
-    description: 'Pedidos, produtos, categorias, clientes, descontos e checkout abandonado',
+    description: 'Pedidos, produtos, clientes e checkout abandonado',
     submodules: [
       { key: 'orders', label: 'Pedidos', route: '/orders' },
       { key: 'abandoned-checkouts', label: 'Checkout Abandonado', route: '/abandoned-checkouts' },
       { key: 'products', label: 'Produtos', route: '/products' },
-      { key: 'categories', label: 'Categorias', route: '/categories' },
       { key: 'customers', label: 'Clientes', route: '/customers' },
-      { key: 'discounts', label: 'Descontos', route: '/discounts' },
     ],
   },
   {
     key: 'storefront',
     label: 'Loja Online',
-    description: 'Loja virtual, menus, páginas e blog',
+    description: 'Loja virtual, categorias, menus, páginas e blog',
     submodules: [
       { key: 'storefront', label: 'Loja Virtual', route: '/storefront' },
+      { key: 'categories', label: 'Categorias', route: '/categories' },
       { key: 'menus', label: 'Menus', route: '/menus' },
       { key: 'pages', label: 'Páginas da Loja', route: '/pages' },
       { key: 'blog', label: 'Blog', route: '/blog' },
@@ -114,11 +113,12 @@ export const MODULES: ModuleConfig[] = [
   {
     key: 'marketing',
     label: 'Marketing',
-    description: 'Integrações, atribuição, email marketing, ofertas, avaliações e campanhas',
+    description: 'Integrações, atribuição, email marketing, descontos, ofertas, avaliações e campanhas',
     submodules: [
       { key: 'integrations', label: 'Integrações Marketing', route: '/marketing' },
       { key: 'attribution', label: 'Atribuição de Venda', route: '/marketing/atribuicao' },
       { key: 'email-marketing', label: 'Email Marketing', route: '/email-marketing' },
+      { key: 'discounts', label: 'Descontos', route: '/discounts' },
       { key: 'offers', label: 'Aumentar Ticket', route: '/offers' },
       { key: 'reviews', label: 'Avaliações', route: '/reviews' },
       { key: 'media', label: 'Gestão de Mídias', route: '/media' },
