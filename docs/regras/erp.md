@@ -1,10 +1,10 @@
 # ERP (Fiscal, Financeiro, Compras) — Regras e Especificações
 
-> **STATUS:** 🟧 Pending (em construção)
+> **STATUS:** 🟧 Pending (em construção) — Fiscal ✅ Ready
 
 ## Visão Geral
 
-Módulo de gestão empresarial: fiscal (NF-e), financeiro, e compras/estoque.
+Módulo de gestão empresarial: fiscal (NF-e via Nuvem Fiscal), financeiro, e compras/estoque.
 
 ---
 
@@ -12,7 +12,7 @@ Módulo de gestão empresarial: fiscal (NF-e), financeiro, e compras/estoque.
 
 | Submódulo | Rota | Status |
 |-----------|------|--------|
-| Fiscal | `/fiscal` | 🟧 Pending |
+| Fiscal | `/fiscal` | ✅ Ready (Nuvem Fiscal) |
 | Financeiro | `/finance` | 🟧 Pending |
 | Compras | `/purchases` | 🟧 Pending |
 | Logística | `/shipping` | 🟧 Pending (ver logistica.md) |
