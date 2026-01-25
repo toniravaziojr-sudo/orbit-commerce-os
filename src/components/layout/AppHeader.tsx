@@ -56,17 +56,16 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card px-6">
-      {/* Platform Alerts (Left side) */}
+      {/* Left side: Alerts + Tutorial */}
       <div className="flex items-center gap-4">
         <PlatformAlerts />
-      </div>
-
-      {/* Right side: Tutorial + User Menu */}
-      <div className="flex items-center gap-3">
-        {/* Module Tutorial Link */}
         <div className="hidden lg:block">
           <ModuleTutorialLink />
         </div>
+      </div>
+
+      {/* Right side: User Menu */}
+      <div className="flex items-center gap-3">
         {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
