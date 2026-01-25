@@ -42,13 +42,13 @@ interface LocalMenuItem {
 
 interface MenuPanelProps {
   title: string;
-  location: 'header' | 'footer_1' | 'footer_2'; // kept for compatibility but unused
+  location: 'header' | 'footer_1' | 'footer_2';
   menuId: string | null;
   onCreateMenu: () => Promise<void>;
   onAddItem: (menuId: string, onItemCreated: (item: LocalMenuItem) => void) => void;
   onEditItem: (item: MenuItem, onItemUpdated: (item: LocalMenuItem) => void) => void;
   categories?: Array<{ id: string; name: string }>;
-  pages?: Array<{ id: string; title: string }>;
+  pages?: Array<{ id: string; title: string; is_published?: boolean }>;
 }
 
 interface LocalMenuItemWithChildren extends LocalMenuItem {
@@ -179,13 +179,17 @@ const UNNESTING_THRESHOLD = -50;
 
 export default function MenuPanel({
   title,
+  location,
   menuId,
   onCreateMenu,
   onAddItem,
   onEditItem,
+  pages,
 }: MenuPanelProps) {
   const { items: dbItems, isLoading } = useMenuItems(menuId);
   const { toast } = useToast();
+  
+  const isFooterMenu = location === 'footer_1' || location === 'footer_2';
   
   // Local state for pending changes
   const [localItems, setLocalItems] = useState<LocalMenuItem[]>([]);
@@ -200,6 +204,19 @@ export default function MenuPanel({
   // Track drop position indicator
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const [dropPosition, setDropPosition] = useState<'before' | 'after' | 'inside' | null>(null);
+
+  // Calculate hidden items count (pages not published) - only for footer menus
+  const unpublishedPageItemsCount = useMemo(() => {
+    if (!isFooterMenu || !pages) return 0;
+    
+    return localItems.filter(item => {
+      if (item.isDeleted) return false;
+      if (item.item_type !== 'page' || !item.ref_id) return false;
+      
+      const page = pages.find(p => p.id === item.ref_id);
+      return page && page.is_published === false;
+    }).length;
+  }, [isFooterMenu, localItems, pages]);
 
   // Sync local state with DB items when they change
   useEffect(() => {
@@ -667,6 +684,16 @@ export default function MenuPanel({
           )}
         </div>
       </CardHeader>
+      
+      {/* Warning for unpublished pages in footer menus */}
+      {isFooterMenu && unpublishedPageItemsCount > 0 && (
+        <div className="mx-4 mb-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded-md">
+          <span className="text-xs text-amber-600 flex items-center gap-1.5">
+            <AlertCircle className="h-3.5 w-3.5" />
+            ⚠️ {unpublishedPageItemsCount} item(ns) oculto(s) - páginas não publicadas
+          </span>
+        </div>
+      )}
       <CardContent className="flex-1 overflow-auto px-4 pb-4 space-y-3">
         {/* Save/Discard buttons */}
         {hasChanges && (

@@ -249,25 +249,51 @@ if (!url) return null; // Item não é renderizado
 - O sistema filtra automaticamente esses itens inválidos
 - Recomendação: criar as páginas institucionais antes de vincular nos menus
 
-### Aviso de Itens Ocultos (Builder)
+### Aviso de Itens Ocultos
 
-> **REGRA:** Quando há itens configurados mas não renderizados (por referências inválidas), o sistema exibe aviso no Builder.
+> **REGRA:** Quando há itens de menu apontando para páginas não publicadas, o sistema exibe aviso em dois locais.
 
+**1. Página de Menus (Admin - `/menus`)**
+
+O componente `MenuPanel` exibe aviso nos painéis Footer 1 e Footer 2:
+
+```tsx
+// Arquivo: src/components/menus/MenuPanel.tsx
+// Exibido quando unpublishedPageItemsCount > 0 e isFooterMenu
+<div className="mx-4 mb-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded-md">
+  <span className="text-xs text-amber-600">
+    ⚠️ {count} item(ns) oculto(s) - páginas não publicadas
+  </span>
+</div>
+```
+
+**Props necessárias:**
 | Prop | Tipo | Descrição |
 |------|------|-----------|
-| `footer1HiddenCount` | number | Quantidade de itens ocultos no Footer 1 |
-| `footer2HiddenCount` | number | Quantidade de itens ocultos no Footer 2 |
+| `pages` | Array<{id, title, is_published}> | Lista de páginas com status de publicação |
+| `location` | 'header' \| 'footer_1' \| 'footer_2' | Tipo do menu (aviso só para footer) |
 
-**UI do Aviso:**
+**2. Builder da Loja Virtual (Editor Visual)**
+
+O componente `StorefrontFooterContent` exibe aviso quando `isEditing=true`:
+
 ```tsx
-// Exibido apenas quando isEditing=true e hiddenCount > 0
+// Arquivo: src/components/storefront/StorefrontFooterContent.tsx
 <span className="text-xs text-amber-500">
   ⚠️ {count} item(ns) oculto(s) - páginas não publicadas
 </span>
 ```
 
-**Cálculo:**
+**Cálculo (ambos locais):**
 ```typescript
+// MenuPanel: conta itens de página com is_published=false
+const unpublishedPageItemsCount = localItems.filter(item => {
+  if (item.item_type !== 'page' || !item.ref_id) return false;
+  const page = pages.find(p => p.id === item.ref_id);
+  return page && page.is_published === false;
+}).length;
+
+// StorefrontFooterContent: diferença entre configurados e válidos
 const hiddenCount = configuredItems.length - validItems.length;
 ```
 
@@ -277,6 +303,7 @@ const hiddenCount = configuredItems.length - validItems.length;
 
 | Data | Alteração |
 |------|-----------|
+| 2025-01-25 | Aviso de páginas não publicadas adicionado na página de Menus (admin) |
 | 2025-01-25 | Aviso de itens ocultos exibido no Builder quando há páginas não publicadas |
 | 2025-01-25 | Removido `.limit(5)` da query de categorias para corrigir validação de links |
 | 2025-01-25 | Links de menu com referências inválidas não são mais renderizados |
