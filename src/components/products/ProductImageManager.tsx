@@ -123,13 +123,17 @@ function SortableImageCard({ image, onSetPrimary, onDelete }: SortableImageCardP
         )}
 
         {/* Actions overlay */}
-        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 pointer-events-none group-hover:pointer-events-auto">
           {!image.is_primary && (
             <Button
               type="button"
               size="sm"
               variant="secondary"
-              onClick={() => onSetPrimary(image.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onSetPrimary(image.id);
+              }}
               title="Definir como principal"
             >
               <Star className="h-4 w-4" />
@@ -139,7 +143,11 @@ function SortableImageCard({ image, onSetPrimary, onDelete }: SortableImageCardP
             type="button"
             size="sm"
             variant="destructive"
-            onClick={() => onDelete(image.id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onDelete(image.id);
+            }}
             title="Excluir"
           >
             <Trash2 className="h-4 w-4" />
