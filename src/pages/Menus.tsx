@@ -146,6 +146,11 @@ export default function Menus() {
           onCreateMenu={() => handleCreateMenu('footer_1')}
           onAddItem={handleAddItem}
           onEditItem={handleEditItem}
+          pages={(pages || []).map(p => ({
+            id: p.id,
+            title: p.title,
+            is_published: p.is_published,
+          }))}
         />
 
         {/* Footer 2 Menu Panel */}
@@ -156,6 +161,11 @@ export default function Menus() {
           onCreateMenu={() => handleCreateMenu('footer_2')}
           onAddItem={handleAddItem}
           onEditItem={handleEditItem}
+          pages={(pages || []).map(p => ({
+            id: p.id,
+            title: p.title,
+            is_published: p.is_published,
+          }))}
         />
       </div>
 
