@@ -6230,6 +6230,7 @@ export type Database = {
           button_text_color: string | null
           created_at: string
           exclude_pages: string[] | null
+          icon_image_url: string | null
           id: string
           image_url: string | null
           is_active: boolean | null
@@ -6261,6 +6262,7 @@ export type Database = {
           button_text_color?: string | null
           created_at?: string
           exclude_pages?: string[] | null
+          icon_image_url?: string | null
           id?: string
           image_url?: string | null
           is_active?: boolean | null
@@ -6292,6 +6294,7 @@ export type Database = {
           button_text_color?: string | null
           created_at?: string
           exclude_pages?: string[] | null
+          icon_image_url?: string | null
           id?: string
           image_url?: string | null
           is_active?: boolean | null

@@ -44,6 +44,7 @@ interface PopupConfig {
   button_bg_color: string | null;
   button_text_color: string | null;
   image_url: string | null;
+  icon_image_url: string | null;
   trigger_type: string;
   trigger_delay_seconds: number | null;
   trigger_scroll_percent: number | null;
@@ -187,6 +188,7 @@ export function PopupSettings({ tenantId, templateSetId }: PopupSettingsProps) {
             button_bg_color: fullConfig.button_bg_color,
             button_text_color: fullConfig.button_text_color,
             image_url: fullConfig.image_url,
+            icon_image_url: fullConfig.icon_image_url,
             trigger_type: fullConfig.trigger_type,
             trigger_delay_seconds: fullConfig.trigger_delay_seconds,
             trigger_scroll_percent: fullConfig.trigger_scroll_percent,
@@ -221,6 +223,7 @@ export function PopupSettings({ tenantId, templateSetId }: PopupSettingsProps) {
             button_bg_color: fullConfig.button_bg_color,
             button_text_color: fullConfig.button_text_color,
             image_url: fullConfig.image_url,
+            icon_image_url: fullConfig.icon_image_url,
             trigger_type: fullConfig.trigger_type || 'delay',
             trigger_delay_seconds: fullConfig.trigger_delay_seconds,
             trigger_scroll_percent: fullConfig.trigger_scroll_percent,
@@ -499,7 +502,7 @@ export function PopupSettings({ tenantId, templateSetId }: PopupSettingsProps) {
           <div className="space-y-2">
             <Label className="text-sm flex items-center gap-2">
               <ImageIcon className="h-4 w-4" />
-              URL da Imagem
+              URL da Imagem Lateral
             </Label>
             <Input
               value={localConfig.image_url || ''}
@@ -507,6 +510,32 @@ export function PopupSettings({ tenantId, templateSetId }: PopupSettingsProps) {
               placeholder="https://..."
             />
             <p className="text-xs text-muted-foreground">Usado no layout "Com Imagem Lateral"</p>
+          </div>
+
+          {/* Icon Image URL - replaces emoji */}
+          <div className="space-y-2">
+            <Label className="text-sm flex items-center gap-2">
+              <ImageIcon className="h-4 w-4" />
+              Ícone do Incentivo (Mini Imagem)
+            </Label>
+            <Input
+              value={localConfig.icon_image_url || ''}
+              onChange={(e) => updateProp('icon_image_url', e.target.value)}
+              placeholder="https://... (deixe vazio para usar emoji)"
+            />
+            <p className="text-xs text-muted-foreground">
+              Substitui o emoji 🎁 por uma mini imagem (24x24px) no badge de incentivo
+            </p>
+            {localConfig.icon_image_url && (
+              <div className="flex items-center gap-2 p-2 bg-muted/50 rounded">
+                <img 
+                  src={localConfig.icon_image_url} 
+                  alt="Preview" 
+                  className="w-6 h-6 object-contain"
+                />
+                <span className="text-xs text-muted-foreground">Preview do ícone</span>
+              </div>
+            )}
           </div>
         </CollapsibleContent>
       </Collapsible>

@@ -275,6 +275,10 @@ export function StorefrontFooterContent({
   
   const validFooter1Items = getValidMenuItems(footer1Items);
   const validFooter2Items = getValidMenuItems(footer2Items);
+  
+  // Calculate hidden items count for warnings (shown in editing mode)
+  const footer1HiddenCount = footer1Items.length - validFooter1Items.length;
+  const footer2HiddenCount = footer2Items.length - validFooter2Items.length;
 
   // ============================================
   // DATA RESOLUTION: footerConfig > store_settings
@@ -823,6 +827,12 @@ export function StorefrontFooterContent({
                       </p>
                     </>
                   ) : null}
+                  {/* Warning when items are hidden due to unpublished pages */}
+                  {isEditing && footer1HiddenCount > 0 && (
+                    <p className="text-xs text-amber-500 mt-2 italic">
+                      ⚠️ {footer1HiddenCount} item(ns) oculto(s) - páginas não publicadas
+                    </p>
+                  )}
                 </nav>
               </div>
             )}
@@ -864,6 +874,12 @@ export function StorefrontFooterContent({
                       </p>
                     </>
                   ) : null}
+                  {/* Warning when items are hidden due to unpublished pages */}
+                  {isEditing && footer2HiddenCount > 0 && (
+                    <p className="text-xs text-amber-500 mt-2 italic">
+                      ⚠️ {footer2HiddenCount} item(ns) oculto(s) - páginas não publicadas
+                    </p>
+                  )}
                 </nav>
               </div>
             )}
@@ -1146,6 +1162,12 @@ export function StorefrontFooterContent({
                     </p>
                   </>
                 ) : null}
+                {/* Warning when items are hidden due to unpublished pages */}
+                {isEditing && footer1HiddenCount > 0 && (
+                  <p className="text-xs text-amber-500 mt-2 italic">
+                    ⚠️ {footer1HiddenCount} item(ns) oculto(s) - páginas não publicadas
+                  </p>
+                )}
               </nav>
             </div>
           )}
@@ -1189,6 +1211,12 @@ export function StorefrontFooterContent({
                     </p>
                   </>
                 ) : null}
+                {/* Warning when items are hidden due to unpublished pages */}
+                {isEditing && footer2HiddenCount > 0 && (
+                  <p className="text-xs text-amber-500 mt-2 italic">
+                    ⚠️ {footer2HiddenCount} item(ns) oculto(s) - páginas não publicadas
+                  </p>
+                )}
               </nav>
             </div>
           )}
