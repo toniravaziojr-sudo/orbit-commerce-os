@@ -73,6 +73,8 @@ import EmailMarketing from "@/pages/EmailMarketing";
 import EmailMarketingListDetail from "@/pages/EmailMarketingListDetail";
 import Import from "@/pages/Import";
 import Blog from "@/pages/Blog";
+import BlogCampaigns from "@/pages/BlogCampaigns";
+import BlogCampaignDetail from "@/pages/BlogCampaignDetail";
 import BlogPostEditor from "@/pages/BlogPostEditor";
 import Quizzes from "@/pages/Quizzes";
 import { QuizEditor } from "@/components/quizzes";
@@ -318,6 +320,8 @@ const App = () => {
                   <Route path="/pages" element={<Pages />} />
                   <Route path="/page-templates" element={<PageTemplates />} />
                   <Route path="/blog" element={<Blog />} />
+                  <Route path="/blog/campaigns" element={<BlogCampaigns />} />
+                  <Route path="/blog/campaigns/:campaignId" element={<BlogCampaignDetail />} />
                   <Route path="/customers" element={<Customers />} />
                   <Route path="/customers/:id" element={<CustomerDetail />} />
                   <Route path="/notifications" element={<Notifications />} />

@@ -114,7 +114,7 @@ const fullNavigation: NavGroup[] = [
       { title: "Descontos", href: "/discounts", icon: Percent },
       { title: "Aumentar Ticket", href: "/offers", icon: TrendingUp },
       { title: "Avaliações", href: "/reviews", icon: Star },
-      { title: "Gestão de Mídias", href: "/media", icon: Image },
+      { title: "Mídias Sociais", href: "/media", icon: Image },
       { title: "Criador de campanhas", href: "/campaigns", icon: Megaphone },
     ],
   },
