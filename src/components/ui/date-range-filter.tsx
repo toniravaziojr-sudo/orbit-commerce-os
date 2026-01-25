@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, subMonths, startOfDay, endOfDay, parse, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-type PresetType = 'today' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'select_month' | 'custom';
+type PresetType = 'all_time' | 'today' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'select_month' | 'custom';
 
 interface DateFieldOption {
   value: string;
@@ -29,6 +29,7 @@ export interface DateRangeFilterProps {
 }
 
 const presets: { value: PresetType; label: string }[] = [
+  { value: 'all_time', label: 'Todo o período' },
   { value: 'today', label: 'Hoje' },
   { value: 'this_week', label: 'Esta semana' },
   { value: 'last_week', label: 'Semana passada' },
@@ -38,10 +39,12 @@ const presets: { value: PresetType; label: string }[] = [
   { value: 'custom', label: 'Período customizado' },
 ];
 
-function getPresetDates(preset: PresetType, selectedMonth?: Date): { start: Date; end: Date } {
+function getPresetDates(preset: PresetType, selectedMonth?: Date): { start?: Date; end?: Date } {
   const now = new Date();
   
   switch (preset) {
+    case 'all_time':
+      return { start: undefined, end: undefined };
     case 'today':
       return { start: startOfDay(now), end: endOfDay(now) };
     case 'this_week':
@@ -65,6 +68,8 @@ function getPresetDates(preset: PresetType, selectedMonth?: Date): { start: Date
 }
 
 function detectPreset(start?: Date, end?: Date): PresetType | null {
+  // If no dates, it's "all_time"
+  if (!start && !end) return 'all_time';
   if (!start || !end) return null;
   
   const now = new Date();
@@ -143,14 +148,23 @@ export function DateRangeFilter({
       return;
     }
     
+    if (preset === 'all_time') {
+      setActivePreset('all_time');
+      setLocalStartDate(undefined);
+      setLocalEndDate(undefined);
+      setStartInputValue('');
+      setEndInputValue('');
+      return;
+    }
+    
     if (preset === 'select_month') {
       setActivePreset('select_month');
       // Use the calendar month for month selection
       const { start, end } = getPresetDates('select_month', calendarMonth);
       setLocalStartDate(start);
       setLocalEndDate(end);
-      setStartInputValue(format(start, 'dd/MM/yyyy'));
-      setEndInputValue(format(end, 'dd/MM/yyyy'));
+      setStartInputValue(start ? format(start, 'dd/MM/yyyy') : '');
+      setEndInputValue(end ? format(end, 'dd/MM/yyyy') : '');
       return;
     }
     
@@ -158,8 +172,8 @@ export function DateRangeFilter({
     const { start, end } = getPresetDates(preset);
     setLocalStartDate(start);
     setLocalEndDate(end);
-    setStartInputValue(format(start, 'dd/MM/yyyy'));
-    setEndInputValue(format(end, 'dd/MM/yyyy'));
+    setStartInputValue(start ? format(start, 'dd/MM/yyyy') : '');
+    setEndInputValue(end ? format(end, 'dd/MM/yyyy') : '');
   };
   
   const handleStartDateSelect = (date: Date | undefined) => {
@@ -223,7 +237,7 @@ export function DateRangeFilter({
   
   const displayText = hasFilter
     ? `${label}: ${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}`
-    : label;
+    : `${label}: Todo o período`;
   
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
