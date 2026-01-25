@@ -22,7 +22,7 @@ interface CategorySettingsFromContext {
 
 export function CategoryBannerBlock({
   titlePosition = 'center',
-  overlayOpacity = 40,
+  overlayOpacity = 0, // Default sem overlay para não escurecer o banner
   height = 'md',
   context,
   isEditing = false,
