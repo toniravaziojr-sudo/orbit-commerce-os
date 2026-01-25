@@ -105,6 +105,18 @@
 | `customButtonColor` | string | "" | Cor do botão personalizado |
 | `customButtonLink` | string | "" | URL do botão personalizado |
 | `showBanner` | boolean | true | Exibe banner da categoria |
+| `showCategoryName` | boolean | true | Exibe nome da categoria |
+
+### CategoryBanner (Defaults do Builder)
+
+| Prop | Default | Descrição |
+|------|---------|-----------|
+| `showTitle` | true | Exibe título da categoria sobre o banner |
+| `titlePosition` | 'center' | Posição do título: 'left', 'center', 'right' |
+| `overlayOpacity` | 0 | Opacidade do overlay escuro (0-100). Default 0 = sem escurecimento |
+| `height` | 'md' | Altura do banner: 'sm', 'md', 'lg' |
+
+> **Nota (2025-01-25):** `overlayOpacity` default alterado de 40→0 em `defaults.ts` e `pageContracts.ts` para evitar escurecimento automático.
 
 ### Produto (ProductSettings)
 
