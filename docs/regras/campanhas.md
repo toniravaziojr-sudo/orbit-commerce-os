@@ -1,30 +1,41 @@
 # Campanhas (Criador de Campanhas) — Regras e Especificações
 
 > **Status:** 🟧 Pending (não validado)  
-> **Última atualização:** 2025-01-19
+> **Última atualização:** 2025-01-25
 
 ---
 
 ## Visão Geral
 
-Sistema de planejamento e criação de campanhas de marketing com IA, dividido em dois módulos:
+Sistema de planejamento e criação de campanhas de marketing com IA, dividido em três módulos:
 
 1. **Campanhas** (`/campaigns`) - IA Estrategista para tráfego pago
-2. **Gestão de Mídias** (`/media`) - Calendário editorial para conteúdo orgânico
+2. **Mídias Sociais** (`/media`) - Calendário editorial para Facebook e Instagram
+3. **Campanhas Blog** (`/blog/campaigns`) - Calendário editorial para posts de blog (ver `docs/regras/blog.md`)
 
 ---
 
 ## Arquivos Principais
 
+### Mídias Sociais (Facebook/Instagram)
+
 | Arquivo | Propósito |
 |---------|-----------|
 | `src/pages/Campaigns.tsx` | IA Estrategista |
-| `src/pages/Media.tsx` | Gestão de Mídias |
+| `src/pages/Media.tsx` | Mídias Sociais (Facebook/Instagram) |
 | `src/hooks/useMediaCampaigns.ts` | Hook CRUD campanhas |
 | `src/components/media/CampaignCalendar.tsx` | Calendário visual |
 | `src/components/media/CampaignsList.tsx` | Lista de campanhas |
 | `supabase/functions/media-generate-suggestions/` | Geração IA |
 | `supabase/functions/late-schedule-post/` | Agendamento Late |
+
+### Campanhas Blog
+
+| Arquivo | Propósito |
+|---------|-----------|
+| `src/pages/BlogCampaigns.tsx` | Lista de campanhas de blog |
+| `src/pages/BlogCampaignDetail.tsx` | Detalhe com calendário |
+| `supabase/functions/media-publish-blog/` | Publicação em blog_posts |
 
 ---
 

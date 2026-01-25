@@ -215,6 +215,36 @@ const context: BlockRenderContext = {
 
 ---
 
+## Campanhas IA para Blog
+
+O módulo de blog possui integração com o sistema de campanhas de IA para geração automática de posts.
+
+### Rotas
+
+| Rota | Descrição |
+|------|-----------|
+| `/blog/campaigns` | Lista de campanhas de blog |
+| `/blog/campaigns/:campaignId` | Detalhe da campanha com calendário |
+
+### Arquivos
+
+| Arquivo | Propósito |
+|---------|-----------|
+| `src/pages/BlogCampaigns.tsx` | Lista de campanhas (target_channel = "blog") |
+| `src/pages/BlogCampaignDetail.tsx` | Calendário + publicação |
+| `src/components/media/CampaignCalendar.tsx` | Calendário visual (reutilizado) |
+| `supabase/functions/media-publish-blog/` | Publica item em blog_posts |
+
+### Fluxo
+
+1. Admin acessa Blog > Campanhas IA
+2. Cria campanha com `target_channel: "blog"`
+3. Gera sugestões com IA
+4. Revisa/aprova no calendário
+5. Publica como post de blog
+
+---
+
 ## Recursos Futuros (Planejados)
 
 - [ ] Categorias de posts
@@ -223,4 +253,3 @@ const context: BlockRenderContext = {
 - [ ] Newsletter integration
 - [ ] Schema markup (Article)
 - [ ] RSS Feed
-- [ ] Agendamento de publicação
