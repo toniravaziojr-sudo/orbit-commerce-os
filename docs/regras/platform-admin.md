@@ -19,6 +19,8 @@ Funcionalidades exclusivas para administradores da plataforma (`platform_admins`
 | `src/pages/platform/PlatformTutorials.tsx` | Gerenciamento de tutoriais por módulo |
 | `src/components/layout/PlatformAlerts.tsx` | Exibição de avisos no header |
 | `src/components/layout/ModuleTutorialLink.tsx` | Link de tutorial dinâmico no header |
+| `src/components/support-center/TutorialsList.tsx` | Galeria de tutoriais na Central de Suporte |
+| `src/pages/SupportCenter.tsx` | Central de Suporte com aba de Tutoriais |
 | `src/hooks/usePlatformAnnouncements.ts` | Fetch de avisos ativos |
 | `src/hooks/useModuleTutorials.ts` | Mapeamento de rotas para tutoriais |
 
@@ -124,6 +126,54 @@ const ROUTE_TO_MODULE: Record<string, string> = {
 
 ---
 
+## Central de Suporte — Aba Tutoriais
+
+### Componente TutorialsList
+
+```tsx
+// Exibe galeria de todos os tutoriais ativos
+<TutorialsList />
+
+// Fetch de module_tutorials onde is_active = true
+// Grid responsivo de cards clicáveis
+// Click abre Dialog com iframe do vídeo
+```
+
+### Estrutura de Navegação
+
+```
+SupportCenter
+├── Tickets (default)
+│   ├── Todos
+│   ├── Abertos
+│   └── Fechados
+└── Tutoriais
+    └── TutorialsList (grid de vídeos)
+```
+
+### Labels de Módulos
+
+```typescript
+const moduleLabels: Record<string, string> = {
+  'command-center': 'Central de Execuções',
+  'orders': 'Pedidos',
+  'products': 'Produtos',
+  'customers': 'Clientes',
+  'categories': 'Categorias',
+  'discounts': 'Descontos',
+  'shipping': 'Logística',
+  'checkout': 'Checkout',
+  'storefront': 'Loja Virtual',
+  'builder': 'Editor Visual',
+  'blog': 'Blog',
+  'integrations': 'Integrações',
+  'affiliates': 'Afiliados',
+  'reviews': 'Avaliações',
+  'abandoned-checkouts': 'Checkouts Abandonados',
+  // ... outros módulos
+};
+```
+
 ## Rotas Admin
 
 | Rota | Página | Permissão |
@@ -208,10 +258,13 @@ USING (is_active = true);
 - [x] Avisos aparecem no header
 - [x] Cores correspondem ao variant
 - [x] Links abrem em nova aba
-- [x] Tutoriais aparecem por módulo
+- [x] Tutoriais aparecem por módulo no header
 - [x] Popup de vídeo funciona
 - [x] Agendamento de avisos funciona
 - [x] RLS protege operações de escrita
+- [x] Aba Tutoriais na Central de Suporte
+- [x] Grid responsivo de tutoriais
+- [x] Labels traduzidos por módulo
 
 ---
 
