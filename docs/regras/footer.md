@@ -222,10 +222,40 @@ O componente `PaymentIconsQuickSelect` permite adicionar ícones de pagamento pr
 
 ---
 
+## Validação de Links de Menu
+
+> **REGRA CRÍTICA:** Itens de menu com referências inválidas NÃO são renderizados no storefront público.
+
+| Situação | Comportamento |
+|----------|---------------|
+| `item_type: 'page'` + `ref_id: null` | Item NÃO renderizado |
+| `item_type: 'page'` + página inexistente | Item NÃO renderizado |
+| `item_type: 'category'` + `ref_id: null` | Item NÃO renderizado |
+| `item_type: 'category'` + categoria inexistente | Item NÃO renderizado |
+| `item_type: 'external'` + `url: null` | Item NÃO renderizado |
+| `item_type: 'external'` + URL válida | Item renderizado normalmente |
+
+### Função de Validação
+
+```typescript
+// getMenuItemUrl retorna null para referências inválidas
+const url = getMenuItemUrl(item, categories, pages, tenantSlug);
+if (!url) return null; // Item não é renderizado
+```
+
+### Impacto na Importação
+
+- Dados importados de outras plataformas podem conter `item_type: 'page'` sem páginas correspondentes
+- O sistema filtra automaticamente esses itens inválidos
+- Recomendação: criar as páginas institucionais antes de vincular nos menus
+
+---
+
 ## Histórico de Alterações
 
 | Data | Alteração |
 |------|-----------|
+| 2025-01-25 | Links de menu com referências inválidas não são mais renderizados |
 | 2025-01-24 | Adicionado formulário horizontal de newsletter no footer |
 | 2025-01-24 | Nova seção "Newsletter" em FooterSettings.tsx |
 | 2025-01-24 | Integração com EmailListSelector para seleção de lista destino |
