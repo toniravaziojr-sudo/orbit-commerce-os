@@ -161,7 +161,7 @@ export function QuizDialog({ open, onOpenChange, quiz, onSuccess }: QuizDialogPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{quiz ? "Editar Quiz" : "Novo Quiz"}</DialogTitle>
         </DialogHeader>
