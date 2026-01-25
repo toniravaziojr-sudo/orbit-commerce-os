@@ -9,10 +9,9 @@ import {
   Ticket, 
   HelpCircle, 
   MessageCircle, 
-  Phone,
+  PlayCircle,
   ExternalLink,
   Clock,
-  AlertCircle,
   CheckCircle,
 } from "lucide-react";
 import { useSupportTickets } from "@/hooks/useSupportTickets";
@@ -20,11 +19,13 @@ import { usePlatformOperator } from "@/hooks/usePlatformOperator";
 import { SupportTicketList } from "@/components/support-center/SupportTicketList";
 import { CreateTicketDialog } from "@/components/support-center/CreateTicketDialog";
 import { SupportTicketDetail } from "@/components/support-center/SupportTicketDetail";
+import { TutorialsList } from "@/components/support-center/TutorialsList";
 
 export default function SupportCenter() {
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'all' | 'open' | 'closed'>('all');
+  const [activeTab, setActiveTab] = useState<'tickets' | 'tutorials'>('tickets');
+  const [ticketFilter, setTicketFilter] = useState<'all' | 'open' | 'closed'>('all');
   
   const { tickets, isLoading } = useSupportTickets(activeTab);
   const { isPlatformOperator } = usePlatformOperator();
