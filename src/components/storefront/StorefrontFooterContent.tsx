@@ -238,26 +238,44 @@ export function StorefrontFooterContent({
   const footer2Name = footer2TitleConfig || footerMenus?.footer2?.name || 'Políticas';
 
   // Helper to resolve menu item URLs (supports 'link' as fallback for 'external')
-  const getMenuItemUrl = (item: MenuItem): string => {
+  // Returns null if the link cannot be properly resolved (e.g., missing ref_id for page/category)
+  const getMenuItemUrl = (item: MenuItem): string | null => {
     const itemType = item.item_type === 'link' ? 'external' : item.item_type;
     
-    if (itemType === 'external' && item.url) {
-      return item.url;
+    // External links - require valid URL
+    if (itemType === 'external') {
+      return item.url || null;
     }
-    if (itemType === 'category' && item.ref_id) {
+    
+    // Category links - require ref_id and matching category
+    if (itemType === 'category') {
+      if (!item.ref_id) return null;
       const category = categories?.find((c: Category) => c.id === item.ref_id);
-      return category ? getPublicCategoryUrl(tenantSlug, category.slug) || baseUrl : baseUrl;
+      if (!category) return null;
+      return getPublicCategoryUrl(tenantSlug, category.slug) || null;
     }
-    if (itemType === 'page' && item.ref_id) {
+    
+    // Page links - require ref_id and matching page
+    if (itemType === 'page') {
+      if (!item.ref_id) return null;
       const page = pagesData?.find(p => p.id === item.ref_id);
-      if (page) {
-        const urlFn = page.type === 'landing_page' ? getPublicLandingUrl : getPublicPageUrl;
-        return urlFn(tenantSlug, page.slug) || baseUrl;
-      }
-      return baseUrl;
+      if (!page) return null;
+      const urlFn = page.type === 'landing_page' ? getPublicLandingUrl : getPublicPageUrl;
+      return urlFn(tenantSlug, page.slug) || null;
     }
-    return baseUrl;
+    
+    return null;
   };
+  
+  // Filter menu items to only those with valid URLs
+  const getValidMenuItems = (items: MenuItem[]): Array<MenuItem & { resolvedUrl: string }> => {
+    return items
+      .map(item => ({ ...item, resolvedUrl: getMenuItemUrl(item) }))
+      .filter((item): item is MenuItem & { resolvedUrl: string } => item.resolvedUrl !== null);
+  };
+  
+  const validFooter1Items = getValidMenuItems(footer1Items);
+  const validFooter2Items = getValidMenuItems(footer2Items);
 
   // ============================================
   // DATA RESOLUTION: footerConfig > store_settings
@@ -770,7 +788,7 @@ export function StorefrontFooterContent({
             )}
 
             {/* MOBILE BLOCO 4: Footer Menu 1 */}
-            {showFooter1 && (footer1Items.length > 0 || isEditing) && (
+            {showFooter1 && (validFooter1Items.length > 0 || isEditing) && (
               <div className="flex flex-col items-center text-center">
                 <h4 
                   className="font-semibold mb-3"
@@ -779,13 +797,12 @@ export function StorefrontFooterContent({
                   {footer1Name}
                 </h4>
                 <nav className="flex flex-col gap-2">
-                  {footer1Items.length > 0 ? (
-                    footer1Items.map((item) => (
+                  {validFooter1Items.length > 0 ? (
+                    validFooter1Items.map((item) => (
                       <Link
                         key={item.id}
-                        to={getMenuItemUrl(item)}
+                        to={item.resolvedUrl}
                         className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                        onClick={e => isEditing && e.preventDefault()}
                         style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
                       >
                         {item.label}
@@ -812,7 +829,7 @@ export function StorefrontFooterContent({
             )}
 
             {/* MOBILE BLOCO 5: Footer Menu 2 */}
-            {showFooter2 && (footer2Items.length > 0 || isEditing) && (
+            {showFooter2 && (validFooter2Items.length > 0 || isEditing) && (
               <div className="flex flex-col items-center text-center">
                 <h4 
                   className="font-semibold mb-3"
@@ -821,13 +838,12 @@ export function StorefrontFooterContent({
                   {footer2Name}
                 </h4>
                 <nav className="flex flex-col gap-2">
-                  {footer2Items.length > 0 ? (
-                    footer2Items.map((item) => (
+                  {validFooter2Items.length > 0 ? (
+                    validFooter2Items.map((item) => (
                       <Link
                         key={item.id}
-                        to={getMenuItemUrl(item)}
+                        to={item.resolvedUrl}
                         className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                        onClick={e => isEditing && e.preventDefault()}
                         style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
                       >
                         {item.label}
@@ -1095,7 +1111,7 @@ export function StorefrontFooterContent({
           {/* ============================================ */}
           {/* COLUNA 3: Footer Menu 1 */}
           {/* ============================================ */}
-          {showFooter1 && (footer1Items.length > 0 || isEditing) && (
+          {showFooter1 && (validFooter1Items.length > 0 || isEditing) && (
             <div className="text-left">
               <h4 
                 className="font-semibold mb-3"
@@ -1104,13 +1120,12 @@ export function StorefrontFooterContent({
                 {footer1Name}
               </h4>
               <nav className="flex flex-col gap-2">
-                {footer1Items.length > 0 ? (
-                  footer1Items.map((item) => (
+                {validFooter1Items.length > 0 ? (
+                  validFooter1Items.map((item) => (
                     <Link
                       key={item.id}
-                      to={getMenuItemUrl(item)}
+                      to={item.resolvedUrl}
                       className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                      onClick={e => isEditing && e.preventDefault()}
                       style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
                     >
                       {item.label}
@@ -1139,7 +1154,7 @@ export function StorefrontFooterContent({
           {/* ============================================ */}
           {/* COLUNA 4: Footer Menu 2 */}
           {/* ============================================ */}
-          {showFooter2 && (footer2Items.length > 0 || isEditing) && (
+          {showFooter2 && (validFooter2Items.length > 0 || isEditing) && (
             <div className="text-left">
               <h4 
                 className="font-semibold mb-3"
@@ -1148,13 +1163,12 @@ export function StorefrontFooterContent({
                 {footer2Name}
               </h4>
               <nav className="flex flex-col gap-2">
-                {footer2Items.length > 0 ? (
-                  footer2Items.map((item) => (
+                {validFooter2Items.length > 0 ? (
+                  validFooter2Items.map((item) => (
                     <Link
                       key={item.id}
-                      to={getMenuItemUrl(item)}
+                      to={item.resolvedUrl}
                       className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                      onClick={e => isEditing && e.preventDefault()}
                       style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
                     >
                       {item.label}
