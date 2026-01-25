@@ -22,11 +22,14 @@ interface CategorySettingsFromContext {
 
 export function CategoryBannerBlock({
   titlePosition = 'center',
-  overlayOpacity = 0, // Default sem overlay para não escurecer o banner
+  overlayOpacity: _overlayOpacity, // Ignorado - sempre 0 para não escurecer
   height = 'md',
   context,
   isEditing = false,
 }: CategoryBannerBlockProps) {
+  // FORCE overlayOpacity = 0 - ignora valores antigos salvos no banco
+  // Conforme decisão de 2025-01-25: banners não devem ter escurecimento automático
+  const overlayOpacity = 0;
 
   // Get category data from context
   const category = context?.category;
