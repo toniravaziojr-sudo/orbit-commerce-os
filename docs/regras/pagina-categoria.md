@@ -100,6 +100,14 @@ Página de listagem de produtos filtrados por categoria.
 | Mobile | `category.banner_mobile_url` |
 | Fallback | `category.image_url` |
 
+### Overlay
+
+| Prop | Default | Descrição |
+|------|---------|-----------|
+| `overlayOpacity` | `0` | Opacidade do overlay escuro (0-100). Default 0 = sem escurecimento |
+
+> **Nota (2025-01-25):** Default alterado de 40 para 0 para evitar escurecimento automático dos banners.
+
 ---
 
 ## Ordenação
