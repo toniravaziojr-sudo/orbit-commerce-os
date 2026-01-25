@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -17,6 +18,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePrimaryPublicHost, buildPublicStorefrontUrl } from '@/hooks/usePrimaryPublicHost';
 import { validateSlug } from '@/lib/slugValidation';
 import { toast } from 'sonner';
+import { GenerateSeoButton } from '@/components/seo/GenerateSeoButton';
 // ImportPageDialog removido - função descontinuada
 
 export default function Pages() {
@@ -32,6 +34,8 @@ export default function Pages() {
   const [formData, setFormData] = useState({
     title: '',
     slug: '',
+    seo_title: '',
+    seo_description: '',
   });
 
   // Initialize default template if none exists (hidden, serves as base)
@@ -42,7 +46,7 @@ export default function Pages() {
   }, [templatesLoading, templates, currentTenant?.id]);
 
   const resetForm = () => {
-    setFormData({ title: '', slug: '' });
+    setFormData({ title: '', slug: '', seo_title: '', seo_description: '' });
     setEditingPage(null);
   };
 
@@ -51,6 +55,8 @@ export default function Pages() {
     setFormData({
       title: page.title,
       slug: page.slug,
+      seo_title: page.seo_title || page.meta_title || '',
+      seo_description: page.seo_description || page.meta_description || '',
     });
     setIsDialogOpen(true);
   };
@@ -79,11 +85,15 @@ export default function Pages() {
     }
     
     if (editingPage) {
-      // When editing, only update title and slug
+      // When editing, update title, slug and SEO fields
       await updatePage.mutateAsync({
         id: editingPage.id,
         title: formData.title,
         slug,
+        seo_title: formData.seo_title || null,
+        seo_description: formData.seo_description || null,
+        meta_title: formData.seo_title || null,
+        meta_description: formData.seo_description || null,
       });
       setIsDialogOpen(false);
       resetForm();
@@ -195,6 +205,56 @@ export default function Pages() {
                       </p>
                     )}
                   </div>
+
+                  {/* SEO Fields - only show when editing */}
+                  {editingPage && (
+                    <div className="border-t pt-4 mt-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-medium">SEO</p>
+                        <GenerateSeoButton
+                          input={{
+                            type: 'page',
+                            name: formData.title,
+                          }}
+                          onGenerated={(result) => {
+                            setFormData({
+                              ...formData,
+                              seo_title: result.seo_title,
+                              seo_description: result.seo_description,
+                            });
+                          }}
+                          disabled={!formData.title}
+                        />
+                      </div>
+                      <div className="space-y-3">
+                        <div>
+                          <Label>Título SEO</Label>
+                          <Input 
+                            value={formData.seo_title} 
+                            onChange={(e) => setFormData({ ...formData, seo_title: e.target.value })} 
+                            placeholder={formData.title || 'Título para mecanismos de busca'}
+                            maxLength={60}
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {formData.seo_title.length}/60 caracteres
+                          </p>
+                        </div>
+                        <div>
+                          <Label>Descrição SEO</Label>
+                          <Textarea 
+                            value={formData.seo_description} 
+                            onChange={(e) => setFormData({ ...formData, seo_description: e.target.value })} 
+                            placeholder="Descrição para mecanismos de busca"
+                            className="min-h-[60px]"
+                            maxLength={160}
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {formData.seo_description.length}/160 caracteres
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {!editingPage && (
                     <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">

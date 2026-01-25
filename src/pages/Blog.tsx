@@ -26,6 +26,7 @@ import { validateSlug, generateSlug } from '@/lib/slugValidation';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { Json } from '@/integrations/supabase/types';
+import { GenerateSeoButton } from '@/components/seo/GenerateSeoButton';
 
 interface BlogPost {
   id: string;
@@ -361,7 +362,25 @@ export default function Blog() {
                 
                 {/* SEO Fields */}
                 <div className="border-t pt-4 mt-4">
-                  <p className="text-sm font-medium mb-3">SEO</p>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-sm font-medium">SEO</p>
+                    <GenerateSeoButton
+                      input={{
+                        type: 'blog',
+                        name: formData.title,
+                        excerpt: formData.excerpt,
+                        tags: formData.tags ? formData.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+                      }}
+                      onGenerated={(result) => {
+                        setFormData({
+                          ...formData,
+                          seo_title: result.seo_title,
+                          seo_description: result.seo_description,
+                        });
+                      }}
+                      disabled={!formData.title}
+                    />
+                  </div>
                   <div className="space-y-3">
                     <div>
                       <Label>Título SEO</Label>
