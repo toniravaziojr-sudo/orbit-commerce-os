@@ -887,14 +887,29 @@ export function CampaignCalendar() {
         </CardContent>
       </Card>
 
-      {/* Legenda simplificada */}
+      {/* Legenda simplificada - mostrar apenas labels únicos */}
       <div className="flex flex-wrap gap-2 items-center">
         <span className="text-xs text-muted-foreground">Legenda:</span>
-        {Object.entries(statusLabels).map(([status, label]) => (
-          <Badge key={status} className={cn("text-xs", statusColors[status])}>
-            {label}
-          </Badge>
-        ))}
+        {/* Em Construção */}
+        <Badge className={cn("text-xs", statusColors.draft)}>
+          Em Construção
+        </Badge>
+        {/* Aprovado */}
+        <Badge className={cn("text-xs", statusColors.approved)}>
+          Aprovado
+        </Badge>
+        {/* Agendado */}
+        <Badge className={cn("text-xs", statusColors.scheduled)}>
+          Agendado
+        </Badge>
+        {/* Publicado */}
+        <Badge className={cn("text-xs", statusColors.published)}>
+          Publicado
+        </Badge>
+        {/* Com Erros */}
+        <Badge className={cn("text-xs", statusColors.failed)}>
+          Com Erros
+        </Badge>
       </div>
 
       {/* Dialog de criação/edição de publicação */}
