@@ -444,7 +444,9 @@ ${campaign.prompt}
 ## Datas disponíveis:
 ${validDates.join(", ")}
 ${frequencyInstructions}
-Responda APENAS com um array JSON válido (sem markdown, sem \`\`\`), onde cada item tem:
+CRÍTICO: Responda APENAS com JSON puro. NÃO use \`\`\`json ou \`\`\`. Comece diretamente com [ e termine com ].
+
+Estrutura de cada item:
 {
   "scheduled_date": "YYYY-MM-DD",
   "content_type": ${contentTypes},
@@ -503,20 +505,48 @@ IMPORTANTE:
     let suggestions;
     try {
       let cleanContent = content.trim();
-      if (cleanContent.startsWith("```json")) {
-        cleanContent = cleanContent.slice(7);
+      
+      // Remove markdown code blocks more robustly
+      // Handle ```json\n...\n``` pattern
+      const jsonBlockMatch = cleanContent.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+      if (jsonBlockMatch) {
+        cleanContent = jsonBlockMatch[1];
+      } else {
+        // Fallback: simple cleanup
+        if (cleanContent.startsWith("```json")) {
+          cleanContent = cleanContent.slice(7);
+        } else if (cleanContent.startsWith("```")) {
+          cleanContent = cleanContent.slice(3);
+        }
+        if (cleanContent.endsWith("```")) {
+          cleanContent = cleanContent.slice(0, -3);
+        }
       }
-      if (cleanContent.startsWith("```")) {
-        cleanContent = cleanContent.slice(3);
+      
+      cleanContent = cleanContent.trim();
+      
+      // Try to find array boundaries if JSON starts/ends are malformed
+      if (!cleanContent.startsWith("[")) {
+        const arrayStart = cleanContent.indexOf("[");
+        if (arrayStart !== -1) {
+          cleanContent = cleanContent.slice(arrayStart);
+        }
       }
-      if (cleanContent.endsWith("```")) {
-        cleanContent = cleanContent.slice(0, -3);
+      if (!cleanContent.endsWith("]")) {
+        const arrayEnd = cleanContent.lastIndexOf("]");
+        if (arrayEnd !== -1) {
+          cleanContent = cleanContent.slice(0, arrayEnd + 1);
+        }
       }
-      suggestions = JSON.parse(cleanContent.trim());
+      
+      suggestions = JSON.parse(cleanContent);
+      console.log(`[media-generate-suggestions] Successfully parsed ${suggestions.length} suggestions`);
     } catch (parseError) {
-      console.error("Failed to parse AI response:", content);
+      console.error("Failed to parse AI response. First 500 chars:", content.substring(0, 500));
+      console.error("Last 500 chars:", content.substring(content.length - 500));
+      console.error("Parse error:", parseError);
       return new Response(
-        JSON.stringify({ success: false, error: "Falha ao processar sugestões da IA" }),
+        JSON.stringify({ success: false, error: "Falha ao processar sugestões da IA. Tente gerar novamente." }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
