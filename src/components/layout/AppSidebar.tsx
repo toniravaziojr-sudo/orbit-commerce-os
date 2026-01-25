@@ -79,7 +79,7 @@ const fullNavigation: NavGroup[] = [
   {
     label: "Principal",
     items: [
-      { title: "Central de Comando", href: "/command-center", icon: LayoutDashboard },
+      { title: "Central de Execuções", href: "/command-center", icon: LayoutDashboard },
     ],
   },
   {
@@ -189,6 +189,8 @@ const platformAdminNavigation: NavGroup[] = [
       { title: "Sugestões de Blocos", href: "/platform/block-suggestions", icon: Sparkles },
       { title: "Assinaturas", href: "/platform/billing", icon: CreditCard },
       { title: "Emails do Sistema", href: "/platform/emails", icon: Mail },
+      { title: "Avisos da Plataforma", href: "/platform/announcements", icon: Bell },
+      { title: "Tutoriais por Módulo", href: "/platform/tutorials", icon: BookOpen },
     ],
   },
   {

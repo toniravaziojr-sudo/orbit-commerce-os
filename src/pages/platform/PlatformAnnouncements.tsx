@@ -63,6 +63,7 @@ interface Announcement {
   starts_at: string | null;
   ends_at: string | null;
   created_at: string;
+  updated_at: string;
   created_by: string | null;
 }
 
@@ -73,10 +74,19 @@ const variantConfig = {
   success: { label: 'Sucesso (Verde)', icon: CheckCircle, color: 'text-success' },
 };
 
-const defaultFormData = {
+const defaultFormData: {
+  title: string;
+  message: string;
+  variant: 'info' | 'warning' | 'error' | 'success';
+  link_url: string;
+  link_text: string;
+  starts_at: string;
+  ends_at: string;
+  is_active: boolean;
+} = {
   title: '',
   message: '',
-  variant: 'info' as const,
+  variant: 'info',
   link_url: '',
   link_text: '',
   starts_at: '',
@@ -100,7 +110,7 @@ export default function PlatformAnnouncements() {
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      return data as Announcement[];
+      return (data || []) as Announcement[];
     },
   });
   
