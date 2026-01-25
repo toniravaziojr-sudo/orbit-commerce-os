@@ -91,6 +91,8 @@ import PersonalData from "@/pages/account/PersonalData";
 import CompanyData from "@/pages/account/CompanyData";
 import AccountBilling from "@/pages/account/Billing";
 import PlatformBilling from "@/pages/platform/PlatformBilling";
+import PlatformAnnouncements from "@/pages/platform/PlatformAnnouncements";
+import PlatformTutorials from "@/pages/platform/PlatformTutorials";
 import Influencers from "@/pages/Influencers";
 import SupplierLeadsPage from "@/pages/SupplierLeads";
 import Affiliates from "@/pages/Affiliates";
@@ -370,6 +372,8 @@ const App = () => {
                   <Route path="/platform/block-suggestions" element={<BlockSuggestions />} />
                   <Route path="/platform/billing" element={<PlatformBilling />} />
                   <Route path="/platform/emails" element={<SystemEmails />} />
+                  <Route path="/platform/announcements" element={<PlatformAnnouncements />} />
+                  <Route path="/platform/tutorials" element={<PlatformTutorials />} />
                   {/* System routes - Owner only */}
                   <Route path="/system/users" element={<SystemUsers />} />
                   {/* Legacy redirects */}

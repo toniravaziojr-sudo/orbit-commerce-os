@@ -12,7 +12,8 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { CommandAssistantInline } from "@/components/command-assistant";
+import { PlatformAlerts } from "./PlatformAlerts";
+import { ModuleTutorialLink } from "./ModuleTutorialLink";
 
 export function AppHeader() {
   const navigate = useNavigate();
@@ -55,15 +56,17 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card px-6">
-      {/* Command Assistant Inline */}
+      {/* Platform Alerts (Left side) */}
       <div className="flex items-center gap-4">
-        <div className="hidden lg:block">
-          <CommandAssistantInline />
-        </div>
+        <PlatformAlerts />
       </div>
 
-      {/* Actions */}
+      {/* Right side: Tutorial + User Menu */}
       <div className="flex items-center gap-3">
+        {/* Module Tutorial Link */}
+        <div className="hidden lg:block">
+          <ModuleTutorialLink />
+        </div>
         {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

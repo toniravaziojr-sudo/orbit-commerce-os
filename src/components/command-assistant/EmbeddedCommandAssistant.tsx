@@ -3,7 +3,7 @@
 // Full chat interface for embedding in a page/tab
 // =============================================
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bot, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -20,7 +20,7 @@ export function EmbeddedCommandAssistant() {
     isLoadingMessages,
     isStreaming,
     streamingContent,
-    createConversationMutation,
+    createConversation,
     setCurrentConversationId,
     sendMessage,
     cancelStreaming,
@@ -28,6 +28,7 @@ export function EmbeddedCommandAssistant() {
   } = useCommandAssistant();
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isCreating, setIsCreating] = useState(false);
   
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -37,7 +38,12 @@ export function EmbeddedCommandAssistant() {
   }, [messages, streamingContent]);
   
   const handleNewConversation = async () => {
-    await createConversationMutation.mutateAsync("Nova conversa");
+    setIsCreating(true);
+    try {
+      await createConversation("Nova conversa");
+    } finally {
+      setIsCreating(false);
+    }
   };
   
   const handleSend = async (message: string) => {
@@ -55,7 +61,7 @@ export function EmbeddedCommandAssistant() {
             size="icon"
             className="h-7 w-7"
             onClick={handleNewConversation}
-            disabled={createConversationMutation.isPending}
+            disabled={isCreating}
           >
             <Plus className="h-4 w-4" />
           </Button>
@@ -136,7 +142,7 @@ export function EmbeddedCommandAssistant() {
                 Eu posso te ajudar a gerenciar pedidos, produtos, clientes e muito mais.
                 Comece uma nova conversa ou selecione uma existente.
               </p>
-              <Button onClick={handleNewConversation} disabled={createConversationMutation.isPending}>
+              <Button onClick={handleNewConversation} disabled={isCreating}>
                 <Plus className="h-4 w-4 mr-2" />
                 Nova conversa
               </Button>

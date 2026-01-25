@@ -7645,6 +7645,8 @@ export type Database = {
           ends_at: string | null
           id: string
           is_active: boolean
+          link_text: string | null
+          link_url: string | null
           message: string
           starts_at: string | null
           title: string
@@ -7657,6 +7659,8 @@ export type Database = {
           ends_at?: string | null
           id?: string
           is_active?: boolean
+          link_text?: string | null
+          link_url?: string | null
           message: string
           starts_at?: string | null
           title: string
@@ -7669,6 +7673,8 @@ export type Database = {
           ends_at?: string | null
           id?: string
           is_active?: boolean
+          link_text?: string | null
+          link_url?: string | null
           message?: string
           starts_at?: string | null
           title?: string

@@ -18,6 +18,8 @@ export interface PlatformAnnouncement {
   starts_at: string | null;
   ends_at: string | null;
   created_at: string;
+  updated_at: string;
+  created_by: string | null;
 }
 
 /**
@@ -45,7 +47,7 @@ export function usePlatformAnnouncements() {
         return [];
       }
       
-      return (data as PlatformAnnouncement[]) || [];
+      return (data || []) as PlatformAnnouncement[];
     },
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
     enabled: !!currentTenant?.id,

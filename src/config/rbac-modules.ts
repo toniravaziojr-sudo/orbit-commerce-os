@@ -80,6 +80,8 @@ export const ROUTE_TO_PERMISSION: Record<string, { module: string; submodule?: s
   '/platform/health-monitor': { module: 'platform' },
   '/platform/block-suggestions': { module: 'platform' },
   '/platform/billing': { module: 'platform' },
+  '/platform/announcements': { module: 'platform' },
+  '/platform/tutorials': { module: 'platform' },
   
   // Getting started (always accessible to members)
   '/getting-started': { module: 'ecommerce' }, // Mapped to ecommerce so viewers can see it
