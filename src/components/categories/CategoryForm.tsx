@@ -109,6 +109,21 @@ export function CategoryForm({
           />
         </div>
 
+        {/* Miniatura (Thumbnail) */}
+        <div className="border-t pt-4 mt-4">
+          <h4 className="font-medium mb-3 text-sm text-muted-foreground">Miniatura</h4>
+          <div className="space-y-2">
+            <Label>Imagem de Miniatura</Label>
+            <p className="text-xs text-muted-foreground mb-2">Exibida na listagem de categorias. Recomendado: 200×200px</p>
+            <ImageUploaderWithLibrary
+              value={formData.image_url || ''}
+              onChange={(url) => onChange({ ...formData, image_url: url })}
+              variant="desktop"
+              aspectRatio="square"
+            />
+          </div>
+        </div>
+
         {/* Banner section */}
         <div className="border-t pt-4 mt-4">
           <h4 className="font-medium mb-3 text-sm text-muted-foreground">Banner da Categoria</h4>
