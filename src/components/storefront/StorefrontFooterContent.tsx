@@ -142,8 +142,7 @@ export function StorefrontFooterContent({
         .select('id, slug, name')
         .eq('tenant_id', tenant.id)
         .eq('is_active', true)
-        .order('sort_order')
-        .limit(5);
+        .order('sort_order');
       
       return data || [];
     },
