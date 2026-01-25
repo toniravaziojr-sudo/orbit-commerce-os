@@ -13,19 +13,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { 
   Search, 
   RefreshCw, 
-  ShoppingBag, 
+  ShoppingCart,
   Clock, 
   CheckCircle2,
   Mail,
   Phone,
   MapPin,
   Package,
-  DollarSign
+  Eye,
+  Filter
 } from 'lucide-react';
-import { formatDistanceToNow, format } from 'date-fns';
+import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 const BRAZILIAN_STATES = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
@@ -35,21 +37,40 @@ function formatCurrency(value: number | null): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }
 
-function formatDate(dateStr: string | null): string {
+function formatSessionDate(dateStr: string | null): string {
   if (!dateStr) return '-';
-  return formatDistanceToNow(new Date(dateStr), { addSuffix: true, locale: ptBR });
+  const date = new Date(dateStr);
+  const time = format(date, 'HH:mm', { locale: ptBR });
+  
+  if (isToday(date)) {
+    return `Hoje às ${time}`;
+  }
+  if (isYesterday(date)) {
+    return `Ontem às ${time}`;
+  }
+  return format(date, "dd/MM 'às' HH:mm", { locale: ptBR });
 }
 
 function getStatusBadge(status: CheckoutSession['status']) {
   const statusMap: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
     active: { label: 'Ativo', variant: 'default' },
-    abandoned: { label: 'Abandonado', variant: 'destructive' },
-    converted: { label: 'Convertido', variant: 'secondary' },
+    abandoned: { label: 'Abandonado', variant: 'secondary' },
+    converted: { label: 'Convertido', variant: 'default' },
     recovered: { label: 'Recuperado', variant: 'outline' },
     canceled: { label: 'Cancelado', variant: 'outline' },
   };
   const config = statusMap[status] || { label: status, variant: 'outline' as const };
   return <Badge variant={config.variant}>{config.label}</Badge>;
+}
+
+function getRecoveryBadge(status: CheckoutSession['status']) {
+  if (status === 'recovered') {
+    return <Badge variant="outline" className="text-primary border-primary">Recuperado</Badge>;
+  }
+  if (status === 'converted') {
+    return <span className="text-muted-foreground">-</span>;
+  }
+  return <Badge variant="destructive">Não recuperado</Badge>;
 }
 
 export function AbandonedCheckoutsTab() {
@@ -75,124 +96,124 @@ export function AbandonedCheckoutsTab() {
     return (
       session.customer_email?.toLowerCase().includes(searchLower) ||
       session.customer_name?.toLowerCase().includes(searchLower) ||
-      session.customer_phone?.includes(search)
+      session.customer_phone?.includes(search) ||
+      session.id.toLowerCase().includes(searchLower)
     );
   });
 
   return (
     <div className="space-y-6">
-      {/* Stats Cards */}
+      {/* Stats Cards - Matching the design */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Abandonados</CardTitle>
-            <ShoppingBag className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total</CardTitle>
+            <ShoppingCart className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             {statsLoading ? (
               <Skeleton className="h-8 w-16" />
             ) : (
-              <div className="text-2xl font-bold">{stats?.abandoned || 0}</div>
+              <div className="text-3xl font-bold">{stats?.total || 0}</div>
             )}
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Valor Potencial</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Abandonados</CardTitle>
+            <ShoppingCart className="h-5 w-5 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {statsLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <div className="text-3xl font-bold">{stats?.notRecovered || 0}</div>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Não recuperados</CardTitle>
+            <ShoppingCart className="h-5 w-5 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {statsLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <div className="text-3xl font-bold">{stats?.notRecovered || 0}</div>
+            )}
+          </CardContent>
+        </Card>
+        <Card className="border-primary/20 bg-primary/5">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Valor total</CardTitle>
+            <ShoppingCart className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             {statsLoading ? (
               <Skeleton className="h-8 w-24" />
             ) : (
-              <div className="text-2xl font-bold">{formatCurrency(stats?.totalValue || 0)}</div>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Recuperados</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {statsLoading ? (
-              <Skeleton className="h-8 w-16" />
-            ) : (
-              <div className="text-2xl font-bold">{stats?.recovered || 0}</div>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Taxa Recuperação</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {statsLoading ? (
-              <Skeleton className="h-8 w-16" />
-            ) : (
-              <div className="text-2xl font-bold">
-                {stats && stats.total > 0 
-                  ? ((stats.recovered / stats.total) * 100).toFixed(1) 
-                  : 0}%
-              </div>
+              <div className="text-3xl font-bold">{formatCurrency(stats?.totalValue || 0)}</div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por email, nome ou telefone..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full md:w-40">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="abandoned">Abandonado</SelectItem>
-                <SelectItem value="active">Ativo</SelectItem>
-                <SelectItem value="recovered">Recuperado</SelectItem>
-                <SelectItem value="converted">Convertido</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={regionFilter} onValueChange={setRegionFilter}>
-              <SelectTrigger className="w-full md:w-32">
-                <SelectValue placeholder="Região" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas</SelectItem>
-                {BRAZILIAN_STATES.map(state => (
-                  <SelectItem key={state} value={state}>{state}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <DateRangeFilter
-              startDate={startDate}
-              endDate={endDate}
-              onChange={(start, end) => {
-                setStartDate(start);
-                setEndDate(end);
-              }}
-            />
-            <Button variant="outline" size="icon" onClick={() => refetch()}>
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Filters - Inline style matching design */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Pesquisar por email, nome, telefone..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[120px]">
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="abandoned">Abandonado</SelectItem>
+              <SelectItem value="active">Ativo</SelectItem>
+              <SelectItem value="recovered">Recuperado</SelectItem>
+              <SelectItem value="converted">Convertido</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2">
+          <MapPin className="h-4 w-4 text-muted-foreground" />
+          <Select value={regionFilter} onValueChange={setRegionFilter}>
+            <SelectTrigger className="w-[120px]">
+              <SelectValue placeholder="Todas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas</SelectItem>
+              {BRAZILIAN_STATES.map(state => (
+                <SelectItem key={state} value={state}>{state}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <DateRangeFilter
+          startDate={startDate}
+          endDate={endDate}
+          onChange={(start, end) => {
+            setStartDate(start);
+            setEndDate(end);
+          }}
+        />
+        <Button variant="outline" onClick={() => refetch()} className="gap-2">
+          <RefreshCw className="h-4 w-4" />
+          Atualizar
+        </Button>
+      </div>
 
-      {/* Sessions Table */}
+      {/* Sessions Table - Real table matching design */}
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
@@ -203,48 +224,67 @@ export function AbandonedCheckoutsTab() {
             </div>
           ) : filteredSessions.length === 0 ? (
             <div className="p-12 text-center text-muted-foreground">
-              <ShoppingBag className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <ShoppingCart className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>Nenhum checkout encontrado</p>
             </div>
           ) : (
-            <div className="divide-y">
-              {filteredSessions.map(session => (
-                <div
-                  key={session.id}
-                  className="p-4 hover:bg-muted/50 cursor-pointer transition-colors"
-                  onClick={() => setSelectedSession(session)}
-                >
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium truncate">
-                          {session.customer_name || session.customer_email || 'Visitante'}
-                        </span>
-                        {getStatusBadge(session.status)}
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Checkout</TableHead>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Região</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Recuperação</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="w-[50px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredSessions.map(session => (
+                  <TableRow 
+                    key={session.id}
+                    className="cursor-pointer"
+                    onClick={() => setSelectedSession(session)}
+                  >
+                    <TableCell className="font-mono text-sm">
+                      #{session.id.slice(0, 8)}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {formatSessionDate(session.started_at)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-medium">
+                        {session.customer_name || 'Visitante'}
                       </div>
-                      <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
-                        {session.customer_email && (
-                          <span className="flex items-center gap-1">
-                            <Mail className="h-3 w-3" />
-                            {session.customer_email}
-                          </span>
-                        )}
-                        {session.region && (
-                          <span className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            {session.region}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-semibold">{formatCurrency(session.total_estimated)}</div>
-                      <div className="text-sm text-muted-foreground">{formatDate(session.last_seen_at)}</div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                      {session.customer_email && (
+                        <div className="text-sm text-muted-foreground">
+                          {session.customer_email}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {session.region || 'Brasil'}
+                    </TableCell>
+                    <TableCell>
+                      {getStatusBadge(session.status)}
+                    </TableCell>
+                    <TableCell>
+                      {getRecoveryBadge(session.status)}
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {formatCurrency(session.total_estimated)}
+                    </TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
@@ -255,7 +295,7 @@ export function AbandonedCheckoutsTab() {
           {selectedSession && (
             <>
               <SheetHeader>
-                <SheetTitle>Detalhes do Checkout</SheetTitle>
+                <SheetTitle>Detalhes do Checkout #{selectedSession.id.slice(0, 8)}</SheetTitle>
               </SheetHeader>
               <div className="mt-6 space-y-6">
                 {/* Status */}
@@ -303,7 +343,7 @@ export function AbandonedCheckoutsTab() {
                     <Package className="h-4 w-4" />
                     Itens do Carrinho
                   </h4>
-                  {selectedSession.items_snapshot ? (
+                  {selectedSession.items_snapshot && (selectedSession.items_snapshot as any[]).length > 0 ? (
                     <div className="space-y-2">
                       {(selectedSession.items_snapshot as any[]).map((item: any, idx: number) => (
                         <div key={idx} className="flex justify-between text-sm">
