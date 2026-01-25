@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Loader2, CheckCircle2, XCircle, Bot, User, Wrench } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Bot, User, Wrench, FileText, Image as ImageIcon } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { CommandMessage, ProposedAction } from "@/hooks/useCommandAssistant";
@@ -90,6 +90,7 @@ function MessageBubble({
   const isTool = message.role === "tool";
   const proposedActions = message.metadata?.proposed_actions || [];
   const toolResult = message.metadata?.tool_result;
+  const attachments = message.metadata?.attachments as { url: string; filename: string; mimeType: string }[] | undefined;
 
   return (
     <div className={cn("flex gap-3", isUser && "flex-row-reverse")}>
@@ -121,6 +122,31 @@ function MessageBubble({
         >
           {message.content && (
             <p className="whitespace-pre-wrap text-sm">{message.content}</p>
+          )}
+
+          {/* User attachments */}
+          {isUser && attachments && attachments.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {attachments.map((att, idx) => {
+                const isImage = att.mimeType?.startsWith("image/");
+                return (
+                  <a
+                    key={idx}
+                    href={att.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-2 py-1 bg-primary-foreground/20 rounded text-xs hover:bg-primary-foreground/30 transition-colors"
+                  >
+                    {isImage ? (
+                      <ImageIcon className="h-3 w-3" />
+                    ) : (
+                      <FileText className="h-3 w-3" />
+                    )}
+                    <span className="max-w-[100px] truncate">{att.filename}</span>
+                  </a>
+                );
+              })}
+            </div>
           )}
 
           {/* Tool result */}

@@ -139,7 +139,10 @@ export function useCommandAssistant() {
   });
 
   // Send message with streaming
-  const sendMessage = useCallback(async (message: string) => {
+  const sendMessage = useCallback(async (
+    message: string, 
+    attachments?: { url: string; filename: string; mimeType: string }[]
+  ) => {
     if (!currentTenant?.id || !user?.id) {
       toast.error("Usuário ou tenant não identificado");
       return;
@@ -161,7 +164,7 @@ export function useCommandAssistant() {
       user_id: user.id,
       role: "user",
       content: message,
-      metadata: {},
+      metadata: attachments?.length ? { attachments } : {},
       created_at: new Date().toISOString(),
     };
 
@@ -187,6 +190,7 @@ export function useCommandAssistant() {
             conversation_id: conversationId,
             message,
             tenant_id: currentTenant.id,
+            attachments: attachments || [],
           }),
           signal: abortControllerRef.current.signal,
         }
