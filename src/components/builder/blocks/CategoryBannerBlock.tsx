@@ -18,24 +18,25 @@ interface CategoryBannerBlockProps {
 interface CategorySettingsFromContext {
   showCategoryName?: boolean;
   showBanner?: boolean;
+  bannerOverlayOpacity?: number; // 0-100, configurável em Tema > Páginas > Categoria
 }
 
 export function CategoryBannerBlock({
   titlePosition = 'center',
-  overlayOpacity: _overlayOpacity, // Ignorado - sempre 0 para não escurecer
+  overlayOpacity: _overlayOpacity, // Ignorado - usamos bannerOverlayOpacity do theme settings
   height = 'md',
   context,
   isEditing = false,
 }: CategoryBannerBlockProps) {
-  // FORCE overlayOpacity = 0 - ignora valores antigos salvos no banco
-  // Conforme decisão de 2025-01-25: banners não devem ter escurecimento automático
-  const overlayOpacity = 0;
 
   // Get category data from context
   const category = context?.category;
   
   // Get category settings from context (passed from VisualBuilder/StorefrontCategory)
   const categorySettings: CategorySettingsFromContext = (context as any)?.categorySettings || {};
+  
+  // Use bannerOverlayOpacity from theme settings (default 0 = no darkening)
+  const overlayOpacity = categorySettings.bannerOverlayOpacity ?? 0;
   
   // Use settings from context
   const showBanner = categorySettings.showBanner ?? true;

@@ -14,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Json } from '@/integrations/supabase/types';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Slider } from '@/components/ui/slider';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
@@ -474,8 +475,8 @@ export function PageSettingsContent({
   onMiniCartConfigChange,
 }: PageSettingsContentProps) {
   const queryClient = useQueryClient();
-  // Settings pode ter boolean, string ou array (para campos de múltiplas imagens)
-  const [settings, setSettings] = useState<Record<string, boolean | string | string[]>>({});
+  // Settings pode ter boolean, string, number ou array (para campos de múltiplas imagens)
+  const [settings, setSettings] = useState<Record<string, boolean | string | number | string[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [userId, setUserId] = useState<string | undefined>();
@@ -762,11 +763,11 @@ export function PageSettingsContent({
     },
   });
 
-  // handleChange agora aceita boolean, string ou string[]
-  const handleChange = (key: string, value: boolean | string | string[]) => {
+  // handleChange agora aceita boolean, string, number ou string[]
+  const handleChange = (key: string, value: boolean | string | number | string[]) => {
     const newSettings = { ...settings, [key]: value };
     setSettings(newSettings);
-    saveMutation.mutate(newSettings);
+    saveMutation.mutate(newSettings as Record<string, boolean | string | string[]>);
   };
 
   const toggleSection = (sectionId: string) => {
@@ -822,21 +823,50 @@ export function PageSettingsContent({
                 )}
                 {group.settings.map((config) => (
                   <div key={config.key} className="space-y-2">
-                    <div className="flex items-center justify-between py-1">
-                      <div className="space-y-0.5">
-                        <Label htmlFor={config.key} className="text-sm">
-                          {config.label}
-                        </Label>
-                        {config.description && (
-                          <p className="text-xs text-muted-foreground">{config.description}</p>
-                        )}
+                    {config.inputType === 'slider' ? (
+                      /* Slider input for numeric values like bannerOverlayOpacity */
+                      <div className="space-y-2 py-1">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <Label htmlFor={config.key} className="text-sm">
+                              {config.label}
+                            </Label>
+                            {config.description && (
+                              <p className="text-xs text-muted-foreground">{config.description}</p>
+                            )}
+                          </div>
+                          <span className="text-sm font-medium text-muted-foreground w-10 text-right">
+                            {Number(settings[config.key] ?? config.defaultValue)}%
+                          </span>
+                        </div>
+                        <Slider
+                          id={config.key}
+                          min={config.min ?? 0}
+                          max={config.max ?? 100}
+                          step={5}
+                          value={[Number(settings[config.key] ?? config.defaultValue)]}
+                          onValueChange={(values) => handleChange(config.key, values[0])}
+                          className="w-full"
+                        />
                       </div>
-                      <Switch
-                        id={config.key}
-                        checked={Boolean(settings[config.key] ?? config.defaultValue)}
-                        onCheckedChange={(checked) => handleChange(config.key, checked)}
-                      />
-                    </div>
+                    ) : (
+                      /* Standard toggle switch */
+                      <div className="flex items-center justify-between py-1">
+                        <div className="space-y-0.5">
+                          <Label htmlFor={config.key} className="text-sm">
+                            {config.label}
+                          </Label>
+                          {config.description && (
+                            <p className="text-xs text-muted-foreground">{config.description}</p>
+                          )}
+                        </div>
+                        <Switch
+                          id={config.key}
+                          checked={Boolean(settings[config.key] ?? config.defaultValue)}
+                          onCheckedChange={(checked) => handleChange(config.key, checked)}
+                        />
+                      </div>
+                    )}
                     {/* Show upload input when toggle is enabled and config has upload */}
                     {config.hasUpload && config.key !== 'showAdditionalHighlight' && (settings[config.key] ?? config.defaultValue) && (
                       <BannerUploadInput
@@ -1147,9 +1177,12 @@ interface SettingConfig {
   key: string;
   label: string;
   description?: string;
-  defaultValue: boolean;
+  defaultValue: boolean | number;
   group?: string;
   hasUpload?: boolean; // If true, shows image upload when enabled
+  inputType?: 'toggle' | 'slider'; // Default is toggle
+  min?: number;
+  max?: number;
 }
 
 function getSettingsConfig(pageType: string): SettingConfig[] {
@@ -1159,6 +1192,7 @@ function getSettingsConfig(pageType: string): SettingConfig[] {
       // Configurações estruturais da página
       { key: 'showCategoryName', label: 'Exibir nome da categoria', defaultValue: true, group: 'structure' },
       { key: 'showBanner', label: 'Exibir banner da categoria', defaultValue: true, group: 'structure' },
+      { key: 'bannerOverlayOpacity', label: 'Escurecimento do banner', description: 'Ajuste a transparência do overlay (0 = sem escurecer, 100 = preto)', defaultValue: 0, group: 'structure', inputType: 'slider' as const, min: 0, max: 100 },
       { key: 'showRatings', label: 'Mostrar avaliações nos produtos', defaultValue: true, group: 'structure' },
       { key: 'showBadges', label: 'Mostrar selos nos produtos', defaultValue: true, group: 'structure' },
       // Botões da Thumb
