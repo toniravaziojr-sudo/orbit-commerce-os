@@ -414,7 +414,7 @@ function injectRequiredBlock(content: BlockNode, blockType: string): BlockNode {
 function getDefaultPropsForBlockType(blockType: string): Record<string, unknown> {
   const defaults: Record<string, Record<string, unknown>> = {
     ProductDetails: { showGallery: true, showDescription: true, showVariants: true, showStock: true },
-    CategoryBanner: { showTitle: true, titlePosition: 'center', overlayOpacity: 40, height: 'md' },
+    CategoryBanner: { showTitle: true, titlePosition: 'center', overlayOpacity: 0, height: 'md' },
     ProductGrid: { title: '', source: 'category', columns: 4, limit: 24, showPrice: true },
     Cart: {},
     Checkout: { showTimeline: true },

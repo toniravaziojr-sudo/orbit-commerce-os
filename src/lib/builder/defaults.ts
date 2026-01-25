@@ -138,7 +138,7 @@ export function getBlankTemplate(pageType: string): BlockNode {
 function getCleanDefaultProps(blockType: string): Record<string, unknown> {
   const props: Record<string, Record<string, unknown>> = {
     ProductDetails: { showGallery: true, showDescription: true, showVariants: true, showStock: true },
-    CategoryBanner: { showTitle: true, titlePosition: 'center', overlayOpacity: 40, height: 'md' },
+    CategoryBanner: { showTitle: true, titlePosition: 'center', overlayOpacity: 0, height: 'md' },
     ProductGrid: { title: '', source: 'category', columns: 4, limit: 24, showPrice: true },
     CategoryPageLayout: { showFilters: true, columns: 4, limit: 24 },
     Cart: {},
@@ -359,7 +359,7 @@ export const defaultCategoryTemplate: BlockNode = {
       props: {
         showTitle: true,
         titlePosition: 'center',
-        overlayOpacity: 40,
+        overlayOpacity: 0,
         height: 'md',
       },
     },
