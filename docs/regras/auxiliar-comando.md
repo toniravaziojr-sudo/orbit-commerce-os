@@ -5,6 +5,40 @@
 
 ---
 
+## Upload de Arquivos e Imagens
+
+O Auxiliar de Comando suporta upload de arquivos e imagens diretamente no chat:
+
+### Funcionamento
+
+1. **Botão de Anexo**: Clique no ícone 📎 (Paperclip) para selecionar arquivos
+2. **Tipos Aceitos**: Imagens, PDFs, documentos Office, TXT, CSV
+3. **Limite**: 10MB por arquivo
+4. **Preview**: Imagens mostram miniatura antes do envio
+5. **Upload**: Arquivos são enviados para o System Drive automaticamente
+
+### Estrutura do Anexo
+
+```typescript
+interface Attachment {
+  url: string;       // URL pública do arquivo no storage
+  filename: string;  // Nome original do arquivo
+  mimeType: string;  // Tipo MIME (image/png, application/pdf, etc.)
+}
+```
+
+### Exibição no Chat
+
+- **Imagens**: Miniatura clicável com ícone de imagem
+- **Arquivos**: Ícone de documento com nome e link de download
+- Todos os anexos são renderizados abaixo do conteúdo da mensagem
+
+### Anti-Pattern: Gravação de Áudio
+
+> ⚠️ **Gravação de áudio foi REMOVIDA** — o modelo de IA atual não suporta processamento de áudio. Use apenas texto e arquivos.
+
+---
+
 ## Visão Geral
 
 Assistente de IA integrado à **Central de Execuções** para execução de tarefas operacionais via linguagem natural. Pode ser ativado via:
