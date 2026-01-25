@@ -126,6 +126,7 @@ function SortableImageCard({ image, onSetPrimary, onDelete }: SortableImageCardP
         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
           {!image.is_primary && (
             <Button
+              type="button"
               size="sm"
               variant="secondary"
               onClick={() => onSetPrimary(image.id)}
@@ -135,6 +136,7 @@ function SortableImageCard({ image, onSetPrimary, onDelete }: SortableImageCardP
             </Button>
           )}
           <Button
+            type="button"
             size="sm"
             variant="destructive"
             onClick={() => onDelete(image.id)}
@@ -446,7 +448,7 @@ export function ProductImageManager({ productId, images, onImagesChange }: Produ
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
             disabled={isUploading}
           />
-          <Button variant="outline" disabled={isUploading}>
+          <Button type="button" variant="outline" disabled={isUploading}>
             {isUploading ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : (
@@ -458,7 +460,7 @@ export function ProductImageManager({ productId, images, onImagesChange }: Produ
 
         <Dialog open={urlDialogOpen} onOpenChange={setUrlDialogOpen}>
           <DialogTrigger asChild>
-            <Button variant="outline">
+            <Button type="button" variant="outline">
               <LinkIcon className="h-4 w-4 mr-2" />
               Adicionar URL
             </Button>
@@ -491,10 +493,10 @@ export function ProductImageManager({ productId, images, onImagesChange }: Produ
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setUrlDialogOpen(false)}>
+              <Button type="button" variant="outline" onClick={() => setUrlDialogOpen(false)}>
                 Cancelar
               </Button>
-              <Button onClick={handleAddUrl} disabled={isAddingUrl}>
+              <Button type="button" onClick={handleAddUrl} disabled={isAddingUrl}>
                 {isAddingUrl && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Adicionar
               </Button>
