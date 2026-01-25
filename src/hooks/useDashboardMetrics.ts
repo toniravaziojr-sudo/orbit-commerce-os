@@ -24,11 +24,11 @@ interface RecentOrder {
   created_at: string;
 }
 
-export function useDashboardMetrics() {
+export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
   const { currentTenant } = useAuth();
   
   return useQuery({
-    queryKey: ['dashboard-metrics', currentTenant?.id],
+    queryKey: ['dashboard-metrics', currentTenant?.id, startDate?.toISOString(), endDate?.toISOString()],
     queryFn: async (): Promise<DashboardMetrics> => {
       if (!currentTenant?.id) {
         return {
@@ -44,67 +44,79 @@ export function useDashboardMetrics() {
       }
 
       const now = new Date();
-      const todayStart = startOfDay(now).toISOString();
-      const todayEnd = endOfDay(now).toISOString();
-      const yesterdayStart = startOfDay(subDays(now, 1)).toISOString();
-      const yesterdayEnd = endOfDay(subDays(now, 1)).toISOString();
+      // Use provided dates or default to today
+      const periodStart = startDate ? startOfDay(startDate).toISOString() : startOfDay(now).toISOString();
+      const periodEnd = endDate ? endOfDay(endDate).toISOString() : endOfDay(now).toISOString();
+      
+      // Calculate previous period (same duration before the start date)
+      const periodDuration = endDate && startDate 
+        ? endDate.getTime() - startDate.getTime() 
+        : 24 * 60 * 60 * 1000; // 1 day default
+      
+      const prevPeriodEnd = startDate 
+        ? new Date(startDate.getTime() - 1) 
+        : subDays(now, 1);
+      const prevPeriodStart = new Date(prevPeriodEnd.getTime() - periodDuration);
+      
+      const prevStart = startOfDay(prevPeriodStart).toISOString();
+      const prevEnd = endOfDay(prevPeriodEnd).toISOString();
 
-      // Fetch today's orders (only paid orders for sales metrics)
-      const { data: todayOrders } = await supabase
+      // Fetch current period orders (only paid orders for sales metrics)
+      const { data: currentOrders } = await supabase
         .from('orders')
         .select('id, total, payment_status')
         .eq('tenant_id', currentTenant.id)
-        .gte('created_at', todayStart)
-        .lte('created_at', todayEnd);
+        .gte('created_at', periodStart)
+        .lte('created_at', periodEnd);
 
-      // Fetch yesterday's orders
-      const { data: yesterdayOrders } = await supabase
+      // Fetch previous period orders
+      const { data: prevOrders } = await supabase
         .from('orders')
         .select('id, total, payment_status')
         .eq('tenant_id', currentTenant.id)
-        .gte('created_at', yesterdayStart)
-        .lte('created_at', yesterdayEnd);
+        .gte('created_at', prevStart)
+        .lte('created_at', prevEnd);
 
-      // Fetch today's new customers
-      const { count: newCustomersToday } = await supabase
+      // Fetch current period new customers
+      const { count: newCustomersCurrent } = await supabase
         .from('customers')
         .select('id', { count: 'exact', head: true })
         .eq('tenant_id', currentTenant.id)
         .is('deleted_at', null)
-        .gte('created_at', todayStart)
-        .lte('created_at', todayEnd);
+        .gte('created_at', periodStart)
+        .lte('created_at', periodEnd);
 
-      // Fetch yesterday's new customers
-      const { count: newCustomersYesterday } = await supabase
+      // Fetch previous period new customers
+      const { count: newCustomersPrev } = await supabase
         .from('customers')
         .select('id', { count: 'exact', head: true })
         .eq('tenant_id', currentTenant.id)
         .is('deleted_at', null)
-        .gte('created_at', yesterdayStart)
-        .lte('created_at', yesterdayEnd);
+        .gte('created_at', prevStart)
+        .lte('created_at', prevEnd);
 
       // Calculate metrics - consider approved orders for sales
-      const paidTodayOrders = todayOrders?.filter(o => o.payment_status === 'approved') || [];
-      const paidYesterdayOrders = yesterdayOrders?.filter(o => o.payment_status === 'approved') || [];
+      const paidCurrentOrders = currentOrders?.filter(o => o.payment_status === 'approved') || [];
+      const paidPrevOrders = prevOrders?.filter(o => o.payment_status === 'approved') || [];
 
-      const salesToday = paidTodayOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-      const salesYesterday = paidYesterdayOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+      const salesCurrent = paidCurrentOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+      const salesPrev = paidPrevOrders.reduce((sum, o) => sum + (o.total || 0), 0);
 
-      const ordersToday = todayOrders?.length || 0;
-      const ordersYesterday = yesterdayOrders?.length || 0;
+      const ordersCurrent = currentOrders?.length || 0;
+      const ordersPrev = prevOrders?.length || 0;
 
-      const ticketToday = ordersToday > 0 ? salesToday / paidTodayOrders.length : 0;
-      const ticketYesterday = ordersYesterday > 0 ? salesYesterday / paidYesterdayOrders.length : 0;
+      const ticketCurrent = paidCurrentOrders.length > 0 ? salesCurrent / paidCurrentOrders.length : 0;
+      const ticketPrev = paidPrevOrders.length > 0 ? salesPrev / paidPrevOrders.length : 0;
 
       return {
-        salesToday,
-        salesYesterday,
-        ordersToday,
-        ordersYesterday,
-        ticketToday: paidTodayOrders.length > 0 ? ticketToday : 0,
-        ticketYesterday: paidYesterdayOrders.length > 0 ? ticketYesterday : 0,
-        newCustomersToday: newCustomersToday || 0,
-        newCustomersYesterday: newCustomersYesterday || 0,
+        salesToday: salesCurrent,
+        salesYesterday: salesPrev,
+        ordersToday: ordersCurrent,
+        ordersYesterday: ordersPrev,
+        ticketToday: ticketCurrent,
+        ticketYesterday: ticketPrev,
+        newCustomersToday: newCustomersCurrent || 0,
+        newCustomersYesterday: newCustomersPrev || 0,
       };
     },
     enabled: !!currentTenant?.id,
