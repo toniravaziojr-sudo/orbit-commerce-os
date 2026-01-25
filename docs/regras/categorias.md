@@ -1,7 +1,7 @@
 # Módulo: Categorias (Admin)
 
 > **Status**: ✅ Funcional e Protegido  
-> **Última atualização**: 2025-01-19
+> **Última atualização**: 2025-01-25
 
 ---
 
@@ -285,6 +285,16 @@ const RESERVED_SLUGS = [
 | `CategoryListBlock` | Lista todas as categorias |
 | `FeaturedCategoriesBlock` | Categorias em destaque |
 | `ProductGridBlock` | Produtos de uma categoria específica |
+
+> **IMPORTANTE**: Os blocos `CategoryListBlock` e `FeaturedCategoriesBlock` **NÃO** permitem upload de miniaturas customizadas. As miniaturas exibidas são gerenciadas exclusivamente no cadastro da categoria (campo `image_url` / "Miniatura"). Isso evita conflitos de dados e garante consistência.
+
+### 11.3 Configurações de Tema (Página de Categoria)
+
+Acessível em **Configurações do Tema > Páginas > Categoria**:
+
+| Configuração | Descrição | Padrão |
+|--------------|-----------|--------|
+| `bannerOverlayOpacity` | Escurecimento do banner (0-100%) | 0 |
 
 ---
 
