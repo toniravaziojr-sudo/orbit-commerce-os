@@ -406,15 +406,21 @@ export function CampaignCalendar() {
   const handleApproveCampaign = async () => {
     if (!items || !currentTenant) return;
     
-    // Itens com copy + criativo que ainda não estão aprovados
+    const isBlogCampaign = campaign?.target_channel === "blog";
+    
+    // Para blog: só precisa de copy
+    // Para redes sociais: precisa de copy + criativo
     const readyItems = items.filter(i => 
       ["draft", "suggested", "review"].includes(i.status) && 
       i.copy && 
-      i.asset_url
+      (isBlogCampaign || i.asset_url)
     );
     
     if (readyItems.length === 0) {
-      toast.info("Nenhum item pronto para aprovar. Certifique-se que os itens tenham copy e criativo.");
+      const msg = isBlogCampaign 
+        ? "Nenhum item pronto para aprovar. Certifique-se que os itens tenham conteúdo."
+        : "Nenhum item pronto para aprovar. Certifique-se que os itens tenham copy e criativo.";
+      toast.info(msg);
       return;
     }
     
@@ -436,17 +442,18 @@ export function CampaignCalendar() {
     }
   };
 
-  // Verifica se há itens prontos para aprovar (com copy + criativo)
+  // Verifica se há itens prontos para aprovar
   const itemsReadyToApprove = useMemo(() => {
     if (!items) return 0;
+    const isBlogCampaign = campaign?.target_channel === "blog";
     return items.filter(i => 
       ["draft", "suggested", "review"].includes(i.status) && 
       i.copy && 
-      i.asset_url
+      (isBlogCampaign || i.asset_url)
     ).length;
-  }, [items]);
+  }, [items, campaign?.target_channel]);
 
-  // Agendar Publicações
+  // Agendar Publicações (Redes Sociais)
   const handleScheduleAll = async () => {
     if (!items || !currentTenant) return;
     
@@ -496,6 +503,53 @@ export function CampaignCalendar() {
       queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
     } catch (err) {
       toast.error("Erro ao agendar");
+    } finally {
+      setIsScheduling(false);
+    }
+  };
+
+  // Publicar Posts do Blog
+  const handlePublishBlog = async () => {
+    if (!items || !currentTenant) return;
+    
+    const approvedItems = items.filter(i => i.status === "approved" && !i.blog_post_id);
+    if (approvedItems.length === 0) {
+      toast.info("Nenhum item aprovado para publicar. Aprove os itens primeiro.");
+      return;
+    }
+    
+    setIsScheduling(true);
+    let published = 0;
+    let failed = 0;
+    
+    try {
+      for (const item of approvedItems) {
+        const { data, error } = await supabase.functions.invoke("media-publish-blog", {
+          body: { 
+            calendar_item_id: item.id,
+            publish_now: true,
+          },
+        });
+
+        if (error || !data?.success) {
+          failed++;
+          console.error(`Failed to publish item ${item.id}:`, error || data?.error);
+        } else {
+          published++;
+        }
+      }
+      
+      if (published > 0) {
+        toast.success(`${published} post(s) de blog publicado(s)!`);
+      }
+      if (failed > 0) {
+        toast.error(`${failed} post(s) falharam`);
+      }
+      
+      await refetchItems();
+      queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
+    } catch (err) {
+      toast.error("Erro ao publicar posts");
     } finally {
       setIsScheduling(false);
     }
@@ -644,7 +698,7 @@ export function CampaignCalendar() {
               {isGenerating ? "Gerando..." : "Criar Estratégia IA"}
             </Button>
 
-            {/* Gerar Criativos - apenas para redes sociais, não para blog */}
+            {/* Ações para Redes Sociais */}
             {hasSuggestions && campaign?.target_channel !== "blog" && (
               <>
                 <Button 
@@ -664,7 +718,7 @@ export function CampaignCalendar() {
                   }
                 </Button>
 
-                {/* Aprovar Campanha - só aparece quando há itens prontos */}
+                {/* Aprovar Campanha - redes sociais */}
                 {itemsReadyToApprove > 0 && (
                   <Button 
                     variant="default"
@@ -681,7 +735,7 @@ export function CampaignCalendar() {
                   </Button>
                 )}
 
-                {/* Agendar Publicações - só para itens aprovados */}
+                {/* Agendar Publicações - redes sociais */}
                 {stats.approved > 0 && (
                   <Button 
                     variant={lateConnected ? "outline" : "secondary"}
@@ -702,6 +756,45 @@ export function CampaignCalendar() {
               </>
             )}
 
+            {/* Ações para Blog */}
+            {hasSuggestions && campaign?.target_channel === "blog" && (
+              <>
+                {/* Aprovar Campanha - blog */}
+                {itemsReadyToApprove > 0 && (
+                  <Button 
+                    variant="default"
+                    onClick={handleApproveCampaign}
+                    disabled={isApproving}
+                    className="gap-2 bg-green-600 hover:bg-green-700"
+                  >
+                    {isApproving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Check className="h-4 w-4" />
+                    )}
+                    Aprovar ({itemsReadyToApprove})
+                  </Button>
+                )}
+
+                {/* Publicar no Blog - só para itens aprovados */}
+                {stats.approved > 0 && (
+                  <Button 
+                    variant="default"
+                    onClick={handlePublishBlog}
+                    disabled={isScheduling}
+                    className="gap-2"
+                  >
+                    {isScheduling ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                    Publicar no Blog
+                  </Button>
+                )}
+              </>
+            )}
+
             <div className="ml-auto flex gap-4 text-sm text-muted-foreground">
               <span>{stats.total} itens</span>
               <span>{stats.approved} aprovados</span>
@@ -711,8 +804,8 @@ export function CampaignCalendar() {
         </CardContent>
       </Card>
 
-      {/* Channel Connection Alert */}
-      {!lateLoading && !lateConnected && hasSuggestions && (
+      {/* Channel Connection Alert - apenas para redes sociais, não para blog */}
+      {!lateLoading && !lateConnected && hasSuggestions && campaign?.target_channel !== "blog" && (
         <Alert variant="default" className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
           <AlertCircle className="h-4 w-4 text-amber-600" />
           <AlertDescription className="flex items-center justify-between">
