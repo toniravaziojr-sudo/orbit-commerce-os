@@ -644,8 +644,8 @@ export function CampaignCalendar() {
               {isGenerating ? "Gerando..." : "Criar Estratégia IA"}
             </Button>
 
-            {/* Gerar Criativos */}
-            {hasSuggestions && (
+            {/* Gerar Criativos - apenas para redes sociais, não para blog */}
+            {hasSuggestions && campaign?.target_channel !== "blog" && (
               <>
                 <Button 
                   variant="outline"
