@@ -27,7 +27,7 @@ export default function SupportCenter() {
   const [activeTab, setActiveTab] = useState<'tickets' | 'tutorials'>('tickets');
   const [ticketFilter, setTicketFilter] = useState<'all' | 'open' | 'closed'>('all');
   
-  const { tickets, isLoading } = useSupportTickets(activeTab);
+  const { tickets, isLoading } = useSupportTickets(ticketFilter);
   const { isPlatformOperator } = usePlatformOperator();
 
   const openCount = tickets?.filter(t => t.status === 'open' || t.status === 'pending').length || 0;
@@ -87,7 +87,7 @@ export default function SupportCenter() {
 
           <Card 
             className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
-            onClick={() => setActiveTab('open')}
+            onClick={() => { setActiveTab('tickets'); setTicketFilter('open'); }}
           >
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
@@ -106,20 +106,17 @@ export default function SupportCenter() {
 
           <Card 
             className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
-            onClick={() => window.open('https://docs.comandocentral.com.br', '_blank')}
+            onClick={() => setActiveTab('tutorials')}
           >
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
-                <div className="rounded-lg bg-blue-500/10 p-3">
-                  <HelpCircle className="h-6 w-6 text-blue-500" />
+                <div className="rounded-lg bg-violet-500/10 p-3">
+                  <PlayCircle className="h-6 w-6 text-violet-500" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold flex items-center gap-1">
-                    Central de Ajuda
-                    <ExternalLink className="h-3 w-3" />
-                  </h3>
+                  <h3 className="font-semibold">Tutoriais</h3>
                   <p className="text-sm text-muted-foreground">
-                    Tutoriais e documentação
+                    Aprenda a usar a plataforma
                   </p>
                 </div>
               </div>
@@ -132,8 +129,8 @@ export default function SupportCenter() {
           >
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
-                <div className="rounded-lg bg-green-500/10 p-3">
-                  <MessageCircle className="h-6 w-6 text-green-500" />
+                <div className="rounded-lg bg-emerald-500/10 p-3">
+                  <MessageCircle className="h-6 w-6 text-emerald-500" />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold flex items-center gap-1">
@@ -150,61 +147,90 @@ export default function SupportCenter() {
         </div>
       )}
 
-      {/* Tickets List */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>
-                {isPlatformOperator ? "Todos os Chamados" : "Meus Chamados"}
-              </CardTitle>
-              <CardDescription>
-                {isPlatformOperator 
-                  ? "Visualize e responda os chamados de suporte"
-                  : "Acompanhe o status dos seus chamados"
-                }
-              </CardDescription>
-            </div>
-            {isPlatformOperator && (
-              <div className="flex gap-2">
-                <Badge variant="outline" className="flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  {openCount} abertos
-                </Badge>
-                <Badge variant="secondary" className="flex items-center gap-1">
-                  <CheckCircle className="h-3 w-3" />
-                  {closedCount} fechados
-                </Badge>
-              </div>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
-            <TabsList className="mb-4">
-              <TabsTrigger value="all">Todos</TabsTrigger>
-              <TabsTrigger value="open" className="flex items-center gap-1">
-                Abertos
-                {openCount > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 min-w-5 rounded-full px-1.5">
-                    {openCount}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="closed">Fechados</TabsTrigger>
-            </TabsList>
+      {/* Main Tabs: Tickets | Tutorials */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'tickets' | 'tutorials')}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="tickets" className="flex items-center gap-2">
+            <Ticket className="h-4 w-4" />
+            Chamados
+          </TabsTrigger>
+          <TabsTrigger value="tutorials" className="flex items-center gap-2">
+            <PlayCircle className="h-4 w-4" />
+            Tutoriais
+          </TabsTrigger>
+        </TabsList>
 
-            <TabsContent value={activeTab}>
-              <SupportTicketList 
-                tickets={tickets || []} 
-                isLoading={isLoading}
-                onSelectTicket={setSelectedTicketId}
-                isPlatformView={isPlatformOperator}
-              />
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+        <TabsContent value="tickets">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>
+                    {isPlatformOperator ? "Todos os Chamados" : "Meus Chamados"}
+                  </CardTitle>
+                  <CardDescription>
+                    {isPlatformOperator 
+                      ? "Visualize e responda os chamados de suporte"
+                      : "Acompanhe o status dos seus chamados"
+                    }
+                  </CardDescription>
+                </div>
+                {isPlatformOperator && (
+                  <div className="flex gap-2">
+                    <Badge variant="outline" className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {openCount} abertos
+                    </Badge>
+                    <Badge variant="secondary" className="flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3" />
+                      {closedCount} fechados
+                    </Badge>
+                  </div>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Tabs value={ticketFilter} onValueChange={(v) => setTicketFilter(v as 'all' | 'open' | 'closed')}>
+                <TabsList className="mb-4">
+                  <TabsTrigger value="all">Todos</TabsTrigger>
+                  <TabsTrigger value="open" className="flex items-center gap-1">
+                    Abertos
+                    {openCount > 0 && (
+                      <Badge variant="secondary" className="ml-1 h-5 min-w-5 rounded-full px-1.5">
+                        {openCount}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger value="closed">Fechados</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value={ticketFilter}>
+                  <SupportTicketList 
+                    tickets={tickets || []} 
+                    isLoading={isLoading}
+                    onSelectTicket={setSelectedTicketId}
+                    isPlatformView={isPlatformOperator}
+                  />
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="tutorials">
+          <Card>
+            <CardHeader>
+              <CardTitle>Tutoriais da Plataforma</CardTitle>
+              <CardDescription>
+                Assista aos vídeos e aprenda a utilizar todos os recursos do Comando Central
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TutorialsList />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       <CreateTicketDialog 
         open={isCreateDialogOpen} 
