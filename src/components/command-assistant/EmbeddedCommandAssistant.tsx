@@ -46,8 +46,11 @@ export function EmbeddedCommandAssistant() {
     }
   };
   
-  const handleSend = async (message: string) => {
-    await sendMessage(message);
+  const handleSend = async (
+    message: string, 
+    attachments?: { url: string; filename: string; mimeType: string }[]
+  ) => {
+    await sendMessage(message, attachments);
   };
   
   return (
