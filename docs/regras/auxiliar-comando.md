@@ -1,13 +1,16 @@
 # Auxiliar de Comando — Regras e Especificações
 
-> **Status:** 🟧 Pending (não validado)  
-> **Última atualização:** 2025-01-19
+> **Status:** ✅ Ready  
+> **Última atualização:** 2025-01-25
 
 ---
 
 ## Visão Geral
 
-Assistente de IA integrado ao CommandCenter para execução de tarefas operacionais via linguagem natural. Ativado via `⌘K` ou botão no header.
+Assistente de IA integrado à **Central de Execuções** para execução de tarefas operacionais via linguagem natural. Pode ser ativado via:
+- `⌘K` (atalho global)
+- Botão no header
+- Aba "Auxiliar" na Central de Execuções (embedded)
 
 ---
 
@@ -17,6 +20,7 @@ Assistente de IA integrado ao CommandCenter para execução de tarefas operacion
 |---------|-----------|
 | `src/components/command-assistant/CommandAssistantPanel.tsx` | Painel flutuante |
 | `src/components/command-assistant/CommandAssistantTrigger.tsx` | Gatilho visual |
+| `src/components/command-assistant/EmbeddedCommandAssistant.tsx` | Versão embedded para Central de Execuções |
 | `src/hooks/useCommandAssistant.ts` | Lógica de conversas e streaming |
 | `src/contexts/CommandAssistantContext.tsx` | Context global |
 | `supabase/functions/command-assistant-chat/` | Processamento de mensagens |

@@ -98,7 +98,8 @@ Este diretório contém as regras e especificações separadas por módulo para 
 | [planos-billing.md](./planos-billing.md) | Planos e Cobrança | 🟧 Pending |
 | [integracoes.md](./integracoes.md) | Hub de Integrações | 🟧 Pending |
 | [platform-emails.md](./platform-emails.md) | Emails da Plataforma (Admin) | ✅ Ready |
-| [auxiliar-comando.md](./auxiliar-comando.md) | Auxiliar de Comando (IA) | 🟧 Pending |
+| [platform-admin.md](./platform-admin.md) | Avisos e Tutoriais (Platform Admin) | ✅ Ready |
+| [auxiliar-comando.md](./auxiliar-comando.md) | Auxiliar de Comando (IA) | ✅ Ready |
 | [importacao.md](./importacao.md) | Importação de Dados (3 Etapas) | ✅ Ready |
 
 ---
@@ -107,8 +108,8 @@ Este diretório contém as regras e especificações separadas por módulo para 
 
 | Status | Quantidade | Significado |
 |--------|------------|-------------|
-| ✅ Ready | **27** | 100% funcional e validado |
-| 🟧 Pending | **13** | Em construção/incompleto |
+| ✅ Ready | **29** | 100% funcional e validado |
+| 🟧 Pending | **12** | Em construção/incompleto |
 
 ---
 
