@@ -119,12 +119,9 @@ export function CategoryListBlock({
     enabled: !!tenantId,
   });
 
-  // Map custom image overrides to categories
+  // Map categories - use image_url directly (miniatures are managed in Categories)
   const categoriesWithOverrides: CategoryWithOverride[] = (categories || []).map(category => {
-    const itemConfig = items?.find(i => i.categoryId === category.id);
-    // Priority: miniImageDesktop > category.image_url
-    const displayImage = itemConfig?.miniImageDesktop || category.image_url;
-    return { ...category, displayImage };
+    return { ...category, displayImage: category.image_url };
   });
   
   const isLoading = (!tenantIdFromContext && tenantLoading) || categoriesLoading;

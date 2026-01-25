@@ -687,7 +687,6 @@ function PropField({ name, schema, value, onChange, blockType, allProps }: PropF
             value={Array.isArray(value) ? value : []}
             onChange={(items) => onChange(items)}
             maxItems={schema.max || 12}
-            imageDimensions={schema.imageDimensions}
           />
         );
 

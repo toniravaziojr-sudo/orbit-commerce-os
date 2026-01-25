@@ -15,8 +15,6 @@ import { getPublicCategoryUrl } from '@/lib/publicUrls';
 
 interface CategoryItemConfig {
   categoryId: string;
-  miniImageDesktop?: string;
-  miniImageMobile?: string;
 }
 
 interface CategoryData {
@@ -174,11 +172,8 @@ export function FeaturedCategoriesBlock({
   const displayCategories = categories;
 
   const CategoryCard = ({ category }: { category: CategoryData & { config?: CategoryItemConfig } }) => {
-    const miniImage = isMobile && category.config?.miniImageMobile 
-      ? category.config.miniImageMobile 
-      : (category.config?.miniImageDesktop || null);
-    
-    const imageUrl = miniImage || category.image_url;
+    // Use category.image_url directly (miniatures are managed in Categories)
+    const imageUrl = category.image_url;
     const isCategoryDemo = category.id.startsWith('demo-');
 
     const cardContent = (
