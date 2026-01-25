@@ -52,7 +52,6 @@ const PUBLICATION_LIMITS = {
 const PUBLICATION_TYPES = [
   { id: "feed" as PublicationType, label: "Feed", icon: Image, description: "Post para o feed" },
   { id: "stories" as PublicationType, label: "Stories", icon: Clock, description: "Story temporário" },
-  { id: "blog" as PublicationType, label: "Blog", icon: Newspaper, description: "Artigo para o blog" },
 ];
 
 const CHANNELS = [
@@ -66,7 +65,6 @@ const ALL_CHANNELS = [
   { id: "feed_facebook" as ChannelType, label: "Feed Facebook", icon: Facebook },
   { id: "story_instagram" as ChannelType, label: "Story Instagram", icon: Instagram },
   { id: "story_facebook" as ChannelType, label: "Story Facebook", icon: Facebook },
-  { id: "blog" as ChannelType, label: "Blog", icon: Newspaper },
 ];
 
 const feedFormSchema = z.object({

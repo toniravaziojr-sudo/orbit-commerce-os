@@ -32,6 +32,7 @@ export const ROUTE_TO_PERMISSION: Record<string, { module: string; submodule?: s
   '/pages': { module: 'storefront', submodule: 'pages' },
   '/page-templates': { module: 'storefront', submodule: 'pages' },
   '/blog': { module: 'storefront', submodule: 'blog' },
+  '/blog/campaigns': { module: 'storefront', submodule: 'blog' },
   
   // Marketing
   '/marketing': { module: 'marketing', submodule: 'integrations' },

@@ -19,7 +19,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Pencil, Trash2, Eye, LayoutTemplate, FileText, Calendar, AlertCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, Eye, LayoutTemplate, FileText, Calendar, AlertCircle, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePrimaryPublicHost, buildPublicStorefrontUrl } from '@/hooks/usePrimaryPublicHost';
 import { validateSlug, generateSlug } from '@/lib/slugValidation';
@@ -293,10 +293,15 @@ export default function Blog() {
         title="Blog"
         description="Crie e gerencie posts do blog da sua loja"
         actions={
-          <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
-            <DialogTrigger asChild>
-              <Button><Plus className="mr-2 h-4 w-4" />Novo Post</Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate('/blog/campaigns')}>
+              <Sparkles className="mr-2 h-4 w-4" />
+              Campanhas IA
+            </Button>
+            <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
+              <DialogTrigger asChild>
+                <Button><Plus className="mr-2 h-4 w-4" />Novo Post</Button>
+              </DialogTrigger>
             <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle>{editingPost ? 'Editar Post' : 'Novo Post'}</DialogTitle>
@@ -396,6 +401,7 @@ export default function Blog() {
               </div>
             </DialogContent>
           </Dialog>
+          </div>
         }
       />
 

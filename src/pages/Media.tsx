@@ -1,15 +1,26 @@
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Image, Link } from "lucide-react";
+import { Calendar, Image, Link, Facebook, Instagram } from "lucide-react";
 import { CampaignsList } from "@/components/media/CampaignsList";
 
 export default function Media() {
   return (
     <div className="space-y-8 animate-fade-in">
       <PageHeader
-        title="Gestão de Mídias"
-        description="Crie campanhas de conteúdo orgânico e deixe a IA gerar seu calendário editorial"
+        title="Mídias Sociais"
+        description="Crie campanhas de conteúdo para Facebook e Instagram com calendário editorial gerado por IA"
       />
+      
+      <div className="flex gap-2 text-sm text-muted-foreground">
+        <div className="flex items-center gap-1 px-3 py-1 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 rounded-full">
+          <Facebook className="h-3.5 w-3.5" />
+          Facebook
+        </div>
+        <div className="flex items-center gap-1 px-3 py-1 bg-pink-50 dark:bg-pink-950/30 text-pink-600 dark:text-pink-400 rounded-full">
+          <Instagram className="h-3.5 w-3.5" />
+          Instagram
+        </div>
+      </div>
 
       <Tabs defaultValue="campaigns" className="space-y-6">
         <TabsList>
