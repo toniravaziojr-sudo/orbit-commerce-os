@@ -49,13 +49,6 @@ export function CategoryBannerBlock({
   const categoryName = category?.name || 'Categoria';
   const categoryDescription = category?.description;
 
-  // Height classes
-  const heightClasses = {
-    sm: 'h-32 md:h-48',
-    md: 'h-48 md:h-64',
-    lg: 'h-64 md:h-80',
-  };
-
   // Title position classes
   const titlePositionClasses = {
     left: 'text-left items-start',
@@ -72,25 +65,26 @@ export function CategoryBannerBlock({
     <div className="w-full">
       {/* Banner image container - só renderiza se showBanner=true */}
       {showBanner && (
-        <div className={`relative w-full overflow-hidden ${heightClasses[height]}`}>
+        <div className="relative w-full">
           {/* Banner image OR placeholder gradient */}
           {hasBannerImage ? (
-            <picture>
+            <picture className="block w-full">
               <source media="(min-width: 768px)" srcSet={bannerDesktop || bannerMobile || ''} />
               <img
                 src={bannerMobile || bannerDesktop || ''}
                 alt={categoryName}
-                className="w-full h-full object-cover"
+                className="w-full h-auto object-contain"
+                style={{ maxHeight: '400px' }}
               />
             </picture>
           ) : (
             // Placeholder gradient - neutral, no demo images
-            <div className="w-full h-full bg-gradient-to-br from-muted via-muted/80 to-muted-foreground/20" />
+            <div className="w-full aspect-[4/1] bg-gradient-to-br from-muted via-muted/80 to-muted-foreground/20" />
           )}
           
           {/* Overlay */}
           <div 
-            className="absolute inset-0 bg-black"
+            className="absolute inset-0 bg-black pointer-events-none"
             style={{ opacity: hasBannerImage ? overlayOpacity / 100 : 0.3 }}
           />
         </div>
