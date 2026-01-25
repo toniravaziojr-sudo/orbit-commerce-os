@@ -1,9 +1,17 @@
 import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LayoutDashboard, Bot, CalendarClock } from "lucide-react";
 import { AgendaContent } from "@/components/command-center/agenda";
 import { EmbeddedCommandAssistant } from "@/components/command-assistant/EmbeddedCommandAssistant";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  useDashboardMetrics,
+  useRecentOrders,
+  calculateTrend,
+  formatCurrency,
+  formatRelativeTime,
+} from "@/hooks/useDashboardMetrics";
 
 // Dashboard content (from Dashboard.tsx)
 import {
@@ -28,42 +36,6 @@ import { CommunicationsWidget } from "@/components/dashboard/CommunicationsWidge
 import { FiscalAlertsWidget } from "@/components/dashboard/FiscalAlertsWidget";
 import { OrderLimitWarning } from "@/components/billing/OrderLimitWarning";
 
-// Demo data for Dashboard
-const DEMO_RECENT_ORDERS = [
-  {
-    id: "#12847",
-    customer: "Maria Silva",
-    total: "R$ 459,90",
-    status: "pending",
-    statusLabel: "Aguardando pagamento",
-    time: "Há 5 min",
-  },
-  {
-    id: "#12846",
-    customer: "João Santos",
-    total: "R$ 1.234,00",
-    status: "success",
-    statusLabel: "Pago",
-    time: "Há 12 min",
-  },
-  {
-    id: "#12845",
-    customer: "Ana Costa",
-    total: "R$ 89,90",
-    status: "warning",
-    statusLabel: "Enviado",
-    time: "Há 28 min",
-  },
-  {
-    id: "#12844",
-    customer: "Pedro Lima",
-    total: "R$ 567,00",
-    status: "success",
-    statusLabel: "Entregue",
-    time: "Há 1h",
-  },
-];
-
 const DEMO_ATTENTION_ITEMS = [
   {
     icon: AlertCircle,
@@ -87,11 +59,40 @@ const DEMO_ATTENTION_ITEMS = [
 
 // Dashboard Tab Content
 function DashboardContent() {
+  const navigate = useNavigate();
+  const { data: metrics, isLoading: metricsLoading } = useDashboardMetrics();
+  const { data: recentOrders, isLoading: ordersLoading } = useRecentOrders(4);
+
   const statusVariantMap = {
     pending: "warning",
-    success: "success",
-    warning: "info",
+    processing: "info",
+    shipped: "info",
+    delivered: "success",
+    cancelled: "destructive",
+    returned: "destructive",
   } as const;
+
+  const paymentStatusLabels: Record<string, string> = {
+    pending: "Aguardando pagamento",
+    paid: "Pago",
+    failed: "Falhou",
+    refunded: "Reembolsado",
+  };
+
+  const orderStatusLabels: Record<string, string> = {
+    pending: "Pendente",
+    processing: "Processando",
+    shipped: "Enviado",
+    delivered: "Entregue",
+    cancelled: "Cancelado",
+    returned: "Devolvido",
+  };
+
+  // Calculate trends
+  const salesTrend = metrics ? calculateTrend(metrics.salesToday, metrics.salesYesterday) : 0;
+  const ordersTrend = metrics ? calculateTrend(metrics.ordersToday, metrics.ordersYesterday) : 0;
+  const ticketTrend = metrics ? calculateTrend(metrics.ticketToday, metrics.ticketYesterday) : 0;
+  const customersTrend = metrics ? calculateTrend(metrics.newCustomersToday, metrics.newCustomersYesterday) : 0;
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -100,34 +101,45 @@ function DashboardContent() {
 
       {/* Stats Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Vendas Hoje"
-          value="R$ 12.450"
-          icon={DollarSign}
-          variant="success"
-          trend={{ value: 12.5, label: "vs. ontem" }}
-        />
-        <StatCard
-          title="Pedidos Hoje"
-          value="47"
-          icon={ShoppingCart}
-          variant="primary"
-          trend={{ value: 8.2, label: "vs. ontem" }}
-        />
-        <StatCard
-          title="Ticket Médio"
-          value="R$ 264,89"
-          icon={TrendingUp}
-          variant="default"
-          trend={{ value: -2.4, label: "vs. ontem" }}
-        />
-        <StatCard
-          title="Novos Clientes"
-          value="23"
-          icon={Users}
-          variant="info"
-          trend={{ value: 18.7, label: "vs. ontem" }}
-        />
+        {metricsLoading ? (
+          <>
+            <Skeleton className="h-32" />
+            <Skeleton className="h-32" />
+            <Skeleton className="h-32" />
+            <Skeleton className="h-32" />
+          </>
+        ) : (
+          <>
+            <StatCard
+              title="Vendas Hoje"
+              value={formatCurrency(metrics?.salesToday || 0)}
+              icon={DollarSign}
+              variant="success"
+              trend={{ value: parseFloat(salesTrend.toFixed(1)), label: "vs. ontem" }}
+            />
+            <StatCard
+              title="Pedidos Hoje"
+              value={String(metrics?.ordersToday || 0)}
+              icon={ShoppingCart}
+              variant="primary"
+              trend={{ value: parseFloat(ordersTrend.toFixed(1)), label: "vs. ontem" }}
+            />
+            <StatCard
+              title="Ticket Médio"
+              value={formatCurrency(metrics?.ticketToday || 0)}
+              icon={TrendingUp}
+              variant="default"
+              trend={{ value: parseFloat(ticketTrend.toFixed(1)), label: "vs. ontem" }}
+            />
+            <StatCard
+              title="Novos Clientes"
+              value={String(metrics?.newCustomersToday || 0)}
+              icon={Users}
+              variant="info"
+              trend={{ value: parseFloat(customersTrend.toFixed(1)), label: "vs. ontem" }}
+            />
+          </>
+        )}
       </div>
 
       {/* Communications Widget */}
@@ -143,45 +155,65 @@ function DashboardContent() {
             <CardTitle className="text-lg font-semibold">
               Pedidos Recentes
             </CardTitle>
-            <Button variant="ghost" size="sm" className="gap-1.5 text-primary">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="gap-1.5 text-primary"
+              onClick={() => navigate('/orders')}
+            >
               Ver todos
               <ArrowRight className="h-4 w-4" />
             </Button>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {DEMO_RECENT_ORDERS.map((order) => (
-                <div
-                  key={order.id}
-                  className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-4 transition-colors hover:bg-muted/50"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                      <ShoppingCart className="h-5 w-5 text-primary" />
+            {ordersLoading ? (
+              <div className="space-y-4">
+                <Skeleton className="h-20" />
+                <Skeleton className="h-20" />
+                <Skeleton className="h-20" />
+              </div>
+            ) : recentOrders && recentOrders.length > 0 ? (
+              <div className="space-y-4">
+                {recentOrders.map((order) => (
+                  <div
+                    key={order.id}
+                    className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-4 transition-colors hover:bg-muted/50 cursor-pointer"
+                    onClick={() => navigate(`/orders?orderId=${order.id}`)}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                        <ShoppingCart className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">
+                          {order.order_number} - {order.customer_name}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {formatRelativeTime(order.created_at)}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium text-foreground">
-                        {order.id} - {order.customer}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {order.time}
-                      </p>
+                    <div className="flex items-center gap-4">
+                      <StatusBadge
+                        variant={statusVariantMap[order.status as keyof typeof statusVariantMap] || "default"}
+                        dot
+                      >
+                        {order.payment_status === 'approved' 
+                          ? orderStatusLabels[order.status] || order.status
+                          : paymentStatusLabels[order.payment_status] || order.payment_status}
+                      </StatusBadge>
+                      <span className="font-semibold text-foreground">
+                        {formatCurrency(order.total)}
+                      </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <StatusBadge
-                      variant={statusVariantMap[order.status as keyof typeof statusVariantMap]}
-                      dot
-                    >
-                      {order.statusLabel}
-                    </StatusBadge>
-                    <span className="font-semibold text-foreground">
-                      {order.total}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                Nenhum pedido recente
+              </div>
+            )}
           </CardContent>
         </Card>
 
