@@ -69,12 +69,20 @@ export function CategoryBannerBlock({
           {/* Banner image OR placeholder gradient */}
           {hasBannerImage ? (
             <picture className="block w-full">
-              <source media="(min-width: 768px)" srcSet={bannerDesktop || bannerMobile || ''} />
+              {/* Desktop: usa banner_desktop_url se disponível */}
+              {bannerDesktop && (
+                <source media="(min-width: 768px)" srcSet={bannerDesktop} />
+              )}
+              {/* Mobile: usa banner_mobile_url se disponível, senão usa desktop */}
               <img
                 src={bannerMobile || bannerDesktop || ''}
                 alt={categoryName}
-                className="w-full h-auto object-contain"
-                style={{ maxHeight: '400px' }}
+                className="w-full h-auto"
+                style={{ 
+                  maxHeight: '500px',
+                  objectFit: 'cover',
+                  objectPosition: 'center',
+                }}
               />
             </picture>
           ) : (
@@ -82,11 +90,13 @@ export function CategoryBannerBlock({
             <div className="w-full aspect-[4/1] bg-gradient-to-br from-muted via-muted/80 to-muted-foreground/20" />
           )}
           
-          {/* Overlay */}
-          <div 
-            className="absolute inset-0 bg-black pointer-events-none"
-            style={{ opacity: hasBannerImage ? overlayOpacity / 100 : 0.3 }}
-          />
+          {/* Overlay - só aplica se overlayOpacity > 0 */}
+          {overlayOpacity > 0 && (
+            <div 
+              className="absolute inset-0 bg-black pointer-events-none"
+              style={{ opacity: overlayOpacity / 100 }}
+            />
+          )}
         </div>
       )}
       

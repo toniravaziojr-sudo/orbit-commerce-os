@@ -12,6 +12,8 @@ import {
   formatCurrency,
   formatRelativeTime,
 } from "@/hooks/useDashboardMetrics";
+import { DateRangeFilter } from "@/components/ui/date-range-filter";
+import { startOfDay, endOfDay } from "date-fns";
 
 // Dashboard content (from Dashboard.tsx)
 import {
@@ -60,8 +62,18 @@ const DEMO_ATTENTION_ITEMS = [
 // Dashboard Tab Content
 function DashboardContent() {
   const navigate = useNavigate();
-  const { data: metrics, isLoading: metricsLoading } = useDashboardMetrics();
+  
+  // Date range state - defaults to today
+  const [startDate, setStartDate] = useState<Date | undefined>(startOfDay(new Date()));
+  const [endDate, setEndDate] = useState<Date | undefined>(endOfDay(new Date()));
+  
+  const { data: metrics, isLoading: metricsLoading } = useDashboardMetrics(startDate, endDate);
   const { data: recentOrders, isLoading: ordersLoading } = useRecentOrders(4);
+
+  const handleDateChange = (start?: Date, end?: Date) => {
+    setStartDate(start);
+    setEndDate(end);
+  };
 
   const statusVariantMap = {
     pending: "warning",
@@ -94,8 +106,29 @@ function DashboardContent() {
   const ticketTrend = metrics ? calculateTrend(metrics.ticketToday, metrics.ticketYesterday) : 0;
   const customersTrend = metrics ? calculateTrend(metrics.newCustomersToday, metrics.newCustomersYesterday) : 0;
 
+  // Dynamic trend label based on date range
+  const getTrendLabel = () => {
+    if (!startDate || !endDate) return "vs. período anterior";
+    const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    if (days <= 1) return "vs. ontem";
+    if (days <= 7) return "vs. semana anterior";
+    if (days <= 31) return "vs. mês anterior";
+    return "vs. período anterior";
+  };
+
+  const trendLabel = getTrendLabel();
+
   return (
     <div className="space-y-8 animate-fade-in">
+      {/* Date Range Filter */}
+      <div className="flex justify-end">
+        <DateRangeFilter
+          startDate={startDate}
+          endDate={endDate}
+          onChange={handleDateChange}
+          label="Período"
+        />
+      </div>
       {/* Order Limit Warning */}
       <OrderLimitWarning />
 
@@ -111,32 +144,32 @@ function DashboardContent() {
         ) : (
           <>
             <StatCard
-              title="Vendas Hoje"
+              title="Vendas"
               value={formatCurrency(metrics?.salesToday || 0)}
               icon={DollarSign}
               variant="success"
-              trend={{ value: parseFloat(salesTrend.toFixed(1)), label: "vs. ontem" }}
+              trend={{ value: parseFloat(salesTrend.toFixed(1)), label: trendLabel }}
             />
             <StatCard
-              title="Pedidos Hoje"
+              title="Pedidos"
               value={String(metrics?.ordersToday || 0)}
               icon={ShoppingCart}
               variant="primary"
-              trend={{ value: parseFloat(ordersTrend.toFixed(1)), label: "vs. ontem" }}
+              trend={{ value: parseFloat(ordersTrend.toFixed(1)), label: trendLabel }}
             />
             <StatCard
               title="Ticket Médio"
               value={formatCurrency(metrics?.ticketToday || 0)}
               icon={TrendingUp}
               variant="default"
-              trend={{ value: parseFloat(ticketTrend.toFixed(1)), label: "vs. ontem" }}
+              trend={{ value: parseFloat(ticketTrend.toFixed(1)), label: trendLabel }}
             />
             <StatCard
               title="Novos Clientes"
               value={String(metrics?.newCustomersToday || 0)}
               icon={Users}
               variant="info"
-              trend={{ value: parseFloat(customersTrend.toFixed(1)), label: "vs. ontem" }}
+              trend={{ value: parseFloat(customersTrend.toFixed(1)), label: trendLabel }}
             />
           </>
         )}
