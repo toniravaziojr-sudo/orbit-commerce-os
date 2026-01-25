@@ -373,10 +373,10 @@ export function ProductImageManager({ productId, images, onImagesChange }: Produ
         .update({ is_primary: false })
         .eq('product_id', productId);
 
-      // Set new primary
+      // Set new primary and move to first position (sort_order = 0)
       const { error } = await supabase
         .from('product_images')
-        .update({ is_primary: true })
+        .update({ is_primary: true, sort_order: 0 })
         .eq('id', imageId);
 
       if (error) {
@@ -385,12 +385,23 @@ export function ProductImageManager({ productId, images, onImagesChange }: Produ
           description: 'Falha ao definir imagem principal',
           variant: 'destructive',
         });
-      } else {
-        toast({
-          title: 'Imagem principal atualizada',
-        });
-        onImagesChange();
+        return;
       }
+
+      // Reorder other images: increment sort_order for all images except the new primary
+      const otherImages = sortedImages.filter(img => img.id !== imageId);
+      for (let i = 0; i < otherImages.length; i++) {
+        await supabase
+          .from('product_images')
+          .update({ sort_order: i + 1 })
+          .eq('id', otherImages[i].id);
+      }
+
+      toast({
+        title: 'Imagem principal atualizada',
+        description: 'A imagem foi movida para a primeira posição',
+      });
+      onImagesChange();
     } catch (error) {
       console.error('Error setting primary:', error);
     }
