@@ -249,12 +249,36 @@ if (!url) return null; // Item não é renderizado
 - O sistema filtra automaticamente esses itens inválidos
 - Recomendação: criar as páginas institucionais antes de vincular nos menus
 
+### Aviso de Itens Ocultos (Builder)
+
+> **REGRA:** Quando há itens configurados mas não renderizados (por referências inválidas), o sistema exibe aviso no Builder.
+
+| Prop | Tipo | Descrição |
+|------|------|-----------|
+| `footer1HiddenCount` | number | Quantidade de itens ocultos no Footer 1 |
+| `footer2HiddenCount` | number | Quantidade de itens ocultos no Footer 2 |
+
+**UI do Aviso:**
+```tsx
+// Exibido apenas quando isEditing=true e hiddenCount > 0
+<span className="text-xs text-amber-500">
+  ⚠️ {count} item(ns) oculto(s) - páginas não publicadas
+</span>
+```
+
+**Cálculo:**
+```typescript
+const hiddenCount = configuredItems.length - validItems.length;
+```
+
 ---
 
 ## Histórico de Alterações
 
 | Data | Alteração |
 |------|-----------|
+| 2025-01-25 | Aviso de itens ocultos exibido no Builder quando há páginas não publicadas |
+| 2025-01-25 | Removido `.limit(5)` da query de categorias para corrigir validação de links |
 | 2025-01-25 | Links de menu com referências inválidas não são mais renderizados |
 | 2025-01-24 | Adicionado formulário horizontal de newsletter no footer |
 | 2025-01-24 | Nova seção "Newsletter" em FooterSettings.tsx |

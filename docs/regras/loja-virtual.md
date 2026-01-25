@@ -586,6 +586,8 @@ const tenantSlug = context?.tenantSlug || '';
 
 | Data | Alteração |
 |------|-----------|
+| 2025-01-25 | Newsletter Popup: campo `icon_image_url` para ícone customizado do incentivo |
+| 2025-01-25 | Footer: aviso de itens ocultos quando páginas não estão publicadas |
 | 2025-01-19 | Documentação inicial completa do módulo |
 | 2025-01-19 | Adicionadas interconexões entre módulos |
 | 2025-01-19 | Catalogados todos os blocos disponíveis |
