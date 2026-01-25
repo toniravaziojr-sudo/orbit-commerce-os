@@ -19,6 +19,7 @@ export interface ModuleTutorial {
 
 // Map routes to module keys
 const routeToModuleMap: Record<string, string> = {
+  '/': 'command-center',
   '/command-center': 'command-center',
   '/orders': 'orders',
   '/abandoned-checkouts': 'abandoned-checkouts',
@@ -53,6 +54,17 @@ const routeToModuleMap: Record<string, string> = {
   '/files': 'files',
   '/reports': 'reports',
   '/support-center': 'support-center',
+  '/account': 'account',
+  '/account/personal': 'account',
+  '/account/company': 'account',
+  '/account/billing': 'account',
+  '/builder': 'builder',
+  '/testimonials': 'testimonials',
+  '/system/emails': 'system-emails',
+  '/domains': 'domains',
+  '/shopee': 'shopee',
+  '/mercadolivre': 'mercadolivre',
+  '/agenda': 'agenda',
 };
 
 /**
