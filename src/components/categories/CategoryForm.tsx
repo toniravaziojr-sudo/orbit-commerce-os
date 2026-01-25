@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { X, Save, AlertCircle } from 'lucide-react';
 import { validateSlugFormat, generateSlug as generateSlugUtil } from '@/lib/slugPolicy';
 import { ImageUploaderWithLibrary } from '@/components/builder/ImageUploaderWithLibrary';
-
+import { GenerateSeoButton } from '@/components/seo/GenerateSeoButton';
 interface CategoryFormProps {
   formData: {
     name: string;
@@ -148,7 +148,24 @@ export function CategoryForm({
         </div>
 
         <div className="border-t pt-4 mt-4">
-          <h4 className="font-medium mb-3 text-sm text-muted-foreground">SEO</h4>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-medium text-sm text-muted-foreground">SEO</h4>
+            <GenerateSeoButton
+              input={{
+                type: 'category',
+                name: formData.name,
+                description: formData.description,
+              }}
+              onGenerated={(result) => {
+                onChange({
+                  ...formData,
+                  seo_title: result.seo_title,
+                  seo_description: result.seo_description,
+                });
+              }}
+              disabled={!formData.name}
+            />
+          </div>
           <div className="space-y-3">
             <div className="space-y-2">
               <Label htmlFor="seo_title">Título SEO</Label>

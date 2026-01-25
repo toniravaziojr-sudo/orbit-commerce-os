@@ -38,6 +38,7 @@ import { ProductComponentsPicker, type PendingComponent } from './ProductCompone
 import { ProductVariantPicker, type PendingVariant } from './ProductVariantPicker';
 import { validateSlugFormat, generateSlug as generateSlugFromPolicy, RESERVED_SLUGS } from '@/lib/slugPolicy';
 import { useToast } from '@/hooks/use-toast';
+import { GenerateSeoButton } from '@/components/seo/GenerateSeoButton';
 
 const productSchema = z.object({
   // === CAMPOS OBRIGATÓRIOS BÁSICOS ===
@@ -1265,8 +1266,21 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
 
             <TabsContent value="seo" className="space-y-4 mt-4">
               <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle>SEO e Mecanismos de Busca</CardTitle>
+                  <GenerateSeoButton
+                    input={{
+                      type: 'product',
+                      name: form.getValues('name'),
+                      description: form.getValues('description') || '',
+                      price: Math.round((form.getValues('price') || 0) * 100),
+                    }}
+                    onGenerated={(result) => {
+                      form.setValue('seo_title', result.seo_title);
+                      form.setValue('seo_description', result.seo_description);
+                    }}
+                    disabled={!form.getValues('name')}
+                  />
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <FormField
