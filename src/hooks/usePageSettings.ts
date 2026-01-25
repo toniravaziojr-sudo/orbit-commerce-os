@@ -23,6 +23,7 @@ export interface CategorySettings {
   showCategoryName?: boolean;
   showBanner?: boolean;
   showRatings?: boolean;
+  bannerOverlayOpacity?: number; // 0-100, padrão 0 (sem escurecimento)
   // Conforme REGRAS.md
   quickBuyEnabled?: boolean;        // Compra rápida - vai direto ao checkout
   showAddToCartButton?: boolean;    // Exibir botão adicionar ao carrinho
@@ -115,6 +116,7 @@ export const DEFAULT_CATEGORY_SETTINGS: CategorySettings = {
   showCategoryName: true,
   showBanner: true,
   showRatings: true,
+  bannerOverlayOpacity: 0, // Padrão 0 = sem escurecimento
   quickBuyEnabled: false,
   showAddToCartButton: true,
   showBadges: true,
