@@ -47,6 +47,7 @@ export interface NewsletterPopupBlockProps {
   // Visual
   showIncentive?: boolean;
   incentiveText?: string;
+  iconImageUrl?: string; // Mini image to replace emoji icon
   backgroundColor?: string;
   textColor?: string;
   buttonBgColor?: string;
@@ -85,6 +86,7 @@ export function NewsletterPopupBlock({
   showOnPages = ['home', 'category', 'product'],
   showIncentive = true,
   incentiveText = '🎁 Ganhe 10% OFF!',
+  iconImageUrl,
   backgroundColor,
   textColor,
   buttonBgColor,
@@ -271,8 +273,11 @@ export function NewsletterPopupBlock({
         ) : (
           <>
             <div className="mb-3">
-              {showIncentive && incentiveText && (
-                <span className="inline-block px-2 py-1 bg-primary/10 text-primary text-xs font-medium rounded-full mb-2">
+              {showIncentive && (iconImageUrl || incentiveText) && (
+                <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-primary/10 text-primary text-xs font-medium rounded-full mb-2">
+                  {iconImageUrl ? (
+                    <img src={iconImageUrl} alt="" className="w-5 h-5 object-contain" />
+                  ) : null}
                   {incentiveText}
                 </span>
               )}
@@ -357,10 +362,14 @@ export function NewsletterPopupBlock({
     return (
       <>
         <DialogHeader className="text-center">
-          {showIncentive && incentiveText && (
+          {showIncentive && (iconImageUrl || incentiveText) && (
             <div className="flex justify-center mb-2">
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-primary/10 text-primary text-sm font-medium rounded-full">
-                <Gift className="w-4 h-4" />
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-primary/10 text-primary text-sm font-medium rounded-full">
+                {iconImageUrl ? (
+                  <img src={iconImageUrl} alt="" className="w-6 h-6 object-contain" />
+                ) : (
+                  <Gift className="w-4 h-4" />
+                )}
                 {incentiveText}
               </span>
             </div>

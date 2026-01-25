@@ -31,6 +31,7 @@ interface PopupConfig {
   birth_date_required: boolean;
   layout: string;
   image_url: string | null;
+  icon_image_url: string | null;
   trigger_type: string;
   trigger_delay_seconds: number;
   trigger_scroll_percent: number;
@@ -127,6 +128,7 @@ export function NewsletterPopupLoader({ tenantId }: NewsletterPopupLoaderProps) 
       birthDateRequired={config.birth_date_required}
       layout={layout}
       imageUrl={config.image_url || undefined}
+      iconImageUrl={config.icon_image_url || undefined}
       triggerType={triggerType}
       triggerDelaySeconds={config.trigger_delay_seconds}
       triggerScrollPercent={config.trigger_scroll_percent}
