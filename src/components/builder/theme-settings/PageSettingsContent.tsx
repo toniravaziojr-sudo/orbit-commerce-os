@@ -41,6 +41,7 @@ import { useThemeMiniCart, DEFAULT_THEME_MINI_CART, ThemeMiniCartConfig, CartAct
 
 // Importar interfaces da fonte única de verdade
 import type {
+  HomeSettings,
   CategorySettings,
   ProductSettings,
   CartSettings,
@@ -50,12 +51,16 @@ import type {
 } from '@/hooks/usePageSettings';
 
 import {
+  DEFAULT_HOME_SETTINGS,
   DEFAULT_CATEGORY_SETTINGS,
   DEFAULT_PRODUCT_SETTINGS,
   DEFAULT_CART_SETTINGS,
   DEFAULT_CHECKOUT_SETTINGS,
   DEFAULT_THANKYOU_SETTINGS,
 } from '@/hooks/usePageSettings';
+
+import { GenerateSeoButton } from '@/components/seo/GenerateSeoButton';
+import { Textarea } from '@/components/ui/textarea';
 
 // Banner Upload Component with automatic system upload
 function BannerUploadInput({ 
@@ -790,8 +795,56 @@ export function PageSettingsContent({
   return (
     <div className="space-y-4">
 
-      {/* Settings toggles */}
-      {settingsConfig.length === 0 ? (
+      {/* Home page: SEO fields */}
+      {pageType === 'home' ? (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">SEO</p>
+            <GenerateSeoButton
+              input={{
+                type: 'page',
+                name: 'Página Inicial',
+                description: String(settings.seo_description || ''),
+              }}
+              onGenerated={(result) => {
+                handleChange('seo_title', result.seo_title);
+                handleChange('seo_description', result.seo_description);
+              }}
+            />
+          </div>
+          
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm">Título SEO</Label>
+              <Input
+                value={String(settings.seo_title || '')}
+                onChange={(e) => handleChange('seo_title', e.target.value)}
+                placeholder="Título otimizado para mecanismos de busca"
+                maxLength={60}
+                className="h-9"
+              />
+              <p className="text-xs text-muted-foreground">
+                {String(settings.seo_title || '').length}/60 caracteres
+              </p>
+            </div>
+            
+            <div className="space-y-1.5">
+              <Label className="text-sm">Descrição SEO</Label>
+              <Textarea
+                value={String(settings.seo_description || '')}
+                onChange={(e) => handleChange('seo_description', e.target.value)}
+                placeholder="Descrição que aparecerá nos resultados de busca"
+                maxLength={160}
+                rows={3}
+                className="resize-none"
+              />
+              <p className="text-xs text-muted-foreground">
+                {String(settings.seo_description || '').length}/160 caracteres
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : settingsConfig.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-4">
           Esta página não possui configurações personalizáveis.
         </p>
@@ -1164,6 +1217,7 @@ function getSettingsKey(pageType: string): string {
 // Usar defaults centralizados da fonte única de verdade
 function getDefaultSettings(pageType: string): Record<string, boolean | string> {
   const defaults: Record<string, Record<string, boolean | string>> = {
+    home: DEFAULT_HOME_SETTINGS as Record<string, boolean | string>,
     category: DEFAULT_CATEGORY_SETTINGS as Record<string, boolean | string>,
     product: DEFAULT_PRODUCT_SETTINGS as Record<string, boolean | string>,
     cart: DEFAULT_CART_SETTINGS as Record<string, boolean | string>,
@@ -1187,6 +1241,8 @@ interface SettingConfig {
 
 function getSettingsConfig(pageType: string): SettingConfig[] {
   const configs: Record<string, SettingConfig[]> = {
+    // Home não usa toggles - usa campos de texto para SEO (renderizado separadamente)
+    home: [],
     // REGRAS.md: Todas as configurações obrigatórias para página de categoria
     category: [
       // Configurações estruturais da página
