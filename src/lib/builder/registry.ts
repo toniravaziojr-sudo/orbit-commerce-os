@@ -651,7 +651,7 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'image',
         label: 'Imagem Mobile',
         placeholder: 'Opcional - usa Desktop se vazio',
-        helpText: 'Recomendado: 1080×1350px (proporção 4:5)',
+        helpText: 'Recomendado: 750×420px (proporção 16:9)',
       },
       backgroundColor: {
         type: 'color',

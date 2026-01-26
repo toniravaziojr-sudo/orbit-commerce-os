@@ -125,7 +125,7 @@ export function BannerSlidesEditor({ slides = [], onChange }: BannerSlidesEditor
               placeholder="Opcional - usa Desktop se vazio"
               variant="mobile"
             />
-            <p className="text-xs text-muted-foreground">Recomendado: 1080×1350px (proporção 4:5)</p>
+            <p className="text-xs text-muted-foreground">Recomendado: 750×420px (proporção 16:9)</p>
           </div>
 
           {/* Link URL */}
