@@ -53,6 +53,7 @@ interface GatewayDefinition {
   fields: GatewayField[];
   supportedMethods: string[];
   docsUrl: string;
+  comingSoon?: boolean;
 }
 
 const GATEWAY_DEFINITIONS: GatewayDefinition[] = [
@@ -80,6 +81,7 @@ const GATEWAY_DEFINITIONS: GatewayDefinition[] = [
     ],
     supportedMethods: ['PIX', 'Cartão de Crédito', 'Boleto'],
     docsUrl: 'https://dev.pagbank.uol.com.br/reference',
+    comingSoon: true,
   },
   {
     id: 'mercado_pago',
@@ -213,7 +215,11 @@ export function PaymentGatewaySettings() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <CardTitle className="text-base">{gateway.name}</CardTitle>
-                        {connected ? (
+                        {gateway.comingSoon ? (
+                          <Badge variant="outline" className="gap-1 bg-amber-100 text-amber-700 border-amber-300">
+                            Em breve
+                          </Badge>
+                        ) : connected ? (
                           <Badge variant="default" className="gap-1">
                             <CheckCircle className="h-3 w-3" />
                             Conectado
@@ -238,7 +244,7 @@ export function PaymentGatewaySettings() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {connected && (
+                    {connected && !gateway.comingSoon && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -252,16 +258,22 @@ export function PaymentGatewaySettings() {
                         Desconectar
                       </Button>
                     )}
-                    <CollapsibleTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        {connected ? 'Editar' : 'Configurar'}
-                        {isExpanded ? (
-                          <ChevronUp className="h-4 w-4 ml-1" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4 ml-1" />
-                        )}
+                    {gateway.comingSoon ? (
+                      <Button variant="ghost" size="sm" disabled>
+                        Em breve
                       </Button>
-                    </CollapsibleTrigger>
+                    ) : (
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          {connected ? 'Editar' : 'Configurar'}
+                          {isExpanded ? (
+                            <ChevronUp className="h-4 w-4 ml-1" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 ml-1" />
+                          )}
+                        </Button>
+                      </CollapsibleTrigger>
+                    )}
                   </div>
                 </div>
               </CardHeader>
