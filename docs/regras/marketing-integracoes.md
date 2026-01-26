@@ -1,24 +1,44 @@
-# Marketing (Integrações, Atribuição, Campanhas) — Regras e Especificações
+# Marketing — Regras e Especificações
 
-> **STATUS:** 🟧 Pending (parcialmente implementado)
-
-## Visão Geral
-
-Módulo de marketing: integrações com plataformas, atribuição de vendas, gestão de mídias e campanhas.
+> **STATUS:** 🟧 Pending (parcialmente implementado)  
+> **Última atualização:** 2025-01-26
 
 ---
 
-## Submódulos
+## Visão Geral
+
+Módulo de marketing dividido em **dois grupos** na navegação:
+
+### Marketing Básico
+Integrações com plataformas e configurações de atribuição/conversão.
 
 | Submódulo | Rota | Status |
 |-----------|------|--------|
 | Integrações Marketing | `/marketing` | 🟧 Pending |
 | Atribuição de venda | `/marketing/atribuicao` | 🟧 Pending |
-| Email Marketing | `/email-marketing` | 🟧 Pending |
+| Descontos | `/discounts` | ✅ Ready (ver descontos.md) |
 | Aumentar Ticket | `/offers` | ✅ Ready (ver ofertas.md) |
-| Avaliações | `/reviews` | ✅ Ready (ver avaliacoes.md) |
-| Gestão de Mídias | `/media` | 🟧 Pending |
-| Criador de campanhas | `/campaigns` | 🟧 Pending |
+
+### Marketing Avançado
+Ferramentas de engajamento e campanhas.
+
+| Submódulo | Rota | Status |
+|-----------|------|--------|
+| Email Marketing | `/email-marketing` | 🟧 Pending (ver email-marketing.md) |
+| Quizzes | `/quizzes` | 🟧 Pending (ver quizzes.md) |
+| Mídias Sociais | `/media` | ✅ Ready |
+| Criador de Campanhas | `/campaigns` | 🟧 Pending |
+
+---
+
+## RBAC
+
+A divisão reflete nas permissões:
+
+| Módulo RBAC | Key | Descrição |
+|-------------|-----|-----------|
+| Marketing Básico | `marketing-basic` | Integrações, atribuição, descontos e ofertas |
+| Marketing Avançado | `marketing-advanced` | Email marketing, quizzes, mídias sociais e campanhas |
 
 ---
 
