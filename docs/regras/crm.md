@@ -292,7 +292,18 @@ await supabase.rpc('record_ai_usage', {
   p_usage_cents: calculatedCost,
 });
 
-// 5. Registrar evento (observabilidade)
+// 5. Registrar evento (observabilidade) e métricas
+await supabase.rpc('increment_ai_metrics', {
+  p_tenant_id: tenantId,
+  p_messages: 1,
+  p_images: visionProcessed ? 1 : 0,
+  p_audio_count: audioProcessed ? 1 : 0,
+  p_audio_seconds: audioDurationSeconds,
+  p_handoffs: handoffTriggered ? 1 : 0,
+  p_no_evidence: ragNoEvidence ? 1 : 0,
+  p_embedding_tokens: embeddingTokens,
+});
+
 await supabase.from('conversation_events').insert({
   conversation_id,
   tenant_id,
@@ -554,7 +565,265 @@ ORDER BY created_at DESC LIMIT 10;
 - [x] **Metering de tokens por tenant**
 - [x] **Fallback automático de modelos**
 - [x] **Seletor de modelo na UI**
+- [x] **RAG com busca semântica (Knowledge Base)**
+- [x] **Vision para análise de imagens (GPT-4o)**
+- [x] **Transcrição de áudio (Whisper)**
+- [x] **Fila assíncrona de processamento de mídia**
+- [x] **Intent classification via Tool Calling**
+- [x] **Handoff automático inteligente**
+- [x] **Redação de PII (LGPD)**
 - [ ] Templates de email editáveis
 - [ ] Automações de follow-up
 - [ ] Instagram DM
 - [ ] Messenger
+
+---
+
+## 13. RAG (Retrieval-Augmented Generation)
+
+### Visão Geral
+
+O sistema utiliza busca semântica para contextualizar as respostas da IA com base em documentos cadastrados na Knowledge Base.
+
+### Componentes
+
+| Componente | Descrição |
+|------------|-----------|
+| `knowledge_base_docs` | Documentos fonte (políticas, FAQs) |
+| `knowledge_base_chunks` | Chunks vetorizados com embeddings |
+| `ai-generate-embedding` | Edge Function para gerar embeddings |
+| `search_knowledge_base` | RPC para busca semântica |
+
+### Configuração por Tenant
+
+```typescript
+// ai_support_config
+{
+  rag_top_k: number,              // Máximo de chunks (default: 5)
+  rag_similarity_threshold: number, // Limiar de similaridade (default: 0.7)
+  rag_min_evidence_chunks: number,  // Mínimo para responder (default: 1)
+  handoff_on_no_evidence: boolean,  // Escalar se não houver evidência
+}
+```
+
+### Fluxo de RAG
+
+```typescript
+// 1. Gerar embedding da pergunta
+const embedding = await generateEmbedding(customerMessage);
+
+// 2. Buscar chunks similares
+const { data: chunks } = await supabase.rpc('search_knowledge_base', {
+  p_tenant_id: tenantId,
+  p_query_embedding: embedding,
+  p_top_k: config.rag_top_k || 5,
+  p_threshold: config.rag_similarity_threshold || 0.7,
+});
+
+// 3. Verificar evidência mínima
+if (chunks.length < config.rag_min_evidence_chunks && config.handoff_on_no_evidence) {
+  // Escalar para humano - sem evidência suficiente
+  return triggerHandoff('no_evidence');
+}
+
+// 4. Montar contexto para a IA
+const ragContext = chunks.map(c => c.chunk_text).join('\n---\n');
+```
+
+---
+
+## 14. Processamento de Mídia (Vision e Áudio)
+
+### Fila Assíncrona
+
+O processamento de imagens e áudio é feito via fila (`ai_media_queue`) para não bloquear o fluxo principal.
+
+| Status | Descrição |
+|--------|-----------|
+| `pending` | Aguardando processamento |
+| `processing` | Em execução |
+| `completed` | Concluído com sucesso |
+| `failed` | Falhou após max_attempts |
+
+### Edge Functions
+
+| Função | Modelo | Descrição |
+|--------|--------|-----------|
+| `ai-support-vision` | GPT-4o | Análise de imagens |
+| `ai-support-transcribe` | Whisper | Transcrição de áudio |
+| `ai-media-queue-process` | - | Processador da fila (cron) |
+
+### Fluxo de Imagem
+
+```typescript
+// 1. Mensagem com imagem recebida
+// 2. Criar item na fila
+await supabase.from('ai_media_queue').insert({
+  tenant_id,
+  message_id,
+  attachment_id,
+  process_type: 'vision',
+  status: 'pending',
+});
+
+// 3. Cron processa (ai-media-queue-process)
+// 4. Chama ai-support-vision
+// 5. Atualiza metadata do attachment
+await supabase.from('message_attachments').update({
+  ai_description: "Cliente mostra produto com defeito na embalagem",
+  ai_extracted_text: "Texto extraído da imagem...",
+  ai_suggested_actions: ["Solicitar fotos adicionais", "Escalar para logística"],
+  vision_processed_at: new Date().toISOString(),
+});
+
+// 6. Descrição é injetada no contexto do ai-support-chat
+```
+
+### Fluxo de Áudio
+
+```typescript
+// 1. Mensagem com áudio recebida
+// 2. Criar item na fila
+await supabase.from('ai_media_queue').insert({
+  tenant_id,
+  message_id,
+  attachment_id,
+  process_type: 'transcription',
+  status: 'pending',
+});
+
+// 3. Cron processa (ai-media-queue-process)
+// 4. Chama ai-support-transcribe (OpenAI Whisper)
+// 5. Atualiza metadata do attachment
+await supabase.from('message_attachments').update({
+  transcription: "Olá, estou ligando porque...",
+  transcription_duration_seconds: 45,
+  transcription_processed_at: new Date().toISOString(),
+});
+
+// 6. Transcrição é injetada no contexto do ai-support-chat
+```
+
+---
+
+## 15. Intent Classification (Tool Calling)
+
+### Objetivo
+
+Classificar automaticamente a intenção do cliente para decidir:
+- Se a IA pode responder
+- Se deve escalar para humano
+- Qual prioridade atribuir
+
+### Schema do Tool
+
+```typescript
+const classifyIntentTool = {
+  type: "function",
+  function: {
+    name: "classify_intent",
+    description: "Classifica a intenção e sentimento do cliente",
+    parameters: {
+      type: "object",
+      properties: {
+        intent: {
+          type: "string",
+          enum: ["question", "complaint", "request_action", "praise", "other"],
+        },
+        sentiment: {
+          type: "string",
+          enum: ["positive", "neutral", "negative", "aggressive"],
+        },
+        urgency: {
+          type: "string",
+          enum: ["low", "medium", "high"],
+        },
+        requires_action: {
+          type: "boolean",
+          description: "Se o cliente solicita uma ação (cancelar, reembolsar, etc)",
+        },
+        topic: {
+          type: "string",
+          description: "Tópico principal (entrega, pagamento, produto, etc)",
+        },
+      },
+      required: ["intent", "sentiment", "urgency", "requires_action"],
+    },
+  },
+};
+```
+
+### Gatilhos de Handoff Automático
+
+| Condição | Ação |
+|----------|------|
+| `requires_action === true` | Escalar para humano |
+| `sentiment === 'aggressive'` | Escalar para humano |
+| `intent === 'complaint' && urgency === 'high'` | Escalar para humano |
+| Sem evidência na KB | Escalar para humano |
+| Cliente pediu humano | Escalar para humano |
+
+---
+
+## 16. Metering Avançado
+
+### Métricas por Tenant (tenant_monthly_usage)
+
+| Campo | Descrição |
+|-------|-----------|
+| `ai_messages_count` | Total de mensagens processadas pela IA |
+| `ai_image_analysis_count` | Imagens analisadas via Vision |
+| `ai_audio_transcription_count` | Áudios transcritos |
+| `ai_audio_duration_seconds` | Total de segundos de áudio |
+| `ai_handoff_count` | Escalações para humano |
+| `ai_no_evidence_count` | Respostas sem evidência na KB |
+| `ai_embedding_tokens` | Tokens usados em embeddings |
+| `ai_usage_cents` | Custo total em centavos |
+
+### RPC de Incremento
+
+```sql
+SELECT increment_ai_metrics(
+  p_tenant_id := 'uuid',
+  p_messages := 1,
+  p_images := 1,
+  p_audio_count := 0,
+  p_audio_seconds := 0,
+  p_handoffs := 0,
+  p_no_evidence := 0,
+  p_embedding_tokens := 150
+);
+```
+
+---
+
+## 17. Redação de PII (LGPD)
+
+### Dados Redatados
+
+O sistema mascara automaticamente:
+- CPF (`***.456.789-**`)
+- CNPJ (`12.345.***/0001-**`)
+- Telefones (`(**) *****-1234`)
+- Emails (`jo***@***.com`)
+- CEPs (`*****-123`)
+- Chaves Pix (parcialmente mascaradas)
+- RGs
+
+### Onde é Aplicado
+
+| Local | Aplicação |
+|-------|-----------|
+| `ai_context_used` | Logs de contexto da IA |
+| Resumos de conversa | Quando enviados para humanos |
+| Exportações | Relatórios e analytics |
+
+### Configuração
+
+```typescript
+// ai_support_config
+{
+  redact_pii_in_logs: boolean,   // Ativar redação (default: true)
+  data_retention_days: number,  // Retenção de dados (default: 365)
+}
+```
