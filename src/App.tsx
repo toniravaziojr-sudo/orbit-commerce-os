@@ -86,6 +86,7 @@ import NotFound from "@/pages/NotFound";
 import Marketplaces from "@/pages/Marketplaces";
 import MercadoLivre from "@/pages/marketplaces/MercadoLivre";
 import Shopee from "@/pages/marketplaces/Shopee";
+import Olist from "@/pages/marketplaces/Olist";
 import Files from "@/pages/Files";
 import Reports from "@/pages/Reports";
 import CommandCenter from "@/pages/CommandCenter";
@@ -337,6 +338,7 @@ const App = () => {
                   <Route path="/marketplaces" element={<Marketplaces />} />
                   <Route path="/marketplaces/mercadolivre" element={<MercadoLivre />} />
                   <Route path="/marketplaces/shopee" element={<Shopee />} />
+                  <Route path="/marketplaces/olist" element={<Olist />} />
                   <Route path="/files" element={<Files />} />
                   <Route path="/reports" element={<Reports />} />
                   <Route path="/marketing" element={<Marketing />} />

@@ -159,6 +159,7 @@ const fullNavigation: NavGroup[] = [
     items: [
       { title: "Mercado Livre", href: "/marketplaces/mercadolivre", icon: Building2 },
       { title: "Shopee", href: "/marketplaces/shopee", icon: ShoppingBag },
+      { title: "Olist", href: "/marketplaces/olist", icon: Package },
     ],
   },
   {
