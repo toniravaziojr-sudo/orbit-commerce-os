@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
               lastSyncAt: connection.last_sync_at,
               lastError: connection.last_error,
               expiresAt: connection.expires_at,
-              accountType: connection.metadata?.accountType || "erp",
+              accountType: connection.metadata?.accountType || "marketplace",
             }
           : null,
       }),

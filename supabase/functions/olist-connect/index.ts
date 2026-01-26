@@ -5,73 +5,42 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Olist ERP (Tiny) API base URL
-const TINY_API_BASE = "https://api.tiny.com.br/api2";
-// Olist E-commerce (Vnda) API base URL
-const VNDA_API_BASE = "https://api.vnda.com.br/api/v2";
+// Olist Marketplace API base URL
+const OLIST_API_BASE = "https://api.olist.com";
 
 interface ConnectRequest {
   tenantId: string;
   apiToken: string;
-  accountType: "erp" | "ecommerce";
+  accountType: "marketplace";
 }
 
-async function testTinyConnection(token: string): Promise<{ success: boolean; userId?: string; userName?: string; error?: string }> {
+async function testOlistMarketplaceConnection(token: string): Promise<{ success: boolean; userId?: string; userName?: string; error?: string }> {
   try {
-    const formData = new FormData();
-    formData.append("token", token);
-    formData.append("formato", "JSON");
-
-    const response = await fetch(`${TINY_API_BASE}/info.php`, {
-      method: "POST",
-      body: formData,
-    });
-
-    const data = await response.json();
-    console.log("[olist-connect] Tiny info response:", JSON.stringify(data));
-
-    if (data.retorno?.status === "OK" || data.retorno?.cnpj) {
-      return {
-        success: true,
-        userId: data.retorno?.cnpj || data.retorno?.id || "unknown",
-        userName: data.retorno?.nome_fantasia || data.retorno?.razao_social || "Conta Olist ERP",
-      };
-    }
-
-    return {
-      success: false,
-      error: data.retorno?.erros?.[0]?.erro || "Token inválido ou sem permissão",
-    };
-  } catch (error) {
-    console.error("[olist-connect] Erro ao testar Tiny:", error);
-    return { success: false, error: "Erro de conexão com API Olist ERP" };
-  }
-}
-
-async function testVndaConnection(token: string): Promise<{ success: boolean; userId?: string; userName?: string; error?: string }> {
-  try {
-    const response = await fetch(`${VNDA_API_BASE}/shop`, {
+    // Olist Marketplace API - verificar seller info
+    const response = await fetch(`${OLIST_API_BASE}/v1/sellers/me`, {
       headers: {
-        Authorization: `Token ${token}`,
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[olist-connect] API error:", response.status, errorText);
       return { success: false, error: "Token inválido ou sem permissão" };
     }
 
     const data = await response.json();
-    console.log("[olist-connect] Vnda shop response:", JSON.stringify(data));
+    console.log("[olist-connect] Olist seller response:", JSON.stringify(data));
 
     return {
       success: true,
-      userId: data.id?.toString() || "unknown",
-      userName: data.name || "Conta Olist E-commerce",
+      userId: data.id?.toString() || data.seller_id?.toString() || "unknown",
+      userName: data.name || data.company_name || "Conta Olist Marketplace",
     };
   } catch (error) {
-    console.error("[olist-connect] Erro ao testar Vnda:", error);
-    return { success: false, error: "Erro de conexão com API Olist E-commerce" };
+    console.error("[olist-connect] Erro ao testar Olist:", error);
+    return { success: false, error: "Erro de conexão com API Olist Marketplace" };
   }
 }
 
@@ -132,14 +101,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Testar conexão com a API correspondente
-    let testResult: { success: boolean; userId?: string; userName?: string; error?: string };
-    
-    if (accountType === "erp") {
-      testResult = await testTinyConnection(apiToken);
-    } else {
-      testResult = await testVndaConnection(apiToken);
-    }
+    // Testar conexão com a API Olist Marketplace
+    const testResult = await testOlistMarketplaceConnection(apiToken);
 
     if (!testResult.success) {
       return new Response(
