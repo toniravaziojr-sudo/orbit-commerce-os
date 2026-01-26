@@ -3,8 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
-type OlistAccountType = "marketplace";
-
 interface OlistConnectionStatus {
   platformConfigured: boolean;
   isConnected: boolean;
@@ -16,7 +14,7 @@ interface OlistConnectionStatus {
     lastSyncAt: string | null;
     lastError: string | null;
     expiresAt: string | null;
-    accountType: OlistAccountType;
+    environment: string;
   } | null;
 }
 
@@ -53,30 +51,51 @@ export function useOlistConnection() {
     staleTime: 30000,
   });
 
-  // Olist usa conexão por token (não OAuth), então temos uma mutation para testar e salvar
-  const connectMutation = useMutation({
-    mutationFn: async ({ apiToken, accountType }: { apiToken: string; accountType: OlistAccountType }) => {
+  // Iniciar fluxo OAuth - retorna URL para abrir em popup/redirect
+  const startOAuthMutation = useMutation({
+    mutationFn: async (environment: "production" | "sandbox" = "production") => {
       if (!currentTenant?.id || !session?.access_token) {
         throw new Error("Tenant não selecionado");
       }
 
-      const { data, error } = await supabase.functions.invoke("olist-connect", {
+      const { data, error } = await supabase.functions.invoke("olist-oauth-start", {
         body: { 
-          tenantId: currentTenant.id, 
-          apiToken,
-          accountType,
+          tenantId: currentTenant.id,
+          environment,
         },
       });
 
       if (error || !data?.success) {
-        throw new Error(data?.error || error?.message || "Erro ao conectar");
+        throw new Error(data?.error || error?.message || "Erro ao iniciar OAuth");
       }
 
       return data;
     },
-    onSuccess: () => {
-      toast.success("Conta Olist conectada com sucesso!");
-      queryClient.invalidateQueries({ queryKey: ["olist-connection-status"] });
+    onSuccess: (data) => {
+      // Abrir popup para OAuth
+      if (data.authUrl) {
+        const width = 600;
+        const height = 700;
+        const left = window.screenX + (window.outerWidth - width) / 2;
+        const top = window.screenY + (window.outerHeight - height) / 2;
+        
+        const popup = window.open(
+          data.authUrl,
+          "olist-oauth",
+          `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`
+        );
+
+        // Monitorar fechamento do popup
+        if (popup) {
+          const checkInterval = setInterval(() => {
+            if (popup.closed) {
+              clearInterval(checkInterval);
+              // Invalidar queries para atualizar status
+              queryClient.invalidateQueries({ queryKey: ["olist-connection-status"] });
+            }
+          }, 500);
+        }
+      }
     },
     onError: (error) => {
       toast.error(error.message || "Erro ao conectar com Olist");
@@ -108,42 +127,58 @@ export function useOlistConnection() {
     },
   });
 
-  const testConnectionMutation = useMutation({
-    mutationFn: async ({ apiToken, accountType }: { apiToken: string; accountType: OlistAccountType }) => {
-      const { data, error } = await supabase.functions.invoke("olist-test-connection", {
-        body: { apiToken, accountType },
+  const refreshTokenMutation = useMutation({
+    mutationFn: async () => {
+      if (!currentTenant?.id) {
+        throw new Error("Tenant não selecionado");
+      }
+
+      const { data, error } = await supabase.functions.invoke("olist-token-refresh", {
+        body: { tenantId: currentTenant.id },
       });
 
       if (error || !data?.success) {
-        throw new Error(data?.error || error?.message || "Token inválido ou sem permissão");
+        throw new Error(data?.error || error?.message || "Erro ao renovar token");
       }
 
       return data;
     },
     onSuccess: () => {
-      toast.success("Conexão testada com sucesso!");
+      toast.success("Token renovado com sucesso");
+      queryClient.invalidateQueries({ queryKey: ["olist-connection-status"] });
     },
     onError: (error) => {
-      toast.error(error.message || "Falha no teste de conexão");
+      toast.error(error.message || "Erro ao renovar token");
     },
   });
+
+  // Verificar se token está próximo de expirar
+  const isTokenExpiring = (): boolean => {
+    if (!statusQuery.data?.connection?.expiresAt) return false;
+    const expiresAt = new Date(statusQuery.data.connection.expiresAt);
+    const twoHoursFromNow = new Date(Date.now() + 2 * 60 * 60 * 1000);
+    return expiresAt < twoHoursFromNow;
+  };
 
   return {
     // Status
     isConnected: statusQuery.data?.isConnected ?? false,
     isExpired: statusQuery.data?.isExpired ?? false,
-    platformConfigured: statusQuery.data?.platformConfigured ?? true, // Olist não precisa de config global
+    isTokenExpiring: isTokenExpiring(),
+    platformConfigured: statusQuery.data?.platformConfigured ?? false,
     connection: statusQuery.data?.connection ?? null,
     isLoading: statusQuery.isLoading,
     error: statusQuery.error,
 
     // Actions
-    connect: connectMutation.mutate,
+    startOAuth: startOAuthMutation.mutate,
     disconnect: disconnectMutation.mutate,
-    testConnection: testConnectionMutation.mutate,
-    isConnecting: connectMutation.isPending,
+    refreshToken: refreshTokenMutation.mutate,
+    
+    // States
+    isStartingOAuth: startOAuthMutation.isPending,
     isDisconnecting: disconnectMutation.isPending,
-    isTesting: testConnectionMutation.isPending,
+    isRefreshing: refreshTokenMutation.isPending,
 
     // Refetch
     refetch: statusQuery.refetch,
