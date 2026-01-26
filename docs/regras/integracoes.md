@@ -52,6 +52,8 @@ Hub central de integrações com serviços externos: pagamentos, redes sociais, 
 |---------|-----------|
 | `src/pages/Integrations.tsx` | Página principal de integrações (tenant) |
 | `src/pages/PlatformIntegrations.tsx` | Página de integrações (operador) |
+| `src/pages/marketplaces/Olist.tsx` | Página dedicada da Olist |
+| `src/components/marketplaces/OlistConnectionCard.tsx` | Card de conexão Olist (ERP/E-commerce) |
 | `src/components/integrations/DomainAndEmailSettings.tsx` | Aba unificada Domínio/Email |
 | `src/components/settings/DomainSettingsContent.tsx` | Configuração de domínios da loja |
 | `src/components/payments/PaymentGatewaySettings.tsx` | Config de gateways |
@@ -175,7 +177,8 @@ Disponível em **Integrações → WhatsApp → Meta Oficial** (apenas platform 
 | Sistema | Status | Descrição |
 |---------|--------|-----------|
 | Bling | 🟧 Coming Soon | Sincronização |
-| Tiny | 🟧 Coming Soon | Sincronização |
+| Olist ERP (Tiny) | ✅ Ready | Via `OlistConnectionCard` com API token |
+| Olist E-commerce (Vnda) | ✅ Ready | Via `OlistConnectionCard` com API token |
 
 ---
 
@@ -306,8 +309,55 @@ Ou via Edge Function `platform-credentials-update` (requer `is_platform_admin`).
 
 ---
 
+## Integração Olist
+
+### Fluxo de Conexão (Token-based)
+
+```
+1. Usuário acessa /marketplaces/olist
+2. Seleciona tipo de conta (ERP ou E-commerce)
+3. Insere token de API
+4. Clica "Testar" → Edge function valida token
+5. Clica "Conectar" → Token salvo em marketplace_connections
+6. Status atualizado para "connected"
+```
+
+### Componentes
+
+| Componente | Descrição |
+|------------|-----------|
+| `OlistConnectionCard` | Card de conexão com seleção de tipo (ERP/E-commerce) |
+| `useOlistConnection` | Hook para gerenciar estado da conexão |
+
+### Edge Functions
+
+| Function | Descrição |
+|----------|-----------|
+| `olist-connect` | Testa token e salva conexão |
+| `olist-disconnect` | Remove conexão |
+| `olist-test-connection` | Valida token sem salvar |
+| `olist-connection-status` | Retorna status da conexão |
+
+### APIs Utilizadas
+
+| Tipo | Base URL | Autenticação |
+|------|----------|--------------|
+| Olist ERP (Tiny) | `https://api.tiny.com.br/api2` | Token via FormData |
+| Olist E-commerce (Vnda) | `https://api.vnda.com.br/api/v2` | Bearer token |
+
+### Tabela de Armazenamento
+
+Conexões são salvas em `marketplace_connections` com:
+- `marketplace: 'olist'`
+- `metadata: { accountType: 'erp' | 'ecommerce' }`
+
+---
+
 ## Pendências
 
-- [ ] Implementar integrações ERP (Bling, Tiny)
+- [ ] Implementar integrações ERP (Bling)
+- [ ] Sincronização de pedidos Olist → Sistema
+- [ ] Sincronização de estoque Sistema → Olist
+- [ ] Emissão de NF-e via Olist
 - [ ] Melhorar UX de reconexão OAuth
 - [ ] Logs de erro por integração
