@@ -53,6 +53,106 @@
 
 ---
 
+## Sistema de Tipografia Global
+
+A tipografia da loja é gerenciada **exclusivamente** em **Configuração do tema > Tipografia** (`TypographySettings.tsx`).
+
+### Arquitetura
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    THEME SETTINGS (draft_content)                        │
+│  Arquivo: storefront_template_sets.draft_content.themeSettings          │
+├─────────────────────────────────────────────────────────────────────────┤
+│  typography: {                                                           │
+│    headingFont: string,      ← Fonte dos títulos (H1-H6)               │
+│    bodyFont: string,         ← Fonte do corpo (p, span, button, etc)   │
+│    baseFontSize: number,     ← Tamanho base em px (12-20)              │
+│  }                                                                       │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    ↓
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    FONT FAMILY MAP                                       │
+│  Arquivo: src/hooks/usePublicThemeSettings.ts                           │
+├─────────────────────────────────────────────────────────────────────────┤
+│  FONT_FAMILY_MAP = {                                                     │
+│    'inter': "'Inter', sans-serif",                                       │
+│    'playfair': "'Playfair Display', serif",                              │
+│    'bebas-neue': "'Bebas Neue', sans-serif",                             │
+│    ...                                                                   │
+│  }                                                                       │
+│  Mapeia chave de fonte → CSS font-family                                │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    ↓
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    CSS INJECTION                                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│  STOREFRONT PÚBLICO:                                                     │
+│  StorefrontThemeInjector.tsx                                             │
+│  → Injeta <style> no <head> com CSS para .storefront-container          │
+│                                                                          │
+│  BUILDER PREVIEW:                                                        │
+│  useBuilderThemeInjector.ts                                              │
+│  → Injeta <style> no <head> para preview em tempo real                  │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### CSS Variables Geradas
+
+| Variável | Descrição |
+|----------|-----------|
+| `--sf-heading-font` | font-family para H1-H6 |
+| `--sf-body-font` | font-family para p, span, button, input, etc |
+| `--sf-base-font-size` | Tamanho base em px |
+
+### Seletores Aplicados
+
+```css
+/* Container principal */
+.storefront-container {
+  font-family: var(--sf-body-font);
+  font-size: var(--sf-base-font-size);
+}
+
+/* Títulos */
+.storefront-container h1, h2, h3, h4, h5, h6 {
+  font-family: var(--sf-heading-font);
+}
+
+/* Corpo e elementos de UI */
+.storefront-container p, span, a, button, input, textarea, select, label, li {
+  font-family: var(--sf-body-font);
+}
+```
+
+### Fontes Disponíveis
+
+| Categoria | Fontes |
+|-----------|--------|
+| **Sans-serif** | Inter, Roboto, Open Sans, Lato, Montserrat, Poppins, Nunito, Raleway, Source Sans Pro, Ubuntu, Mulish, Work Sans, Quicksand, DM Sans, Manrope, Outfit, Plus Jakarta Sans |
+| **Serif** | Playfair Display, Merriweather, Lora, PT Serif, Crimson Text, Libre Baskerville, Cormorant Garamond, EB Garamond, Bitter |
+| **Display** | Abril Fatface, Bebas Neue, Oswald, Josefin Sans, Righteous |
+
+### Arquivos Relacionados
+
+| Arquivo | Responsabilidade |
+|---------|------------------|
+| `src/hooks/useThemeSettings.ts` | CRUD de themeSettings no draft_content |
+| `src/hooks/usePublicThemeSettings.ts` | Leitura de published_content + FONT_FAMILY_MAP |
+| `src/hooks/useBuilderThemeInjector.ts` | Injeção CSS no builder preview |
+| `src/components/storefront/StorefrontThemeInjector.tsx` | Injeção CSS no storefront público |
+| `src/components/builder/theme-settings/TypographySettings.tsx` | UI de configuração |
+
+### Regras Obrigatórias
+
+1. **NUNCA** adicionar configurações de fonte em outros lugares além de `themeSettings.typography`
+2. **SEMPRE** usar `getFontFamily()` para converter chave → CSS font-family
+3. **SEMPRE** incluir `StorefrontThemeInjector` no layout público
+4. **SEMPRE** usar `useBuilderThemeInjector` no builder para preview em tempo real
+5. A tipografia se aplica a **TODOS** os blocos (padrões e personalizados) via CSS global
+
+---
+
 ## Fonte de Verdade dos Settings
 
 ```
