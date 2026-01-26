@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { redactPII } from "../_shared/redact-pii.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,6 +24,25 @@ interface ChannelConfig {
   max_response_length: number | null;
   use_emojis: boolean | null;
   custom_instructions: string | null;
+}
+
+interface KnowledgeChunk {
+  chunk_id: string;
+  doc_id: string;
+  doc_title: string;
+  doc_type: string;
+  doc_priority: number;
+  chunk_text: string;
+  similarity: number;
+}
+
+interface IntentClassification {
+  intent: 'question' | 'complaint' | 'action_request' | 'greeting' | 'thanks' | 'general';
+  sentiment: 'positive' | 'neutral' | 'negative' | 'aggressive';
+  urgency: 'low' | 'medium' | 'high';
+  requires_action: boolean;
+  topics: string[];
+  summary: string;
 }
 
 // OpenAI models ordered by priority (highest quality first)
@@ -85,6 +105,168 @@ VOCÊ É UM ASSISTENTE PURAMENTE INFORMATIVO. SIGA RIGOROSAMENTE:
 LEMBRE-SE: Você INFORMA e ORIENTA. Você NÃO EXECUTA nem PROMETE execução.
 `;
 
+// Intent classification tool definition
+const INTENT_CLASSIFICATION_TOOL = {
+  type: "function",
+  function: {
+    name: "classify_intent",
+    description: "Classifica a intenção, sentimento e urgência da mensagem do cliente",
+    parameters: {
+      type: "object",
+      properties: {
+        intent: {
+          type: "string",
+          enum: ["question", "complaint", "action_request", "greeting", "thanks", "general"],
+          description: "Tipo de intenção: question=pergunta, complaint=reclamação, action_request=pedido de ação, greeting=saudação, thanks=agradecimento, general=outro"
+        },
+        sentiment: {
+          type: "string",
+          enum: ["positive", "neutral", "negative", "aggressive"],
+          description: "Sentimento do cliente: positive=satisfeito, neutral=neutro, negative=insatisfeito, aggressive=agressivo/irritado"
+        },
+        urgency: {
+          type: "string",
+          enum: ["low", "medium", "high"],
+          description: "Urgência: low=pode esperar, medium=importante, high=urgente"
+        },
+        requires_action: {
+          type: "boolean",
+          description: "Se true, o cliente está solicitando uma AÇÃO (cancelamento, reembolso, alteração)"
+        },
+        topics: {
+          type: "array",
+          items: { type: "string" },
+          description: "Lista de tópicos mencionados (ex: 'pedido', 'frete', 'pagamento', 'produto')"
+        },
+        summary: {
+          type: "string",
+          description: "Resumo breve da mensagem em até 50 palavras"
+        }
+      },
+      required: ["intent", "sentiment", "urgency", "requires_action", "topics", "summary"],
+      additionalProperties: false
+    }
+  }
+};
+
+/**
+ * Generates embedding for a query using ai-generate-embedding function
+ */
+async function generateQueryEmbedding(
+  supabaseUrl: string,
+  serviceKey: string,
+  text: string,
+  tenantId: string
+): Promise<number[] | null> {
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/ai-generate-embedding`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({ text, tenant_id: tenantId }),
+    });
+
+    const data = await response.json();
+    if (data.success && data.embedding) {
+      return data.embedding;
+    }
+    console.error("[ai-support-chat] Embedding generation failed:", data.error);
+    return null;
+  } catch (error) {
+    console.error("[ai-support-chat] Error generating embedding:", error);
+    return null;
+  }
+}
+
+/**
+ * Searches the knowledge base using semantic similarity
+ */
+async function searchKnowledgeBase(
+  supabase: ReturnType<typeof createClient>,
+  tenantId: string,
+  embedding: number[],
+  topK: number,
+  threshold: number
+): Promise<KnowledgeChunk[]> {
+  try {
+    // Use raw query approach for pgvector compatibility - cast to any to bypass strict typing
+    const { data, error } = await (supabase as any).rpc("search_knowledge_base", {
+      p_tenant_id: tenantId,
+      p_query_embedding: `[${embedding.join(",")}]`,
+      p_top_k: topK,
+      p_threshold: threshold,
+    });
+
+    if (error) {
+      console.error("[ai-support-chat] Knowledge base search error:", error);
+      return [];
+    }
+
+    return (data as KnowledgeChunk[]) || [];
+  } catch (error) {
+    console.error("[ai-support-chat] Error searching knowledge base:", error);
+    return [];
+  }
+}
+
+/**
+ * Classifies the intent of a customer message using OpenAI tool calling
+ */
+async function classifyIntent(
+  openaiKey: string,
+  message: string,
+  conversationContext: string
+): Promise<IntentClassification | null> {
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openaiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o", // Fast model for classification
+        messages: [
+          {
+            role: "system",
+            content: `Você é um classificador de intenções para atendimento ao cliente de e-commerce.
+Analise a mensagem do cliente e classifique a intenção, sentimento e urgência.
+
+Contexto da conversa:
+${conversationContext}`,
+          },
+          {
+            role: "user",
+            content: message,
+          },
+        ],
+        tools: [INTENT_CLASSIFICATION_TOOL],
+        tool_choice: { type: "function", function: { name: "classify_intent" } },
+        max_tokens: 200,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error("[ai-support-chat] Intent classification failed:", response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    
+    if (toolCall?.function?.arguments) {
+      return JSON.parse(toolCall.function.arguments) as IntentClassification;
+    }
+
+    return null;
+  } catch (error) {
+    console.error("[ai-support-chat] Error classifying intent:", error);
+    return null;
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -94,6 +276,7 @@ serve(async (req) => {
   let inputTokens = 0;
   let outputTokens = 0;
   let modelUsed = "";
+  let embeddingTokens = 0;
 
   try {
     const { conversation_id, tenant_id } = await req.json();
@@ -114,13 +297,13 @@ serve(async (req) => {
       );
     }
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    
+    const supabase = createClient(supabaseUrl, serviceKey);
 
     // ============================================
-    // FLUXO 2: CONFIG GERAL DE ATENDIMENTO
+    // LOAD AI SUPPORT CONFIG (with RAG settings)
     // ============================================
     const { data: aiConfig } = await supabase
       .from("ai_support_config")
@@ -142,7 +325,13 @@ serve(async (req) => {
       custom_knowledge: null,
       forbidden_topics: [],
       handoff_keywords: [],
-      ai_model: "gpt-5.2", // Default to highest quality
+      ai_model: "gpt-5.2",
+      // RAG settings (with defaults)
+      rag_similarity_threshold: 0.7,
+      rag_top_k: 5,
+      rag_min_evidence_chunks: 1,
+      handoff_on_no_evidence: true,
+      redact_pii_in_logs: true,
     };
 
     if (effectiveConfig.is_enabled === false) {
@@ -167,9 +356,7 @@ serve(async (req) => {
       );
     }
 
-    // ============================================
-    // FLUXO 3: CONFIG ESPECÍFICA DO CANAL
-    // ============================================
+    // Channel-specific config
     const channelType = conversation.channel_type || "chat";
     const { data: channelConfig } = await supabase
       .from("ai_channel_config")
@@ -178,7 +365,6 @@ serve(async (req) => {
       .eq("channel_type", channelType)
       .maybeSingle();
 
-    // If channel-specific AI is disabled, check if we should skip
     if (channelConfig?.is_enabled === false) {
       console.log(`AI disabled for channel ${channelType}`);
       return new Response(
@@ -195,19 +381,129 @@ serve(async (req) => {
       .order("created_at", { ascending: true })
       .limit(20);
 
-    // ============================================
-    // FLUXO 1: CONHECIMENTO AUTOMÁTICO DA LOJA
-    // (Coleta dinâmica de todas as informações)
-    // ============================================
+    const lastCustomerMessage = messages?.filter(m => m.sender_type === "customer").pop();
+    const lastMessageContent = lastCustomerMessage?.content || "";
     
-    // Get tenant/store information
+    // Build conversation context for classification
+    const conversationContext = messages
+      ?.slice(-5)
+      .map(m => `${m.sender_type === "customer" ? "Cliente" : "Atendente"}: ${m.content?.slice(0, 200)}`)
+      .join("\n") || "";
+
+    // ============================================
+    // STEP 1: INTENT CLASSIFICATION (Tool Calling)
+    // ============================================
+    console.log("[ai-support-chat] Classifying intent...");
+    const intentClassification = await classifyIntent(
+      OPENAI_API_KEY,
+      lastMessageContent,
+      conversationContext
+    );
+
+    let shouldHandoff = false;
+    let handoffReason = "";
+
+    // Check intent-based handoff triggers
+    if (intentClassification) {
+      console.log("[ai-support-chat] Intent classification:", JSON.stringify(intentClassification));
+      
+      // Handoff triggers based on intent
+      if (intentClassification.requires_action) {
+        shouldHandoff = true;
+        handoffReason = "Cliente solicitou ação (requer atendente)";
+      }
+      if (intentClassification.sentiment === "aggressive") {
+        shouldHandoff = true;
+        handoffReason = "Cliente demonstra irritação/agressividade";
+      }
+      if (intentClassification.intent === "complaint" && intentClassification.urgency === "high") {
+        shouldHandoff = true;
+        handoffReason = "Reclamação urgente";
+      }
+    }
+
+    // ============================================
+    // STEP 2: RAG - SEMANTIC SEARCH
+    // ============================================
+    let knowledgeContext = "";
+    let noEvidenceHandoff = false;
+    let similarityScores: number[] = [];
+
+    // Only do RAG search for questions or general inquiries
+    const shouldSearchKnowledge = intentClassification?.intent === "question" || 
+                                   intentClassification?.intent === "general" ||
+                                   !intentClassification;
+
+    if (shouldSearchKnowledge && lastMessageContent.trim()) {
+      console.log("[ai-support-chat] Generating query embedding...");
+      
+      const queryEmbedding = await generateQueryEmbedding(
+        supabaseUrl,
+        serviceKey,
+        lastMessageContent,
+        tenant_id
+      );
+
+    if (queryEmbedding) {
+        embeddingTokens = Math.ceil(lastMessageContent.length / 4); // Rough estimate
+
+        console.log("[ai-support-chat] Searching knowledge base...");
+        const chunks = await searchKnowledgeBase(
+          supabase as ReturnType<typeof createClient>,
+          tenant_id,
+          queryEmbedding,
+          effectiveConfig.rag_top_k || 5,
+          effectiveConfig.rag_similarity_threshold || 0.7
+        );
+
+        similarityScores = chunks.map(c => c.similarity);
+        
+        if (chunks.length > 0) {
+          console.log(`[ai-support-chat] Found ${chunks.length} relevant chunks`);
+          
+          // Build knowledge context from chunks
+          knowledgeContext = "\n\n========================================\n";
+          knowledgeContext += "📚 BASE DE CONHECIMENTO (relevância semântica)\n";
+          knowledgeContext += "========================================\n";
+          
+          // Group chunks by doc type
+          const byType: Record<string, KnowledgeChunk[]> = {};
+          for (const chunk of chunks) {
+            if (!byType[chunk.doc_type]) byType[chunk.doc_type] = [];
+            byType[chunk.doc_type].push(chunk);
+          }
+
+          for (const [docType, docChunks] of Object.entries(byType)) {
+            knowledgeContext += `\n### ${docType.toUpperCase()}:\n`;
+            for (const chunk of docChunks) {
+              knowledgeContext += `[${chunk.doc_title}] ${chunk.chunk_text}\n`;
+            }
+          }
+        } else {
+          console.log("[ai-support-chat] No relevant chunks found in knowledge base");
+          
+          // Check if we should handoff due to no evidence
+          const minChunks = effectiveConfig.rag_min_evidence_chunks || 1;
+          if (effectiveConfig.handoff_on_no_evidence && chunks.length < minChunks) {
+            noEvidenceHandoff = true;
+            if (!shouldHandoff) {
+              shouldHandoff = true;
+              handoffReason = "Base de conhecimento insuficiente para responder";
+            }
+          }
+        }
+      }
+    }
+
+    // ============================================
+    // STEP 3: GET STORE & CUSTOMER CONTEXT
+    // ============================================
     const { data: tenant } = await supabase
       .from("tenants")
       .select("name, slug")
       .eq("id", tenant_id)
       .single();
 
-    // Get custom domain if exists
     const { data: customDomain } = await supabase
       .from("custom_domains")
       .select("domain, status, ssl_active")
@@ -216,14 +512,12 @@ serve(async (req) => {
       .eq("ssl_active", true)
       .maybeSingle();
 
-    // Get store settings
     const { data: storeSettings } = await supabase
       .from("store_settings")
       .select("*")
       .eq("tenant_id", tenant_id)
       .maybeSingle();
 
-    // Build store URL
     let storeUrl = "";
     if (customDomain?.domain) {
       storeUrl = `https://${customDomain.domain}`;
@@ -231,220 +525,17 @@ serve(async (req) => {
       storeUrl = `https://${tenant.slug}.shops.comandocentral.com.br`;
     }
 
-    // ============================================
-    // FLUXO 1: CONSTRUIR CONTEXTO DA LOJA
-    // (Conhecimento dinâmico e atualizado)
-    // ============================================
-    let storeContext = "";
     const storeName = storeSettings?.store_name || tenant?.name || "Nossa Loja";
 
-    // Basic store info (sempre atualizado)
-    storeContext += `\n\n### Informações da loja:\n`;
-    storeContext += `- Nome da loja: ${storeName}\n`;
-    if (storeUrl) {
-      storeContext += `- Site: ${storeUrl}\n`;
-    }
-    if (storeSettings?.contact_email) {
-      storeContext += `- Email de contato: ${storeSettings.contact_email}\n`;
-    }
-    if (storeSettings?.contact_phone) {
-      storeContext += `- Telefone de contato: ${storeSettings.contact_phone}\n`;
-    }
-    if (storeSettings?.whatsapp_number) {
-      storeContext += `- WhatsApp: ${storeSettings.whatsapp_number}\n`;
-    }
-    if (storeSettings?.address) {
-      storeContext += `- Endereço: ${storeSettings.address}\n`;
-    }
-    if (storeSettings?.business_hours) {
-      storeContext += `- Horário de funcionamento: ${storeSettings.business_hours}\n`;
-    }
+    // Build basic store context (only essential info not in KB)
+    let storeContext = `\n\n### Informações da loja:\n`;
+    storeContext += `- Nome: ${storeName}\n`;
+    if (storeUrl) storeContext += `- Site: ${storeUrl}\n`;
+    if (storeSettings?.contact_email) storeContext += `- Email: ${storeSettings.contact_email}\n`;
+    if (storeSettings?.contact_phone) storeContext += `- Telefone: ${storeSettings.contact_phone}\n`;
+    if (storeSettings?.whatsapp_number) storeContext += `- WhatsApp: ${storeSettings.whatsapp_number}\n`;
 
-    // Store policies (sempre atualizado)
-    if (effectiveConfig.auto_import_policies) {
-      if (storeSettings?.return_policy) {
-        storeContext += `\n### Política de Trocas e Devoluções:\n${storeSettings.return_policy.slice(0, 1500)}\n`;
-      }
-      if (storeSettings?.shipping_policy) {
-        storeContext += `\n### Política de Frete:\n${storeSettings.shipping_policy.slice(0, 1500)}\n`;
-      }
-      if (storeSettings?.privacy_policy) {
-        storeContext += `\n### Política de Privacidade (resumo):\n${storeSettings.privacy_policy.slice(0, 800)}\n`;
-      }
-      if (storeSettings?.terms_of_service) {
-        storeContext += `\n### Termos de Serviço (resumo):\n${storeSettings.terms_of_service.slice(0, 800)}\n`;
-      }
-    }
-
-    // Products (sempre atualizado - busca os mais recentes)
-    if (effectiveConfig.auto_import_products) {
-      const { data: products } = await supabase
-        .from("products")
-        .select("name, price, compare_at_price, description, slug, sku, stock_quantity, is_featured")
-        .eq("tenant_id", tenant_id)
-        .eq("is_active", true)
-        .order("updated_at", { ascending: false })
-        .limit(150);
-
-      if (products?.length) {
-        storeContext += "\n### Catálogo de Produtos (atualizado automaticamente):\n";
-        storeContext += products
-          .map(p => {
-            let productInfo = `- ${p.name}`;
-            if (p.sku) productInfo += ` (SKU: ${p.sku})`;
-            productInfo += `: R$ ${p.price?.toFixed(2)}`;
-            if (p.compare_at_price && p.compare_at_price > p.price) {
-              productInfo += ` (antes R$ ${p.compare_at_price.toFixed(2)})`;
-            }
-            if (p.stock_quantity !== null) {
-              productInfo += p.stock_quantity > 0 ? ` | Em estoque` : ` | Esgotado`;
-            }
-            if (p.is_featured) productInfo += ` | ⭐ Destaque`;
-            if (p.description) {
-              productInfo += ` - ${p.description.slice(0, 120)}`;
-            }
-            if (storeUrl && p.slug) {
-              productInfo += ` | Link: ${storeUrl}/produto/${p.slug}`;
-            }
-            return productInfo;
-          })
-          .join("\n");
-      }
-    }
-
-    // Categories (sempre atualizado)
-    if (effectiveConfig.auto_import_categories) {
-      const { data: categories } = await supabase
-        .from("categories")
-        .select("name, description, slug")
-        .eq("tenant_id", tenant_id)
-        .eq("is_active", true)
-        .order("sort_order", { ascending: true });
-
-      if (categories?.length) {
-        storeContext += "\n\n### Categorias da loja:\n";
-        storeContext += categories.map(c => {
-          let catInfo = `- ${c.name}`;
-          if (c.description) catInfo += `: ${c.description}`;
-          if (storeUrl && c.slug) catInfo += ` | Link: ${storeUrl}/categoria/${c.slug}`;
-          return catInfo;
-        }).join("\n");
-      }
-    }
-
-    // Landing Pages (páginas promocionais - sempre atualizado)
-    const { data: landingPages } = await supabase
-      .from("landing_pages")
-      .select("title, slug, description, is_published")
-      .eq("tenant_id", tenant_id)
-      .eq("is_published", true)
-      .order("updated_at", { ascending: false })
-      .limit(30);
-
-    if (landingPages?.length) {
-      storeContext += "\n\n### Páginas promocionais/especiais:\n";
-      storeContext += landingPages.map(lp => {
-        let pageInfo = `- ${lp.title}`;
-        if (lp.description) pageInfo += `: ${lp.description.slice(0, 150)}`;
-        if (storeUrl && lp.slug) pageInfo += ` | Link: ${storeUrl}/lp/${lp.slug}`;
-        return pageInfo;
-      }).join("\n");
-    }
-
-    // Store Pages (páginas institucionais - sempre atualizado)
-    const { data: storePages } = await supabase
-      .from("store_pages")
-      .select("title, slug, content")
-      .eq("tenant_id", tenant_id)
-      .eq("is_published", true)
-      .order("updated_at", { ascending: false })
-      .limit(30);
-
-    if (storePages?.length) {
-      storeContext += "\n\n### Páginas institucionais:\n";
-      storeContext += storePages.map(sp => {
-        let pageInfo = `- ${sp.title}`;
-        if (sp.content && typeof sp.content === 'string') {
-          // Extract text content from HTML if present
-          const textContent = sp.content.replace(/<[^>]*>/g, ' ').slice(0, 200);
-          pageInfo += `: ${textContent}`;
-        }
-        if (storeUrl && sp.slug) pageInfo += ` | Link: ${storeUrl}/pagina/${sp.slug}`;
-        return pageInfo;
-      }).join("\n");
-    }
-
-    // FAQs (se existir tabela - sempre atualizado)
-    if (effectiveConfig.auto_import_faqs) {
-      try {
-        const { data: faqs } = await supabase
-          .from("faqs")
-          .select("question, answer")
-          .eq("tenant_id", tenant_id)
-          .eq("is_active", true)
-          .order("sort_order", { ascending: true })
-          .limit(30);
-
-        if (faqs?.length) {
-          storeContext += "\n\n### Perguntas Frequentes (FAQ):\n";
-          storeContext += faqs.map(faq => 
-            `- P: ${faq.question}\n  R: ${faq.answer.slice(0, 300)}`
-          ).join("\n\n");
-        }
-      } catch {
-        // Table might not exist, ignore
-        console.log("FAQs table not available");
-      }
-    }
-
-    // Discounts/Cupons ativos (informação útil)
-    const { data: activeDiscounts } = await supabase
-      .from("discounts")
-      .select("name, code, type, value, min_subtotal, ends_at")
-      .eq("tenant_id", tenant_id)
-      .eq("is_active", true)
-      .or(`ends_at.is.null,ends_at.gt.${new Date().toISOString()}`)
-      .limit(10);
-
-    if (activeDiscounts?.length) {
-      storeContext += "\n\n### Cupons e promoções ativas:\n";
-      storeContext += activeDiscounts.map(d => {
-        let discountInfo = `- ${d.name}`;
-        if (d.code) discountInfo += ` (código: ${d.code})`;
-        discountInfo += `: ${d.type === 'percentage' ? `${d.value}% de desconto` : `R$ ${d.value} de desconto`}`;
-        if (d.min_subtotal) discountInfo += ` | Mínimo R$ ${d.min_subtotal}`;
-        if (d.ends_at) discountInfo += ` | Válido até ${new Date(d.ends_at).toLocaleDateString('pt-BR')}`;
-        return discountInfo;
-      }).join("\n");
-    }
-
-    // Shipping providers info
-    const { data: shippingProviders } = await supabase
-      .from("shipping_providers")
-      .select("name, provider_type, is_active")
-      .eq("tenant_id", tenant_id)
-      .eq("is_active", true);
-
-    if (shippingProviders?.length) {
-      storeContext += "\n\n### Opções de frete disponíveis:\n";
-      storeContext += shippingProviders.map(sp => `- ${sp.name}`).join("\n");
-    }
-
-    // Payment methods
-    const { data: paymentProviders } = await supabase
-      .from("payment_providers")
-      .select("name, provider_type, is_active")
-      .eq("tenant_id", tenant_id)
-      .eq("is_active", true);
-
-    if (paymentProviders?.length) {
-      storeContext += "\n\n### Formas de pagamento aceitas:\n";
-      storeContext += paymentProviders.map(pp => `- ${pp.name} (${pp.provider_type})`).join("\n");
-    }
-
-    // ============================================
-    // CONTEXTO DO CLIENTE (se identificado)
-    // ============================================
+    // Customer context
     let customerContext = "";
     let customerId: string | null = null;
 
@@ -467,21 +558,11 @@ serve(async (req) => {
         customerId = customer.id;
         customerContext += `\n\n### Dados do cliente:\n`;
         customerContext += `- Nome: ${customer.full_name}\n`;
-        if (customer.email) customerContext += `- Email: ${customer.email}\n`;
-        if (customer.phone) customerContext += `- Telefone: ${customer.phone}\n`;
         if (customer.total_orders) customerContext += `- Total de pedidos: ${customer.total_orders}\n`;
         if (customer.total_spent) customerContext += `- Total gasto: R$ ${customer.total_spent.toFixed(2)}\n`;
-        if (customer.first_order_at) customerContext += `- Cliente desde: ${new Date(customer.first_order_at).toLocaleDateString('pt-BR')}\n`;
         if (customer.loyalty_tier) customerContext += `- Nível de fidelidade: ${customer.loyalty_tier}\n`;
-        if (customer.birth_date) {
-          const birth = new Date(customer.birth_date);
-          const today = new Date();
-          if (birth.getMonth() === today.getMonth() && birth.getDate() === today.getDate()) {
-            customerContext += `- 🎂 HOJE É ANIVERSÁRIO DO CLIENTE!\n`;
-          }
-        }
 
-        // Get recent orders for this customer
+        // Get recent orders
         const { data: recentOrders } = await supabase
           .from("orders")
           .select("order_number, status, payment_status, shipping_status, total, created_at, tracking_code")
@@ -490,29 +571,23 @@ serve(async (req) => {
           .limit(5);
 
         if (recentOrders?.length) {
-          customerContext += `\n### Últimos pedidos do cliente:\n`;
+          customerContext += `\n### Últimos pedidos:\n`;
           customerContext += recentOrders.map(o => {
-            let orderInfo = `- Pedido #${o.order_number}`;
-            orderInfo += ` | Status: ${o.status}`;
-            orderInfo += ` | Pagamento: ${o.payment_status}`;
-            if (o.shipping_status) orderInfo += ` | Envio: ${o.shipping_status}`;
-            orderInfo += ` | Total: R$ ${o.total?.toFixed(2)}`;
-            orderInfo += ` | Data: ${new Date(o.created_at).toLocaleDateString('pt-BR')}`;
-            if (o.tracking_code) orderInfo += ` | Rastreio: ${o.tracking_code}`;
-            return orderInfo;
+            let info = `- #${o.order_number} | Status: ${o.status} | Pagamento: ${o.payment_status}`;
+            if (o.shipping_status) info += ` | Envio: ${o.shipping_status}`;
+            info += ` | R$ ${o.total?.toFixed(2)}`;
+            if (o.tracking_code) info += ` | Rastreio: ${o.tracking_code}`;
+            return info;
           }).join("\n");
         }
       }
     }
 
     // ============================================
-    // CHECK AI RULES (from general config)
+    // STEP 4: CHECK AI RULES (keyword-based)
     // ============================================
-    const lastCustomerMessage = messages?.filter(m => m.sender_type === "customer").pop();
-    const lastMessageContent = lastCustomerMessage?.content?.toLowerCase() || "";
-    
+    const lastMessageLower = lastMessageContent.toLowerCase();
     let matchedRule: AIRule | null = null;
-    let shouldHandoff = false;
     let forceResponse: string | null = null;
 
     const rules: AIRule[] = Array.isArray(effectiveConfig.rules) ? effectiveConfig.rules : [];
@@ -520,14 +595,15 @@ serve(async (req) => {
 
     for (const rule of activeRules) {
       const conditionKeywords = rule.condition.toLowerCase().split(/[,;]/).map(k => k.trim()).filter(Boolean);
-      const matches = conditionKeywords.some(kw => lastMessageContent.includes(kw));
+      const matches = conditionKeywords.some(kw => lastMessageLower.includes(kw));
       
       if (matches) {
         matchedRule = rule;
-        console.log(`Rule matched: ${rule.id} - ${rule.condition} -> ${rule.action}`);
+        console.log(`[ai-support-chat] Rule matched: ${rule.id} - ${rule.condition} -> ${rule.action}`);
         
         if (rule.action === 'transfer' || rule.action === 'escalate') {
           shouldHandoff = true;
+          handoffReason = `Regra ativada: ${rule.condition}`;
         }
         if ((rule.action === 'respond' || rule.action === 'suggest') && rule.response) {
           forceResponse = rule.response;
@@ -536,109 +612,95 @@ serve(async (req) => {
       }
     }
 
-    if (!shouldHandoff && effectiveConfig.handoff_keywords?.length && lastMessageContent) {
-      shouldHandoff = effectiveConfig.handoff_keywords.some(
-        (kw: string) => lastMessageContent.includes(kw.toLowerCase())
+    // Check handoff keywords
+    if (!shouldHandoff && effectiveConfig.handoff_keywords?.length && lastMessageLower) {
+      const matchedKeyword = effectiveConfig.handoff_keywords.find(
+        (kw: string) => lastMessageLower.includes(kw.toLowerCase())
       );
+      if (matchedKeyword) {
+        shouldHandoff = true;
+        handoffReason = `Palavra-chave de handoff: ${matchedKeyword}`;
+      }
     }
 
     // ============================================
-    // BUILD SYSTEM PROMPT
-    // FLUXO: 1 (loja) -> 2 (config geral) -> 3 (canal)
+    // STEP 5: BUILD SYSTEM PROMPT
     // ============================================
-    
-    // Valores base do Fluxo 2 (config geral)
     let personalityTone = effectiveConfig.personality_tone || "amigável e profissional";
     let personalityName = effectiveConfig.personality_name || "Assistente";
     let maxLength = effectiveConfig.max_response_length || 500;
     let useEmojis = effectiveConfig.use_emojis ?? true;
     let forbiddenTopics: string[] = effectiveConfig.forbidden_topics || [];
 
-    // Fluxo 3: Sobrescrever com config específica do canal (se existir)
+    // Channel overrides
     if (channelConfig) {
-      if (channelConfig.max_response_length) {
-        maxLength = channelConfig.max_response_length;
-      }
-      if (channelConfig.use_emojis !== null) {
-        useEmojis = channelConfig.use_emojis;
-      }
+      if (channelConfig.max_response_length) maxLength = channelConfig.max_response_length;
+      if (channelConfig.use_emojis !== null) useEmojis = channelConfig.use_emojis;
       if (channelConfig.forbidden_topics?.length) {
-        // Merge forbidden topics
         forbiddenTopics = [...new Set([...forbiddenTopics, ...channelConfig.forbidden_topics])];
       }
     }
 
-    // Construir system prompt base
     let systemPrompt = effectiveConfig.system_prompt || `Você é ${personalityName}, assistente virtual de atendimento ao cliente da loja ${storeName}.
 
 Seu tom de comunicação é: ${personalityTone}.
 
 DIRETRIZES IMPORTANTES:
 - Seja sempre educado, prestativo e objetivo
-- Use as informações da loja fornecidas para responder com precisão
+- Use APENAS as informações da BASE DE CONHECIMENTO fornecidas para responder
 - Limite suas respostas a aproximadamente ${maxLength} caracteres
-- Se não souber a resposta com certeza, diga que vai verificar com a equipe
+- Se não encontrar a resposta na base de conhecimento, ESCALONE para um atendente humano
 - NUNCA invente informações sobre produtos, preços, prazos ou políticas
-- Se o cliente perguntar sobre um pedido, use os dados fornecidos
-- Sempre forneça links quando relevante (produtos, categorias, páginas)
 - Personalize o atendimento usando o nome do cliente quando disponível`;
 
-    // Se o canal tiver system_prompt_override, usar ele como base
+    // Channel-specific override
     if (channelConfig?.system_prompt_override) {
       systemPrompt = channelConfig.system_prompt_override;
     }
 
-    // ⚠️ ADICIONAR GUARDRAILS INFORMATIVOS (OBRIGATÓRIO)
+    // Add guardrails (MANDATORY)
     systemPrompt += INFORMATIVE_GUARDRAILS;
 
-    // FLUXO 1: Adicionar conhecimento da loja (sempre atualizado)
-    systemPrompt += `\n\n========================================`;
-    systemPrompt += `\n CONHECIMENTO DA LOJA (atualizado automaticamente)`;
-    systemPrompt += `\n========================================`;
-    systemPrompt += storeContext;
+    // Add knowledge base context (RAG results)
+    if (knowledgeContext) {
+      systemPrompt += knowledgeContext;
+    }
 
-    // Adicionar contexto do cliente
+    // Add store and customer context
+    systemPrompt += storeContext;
     if (customerContext) {
       systemPrompt += customerContext;
     }
 
-    // FLUXO 2: Adicionar conhecimento adicional da config geral
+    // Add custom knowledge from config
     if (effectiveConfig.custom_knowledge) {
-      systemPrompt += `\n\n========================================`;
-      systemPrompt += `\n CONHECIMENTO ADICIONAL (configurado pelo lojista)`;
-      systemPrompt += `\n========================================`;
-      systemPrompt += `\n${effectiveConfig.custom_knowledge}`;
+      systemPrompt += `\n\n### Conhecimento adicional:\n${effectiveConfig.custom_knowledge}`;
     }
 
-    // Adicionar regras de atendimento (do Fluxo 2)
+    // Add active rules
     if (activeRules.length > 0) {
       systemPrompt += `\n\n### Regras de atendimento:\n`;
       systemPrompt += activeRules.map(r => {
-        let ruleText = `- Quando o cliente mencionar: "${r.condition}"`;
-        if (r.action === 'transfer') ruleText += ' → Sugira falar com um atendente humano';
-        if (r.action === 'escalate') ruleText += ' → Trate com urgência e transfira para humano';
+        let ruleText = `- Quando mencionar: "${r.condition}"`;
+        if (r.action === 'transfer') ruleText += ' → Sugira falar com atendente humano';
+        if (r.action === 'escalate') ruleText += ' → Trate com urgência e transfira';
         if (r.action === 'respond' && r.response) ruleText += ` → Responda: "${r.response}"`;
         return ruleText;
       }).join("\n");
     }
 
-    // FLUXO 3: Adicionar instruções específicas do canal
+    // Channel-specific instructions
     if (channelConfig?.custom_instructions) {
-      systemPrompt += `\n\n========================================`;
-      systemPrompt += `\n INSTRUÇÕES ESPECÍFICAS PARA ${channelType.toUpperCase()}`;
-      systemPrompt += `\n========================================`;
-      systemPrompt += `\n${channelConfig.custom_instructions}`;
+      systemPrompt += `\n\n### Instruções para ${channelType.toUpperCase()}:\n${channelConfig.custom_instructions}`;
     }
 
-    // Adicionar restrições específicas do canal (ex: Mercado Livre)
+    // Channel restrictions
     const channelRestrictions: Record<string, string> = {
       mercadolivre: `
 RESTRIÇÕES DO MERCADO LIVRE (OBRIGATÓRIO):
 - NUNCA mencione links externos, outros sites ou redes sociais
 - NUNCA sugira contato fora do Mercado Livre
-- NUNCA mencione WhatsApp, Instagram, email direto ou telefone
-- Foque apenas em informações do produto e da compra
-- Qualquer violação pode resultar em penalidades na conta`,
+- NUNCA mencione WhatsApp, Instagram, email direto ou telefone`,
       shopee: `
 RESTRIÇÕES DA SHOPEE:
 - Não direcione para canais externos
@@ -649,23 +711,26 @@ RESTRIÇÕES DA SHOPEE:
       systemPrompt += channelRestrictions[channelType];
     }
 
-    // Adicionar tópicos proibidos (merged)
+    // Forbidden topics
     if (forbiddenTopics.length > 0) {
-      systemPrompt += `\n\n### Tópicos que você NÃO deve abordar:\n${forbiddenTopics.join(", ")}`;
+      systemPrompt += `\n\n### Tópicos proibidos:\n${forbiddenTopics.join(", ")}`;
     }
 
-    // Adicionar preferência de emoji (do canal ou geral)
+    // Emoji preference
     if (useEmojis) {
-      systemPrompt += "\n\nVocê pode usar emojis moderadamente para tornar a conversa mais amigável.";
+      systemPrompt += "\n\nUse emojis moderadamente para tornar a conversa amigável.";
     } else {
-      systemPrompt += "\n\nNão use emojis nas suas respostas.";
+      systemPrompt += "\n\nNão use emojis nas respostas.";
     }
 
-    // Informar o canal atual
-    systemPrompt += `\n\n### Canal de atendimento atual: ${channelType}`;
+    // If no evidence and handoff is triggered, instruct AI to acknowledge
+    if (noEvidenceHandoff) {
+      systemPrompt += `\n\n⚠️ ATENÇÃO: Não foi encontrada informação relevante na base de conhecimento para esta pergunta.
+Responda de forma empática dizendo que não possui essa informação e que vai transferir para um atendente humano que poderá ajudar.`;
+    }
 
     // ============================================
-    // BUILD CONVERSATION HISTORY
+    // STEP 6: BUILD CONVERSATION HISTORY
     // ============================================
     const aiMessages: { role: string; content: string }[] = [
       { role: "system", content: systemPrompt },
@@ -674,14 +739,13 @@ RESTRIÇÕES DA SHOPEE:
     if (conversation.customer_name) {
       aiMessages.push({
         role: "system",
-        content: `O cliente nesta conversa se chama ${conversation.customer_name}. ${conversation.summary ? `Resumo da conversa: ${conversation.summary}` : ""} Canal: ${channelType}.`,
+        content: `O cliente nesta conversa se chama ${conversation.customer_name}. Canal: ${channelType}.`,
       });
     }
 
     if (messages?.length) {
       for (const msg of messages) {
         if (msg.is_internal || msg.is_note) continue;
-        
         aiMessages.push({
           role: msg.sender_type === "customer" ? "user" : "assistant",
           content: msg.content || "",
@@ -690,14 +754,12 @@ RESTRIÇÕES DA SHOPEE:
     }
 
     // ============================================
-    // CALL OPENAI API OR USE FORCED RESPONSE
+    // STEP 7: CALL OPENAI API
     // ============================================
     let aiContent: string;
     
-    // Get configured model or use default (gpt-5.2)
     let configuredModel = effectiveConfig.ai_model || "gpt-5.2";
     
-    // Map legacy Lovable AI model names to OpenAI equivalents
     const modelMapping: Record<string, string> = {
       "google/gemini-2.5-flash": "gpt-5-mini",
       "google/gemini-2.5-pro": "gpt-5",
@@ -713,11 +775,10 @@ RESTRIÇÕES DA SHOPEE:
 
     if (forceResponse && matchedRule?.action === 'respond') {
       aiContent = forceResponse;
-      console.log(`Using rule-based response for rule: ${matchedRule.id}`);
+      console.log(`[ai-support-chat] Using rule-based response for rule: ${matchedRule.id}`);
     } else {
-      console.log(`Calling OpenAI with model: ${aiModel}, messages: ${aiMessages.length}, context length: ${systemPrompt.length}, channel: ${channelType}`);
+      console.log(`[ai-support-chat] Calling OpenAI model: ${aiModel}, messages: ${aiMessages.length}, context: ${systemPrompt.length} chars`);
 
-      // Try to call OpenAI with fallback to other models
       let response: Response | null = null;
       let usedModel = aiModel;
       const modelsToTry = [aiModel, ...OPENAI_MODELS.filter(m => m !== aiModel)];
@@ -741,36 +802,26 @@ RESTRIÇÕES DA SHOPEE:
           if (response.ok) {
             usedModel = modelToTry;
             modelUsed = modelToTry;
-            console.log(`Successfully using model: ${modelToTry}`);
+            console.log(`[ai-support-chat] Using model: ${modelToTry}`);
             break;
           }
 
           const errorText = await response.text();
-          console.warn(`Model ${modelToTry} failed:`, response.status, errorText);
+          console.warn(`[ai-support-chat] Model ${modelToTry} failed:`, response.status, errorText);
           
-          // If model not found, try next; otherwise break
-          if (response.status !== 404) {
-            break;
-          }
+          if (response.status !== 404) break;
         } catch (fetchError) {
-          console.error(`Fetch error for model ${modelToTry}:`, fetchError);
+          console.error(`[ai-support-chat] Fetch error for ${modelToTry}:`, fetchError);
         }
       }
 
       if (!response || !response.ok) {
         const errorText = response ? await response.text() : "No response";
-        console.error("OpenAI API error:", response?.status, errorText);
+        console.error("[ai-support-chat] OpenAI API error:", response?.status, errorText);
         
         if (response?.status === 429) {
           return new Response(
-            JSON.stringify({ success: false, error: "Rate limit exceeded. Try again in a few seconds.", code: "RATE_LIMIT" }),
-            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-        
-        if (response?.status === 401) {
-          return new Response(
-            JSON.stringify({ success: false, error: "Invalid API key configuration.", code: "INVALID_API_KEY" }),
+            JSON.stringify({ success: false, error: "Rate limit exceeded", code: "RATE_LIMIT" }),
             { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
@@ -784,14 +835,13 @@ RESTRIÇÕES DA SHOPEE:
       const aiData = await response.json();
       aiContent = aiData.choices?.[0]?.message?.content;
       
-      // Extract token usage for billing
       if (aiData.usage) {
         inputTokens = aiData.usage.prompt_tokens || 0;
         outputTokens = aiData.usage.completion_tokens || 0;
       }
 
       if (!aiContent) {
-        console.error("No content in AI response:", aiData);
+        console.error("[ai-support-chat] No content in AI response:", aiData);
         return new Response(
           JSON.stringify({ success: false, error: "AI did not return a response", code: "EMPTY_RESPONSE" }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -802,7 +852,7 @@ RESTRIÇÕES DA SHOPEE:
     const latencyMs = Date.now() - startTime;
 
     // ============================================
-    // CALCULATE AND RECORD AI USAGE COST
+    // STEP 8: RECORD USAGE & METRICS
     // ============================================
     let costCents = 0;
     const modelCost = MODEL_COSTS[modelUsed] || MODEL_COSTS["gpt-5-mini"];
@@ -812,20 +862,31 @@ RESTRIÇÕES DA SHOPEE:
         (outputTokens / 1000) * modelCost.output
       );
       
-      // Record AI usage for billing (uses existing function)
       try {
         await supabase.rpc("record_ai_usage", {
           p_tenant_id: tenant_id,
           p_usage_cents: costCents,
         });
-        console.log(`Recorded AI usage: ${costCents} cents for tenant ${tenant_id}`);
       } catch (usageError) {
-        console.error("Failed to record AI usage:", usageError);
+        console.error("[ai-support-chat] Failed to record AI usage:", usageError);
       }
     }
 
+    // Increment AI metrics (messages, handoffs, no_evidence)
+    try {
+      await supabase.rpc("increment_ai_metrics", {
+        p_tenant_id: tenant_id,
+        p_messages: 1,
+        p_handoffs: shouldHandoff ? 1 : 0,
+        p_no_evidence: noEvidenceHandoff ? 1 : 0,
+        p_embedding_tokens: embeddingTokens,
+      });
+    } catch (metricsError) {
+      console.error("[ai-support-chat] Failed to record AI metrics:", metricsError);
+    }
+
     // ============================================
-    // SAVE AND SEND RESPONSE
+    // STEP 9: SAVE MESSAGE
     // ============================================
     const { data: newMessage, error: msgError } = await supabase
       .from("messages")
@@ -842,16 +903,24 @@ RESTRIÇÕES DA SHOPEE:
         is_internal: false,
         is_note: false,
         ai_model_used: forceResponse ? "rule-based" : modelUsed,
-        ai_confidence: forceResponse ? 1.0 : 0.9,
+        ai_confidence: forceResponse ? 1.0 : (similarityScores[0] || 0.9),
         ai_context_used: { 
-          products: effectiveConfig.auto_import_products, 
-          categories: effectiveConfig.auto_import_categories,
+          rag_enabled: true,
+          chunks_found: similarityScores.length,
+          avg_similarity: similarityScores.length > 0 
+            ? similarityScores.reduce((a, b) => a + b, 0) / similarityScores.length 
+            : null,
+          intent_classification: effectiveConfig.redact_pii_in_logs 
+            ? { ...intentClassification, summary: intentClassification?.summary ? redactPII(intentClassification.summary) : "" }
+            : intentClassification,
+          no_evidence_handoff: noEvidenceHandoff,
           customer_id: customerId,
           matched_rule: matchedRule?.id,
           channel_type: channelType,
-          channel_config_applied: !!channelConfig,
+          handoff_reason: handoffReason || null,
           input_tokens: inputTokens,
           output_tokens: outputTokens,
+          embedding_tokens: embeddingTokens,
           cost_cents: costCents,
           latency_ms: latencyMs,
           provider: "openai",
@@ -861,7 +930,7 @@ RESTRIÇÕES DA SHOPEE:
       .single();
 
     if (msgError) {
-      console.error("Error saving AI message:", msgError);
+      console.error("[ai-support-chat] Error saving AI message:", msgError);
       return new Response(
         JSON.stringify({ success: false, error: "Error saving response", code: "SAVE_ERROR" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -879,40 +948,42 @@ RESTRIÇÕES DA SHOPEE:
       })
       .eq("id", conversation_id);
 
-    // Log event with metrics
+    // Log event
     await supabase.from("conversation_events").insert({
       conversation_id,
       tenant_id,
-      event_type: "ai_response",
+      event_type: shouldHandoff ? "ai_handoff" : "ai_response",
       actor_type: "bot",
       actor_name: personalityName,
       description: shouldHandoff 
-        ? "IA respondeu e sugeriu handoff para humano" 
+        ? `IA escalou para humano: ${handoffReason}` 
         : matchedRule 
-          ? `IA respondeu usando regra: ${matchedRule.condition}` 
-          : `IA respondeu automaticamente via ${channelType}`,
+          ? `IA respondeu via regra: ${matchedRule.condition}` 
+          : `IA respondeu via ${channelType} (RAG: ${similarityScores.length} chunks)`,
       metadata: { 
-        model: forceResponse ? "rule-based" : modelUsed, 
+        model: forceResponse ? "rule-based" : modelUsed,
+        rag_chunks: similarityScores.length,
         handoff: shouldHandoff,
+        handoff_reason: handoffReason,
+        no_evidence_handoff: noEvidenceHandoff,
+        intent: intentClassification?.intent,
+        sentiment: intentClassification?.sentiment,
         matched_rule: matchedRule?.id,
         channel_type: channelType,
-        channel_config_applied: !!channelConfig,
-        provider: "openai",
-        input_tokens: inputTokens,
-        output_tokens: outputTokens,
-        cost_cents: costCents,
         latency_ms: latencyMs,
+        cost_cents: costCents,
       },
     });
 
-    // Send response via original channel
+    // ============================================
+    // STEP 10: SEND VIA CHANNEL
+    // ============================================
     let sendResult: { success: boolean; error?: string; message_id?: string } = { success: false, error: "Canal não suportado" };
 
     if (conversation.channel_type === "whatsapp" && conversation.customer_phone) {
-      console.log(`Sending WhatsApp response to ${conversation.customer_phone}...`);
+      console.log(`[ai-support-chat] Sending WhatsApp response...`);
       
       try {
-        // Check which provider to use for this tenant
         const { data: waConfig } = await supabase
           .from("whatsapp_configs")
           .select("provider")
@@ -921,15 +992,14 @@ RESTRIÇÕES DA SHOPEE:
           .maybeSingle();
 
         const sendFunction = waConfig?.provider === "meta" ? "meta-whatsapp-send" : "whatsapp-send";
-        console.log(`Using WhatsApp provider: ${waConfig?.provider || "default"}, function: ${sendFunction}`);
 
         const sendResponse = await fetch(
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/${sendFunction}`,
+          `${supabaseUrl}/functions/v1/${sendFunction}`,
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              "Authorization": `Bearer ${serviceKey}`,
             },
             body: JSON.stringify({
               tenant_id,
@@ -940,7 +1010,6 @@ RESTRIÇÕES DA SHOPEE:
         );
 
         sendResult = await sendResponse.json();
-        console.log("WhatsApp send result:", sendResult);
 
         const deliveryStatus = sendResult.success ? "sent" : "failed";
         await supabase
@@ -953,7 +1022,7 @@ RESTRIÇÕES DA SHOPEE:
           .eq("id", newMessage.id);
 
       } catch (sendError) {
-        console.error("Error sending WhatsApp message:", sendError);
+        console.error("[ai-support-chat] WhatsApp send error:", sendError);
         sendResult = { success: false, error: sendError instanceof Error ? sendError.message : "Erro ao enviar" };
         
         await supabase
@@ -965,17 +1034,16 @@ RESTRIÇÕES DA SHOPEE:
           .eq("id", newMessage.id);
       }
     } else if (conversation.channel_type === "email" && conversation.customer_email) {
-      console.log(`Sending email response to ${conversation.customer_email}...`);
+      console.log(`[ai-support-chat] Sending email response...`);
       
       try {
-        // support-send-message expects message_id, not conversation_id/content
         const sendResponse = await fetch(
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/support-send-message`,
+          `${supabaseUrl}/functions/v1/support-send-message`,
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              "Authorization": `Bearer ${serviceKey}`,
             },
             body: JSON.stringify({
               message_id: newMessage.id,
@@ -985,16 +1053,14 @@ RESTRIÇÕES DA SHOPEE:
         );
 
         const sendJson = await sendResponse.json();
-        console.log("support-send-message result:", sendJson);
         
         if (sendJson.success) {
           sendResult = { success: true, message_id: sendJson.external_message_id };
-          // Message status is already updated by support-send-message
         } else {
           sendResult = { success: false, error: sendJson.error || "Falha ao enviar email" };
         }
       } catch (sendError) {
-        console.error("Error sending email:", sendError);
+        console.error("[ai-support-chat] Email send error:", sendError);
         sendResult = { success: false, error: sendError instanceof Error ? sendError.message : "Erro ao enviar" };
         
         await supabase
@@ -1006,30 +1072,39 @@ RESTRIÇÕES DA SHOPEE:
           .eq("id", newMessage.id);
       }
     } else if (conversation.channel_type === "chat") {
-      sendResult = { success: true, error: undefined };
+      sendResult = { success: true };
       await supabase
         .from("messages")
         .update({ delivery_status: "delivered" })
         .eq("id", newMessage.id);
     }
 
-    console.log(`AI response saved and ${sendResult.success ? "sent" : "failed to send"} for conversation ${conversation_id} via ${channelType}. Model: ${modelUsed}, Latency: ${latencyMs}ms, Cost: ${costCents} cents`);
+    console.log(`[ai-support-chat] Response ${sendResult.success ? "sent" : "failed"} via ${channelType}. Model: ${modelUsed}, RAG: ${similarityScores.length} chunks, Latency: ${latencyMs}ms`);
 
     return new Response(
       JSON.stringify({
         success: true,
         message: newMessage,
         handoff: shouldHandoff,
+        handoff_reason: handoffReason || null,
         matched_rule: matchedRule?.id,
         sent: sendResult.success,
         send_error: sendResult.error,
         channel_type: channelType,
-        channel_config_applied: !!channelConfig,
+        rag: {
+          chunks_found: similarityScores.length,
+          avg_similarity: similarityScores.length > 0 
+            ? similarityScores.reduce((a, b) => a + b, 0) / similarityScores.length 
+            : null,
+          no_evidence_handoff: noEvidenceHandoff,
+        },
+        intent: intentClassification,
         metrics: {
           model: modelUsed,
           provider: "openai",
           input_tokens: inputTokens,
           output_tokens: outputTokens,
+          embedding_tokens: embeddingTokens,
           cost_cents: costCents,
           latency_ms: latencyMs,
         },
@@ -1037,7 +1112,7 @@ RESTRIÇÕES DA SHOPEE:
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("AI support chat error:", error);
+    console.error("[ai-support-chat] Error:", error);
     return new Response(
       JSON.stringify({ success: false, error: error instanceof Error ? error.message : "Unknown error", code: "INTERNAL_ERROR" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
