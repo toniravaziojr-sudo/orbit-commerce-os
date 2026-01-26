@@ -1,5 +1,6 @@
 import { useMeliConnection } from "@/hooks/useMeliConnection";
 import { useShopeeConnection } from "@/hooks/useShopeeConnection";
+import { useOlistConnection } from "@/hooks/useOlistConnection";
 import { useLateConnection } from "@/hooks/useLateConnection";
 import { useFiscalSettings } from "@/hooks/useFiscal";
 import { usePaymentProviders } from "@/hooks/usePaymentProviders";
@@ -7,6 +8,7 @@ import { usePaymentProviders } from "@/hooks/usePaymentProviders";
 export type IntegrationType = 
   | "mercadolivre" 
   | "shopee"
+  | "olist"
   | "whatsapp" 
   | "redes_sociais" 
   | "fiscal" 
@@ -41,6 +43,13 @@ export function useIntegrationStatus() {
     isLoading: shopeeLoading
   } = useShopeeConnection();
 
+  // Olist
+  const {
+    platformConfigured: olistPlatformConfigured,
+    isConnected: olistConnected,
+    isLoading: olistLoading
+  } = useOlistConnection();
+
   // Redes Sociais (Late)
   const { isConnected: lateConnected, isLoading: lateLoading } = useLateConnection();
 
@@ -69,6 +78,14 @@ export function useIntegrationStatus() {
       isLoading: shopeeLoading,
       redirectPath: "/marketplaces",
       buttonText: "Conectar Shopee",
+    },
+    olist: {
+      name: "Olist",
+      isConfigured: olistPlatformConfigured,
+      isConnected: olistConnected,
+      isLoading: olistLoading,
+      redirectPath: "/marketplaces/olist",
+      buttonText: "Conectar Olist",
     },
     whatsapp: {
       name: "WhatsApp",
@@ -134,6 +151,7 @@ export function useIntegrationStatus() {
     // Quick access
     isMeliConnected: meliConnected,
     isShopeeConnected: shopeeConnected,
+    isOlistConnected: olistConnected,
     isLateConnected: lateConnected,
     isFiscalConfigured: fiscalConfigured && fiscalHasCertificate,
     hasActivePayment,
