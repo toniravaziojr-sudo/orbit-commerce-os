@@ -267,6 +267,56 @@ export function useGenerateImage() {
   });
 }
 
+export function useGenerateVideo() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      calendarItemId,
+      duration = 5,
+      aspectRatio = "16:9",
+    }: {
+      calendarItemId: string;
+      duration?: number;
+      aspectRatio?: string;
+    }) => {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.access_token) {
+        throw new Error("Não autenticado");
+      }
+
+      const response = await supabase.functions.invoke("media-generate-video", {
+        body: {
+          calendar_item_id: calendarItemId,
+          duration,
+          aspect_ratio: aspectRatio,
+        },
+      });
+
+      if (response.error) throw response.error;
+      
+      const data = response.data as { success: boolean; error?: string; generation_id?: string };
+      if (!data.success) {
+        throw new Error(data.error || "Erro ao gerar vídeo");
+      }
+
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      toast.success(`Vídeo ${variables.duration}s adicionado à fila`);
+      queryClient.invalidateQueries({
+        queryKey: ["asset-generations", variables.calendarItemId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["all-variants", variables.calendarItemId],
+      });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Erro ao gerar vídeo");
+    },
+  });
+}
+
 export function useApproveVariant() {
   const queryClient = useQueryClient();
 
