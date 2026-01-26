@@ -40,6 +40,11 @@ interface PublicationDialogProps {
   existingItems: MediaCalendarItem[];
   editItem?: MediaCalendarItem | null;
   onBackToList?: () => void;
+  /**
+   * Tipo da campanha: "blog" mostra apenas formulário de artigo,
+   * "social" ou undefined mostra apenas Feed/Stories
+   */
+  campaignType?: "blog" | "social";
 }
 
 // Limites por tipo de publicação por card/dia
@@ -49,10 +54,19 @@ const PUBLICATION_LIMITS = {
   blog: 2,
 };
 
-const PUBLICATION_TYPES = [
+// Tipos para redes sociais (Feed/Stories)
+const SOCIAL_PUBLICATION_TYPES = [
   { id: "feed" as PublicationType, label: "Feed", icon: Image, description: "Post para o feed" },
   { id: "stories" as PublicationType, label: "Stories", icon: Clock, description: "Story temporário" },
 ];
+
+// Tipo para blog
+const BLOG_PUBLICATION_TYPE = { 
+  id: "blog" as PublicationType, 
+  label: "Artigo", 
+  icon: Newspaper, 
+  description: "Post de blog" 
+};
 
 const CHANNELS = [
   { id: "instagram" as ChannelType, label: "Instagram", icon: Instagram },
@@ -95,6 +109,7 @@ export function PublicationDialog({
   existingItems,
   editItem,
   onBackToList,
+  campaignType = "social",
 }: PublicationDialogProps) {
   const { currentTenant, user } = useAuth();
   const { createItem, updateItem, deleteItem } = useMediaCalendarItems(campaignId);
@@ -208,15 +223,22 @@ export function PublicationDialog({
         }
       } else {
         // Modo criação: reset
-        setStep("type");
-        setSelectedType(null);
-        setSelectedChannels([]);
+        // Para campanhas de blog, vai direto para detalhes com tipo "blog"
+        if (campaignType === "blog") {
+          setStep("details");
+          setSelectedType("blog");
+          setSelectedChannels([]);
+        } else {
+          setStep("type");
+          setSelectedType(null);
+          setSelectedChannels([]);
+        }
         feedForm.reset();
         storyForm.reset();
         blogForm.reset();
       }
     }
-  }, [open, editItem]);
+  }, [open, editItem, campaignType]);
 
   const handleTypeSelect = (type: PublicationType) => {
     if (!canCreate(type)) {
@@ -263,12 +285,13 @@ export function PublicationDialog({
     }
     
     if (step === "details") {
-      // Volta para seleção de canais (ou tipo se for blog)
-      if (selectedType === "blog") {
-        setStep("type");
-      } else {
-        setStep("channels");
+      // Para campanha de blog, fechar dialog (não há step anterior)
+      if (campaignType === "blog") {
+        onOpenChange(false);
+        return;
       }
+      // Para social, volta para seleção de canais
+      setStep("channels");
     } else if (step === "channels") {
       setStep("type");
     }
@@ -423,8 +446,8 @@ export function PublicationDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
-        {/* Step 1: Tipo de publicação */}
-        {step === "type" && (
+        {/* Step 1: Tipo de publicação - APENAS PARA REDES SOCIAIS */}
+        {step === "type" && campaignType === "social" && (
           <>
             <DialogHeader>
               <DialogTitle>Nova Publicação</DialogTitle>
@@ -433,8 +456,8 @@ export function PublicationDialog({
 
             <div className="space-y-4 py-4">
               <p className="text-sm text-muted-foreground">Qual tipo de publicação você quer criar?</p>
-              <div className="grid grid-cols-3 gap-3">
-                {PUBLICATION_TYPES.map((type) => {
+              <div className="grid grid-cols-2 gap-3">
+                {SOCIAL_PUBLICATION_TYPES.map((type) => {
                   const Icon = type.icon;
                   const remaining = PUBLICATION_LIMITS[type.id] - countsByType[type.id];
                   const disabled = !canCreate(type.id);

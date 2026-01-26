@@ -1013,6 +1013,7 @@ export function CampaignCalendar() {
         campaignId={campaignId!}
         existingItems={currentDateItems}
         editItem={editItem}
+        campaignType={campaign?.target_channel === "blog" ? "blog" : "social"}
         onBackToList={() => {
           // Reabrir o DayPostsList com o mesmo dia
           if (selectedDate) {

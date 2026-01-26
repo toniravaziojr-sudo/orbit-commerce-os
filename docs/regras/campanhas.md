@@ -1,7 +1,7 @@
 # Campanhas (Criador de Campanhas) — Regras e Especificações
 
-> **Status:** 🟧 Pending (não validado)  
-> **Última atualização:** 2025-01-25
+> **Status:** 🟩 Atualizado  
+> **Última atualização:** 2025-01-26
 
 ---
 
@@ -195,6 +195,35 @@ Composição com imagem real do produto
 
 ---
 
+## Separação de Fluxos: Blog vs. Mídias Sociais
+
+O `PublicationDialog` recebe a prop `campaignType` para diferenciar o fluxo:
+
+| `campaignType` | Comportamento |
+|----------------|---------------|
+| `"blog"` | Vai direto para formulário de artigo (título + conteúdo) |
+| `"social"` | Exibe seleção de tipo (Feed/Stories) → seleção de canais (Instagram/Facebook) → detalhes |
+
+### Regras de Isolamento
+
+| ✅ Correto | ❌ Proibido |
+|-----------|-------------|
+| Blog mostra apenas formulário de artigo | Blog mostrar opções Feed/Stories |
+| Mídias mostra apenas Feed/Stories | Mídias mostrar opção de Blog |
+| Cada módulo usa sua Edge Function | Misturar `late-schedule-post` com blog |
+
+### Implementação
+
+```tsx
+// CampaignCalendar.tsx
+<PublicationDialog
+  campaignType={campaign?.target_channel === "blog" ? "blog" : "social"}
+  ...
+/>
+```
+
+---
+
 ## Anti-Patterns
 
 | Proibido | Correto |
@@ -202,15 +231,17 @@ Composição com imagem real do produto
 | Publicar sem revisão | Fluxo: suggested → approved → published |
 | Gerar asset sem prompt | Sempre ter generation_prompt |
 | Ignorar canal alvo | Respeitar target_channel da campanha |
+| Misturar fluxos Blog/Mídias | Usar `campaignType` para separar |
 
 ---
 
 ## Checklist
 
-- [ ] Criar campanha com período
-- [ ] Gerar sugestões com IA
-- [ ] Calendário visual funciona
-- [ ] Edição inline de items
+- [x] Criar campanha com período
+- [x] Gerar sugestões com IA
+- [x] Calendário visual funciona
+- [x] Edição inline de items
+- [x] Fluxo separado Blog vs Mídias
 - [ ] Geração de imagens
 - [ ] Conexão com Late
 - [ ] Publicação automática
