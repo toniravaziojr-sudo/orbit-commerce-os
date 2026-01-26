@@ -9041,6 +9041,64 @@ export type Database = {
           },
         ]
       }
+      review_tokens: {
+        Row: {
+          created_at: string
+          customer_email: string | null
+          customer_id: string | null
+          expires_at: string
+          id: string
+          order_id: string
+          tenant_id: string
+          token: string
+          used_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          customer_email?: string | null
+          customer_id?: string | null
+          expires_at?: string
+          id?: string
+          order_id: string
+          tenant_id: string
+          token: string
+          used_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          customer_email?: string | null
+          customer_id?: string | null
+          expires_at?: string
+          id?: string
+          order_id?: string
+          tenant_id?: string
+          token?: string
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_tokens_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_tokens_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_tokens_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scheduled_system_emails: {
         Row: {
           attempts: number | null
@@ -11688,6 +11746,15 @@ export type Database = {
         Returns: string
       }
       generate_order_number: { Args: { p_tenant_id: string }; Returns: string }
+      generate_review_token: {
+        Args: {
+          p_customer_email?: string
+          p_customer_id?: string
+          p_order_id: string
+          p_tenant_id: string
+        }
+        Returns: string
+      }
       generate_tenant_invoice: {
         Args: { p_tenant_id: string; p_year_month: string }
         Returns: string
@@ -11882,6 +11949,18 @@ export type Database = {
           tenant_id: string
           tenant_name: string
           user_type: Database["public"]["Enums"]["tenant_user_type"]
+        }[]
+      }
+      validate_review_token: {
+        Args: { p_token: string }
+        Returns: {
+          customer_email: string
+          customer_id: string
+          is_valid: boolean
+          order_id: string
+          store_url: string
+          tenant_id: string
+          token_id: string
         }[]
       }
     }

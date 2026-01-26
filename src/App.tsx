@@ -124,6 +124,7 @@ import StorefrontBlogPost from "@/pages/storefront/StorefrontBlogPost";
 import StorefrontBlog from "@/pages/storefront/StorefrontBlog";
 import StorefrontTracking from "@/pages/storefront/StorefrontTracking";
 import StorefrontQuiz from "@/pages/storefront/StorefrontQuiz";
+import StorefrontReview from "@/pages/storefront/StorefrontReview";
 
 // Helper to check if we're on a tenant host (custom domain or platform subdomain)
 import { isPlatformSubdomain, isAppDomain, SAAS_CONFIG } from "@/lib/canonicalDomainService";
@@ -217,6 +218,7 @@ const App = () => {
                   <Route path="conta/pedidos" element={<StorefrontOrdersList />} />
                   <Route path="conta/pedidos/:orderId" element={<StorefrontOrderDetail />} />
                   <Route path="quiz/:quizSlug" element={<StorefrontQuiz />} />
+                  <Route path="avaliar/:token" element={<StorefrontReview />} />
                 </Route>
               )}
 
@@ -242,6 +244,7 @@ const App = () => {
                 <Route path="conta/pedidos" element={<StorefrontOrdersList />} />
                 <Route path="conta/pedidos/:orderId" element={<StorefrontOrderDetail />} />
                 <Route path="quiz/:quizSlug" element={<StorefrontQuiz />} />
+                <Route path="avaliar/:token" element={<StorefrontReview />} />
               </Route>
 
               {/* Protected route without tenant requirement */}

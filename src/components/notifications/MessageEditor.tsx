@@ -43,6 +43,8 @@ const dynamicVariables = [
   { key: '{{shipping_status}}', label: 'Status do envio', example: 'Em trânsito' },
   { key: '{{product_names}}', label: 'Nomes dos produtos', example: 'Camiseta, Calça' },
   { key: '{{store_name}}', label: 'Nome da loja', example: 'Minha Loja' },
+  { key: '{{review_link}}', label: 'Link de avaliação', example: 'https://loja.com/avaliar/abc123' },
+  { key: '{{products_review_links}}', label: 'Links por produto', example: 'Camiseta: https://...\nCalça: https://...' },
 ];
 
 // Sample values for preview
@@ -65,6 +67,8 @@ const sampleValues: Record<string, string> = {
   '{{shipping_status}}': 'Em trânsito',
   '{{product_names}}': 'Camiseta Preta, Calça Jeans',
   '{{store_name}}': 'Minha Loja',
+  '{{review_link}}': 'https://minhaloja.com/avaliar/abc123xyz',
+  '{{products_review_links}}': 'Camiseta Preta: https://minhaloja.com/avaliar/abc123?product=123\nCalça Jeans: https://minhaloja.com/avaliar/abc123?product=456',
 };
 
 function renderPreview(text: string, isWhatsapp: boolean): string {
