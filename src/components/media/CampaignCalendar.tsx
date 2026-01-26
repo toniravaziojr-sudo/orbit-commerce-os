@@ -623,7 +623,7 @@ export function CampaignCalendar() {
         title={campaign.name}
         description={campaign.prompt}
         actions={
-          <Button variant="outline" onClick={() => navigate("/media")}>
+          <Button variant="outline" onClick={() => navigate(campaign?.target_channel === "blog" ? "/blog/campaigns" : "/media")}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Voltar
           </Button>
