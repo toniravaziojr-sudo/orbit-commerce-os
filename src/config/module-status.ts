@@ -33,7 +33,6 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   '/marketing/atribuicao': 'pending',
   '/email-marketing': 'pending',
   '/offers': 'ready',
-  '/reviews': 'ready',
   '/media': 'ready',
   '/blog/campaigns': 'ready',
   '/campaigns': 'pending',
@@ -42,6 +41,7 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   '/notifications': 'ready',
   '/support': 'pending',
   '/emails': 'ready',
+  '/reviews': 'ready',
   
   // ERP
   '/fiscal': 'ready',

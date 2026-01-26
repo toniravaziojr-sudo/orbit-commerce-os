@@ -1,10 +1,10 @@
-# CRM (Notificações, Atendimento, Emails) — Regras e Especificações
+# CRM (Notificações, Atendimento, Emails, Avaliações) — Regras e Especificações
 
-> **STATUS:** ✅ Ready (Emails, Notificações, Atendimento WhatsApp com IA)
+> **STATUS:** ✅ Ready (Emails, Notificações, Atendimento WhatsApp com IA, Avaliações)
 
 ## Visão Geral
 
-Módulo de relacionamento com cliente: notificações, atendimento/suporte, e gestão de emails.
+Módulo de relacionamento com cliente: notificações, atendimento/suporte, gestão de emails e avaliações de produtos.
 
 ---
 
@@ -15,6 +15,7 @@ Módulo de relacionamento com cliente: notificações, atendimento/suporte, e ge
 | Notificações | `/notifications` | ✅ Ready |
 | Atendimento | `/support` | ✅ Ready |
 | Emails | `/emails` | ✅ Ready |
+| Avaliações | `/reviews` | ✅ Ready |
 
 ---
 
