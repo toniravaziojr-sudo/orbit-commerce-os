@@ -528,3 +528,12 @@ verify_jwt = false
 
 [functions.ai-kb-ingest]
 verify_jwt = false
+
+[functions.ai-support-vision]
+verify_jwt = false
+
+[functions.ai-support-transcribe]
+verify_jwt = false
+
+[functions.ai-media-queue-process]
+verify_jwt = false

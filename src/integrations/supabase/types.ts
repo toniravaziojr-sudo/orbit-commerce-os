@@ -459,6 +459,79 @@ export type Database = {
           },
         ]
       }
+      ai_media_queue: {
+        Row: {
+          attachment_id: string
+          attempts: number | null
+          created_at: string | null
+          error_message: string | null
+          id: string
+          last_attempt_at: string | null
+          max_attempts: number | null
+          message_id: string
+          next_retry_at: string | null
+          process_type: string
+          processed_at: string | null
+          result: Json | null
+          status: string | null
+          tenant_id: string
+        }
+        Insert: {
+          attachment_id: string
+          attempts?: number | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          last_attempt_at?: string | null
+          max_attempts?: number | null
+          message_id: string
+          next_retry_at?: string | null
+          process_type: string
+          processed_at?: string | null
+          result?: Json | null
+          status?: string | null
+          tenant_id: string
+        }
+        Update: {
+          attachment_id?: string
+          attempts?: number | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          last_attempt_at?: string | null
+          max_attempts?: number | null
+          message_id?: string
+          next_retry_at?: string | null
+          process_type?: string
+          processed_at?: string | null
+          result?: Json | null
+          status?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_media_queue_attachment_id_fkey"
+            columns: ["attachment_id"]
+            isOneToOne: false
+            referencedRelation: "message_attachments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_media_queue_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_media_queue_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_model_pricing: {
         Row: {
           cost_per_1k_tokens: number | null
@@ -11233,6 +11306,12 @@ export type Database = {
       }
       tenant_monthly_usage: {
         Row: {
+          ai_audio_duration_seconds: number | null
+          ai_audio_transcription_count: number | null
+          ai_embedding_tokens: number | null
+          ai_handoff_count: number | null
+          ai_image_analysis_count: number | null
+          ai_messages_count: number | null
           ai_usage_cents: number
           created_at: string
           gmv_cents: number
@@ -11247,6 +11326,12 @@ export type Database = {
           year_month: string
         }
         Insert: {
+          ai_audio_duration_seconds?: number | null
+          ai_audio_transcription_count?: number | null
+          ai_embedding_tokens?: number | null
+          ai_handoff_count?: number | null
+          ai_image_analysis_count?: number | null
+          ai_messages_count?: number | null
           ai_usage_cents?: number
           created_at?: string
           gmv_cents?: number
@@ -11261,6 +11346,12 @@ export type Database = {
           year_month: string
         }
         Update: {
+          ai_audio_duration_seconds?: number | null
+          ai_audio_transcription_count?: number | null
+          ai_embedding_tokens?: number | null
+          ai_handoff_count?: number | null
+          ai_image_analysis_count?: number | null
+          ai_messages_count?: number | null
           ai_usage_cents?: number
           created_at?: string
           gmv_cents?: number
@@ -11964,6 +12055,19 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      increment_ai_metrics: {
+        Args: {
+          p_audio_count?: number
+          p_audio_seconds?: number
+          p_embedding_tokens?: number
+          p_handoffs?: number
+          p_images?: number
+          p_messages?: number
+          p_no_evidence?: number
+          p_tenant_id: string
+        }
+        Returns: undefined
       }
       increment_blog_view_count: {
         Args: { post_id: string }
