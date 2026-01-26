@@ -72,7 +72,7 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { calendar_item_id, publish_now } = await req.json();
+    const { calendar_item_id, publish_now, schedule_at } = await req.json();
 
     if (!calendar_item_id) {
       return new Response(
@@ -89,7 +89,8 @@ serve(async (req) => {
         campaign:media_campaigns!inner(
           id,
           tenant_id,
-          auto_publish
+          auto_publish,
+          target_channel
         )
       `)
       .eq("id", calendar_item_id)
@@ -102,8 +103,14 @@ serve(async (req) => {
       );
     }
 
-    // Check if this is a blog item
-    if (item.target_channel !== "blog") {
+    // Check if this is a blog item - accepts both target_channel and target_platforms
+    const targetPlatforms = item.target_platforms as string[] || [];
+    const isBlogItem = item.target_channel === "blog" || 
+                       item.campaign?.target_channel === "blog" ||
+                       targetPlatforms.includes("blog") ||
+                       item.content_type === "text";
+
+    if (!isBlogItem) {
       return new Response(
         JSON.stringify({ success: false, error: "Este item não é do canal Blog" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -176,10 +183,25 @@ serve(async (req) => {
     const wordCount = (item.copy || "").split(/\s+/).length;
     const readTimeMinutes = Math.max(1, Math.ceil(wordCount / 200));
 
-    // Determine publish status based on publish_now flag and scheduled date
+    // Determine publish timing
     const now = new Date();
-    const scheduledDate = new Date(item.scheduled_date);
-    const shouldPublish = publish_now || (item.campaign.auto_publish && scheduledDate <= now);
+    
+    // Calculate scheduled datetime from scheduled_date + scheduled_time
+    let scheduledDateTime: Date | null = null;
+    if (item.scheduled_date) {
+      const datePart = item.scheduled_date; // e.g., "2026-01-26"
+      const timePart = item.scheduled_time || "10:00:00"; // e.g., "10:00:00"
+      scheduledDateTime = new Date(`${datePart}T${timePart}`);
+    }
+    
+    // Use schedule_at if provided, otherwise use item's scheduled date/time
+    const targetPublishAt = schedule_at ? new Date(schedule_at) : scheduledDateTime;
+    
+    // Determine if we should publish now or schedule
+    const shouldPublishNow = publish_now || 
+                             (item.campaign.auto_publish && targetPublishAt && targetPublishAt <= now);
+    
+    const shouldSchedule = !shouldPublishNow && targetPublishAt && targetPublishAt > now;
 
     // Create the blog post
     const { data: blogPost, error: blogError } = await supabase
@@ -190,8 +212,8 @@ serve(async (req) => {
         slug: slug,
         content: content,
         excerpt: (item.copy || "").substring(0, 200) + "...",
-        status: shouldPublish ? "published" : "draft",
-        published_at: shouldPublish ? new Date().toISOString() : null,
+        status: shouldPublishNow ? "published" : (shouldSchedule ? "scheduled" : "draft"),
+        published_at: shouldPublishNow ? new Date().toISOString() : (shouldSchedule ? targetPublishAt!.toISOString() : null),
         featured_image_url: featuredImageUrl,
         featured_image_alt: item.title,
         tags: item.hashtags || [],
@@ -210,31 +232,58 @@ serve(async (req) => {
       );
     }
 
+    // Determine calendar item status
+    let newStatus = "approved";
+    if (shouldPublishNow) {
+      newStatus = "published";
+    } else if (shouldSchedule) {
+      newStatus = "scheduled";
+    }
+
     // Update the calendar item with the blog post reference
     await supabase
       .from("media_calendar_items")
       .update({
         blog_post_id: blogPost.id,
-        published_blog_at: shouldPublish ? new Date().toISOString() : null,
-        status: shouldPublish ? "published" : "approved",
-        published_at: shouldPublish ? new Date().toISOString() : null,
+        published_blog_at: shouldPublishNow ? new Date().toISOString() : null,
+        status: newStatus,
+        published_at: shouldPublishNow ? new Date().toISOString() : null,
         publish_results: {
           blog_post_id: blogPost.id,
           blog_slug: blogPost.slug,
-          published: shouldPublish,
+          published: shouldPublishNow,
+          scheduled: shouldSchedule,
+          scheduled_for: shouldSchedule ? targetPublishAt!.toISOString() : null,
         },
       })
       .eq("id", calendar_item_id);
+
+    // Determine message
+    let message = "";
+    if (shouldPublishNow) {
+      message = `Post publicado com sucesso: ${blogPost.title}`;
+    } else if (shouldSchedule) {
+      const formattedDate = targetPublishAt!.toLocaleDateString("pt-BR", { 
+        day: "2-digit", 
+        month: "2-digit", 
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+      message = `Post agendado para ${formattedDate}: ${blogPost.title}`;
+    } else {
+      message = `Post salvo como rascunho: ${blogPost.title}`;
+    }
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         blog_post_id: blogPost.id,
         slug: blogPost.slug,
-        published: shouldPublish,
-        message: shouldPublish 
-          ? `Post publicado com sucesso: ${blogPost.title}` 
-          : `Post salvo como rascunho: ${blogPost.title}`
+        published: shouldPublishNow,
+        scheduled: shouldSchedule,
+        scheduled_for: shouldSchedule ? targetPublishAt!.toISOString() : null,
+        message
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

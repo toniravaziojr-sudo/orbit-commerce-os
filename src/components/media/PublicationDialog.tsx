@@ -99,6 +99,7 @@ const storyFormSchema = z.object({
 const blogFormSchema = z.object({
   title: z.string().min(1, "Título é obrigatório"),
   copy: z.string().min(1, "Conteúdo é obrigatório"),
+  scheduled_time: z.string().optional(),
 });
 
 export function PublicationDialog({
@@ -164,6 +165,7 @@ export function PublicationDialog({
     defaultValues: {
       title: "",
       copy: "",
+      scheduled_time: "10:00",
     },
   });
 
@@ -219,6 +221,7 @@ export function PublicationDialog({
           blogForm.reset({
             title: editItem.title || "",
             copy: editItem.copy || "",
+            scheduled_time: editItem.scheduled_time?.slice(0, 5) || "10:00",
           });
         }
       } else {
@@ -397,7 +400,9 @@ export function PublicationDialog({
       copy: values.copy,
       content_type: "text" as const,
       target_platforms: ["blog"],
+      target_channel: "blog" as const, // Importante para media-publish-blog
       status: "draft" as const,
+      scheduled_time: values.scheduled_time ? `${values.scheduled_time}:00` : null,
     };
 
     if (isEditing && editItem) {
@@ -410,13 +415,11 @@ export function PublicationDialog({
         ...baseData,
         cta: null,
         hashtags: [],
-        scheduled_time: null,
         generation_prompt: null,
         reference_urls: null,
         asset_url: null,
         asset_thumbnail_url: null,
         asset_metadata: {},
-        target_channel: null,
         blog_post_id: null,
         published_blog_at: null,
         published_at: null,
@@ -830,6 +833,20 @@ export function PublicationDialog({
                       <FormLabel>Conteúdo / Resumo</FormLabel>
                       <FormControl>
                         <Textarea placeholder="Escreva o conteúdo ou resumo do artigo..." className="min-h-[150px]" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={blogForm.control}
+                  name="scheduled_time"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Horário de Publicação</FormLabel>
+                      <FormControl>
+                        <Input type="time" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

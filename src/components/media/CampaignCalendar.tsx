@@ -508,39 +508,57 @@ export function CampaignCalendar() {
     }
   };
 
-  // Publicar Posts do Blog
-  const handlePublishBlog = async () => {
+  // Agendar/Publicar Posts do Blog
+  const handleScheduleBlog = async () => {
     if (!items || !currentTenant) return;
     
+    // Itens aprovados que ainda não foram publicados/agendados
     const approvedItems = items.filter(i => i.status === "approved" && !i.blog_post_id);
     if (approvedItems.length === 0) {
-      toast.info("Nenhum item aprovado para publicar. Aprove os itens primeiro.");
+      toast.info("Nenhum item aprovado para agendar. Aprove os itens primeiro.");
       return;
     }
     
     setIsScheduling(true);
+    let scheduled = 0;
     let published = 0;
     let failed = 0;
     
     try {
       for (const item of approvedItems) {
+        // Monta datetime do agendamento baseado no item
+        let scheduleAt: string | null = null;
+        if (item.scheduled_date) {
+          const timePart = item.scheduled_time || "10:00:00";
+          scheduleAt = `${item.scheduled_date}T${timePart}`;
+        }
+        
         const { data, error } = await supabase.functions.invoke("media-publish-blog", {
           body: { 
             calendar_item_id: item.id,
-            publish_now: true,
+            // Não forçar publish_now - usar a data/hora agendada
+            publish_now: false,
+            schedule_at: scheduleAt,
           },
         });
 
         if (error || !data?.success) {
           failed++;
-          console.error(`Failed to publish item ${item.id}:`, error || data?.error);
+          console.error(`Failed to schedule item ${item.id}:`, error || data?.error);
         } else {
-          published++;
+          if (data.published) {
+            published++;
+          } else if (data.scheduled) {
+            scheduled++;
+          }
         }
       }
       
+      if (scheduled > 0) {
+        toast.success(`${scheduled} post(s) agendado(s) para publicação!`);
+      }
       if (published > 0) {
-        toast.success(`${published} post(s) de blog publicado(s)!`);
+        toast.success(`${published} post(s) publicado(s) imediatamente!`);
       }
       if (failed > 0) {
         toast.error(`${failed} post(s) falharam`);
@@ -549,7 +567,7 @@ export function CampaignCalendar() {
       await refetchItems();
       queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
     } catch (err) {
-      toast.error("Erro ao publicar posts");
+      toast.error("Erro ao agendar posts");
     } finally {
       setIsScheduling(false);
     }
@@ -776,11 +794,11 @@ export function CampaignCalendar() {
                   </Button>
                 )}
 
-                {/* Publicar no Blog - só para itens aprovados */}
+                {/* Agendar no Blog - só para itens aprovados */}
                 {stats.approved > 0 && (
                   <Button 
                     variant="default"
-                    onClick={handlePublishBlog}
+                    onClick={handleScheduleBlog}
                     disabled={isScheduling}
                     className="gap-2"
                   >
@@ -789,7 +807,7 @@ export function CampaignCalendar() {
                     ) : (
                       <Send className="h-4 w-4" />
                     )}
-                    Publicar no Blog
+                    Agendar no Blog ({stats.approved})
                   </Button>
                 )}
               </>
