@@ -106,10 +106,22 @@ export interface ThankYouSettings {
   showOrderDetails?: boolean;
 }
 
-export type PageSettings = CategorySettings | ProductSettings | CartSettings | CheckoutSettings | ThankYouSettings;
+export type PageSettings = HomeSettings | CategorySettings | ProductSettings | CartSettings | CheckoutSettings | ThankYouSettings;
 
 // =============================================
-// DEFAULTS - Conforme docs/REGRAS.md
+// HOME SETTINGS - SEO da página inicial
+// =============================================
+
+export interface HomeSettings {
+  seo_title?: string;
+  seo_description?: string;
+}
+
+export const DEFAULT_HOME_SETTINGS: HomeSettings = {
+  seo_title: '',
+  seo_description: '',
+};
+
 // =============================================
 
 export const DEFAULT_CATEGORY_SETTINGS: CategorySettings = {
@@ -194,6 +206,7 @@ export const DEFAULT_THANKYOU_SETTINGS: ThankYouSettings = {
 };
 
 const DEFAULT_SETTINGS: Record<string, PageSettings> = {
+  home: DEFAULT_HOME_SETTINGS,
   category: DEFAULT_CATEGORY_SETTINGS,
   product: DEFAULT_PRODUCT_SETTINGS,
   cart: DEFAULT_CART_SETTINGS,
@@ -203,6 +216,7 @@ const DEFAULT_SETTINGS: Record<string, PageSettings> = {
 
 function getSettingsKey(pageType: string): string {
   const keys: Record<string, string> = {
+    home: 'homeSettings',
     category: 'categorySettings',
     product: 'productSettings',
     cart: 'cartSettings',

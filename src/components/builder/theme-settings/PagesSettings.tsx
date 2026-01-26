@@ -35,7 +35,7 @@ interface PageItem {
 }
 
 const pages: PageItem[] = [
-  { id: 'home', label: 'Página Inicial', icon: <Home className="h-4 w-4" />, hasSettings: false, description: 'Layout e seções editáveis via blocos' },
+  { id: 'home', label: 'Página Inicial', icon: <Home className="h-4 w-4" />, hasSettings: true, description: 'SEO e configurações gerais' },
   { id: 'category', label: 'Categoria', icon: <Grid3X3 className="h-4 w-4" />, hasSettings: true, description: 'Banner, nome e avaliações' },
   { id: 'product', label: 'Produto', icon: <Package className="h-4 w-4" />, hasSettings: true, description: 'Galeria, compre junto, avaliações' },
   { id: 'cart', label: 'Carrinho', icon: <ShoppingCart className="h-4 w-4" />, hasSettings: true, description: 'Frete, cupom, cross-sell' },
