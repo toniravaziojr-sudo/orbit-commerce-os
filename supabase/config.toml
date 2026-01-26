@@ -495,3 +495,27 @@ verify_jwt = false
 
 [functions.meta-whatsapp-test-send]
 verify_jwt = true
+
+[functions.pagbank-create-charge]
+verify_jwt = true
+
+[functions.pagbank-webhook]
+verify_jwt = false
+
+[functions.pagbank-refund]
+verify_jwt = true
+
+[functions.olist-oauth-start]
+verify_jwt = true
+
+[functions.olist-oauth-callback]
+verify_jwt = false
+
+[functions.olist-token-refresh]
+verify_jwt = false
+
+[functions.olist-connection-status]
+verify_jwt = true
+
+[functions.olist-disconnect]
+verify_jwt = true
