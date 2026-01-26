@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ExternalLink, ShoppingBag, Info, CheckCircle2 } from "lucide-react";
 import { useMeliConnection } from "@/hooks/useMeliConnection";
 import { useShopeeConnection } from "@/hooks/useShopeeConnection";
+import { useOlistConnection } from "@/hooks/useOlistConnection";
 
 // Mercado Livre Logo Component
 function MercadoLivreLogo({ className }: { className?: string }) {
@@ -31,9 +32,19 @@ function ShopeeLogo({ className }: { className?: string }) {
   );
 }
 
-// Upcoming marketplaces (Shopee removed - now functional)
+// Olist Logo Component
+function OlistLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 48 48" className={className}>
+      <rect width="48" height="48" rx="8" fill="#00C853" />
+      <circle cx="24" cy="24" r="12" fill="white" />
+      <circle cx="24" cy="24" r="6" fill="#00C853" />
+    </svg>
+  );
+}
+
+// Upcoming marketplaces (Olist and Shopee removed - now functional)
 const UPCOMING_MARKETPLACES = [
-  { id: "olist", name: "Olist", icon: "🟢", url: "https://olist.com" },
   { id: "amazon", name: "Amazon", icon: "📦", url: "https://amazon.com.br" },
   { id: "magalu", name: "Magalu", icon: "🔵", url: "https://magazineluiza.com.br" },
 ];
@@ -41,6 +52,7 @@ const UPCOMING_MARKETPLACES = [
 export function MarketplacesIntegrationTab() {
   const { isConnected: meliConnected, isLoading: meliLoading, platformConfigured: meliConfigured } = useMeliConnection();
   const { isConnected: shopeeConnected, isLoading: shopeeLoading, platformConfigured: shopeeConfigured } = useShopeeConnection();
+  const { isConnected: olistConnected, isLoading: olistLoading, platformConfigured: olistConfigured } = useOlistConnection();
 
   return (
     <div className="space-y-6">
@@ -154,6 +166,49 @@ export function MarketplacesIntegrationTab() {
               </Button>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Olist Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <OlistLogo className="h-10 w-10" />
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  Olist
+                  {olistConnected && (
+                    <Badge variant="default" className="bg-green-600">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Conectado
+                    </Badge>
+                  )}
+                  {!olistConnected && !olistLoading && (
+                    <Badge variant="secondary">Não conectado</Badge>
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  Integre com Olist ERP (Tiny) ou E-commerce (Vnda)
+                </CardDescription>
+              </div>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline">Pedidos</Badge>
+              <Badge variant="outline">Nota Fiscal</Badge>
+              <Badge variant="outline">Estoque</Badge>
+            </div>
+            <Button asChild>
+              <Link to="/marketplaces/olist">
+                <ShoppingBag className="h-4 w-4 mr-2" />
+                {olistConnected ? "Gerenciar" : "Conectar"}
+              </Link>
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
