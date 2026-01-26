@@ -111,7 +111,9 @@ Ao criar um post, ele é inicializado com dois blocos RichText separados:
 | Status | Descrição |
 |--------|-----------|
 | `draft` | Rascunho, não visível no storefront |
+| `scheduled` | Agendado para publicação futura (via campanhas IA) |
 | `published` | Publicado e visível no storefront |
+| `archived` | Arquivado, não visível no storefront |
 
 ---
 
