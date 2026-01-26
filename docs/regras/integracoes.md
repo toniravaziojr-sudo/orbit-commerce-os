@@ -123,6 +123,7 @@ A aba `domain-email` unifica duas seções:
 |-------------|--------|-----------|
 | Mercado Livre | ✅ Ready | Sincronização de produtos |
 | Shopee | ✅ Ready | Sincronização de pedidos e OAuth |
+| Olist | ✅ Ready | ERP (Tiny) + E-commerce (Vnda) via token |
 | TikTok Shop | 🟧 Em Cadastro | Marketplace integrado |
 | Amazon | 🟧 Pending | Planejado |
 
