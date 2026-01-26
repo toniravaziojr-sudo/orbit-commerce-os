@@ -16,6 +16,12 @@ interface GenerationSettings {
   needs_product_image?: boolean;
   is_kit_scenario?: boolean;
   image_size?: string;
+  // Video-specific settings
+  asset_type?: "image" | "video";
+  duration?: number;
+  aspect_ratio?: string;
+  source_image_url?: string;
+  product_name?: string;
 }
 
 // Download image and convert to base64 data URL
@@ -178,6 +184,127 @@ async function generateWithFalAI(
 }
 
 /**
+ * GERAÇÃO DE VÍDEO COM SORA 2 - Image-to-Video Pro
+ * Usa imagem do produto como primeiro frame para manter fidelidade
+ */
+async function generateVideoWithSora2(
+  falApiKey: string,
+  prompt: string,
+  sourceImageUrl: string,
+  duration: number = 5,
+  aspectRatio: string = "16:9"
+): Promise<{ videoUrl: string | null; model: string; error?: string }> {
+  try {
+    console.log("🎬 === Fal.AI Sora 2 Image-to-Video Pro ===");
+    console.log(`   Source image: ${sourceImageUrl.substring(0, 80)}...`);
+    console.log(`   Duration: ${duration}s, Aspect: ${aspectRatio}`);
+    
+    const response = await fetch("https://queue.fal.run/fal-ai/sora-2/image-to-video/pro", {
+      method: "POST",
+      headers: {
+        "Authorization": `Key ${falApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        prompt: prompt,
+        image_url: sourceImageUrl,
+        duration: duration,
+        aspect_ratio: aspectRatio,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("❌ Sora 2 error:", response.status, errorText);
+      return { videoUrl: null, model: "sora-2/image-to-video/pro", error: `HTTP ${response.status}: ${errorText}` };
+    }
+
+    const data = await response.json();
+    console.log("📦 Sora 2 response:", JSON.stringify(data, null, 2).substring(0, 500));
+    
+    // Handle queue response - Sora 2 always queues
+    if (data.request_id) {
+      console.log("⏳ Sora 2 queued, polling for result (this may take 2-5 minutes)...");
+      return await pollSora2Result(falApiKey, data.request_id);
+    }
+
+    // Direct response (unlikely for Sora 2)
+    const videoUrl = data.video?.url;
+    
+    if (!videoUrl) {
+      console.error("❌ No video in Sora 2 response:", data);
+      return { videoUrl: null, model: "sora-2/image-to-video/pro", error: "No video in response" };
+    }
+
+    console.log("✅ Sora 2 video generated - SUCCESS");
+    return { videoUrl, model: "sora-2/image-to-video/pro" };
+  } catch (error) {
+    console.error("❌ Error calling Sora 2:", error);
+    return { videoUrl: null, model: "sora-2/image-to-video/pro", error: String(error) };
+  }
+}
+
+/**
+ * Poll Sora 2 queue for video result
+ * Sora 2 takes longer (2-5 minutes typically)
+ */
+async function pollSora2Result(
+  falApiKey: string,
+  requestId: string,
+  maxAttempts: number = 150 // ~5 minutes with 2s intervals
+): Promise<{ videoUrl: string | null; model: string; error?: string }> {
+  const statusUrl = `https://queue.fal.run/fal-ai/sora-2-image-to-video-pro/requests/${requestId}/status`;
+  
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+    
+    try {
+      const statusResponse = await fetch(statusUrl, {
+        headers: { "Authorization": `Key ${falApiKey}` },
+      });
+      
+      if (!statusResponse.ok) {
+        console.log(`⏳ Sora 2 polling attempt ${attempt + 1}/${maxAttempts}...`);
+        continue;
+      }
+      
+      const statusData = await statusResponse.json();
+      console.log(`📊 Sora 2 Status: ${statusData.status}`);
+      
+      if (statusData.status === "COMPLETED") {
+        // Get result
+        const resultUrl = `https://queue.fal.run/fal-ai/sora-2-image-to-video-pro/requests/${requestId}`;
+        const resultResponse = await fetch(resultUrl, {
+          headers: { "Authorization": `Key ${falApiKey}` },
+        });
+        
+        if (!resultResponse.ok) {
+          return { videoUrl: null, model: "sora-2/image-to-video/pro", error: "Failed to fetch video result" };
+        }
+        
+        const resultData = await resultResponse.json();
+        const videoUrl = resultData.video?.url;
+        
+        if (!videoUrl) {
+          return { videoUrl: null, model: "sora-2/image-to-video/pro", error: "No video in completed result" };
+        }
+        
+        console.log("✅ Sora 2 polling complete - VIDEO READY");
+        return { videoUrl, model: "sora-2/image-to-video/pro" };
+      }
+      
+      if (statusData.status === "FAILED") {
+        return { videoUrl: null, model: "sora-2/image-to-video/pro", error: statusData.error || "Video generation failed" };
+      }
+    } catch (pollError) {
+      console.error(`⚠️ Sora 2 polling error (attempt ${attempt + 1}):`, pollError);
+    }
+  }
+  
+  return { videoUrl: null, model: "sora-2/image-to-video/pro", error: "Video generation timeout (exceeded 5 minutes)" };
+}
+
+/**
  * Poll Fal.AI queue for result
  */
 async function pollFalAIResult(
@@ -328,6 +455,7 @@ serve(async (req) => {
 
         // Parse settings
         const settings = (generation.settings || {}) as GenerationSettings;
+        const assetType = settings.asset_type || "image";
         const contentType = settings.content_type || "image";
         const needsProductImage = settings.needs_product_image ?? false;
         const matchedProducts = settings.matched_products || [];
@@ -335,6 +463,7 @@ serve(async (req) => {
         const imageSize = settings.image_size || "1024x1024";
 
         console.log("📋 Settings:", JSON.stringify({
+          assetType,
           contentType,
           needsProductImage,
           matchedProductsCount: matchedProducts.length,
@@ -342,6 +471,131 @@ serve(async (req) => {
           imageSize,
         }, null, 2));
 
+        // ============ VIDEO GENERATION (Sora 2) ============
+        if (assetType === "video") {
+          console.log("🎬 Processing VIDEO generation with Sora 2");
+          
+          const sourceImageUrl = settings.source_image_url;
+          const duration = settings.duration || 5;
+          const aspectRatio = settings.aspect_ratio || "16:9";
+          
+          if (!sourceImageUrl) {
+            throw new Error("Geração de vídeo requer imagem de origem (source_image_url)");
+          }
+          
+          const videoResult = await generateVideoWithSora2(
+            falApiKey,
+            generation.prompt_final,
+            sourceImageUrl,
+            duration,
+            aspectRatio
+          );
+          
+          if (!videoResult.videoUrl) {
+            throw new Error(videoResult.error || "Falha ao gerar vídeo - resposta vazia");
+          }
+          
+          console.log("✅ Video generated successfully");
+          
+          // Download and upload video to storage
+          const videoResponse = await fetch(videoResult.videoUrl);
+          if (!videoResponse.ok) {
+            throw new Error("Falha ao baixar vídeo gerado");
+          }
+          
+          const videoBuffer = await videoResponse.arrayBuffer();
+          const videoData = new Uint8Array(videoBuffer);
+          
+          const storagePath = `${generation.tenant_id}/${genId}/variant_1.mp4`;
+          
+          const { error: uploadError } = await supabase.storage
+            .from("media-assets")
+            .upload(storagePath, videoData, {
+              contentType: "video/mp4",
+              upsert: true,
+            });
+
+          if (uploadError) {
+            console.error("❌ Video upload error:", uploadError);
+            throw new Error("Falha ao salvar vídeo no storage");
+          }
+
+          // Create variant record for video
+          const { error: variantError } = await supabase
+            .from("media_asset_variants")
+            .insert({
+              generation_id: genId,
+              variant_index: 1,
+              storage_path: storagePath,
+              mime_type: "video/mp4",
+              file_size: videoData.length,
+              width: aspectRatio === "9:16" ? 720 : 1280,
+              height: aspectRatio === "9:16" ? 1280 : 720,
+            });
+
+          if (variantError) {
+            console.error("⚠️ Variant record error:", variantError);
+          }
+
+          // Get public URL
+          const { data: publicUrlData } = supabase.storage
+            .from("media-assets")
+            .getPublicUrl(storagePath);
+
+          const publicUrl = publicUrlData?.publicUrl;
+
+          // Update calendar item with video URL
+          if (publicUrl && generation.calendar_item_id) {
+            const { error: updateItemError } = await supabase
+              .from("media_calendar_items")
+              .update({ 
+                asset_url: publicUrl,
+                asset_thumbnail_url: publicUrl // For video, we use same URL
+              })
+              .eq("id", generation.calendar_item_id);
+
+            if (updateItemError) {
+              console.error("⚠️ Error updating calendar item:", updateItemError);
+            }
+          }
+
+          const elapsedMs = Date.now() - genStartTime;
+          const costEstimate = 0.50; // Sora 2 Pro estimate
+
+          await supabase
+            .from("media_asset_generations")
+            .update({ 
+              status: "succeeded",
+              completed_at: new Date().toISOString(),
+              provider: "fal-ai",
+              model: "sora-2/image-to-video/pro",
+              settings: {
+                ...settings,
+                actual_variant_count: 1,
+                cost_estimate: costEstimate,
+                ai_provider_used: "fal-ai",
+                processing_time_ms: elapsedMs,
+                used_product_reference: true,
+                product_asset_url: sourceImageUrl,
+              },
+            })
+            .eq("id", genId);
+
+          processed++;
+          results.push({
+            id: genId,
+            status: "succeeded",
+            type: "video",
+            model: "sora-2/image-to-video/pro",
+            cost: costEstimate,
+            timeMs: elapsedMs,
+            duration,
+          });
+          console.log(`✅ Video generation ${genId} completed (time: ${elapsedMs}ms, duration: ${duration}s)`);
+          continue; // Skip to next generation
+        }
+
+        // ============ IMAGE GENERATION ============
         // Determine aspect ratio for Fal.AI
         const aspectRatio = contentType === "story" || contentType === "reel" ? "9:16" : "1:1";
 
@@ -515,6 +769,7 @@ FORMATO: ${contentType === "story" || contentType === "reel" ? "Vertical 9:16" :
         results.push({
           id: genId,
           status: "succeeded",
+          type: "image",
           model: result.model,
           cost: costPerImage,
           timeMs: elapsedMs,

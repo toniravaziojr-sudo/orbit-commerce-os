@@ -11,6 +11,7 @@
 | **Provider** | Fal.AI (chave de API global da plataforma) |
 | **Modelo (image-to-image)** | `gpt-image-1.5/edit` — quando há produto detectado no prompt |
 | **Modelo (text-to-image)** | `gpt-image-1.5` — quando não há produto específico |
+| **Modelo (video)** | `sora-2/image-to-video/pro` — vídeo premium a partir de imagem |
 | **Credencial** | `FAL_API_KEY` em `platform_credentials` |
 
 ---

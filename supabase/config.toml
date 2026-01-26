@@ -343,6 +343,9 @@ verify_jwt = true
 [functions.media-generate-image]
 verify_jwt = true
 
+[functions.media-generate-video]
+verify_jwt = true
+
 [functions.media-process-generation-queue]
 verify_jwt = false
 schedule = "*/30 * * * * *"

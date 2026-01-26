@@ -16,11 +16,14 @@ import {
   Sparkles,
   Package,
   Expand,
+  Video,
+  Play,
 } from "lucide-react";
 import {
   useAssetGenerations,
   useAllVariantsForItem,
   useGenerateImage,
+  useGenerateVideo,
   useApproveVariant,
   useGetSignedUrl,
   type AssetVariant,
@@ -67,8 +70,17 @@ export function AssetVariantsGallery({
   const hasPackshot = !!brandContext?.packshot_url;
   
   const generateImage = useGenerateImage();
+  const generateVideo = useGenerateVideo();
   const approveVariant = useApproveVariant();
   const getSignedUrl = useGetSignedUrl();
+
+  const handleGenerateVideo = () => {
+    generateVideo.mutate({ 
+      calendarItemId, 
+      duration: 5,
+      aspectRatio: "16:9",
+    });
+  };
 
   // Get signed URLs for variants
   useEffect(() => {
@@ -123,6 +135,7 @@ export function AssetVariantsGallery({
   const isGenerating = generations?.some(
     (g) => g.status === "queued" || g.status === "generating"
   );
+  const isGeneratingVideo = generateVideo.isPending;
 
   const hasVariants = variants && variants.length > 0;
 
@@ -161,21 +174,40 @@ export function AssetVariantsGallery({
                 Gerando...
               </>
             ) : (
-              <>
-                <ImageIcon className="h-4 w-4 mr-2" />
-                Gerar imagem
-              </>
-            )}
-          </Button>
-        </div>
+            <>
+              <ImageIcon className="h-4 w-4 mr-2" />
+              Gerar imagem
+            </>
+          )}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleGenerateVideo}
+          disabled={isGeneratingVideo || isGenerating}
+        >
+          {isGeneratingVideo ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Gerando...
+            </>
+          ) : (
+            <>
+              <Video className="h-4 w-4 mr-2" />
+              Gerar vídeo
+            </>
+          )}
+        </Button>
       </div>
+    </div>
 
-      {/* Packshot info */}
-      {!hasPackshot && (
-        <div className="text-xs text-muted-foreground bg-amber-50 dark:bg-amber-950/30 p-2 rounded">
-          💡 Configure um packshot em "Contexto de Marca" para preservar rótulos e embalagens
-        </div>
-      )}
+    {/* Packshot info */}
+    {!hasPackshot && (
+      <div className="text-xs text-muted-foreground bg-amber-50 dark:bg-amber-950/30 p-2 rounded">
+        💡 Configure um packshot em "Contexto de Marca" para preservar rótulos e embalagens
+      </div>
+    )}
 
       {/* Loading state */}
       {(loadingGenerations || loadingVariants) && (
@@ -201,56 +233,77 @@ export function AssetVariantsGallery({
       {/* Variants grid */}
       {hasVariants && (
         <div className="grid grid-cols-2 gap-3">
-          {variants.map((variant) => {
-            const imageUrl = signedUrls[variant.id];
-            const isApproved = !!variant.approved_at;
+        {variants.map((variant) => {
+          const mediaUrl = signedUrls[variant.id];
+          const isApproved = !!variant.approved_at;
+          const isVideo = variant.storage_path?.endsWith('.mp4') || 
+                          (variant as any).mime_type === 'video/mp4';
 
-            return (
-              <Card
-                key={variant.id}
-                className={`relative aspect-square overflow-hidden group cursor-pointer ${
-                  selectedVariant?.id === variant.id ? "ring-2 ring-primary" : ""
-                } ${isApproved ? "ring-2 ring-green-500" : ""}`}
-                onClick={() => setSelectedVariant(variant)}
-              >
-                {imageUrl ? (
+          return (
+            <Card
+              key={variant.id}
+              className={`relative aspect-square overflow-hidden group cursor-pointer ${
+                selectedVariant?.id === variant.id ? "ring-2 ring-primary" : ""
+              } ${isApproved ? "ring-2 ring-green-500" : ""}`}
+              onClick={() => setSelectedVariant(variant)}
+            >
+              {mediaUrl ? (
+                isVideo ? (
+                  <div className="relative w-full h-full">
+                    <video
+                      src={mediaUrl}
+                      className="w-full h-full object-cover"
+                      muted
+                      loop
+                      playsInline
+                      onMouseEnter={(e) => e.currentTarget.play()}
+                      onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="bg-black/50 rounded-full p-2">
+                        <Play className="h-6 w-6 text-white" />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
                   <img
-                    src={imageUrl}
+                    src={mediaUrl}
                     alt={`Variante ${variant.variant_index}`}
                     className="w-full h-full object-cover"
                   />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-muted">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                  </div>
-                )}
+                )
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-muted">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              )}
 
-                {/* Approved badge */}
-                {isApproved && (
-                  <Badge className="absolute top-2 left-2 bg-green-500">
-                    <Check className="h-3 w-3 mr-1" />
-                    Aprovado
-                  </Badge>
-                )}
+              {/* Approved badge */}
+              {isApproved && (
+                <Badge className="absolute top-2 left-2 bg-green-500">
+                  <Check className="h-3 w-3 mr-1" />
+                  Aprovado
+                </Badge>
+              )}
 
-                {/* Expand button - always visible on hover */}
-                {imageUrl && (
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="secondary"
-                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleOpenLightbox(imageUrl);
-                    }}
-                  >
-                    <Expand className="h-4 w-4" />
-                  </Button>
-                )}
+              {/* Expand button - always visible on hover */}
+              {mediaUrl && !isVideo && (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="secondary"
+                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleOpenLightbox(mediaUrl);
+                  }}
+                >
+                  <Expand className="h-4 w-4" />
+                </Button>
+              )}
 
-                {/* Hover actions */}
-                {!isApproved && imageUrl && (
+              {/* Hover actions */}
+              {!isApproved && mediaUrl && (
                   <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex justify-center gap-2">
                     <Button
                       type="button"
