@@ -14,7 +14,8 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Loader2, ChevronRight, Mail, Eye, Palette, Settings2, Image as ImageIcon, Bell, Play } from 'lucide-react';
+import { Loader2, ChevronRight, Mail, Eye, Palette, Settings2, Image as ImageIcon, Bell, Play, Trash2 } from 'lucide-react';
+import { ImageUploaderWithLibrary } from '@/components/builder/ImageUploaderWithLibrary';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { PopupPreview } from './PopupPreview';
@@ -498,44 +499,38 @@ export function PopupSettings({ tenantId, templateSetId }: PopupSettingsProps) {
             </div>
           </div>
 
-          {/* Image URL */}
+          {/* Image URL - with upload support */}
           <div className="space-y-2">
             <Label className="text-sm flex items-center gap-2">
               <ImageIcon className="h-4 w-4" />
-              URL da Imagem Lateral
+              Imagem Lateral
             </Label>
-            <Input
+            <ImageUploaderWithLibrary
               value={localConfig.image_url || ''}
-              onChange={(e) => updateProp('image_url', e.target.value)}
-              placeholder="https://..."
+              onChange={(url) => updateProp('image_url', url)}
+              variant="desktop"
+              aspectRatio="square"
+              placeholder="Envie ou selecione uma imagem"
             />
             <p className="text-xs text-muted-foreground">Usado no layout "Com Imagem Lateral"</p>
           </div>
 
-          {/* Icon Image URL - replaces emoji */}
+          {/* Icon Image URL - with upload support */}
           <div className="space-y-2">
             <Label className="text-sm flex items-center gap-2">
               <ImageIcon className="h-4 w-4" />
               Ícone do Incentivo (Mini Imagem)
             </Label>
-            <Input
+            <ImageUploaderWithLibrary
               value={localConfig.icon_image_url || ''}
-              onChange={(e) => updateProp('icon_image_url', e.target.value)}
-              placeholder="https://... (deixe vazio para usar emoji)"
+              onChange={(url) => updateProp('icon_image_url', url)}
+              variant="desktop"
+              aspectRatio="square"
+              placeholder="Envie ou selecione (opcional)"
             />
             <p className="text-xs text-muted-foreground">
               Substitui o emoji 🎁 por uma mini imagem (24x24px) no badge de incentivo
             </p>
-            {localConfig.icon_image_url && (
-              <div className="flex items-center gap-2 p-2 bg-muted/50 rounded">
-                <img 
-                  src={localConfig.icon_image_url} 
-                  alt="Preview" 
-                  className="w-6 h-6 object-contain"
-                />
-                <span className="text-xs text-muted-foreground">Preview do ícone</span>
-              </div>
-            )}
           </div>
         </CollapsibleContent>
       </Collapsible>
