@@ -1,16 +1,17 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { getCredential } from "../_shared/platform-credentials.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface GenerateVideoRequest {
-  calendar_item_id: string;
-  duration?: number; // 5 or 10 seconds
-  aspect_ratio?: string; // "16:9", "9:16", "1:1"
-}
+// Durações suportadas pelo Sora 2 (em segundos)
+// Nota: Para vídeos maiores, Sora 2 suporta até 20s nativo
+// Para 1 minuto, faremos geração em chunks se necessário
+const SUPPORTED_DURATIONS = [5, 10, 15, 20] as const;
+type SupportedDuration = typeof SUPPORTED_DURATIONS[number];
 
 interface ProductMatch {
   id: string;
@@ -21,8 +22,9 @@ interface ProductMatch {
 }
 
 /**
- * Busca produtos no texto baseado em nome, SKU e palavras-chave
- * CRÍTICO: Precisa encontrar o produto correto para usar imagem REAL como primeiro frame
+ * Busca produtos no texto baseado em nome e palavras-chave.
+ * A imagem do produto será usada como REFERÊNCIA CRIATIVA para a IA,
+ * permitindo que ela crie cenas com pessoas segurando o produto, etc.
  */
 async function findProductsInText(
   supabase: any,
@@ -44,17 +46,17 @@ async function findProductsInText(
     .order("name");
 
   if (error || !products || products.length === 0) {
-    console.log("⚠️ No products found for tenant:", tenantId);
+    console.log("[media-generate-video] No products found for tenant:", tenantId);
     return matches;
   }
 
   const textLower = text.toLowerCase();
-  console.log(`🔍 Searching for products in text (${text.length} chars), ${products.length} products to check`);
+  console.log(`[media-generate-video] Searching for products in text (${text.length} chars)`);
 
   for (const product of products) {
     const productNameLower = product.name.toLowerCase();
     
-    // Método 1: Match exato do nome
+    // Match exato do nome
     if (textLower.includes(productNameLower)) {
       const images = product.product_images || [];
       const primaryImage = images.find((img: any) => img.is_primary);
@@ -63,11 +65,11 @@ async function findProductsInText(
       const isKit = productNameLower.includes("kit");
       
       matches.push({ id: product.id, name: product.name, image_url: imageUrl, is_kit: isKit, sku: product.sku });
-      console.log(`✅ EXACT match: "${product.name}" (kit: ${isKit}, hasImage: ${!!imageUrl})`);
+      console.log(`[media-generate-video] EXACT match: "${product.name}" (kit: ${isKit}, hasImage: ${!!imageUrl})`);
       continue;
     }
     
-    // Método 2: Match por palavras significativas (>3 chars)
+    // Match por palavras significativas (>3 chars)
     const productWords = productNameLower
       .replace(/[()]/g, " ")
       .split(/\s+/)
@@ -88,20 +90,11 @@ async function findProductsInText(
       const isKit = productNameLower.includes("kit");
       
       matches.push({ id: product.id, name: product.name, image_url: imageUrl, is_kit: isKit, sku: product.sku });
-      console.log(`✅ WORD match: "${product.name}" (${matchCount}/${productWords.length} words, kit: ${isKit})`);
+      console.log(`[media-generate-video] WORD match: "${product.name}" (${matchCount}/${productWords.length} words)`);
     }
   }
 
   return matches;
-}
-
-/**
- * Detecta se é cenário de KIT (múltiplos produtos)
- */
-function detectKitScenario(matchedProducts: ProductMatch[]): boolean {
-  if (matchedProducts.some(p => p.is_kit)) return true;
-  if (matchedProducts.length > 1) return true;
-  return false;
 }
 
 serve(async (req) => {
@@ -114,41 +107,59 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get auth user
+    // Validate auth
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Não autorizado" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ success: false, error: "Não autorizado" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Token inválido" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims?.sub) {
+      return new Response(JSON.stringify({ success: false, error: "Token inválido" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
+
+    const userId = claimsData.claims.sub;
 
     const { 
       calendar_item_id, 
-      duration = 5,
+      duration = 5, 
       aspect_ratio = "16:9" 
-    }: GenerateVideoRequest = await req.json();
+    } = await req.json();
 
     if (!calendar_item_id) {
-      return new Response(
-        JSON.stringify({ success: false, error: "calendar_item_id é obrigatório" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ success: false, error: "calendar_item_id obrigatório" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    console.log(`\n🎬 === media-generate-video START ===`);
-    console.log(`📅 Calendar item: ${calendar_item_id}`);
-    console.log(`⏱️ Duration: ${duration}s, Aspect: ${aspect_ratio}`);
+    // Validate duration (max 20s per generation - Sora 2 limit)
+    const validDuration = SUPPORTED_DURATIONS.includes(duration as SupportedDuration) 
+      ? duration 
+      : 5;
+
+    console.log(`\n[media-generate-video] === START ===`);
+    console.log(`[media-generate-video] Calendar item: ${calendar_item_id}`);
+    console.log(`[media-generate-video] Duration: ${validDuration}s, Aspect: ${aspect_ratio}`);
+
+    // Check FAL_API_KEY
+    const falApiKey = await getCredential(supabaseUrl, supabaseServiceKey, "FAL_API_KEY");
+    if (!falApiKey) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: "FAL_API_KEY não configurada. Configure em Integrações da Plataforma > IA > Fal.AI" 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Get calendar item with campaign info
     const { data: calendarItem, error: itemError } = await supabase
@@ -166,29 +177,29 @@ serve(async (req) => {
       .single();
 
     if (itemError || !calendarItem) {
-      console.error("❌ Calendar item error:", itemError);
-      return new Response(
-        JSON.stringify({ success: false, error: "Item não encontrado" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      console.error("[media-generate-video] Calendar item error:", itemError);
+      return new Response(JSON.stringify({ success: false, error: "Item não encontrado" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const tenantId = calendarItem.campaign.tenant_id;
-    console.log(`🏢 Tenant: ${tenantId}`);
+    console.log(`[media-generate-video] Tenant: ${tenantId}`);
 
     // Verify user belongs to tenant
     const { data: userRole, error: roleError } = await supabase
       .from("user_roles")
       .select("role")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .eq("tenant_id", tenantId)
       .single();
 
     if (roleError || !userRole) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Sem permissão para este tenant" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ success: false, error: "Sem permissão para este tenant" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Get brand context if exists
@@ -196,10 +207,11 @@ serve(async (req) => {
       .from("tenant_brand_context")
       .select("*")
       .eq("tenant_id", tenantId)
-      .single();
+      .maybeSingle();
 
-    // ============ PRODUCT DETECTION (CRÍTICO PARA VIDEO) ============
-    // Sora 2 Image-to-Video PRECISA de uma imagem de primeiro frame
+    // ============ PRODUCT DETECTION ============
+    // Buscar produtos mencionados no prompt para usar imagem como REFERÊNCIA CRIATIVA
+    // (não necessariamente como primeiro frame fixo)
     const searchText = [
       calendarItem.campaign.prompt || "",
       calendarItem.generation_prompt || "",
@@ -208,136 +220,133 @@ serve(async (req) => {
       calendarItem.title || "",
     ].join(" ");
 
-    console.log("🔍 Search text preview:", searchText.substring(0, 300));
+    console.log("[media-generate-video] Search text preview:", searchText.substring(0, 200));
     
     const matchedProducts = await findProductsInText(supabase, tenantId, searchText);
-    console.log(`📦 Found ${matchedProducts.length} product matches:`, matchedProducts.map(p => `${p.name} (img: ${!!p.image_url})`));
+    console.log(`[media-generate-video] Found ${matchedProducts.length} product matches`);
 
-    // Para Sora 2 Image-to-Video, OBRIGATÓRIO ter imagem
+    // Buscar produto com imagem para usar como referência criativa
     const productWithImage = matchedProducts.find(p => p.image_url);
     
-    if (!productWithImage) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: "Geração de vídeo com Sora 2 requer uma imagem de produto como primeiro frame. Cadastre uma imagem para o produto mencionado ou gere primeiro uma imagem do criativo." 
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // Se produto foi mencionado mas não tem imagem, bloquear
+    if (matchedProducts.length > 0 && !productWithImage) {
+      const productNames = matchedProducts.map(p => p.name).join(", ");
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: `Produto(s) "${productNames}" não possui(em) imagem cadastrada. Cadastre uma imagem primeiro para gerar vídeo com fidelidade ao produto.` 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    const isKitScenario = detectKitScenario(matchedProducts);
-    console.log(`📦 Kit scenario: ${isKitScenario}`);
+    const isKitScenario = matchedProducts.some(p => p.is_kit) || matchedProducts.length > 1;
 
     // Build video prompt
+    // A imagem do produto é usada como REFERÊNCIA CRIATIVA - a IA pode criar
+    // cenas com pessoas segurando o produto, ambientes, etc.
     const promptParts: string[] = [];
 
-    // Contexto base para vídeo
-    promptParts.push("GERAÇÃO DE VÍDEO PREMIUM COM SORA 2 (Image-to-Video)");
-    promptParts.push(`Duração: ${duration} segundos`);
+    promptParts.push("GERAÇÃO DE VÍDEO PREMIUM COM SORA 2 (Image-to-Video Pro)");
+    promptParts.push(`Duração: ${validDuration} segundos`);
     promptParts.push(`Formato: ${aspect_ratio}`);
 
-    // Regras para vídeo
+    if (productWithImage) {
+      promptParts.push("");
+      promptParts.push(`PRODUTO REAL EM REFERÊNCIA: "${productWithImage.name}"`);
+      promptParts.push("A imagem do produto fornecida é uma REFERÊNCIA CRIATIVA.");
+      promptParts.push("Use-a para manter FIDELIDADE VISUAL do produto em toda a cena:");
+      promptParts.push("- Pode criar cenas com pessoas segurando o produto");
+      promptParts.push("- Pode colocar o produto em superfícies, ambientes lifestyle");
+      promptParts.push("- Pode adicionar movimento de câmera, partículas, efeitos");
+      promptParts.push("- DEVE preservar cores, rótulo, design exato do produto");
+      promptParts.push("- NÃO inventar ou alterar textos na embalagem");
+    }
+
+    // Regras anti-alucinação
     const videoRules = [
-      "Animação suave e cinematográfica partindo da imagem de referência",
-      "Movimentos sutis e naturais (slow pan, zoom suave, partículas)",
       "Preservar 100% a fidelidade do produto (rótulo, cores, design)",
-      "NÃO alterar o produto durante a animação",
-      "NÃO adicionar texto ou overlays",
-      "Iluminação consistente com a imagem original",
+      "NÃO distorcer ou alterar o produto durante animação",
+      "NÃO adicionar texto sobreposto ou logos fictícios",
+      "Iluminação coerente com estilo da marca",
+      "Movimentos cinematográficos suaves",
       "Transições fluidas, sem cortes bruscos",
     ];
 
-    // REGRA: Kit - movimentos mais complexos, showcase
     if (isKitScenario) {
-      promptParts.push("CENÁRIO DE KIT:");
-      promptParts.push("- Câmera passando pelos produtos em sequência");
-      promptParts.push("- Movimento de reveal/showcase elegante");
-      promptParts.push("- Produtos devem permanecer estáticos na superfície");
-    } else {
-      promptParts.push("CENÁRIO DE PRODUTO ÚNICO:");
-      promptParts.push("- Rotação sutil 3D do produto OU");
-      promptParts.push("- Zoom in lento destacando detalhes OU");
-      promptParts.push("- Movimento de câmera ao redor do produto");
+      promptParts.push("");
+      promptParts.push("CENÁRIO DE KIT (múltiplos produtos):");
+      promptParts.push("- Produtos devem estar em superfície (não nas mãos)");
+      promptParts.push("- Movimento de câmera revelando cada item");
     }
 
-    // Context from brand
-    if (brandContext) {
-      if (brandContext.visual_style_guidelines) {
-        promptParts.push(`Estilo visual: ${brandContext.visual_style_guidelines}`);
-      }
+    // Brand context
+    if (brandContext?.visual_style_guidelines) {
+      promptParts.push("");
+      promptParts.push(`Estilo visual da marca: ${brandContext.visual_style_guidelines}`);
     }
 
     // Campaign context
     if (calendarItem.campaign.prompt) {
+      promptParts.push("");
       promptParts.push(`Briefing da campanha: ${calendarItem.campaign.prompt}`);
     }
 
-    // Item specific prompt
     if (calendarItem.generation_prompt) {
       promptParts.push(`Briefing específico: ${calendarItem.generation_prompt}`);
     } else if (calendarItem.copy) {
       promptParts.push(`Contexto: ${calendarItem.copy.substring(0, 200)}`);
     }
 
-    // Build final prompt
     const promptFinal = [
       ...promptParts,
       "",
-      "REGRAS OBRIGATÓRIAS PARA VÍDEO:",
+      "REGRAS OBRIGATÓRIAS:",
       ...videoRules.map(r => `• ${r}`),
-      "",
-      "EVITAR:",
-      "• Distorção do produto durante movimento",
-      "• Alteração de cores ou design",
-      "• Movimentos bruscos ou irreais",
-      "• Deformação da embalagem/rótulo",
-      "• Áudio descoordenado com visual",
     ].join("\n");
 
-    console.log("📝 Final video prompt length:", promptFinal.length);
+    console.log("[media-generate-video] Final prompt length:", promptFinal.length);
 
-    // Create generation record (status: queued)
+    // Create generation record
     const { data: generation, error: genError } = await supabase
       .from("media_asset_generations")
       .insert({
         tenant_id: tenantId,
         calendar_item_id: calendar_item_id,
-        provider: "fal-ai",
-        model: "sora-2/image-to-video/pro", // Sora 2 Pro
+        provider: "fal.ai",
+        model: "sora-2/image-to-video/pro",
         prompt_final: promptFinal,
         brand_context_snapshot: brandContext || null,
         settings: {
           asset_type: "video",
-          duration,
+          duration: validDuration,
           aspect_ratio,
-          source_image_url: productWithImage.image_url,
-          reference_source: "product",
+          // Imagem usada como REFERÊNCIA CRIATIVA (não frame fixo)
+          product_reference_image_url: productWithImage?.image_url || null,
+          product_name: productWithImage?.name || null,
           matched_products: matchedProducts,
-          content_type: calendarItem.content_type,
           is_kit_scenario: isKitScenario,
-          needs_product_image: true,
-          product_name: productWithImage.name,
+          content_type: calendarItem.content_type,
         },
         status: "queued",
         variant_count: 1,
-        created_by: user.id,
+        created_by: userId,
       })
       .select()
       .single();
 
     if (genError || !generation) {
-      console.error("❌ Generation insert error:", genError);
-      return new Response(
-        JSON.stringify({ success: false, error: "Erro ao criar geração de vídeo" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      console.error("[media-generate-video] Generation insert error:", genError);
+      return new Response(JSON.stringify({ success: false, error: "Erro ao criar geração de vídeo" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    console.log(`✅ Video generation queued: ${generation.id}`);
-    console.log(`   - Model: sora-2/image-to-video/pro`);
-    console.log(`   - Product: ${productWithImage.name}`);
-    console.log(`   - Duration: ${duration}s`);
+    console.log(`[media-generate-video] Video generation queued: ${generation.id}`);
+    console.log(`[media-generate-video] - Model: sora-2/image-to-video/pro`);
+    console.log(`[media-generate-video] - Product reference: ${productWithImage?.name || "none"}`);
+    console.log(`[media-generate-video] - Duration: ${validDuration}s`);
 
     // Trigger processing
     try {
@@ -349,29 +358,35 @@ serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({}),
-      }).catch(err => console.error("⚠️ Error triggering process queue:", err));
+      }).catch(err => console.error("[media-generate-video] Error triggering queue:", err));
     } catch (triggerError) {
-      console.error("⚠️ Error triggering queue processing:", triggerError);
+      console.error("[media-generate-video] Error triggering queue:", triggerError);
     }
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        generation_id: generation.id,
-        model: "sora-2/image-to-video/pro",
-        product_name: productWithImage.name,
-        duration,
-        aspect_ratio,
-        message: `Vídeo ${duration}s em geração com produto: ${productWithImage.name}` 
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ 
+      success: true, 
+      generation_id: generation.id,
+      model: "sora-2/image-to-video/pro",
+      product_name: productWithImage?.name || null,
+      has_product_reference: !!productWithImage,
+      duration: validDuration,
+      aspect_ratio,
+      message: productWithImage 
+        ? `Vídeo ${validDuration}s em geração com referência de produto: ${productWithImage.name}`
+        : `Vídeo ${validDuration}s em geração`
+    }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
 
   } catch (error) {
-    console.error("❌ Error in media-generate-video:", error);
-    return new Response(
-      JSON.stringify({ success: false, error: error instanceof Error ? error.message : "Erro interno" }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    console.error("[media-generate-video] Error:", error);
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: error instanceof Error ? error.message : "Erro interno" 
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
