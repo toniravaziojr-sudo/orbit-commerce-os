@@ -1,6 +1,7 @@
 # CRM (Notificações, Atendimento, Emails, Avaliações) — Regras e Especificações
 
-> **STATUS:** ✅ Ready (Emails, Notificações, Atendimento WhatsApp com IA, Avaliações)
+> **STATUS:** ✅ Ready (Emails, Notificações, Atendimento WhatsApp com IA via OpenAI, Avaliações)  
+> **Última atualização:** 2025-01-26
 
 ## Visão Geral
 
@@ -30,6 +31,7 @@ Módulo de relacionamento com cliente: notificações, atendimento/suporte, gest
 | `src/hooks/useMessages.ts` | Hook de mensagens |
 | `src/hooks/useAiSupportConfig.ts` | Configuração da IA |
 | `src/hooks/useAiChannelConfig.ts` | Configuração por canal |
+| `supabase/functions/ai-support-chat/index.ts` | Edge Function de IA |
 
 ---
 
@@ -66,7 +68,7 @@ Módulo de relacionamento com cliente: notificações, atendimento/suporte, gest
 | Instagram DM | 🟧 Pending | Via Meta |
 | Email | ✅ Ready | Recebimento via Resend |
 | Chat ao vivo | ✅ Ready | Widget na loja |
-| IA Atendente | ✅ Ready | Respostas automáticas |
+| IA Atendente | ✅ Ready | OpenAI GPT-5.2 |
 
 ### Status de Conversa
 | Status | Descrição |
@@ -119,9 +121,78 @@ Módulo de relacionamento com cliente: notificações, atendimento/suporte, gest
 
 ---
 
-## 3. Fluxo de Atendimento com IA
+## 3. Fluxo de Atendimento com IA (OpenAI)
 
-### Webhooks de Entrada
+### Provider: OpenAI
+
+> **Migrado em:** 2025-01-26  
+> **Provider anterior:** Lovable AI Gateway  
+> **Provider atual:** OpenAI API direta
+
+### Modelos Disponíveis
+
+| Modelo | Prioridade | Descrição |
+|--------|------------|-----------|
+| `gpt-5.2` | 1 (default) | Máxima qualidade e raciocínio |
+| `gpt-5` | 2 | Alta qualidade |
+| `gpt-5-mini` | 3 | Equilíbrio custo/qualidade |
+| `gpt-5-nano` | 4 | Rápido e econômico |
+| `gpt-4o` | 5 (fallback) | Compatibilidade legada |
+
+### Fallback Automático
+
+Se o modelo configurado falhar (modelo não existe), o sistema tenta automaticamente o próximo na lista de prioridade.
+
+### Mapeamento de Modelos Legados
+
+| Modelo Legado | Mapeado Para |
+|---------------|--------------|
+| `google/gemini-2.5-flash` | `gpt-5-mini` |
+| `google/gemini-2.5-pro` | `gpt-5` |
+| `openai/gpt-4o` | `gpt-4o` |
+
+---
+
+## 4. Guardrails: Atendimento INFORMATIVO
+
+### Regra Fundamental
+
+> ⚠️ **A IA de atendimento é PURAMENTE INFORMATIVA. Nunca executa ações.**
+
+### Prompt de Guardrails (injetado automaticamente)
+
+```text
+VOCÊ É UM ASSISTENTE PURAMENTE INFORMATIVO.
+
+REGRAS ABSOLUTAS:
+1. NUNCA EXECUTE AÇÕES - Você não pode cancelar pedidos, processar reembolsos, alterar dados, etc.
+2. SEMPRE INFORME E ESCALONE - Se o cliente pedir ações ou estiver insatisfeito, diga que vai encaminhar para um humano.
+3. NUNCA INVENTE INFORMAÇÕES - Se não souber a resposta, diga que vai verificar com a equipe.
+4. NUNCA PROMETA PRAZOS OU RESULTADOS que você não pode garantir.
+5. COLETE DADOS MÍNIMOS para facilitar o atendimento humano quando escalar.
+
+QUANDO ESCALAR PARA HUMANO:
+- Solicitação de cancelamento/reembolso
+- Reclamação ou insatisfação
+- Problema técnico não documentado
+- Pedido de ação específica
+- Cliente explicitamente pede falar com humano
+- Informação não disponível na base de conhecimento
+```
+
+### Comportamento Esperado
+
+| Cenário | Ação da IA |
+|---------|------------|
+| Pergunta sobre prazo de entrega | Responde com base na KB |
+| Solicitação de cancelamento | Informa que vai escalar + coleta dados |
+| Reclamação de produto | Informa que vai escalar + coleta detalhes |
+| Pergunta não documentada | Informa que vai verificar + escala |
+| Elogio | Agradece e registra |
+
+---
+
+## 5. Webhooks de Entrada
 
 Cada canal possui seu próprio webhook que:
 1. Recebe a mensagem do provedor
@@ -174,17 +245,71 @@ if (aiEnabled) {
 }
 ```
 
-### Edge Function `ai-support-chat`
+---
 
-Responsável por:
+## 6. Edge Function `ai-support-chat`
+
+### Responsabilidades
+
 1. Carregar histórico da conversa
 2. Montar contexto (produtos, FAQs, políticas se habilitado)
-3. Gerar resposta via Lovable AI (Gemini/GPT)
-4. Salvar resposta na tabela `messages`
-5. **Enviar resposta de volta pelo canal correto**
+3. **Injetar guardrails informativos**
+4. Gerar resposta via **OpenAI API**
+5. Salvar resposta na tabela `messages`
+6. **Registrar consumo de tokens (metering)**
+7. Enviar resposta de volta pelo canal correto
+
+### Fluxo de Execução
 
 ```typescript
-// Envio por canal (ai-support-chat/index.ts)
+// 1. Buscar configuração do tenant
+const aiConfig = await getAiConfig(tenantId);
+
+// 2. Montar mensagens com contexto
+const messages = [
+  { role: 'system', content: systemPrompt + GUARDRAILS },
+  ...conversationHistory,
+];
+
+// 3. Chamar OpenAI
+const response = await fetch('https://api.openai.com/v1/chat/completions', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${OPENAI_API_KEY}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    model: resolvedModel, // gpt-5.2 com fallback
+    messages,
+    max_tokens: aiConfig.max_response_length || 500,
+    temperature: 0.7,
+  }),
+});
+
+// 4. Registrar consumo (billing)
+await supabase.rpc('record_ai_usage', {
+  p_tenant_id: tenantId,
+  p_usage_cents: calculatedCost,
+});
+
+// 5. Registrar evento (observabilidade)
+await supabase.from('conversation_events').insert({
+  conversation_id,
+  tenant_id,
+  event_type: 'ai_response',
+  metadata: {
+    model: resolvedModel,
+    input_tokens,
+    output_tokens,
+    latency_ms,
+    cost_cents,
+  },
+});
+```
+
+### Envio por Canal
+
+```typescript
 if (conversation.channel_type === "whatsapp" && conversation.customer_phone) {
   await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-send`, {
     body: JSON.stringify({
@@ -198,7 +323,45 @@ if (conversation.channel_type === "whatsapp" && conversation.customer_phone) {
 
 ---
 
-## 4. Emails (Transacionais e Marketing)
+## 7. Billing e Metering
+
+### Custos por Modelo (aproximados)
+
+| Modelo | Input ($/1M tokens) | Output ($/1M tokens) |
+|--------|---------------------|----------------------|
+| gpt-5.2 | $5.00 | $15.00 |
+| gpt-5 | $5.00 | $15.00 |
+| gpt-5-mini | $0.30 | $1.00 |
+| gpt-5-nano | $0.10 | $0.40 |
+| gpt-4o | $2.50 | $10.00 |
+
+### Registro de Consumo
+
+O consumo é registrado via RPC `record_ai_usage` que incrementa o campo `ai_usage_cents` na tabela `tenant_monthly_usage`.
+
+```sql
+-- Exemplo de query para ver consumo
+SELECT tenant_id, year_month, ai_usage_cents 
+FROM tenant_monthly_usage 
+WHERE tenant_id = 'xxx'
+ORDER BY year_month DESC;
+```
+
+### Métricas Registradas
+
+Cada resposta de IA registra em `conversation_events`:
+
+| Campo | Descrição |
+|-------|-----------|
+| `model` | Modelo usado |
+| `input_tokens` | Tokens de entrada |
+| `output_tokens` | Tokens de saída |
+| `latency_ms` | Tempo de resposta |
+| `cost_cents` | Custo em centavos |
+
+---
+
+## 8. Emails (Transacionais e Marketing)
 
 ### Templates de Email
 | Template | Trigger | Descrição |
@@ -222,7 +385,7 @@ if (conversation.channel_type === "whatsapp" && conversation.customer_phone) {
 
 ---
 
-## 5. Configuração de IA
+## 9. Configuração de IA
 
 ### Tabela `ai_support_config` (Global)
 
@@ -230,7 +393,7 @@ if (conversation.channel_type === "whatsapp" && conversation.customer_phone) {
 {
   tenant_id: uuid,
   is_enabled: boolean,
-  ai_model: string, // 'google/gemini-2.5-flash' padrão
+  ai_model: string, // 'gpt-5.2' padrão
   system_prompt: text,
   custom_knowledge: text,
   personality_name: string,
@@ -252,6 +415,15 @@ if (conversation.channel_type === "whatsapp" && conversation.customer_phone) {
 }
 ```
 
+### Modelos Disponíveis na UI
+
+| Opção | Modelo | Descrição |
+|-------|--------|-----------|
+| Máxima Qualidade | `gpt-5.2` | Melhor raciocínio (mais caro) |
+| Alta Qualidade | `gpt-5` | Excelente (custo moderado) |
+| Balanceado | `gpt-5-mini` | Bom custo-benefício |
+| Econômico | `gpt-5-nano` | Mais barato |
+
 ### Tabela `ai_channel_config` (Por Canal)
 
 Permite sobrescrever configurações específicas por canal:
@@ -271,7 +443,7 @@ Permite sobrescrever configurações específicas por canal:
 
 ---
 
-## 6. Provedores de WhatsApp
+## 10. Provedores de WhatsApp
 
 ### Meta Cloud API (Recomendado)
 
@@ -297,7 +469,7 @@ Permite sobrescrever configurações específicas por canal:
 
 ---
 
-## 7. Tabelas de Configuração
+## 11. Tabelas de Configuração
 
 ### `whatsapp_configs`
 
@@ -337,6 +509,38 @@ USING (EXISTS (
 
 ---
 
+## 12. Teste Ponta a Ponta
+
+### Passos para Validar
+
+1. **Enviar mensagem** (WhatsApp/Chat/Email)
+2. **Verificar log da Edge Function** (`ai-support-chat`)
+3. **Confirmar modelo usado** (gpt-5.2 por padrão)
+4. **Validar resposta informativa** (sem promessas de ação)
+5. **Verificar consumo registrado** (`tenant_monthly_usage.ai_usage_cents`)
+6. **Verificar evento registrado** (`conversation_events` com metadata de tokens)
+
+### Comandos de Debug
+
+```sql
+-- Ver últimas respostas de IA
+SELECT * FROM messages 
+WHERE is_ai_generated = true 
+ORDER BY created_at DESC LIMIT 10;
+
+-- Ver consumo de IA por tenant
+SELECT * FROM tenant_monthly_usage 
+WHERE ai_usage_cents > 0 
+ORDER BY year_month DESC;
+
+-- Ver eventos de IA
+SELECT * FROM conversation_events 
+WHERE event_type = 'ai_response' 
+ORDER BY created_at DESC LIMIT 10;
+```
+
+---
+
 ## Checklist de Implementação
 
 - [x] Inbox unificado
@@ -345,6 +549,11 @@ USING (EXISTS (
 - [x] Widget de chat ao vivo
 - [x] IA para atendimento automático
 - [x] Invocação automática da IA em todos os canais
+- [x] **Migrar provider para OpenAI (GPT-5.2)**
+- [x] **Implementar guardrails informativos**
+- [x] **Metering de tokens por tenant**
+- [x] **Fallback automático de modelos**
+- [x] **Seletor de modelo na UI**
 - [ ] Templates de email editáveis
 - [ ] Automações de follow-up
 - [ ] Instagram DM
