@@ -132,6 +132,31 @@ export function AIConfigPanel() {
                 </div>
               </div>
 
+              <div className="space-y-2">
+                <Label>Modelo de IA</Label>
+                <Select
+                  value={getValue('ai_model') || 'gpt-5.2'}
+                  onValueChange={(v) => updateField('ai_model', v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="gpt-5.2">
+                      <span className="flex items-center gap-2">
+                        GPT-5.2 <Badge variant="secondary" className="text-xs">Recomendado</Badge>
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="gpt-5">GPT-5 (Alta qualidade)</SelectItem>
+                    <SelectItem value="gpt-5-mini">GPT-5 Mini (Equilibrado)</SelectItem>
+                    <SelectItem value="gpt-5-nano">GPT-5 Nano (Econômico)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Powered by OpenAI. Modelos mais avançados oferecem respostas melhores, mas consomem mais créditos.
+                </p>
+              </div>
+
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
                   <Switch
@@ -152,7 +177,8 @@ export function AIConfigPanel() {
                   rows={4}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Adicione instruções específicas sobre como a IA deve se comportar
+                  Adicione instruções específicas sobre como a IA deve se comportar. 
+                  O atendimento é sempre informativo — a IA nunca executará ações.
                 </p>
               </div>
             </CardContent>

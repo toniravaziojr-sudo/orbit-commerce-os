@@ -25,27 +25,92 @@ interface ChannelConfig {
   custom_instructions: string | null;
 }
 
+// OpenAI models ordered by priority (highest quality first)
+const OPENAI_MODELS = [
+  "gpt-5.2",
+  "gpt-5",
+  "gpt-5-mini",
+  "gpt-5-nano",
+  "gpt-4o-2024-11-20",
+  "gpt-4o",
+] as const;
+
+type OpenAIModel = typeof OPENAI_MODELS[number];
+
+// AI cost tracking (per 1K tokens, in cents)
+const MODEL_COSTS: Record<string, { input: number; output: number }> = {
+  "gpt-5.2": { input: 3.0, output: 15.0 },
+  "gpt-5": { input: 2.5, output: 10.0 },
+  "gpt-5-mini": { input: 0.4, output: 1.6 },
+  "gpt-5-nano": { input: 0.15, output: 0.6 },
+  "gpt-4o-2024-11-20": { input: 0.25, output: 1.0 },
+  "gpt-4o": { input: 0.25, output: 1.0 },
+};
+
+// Guardrails for informative-only support
+const INFORMATIVE_GUARDRAILS = `
+========================================
+⚠️ REGRAS OBRIGATÓRIAS DE ATENDIMENTO (SOMENTE INFORMATIVO)
+========================================
+
+VOCÊ É UM ASSISTENTE PURAMENTE INFORMATIVO. SIGA RIGOROSAMENTE:
+
+1. **NUNCA EXECUTE AÇÕES:**
+   - NÃO cancele, altere ou reembolse pedidos
+   - NÃO modifique dados do cliente ou cadastro
+   - NÃO processe pagamentos ou estornos
+   - NÃO aplique cupons ou descontos não informados
+   - NÃO faça promessas de resolução ("vou resolver", "já está feito")
+
+2. **SEMPRE INFORME E ESCALONE:**
+   - Se o cliente pedir QUALQUER AÇÃO, diga: "Para isso, vou transferir você para um atendente humano que pode ajudar."
+   - Se houver reclamação de pagamento, erro de cobrança, ou problema técnico: ESCALONE para humano
+   - Se o cliente estiver irritado ou insatisfeito: ESCALONE para humano
+   - Se a pergunta for sobre pedido que você não encontra nos dados: ESCALONE para humano
+
+3. **NUNCA INVENTE INFORMAÇÕES:**
+   - Se não encontrar o dado na base de conhecimento, diga: "Não encontrei essa informação. Deixe-me transferir para um atendente que pode verificar."
+   - NUNCA crie prazos, políticas ou valores fictícios
+   - NUNCA assuma status de pedidos que não estejam nos dados fornecidos
+
+4. **COLETA MÍNIMA PARA ESCALONAMENTO:**
+   - Quando escalonar, pergunte: nome, número do pedido (se aplicável), e um breve resumo do problema
+   - Confirme que um atendente entrará em contato em breve
+
+5. **LINGUAGEM ADEQUADA:**
+   - Seja empático, educado e profissional
+   - Use frases como: "Entendo sua situação", "Vou verificar isso para você", "Um momento"
+   - Evite linguagem que pareça que você tem poderes de ação
+
+LEMBRE-SE: Você INFORMA e ORIENTA. Você NÃO EXECUTA nem PROMETE execução.
+`;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const startTime = Date.now();
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let modelUsed = "";
 
   try {
     const { conversation_id, tenant_id } = await req.json();
 
     if (!conversation_id || !tenant_id) {
       return new Response(
-        JSON.stringify({ error: "conversation_id and tenant_id are required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ success: false, error: "conversation_id and tenant_id are required" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      console.error("LOVABLE_API_KEY not configured");
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    if (!OPENAI_API_KEY) {
+      console.error("OPENAI_API_KEY not configured");
       return new Response(
-        JSON.stringify({ error: "AI not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ success: false, error: "AI not configured", code: "AI_NOT_CONFIGURED" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -77,12 +142,13 @@ serve(async (req) => {
       custom_knowledge: null,
       forbidden_topics: [],
       handoff_keywords: [],
+      ai_model: "gpt-5.2", // Default to highest quality
     };
 
     if (effectiveConfig.is_enabled === false) {
       return new Response(
-        JSON.stringify({ error: "AI support is disabled for this tenant" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ success: false, error: "AI support is disabled for this tenant", code: "AI_DISABLED" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -96,8 +162,8 @@ serve(async (req) => {
     if (convError || !conversation) {
       console.error("Conversation not found:", convError);
       return new Response(
-        JSON.stringify({ error: "Conversation not found" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ success: false, error: "Conversation not found", code: "CONVERSATION_NOT_FOUND" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -116,8 +182,8 @@ serve(async (req) => {
     if (channelConfig?.is_enabled === false) {
       console.log(`AI disabled for channel ${channelType}`);
       return new Response(
-        JSON.stringify({ error: `AI support is disabled for ${channelType} channel` }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ success: false, error: `AI support is disabled for ${channelType} channel`, code: "CHANNEL_AI_DISABLED" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -522,6 +588,9 @@ DIRETRIZES IMPORTANTES:
       systemPrompt = channelConfig.system_prompt_override;
     }
 
+    // ⚠️ ADICIONAR GUARDRAILS INFORMATIVOS (OBRIGATÓRIO)
+    systemPrompt += INFORMATIVE_GUARDRAILS;
+
     // FLUXO 1: Adicionar conhecimento da loja (sempre atualizado)
     systemPrompt += `\n\n========================================`;
     systemPrompt += `\n CONHECIMENTO DA LOJA (atualizado automaticamente)`;
@@ -621,64 +690,137 @@ RESTRIÇÕES DA SHOPEE:
     }
 
     // ============================================
-    // CALL AI OR USE FORCED RESPONSE
+    // CALL OPENAI API OR USE FORCED RESPONSE
     // ============================================
     let aiContent: string;
-    const aiModel = effectiveConfig.ai_model || "google/gemini-2.5-flash";
+    
+    // Get configured model or use default (gpt-5.2)
+    let configuredModel = effectiveConfig.ai_model || "gpt-5.2";
+    
+    // Map legacy Lovable AI model names to OpenAI equivalents
+    const modelMapping: Record<string, string> = {
+      "google/gemini-2.5-flash": "gpt-5-mini",
+      "google/gemini-2.5-pro": "gpt-5",
+      "google/gemini-2.5-flash-lite": "gpt-5-nano",
+      "openai/gpt-5": "gpt-5",
+      "openai/gpt-5-mini": "gpt-5-mini",
+      "openai/gpt-5-nano": "gpt-5-nano",
+      "openai/gpt-5.2": "gpt-5.2",
+    };
+    
+    const aiModel = modelMapping[configuredModel] || configuredModel;
+    modelUsed = aiModel;
 
     if (forceResponse && matchedRule?.action === 'respond') {
       aiContent = forceResponse;
       console.log(`Using rule-based response for rule: ${matchedRule.id}`);
     } else {
-      console.log(`Calling AI with model: ${aiModel}, messages: ${aiMessages.length}, context length: ${systemPrompt.length}, channel: ${channelType}`);
+      console.log(`Calling OpenAI with model: ${aiModel}, messages: ${aiMessages.length}, context length: ${systemPrompt.length}, channel: ${channelType}`);
 
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: aiModel,
-          messages: aiMessages,
-          max_tokens: 1024,
-          temperature: 0.7,
-        }),
-      });
+      // Try to call OpenAI with fallback to other models
+      let response: Response | null = null;
+      let usedModel = aiModel;
+      const modelsToTry = [aiModel, ...OPENAI_MODELS.filter(m => m !== aiModel)];
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("AI Gateway error:", response.status, errorText);
+      for (const modelToTry of modelsToTry) {
+        try {
+          response = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${OPENAI_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: modelToTry,
+              messages: aiMessages,
+              max_tokens: 1024,
+              temperature: 0.7,
+            }),
+          });
+
+          if (response.ok) {
+            usedModel = modelToTry;
+            modelUsed = modelToTry;
+            console.log(`Successfully using model: ${modelToTry}`);
+            break;
+          }
+
+          const errorText = await response.text();
+          console.warn(`Model ${modelToTry} failed:`, response.status, errorText);
+          
+          // If model not found, try next; otherwise break
+          if (response.status !== 404) {
+            break;
+          }
+        } catch (fetchError) {
+          console.error(`Fetch error for model ${modelToTry}:`, fetchError);
+        }
+      }
+
+      if (!response || !response.ok) {
+        const errorText = response ? await response.text() : "No response";
+        console.error("OpenAI API error:", response?.status, errorText);
         
-        if (response.status === 429) {
+        if (response?.status === 429) {
           return new Response(
-            JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns segundos." }),
-            { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            JSON.stringify({ success: false, error: "Rate limit exceeded. Try again in a few seconds.", code: "RATE_LIMIT" }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
         
-        if (response.status === 402) {
+        if (response?.status === 401) {
           return new Response(
-            JSON.stringify({ error: "Créditos de IA esgotados. Adicione créditos em Settings > Workspace > Usage." }),
-            { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            JSON.stringify({ success: false, error: "Invalid API key configuration.", code: "INVALID_API_KEY" }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
         
         return new Response(
-          JSON.stringify({ error: "Erro ao gerar resposta da IA" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({ success: false, error: "Error generating AI response", code: "AI_ERROR" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
       const aiData = await response.json();
       aiContent = aiData.choices?.[0]?.message?.content;
+      
+      // Extract token usage for billing
+      if (aiData.usage) {
+        inputTokens = aiData.usage.prompt_tokens || 0;
+        outputTokens = aiData.usage.completion_tokens || 0;
+      }
 
       if (!aiContent) {
         console.error("No content in AI response:", aiData);
         return new Response(
-          JSON.stringify({ error: "IA não retornou resposta" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({ success: false, error: "AI did not return a response", code: "EMPTY_RESPONSE" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
+      }
+    }
+
+    const latencyMs = Date.now() - startTime;
+
+    // ============================================
+    // CALCULATE AND RECORD AI USAGE COST
+    // ============================================
+    let costCents = 0;
+    const modelCost = MODEL_COSTS[modelUsed] || MODEL_COSTS["gpt-5-mini"];
+    if (inputTokens > 0 || outputTokens > 0) {
+      costCents = Math.ceil(
+        (inputTokens / 1000) * modelCost.input +
+        (outputTokens / 1000) * modelCost.output
+      );
+      
+      // Record AI usage for billing (uses existing function)
+      try {
+        await supabase.rpc("record_ai_usage", {
+          p_tenant_id: tenant_id,
+          p_usage_cents: costCents,
+        });
+        console.log(`Recorded AI usage: ${costCents} cents for tenant ${tenant_id}`);
+      } catch (usageError) {
+        console.error("Failed to record AI usage:", usageError);
       }
     }
 
@@ -699,7 +841,7 @@ RESTRIÇÕES DA SHOPEE:
         is_ai_generated: true,
         is_internal: false,
         is_note: false,
-        ai_model_used: forceResponse ? "rule-based" : aiModel,
+        ai_model_used: forceResponse ? "rule-based" : modelUsed,
         ai_confidence: forceResponse ? 1.0 : 0.9,
         ai_context_used: { 
           products: effectiveConfig.auto_import_products, 
@@ -708,6 +850,11 @@ RESTRIÇÕES DA SHOPEE:
           matched_rule: matchedRule?.id,
           channel_type: channelType,
           channel_config_applied: !!channelConfig,
+          input_tokens: inputTokens,
+          output_tokens: outputTokens,
+          cost_cents: costCents,
+          latency_ms: latencyMs,
+          provider: "openai",
         },
       })
       .select()
@@ -716,8 +863,8 @@ RESTRIÇÕES DA SHOPEE:
     if (msgError) {
       console.error("Error saving AI message:", msgError);
       return new Response(
-        JSON.stringify({ error: "Erro ao salvar resposta" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ success: false, error: "Error saving response", code: "SAVE_ERROR" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -732,7 +879,7 @@ RESTRIÇÕES DA SHOPEE:
       })
       .eq("id", conversation_id);
 
-    // Log event
+    // Log event with metrics
     await supabase.from("conversation_events").insert({
       conversation_id,
       tenant_id,
@@ -745,11 +892,16 @@ RESTRIÇÕES DA SHOPEE:
           ? `IA respondeu usando regra: ${matchedRule.condition}` 
           : `IA respondeu automaticamente via ${channelType}`,
       metadata: { 
-        model: forceResponse ? "rule-based" : aiModel, 
+        model: forceResponse ? "rule-based" : modelUsed, 
         handoff: shouldHandoff,
         matched_rule: matchedRule?.id,
         channel_type: channelType,
         channel_config_applied: !!channelConfig,
+        provider: "openai",
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        cost_cents: costCents,
+        latency_ms: latencyMs,
       },
     });
 
@@ -861,7 +1013,7 @@ RESTRIÇÕES DA SHOPEE:
         .eq("id", newMessage.id);
     }
 
-    console.log(`AI response saved and ${sendResult.success ? "sent" : "failed to send"} for conversation ${conversation_id} via ${channelType}`);
+    console.log(`AI response saved and ${sendResult.success ? "sent" : "failed to send"} for conversation ${conversation_id} via ${channelType}. Model: ${modelUsed}, Latency: ${latencyMs}ms, Cost: ${costCents} cents`);
 
     return new Response(
       JSON.stringify({
@@ -873,14 +1025,22 @@ RESTRIÇÕES DA SHOPEE:
         send_error: sendResult.error,
         channel_type: channelType,
         channel_config_applied: !!channelConfig,
+        metrics: {
+          model: modelUsed,
+          provider: "openai",
+          input_tokens: inputTokens,
+          output_tokens: outputTokens,
+          cost_cents: costCents,
+          latency_ms: latencyMs,
+        },
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("AI support chat error:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ success: false, error: error instanceof Error ? error.message : "Unknown error", code: "INTERNAL_ERROR" }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
