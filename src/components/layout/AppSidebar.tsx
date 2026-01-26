@@ -111,15 +111,21 @@ const fullNavigation: NavGroup[] = [
     ],
   },
   {
-    label: "Marketing",
+    label: "Marketing Básico",
     collapsible: true,
     items: [
       { title: "Integrações Marketing", href: "/marketing", icon: TrendingUp },
       { title: "Atribuição de venda", href: "/marketing/atribuicao", icon: TrendingUp },
-      { title: "Email Marketing", href: "/email-marketing", icon: Mail },
-      { title: "Quizzes", href: "/quizzes", icon: FileText },
       { title: "Descontos", href: "/discounts", icon: Percent },
       { title: "Aumentar Ticket", href: "/offers", icon: TrendingUp },
+    ],
+  },
+  {
+    label: "Marketing Avançado",
+    collapsible: true,
+    items: [
+      { title: "Email Marketing", href: "/email-marketing", icon: Mail },
+      { title: "Quizzes", href: "/quizzes", icon: FileText },
       { title: "Mídias Sociais", href: "/media", icon: Image },
       { title: "Criador de campanhas", href: "/campaigns", icon: Megaphone },
     ],

@@ -19,7 +19,6 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   '/products': 'ready',
   '/categories': 'ready',
   '/customers': 'ready',
-  '/discounts': 'ready',
   
   // Loja Online
   '/storefront': 'ready',
@@ -27,14 +26,18 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   '/menus': 'ready',
   '/pages': 'ready',
   '/blog': 'ready',
+  '/blog/campaigns': 'ready',
   
-  // Marketing
+  // Marketing Básico
   '/marketing': 'pending',
   '/marketing/atribuicao': 'pending',
-  '/email-marketing': 'pending',
+  '/discounts': 'ready',
   '/offers': 'ready',
+  
+  // Marketing Avançado
+  '/email-marketing': 'pending',
+  '/quizzes': 'pending',
   '/media': 'ready',
-  '/blog/campaigns': 'ready',
   '/campaigns': 'pending',
   
   // CRM
