@@ -190,12 +190,32 @@ serve(async (req) => {
     let scheduledDateTime: Date | null = null;
     if (item.scheduled_date) {
       const datePart = item.scheduled_date; // e.g., "2026-01-26"
-      const timePart = item.scheduled_time || "10:00:00"; // e.g., "10:00:00"
+      // Normalize time - ensure it has seconds
+      let timePart = item.scheduled_time || "10:00:00";
+      if (timePart.length === 5) {
+        timePart = timePart + ":00"; // "10:00" -> "10:00:00"
+      }
+      // Parse as local time (Brazil timezone typically UTC-3)
       scheduledDateTime = new Date(`${datePart}T${timePart}`);
     }
     
     // Use schedule_at if provided, otherwise use item's scheduled date/time
-    const targetPublishAt = schedule_at ? new Date(schedule_at) : scheduledDateTime;
+    let targetPublishAt: Date | null = null;
+    if (schedule_at) {
+      targetPublishAt = new Date(schedule_at);
+    } else if (scheduledDateTime) {
+      targetPublishAt = scheduledDateTime;
+    }
+    
+    console.log("[media-publish-blog] Timing check:", {
+      now: now.toISOString(),
+      scheduled_date: item.scheduled_date,
+      scheduled_time: item.scheduled_time,
+      schedule_at,
+      targetPublishAt: targetPublishAt?.toISOString(),
+      auto_publish: item.campaign.auto_publish,
+      publish_now
+    });
     
     // Determine if we should publish now or schedule
     const shouldPublishNow = publish_now || 
