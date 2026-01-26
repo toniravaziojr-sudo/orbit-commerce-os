@@ -70,6 +70,18 @@ const GATEWAY_DEFINITIONS: GatewayDefinition[] = [
     docsUrl: 'https://docs.pagar.me',
   },
   {
+    id: 'pagbank',
+    name: 'PagBank (PagSeguro)',
+    logo: '🏦',
+    description: 'Aceite PIX, cartões (com parcelamento) e boleto via PagBank',
+    fields: [
+      { key: 'token', label: 'Token', type: 'password', placeholder: 'Token de autenticação' },
+      { key: 'email', label: 'Email da Conta', type: 'text', placeholder: 'seu@email.com' },
+    ],
+    supportedMethods: ['PIX', 'Cartão de Crédito', 'Boleto'],
+    docsUrl: 'https://dev.pagbank.uol.com.br/reference',
+  },
+  {
     id: 'mercado_pago',
     name: 'Mercado Pago',
     logo: '💳',
