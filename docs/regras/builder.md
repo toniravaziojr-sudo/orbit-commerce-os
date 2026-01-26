@@ -153,6 +153,77 @@ A tipografia da loja é gerenciada **exclusivamente** em **Configuração do tem
 
 ---
 
+## Sistema de Cores Global
+
+As cores do tema são gerenciadas **exclusivamente** em **Configuração do tema > Cores** (`ColorSettings.tsx`).
+
+### Hierarquia de Aplicação
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    HIERARQUIA DE ESTILOS                                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│  1. GLOBAL (menor prioridade)                                            │
+│     - Variáveis CSS: --primary, --secondary, --background, etc.         │
+│     - Classes Tailwind: text-foreground, bg-primary, text-muted-foreground│
+│     - Aplicadas via index.css e tailwind.config.ts                      │
+│                                                                          │
+│  2. LOCAL (maior prioridade - sobrescreve global)                        │
+│     - Props do bloco: backgroundColor, textColor, buttonColor, etc.     │
+│     - Aplicadas via style={{ color: valor }}                            │
+│     - Só aplicam quando valor é explicitamente definido                 │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Padrão de Implementação em Blocos
+
+```typescript
+// ✅ CORRETO - herda do tema quando não personalizado
+<h2 style={{ color: textColor || undefined }}>
+  Título
+</h2>
+
+// ✅ CORRETO - usa classe semântica para herança
+<p className="text-muted-foreground">
+  Descrição
+</p>
+
+// ✅ CORRETO - botão com cores personalizáveis
+<button style={{
+  backgroundColor: buttonBgColor || undefined, // undefined = herda do tema
+  color: buttonTextColor || undefined,
+}}>
+  Ação
+</button>
+
+// ❌ ERRADO - cor fixa que ignora tema
+<h2 style={{ color: '#000000' }}>
+  Título
+</h2>
+```
+
+### Blocos com Opção de Personalização de Cores
+
+| Bloco | Props de Cor Disponíveis |
+|-------|-------------------------|
+| `HeroBlock` | `backgroundColor`, `textColor`, `buttonColor`, `buttonTextColor` |
+| `ButtonBlock` | `backgroundColor`, `textColor`, `hoverBgColor`, `hoverTextColor` |
+| `NewsletterBlock` | `backgroundColor`, `textColor`, `buttonBgColor`, `buttonTextColor` |
+| `ContentColumnsBlock` | `backgroundColor`, `textColor`, `iconColor` |
+| `FeatureListBlock` | `backgroundColor`, `textColor`, `iconColor` |
+| `StepsTimelineBlock` | `backgroundColor`, `accentColor` |
+| `AccordionBlock` | `backgroundColor`, `accentColor` |
+
+### Regras Obrigatórias
+
+1. **SEMPRE** usar `valor || undefined` para props de cor (nunca fallback fixo)
+2. **SEMPRE** usar classes semânticas Tailwind (`text-foreground`, `bg-muted`) quando não há personalização
+3. **NUNCA** usar cores hardcoded (ex: `#000000`) em estilos de bloco
+4. Cores personalizadas **SOBRESCREVEM** o tema global apenas no bloco específico
+5. A configuração legada de cores em `store_settings` foi **REMOVIDA** - usar apenas `themeSettings.colors`
+
+---
+
 ## Fonte de Verdade dos Settings
 
 ```
