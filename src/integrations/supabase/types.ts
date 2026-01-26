@@ -502,11 +502,13 @@ export type Database = {
           auto_import_products: boolean | null
           created_at: string | null
           custom_knowledge: string | null
+          data_retention_days: number | null
           forbidden_topics: string[] | null
           handle_audio: boolean | null
           handle_files: boolean | null
           handle_images: boolean | null
           handoff_keywords: string[] | null
+          handoff_on_no_evidence: boolean | null
           id: string
           image_analysis_prompt: string | null
           is_enabled: boolean | null
@@ -517,6 +519,10 @@ export type Database = {
           out_of_hours_message: string | null
           personality_name: string | null
           personality_tone: string | null
+          rag_min_evidence_chunks: number | null
+          rag_similarity_threshold: number | null
+          rag_top_k: number | null
+          redact_pii_in_logs: boolean | null
           rules: Json | null
           system_prompt: string | null
           target_first_response_seconds: number | null
@@ -534,11 +540,13 @@ export type Database = {
           auto_import_products?: boolean | null
           created_at?: string | null
           custom_knowledge?: string | null
+          data_retention_days?: number | null
           forbidden_topics?: string[] | null
           handle_audio?: boolean | null
           handle_files?: boolean | null
           handle_images?: boolean | null
           handoff_keywords?: string[] | null
+          handoff_on_no_evidence?: boolean | null
           id?: string
           image_analysis_prompt?: string | null
           is_enabled?: boolean | null
@@ -549,6 +557,10 @@ export type Database = {
           out_of_hours_message?: string | null
           personality_name?: string | null
           personality_tone?: string | null
+          rag_min_evidence_chunks?: number | null
+          rag_similarity_threshold?: number | null
+          rag_top_k?: number | null
+          redact_pii_in_logs?: boolean | null
           rules?: Json | null
           system_prompt?: string | null
           target_first_response_seconds?: number | null
@@ -566,11 +578,13 @@ export type Database = {
           auto_import_products?: boolean | null
           created_at?: string | null
           custom_knowledge?: string | null
+          data_retention_days?: number | null
           forbidden_topics?: string[] | null
           handle_audio?: boolean | null
           handle_files?: boolean | null
           handle_images?: boolean | null
           handoff_keywords?: string[] | null
+          handoff_on_no_evidence?: boolean | null
           id?: string
           image_analysis_prompt?: string | null
           is_enabled?: boolean | null
@@ -581,6 +595,10 @@ export type Database = {
           out_of_hours_message?: string | null
           personality_name?: string | null
           personality_tone?: string | null
+          rag_min_evidence_chunks?: number | null
+          rag_similarity_threshold?: number | null
+          rag_top_k?: number | null
+          redact_pii_in_logs?: boolean | null
           rules?: Json | null
           system_prompt?: string | null
           target_first_response_seconds?: number | null
@@ -4803,6 +4821,128 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "influencer_leads_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_base_chunks: {
+        Row: {
+          chunk_index: number
+          chunk_text: string
+          chunk_tokens: number | null
+          created_at: string | null
+          doc_id: string
+          embedding: string | null
+          id: string
+          is_active: boolean | null
+          tenant_id: string
+        }
+        Insert: {
+          chunk_index: number
+          chunk_text: string
+          chunk_tokens?: number | null
+          created_at?: string | null
+          doc_id: string
+          embedding?: string | null
+          id?: string
+          is_active?: boolean | null
+          tenant_id: string
+        }
+        Update: {
+          chunk_index?: number
+          chunk_text?: string
+          chunk_tokens?: number | null
+          created_at?: string | null
+          doc_id?: string
+          embedding?: string | null
+          id?: string
+          is_active?: boolean | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_base_chunks_doc_id_fkey"
+            columns: ["doc_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_base_docs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_base_chunks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_base_docs: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          author_id: string | null
+          content: string
+          created_at: string | null
+          doc_type: string
+          id: string
+          priority: number | null
+          source: string | null
+          source_id: string | null
+          status: string | null
+          tags: string[] | null
+          tenant_id: string
+          title: string
+          updated_at: string | null
+          valid_from: string | null
+          valid_until: string | null
+          version: number | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          author_id?: string | null
+          content: string
+          created_at?: string | null
+          doc_type: string
+          id?: string
+          priority?: number | null
+          source?: string | null
+          source_id?: string | null
+          status?: string | null
+          tags?: string[] | null
+          tenant_id: string
+          title: string
+          updated_at?: string | null
+          valid_from?: string | null
+          valid_until?: string | null
+          version?: number | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          author_id?: string | null
+          content?: string
+          created_at?: string | null
+          doc_type?: string
+          id?: string
+          priority?: number | null
+          source?: string | null
+          source_id?: string | null
+          status?: string | null
+          tags?: string[] | null
+          tenant_id?: string
+          title?: string
+          updated_at?: string | null
+          valid_from?: string | null
+          valid_until?: string | null
+          version?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_base_docs_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -11860,6 +12000,23 @@ export type Database = {
       record_ai_usage: {
         Args: { p_tenant_id: string; p_usage_cents: number }
         Returns: undefined
+      }
+      search_knowledge_base: {
+        Args: {
+          p_query_embedding: string
+          p_tenant_id: string
+          p_threshold?: number
+          p_top_k?: number
+        }
+        Returns: {
+          chunk_id: string
+          chunk_text: string
+          doc_id: string
+          doc_priority: number
+          doc_title: string
+          doc_type: string
+          similarity: number
+        }[]
       }
       sync_list_subscribers_from_tag: {
         Args: { p_list_id: string }
