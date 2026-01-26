@@ -7,12 +7,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Plus, 
   Ticket, 
-  HelpCircle, 
   MessageCircle, 
   PlayCircle,
   ExternalLink,
   Clock,
   CheckCircle,
+  Lightbulb,
+  Wrench,
 } from "lucide-react";
 import { useSupportTickets } from "@/hooks/useSupportTickets";
 import { usePlatformOperator } from "@/hooks/usePlatformOperator";
@@ -24,7 +25,7 @@ import { TutorialsList } from "@/components/support-center/TutorialsList";
 export default function SupportCenter() {
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'tickets' | 'tutorials'>('tickets');
+  const [activeTab, setActiveTab] = useState<'tickets' | 'tutorials' | 'suggestions' | 'customization'>('tickets');
   const [ticketFilter, setTicketFilter] = useState<'all' | 'open' | 'closed'>('all');
   
   const { tickets, isLoading } = useSupportTickets(ticketFilter);
@@ -65,7 +66,7 @@ export default function SupportCenter() {
 
       {/* Quick Actions Cards - Only for tenants */}
       {!isPlatformOperator && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <Card 
             className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
             onClick={() => setIsCreateDialogOpen(true)}
@@ -125,6 +126,44 @@ export default function SupportCenter() {
 
           <Card 
             className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
+            onClick={() => setActiveTab('suggestions')}
+          >
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="rounded-lg bg-yellow-500/10 p-3">
+                  <Lightbulb className="h-6 w-6 text-yellow-500" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold">Sugestões</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Envie ideias e melhorias
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
+            onClick={() => setActiveTab('customization')}
+          >
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="rounded-lg bg-blue-500/10 p-3">
+                  <Wrench className="h-6 w-6 text-blue-500" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold">Customização</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Solicite recursos personalizados
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
             onClick={() => window.open('https://wa.me/5511999999999', '_blank')}
           >
             <CardContent className="pt-6">
@@ -147,8 +186,8 @@ export default function SupportCenter() {
         </div>
       )}
 
-      {/* Main Tabs: Tickets | Tutorials */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'tickets' | 'tutorials')}>
+      {/* Main Tabs: Tickets | Tutorials | Suggestions | Customization */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'tickets' | 'tutorials' | 'suggestions' | 'customization')}>
         <TabsList className="mb-4">
           <TabsTrigger value="tickets" className="flex items-center gap-2">
             <Ticket className="h-4 w-4" />
@@ -157,6 +196,14 @@ export default function SupportCenter() {
           <TabsTrigger value="tutorials" className="flex items-center gap-2">
             <PlayCircle className="h-4 w-4" />
             Tutoriais
+          </TabsTrigger>
+          <TabsTrigger value="suggestions" className="flex items-center gap-2">
+            <Lightbulb className="h-4 w-4" />
+            Sugestões
+          </TabsTrigger>
+          <TabsTrigger value="customization" className="flex items-center gap-2">
+            <Wrench className="h-4 w-4" />
+            Customização
           </TabsTrigger>
         </TabsList>
 
@@ -227,6 +274,56 @@ export default function SupportCenter() {
             </CardHeader>
             <CardContent>
               <TutorialsList />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="suggestions">
+          <Card>
+            <CardHeader>
+              <CardTitle>Sugestões de Melhorias</CardTitle>
+              <CardDescription>
+                Envie suas ideias e sugestões para melhorar a plataforma
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-12">
+                <Lightbulb className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Compartilhe suas ideias</h3>
+                <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+                  Sua opinião é muito importante para nós. Envie sugestões de funcionalidades, 
+                  melhorias ou qualquer ideia que possa tornar a plataforma ainda melhor.
+                </p>
+                <Button onClick={() => setIsCreateDialogOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Enviar Sugestão
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="customization">
+          <Card>
+            <CardHeader>
+              <CardTitle>Solicitação de Customização</CardTitle>
+              <CardDescription>
+                Solicite recursos personalizados ou integrações específicas para sua loja
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-12">
+                <Wrench className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Precisa de algo personalizado?</h3>
+                <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+                  Se você precisa de uma funcionalidade específica, integração customizada ou 
+                  qualquer desenvolvimento sob medida, nossa equipe pode ajudar.
+                </p>
+                <Button onClick={() => setIsCreateDialogOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Solicitar Customização
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
