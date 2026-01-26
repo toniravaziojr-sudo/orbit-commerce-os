@@ -43,7 +43,7 @@ export default function StorefrontAccountLogin() {
     settings: {
       store_name: storeSettings?.store_name || undefined,
       logo_url: storeSettings?.logo_url || undefined,
-      primary_color: storeSettings?.primary_color || undefined,
+      // NOTE: primary_color removed - colors managed via Configuração do tema > Cores
     },
     headerMenu: headerMenu?.items?.map(item => ({
       id: item.id,

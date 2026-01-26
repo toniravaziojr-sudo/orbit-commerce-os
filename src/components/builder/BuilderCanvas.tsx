@@ -12,9 +12,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import { Monitor, Smartphone, ZoomIn, ZoomOut } from 'lucide-react';
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import { useDndMonitor, useDroppable, DragEndEvent } from '@dnd-kit/core';
-import { hexToHsl } from '@/contexts/ThemeContext';
 
 // Viewport dimensions
 const VIEWPORT_SIZES = {
@@ -45,11 +44,8 @@ interface BuilderCanvasProps {
   isSafeMode?: boolean;
   viewport?: 'desktop' | 'mobile';
   onViewportChange?: (viewport: 'desktop' | 'mobile') => void;
-  storeSettings?: {
-    primary_color?: string | null;
-    secondary_color?: string | null;
-    accent_color?: string | null;
-  } | null;
+  // NOTE: storeSettings.primary_color, secondary_color, accent_color removed
+  // Theme colors are now managed via Configuração do tema > Cores
   // Mini-cart preview controls
   showMiniCartPreview?: boolean;
   onToggleMiniCartPreview?: (open: boolean) => void;
@@ -72,7 +68,6 @@ export function BuilderCanvas({
   isSafeMode = false,
   viewport: controlledViewport,
   onViewportChange,
-  storeSettings,
   showMiniCartPreview = false,
   onToggleMiniCartPreview,
   miniCartConfig,
@@ -83,34 +78,8 @@ export function BuilderCanvas({
   const viewport: ViewportMode = controlledViewport || internalViewport;
   const [dropIndex, setDropIndex] = useState<number | null>(null);
 
-  // Generate CSS variables for theme colors
-  const themeStyles = useMemo(() => {
-    const vars: Record<string, string> = {};
-    
-    if (storeSettings?.primary_color) {
-      vars['--theme-primary'] = storeSettings.primary_color;
-      const hsl = hexToHsl(storeSettings.primary_color);
-      if (hsl && !hsl.startsWith('#')) {
-        vars['--primary'] = hsl;
-      }
-    }
-    if (storeSettings?.secondary_color) {
-      vars['--theme-secondary'] = storeSettings.secondary_color;
-      const hsl = hexToHsl(storeSettings.secondary_color);
-      if (hsl && !hsl.startsWith('#')) {
-        vars['--secondary'] = hsl;
-      }
-    }
-    if (storeSettings?.accent_color) {
-      vars['--theme-accent'] = storeSettings.accent_color;
-      const hsl = hexToHsl(storeSettings.accent_color);
-      if (hsl && !hsl.startsWith('#')) {
-        vars['--accent'] = hsl;
-      }
-    }
-    
-    return vars as React.CSSProperties;
-  }, [storeSettings]);
+  // NOTE: Theme colors are now managed via Configuração do tema > Cores (useThemeSettings)
+  // Legacy primary_color/secondary_color/accent_color from store_settings are no longer used here
 
   const handleViewportChange = (newViewport: ViewportMode) => {
     setInternalViewport(newViewport);
@@ -307,7 +276,6 @@ export function BuilderCanvas({
                   minHeight: viewport === 'mobile' ? '700px' : '600px',
                   containerType: 'inline-size',
                   containerName: 'storefront',
-                  ...themeStyles,
                 }}
               >
                 {/* Mobile notch decoration */}

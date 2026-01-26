@@ -89,7 +89,7 @@ export default function StorefrontBlogPost() {
     settings: {
       store_name: storeSettings?.store_name || undefined,
       logo_url: storeSettings?.logo_url || undefined,
-      primary_color: storeSettings?.primary_color || undefined,
+      // NOTE: primary_color removed - colors managed via Configuração do tema > Cores
       contact_phone: storeSettings?.contact_phone,
       contact_email: storeSettings?.contact_email,
       tenant_id: storeSettings?.tenant_id,

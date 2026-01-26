@@ -40,7 +40,7 @@ export default function StorefrontOrderDetail() {
     settings: {
       store_name: storeSettings?.store_name || undefined,
       logo_url: storeSettings?.logo_url || undefined,
-      primary_color: storeSettings?.primary_color || undefined,
+      // NOTE: primary_color removed - colors managed via Configuração do tema > Cores
       social_instagram: storeSettings?.social_instagram || undefined,
       social_facebook: storeSettings?.social_facebook || undefined,
       social_whatsapp: storeSettings?.social_whatsapp || undefined,

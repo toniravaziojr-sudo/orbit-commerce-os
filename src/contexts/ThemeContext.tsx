@@ -48,11 +48,13 @@ interface ThemeProviderProps {
 }
 
 export function ThemeProvider({ children, settings }: ThemeProviderProps) {
+  // NOTE: Colors are now managed via Configuração do tema > Cores (useThemeSettings)
+  // Legacy primary_color/secondary_color/accent_color from store_settings are no longer used
   const theme: StorefrontTheme = {
     colors: {
-      primary: settings?.primary_color || defaultTheme.colors.primary,
-      secondary: settings?.secondary_color || defaultTheme.colors.secondary,
-      accent: settings?.accent_color || defaultTheme.colors.accent,
+      primary: defaultTheme.colors.primary,
+      secondary: defaultTheme.colors.secondary,
+      accent: defaultTheme.colors.accent,
       background: defaultTheme.colors.background,
       foreground: defaultTheme.colors.foreground,
       muted: defaultTheme.colors.muted,
