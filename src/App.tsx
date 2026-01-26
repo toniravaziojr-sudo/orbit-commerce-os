@@ -189,6 +189,8 @@ const App = () => {
               <Route path="/integrations/meta/callback" element={<MetaOAuthCallback />} />
               <Route path="/demo-estrutura" element={<DemoEstruturaPage />} />
               <Route path="/accept-invite" element={<AcceptInvite />} />
+              {/* Preview route for review page (development only) */}
+              <Route path="/avaliar/:token" element={<StorefrontReview />} />
 
               {/* 
                 Storefront routes - When on tenant host (custom domain / platform subdomain),
