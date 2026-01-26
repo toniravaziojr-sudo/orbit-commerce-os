@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { 
   CheckCircle2, 
   XCircle, 
@@ -14,8 +13,6 @@ import {
   ExternalLink,
   Info,
   Key,
-  Building2,
-  ShoppingCart,
 } from "lucide-react";
 import { useOlistConnection } from "@/hooks/useOlistConnection";
 
@@ -44,7 +41,6 @@ export function OlistConnectionCard() {
   } = useOlistConnection();
 
   const [apiToken, setApiToken] = useState("");
-  const [accountType, setAccountType] = useState<"erp" | "ecommerce">("erp");
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const handleTestConnection = async () => {
@@ -52,7 +48,7 @@ export function OlistConnectionCard() {
     
     setTestResult(null);
     try {
-      await testConnection({ apiToken, accountType });
+      await testConnection({ apiToken, accountType: "marketplace" });
       setTestResult({ success: true, message: "Token válido! Pronto para conectar." });
     } catch (error) {
       setTestResult({ 
@@ -64,7 +60,7 @@ export function OlistConnectionCard() {
 
   const handleConnect = async () => {
     if (!apiToken.trim()) return;
-    connect({ apiToken, accountType });
+    connect({ apiToken, accountType: "marketplace" });
   };
 
   const handleDisconnect = () => {
@@ -101,7 +97,7 @@ export function OlistConnectionCard() {
                 <Badge variant="default" className="bg-green-600">Ativa</Badge>
               </CardTitle>
               <CardDescription>
-                {connection.accountType === "erp" ? "Olist ERP (Tiny)" : "Olist E-commerce (Vnda)"}
+                Olist Marketplace
               </CardDescription>
             </div>
           </div>
@@ -177,60 +173,9 @@ export function OlistConnectionCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Account Type Selection */}
-        <div className="space-y-3">
-          <Label className="text-sm font-medium">Tipo de Conta</Label>
-          <RadioGroup 
-            value={accountType} 
-            onValueChange={(v) => setAccountType(v as "erp" | "ecommerce")}
-            className="grid grid-cols-2 gap-3"
-          >
-            <Label 
-              htmlFor="erp" 
-              className={`
-                flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-colors
-                ${accountType === "erp" 
-                  ? "border-primary bg-primary/5" 
-                  : "border-border hover:border-muted-foreground/30"
-                }
-              `}
-            >
-              <RadioGroupItem value="erp" id="erp" />
-              <div className="flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p className="font-medium text-sm">Olist ERP</p>
-                  <p className="text-xs text-muted-foreground">Tiny ERP</p>
-                </div>
-              </div>
-            </Label>
-            <Label 
-              htmlFor="ecommerce" 
-              className={`
-                flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-colors
-                ${accountType === "ecommerce" 
-                  ? "border-primary bg-primary/5" 
-                  : "border-border hover:border-muted-foreground/30"
-                }
-              `}
-            >
-              <RadioGroupItem value="ecommerce" id="ecommerce" />
-              <div className="flex items-center gap-2">
-                <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p className="font-medium text-sm">Olist E-commerce</p>
-                  <p className="text-xs text-muted-foreground">Vnda</p>
-                </div>
-              </div>
-            </Label>
-          </RadioGroup>
-        </div>
-
         {/* API Token Input */}
         <div className="space-y-2">
-          <Label htmlFor="api-token">
-            {accountType === "erp" ? "Token da API Tiny" : "Token da API Vnda"}
-          </Label>
+          <Label htmlFor="api-token">Token da API Olist</Label>
           <div className="flex gap-2">
             <Input
               id="api-token"
@@ -254,15 +199,9 @@ export function OlistConnectionCard() {
               )}
             </Button>
           </div>
-          {accountType === "erp" ? (
-            <p className="text-xs text-muted-foreground">
-              Acesse o painel do Tiny → Configurações → Integrações → Gerar Token
-            </p>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              Acesse o painel Vnda → Configurações → API → Chaves de API
-            </p>
-          )}
+          <p className="text-xs text-muted-foreground">
+            Acesse o painel Olist → Configurações → Integrações → Gerar Token
+          </p>
         </div>
 
         {/* Test Result */}
@@ -281,33 +220,16 @@ export function OlistConnectionCard() {
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription className="text-xs">
-            {accountType === "erp" ? (
-              <span>
-                Para gerar o token, acesse{" "}
-                <a 
-                  href="https://tiny.com.br" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-primary underline inline-flex items-center gap-1"
-                >
-                  Tiny ERP <ExternalLink className="h-3 w-3" />
-                </a>
-                {" "}→ Configurações → Integrações → API
-              </span>
-            ) : (
-              <span>
-                Para gerar o token, acesse{" "}
-                <a 
-                  href="https://vnda.com.br" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-primary underline inline-flex items-center gap-1"
-                >
-                  Vnda <ExternalLink className="h-3 w-3" />
-                </a>
-                {" "}→ Configurações → API → Chaves de API
-              </span>
-            )}
+            Para gerar o token, acesse{" "}
+            <a 
+              href="https://olist.com" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-primary underline inline-flex items-center gap-1"
+            >
+              Olist <ExternalLink className="h-3 w-3" />
+            </a>
+            {" "}→ Configurações → Integrações → API
           </AlertDescription>
         </Alert>
 
@@ -325,7 +247,7 @@ export function OlistConnectionCard() {
           ) : (
             <>
               <Link2 className="h-4 w-4 mr-2" />
-              Conectar {accountType === "erp" ? "Olist ERP" : "Olist E-commerce"}
+              Conectar Olist
             </>
           )}
         </Button>

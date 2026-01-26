@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
+type OlistAccountType = "marketplace";
+
 interface OlistConnectionStatus {
   platformConfigured: boolean;
   isConnected: boolean;
@@ -14,7 +16,7 @@ interface OlistConnectionStatus {
     lastSyncAt: string | null;
     lastError: string | null;
     expiresAt: string | null;
-    accountType: "erp" | "ecommerce";
+    accountType: OlistAccountType;
   } | null;
 }
 
@@ -53,7 +55,7 @@ export function useOlistConnection() {
 
   // Olist usa conexão por token (não OAuth), então temos uma mutation para testar e salvar
   const connectMutation = useMutation({
-    mutationFn: async ({ apiToken, accountType }: { apiToken: string; accountType: "erp" | "ecommerce" }) => {
+    mutationFn: async ({ apiToken, accountType }: { apiToken: string; accountType: OlistAccountType }) => {
       if (!currentTenant?.id || !session?.access_token) {
         throw new Error("Tenant não selecionado");
       }
@@ -107,7 +109,7 @@ export function useOlistConnection() {
   });
 
   const testConnectionMutation = useMutation({
-    mutationFn: async ({ apiToken, accountType }: { apiToken: string; accountType: "erp" | "ecommerce" }) => {
+    mutationFn: async ({ apiToken, accountType }: { apiToken: string; accountType: OlistAccountType }) => {
       const { data, error } = await supabase.functions.invoke("olist-test-connection", {
         body: { apiToken, accountType },
       });
