@@ -462,9 +462,9 @@ export function AppSidebar() {
                   groupActive && !open && "text-sidebar-primary"
                 )}
               >
-                <div className="flex items-center gap-2">
-                  <FolderOpen className="h-4 w-4" />
-                  <span className="text-xs font-semibold uppercase tracking-wide">{group.label}</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <FolderOpen className="h-4 w-4 flex-shrink-0" />
+                  <span className="text-xs font-semibold uppercase tracking-wide truncate">{group.label}</span>
                 </div>
                 <ChevronDown
                   className={cn(
@@ -499,7 +499,7 @@ export function AppSidebar() {
     <aside
       className={cn(
         "relative flex h-screen flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300",
-        collapsed ? "w-[60px]" : "w-56"
+        collapsed ? "w-[60px]" : "w-60"
       )}
     >
       {/* Logo & Tenant Switcher */}
