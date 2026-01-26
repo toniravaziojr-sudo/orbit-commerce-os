@@ -504,13 +504,47 @@ const tenantSlug = context?.tenantSlug || '';
 
 ### SEO
 
-| Página | Fonte de Metadados |
-|--------|-------------------|
-| Home | `store_settings` |
-| Categoria | `categories.seo_*` |
-| Produto | `products.seo_*` |
-| Página | `store_pages.meta_*` |
-| Blog Post | `blog_posts.meta_*` |
+| Página | Fonte de Metadados | Geração IA |
+|--------|-------------------|------------|
+| Home | `storefront_page_settings.home.seo_*` | ✅ Disponível |
+| Categoria | `categories.seo_*` | ✅ Disponível |
+| Produto | `products.seo_*` | ✅ Disponível |
+| Página | `store_pages.meta_*` | ✅ Disponível |
+| Blog Post | `blog_posts.seo_*` | ✅ Disponível |
+
+#### SEO da Página Inicial (Home)
+
+Configurável em: **Loja Virtual → Configurações de Tema → Página Inicial**
+
+| Campo | Limite | Descrição |
+|-------|--------|-----------|
+| `seo_title` | 60 caracteres | Título para metatag e OG |
+| `seo_description` | 160 caracteres | Meta description |
+
+**Geração com IA:** Botão "Gerar SEO com IA" utiliza `GenerateSeoButton` com type `page` e passa o nome da loja como contexto.
+
+#### Edge Function: generate-seo
+
+Endpoint centralizado para geração de SEO otimizado via IA (Gemini).
+
+| Parâmetro | Tipo | Obrigatório | Descrição |
+|-----------|------|-------------|-----------|
+| `type` | `'product' \| 'category' \| 'blog' \| 'page'` | ✅ | Tipo de conteúdo |
+| `name` | string | ✅ | Nome/título do item |
+| `description` | string | ❌ | Descrição curta |
+| `content` | string | ❌ | Conteúdo HTML (será limpo) |
+| `excerpt` | string | ❌ | Resumo |
+| `tags` | string[] | ❌ | Tags relacionadas |
+| `price` | number | ❌ | Preço em centavos |
+| `storeName` | string | ❌ | Nome da loja |
+
+**Retorno:**
+```json
+{
+  "seo_title": "Título otimizado (máx 60 chars)",
+  "seo_description": "Descrição otimizada (máx 160 chars)"
+}
+```
 
 ---
 
@@ -586,6 +620,7 @@ const tenantSlug = context?.tenantSlug || '';
 
 | Data | Alteração |
 |------|-----------|
+| 2025-01-26 | SEO Home: configuração de meta título/descrição + geração IA em Configurações do Tema |
 | 2025-01-25 | Newsletter Popup: campo `icon_image_url` para ícone customizado do incentivo |
 | 2025-01-25 | Footer: aviso de itens ocultos quando páginas não estão publicadas |
 | 2025-01-19 | Documentação inicial completa do módulo |
