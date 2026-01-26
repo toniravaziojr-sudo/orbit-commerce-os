@@ -39,6 +39,7 @@ import {
   extractHeaderFooter 
 } from '@/hooks/useGlobalLayoutIntegration';
 import { usePageOverrides } from '@/hooks/usePageOverrides';
+import { useBuilderThemeInjector } from '@/hooks/useBuilderThemeInjector';
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { CanvasEditorProvider } from './CanvasEditorContext';
 import { CanvasRichTextProvider } from './CanvasRichTextContext';
@@ -229,6 +230,9 @@ export function VisualBuilder({
     pageType,
     pageId,
   });
+
+  // Inject theme CSS (typography) into builder preview - real-time updates
+  useBuilderThemeInjector(tenantId, templateSetId);
 
   // Get initial content from prop or default template
   const startingContent = useMemo(() => 
