@@ -31,8 +31,10 @@ export const ROUTE_TO_PERMISSION: Record<string, { module: string; submodule?: s
   '/menus': { module: 'storefront', submodule: 'menus' },
   '/pages': { module: 'storefront', submodule: 'pages' },
   '/page-templates': { module: 'storefront', submodule: 'pages' },
-  '/blog': { module: 'storefront', submodule: 'blog' },
-  '/blog/campaigns': { module: 'storefront', submodule: 'blog' },
+  
+  // Blog
+  '/blog': { module: 'blog', submodule: 'posts' },
+  '/blog/campaigns': { module: 'blog', submodule: 'campaigns' },
   
   // Marketing
   '/marketing': { module: 'marketing', submodule: 'integrations' },
@@ -104,13 +106,21 @@ export const MODULES: ModuleConfig[] = [
   {
     key: 'storefront',
     label: 'Loja Online',
-    description: 'Loja virtual, categorias, menus, páginas e blog',
+    description: 'Loja virtual, categorias, menus e páginas',
     submodules: [
       { key: 'storefront', label: 'Loja Virtual', route: '/storefront' },
       { key: 'categories', label: 'Categorias', route: '/categories' },
       { key: 'menus', label: 'Menus', route: '/menus' },
       { key: 'pages', label: 'Páginas da Loja', route: '/pages' },
-      { key: 'blog', label: 'Blog', route: '/blog' },
+    ],
+  },
+  {
+    key: 'blog',
+    label: 'Blog',
+    description: 'Posts do blog e campanhas de conteúdo com IA',
+    submodules: [
+      { key: 'posts', label: 'Posts do Blog', route: '/blog' },
+      { key: 'campaigns', label: 'Campanhas IA', route: '/blog/campaigns' },
     ],
   },
   {
