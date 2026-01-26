@@ -100,7 +100,14 @@ const fullNavigation: NavGroup[] = [
       { title: "Categorias", href: "/categories", icon: FolderTree },
       { title: "Menus", href: "/menus", icon: Menu },
       { title: "Páginas da Loja", href: "/pages", icon: FileText },
-      { title: "Blog", href: "/blog", icon: BookOpen },
+    ],
+  },
+  {
+    label: "Blog",
+    collapsible: true,
+    items: [
+      { title: "Posts do Blog", href: "/blog", icon: BookOpen },
+      { title: "Campanhas IA", href: "/blog/campaigns", icon: Sparkles },
     ],
   },
   {
