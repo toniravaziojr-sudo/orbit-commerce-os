@@ -33,6 +33,7 @@ function ShopeeLogo({ className }: { className?: string }) {
 
 // Upcoming marketplaces (Shopee removed - now functional)
 const UPCOMING_MARKETPLACES = [
+  { id: "olist", name: "Olist", icon: "🟢", url: "https://olist.com" },
   { id: "amazon", name: "Amazon", icon: "📦", url: "https://amazon.com.br" },
   { id: "magalu", name: "Magalu", icon: "🔵", url: "https://magazineluiza.com.br" },
 ];
