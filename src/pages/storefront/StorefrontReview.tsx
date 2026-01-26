@@ -3,16 +3,17 @@
 // Cliente recebe link único para avaliar produtos do pedido
 // =============================================
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Star, Package, CheckCircle, AlertCircle, Loader2, Upload, X } from 'lucide-react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { Star, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -42,17 +43,47 @@ interface ReviewData {
   content: string;
 }
 
+// Demo data for preview mode
+const DEMO_TOKEN_DATA: TokenData = {
+  token_id: 'demo-token',
+  tenant_id: 'demo-tenant',
+  order_id: 'demo-order',
+  customer_id: null,
+  customer_email: 'cliente@exemplo.com',
+  is_valid: true,
+  store_url: 'https://minhaloja.com.br',
+};
+
+const DEMO_ORDER_ITEMS: OrderItem[] = [
+  {
+    id: '1',
+    product_id: 'prod-1',
+    product_name: 'Camiseta Premium Preta',
+    product_image_url: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=200',
+    product_slug: 'camiseta-premium-preta',
+    quantity: 2,
+  },
+  {
+    id: '2',
+    product_id: 'prod-2',
+    product_name: 'Calça Jeans Slim Fit',
+    product_image_url: 'https://images.unsplash.com/photo-1542272454315-4c01d7abdf4a?w=200',
+    product_slug: 'calca-jeans-slim-fit',
+    quantity: 1,
+  },
+];
+
 export default function StorefrontReview() {
   const { token } = useParams<{ token: string }>();
   const [searchParams] = useSearchParams();
   const productIdFromUrl = searchParams.get('product');
-  const queryClient = useQueryClient();
+  const isPreviewMode = searchParams.get('preview') === 'true';
   
   const [reviews, setReviews] = useState<Map<string, ReviewData>>(new Map());
   const [customerName, setCustomerName] = useState('');
   const [submittedProducts, setSubmittedProducts] = useState<Set<string>>(new Set());
 
-  // Validate token and get order info
+  // Validate token and get order info (skip in preview mode)
   const { data: tokenData, isLoading: isLoadingToken, error: tokenError } = useQuery({
     queryKey: ['review-token', token],
     queryFn: async () => {
@@ -69,87 +100,99 @@ export default function StorefrontReview() {
       
       return tokenInfo;
     },
-    enabled: !!token,
+    enabled: !!token && !isPreviewMode,
     retry: false,
   });
 
-  // Get order items
+  // Use demo or real data
+  const activeTokenData = isPreviewMode ? DEMO_TOKEN_DATA : tokenData;
+
+  // Get order items (skip in preview mode)
   const { data: orderItems, isLoading: isLoadingItems } = useQuery({
-    queryKey: ['order-items-for-review', tokenData?.order_id],
+    queryKey: ['order-items-for-review', activeTokenData?.order_id],
     queryFn: async () => {
-      if (!tokenData?.order_id) return [];
+      if (!activeTokenData?.order_id) return [];
       
       const { data, error } = await supabase
         .from('order_items')
         .select('id, product_id, product_name, product_image_url, product_slug, quantity')
-        .eq('order_id', tokenData.order_id);
+        .eq('order_id', activeTokenData.order_id);
       
       if (error) throw error;
       return data as OrderItem[];
     },
-    enabled: !!tokenData?.order_id,
+    enabled: !!activeTokenData?.order_id && !isPreviewMode,
   });
 
-  // Get existing reviews for this order's products
+  // Use demo or real items
+  const activeOrderItems = isPreviewMode ? DEMO_ORDER_ITEMS : orderItems;
+
+  // Get existing reviews for this order's products (skip in preview mode)
   const { data: existingReviews } = useQuery({
-    queryKey: ['existing-reviews', tokenData?.tenant_id, tokenData?.customer_email, orderItems?.map(i => i.product_id)],
+    queryKey: ['existing-reviews', activeTokenData?.tenant_id, activeTokenData?.customer_email, activeOrderItems?.map(i => i.product_id)],
     queryFn: async () => {
-      if (!tokenData?.tenant_id || !tokenData?.customer_email || !orderItems) return [];
+      if (!activeTokenData?.tenant_id || !activeTokenData?.customer_email || !activeOrderItems) return [];
       
-      const productIds = orderItems.map(i => i.product_id).filter(Boolean);
+      const productIds = activeOrderItems.map(i => i.product_id).filter(Boolean);
       if (productIds.length === 0) return [];
       
       const { data, error } = await supabase
         .from('product_reviews')
         .select('product_id')
-        .eq('tenant_id', tokenData.tenant_id)
-        .ilike('customer_email', tokenData.customer_email)
+        .eq('tenant_id', activeTokenData.tenant_id)
+        .ilike('customer_email', activeTokenData.customer_email)
         .in('product_id', productIds);
       
       if (error) return [];
       return data.map(r => r.product_id);
     },
-    enabled: !!tokenData && !!orderItems && orderItems.length > 0,
+    enabled: !!activeTokenData && !!activeOrderItems && activeOrderItems.length > 0 && !isPreviewMode,
   });
 
-  // Get store name
+  // Get store name (skip in preview mode)
   const { data: tenant } = useQuery({
-    queryKey: ['tenant-for-review', tokenData?.tenant_id],
+    queryKey: ['tenant-for-review', activeTokenData?.tenant_id],
     queryFn: async () => {
-      if (!tokenData?.tenant_id) return null;
+      if (!activeTokenData?.tenant_id) return null;
       
       const { data, error } = await supabase
         .from('tenants')
         .select('name')
-        .eq('id', tokenData.tenant_id)
+        .eq('id', activeTokenData.tenant_id)
         .single();
       
       if (error) return null;
       return data;
     },
-    enabled: !!tokenData?.tenant_id,
+    enabled: !!activeTokenData?.tenant_id && !isPreviewMode,
   });
 
   // Submit review mutation
   const submitReviewMutation = useMutation({
     mutationFn: async ({ productId, review }: { productId: string; review: ReviewData }) => {
-      if (!tokenData || !customerName.trim()) {
+      if (isPreviewMode) {
+        // Simulate submission in preview mode
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return productId;
+      }
+      
+      if (!activeTokenData || !customerName.trim()) {
         throw new Error('Preencha seu nome para continuar');
       }
 
       const { error } = await supabase
         .from('product_reviews')
         .insert({
-          tenant_id: tokenData.tenant_id,
+          tenant_id: activeTokenData.tenant_id,
           product_id: productId,
-          customer_id: tokenData.customer_id,
+          customer_id: activeTokenData.customer_id,
           customer_name: customerName.trim(),
-          customer_email: tokenData.customer_email,
+          customer_email: activeTokenData.customer_email,
           rating: review.rating,
           title: review.title.trim() || null,
           content: review.content.trim(),
           status: 'pending',
-          is_verified_purchase: true, // Always true for token-based reviews
+          is_verified_purchase: true,
         });
 
       if (error) throw error;
@@ -157,9 +200,8 @@ export default function StorefrontReview() {
     },
     onSuccess: (productId) => {
       setSubmittedProducts(prev => new Set(prev).add(productId));
-      toast.success('Avaliação enviada com sucesso!');
+      toast.success(isPreviewMode ? '[Preview] Avaliação enviada!' : 'Avaliação enviada com sucesso!');
       
-      // Clear the review from state
       setReviews(prev => {
         const newMap = new Map(prev);
         newMap.delete(productId);
@@ -172,7 +214,7 @@ export default function StorefrontReview() {
   });
 
   // Filter to show only products that haven't been reviewed yet
-  const productsToReview = orderItems?.filter(item => 
+  const productsToReview = activeOrderItems?.filter(item => 
     item.product_id && 
     !existingReviews?.includes(item.product_id) &&
     !submittedProducts.has(item.product_id)
@@ -209,8 +251,8 @@ export default function StorefrontReview() {
     submitReviewMutation.mutate({ productId, review });
   };
 
-  // Loading state
-  if (isLoadingToken || isLoadingItems) {
+  // Loading state (not in preview mode)
+  if (!isPreviewMode && (isLoadingToken || isLoadingItems)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
@@ -221,8 +263,8 @@ export default function StorefrontReview() {
     );
   }
 
-  // Error state
-  if (tokenError || !tokenData) {
+  // Error state (not in preview mode)
+  if (!isPreviewMode && (tokenError || !activeTokenData)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="max-w-md w-full">
@@ -239,7 +281,7 @@ export default function StorefrontReview() {
   }
 
   // All products already reviewed
-  if (filteredProducts.length === 0 && orderItems && orderItems.length > 0) {
+  if (filteredProducts.length === 0 && activeOrderItems && activeOrderItems.length > 0) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="max-w-md w-full">
@@ -257,17 +299,31 @@ export default function StorefrontReview() {
     );
   }
 
+  const storeName = isPreviewMode ? 'Minha Loja Demo' : tenant?.name;
+
   return (
     <div className="min-h-screen bg-background py-8 px-4">
       <div className="max-w-2xl mx-auto">
+        {/* Preview Mode Banner */}
+        {isPreviewMode && (
+          <div className="bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-lg p-3 mb-6 text-center">
+            <Badge variant="outline" className="bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100 border-amber-400">
+              Modo Preview
+            </Badge>
+            <p className="text-sm text-amber-800 dark:text-amber-200 mt-1">
+              Esta é uma demonstração da página de avaliação. Os dados são fictícios.
+            </p>
+          </div>
+        )}
+
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold mb-2">
             Avalie sua Compra
           </h1>
-          {tenant?.name && (
+          {storeName && (
             <p className="text-muted-foreground">
-              Sua opinião é muito importante para {tenant.name}
+              Sua opinião é muito importante para {storeName}
             </p>
           )}
         </div>
@@ -299,12 +355,16 @@ export default function StorefrontReview() {
               <Card key={item.id}>
                 <CardHeader>
                   <div className="flex items-start gap-4">
-                    {item.product_image_url && (
+                    {item.product_image_url ? (
                       <img
                         src={item.product_image_url}
                         alt={item.product_name}
                         className="w-16 h-16 object-cover rounded-md"
                       />
+                    ) : (
+                      <div className="w-16 h-16 bg-muted rounded-md flex items-center justify-center">
+                        <span className="text-muted-foreground text-xs">Sem foto</span>
+                      </div>
                     )}
                     <div className="flex-1">
                       <CardTitle className="text-base">{item.product_name}</CardTitle>
@@ -327,7 +387,7 @@ export default function StorefrontReview() {
                           <Star
                             className={cn(
                               'h-7 w-7 transition-colors',
-                            review.rating >= star
+                              review.rating >= star
                                 ? 'text-primary fill-primary'
                                 : 'text-muted-foreground hover:text-primary/60'
                             )}
@@ -371,11 +431,17 @@ export default function StorefrontReview() {
                     </p>
                   </div>
 
+                  {/* Verified Purchase Badge */}
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span>Compra verificada</span>
+                  </div>
+
                   {/* Submit Button */}
                   <Button
                     onClick={() => handleSubmitReview(item.product_id)}
                     disabled={isSubmitting || !customerName.trim() || review.rating < 1 || review.content.length < 10}
-                    className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                    className="w-full"
                   >
                     {isSubmitting ? (
                       <>
