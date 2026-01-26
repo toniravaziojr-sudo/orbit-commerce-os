@@ -302,9 +302,8 @@ export default function StorefrontBuilder() {
       tenant_id: currentTenant.id,
       store_name: storeSettings?.store_name || currentTenant.name,
       logo_url: storeSettings?.logo_url || undefined,
-      primary_color: storeSettings?.primary_color || undefined,
-      secondary_color: storeSettings?.secondary_color || undefined,
-      accent_color: storeSettings?.accent_color || undefined,
+      // NOTE: primary_color, secondary_color, accent_color removed
+      // Colors are now managed via Configuração do tema > Cores
       // Contact info for header/footer
       contact_phone: storeSettings?.contact_phone || undefined,
       contact_email: storeSettings?.contact_email || undefined,

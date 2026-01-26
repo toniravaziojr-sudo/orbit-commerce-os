@@ -211,55 +211,8 @@ export function StorefrontHead({ tenantId, pageTitle, pageDescription }: Storefr
     metaDesc.content = description;
   }, [pageDescription, storeSettings?.seo_description]);
 
-  // Apply theme colors as CSS variables
-  useEffect(() => {
-    const root = document.documentElement;
-    const originalValues: Record<string, string> = {};
-
-    // Store original values for cleanup
-    const cssVars = ['--primary', '--primary-foreground', '--secondary', '--secondary-foreground', '--accent', '--accent-foreground'];
-    cssVars.forEach(varName => {
-      originalValues[varName] = getComputedStyle(root).getPropertyValue(varName).trim();
-    });
-
-    // Apply primary color
-    if (storeSettings?.primary_color) {
-      const primaryHsl = hexToHslValues(storeSettings.primary_color);
-      if (primaryHsl) {
-        root.style.setProperty('--primary', primaryHsl);
-        root.style.setProperty('--primary-foreground', getContrastingForeground(storeSettings.primary_color));
-      }
-    }
-
-    // Apply secondary color
-    if (storeSettings?.secondary_color) {
-      const secondaryHsl = hexToHslValues(storeSettings.secondary_color);
-      if (secondaryHsl) {
-        root.style.setProperty('--secondary', secondaryHsl);
-        root.style.setProperty('--secondary-foreground', getContrastingForeground(storeSettings.secondary_color));
-      }
-    }
-
-    // Apply accent color
-    if (storeSettings?.accent_color) {
-      const accentHsl = hexToHslValues(storeSettings.accent_color);
-      if (accentHsl) {
-        root.style.setProperty('--accent', accentHsl);
-        root.style.setProperty('--accent-foreground', getContrastingForeground(storeSettings.accent_color));
-      }
-    }
-
-    // Cleanup on unmount - restore original values
-    return () => {
-      cssVars.forEach(varName => {
-        if (originalValues[varName]) {
-          root.style.setProperty(varName, originalValues[varName]);
-        } else {
-          root.style.removeProperty(varName);
-        }
-      });
-    };
-  }, [storeSettings?.primary_color, storeSettings?.secondary_color, storeSettings?.accent_color]);
+  // NOTE: Theme colors are now managed via Configuração do tema > Cores
+  // Legacy primary_color/secondary_color/accent_color from store_settings are no longer used here
 
   // This component doesn't render anything visible
   return null;

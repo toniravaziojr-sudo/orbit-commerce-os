@@ -132,7 +132,7 @@ export default function BlogPostEditor() {
     settings: {
       store_name: storeSettings?.store_name || currentTenant.name,
       logo_url: storeSettings?.logo_url || undefined,
-      primary_color: storeSettings?.primary_color || undefined,
+      // NOTE: primary_color removed - colors managed via Configuração do tema > Cores
     },
     headerMenu: headerMenuData?.map(item => ({
       id: item.id,

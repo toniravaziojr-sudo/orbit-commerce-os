@@ -1028,11 +1028,6 @@ export function VisualBuilder({
             isSafeMode={isSafeMode}
             viewport={canvasViewport}
             onViewportChange={setCanvasViewport}
-            storeSettings={{
-              primary_color: context.settings?.primary_color,
-              secondary_color: context.settings?.secondary_color,
-              accent_color: context.settings?.accent_color,
-            }}
             showMiniCartPreview={showMiniCartPreview}
             onToggleMiniCartPreview={setShowMiniCartPreview}
             miniCartConfig={miniCartConfig}
