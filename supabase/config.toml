@@ -522,3 +522,9 @@ verify_jwt = true
 
 [functions.olist-disconnect]
 verify_jwt = true
+
+[functions.ai-generate-embedding]
+verify_jwt = false
+
+[functions.ai-kb-ingest]
+verify_jwt = false
