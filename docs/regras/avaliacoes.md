@@ -185,6 +185,71 @@ interface Response {
 
 ---
 
+## Link de Avaliação Pós-Venda
+
+O sistema permite enviar links de avaliação para clientes após a compra via notificações.
+
+### Variáveis Disponíveis
+
+| Variável | Descrição | Exemplo |
+|----------|-----------|---------|
+| `{{review_link}}` | Link único para avaliar todos os produtos do pedido | `https://loja.com/avaliar/abc123xyz` |
+| `{{products_review_links}}` | Links individuais por produto | `Camiseta: https://...\nCalça: https://...` |
+
+### Tabela `review_tokens`
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `id` | UUID | Identificador único |
+| `tenant_id` | UUID (FK) | Tenant do token |
+| `order_id` | UUID (FK) | Pedido relacionado |
+| `customer_id` | UUID (FK) | Cliente (opcional) |
+| `customer_email` | TEXT | Email do cliente |
+| `token` | TEXT | Token único e seguro |
+| `expires_at` | TIMESTAMP | Expiração (30 dias) |
+| `used_at` | TIMESTAMP | Data de uso (null = não usado) |
+| `created_at` | TIMESTAMP | Data de criação |
+
+### Funções do Banco
+
+| Função | Descrição |
+|--------|-----------|
+| `generate_review_token(...)` | Gera token seguro para um pedido |
+| `validate_review_token(p_token)` | Valida token e retorna dados do pedido |
+
+### Página Dedicada de Avaliação
+
+| Item | Valor |
+|------|-------|
+| **Rota** | `/avaliar/:token` |
+| **Componente** | `src/pages/storefront/StorefrontReview.tsx` |
+| **Funcionalidades** | Lista produtos do pedido, formulário de avaliação, badge "Compra verificada" |
+
+### Fluxo de Avaliação via Link
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  1. Pedido é pago/entregue                                          │
+│     → Edge Function gera token via generate_review_token()          │
+│     → Variáveis {{review_link}} e {{products_review_links}}         │
+└─────────────────────────────────────────────────────────────────────┘
+                                    ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│  2. Notificação enviada com link de avaliação                       │
+│     → Cliente recebe WhatsApp/Email com link                        │
+│     → Token válido por 30 dias                                      │
+└─────────────────────────────────────────────────────────────────────┘
+                                    ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│  3. Cliente acessa /avaliar/:token                                  │
+│     → Token validado via validate_review_token()                    │
+│     → Exibe produtos do pedido para avaliar                         │
+│     → Avaliação salva com is_verified_purchase = true               │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## Arquivos Relacionados
 
 | Se for editar... | Leia este doc primeiro |
@@ -195,3 +260,6 @@ interface Response {
 | `src/components/storefront/sections/ReviewForm.tsx` | Este documento |
 | `src/components/builder/blocks/ReviewsBlock.tsx` | Este documento |
 | `src/hooks/useProductRating.ts` | Este documento |
+| `src/pages/storefront/StorefrontReview.tsx` | Este documento |
+| `src/components/notifications/MessageEditor.tsx` | Este documento (variáveis) |
+| `supabase/functions/process-events/index.ts` | Este documento (geração de links) |
