@@ -1,13 +1,13 @@
 # Suporte — Regras e Especificações
 
 > **Status:** 🟧 Pending (não validado)  
-> **Última atualização:** 2025-01-19
+> **Última atualização:** 2025-01-26
 
 ---
 
 ## Visão Geral
 
-Sistema de tickets para comunicação entre lojista e equipe da plataforma.
+Sistema de tickets para comunicação entre lojista e equipe da plataforma, incluindo sugestões de melhorias e solicitações de customização.
 
 ## Arquivos Principais
 
@@ -43,3 +43,29 @@ Sistema de tickets para comunicação entre lojista e equipe da plataforma.
 
 - **Lojistas**: Veem apenas tickets do próprio tenant
 - **Platform Operators**: Veem todos os tickets
+
+## Abas do SupportCenter
+
+| Aba | Valor | Descrição |
+|-----|-------|-----------|
+| Chamados | `tickets` | Lista de tickets de suporte (filtros: todos/abertos/fechados) |
+| Tutoriais | `tutorials` | Galeria de vídeos tutoriais |
+| Sugestões | `suggestions` | Envio de ideias e melhorias para a plataforma |
+| Customização | `customization` | Solicitação de recursos personalizados e integrações |
+
+## Cards de Ação Rápida (tenants)
+
+| Card | Ação |
+|------|------|
+| Abrir Chamado | Abre dialog de criação de ticket |
+| Meus Chamados | Navega para aba `tickets` com filtro `open` |
+| Tutoriais | Navega para aba `tutorials` |
+| Sugestões | Navega para aba `suggestions` |
+| Customização | Navega para aba `customization` |
+| Falar com Suporte | Abre WhatsApp externo |
+
+## Regras
+
+- Sugestões e Customizações utilizam o mesmo dialog de criação de tickets (`CreateTicketDialog`)
+- O usuário pode escolher a categoria apropriada ao criar o ticket
+- Platform Operators não veem os cards de ação rápida
