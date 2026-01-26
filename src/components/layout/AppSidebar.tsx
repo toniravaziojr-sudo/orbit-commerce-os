@@ -120,7 +120,6 @@ const fullNavigation: NavGroup[] = [
       { title: "Quizzes", href: "/quizzes", icon: FileText },
       { title: "Descontos", href: "/discounts", icon: Percent },
       { title: "Aumentar Ticket", href: "/offers", icon: TrendingUp },
-      { title: "Avaliações", href: "/reviews", icon: Star },
       { title: "Mídias Sociais", href: "/media", icon: Image },
       { title: "Criador de campanhas", href: "/campaigns", icon: Megaphone },
     ],
@@ -132,6 +131,7 @@ const fullNavigation: NavGroup[] = [
       { title: "Notificações", href: "/notifications", icon: Bell },
       { title: "Atendimento", href: "/support", icon: MessageSquare },
       { title: "Emails", href: "/emails", icon: Mail },
+      { title: "Avaliações", href: "/reviews", icon: Star },
     ],
   },
   {

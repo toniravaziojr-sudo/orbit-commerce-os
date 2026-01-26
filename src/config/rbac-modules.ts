@@ -42,7 +42,6 @@ export const ROUTE_TO_PERMISSION: Record<string, { module: string; submodule?: s
   '/email-marketing': { module: 'marketing', submodule: 'email-marketing' },
   '/discounts': { module: 'marketing', submodule: 'discounts' },
   '/offers': { module: 'marketing', submodule: 'offers' },
-  '/reviews': { module: 'marketing', submodule: 'reviews' },
   '/media': { module: 'marketing', submodule: 'media' },
   '/campaigns': { module: 'marketing', submodule: 'campaigns' },
   
@@ -50,6 +49,7 @@ export const ROUTE_TO_PERMISSION: Record<string, { module: string; submodule?: s
   '/notifications': { module: 'crm', submodule: 'notifications' },
   '/support': { module: 'crm', submodule: 'support' },
   '/emails': { module: 'crm', submodule: 'emails' },
+  '/reviews': { module: 'crm', submodule: 'reviews' },
   
   // ERP
   '/fiscal': { module: 'erp', submodule: 'fiscal' },
@@ -127,14 +127,13 @@ export const MODULES: ModuleConfig[] = [
   {
     key: 'marketing',
     label: 'Marketing',
-    description: 'Integrações, atribuição, email marketing, descontos, ofertas, avaliações e campanhas',
+    description: 'Integrações, atribuição, email marketing, descontos, ofertas e campanhas',
     submodules: [
       { key: 'integrations', label: 'Integrações Marketing', route: '/marketing' },
       { key: 'attribution', label: 'Atribuição de Venda', route: '/marketing/atribuicao' },
       { key: 'email-marketing', label: 'Email Marketing', route: '/email-marketing' },
       { key: 'discounts', label: 'Descontos', route: '/discounts' },
       { key: 'offers', label: 'Aumentar Ticket', route: '/offers' },
-      { key: 'reviews', label: 'Avaliações', route: '/reviews' },
       { key: 'media', label: 'Gestão de Mídias', route: '/media' },
       { key: 'campaigns', label: 'Criador de Campanhas', route: '/campaigns' },
     ],
@@ -142,11 +141,12 @@ export const MODULES: ModuleConfig[] = [
   {
     key: 'crm',
     label: 'CRM',
-    description: 'Notificações, atendimento e emails',
+    description: 'Notificações, atendimento, emails e avaliações',
     submodules: [
       { key: 'notifications', label: 'Notificações', route: '/notifications' },
       { key: 'support', label: 'Atendimento', route: '/support' },
       { key: 'emails', label: 'Emails', route: '/emails' },
+      { key: 'reviews', label: 'Avaliações', route: '/reviews' },
     ],
   },
   {
