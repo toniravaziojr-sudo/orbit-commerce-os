@@ -381,6 +381,56 @@ serve(async (req) => {
         const delaySeconds = calculateTotalDelaySeconds(rule.delay_seconds, rule.delay_unit);
         const scheduledFor = new Date(Date.now() + delaySeconds * 1000).toISOString();
 
+        // Generate review link if we have an order
+        let reviewLink = '';
+        let productsReviewLinks = '';
+        
+        if (orderId && (rule.rule_type === 'payment' || rule.rule_type === 'shipping' || rule.rule_type === 'post_sale')) {
+          try {
+            // Generate review token using the database function
+            const { data: tokenData } = await supabase
+              .rpc('generate_review_token', {
+                p_tenant_id: event.tenant_id,
+                p_order_id: orderId,
+                p_customer_id: customerId,
+                p_customer_email: customerEmail || null,
+              });
+            
+            if (tokenData) {
+              // Get tenant info for store URL
+              const { data: tenant } = await supabase
+                .from('tenants')
+                .select('slug, custom_domain')
+                .eq('id', event.tenant_id)
+                .single();
+              
+              const storeUrl = tenant?.custom_domain 
+                ? `https://${tenant.custom_domain}`
+                : `https://${tenant?.slug || 'loja'}.comandocentral.com.br`;
+              
+              reviewLink = `${storeUrl}/avaliar/${tokenData}`;
+              
+              // Get order items to build per-product links
+              const { data: orderItems } = await supabase
+                .from('order_items')
+                .select('product_id, product_name')
+                .eq('order_id', orderId);
+              
+              if (orderItems && orderItems.length > 0) {
+                productsReviewLinks = orderItems
+                  .filter(item => item.product_id)
+                  .map(item => `${item.product_name}: ${storeUrl}/avaliar/${tokenData}?product=${item.product_id}`)
+                  .join('\n');
+              }
+              
+              console.log(`[process-events] Generated review link for order ${orderId}: ${reviewLink}`);
+            }
+          } catch (reviewErr) {
+            console.error(`[process-events] Error generating review link:`, reviewErr);
+            // Continue without review link - not critical
+          }
+        }
+
         // Prepare template variables
         const templateVars: Record<string, unknown> = {
           customer_name: customerName,
@@ -398,6 +448,8 @@ serve(async (req) => {
           boleto_link: payload.boleto_link || '',
           store_name: payload.store_name || '',
           product_names: payload.product_names || '',
+          review_link: reviewLink,
+          products_review_links: productsReviewLinks,
         };
 
         // Process V2 channels
