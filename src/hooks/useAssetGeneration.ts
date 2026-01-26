@@ -267,6 +267,16 @@ export function useGenerateImage() {
   });
 }
 
+// Durações suportadas pelo Sora 2
+export const VIDEO_DURATIONS = [
+  { value: 5, label: "5 segundos" },
+  { value: 10, label: "10 segundos" },
+  { value: 15, label: "15 segundos" },
+  { value: 20, label: "20 segundos" },
+] as const;
+
+export type VideoDuration = typeof VIDEO_DURATIONS[number]["value"];
+
 export function useGenerateVideo() {
   const queryClient = useQueryClient();
 
@@ -277,7 +287,7 @@ export function useGenerateVideo() {
       aspectRatio = "16:9",
     }: {
       calendarItemId: string;
-      duration?: number;
+      duration?: VideoDuration;
       aspectRatio?: string;
     }) => {
       const { data: session } = await supabase.auth.getSession();
@@ -295,15 +305,23 @@ export function useGenerateVideo() {
 
       if (response.error) throw response.error;
       
-      const data = response.data as { success: boolean; error?: string; generation_id?: string };
+      const data = response.data as { 
+        success: boolean; 
+        error?: string; 
+        generation_id?: string;
+        duration?: number;
+        has_product_reference?: boolean;
+      };
       if (!data.success) {
         throw new Error(data.error || "Erro ao gerar vídeo");
       }
 
       return data;
     },
-    onSuccess: (_, variables) => {
-      toast.success(`Vídeo ${variables.duration}s adicionado à fila`);
+    onSuccess: (data, variables) => {
+      const durationLabel = VIDEO_DURATIONS.find(d => d.value === variables.duration)?.label || `${variables.duration}s`;
+      const productNote = data.has_product_reference ? " (com referência de produto)" : "";
+      toast.success(`Vídeo ${durationLabel} adicionado à fila${productNote}`);
       queryClient.invalidateQueries({
         queryKey: ["asset-generations", variables.calendarItemId],
       });

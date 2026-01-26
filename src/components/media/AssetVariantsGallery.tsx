@@ -9,6 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Check,
   RefreshCw,
   Loader2,
@@ -26,7 +33,9 @@ import {
   useGenerateVideo,
   useApproveVariant,
   useGetSignedUrl,
+  VIDEO_DURATIONS,
   type AssetVariant,
+  type VideoDuration,
 } from "@/hooks/useAssetGeneration";
 import { RegenerateFeedbackModal } from "./RegenerateFeedbackModal";
 import { ImageLightbox } from "./ImageLightbox";
@@ -48,6 +57,7 @@ export function AssetVariantsGallery({
   const [usePackshot, setUsePackshot] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxImageUrl, setLightboxImageUrl] = useState<string | null>(null);
+  const [videoDuration, setVideoDuration] = useState<VideoDuration>(5);
 
   const { data: generations, isLoading: loadingGenerations } = useAssetGenerations(calendarItemId);
   const { data: variants, isLoading: loadingVariants } = useAllVariantsForItem(calendarItemId);
@@ -77,7 +87,7 @@ export function AssetVariantsGallery({
   const handleGenerateVideo = () => {
     generateVideo.mutate({ 
       calendarItemId, 
-      duration: 5,
+      duration: videoDuration,
       aspectRatio: "16:9",
     });
   };
@@ -180,25 +190,44 @@ export function AssetVariantsGallery({
             </>
           )}
         </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={handleGenerateVideo}
-          disabled={isGeneratingVideo || isGenerating}
-        >
-          {isGeneratingVideo ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Gerando...
-            </>
-          ) : (
-            <>
-              <Video className="h-4 w-4 mr-2" />
-              Gerar vídeo
-            </>
-          )}
-        </Button>
+        
+        {/* Video generation with duration selector */}
+        <div className="flex items-center gap-2">
+          <Select
+            value={videoDuration.toString()}
+            onValueChange={(v) => setVideoDuration(parseInt(v) as VideoDuration)}
+          >
+            <SelectTrigger className="w-[120px] h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {VIDEO_DURATIONS.map((d) => (
+                <SelectItem key={d.value} value={d.value.toString()}>
+                  {d.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleGenerateVideo}
+            disabled={isGeneratingVideo || isGenerating}
+          >
+            {isGeneratingVideo ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Gerando...
+              </>
+            ) : (
+              <>
+                <Video className="h-4 w-4 mr-2" />
+                Gerar vídeo
+              </>
+            )}
+          </Button>
+        </div>
       </div>
     </div>
 
