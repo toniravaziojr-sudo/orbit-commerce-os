@@ -10,6 +10,7 @@ import { Slider } from '@/components/ui/slider';
 import { Separator } from '@/components/ui/separator';
 import { Loader2 } from 'lucide-react';
 import { useThemeTypography, DEFAULT_THEME_TYPOGRAPHY, ThemeTypography } from '@/hooks/useThemeSettings';
+import { getFontFamily } from '@/hooks/usePublicThemeSettings';
 
 interface TypographySettingsProps {
   tenantId: string;
@@ -160,10 +161,10 @@ export function TypographySettings({ tenantId, templateSetId }: TypographySettin
       {/* Preview */}
       <div className="p-4 rounded-lg border bg-muted/30 space-y-2">
         <p className="text-xs text-muted-foreground uppercase tracking-wider">Preview</p>
-        <h3 className="text-lg font-bold" style={{ fontFamily: localTypography.headingFont }}>
+        <h3 className="text-lg font-bold" style={{ fontFamily: getFontFamily(localTypography.headingFont) }}>
           Título de exemplo
         </h3>
-        <p className="text-sm" style={{ fontFamily: localTypography.bodyFont, fontSize: localTypography.baseFontSize }}>
+        <p className="text-sm" style={{ fontFamily: getFontFamily(localTypography.bodyFont), fontSize: localTypography.baseFontSize }}>
           Este é um parágrafo de exemplo para visualizar a tipografia selecionada.
         </p>
       </div>

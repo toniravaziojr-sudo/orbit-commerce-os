@@ -7,6 +7,53 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { ThemeSettings, ThemeColors } from './useThemeSettings';
 
+// ============================================
+// FONT FAMILY MAP - Maps font value to CSS font-family
+// ============================================
+export const FONT_FAMILY_MAP: Record<string, string> = {
+  // Sans-serif fonts
+  'inter': "'Inter', sans-serif",
+  'roboto': "'Roboto', sans-serif",
+  'open-sans': "'Open Sans', sans-serif",
+  'lato': "'Lato', sans-serif",
+  'montserrat': "'Montserrat', sans-serif",
+  'poppins': "'Poppins', sans-serif",
+  'nunito': "'Nunito', sans-serif",
+  'raleway': "'Raleway', sans-serif",
+  'source-sans-pro': "'Source Sans Pro', sans-serif",
+  'ubuntu': "'Ubuntu', sans-serif",
+  'mulish': "'Mulish', sans-serif",
+  'work-sans': "'Work Sans', sans-serif",
+  'quicksand': "'Quicksand', sans-serif",
+  'dm-sans': "'DM Sans', sans-serif",
+  'manrope': "'Manrope', sans-serif",
+  'outfit': "'Outfit', sans-serif",
+  'plus-jakarta-sans': "'Plus Jakarta Sans', sans-serif",
+  // Serif fonts
+  'playfair': "'Playfair Display', serif",
+  'merriweather': "'Merriweather', serif",
+  'lora': "'Lora', serif",
+  'pt-serif': "'PT Serif', serif",
+  'crimson-text': "'Crimson Text', serif",
+  'libre-baskerville': "'Libre Baskerville', serif",
+  'cormorant-garamond': "'Cormorant Garamond', serif",
+  'eb-garamond': "'EB Garamond', serif",
+  'bitter': "'Bitter', serif",
+  // Display fonts
+  'abril-fatface': "'Abril Fatface', cursive",
+  'bebas-neue': "'Bebas Neue', sans-serif",
+  'oswald': "'Oswald', sans-serif",
+  'josefin-sans': "'Josefin Sans', sans-serif",
+  'righteous': "'Righteous', cursive",
+};
+
+/**
+ * Get the CSS font-family string for a font value
+ */
+export function getFontFamily(fontValue: string): string {
+  return FONT_FAMILY_MAP[fontValue] || FONT_FAMILY_MAP['inter'];
+}
+
 interface PublicThemeSettingsResult {
   themeSettings: ThemeSettings | null;
   isLoading: boolean;
@@ -108,47 +155,99 @@ export function usePublicThemeSettings(tenantSlug: string): PublicThemeSettingsR
 
 /**
  * Get CSS variables from published themeSettings
+ * Generates CSS with proper font-family values for typography
  */
 export function getThemeSettingsCssVars(themeSettings: ThemeSettings | null): string {
-  if (!themeSettings?.colors) {
-    return '';
-  }
-
-  const colors = themeSettings.colors;
-  const typography = themeSettings.typography;
-  
   const cssVars: string[] = [];
 
-  // Colors - using correct ThemeColors properties
-  if (colors.buttonPrimaryBg) {
-    cssVars.push(`--theme-button-primary-bg: ${colors.buttonPrimaryBg};`);
-  }
-  if (colors.buttonPrimaryText) {
-    cssVars.push(`--theme-button-primary-text: ${colors.buttonPrimaryText};`);
-  }
-  if (colors.buttonSecondaryBg) {
-    cssVars.push(`--theme-button-secondary-bg: ${colors.buttonSecondaryBg};`);
-  }
-  if (colors.buttonSecondaryText) {
-    cssVars.push(`--theme-button-secondary-text: ${colors.buttonSecondaryText};`);
-  }
-  if (colors.textPrimary) {
-    cssVars.push(`--theme-text-primary: ${colors.textPrimary};`);
-  }
-  if (colors.textSecondary) {
-    cssVars.push(`--theme-text-secondary: ${colors.textSecondary};`);
+  // Colors
+  const colors = themeSettings?.colors;
+  if (colors) {
+    if (colors.buttonPrimaryBg) {
+      cssVars.push(`--theme-button-primary-bg: ${colors.buttonPrimaryBg};`);
+    }
+    if (colors.buttonPrimaryText) {
+      cssVars.push(`--theme-button-primary-text: ${colors.buttonPrimaryText};`);
+    }
+    if (colors.buttonSecondaryBg) {
+      cssVars.push(`--theme-button-secondary-bg: ${colors.buttonSecondaryBg};`);
+    }
+    if (colors.buttonSecondaryText) {
+      cssVars.push(`--theme-button-secondary-text: ${colors.buttonSecondaryText};`);
+    }
+    if (colors.textPrimary) {
+      cssVars.push(`--theme-text-primary: ${colors.textPrimary};`);
+    }
+    if (colors.textSecondary) {
+      cssVars.push(`--theme-text-secondary: ${colors.textSecondary};`);
+    }
   }
 
-  // Typography
-  if (typography?.headingFont) {
-    cssVars.push(`--theme-heading-font: ${typography.headingFont};`);
-  }
-  if (typography?.bodyFont) {
-    cssVars.push(`--theme-body-font: ${typography.bodyFont};`);
-  }
-  if (typography?.baseFontSize) {
-    cssVars.push(`--theme-base-font-size: ${typography.baseFontSize}px;`);
+  // Typography - with proper font-family values
+  const typography = themeSettings?.typography;
+  if (typography) {
+    const headingFontFamily = getFontFamily(typography.headingFont || 'inter');
+    const bodyFontFamily = getFontFamily(typography.bodyFont || 'inter');
+    const baseFontSize = typography.baseFontSize || 16;
+
+    cssVars.push(`--sf-heading-font: ${headingFontFamily};`);
+    cssVars.push(`--sf-body-font: ${bodyFontFamily};`);
+    cssVars.push(`--sf-base-font-size: ${baseFontSize}px;`);
+  } else {
+    // Defaults
+    cssVars.push(`--sf-heading-font: 'Inter', sans-serif;`);
+    cssVars.push(`--sf-body-font: 'Inter', sans-serif;`);
+    cssVars.push(`--sf-base-font-size: 16px;`);
   }
 
   return cssVars.join('\n');
+}
+
+/**
+ * Generate complete CSS string for storefront theme injection
+ * Includes both CSS variables and selector rules
+ */
+export function getStorefrontThemeCss(themeSettings: ThemeSettings | null): string {
+  const typography = themeSettings?.typography;
+  const headingFontFamily = getFontFamily(typography?.headingFont || 'inter');
+  const bodyFontFamily = getFontFamily(typography?.bodyFont || 'inter');
+  const baseFontSize = typography?.baseFontSize || 16;
+
+  return `
+    /* Storefront Theme - Typography */
+    :root {
+      --sf-heading-font: ${headingFontFamily};
+      --sf-body-font: ${bodyFontFamily};
+      --sf-base-font-size: ${baseFontSize}px;
+    }
+    
+    /* Apply typography to storefront container */
+    .storefront-container {
+      font-family: var(--sf-body-font);
+      font-size: var(--sf-base-font-size);
+    }
+    
+    /* Apply heading font to all headings within storefront */
+    .storefront-container h1,
+    .storefront-container h2,
+    .storefront-container h3,
+    .storefront-container h4,
+    .storefront-container h5,
+    .storefront-container h6 {
+      font-family: var(--sf-heading-font);
+    }
+    
+    /* Apply body font to paragraphs, buttons, and general text */
+    .storefront-container p,
+    .storefront-container span,
+    .storefront-container a,
+    .storefront-container button,
+    .storefront-container input,
+    .storefront-container textarea,
+    .storefront-container select,
+    .storefront-container label,
+    .storefront-container li {
+      font-family: var(--sf-body-font);
+    }
+  `;
 }
