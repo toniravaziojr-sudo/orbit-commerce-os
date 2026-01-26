@@ -880,6 +880,14 @@ export function CampaignCalendar() {
                   const isSelected = selectedDays.has(dateKey);
                   const hasContent = dayItems.length > 0;
                   const counts = getPublicationCounts(dayItems);
+                  
+                  // Determinar o status predominante dos itens do dia
+                  const hasApprovedOrScheduled = dayItems.some(i => 
+                    ["approved", "scheduled", "published"].includes(i.status)
+                  );
+                  const hasOnlyDraft = hasContent && dayItems.every(i => 
+                    ["draft", "suggested", "review", "generating_asset", "asset_review"].includes(i.status)
+                  );
 
                   return (
                     <div
@@ -890,9 +898,11 @@ export function CampaignCalendar() {
                         inPeriod ? "cursor-pointer hover:shadow-md" : "bg-muted/30 border-transparent",
                         // Selecionado para IA
                         isSelected && "bg-primary/20 border-primary border-dashed",
-                        // Com conteúdo
-                        hasContent && inPeriod && !isSelected && "bg-primary/10 border-primary",
-                        // Normal
+                        // Com conteúdo aprovado/agendado - azul/verde
+                        hasApprovedOrScheduled && inPeriod && !isSelected && "bg-green-50 border-green-500 dark:bg-green-950/30 dark:border-green-600",
+                        // Com conteúdo apenas em construção (draft/suggested) - cinza/neutro
+                        hasOnlyDraft && inPeriod && !isSelected && "bg-muted/50 border-muted-foreground/30",
+                        // Normal sem conteúdo
                         !isSelected && !hasContent && inPeriod && "bg-background border-border",
                         // Feriado
                         holiday && inPeriod && "ring-2 ring-red-400/50",
