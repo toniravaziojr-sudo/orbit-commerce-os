@@ -314,26 +314,34 @@ async function processFalPipeline(
       let result: any = null;
 
       while (attempts < maxAttempts) {
+        console.log(`[creative-process] Polling attempt ${attempts + 1}/${maxAttempts} for ${requestId}`);
         await new Promise(r => setTimeout(r, 5000)); // 5s entre polls
 
-        const statusResponse = await fetch(`https://queue.fal.run/${endpoint}/requests/${requestId}/status`, {
+        const statusUrl = `https://queue.fal.run/${endpoint}/requests/${requestId}/status`;
+        console.log(`[creative-process] Status URL: ${statusUrl}`);
+        
+        const statusResponse = await fetch(statusUrl, {
           headers: {
             'Authorization': `Key ${falApiKey}`,
           },
         });
 
         const statusData = await statusResponse.json();
+        console.log(`[creative-process] Status response:`, JSON.stringify(statusData));
 
         if (statusData.status === 'COMPLETED') {
           // Buscar resultado
+          console.log(`[creative-process] Job completed, fetching result`);
           const resultResponse = await fetch(`https://queue.fal.run/${endpoint}/requests/${requestId}`, {
             headers: {
               'Authorization': `Key ${falApiKey}`,
             },
           });
           result = await resultResponse.json();
+          console.log(`[creative-process] Result:`, JSON.stringify(result).substring(0, 500));
           break;
         } else if (statusData.status === 'FAILED') {
+          console.error(`[creative-process] Fal job failed:`, statusData);
           throw new Error(`Fal job failed: ${statusData.error || 'Unknown error'}`);
         }
 
@@ -341,6 +349,7 @@ async function processFalPipeline(
       }
 
       if (!result) {
+        console.error(`[creative-process] Job timeout after ${maxAttempts} attempts`);
         throw new Error('Fal job timeout');
       }
 
