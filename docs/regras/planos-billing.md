@@ -191,11 +191,92 @@ credits = ceil(sell_usd / CREDIT_USD)
 
 ---
 
+## Extras por Uso Excedente
+
+O sistema rastreia automaticamente o uso de recursos que excedem os limites incluídos no plano.
+
+### Campos de Tracking (`tenant_monthly_usage`)
+| Campo | Descrição |
+|-------|-----------|
+| `email_notifications_count` | Total de emails enviados no mês |
+| `whatsapp_notifications_count` | Total de WhatsApp enviados |
+| `support_interactions_count` | Total de interações de suporte |
+| `extra_email_cents` | Custo de emails excedentes |
+| `extra_whatsapp_cents` | Custo de WhatsApp excedentes |
+| `extra_support_cents` | Custo de suporte excedente |
+
+### Limites por Plano (`plan_limits`)
+| Campo | Descrição |
+|-------|-----------|
+| `included_email_notifications` | Emails incluídos no plano |
+| `included_whatsapp_notifications` | WhatsApp incluídos |
+| `included_support_interactions` | Interações de suporte incluídas |
+| `extra_email_price_cents` | Preço por email extra (default: 5) |
+| `extra_whatsapp_price_cents` | Preço por WhatsApp extra (default: 15) |
+| `extra_support_price_cents` | Preço por interação extra (default: 10) |
+
+### RPC: `record_notification_usage`
+```sql
+SELECT record_notification_usage(
+  p_tenant_id := 'uuid',
+  p_channel := 'email', -- ou 'whatsapp'
+  p_count := 1
+);
+```
+
+---
+
 ## Avisos Obrigatórios na UI
 
 1. **Pagamento:** "Todos os planos requerem cartão de crédito"
 2. **Custos variáveis:** "Custos de uso de IA podem variar. Tabela de valores disponível no sistema."
 3. **Alternativa:** "Não tem cartão de crédito? Fale conosco"
+
+---
+
+## Plano Básico Automático
+
+Quando um usuário cria uma conta sem escolher plano, o sistema:
+1. Cria o tenant com `plan = 'start'`
+2. Cria assinatura em `tenant_subscriptions` com `plan_key = 'basico'` e `status = 'active'`
+3. Inicializa `credit_wallet` com saldo zero
+
+Isso permite que o usuário comece a usar a plataforma imediatamente com o plano básico (taxa de 2,5% sobre vendas).
+
+---
+
+## Módulos Bloqueados com Visualização
+
+Módulos bloqueados devem ser visíveis mas não utilizáveis. Usar:
+
+### `ModuleGate` Component
+```tsx
+<ModuleGate 
+  moduleKey="marketing_advanced" 
+  blockedMode="blur" 
+  moduleName="Marketing Avançado"
+>
+  <MarketingAdvancedPage />
+</ModuleGate>
+```
+
+### Modos de Bloqueio
+| Modo | Descrição |
+|------|-----------|
+| `hide` | Esconde completamente (para menus) |
+| `blur` | Mostra preview borrado com CTA de upgrade |
+| `prompt` | Mostra apenas o prompt de upgrade |
+
+### `FeatureGate` com CTA
+```tsx
+<FeatureGate 
+  feature="whatsapp" 
+  showUpgradeCTA 
+  featureName="WhatsApp"
+>
+  <WhatsAppIntegration />
+</FeatureGate>
+```
 
 ---
 
@@ -208,6 +289,8 @@ credits = ceil(sell_usd / CREDIT_USD)
 | **Reserva** | Jobs longos reservam antes, ajustam depois |
 | **Markup** | 50% sobre custo do provedor |
 | **Default allow** | Features não configuradas são permitidas |
+| **Plano padrão** | Usuários sem plano vão para 'basico' automaticamente |
+| **Extras na fatura** | Uso excedente é cobrado na fatura mensal |
 
 ---
 
@@ -219,3 +302,4 @@ credits = ceil(sell_usd / CREDIT_USD)
 | Dupla cobrança | idempotency_key obrigatório |
 | Ignorar limites do plano | RPC valida antes |
 | Mostrar custos USD | Sempre exibir em créditos/BRL |
+| Esconder módulos bloqueados | Mostrar com CTA de upgrade |

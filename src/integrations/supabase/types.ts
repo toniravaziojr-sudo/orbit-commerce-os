@@ -8120,8 +8120,14 @@ export type Database = {
           creative_tech_per_month: number | null
           creative_ugc_ai_per_month: number | null
           creative_ugc_per_month: number | null
+          extra_email_price_cents: number | null
+          extra_support_price_cents: number | null
+          extra_whatsapp_price_cents: number | null
           id: string
           import_uses_per_month: number | null
+          included_email_notifications: number | null
+          included_support_interactions: number | null
+          included_whatsapp_notifications: number | null
           max_users: number | null
           orders_per_month: number | null
           plan_key: string
@@ -8143,8 +8149,14 @@ export type Database = {
           creative_tech_per_month?: number | null
           creative_ugc_ai_per_month?: number | null
           creative_ugc_per_month?: number | null
+          extra_email_price_cents?: number | null
+          extra_support_price_cents?: number | null
+          extra_whatsapp_price_cents?: number | null
           id?: string
           import_uses_per_month?: number | null
+          included_email_notifications?: number | null
+          included_support_interactions?: number | null
+          included_whatsapp_notifications?: number | null
           max_users?: number | null
           orders_per_month?: number | null
           plan_key: string
@@ -8166,8 +8178,14 @@ export type Database = {
           creative_tech_per_month?: number | null
           creative_ugc_ai_per_month?: number | null
           creative_ugc_per_month?: number | null
+          extra_email_price_cents?: number | null
+          extra_support_price_cents?: number | null
+          extra_whatsapp_price_cents?: number | null
           id?: string
           import_uses_per_month?: number | null
+          included_email_notifications?: number | null
+          included_support_interactions?: number | null
+          included_whatsapp_notifications?: number | null
           max_users?: number | null
           orders_per_month?: number | null
           plan_key?: string
@@ -11866,6 +11884,10 @@ export type Database = {
           ai_messages_count: number | null
           ai_usage_cents: number
           created_at: string
+          email_notifications_count: number | null
+          extra_email_cents: number | null
+          extra_support_cents: number | null
+          extra_whatsapp_cents: number | null
           gmv_cents: number
           id: string
           limit_blocked_at: string | null
@@ -11873,8 +11895,10 @@ export type Database = {
           metadata: Json | null
           orders_count: number
           over_limit: boolean
+          support_interactions_count: number | null
           tenant_id: string
           updated_at: string
+          whatsapp_notifications_count: number | null
           year_month: string
         }
         Insert: {
@@ -11886,6 +11910,10 @@ export type Database = {
           ai_messages_count?: number | null
           ai_usage_cents?: number
           created_at?: string
+          email_notifications_count?: number | null
+          extra_email_cents?: number | null
+          extra_support_cents?: number | null
+          extra_whatsapp_cents?: number | null
           gmv_cents?: number
           id?: string
           limit_blocked_at?: string | null
@@ -11893,8 +11921,10 @@ export type Database = {
           metadata?: Json | null
           orders_count?: number
           over_limit?: boolean
+          support_interactions_count?: number | null
           tenant_id: string
           updated_at?: string
+          whatsapp_notifications_count?: number | null
           year_month: string
         }
         Update: {
@@ -11906,6 +11936,10 @@ export type Database = {
           ai_messages_count?: number | null
           ai_usage_cents?: number
           created_at?: string
+          email_notifications_count?: number | null
+          extra_email_cents?: number | null
+          extra_support_cents?: number | null
+          extra_whatsapp_cents?: number | null
           gmv_cents?: number
           id?: string
           limit_blocked_at?: string | null
@@ -11913,8 +11947,10 @@ export type Database = {
           metadata?: Json | null
           orders_count?: number
           over_limit?: boolean
+          support_interactions_count?: number | null
           tenant_id?: string
           updated_at?: string
+          whatsapp_notifications_count?: number | null
           year_month?: string
         }
         Relationships: [
@@ -12509,6 +12545,10 @@ export type Database = {
           has_balance: boolean
         }[]
       }
+      check_module_access: {
+        Args: { p_module_key: string; p_tenant_id: string }
+        Returns: Json
+      }
       check_tenant_order_limit: {
         Args: { p_tenant_id: string }
         Returns: {
@@ -12620,6 +12660,16 @@ export type Database = {
           tiktok_pixel_id: string
         }[]
       }
+      get_tenant_module_access: {
+        Args: { p_tenant_id: string }
+        Returns: {
+          access_level: string
+          allowed_features: Json
+          blocked_features: Json
+          module_key: string
+          notes: string
+        }[]
+      }
       get_whatsapp_config_for_tenant: {
         Args: { p_tenant_id: string }
         Returns: {
@@ -12698,6 +12748,10 @@ export type Database = {
       record_ai_usage: {
         Args: { p_tenant_id: string; p_usage_cents: number }
         Returns: undefined
+      }
+      record_notification_usage: {
+        Args: { p_channel: string; p_count?: number; p_tenant_id: string }
+        Returns: Json
       }
       reserve_credits: {
         Args: {

@@ -1,5 +1,8 @@
 import { ReactNode } from 'react';
 import { useTenantAccess } from '@/hooks/useTenantAccess';
+import { Lock, Sparkles } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useNavigate } from 'react-router-dom';
 
 interface FeatureGateProps {
   /** Feature key to check access for */
@@ -8,6 +11,13 @@ interface FeatureGateProps {
   children: ReactNode;
   /** Optional fallback content if feature is not accessible */
   fallback?: ReactNode;
+  /** 
+   * Show upgrade CTA when blocked instead of hiding
+   * @default false
+   */
+  showUpgradeCTA?: boolean;
+  /** Feature name for upgrade prompt */
+  featureName?: string;
 }
 
 /**
@@ -30,9 +40,9 @@ interface FeatureGateProps {
  * </FeatureGate>
  * ```
  * 
- * With fallback:
+ * With upgrade CTA:
  * ```tsx
- * <FeatureGate feature="whatsapp" fallback={<UpgradePrompt />}>
+ * <FeatureGate feature="whatsapp" showUpgradeCTA featureName="WhatsApp">
  *   <WhatsAppIntegration />
  * </FeatureGate>
  * ```
@@ -41,8 +51,11 @@ export function FeatureGate({
   feature, 
   children, 
   fallback = null,
+  showUpgradeCTA = false,
+  featureName,
 }: FeatureGateProps) {
-  const { canAccess, isLoading } = useTenantAccess();
+  const { canAccess, isLoading, plan } = useTenantAccess();
+  const navigate = useNavigate();
 
   // While loading, render nothing to avoid flash
   if (isLoading) {
@@ -51,6 +64,28 @@ export function FeatureGate({
 
   // Check if feature is accessible
   if (!canAccess(feature)) {
+    // If showUpgradeCTA, show inline upgrade prompt
+    if (showUpgradeCTA) {
+      return (
+        <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border border-dashed">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <Lock className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p className="font-medium">{featureName || feature}</p>
+              <p className="text-sm text-muted-foreground">
+                Funcionalidade disponível em planos superiores
+              </p>
+            </div>
+          </div>
+          <Button onClick={() => navigate('/settings/plans')} size="sm">
+            <Sparkles className="h-4 w-4 mr-2" />
+            Fazer Upgrade
+          </Button>
+        </div>
+      );
+    }
     return <>{fallback}</>;
   }
 
