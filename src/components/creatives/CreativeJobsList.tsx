@@ -24,9 +24,10 @@ interface CreativeJobsListProps {
   jobs: CreativeJob[];
   isLoading: boolean;
   type: CreativeType;
+  highlightNew?: boolean;
 }
 
-export function CreativeJobsList({ jobs, isLoading, type }: CreativeJobsListProps) {
+export function CreativeJobsList({ jobs, isLoading, type, highlightNew }: CreativeJobsListProps) {
   const retryJob = useRetryCreativeJob();
 
   if (isLoading) {
@@ -64,11 +65,19 @@ export function CreativeJobsList({ jobs, isLoading, type }: CreativeJobsListProp
   return (
     <ScrollArea className="h-[500px] pr-4">
       <div className="space-y-3">
-        {jobs.map((job) => (
-          <div 
-            key={job.id} 
-            className="p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
-          >
+        {jobs.map((job, index) => {
+          const isActive = job.status === 'queued' || job.status === 'running';
+          const isFirst = index === 0;
+          
+          return (
+            <div 
+              key={job.id} 
+              className={`p-3 rounded-lg border transition-all ${
+                isActive 
+                  ? 'bg-primary/5 border-primary/30 shadow-sm' 
+                  : 'bg-card hover:bg-accent/50'
+              } ${isFirst && highlightNew ? 'ring-2 ring-primary ring-offset-1 animate-pulse' : ''}`}
+            >
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">
@@ -146,7 +155,8 @@ export function CreativeJobsList({ jobs, isLoading, type }: CreativeJobsListProp
               )}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </ScrollArea>
   );
