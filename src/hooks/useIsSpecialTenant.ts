@@ -1,20 +1,26 @@
-import { useAuth } from '@/hooks/useAuth';
-import { RESPEITE_O_HOMEM_TENANT_ID } from '@/config/tenant-anchors';
+import { usePlatformOperator } from '@/hooks/usePlatformOperator';
+import { useAdminModeSafe } from '@/contexts/AdminModeContext';
 
 /**
- * Hook to check if the current tenant is the special "Respeite o Homem" tenant
- * Used for showing module status indicators ONLY for this specific tenant
- * Platform admins do NOT see these indicators - only the respeiteohomem tenant
+ * Hook to check if module status indicators should be shown.
+ * 
+ * UPDATED: Status indicators (green/orange badges) are now shown ONLY for:
+ * - Platform operators (admin users)
+ * - When in "Minha Loja" (store) mode
+ * 
+ * This allows the admin to see development status while using the platform
+ * as a client, while regular tenants (including respeiteohomem) see a clean UI.
  */
 export function useIsSpecialTenant() {
-  const { currentTenant } = useAuth();
+  const { isPlatformOperator, isLoading: platformLoading } = usePlatformOperator();
+  const { isStoreMode } = useAdminModeSafe();
 
-  // Check ONLY by tenant ID - must be exactly the Respeite o Homem tenant
-  const isRespeiteOHomem = currentTenant?.id === RESPEITE_O_HOMEM_TENANT_ID;
+  // Show status indicators only for platform operators in store mode
+  const showStatusIndicators = isPlatformOperator && isStoreMode;
 
   return {
-    isSpecialTenant: isRespeiteOHomem,
-    isRespeiteOHomem,
-    isLoading: false,
+    isSpecialTenant: showStatusIndicators,
+    isRespeiteOHomem: false, // Deprecated - no longer used for status indicators
+    isLoading: platformLoading,
   };
 }
