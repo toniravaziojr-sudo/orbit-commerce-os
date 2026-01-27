@@ -314,11 +314,76 @@ interface CreativeJob {
 - Guardar aceite no job (auditável)
 
 ### Edge Functions
-| Function | Descrição |
-|----------|-----------|
-| `creative-generate` | Inicia job e enfileira |
-| `creative-process` | Processa pipeline de modelos |
-| `creative-webhook` | Recebe callbacks do fal.ai |
+| Function | Descrição | Status |
+|----------|-----------|--------|
+| `creative-generate` | Valida inputs, cria pasta, enfileira job | ✅ Ready |
+| `creative-process` | Processa pipeline de modelos (fal.ai + Lovable AI) | ✅ Ready |
+| `creative-webhook` | Recebe callbacks do fal.ai (futuro) | 🟧 Pending |
+
+### Tabela `creative_jobs`
+```sql
+CREATE TABLE public.creative_jobs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id),
+  type creative_type NOT NULL,
+  status creative_job_status DEFAULT 'queued',
+  
+  -- Inputs
+  prompt TEXT NOT NULL,
+  product_id UUID REFERENCES products(id),
+  product_name TEXT,
+  product_image_url TEXT,
+  reference_images TEXT[],
+  reference_video_url TEXT,
+  reference_audio_url TEXT,
+  settings JSONB DEFAULT '{}',
+  
+  -- Compliance
+  has_authorization BOOLEAN DEFAULT false,
+  authorization_accepted_at TIMESTAMPTZ,
+  
+  -- Pipeline
+  pipeline_steps JSONB DEFAULT '[]',
+  current_step INTEGER DEFAULT 0,
+  
+  -- Output
+  output_urls TEXT[],
+  output_folder_id UUID,
+  
+  -- Metadata
+  error_message TEXT,
+  cost_cents INTEGER DEFAULT 0,
+  processing_time_ms INTEGER,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  started_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  created_by UUID NOT NULL
+);
+```
+
+### Enums
+```sql
+CREATE TYPE creative_type AS ENUM (
+  'ugc_client_video',    -- Aba 1
+  'ugc_ai_video',        -- Aba 2
+  'short_video',         -- Aba 3
+  'tech_product_video',  -- Aba 4
+  'product_image'        -- Aba 5
+);
+
+CREATE TYPE creative_job_status AS ENUM (
+  'queued', 'running', 'succeeded', 'failed'
+);
+```
+
+### RLS Policies
+- SELECT/INSERT/UPDATE/DELETE restritos por `tenant_id` via `user_roles`
+
+### Função de Custo
+```sql
+-- increment_creative_usage(tenant_id, cost_cents)
+-- Incrementa ai_usage_cents em tenant_monthly_usage
+```
 
 ---
 
@@ -331,5 +396,6 @@ interface CreativeJob {
 - [ ] Gestão de tráfego IA completa
 - [ ] Relatórios de ROI
 - [x] Gestão de Criativos (UI básica)
-- [ ] Gestão de Criativos (Edge Functions)
-- [ ] Gestão de Criativos (Tabela creative_jobs)
+- [x] Gestão de Criativos (Tabela creative_jobs)
+- [x] Gestão de Criativos (Edge Functions generate/process)
+- [ ] Gestão de Criativos (Webhook fal.ai)
