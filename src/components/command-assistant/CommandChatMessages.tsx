@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Loader2, CheckCircle2, XCircle, Bot, User, Wrench, FileText, Image as ImageIcon } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { CommandMessage, ProposedAction } from "@/hooks/useCommandAssistant";
@@ -55,7 +56,9 @@ export function CommandChatMessages({
               <Bot className="h-4 w-4 text-primary" />
             </div>
             <div className="flex-1 rounded-lg bg-muted/50 p-3">
-              <p className="whitespace-pre-wrap text-sm">{streamingContent}</p>
+              <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5">
+                <ReactMarkdown>{streamingContent}</ReactMarkdown>
+              </div>
               <span className="inline-block h-4 w-1 animate-pulse bg-primary" />
             </div>
           </div>
@@ -121,7 +124,13 @@ function MessageBubble({
           )}
         >
           {message.content && (
-            <p className="whitespace-pre-wrap text-sm">{message.content}</p>
+            isUser ? (
+              <p className="whitespace-pre-wrap text-sm">{message.content}</p>
+            ) : (
+              <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:mt-4 prose-headings:mb-2 prose-headings:font-semibold prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-strong:text-foreground prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-sm">
+                <ReactMarkdown>{message.content}</ReactMarkdown>
+              </div>
+            )
           )}
 
           {/* User attachments */}
