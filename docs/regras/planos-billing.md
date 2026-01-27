@@ -294,6 +294,39 @@ Módulos bloqueados devem ser visíveis mas não utilizáveis. Usar:
 
 ---
 
+## Módulo ChatGPT - Limites por Plano
+
+O módulo ChatGPT possui limites de uso em USD incluídos por plano:
+
+| Plano | Acesso | Limite Incluído | Excedente |
+|-------|--------|-----------------|-----------|
+| `basico` | ❌ Bloqueado | - | - |
+| `evolucao` | ❌ Bloqueado | - | - |
+| `profissional` | ✅ Liberado | US$ 2,00/mês | Cobrado à parte |
+| `avancado` | ✅ Liberado | US$ 5,00/mês | Cobrado à parte |
+| `impulso` | ✅ Liberado | US$ 10,00/mês | Cobrado à parte |
+| `consolidar` | ✅ Liberado | US$ 15,00/mês | Cobrado à parte |
+| `comando_maximo` | ✅ Liberado | US$ 25,00/mês | Cobrado à parte |
+| `customizado` | ✅ Liberado | Ilimitado | - |
+
+### Campos Relacionados
+
+| Tabela | Campo | Descrição |
+|--------|-------|-----------|
+| `plan_limits` | `chatgpt_included_usd` | Limite mensal incluído (-1 = ilimitado) |
+| `plan_module_access` | `module_key = 'chatgpt'` | Nível de acesso (none/full) |
+| `tenant_monthly_usage` | `chatgpt_usage_usd` | Uso acumulado no mês |
+| `tenant_monthly_usage` | `chatgpt_extra_usd` | Valor excedente a faturar |
+
+### Funções RPC
+
+| Função | Descrição |
+|--------|-----------|
+| `check_chatgpt_access(tenant_id)` | Retorna acesso, limite, uso e saldo |
+| `record_chatgpt_usage(tenant_id, cost_usd)` | Registra uso e calcula excedente |
+
+---
+
 ## Proibições
 
 | Proibido | Motivo |
@@ -303,3 +336,4 @@ Módulos bloqueados devem ser visíveis mas não utilizáveis. Usar:
 | Ignorar limites do plano | RPC valida antes |
 | Mostrar custos USD | Sempre exibir em créditos/BRL |
 | Esconder módulos bloqueados | Mostrar com CTA de upgrade |
+| Permitir ChatGPT em planos bloqueados | Regra de negócio |
