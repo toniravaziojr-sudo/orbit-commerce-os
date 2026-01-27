@@ -48,7 +48,6 @@ const moduleLabels: Record<string, string> = {
   'purchases': 'Compras',
   'shipping': 'Frete e Envio',
   'influencers': 'Influencers',
-  'suppliers': 'Fornecedores',
   'affiliates': 'Afiliados',
   'integrations': 'Integrações',
   'import': 'Importação',
