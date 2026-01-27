@@ -184,6 +184,7 @@ const fullNavigation: NavGroup[] = [
     items: [
       { title: "Meu Drive", href: "/files", icon: FolderOpen },
       { title: "Relatórios", href: "/reports", icon: BarChart3 },
+      { title: "Extrator B2B", href: "/b2b-extractor", icon: Building2 },
     ],
   },
   {
