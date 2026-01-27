@@ -23,6 +23,11 @@ const FAL_ENDPOINTS: Record<string, string> = {
   'sync-lipsync-final': 'fal-ai/sync-lipsync/v2/pro',
   'kling-avatar': 'fal-ai/kling-video/ai-avatar/v2/pro',
   'kling-avatar-short': 'fal-ai/kling-video/ai-avatar/v2/pro',
+  'kling-avatar-mascot-pro': 'fal-ai/kling-video/ai-avatar/v2/pro',
+  'kling-avatar-mascot-std': 'fal-ai/kling-video/ai-avatar/v2/standard',
+  'f5-tts': 'fal-ai/f5-tts',
+  'chatterbox-s2s-mascot': 'resemble-ai/chatterboxhd/speech-to-speech',
+  'sync-lipsync-mascot': 'fal-ai/sync-lipsync/v2/pro',
   'veo31-text-video': 'fal-ai/veo3.1',
   'veo31-first-last': 'fal-ai/veo3.1/first-last-frame-to-video',
   'veo31-image-video': 'fal-ai/veo3.1/image-to-video',
@@ -400,6 +405,7 @@ function buildFalPayload(modelId: string, job: any, previousOutput: string | nul
       };
 
     case 'chatterbox-voice':
+    case 'chatterbox-s2s-mascot':
       return {
         audio_url: previousOutput || job.reference_audio_url,
         target_audio_url: settings.voice_reference,
@@ -407,6 +413,7 @@ function buildFalPayload(modelId: string, job: any, previousOutput: string | nul
 
     case 'sync-lipsync':
     case 'sync-lipsync-final':
+    case 'sync-lipsync-mascot':
       return {
         video_url: previousOutput || job.reference_video_url,
         audio_url: job.reference_audio_url,
@@ -414,11 +421,21 @@ function buildFalPayload(modelId: string, job: any, previousOutput: string | nul
 
     case 'kling-avatar':
     case 'kling-avatar-short':
+    case 'kling-avatar-mascot-pro':
+    case 'kling-avatar-mascot-std':
       return {
         prompt: job.prompt,
-        image_url: job.reference_images?.[0],
+        image_url: job.reference_images?.[0] || job.product_image_url,
         duration: settings.duration || 10,
         aspect_ratio: settings.aspect_ratio || '9:16',
+      };
+
+    case 'f5-tts':
+      return {
+        text: job.prompt,
+        voice_preset: settings.voice_preset || 'female-young-br',
+        language: settings.language || 'pt-BR',
+        reference_audio_url: settings.voice_reference,
       };
 
     case 'veo31-text-video':
@@ -472,6 +489,11 @@ function getModelCost(modelId: string): number {
     'sync-lipsync-final': 40,
     'kling-avatar': 80,
     'kling-avatar-short': 80,
+    'kling-avatar-mascot-pro': 80,
+    'kling-avatar-mascot-std': 40,
+    'f5-tts': 10,
+    'chatterbox-s2s-mascot': 20,
+    'sync-lipsync-mascot': 40,
     'veo31-text-video': 100,
     'veo31-first-last': 100,
     'veo31-image-video': 80,
