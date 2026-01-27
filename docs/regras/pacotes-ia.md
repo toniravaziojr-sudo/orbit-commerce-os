@@ -96,12 +96,10 @@ CREDIT_MARKUP = 1.5    // 50% markup sobre custo do provedor
 
 | SKU | Créditos | Bônus | Preço (BRL) |
 |-----|----------|-------|-------------|
-| CC_CREDITS_1K | 1.000 | 0 | R$ 10,00 |
-| CC_CREDITS_5K | 5.000 | 0 | R$ 50,00 |
-| CC_CREDITS_15K | 15.000 | 500 | R$ 150,00 |
-| CC_CREDITS_50K | 50.000 | 2.500 | R$ 500,00 |
-| CC_CREDITS_150K | 150.000 | 10.000 | R$ 1.500,00 |
-| CC_CREDITS_500K | 500.000 | 50.000 | R$ 5.000,00 |
+| CC_CREDITS_1K | 1.000 | 0 | R$ 60,00 |
+| CC_CREDITS_5K | 5.000 | 0 | R$ 280,00 |
+| CC_CREDITS_15K | 15.000 | 500 | R$ 790,00 |
+| CC_CREDITS_50K | 50.000 | 2.500 | R$ 2.290,00 |
 
 ---
 
