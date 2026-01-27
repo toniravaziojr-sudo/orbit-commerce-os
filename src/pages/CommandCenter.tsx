@@ -341,7 +341,7 @@ export default function CommandCenter() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
-        title="Central de Execuções"
+        title="Central de Comando"
         description="Visão geral da sua operação, assistente de comando e tarefas pendentes"
       />
 
@@ -349,7 +349,7 @@ export default function CommandCenter() {
         <TabsList className="grid w-full max-w-md grid-cols-3">
           <TabsTrigger value="overview" className="gap-2">
             <LayoutDashboard className="h-4 w-4" />
-            <span className="hidden sm:inline">Visão geral</span>
+            <span className="hidden sm:inline">Central de Execuções</span>
           </TabsTrigger>
           <TabsTrigger value="assistant" className="gap-2">
             <Bot className="h-4 w-4" />

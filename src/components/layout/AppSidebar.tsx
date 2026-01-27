@@ -80,7 +80,8 @@ const fullNavigation: NavGroup[] = [
   {
     label: "Principal",
     items: [
-      { title: "Central de Execuções", href: "/command-center", icon: LayoutDashboard },
+      { title: "Central de Comando", href: "/command-center", icon: LayoutDashboard },
+      { title: "ChatGPT", href: "/chatgpt", icon: Sparkles },
     ],
   },
   {

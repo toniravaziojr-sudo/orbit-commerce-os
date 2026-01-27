@@ -92,6 +92,7 @@ import Files from "@/pages/Files";
 import Reports from "@/pages/Reports";
 
 import CommandCenter from "@/pages/CommandCenter";
+import ChatGPT from "@/pages/ChatGPT";
 import PersonalData from "@/pages/account/PersonalData";
 import CompanyData from "@/pages/account/CompanyData";
 import AccountBilling from "@/pages/account/Billing";
@@ -310,6 +311,7 @@ const App = () => {
                   {/* Redirect root to command-center */}
                   <Route path="/" element={<Navigate to="/command-center" replace />} />
                   <Route path="/command-center" element={<CommandCenter />} />
+                  <Route path="/chatgpt" element={<ChatGPT />} />
                   <Route path="/getting-started" element={<GettingStarted />} />
                   {/* Redirect old executions route to command-center tab */}
                   <Route path="/executions" element={<Navigate to="/command-center?tab=executions" replace />} />

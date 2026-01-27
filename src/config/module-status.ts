@@ -12,7 +12,8 @@ export type ModuleStatus = 'ready' | 'pending';
 export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   // Principal
   '/': 'pending',
-  '/executions': 'pending',
+  '/command-center': 'pending',
+  '/chatgpt': 'ready',
   
   // E-commerce (Core Modules - Approved ✅)
   '/orders': 'ready',
