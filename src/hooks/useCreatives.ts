@@ -2,7 +2,6 @@
  * Gestão de Criativos — Hooks
  * 
  * Gerencia jobs de geração, histórico e pasta de criativos
- * NOTA: Este módulo será expandido quando a tabela creative_jobs for criada
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -76,11 +75,11 @@ export function useCreativesFolder() {
       return ensureCreativesFolder(tenantId, userId);
     },
     enabled: !!tenantId && !!userId,
-    staleTime: Infinity, // Folder won't change often
+    staleTime: Infinity,
   });
 }
 
-// === Hook: Creative Jobs List (Placeholder until table exists) ===
+// === Hook: Creative Jobs List ===
 export function useCreativeJobs(type?: CreativeType) {
   const { currentTenant } = useAuth();
   const tenantId = currentTenant?.id;
@@ -89,16 +88,33 @@ export function useCreativeJobs(type?: CreativeType) {
     queryKey: ['creative-jobs', tenantId, type],
     queryFn: async (): Promise<CreativeJob[]> => {
       if (!tenantId) return [];
-      
-      // TODO: When creative_jobs table exists, fetch from database
-      // For now, return empty array - module is in development
-      return [];
+
+      let query = supabase
+        .from('creative_jobs')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (type) {
+        query = query.eq('type', type);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Error fetching creative jobs:', error);
+        return [];
+      }
+
+      return (data || []) as unknown as CreativeJob[];
     },
     enabled: !!tenantId,
+    refetchInterval: 10000, // Atualizar a cada 10s para ver status
   });
 }
 
-// === Hook: Single Job (Placeholder) ===
+// === Hook: Single Job ===
 export function useCreativeJob(jobId: string | undefined) {
   const { currentTenant } = useAuth();
   const tenantId = currentTenant?.id;
@@ -107,15 +123,34 @@ export function useCreativeJob(jobId: string | undefined) {
     queryKey: ['creative-job', tenantId, jobId],
     queryFn: async (): Promise<CreativeJob | null> => {
       if (!tenantId || !jobId) return null;
-      
-      // TODO: When creative_jobs table exists, fetch from database
-      return null;
+
+      const { data, error } = await supabase
+        .from('creative_jobs')
+        .select('*')
+        .eq('id', jobId)
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching creative job:', error);
+        return null;
+      }
+
+      return data as unknown as CreativeJob;
     },
     enabled: !!tenantId && !!jobId,
+    refetchInterval: (query) => {
+      // Parar de atualizar quando job terminar
+      const job = query.state.data;
+      if (job?.status === 'succeeded' || job?.status === 'failed') {
+        return false;
+      }
+      return 3000; // 3s enquanto processando
+    },
   });
 }
 
-// === Hook: Create Job (Placeholder) ===
+// === Hook: Create Job ===
 export function useCreateCreativeJob() {
   const { currentTenant, user } = useAuth();
   const queryClient = useQueryClient();
@@ -125,6 +160,11 @@ export function useCreateCreativeJob() {
       type: CreativeType;
       prompt: string;
       product_id?: string;
+      product_name?: string;
+      product_image_url?: string;
+      reference_images?: string[];
+      reference_video_url?: string;
+      reference_audio_url?: string;
       settings: Record<string, unknown>;
       has_authorization?: boolean;
     }) => {
@@ -132,17 +172,28 @@ export function useCreateCreativeJob() {
         throw new Error('Usuário não autenticado');
       }
 
-      // Ensure folder exists first
-      const folderId = await ensureCreativesFolder(currentTenant.id, user.id);
+      const { data, error } = await supabase.functions.invoke('creative-generate', {
+        body: {
+          tenant_id: currentTenant.id,
+          ...params,
+        },
+      });
 
-      // TODO: Create job via edge function when implemented
-      // For now, show placeholder message
-      toast.info('Módulo em desenvolvimento. A geração será implementada em breve.');
-      
-      return { success: true, job_id: null, folder_id: folderId };
+      if (error) {
+        throw new Error(error.message || 'Erro ao criar job');
+      }
+
+      if (!data?.success) {
+        throw new Error(data?.error || 'Erro desconhecido');
+      }
+
+      return data.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['creative-jobs'] });
+      toast.success('Geração iniciada!', {
+        description: `Job ${data.job_id} criado com sucesso.`,
+      });
     },
     onError: (error: Error) => {
       console.error('Error creating creative job:', error);
@@ -151,18 +202,25 @@ export function useCreateCreativeJob() {
   });
 }
 
-// === Hook: Retry Job (Placeholder) ===
+// === Hook: Retry Job ===
 export function useRetryCreativeJob() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (jobId: string) => {
-      // TODO: Implement retry via edge function
-      toast.info('Funcionalidade em desenvolvimento.');
-      return { success: true };
+      const { data, error } = await supabase.functions.invoke('creative-process', {
+        body: { job_id: jobId },
+      });
+
+      if (error) {
+        throw new Error(error.message || 'Erro ao reprocessar');
+      }
+
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['creative-jobs'] });
+      toast.success('Reprocessamento iniciado');
     },
     onError: (error: Error) => {
       toast.error(`Erro ao reprocessar: ${error.message}`);
@@ -170,7 +228,7 @@ export function useRetryCreativeJob() {
   });
 }
 
-// === Hook: Job Statistics (Placeholder) ===
+// === Hook: Job Statistics ===
 export function useCreativeStats() {
   const { currentTenant } = useAuth();
   const tenantId = currentTenant?.id;
@@ -180,16 +238,49 @@ export function useCreativeStats() {
     queryFn: async () => {
       if (!tenantId) return null;
 
-      // TODO: When creative_jobs table exists, calculate real stats
-      // For now, return empty stats
+      const { data, error } = await supabase
+        .from('creative_jobs')
+        .select('status, type, cost_cents')
+        .eq('tenant_id', tenantId);
+
+      if (error) {
+        console.error('Error fetching creative stats:', error);
+        return null;
+      }
+
+      const jobs = data || [];
+
+      const byType: Record<CreativeType, number> = {
+        ugc_client_video: 0,
+        ugc_ai_video: 0,
+        short_video: 0,
+        tech_product_video: 0,
+        product_image: 0,
+      };
+
+      let queued = 0, running = 0, succeeded = 0, failed = 0, totalCost = 0;
+
+      for (const job of jobs) {
+        switch (job.status) {
+          case 'queued': queued++; break;
+          case 'running': running++; break;
+          case 'succeeded': succeeded++; break;
+          case 'failed': failed++; break;
+        }
+        if (job.type && byType[job.type as CreativeType] !== undefined) {
+          byType[job.type as CreativeType]++;
+        }
+        totalCost += job.cost_cents || 0;
+      }
+
       return {
-        total: 0,
-        queued: 0,
-        running: 0,
-        succeeded: 0,
-        failed: 0,
-        totalCost: 0,
-        byType: {} as Record<CreativeType, number>,
+        total: jobs.length,
+        queued,
+        running,
+        succeeded,
+        failed,
+        totalCost,
+        byType,
       };
     },
     enabled: !!tenantId,
