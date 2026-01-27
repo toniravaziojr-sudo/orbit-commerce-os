@@ -11,9 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePurchases, PURCHASE_STATUS_LABELS, PURCHASE_STATUS_COLORS, Purchase } from "@/hooks/usePurchases";
-import { useSuppliers } from "@/hooks/useSuppliers";
+import { usePurchaseSuppliers } from "@/hooks/usePurchaseSuppliers";
 import { usePurchaseTypes } from "@/hooks/usePurchaseTypes";
-import { useSupplierTypes } from "@/hooks/useSupplierTypes";
+import { usePurchaseSupplierTypes } from "@/hooks/usePurchaseSupplierTypes";
 import { SupplierFormDialog } from "@/components/purchases/SupplierFormDialog";
 import { PurchaseFormDialog } from "@/components/purchases/PurchaseFormDialog";
 import { DeleteConfirmDialog } from "@/components/purchases/DeleteConfirmDialog";
@@ -25,9 +25,9 @@ import { toast } from "sonner";
 
 export default function Purchases() {
   const { purchases, pendingCount, inTransitCount, deliveredThisMonth, createPurchase, updatePurchase, deletePurchase, isLoading: loadingPurchases } = usePurchases();
-  const { suppliers, createSupplier, updateSupplier, deleteSupplier, isLoading: loadingSuppliers } = useSuppliers();
+  const { suppliers, createSupplier, updateSupplier, deleteSupplier, isLoading: loadingSuppliers } = usePurchaseSuppliers();
   const { purchaseTypes } = usePurchaseTypes();
-  const { supplierTypes } = useSupplierTypes();
+  const { supplierTypes } = usePurchaseSupplierTypes();
   
   const [supplierDialogOpen, setSupplierDialogOpen] = useState(false);
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);

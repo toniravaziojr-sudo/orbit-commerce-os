@@ -2,8 +2,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
-import type { Supplier } from "./useSuppliers";
+import type { PurchaseSupplier } from "./usePurchaseSuppliers";
 
+// Re-export for backward compatibility
+export type Supplier = PurchaseSupplier;
 export interface Purchase {
   id: string;
   tenant_id: string;
@@ -19,7 +21,7 @@ export interface Purchase {
   purchase_type_id: string | null;
   created_at: string;
   updated_at: string;
-  supplier?: Supplier;
+  supplier?: PurchaseSupplier;
   entry_invoice?: {
     id: string;
     numero: number;
