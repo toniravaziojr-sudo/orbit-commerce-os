@@ -1,279 +1,61 @@
 // =============================================
 // CHATGPT MODULE
 // AI-powered chat interface for research and queries
+// Separate from Command Assistant - has its own history
 // =============================================
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Plus, Search, Sparkles, Loader2, StopCircle, MessageSquare } from "lucide-react";
+import { Send, Plus, Sparkles, Loader2, StopCircle, MessageSquare } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
+import { useChatGPT } from "@/hooks/useChatGPT";
 import { useAuth } from "@/hooks/useAuth";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 
-interface ChatMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  created_at: string;
-}
-
-interface Conversation {
-  id: string;
-  title: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
 export default function ChatGPT() {
-  const { currentTenant, user } = useAuth();
-  const tenant = currentTenant;
-  const queryClient = useQueryClient();
-  
-  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const { user } = useAuth();
+  const {
+    conversations,
+    messages,
+    currentConversationId,
+    isLoadingConversations,
+    isLoadingMessages,
+    isStreaming,
+    streamingContent,
+    setCurrentConversationId,
+    createConversation,
+    sendMessage,
+    cancelStreaming,
+  } = useChatGPT();
+
   const [inputValue, setInputValue] = useState("");
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [streamingContent, setStreamingContent] = useState("");
-  const [localMessages, setLocalMessages] = useState<ChatMessage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
-
-  // Fetch conversations
-  const { data: conversations = [], isLoading: isLoadingConversations } = useQuery({
-    queryKey: ["chatgpt-conversations", tenant?.id],
-    queryFn: async () => {
-      if (!tenant?.id) return [];
-      const { data, error } = await supabase
-        .from("command_conversations")
-        .select("*")
-        .eq("tenant_id", tenant.id)
-        .order("updated_at", { ascending: false });
-      if (error) throw error;
-      return data as Conversation[];
-    },
-    enabled: !!tenant?.id,
-  });
-
-  // Fetch messages for current conversation
-  const { data: messages = [], isLoading: isLoadingMessages } = useQuery({
-    queryKey: ["chatgpt-messages", currentConversationId],
-    queryFn: async () => {
-      if (!currentConversationId) return [];
-      const { data, error } = await supabase
-        .from("command_messages")
-        .select("*")
-        .eq("conversation_id", currentConversationId)
-        .order("created_at", { ascending: true });
-      if (error) throw error;
-      return data.map((m) => ({
-        id: m.id,
-        role: m.role as "user" | "assistant",
-        content: m.content || "",
-        created_at: m.created_at,
-      })) as ChatMessage[];
-    },
-    enabled: !!currentConversationId,
-  });
-
-  // Update local messages when fetched messages change
-  useEffect(() => {
-    setLocalMessages(messages);
-  }, [messages]);
+  const [isCreating, setIsCreating] = useState(false);
 
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [localMessages, streamingContent]);
+  }, [messages, streamingContent]);
 
-  // Create new conversation
-  const createConversationMutation = useMutation({
-    mutationFn: async (title: string) => {
-      if (!tenant?.id || !user?.id) throw new Error("Missing tenant or user");
-      const { data, error } = await supabase
-        .from("command_conversations")
-        .insert({ tenant_id: tenant.id, user_id: user.id, title })
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["chatgpt-conversations"] });
-      setCurrentConversationId(data.id);
-      setLocalMessages([]);
-    },
-  });
-
-  const handleNewConversation = () => {
-    createConversationMutation.mutate("Nova conversa");
+  const handleNewConversation = async () => {
+    setIsCreating(true);
+    try {
+      await createConversation("Nova conversa");
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const handleSend = async () => {
     if (!inputValue.trim() || isStreaming) return;
-    
     const messageText = inputValue.trim();
     setInputValue("");
-    
-    // Create conversation if needed
-    let conversationId = currentConversationId;
-    if (!conversationId) {
-      try {
-        const newConv = await createConversationMutation.mutateAsync("Nova conversa");
-        conversationId = newConv.id;
-      } catch (error) {
-        toast.error("Erro ao criar conversa");
-        return;
-      }
-    }
-
-    // Add user message optimistically
-    const userMessage: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: messageText,
-      created_at: new Date().toISOString(),
-    };
-    setLocalMessages((prev) => [...prev, userMessage]);
-
-    // Save user message to DB
-    if (tenant?.id && user?.id) {
-      await supabase.from("command_messages").insert({
-        conversation_id: conversationId,
-        tenant_id: tenant.id,
-        user_id: user.id,
-        role: "user",
-        content: messageText,
-      });
-    }
-
-    // Start streaming
-    setIsStreaming(true);
-    setStreamingContent("");
-    abortControllerRef.current = new AbortController();
-
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chatgpt-chat`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({
-            messages: [...localMessages, userMessage].map((m) => ({
-              role: m.role,
-              content: m.content,
-            })),
-            conversationId,
-            tenantId: tenant?.id,
-          }),
-          signal: abortControllerRef.current.signal,
-        }
-      );
-
-      if (!response.ok) {
-        if (response.status === 429) {
-          toast.error("Limite de requisições excedido. Tente novamente em alguns minutos.");
-        } else if (response.status === 402) {
-          toast.error("Créditos insuficientes. Adicione mais créditos para continuar.");
-        } else {
-          toast.error("Erro ao processar sua mensagem");
-        }
-        setIsStreaming(false);
-        return;
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No reader available");
-
-      const decoder = new TextDecoder();
-      let fullContent = "";
-      let textBuffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        
-        textBuffer += decoder.decode(value, { stream: true });
-        
-        let newlineIndex: number;
-        while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
-          let line = textBuffer.slice(0, newlineIndex);
-          textBuffer = textBuffer.slice(newlineIndex + 1);
-
-          if (line.endsWith("\r")) line = line.slice(0, -1);
-          if (line.startsWith(":") || line.trim() === "") continue;
-          if (!line.startsWith("data: ")) continue;
-
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === "[DONE]") break;
-
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) {
-              fullContent += content;
-              setStreamingContent(fullContent);
-            }
-          } catch {
-            textBuffer = line + "\n" + textBuffer;
-            break;
-          }
-        }
-      }
-
-      // Add assistant message
-      const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: fullContent,
-        created_at: new Date().toISOString(),
-      };
-      setLocalMessages((prev) => [...prev, assistantMessage]);
-      setStreamingContent("");
-
-      // Save assistant message to DB
-      if (tenant?.id && user?.id) {
-        await supabase.from("command_messages").insert({
-          conversation_id: conversationId,
-          tenant_id: tenant.id,
-          user_id: user.id,
-          role: "assistant",
-          content: fullContent,
-        });
-        
-        // Update conversation title if it's the first message
-        if (localMessages.length === 0) {
-          const title = messageText.slice(0, 50) + (messageText.length > 50 ? "..." : "");
-          await supabase
-            .from("command_conversations")
-            .update({ title, updated_at: new Date().toISOString() })
-            .eq("id", conversationId);
-          queryClient.invalidateQueries({ queryKey: ["chatgpt-conversations"] });
-        }
-      }
-    } catch (error: any) {
-      if (error.name !== "AbortError") {
-        console.error("Chat error:", error);
-        toast.error("Erro ao processar sua mensagem");
-      }
-    } finally {
-      setIsStreaming(false);
-      abortControllerRef.current = null;
-    }
-  };
-
-  const handleCancel = () => {
-    abortControllerRef.current?.abort();
-    setIsStreaming(false);
+    await sendMessage(messageText);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -300,7 +82,7 @@ export default function ChatGPT() {
               size="icon"
               className="h-7 w-7"
               onClick={handleNewConversation}
-              disabled={createConversationMutation.isPending}
+              disabled={isCreating}
             >
               <Plus className="h-4 w-4" />
             </Button>
@@ -346,7 +128,7 @@ export default function ChatGPT() {
                 {/* Messages */}
                 <ScrollArea className="flex-1 p-4">
                   <div className="space-y-4 max-w-3xl mx-auto">
-                    {localMessages.map((message) => (
+                    {messages.map((message) => (
                       <div
                         key={message.id}
                         className={cn(
@@ -379,8 +161,8 @@ export default function ChatGPT() {
                           )}
                         >
                           {message.role === "assistant" ? (
-                            <div className="prose prose-sm dark:prose-invert max-w-none">
-                              <ReactMarkdown>{message.content}</ReactMarkdown>
+                            <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5">
+                              <ReactMarkdown>{message.content || ""}</ReactMarkdown>
                             </div>
                           ) : (
                             <p className="text-sm whitespace-pre-wrap">{message.content}</p>
@@ -396,7 +178,7 @@ export default function ChatGPT() {
                           <Sparkles className="h-4 w-4" />
                         </div>
                         <div className="flex-1 rounded-2xl bg-muted px-4 py-3 max-w-[80%]">
-                          <div className="prose prose-sm dark:prose-invert max-w-none">
+                          <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5">
                             <ReactMarkdown>{streamingContent}</ReactMarkdown>
                           </div>
                           <span className="inline-block h-4 w-0.5 animate-pulse bg-primary ml-0.5" />
@@ -440,7 +222,7 @@ export default function ChatGPT() {
                         <Button
                           size="icon"
                           variant="ghost"
-                          onClick={handleCancel}
+                          onClick={cancelStreaming}
                           className="h-9 w-9 flex-shrink-0"
                         >
                           <StopCircle className="h-5 w-5" />
@@ -465,16 +247,16 @@ export default function ChatGPT() {
             ) : (
               /* Welcome Screen */
               <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-                <div className="h-20 w-20 rounded-full bg-emerald-500/10 flex items-center justify-center mb-6">
-                  <Sparkles className="h-10 w-10 text-emerald-500" />
+                <div className="h-16 w-16 rounded-full bg-emerald-500/10 flex items-center justify-center mb-4">
+                  <Sparkles className="h-8 w-8 text-emerald-500" />
                 </div>
-                <h2 className="text-2xl font-semibold mb-2">Como posso ajudar?</h2>
-                <p className="text-muted-foreground mb-6 max-w-md">
-                  Use o ChatGPT para pesquisas, tirar dúvidas, gerar conteúdo e muito mais.
+                <h3 className="text-lg font-semibold mb-2">Como posso ajudar?</h3>
+                <p className="text-sm text-muted-foreground mb-4 max-w-md">
+                  Use o ChatGPT para pesquisas, tirar dúvidas, gerar conteúdo e muito mais. 
                   Comece uma nova conversa ou selecione uma existente.
                 </p>
-                <Button onClick={handleNewConversation} size="lg" className="gap-2">
-                  <Plus className="h-5 w-5" />
+                <Button onClick={handleNewConversation} disabled={isCreating}>
+                  <Plus className="h-4 w-4 mr-2" />
                   Nova conversa
                 </Button>
               </div>
