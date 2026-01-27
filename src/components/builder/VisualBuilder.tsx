@@ -1049,8 +1049,8 @@ export function VisualBuilder({
           />
         </div>
 
-        {/* Right Sidebar Toggle Button - Always visible when not in preview mode */}
-        {!isPreviewMode && (
+        {/* Right Sidebar Toggle Button - Only show when block is selected */}
+        {!isPreviewMode && store.selectedBlock && (
           <button
             onClick={() => setShowRightSidebar(!showRightSidebar)}
             className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-background border border-r-0 rounded-l-md p-1.5 shadow-sm hover:bg-muted transition-colors"
@@ -1065,8 +1065,8 @@ export function VisualBuilder({
           </button>
         )}
 
-        {/* Right Sidebar - Props Editor */}
-        {!isPreviewMode && showRightSidebar && (
+        {/* Right Sidebar - Props Editor - Auto-hide when no block selected */}
+        {!isPreviewMode && showRightSidebar && store.selectedBlock && (
           <div className="w-72 flex-shrink-0 bg-background shadow-sm relative">
             {store.selectedBlock && store.selectedBlockDefinition ? (
               // Header/Footer: Show message to use Theme Settings instead
