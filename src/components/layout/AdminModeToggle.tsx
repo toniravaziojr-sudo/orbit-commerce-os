@@ -1,4 +1,5 @@
 import { Building2, Store } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAdminMode, AdminMode } from '@/contexts/AdminModeContext';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -8,6 +9,7 @@ interface ModeOption {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   description: string;
+  defaultRoute: string;
 }
 
 const modes: ModeOption[] = [
@@ -16,20 +18,24 @@ const modes: ModeOption[] = [
     label: 'Plataforma',
     icon: Building2,
     description: 'Administração do Comando Central',
+    defaultRoute: '/platform/health-monitor',
   },
   {
     mode: 'store',
     label: 'Minha Loja',
     icon: Store,
     description: 'Ferramentas de loja e e-commerce',
+    defaultRoute: '/command-center',
   },
 ];
 
 /**
  * Toggle pills para alternar entre modo Plataforma e Minha Loja.
  * Apenas visível para platform operators.
+ * Ao alternar, navega automaticamente para o primeiro módulo do modo.
  */
 export function AdminModeToggle() {
+  const navigate = useNavigate();
   const { mode, setMode, canSwitchMode } = useAdminMode();
 
   // Only show for platform operators
@@ -43,11 +49,18 @@ export function AdminModeToggle() {
         const Icon = option.icon;
         const isActive = mode === option.mode;
 
+        const handleClick = () => {
+          if (mode !== option.mode) {
+            setMode(option.mode);
+            navigate(option.defaultRoute);
+          }
+        };
+
         return (
           <Tooltip key={option.mode} delayDuration={300}>
             <TooltipTrigger asChild>
               <button
-                onClick={() => setMode(option.mode)}
+                onClick={handleClick}
                 className={cn(
                   "flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-all",
                   isActive
