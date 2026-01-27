@@ -14,6 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { PlatformAlerts } from "./PlatformAlerts";
 import { ModuleTutorialLink } from "./ModuleTutorialLink";
+import { AdminModeToggle } from "./AdminModeToggle";
 
 export function AppHeader() {
   const navigate = useNavigate();
@@ -56,8 +57,9 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card px-6">
-      {/* Left side: Alerts + Tutorial */}
+      {/* Left side: Mode Toggle + Alerts + Tutorial */}
       <div className="flex items-center gap-4">
+        <AdminModeToggle />
         <PlatformAlerts />
         <div className="hidden lg:block">
           <ModuleTutorialLink />
