@@ -138,12 +138,13 @@ export const MODULES: ModuleConfig[] = [
   {
     key: 'marketing-advanced',
     label: 'Marketing Avançado',
-    description: 'Email marketing, quizzes, mídias sociais e campanhas',
+    description: 'Email marketing, quizzes, gestor de mídias, tráfego e criativos IA',
     submodules: [
       { key: 'email-marketing', label: 'Email Marketing', route: '/email-marketing' },
       { key: 'quizzes', label: 'Quizzes', route: '/quizzes' },
-      { key: 'media', label: 'Mídias Sociais', route: '/media' },
-      { key: 'campaigns', label: 'Criador de Campanhas', route: '/campaigns' },
+      { key: 'media', label: 'Gestor de Mídias IA', route: '/media' },
+      { key: 'campaigns', label: 'Gestor de Tráfego IA', route: '/campaigns' },
+      { key: 'creatives', label: 'Gestão de Criativos', route: '/creatives' },
     ],
   },
   {

@@ -39,6 +39,7 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   '/quizzes': 'pending',
   '/media': 'ready',
   '/campaigns': 'pending',
+  '/creatives': 'pending',
   
   // CRM
   '/notifications': 'ready',

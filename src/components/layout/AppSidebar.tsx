@@ -126,8 +126,9 @@ const fullNavigation: NavGroup[] = [
     items: [
       { title: "Email Marketing", href: "/email-marketing", icon: Mail },
       { title: "Quizzes", href: "/quizzes", icon: FileText },
-      { title: "Mídias Sociais", href: "/media", icon: Image },
-      { title: "Criador de campanhas", href: "/campaigns", icon: Megaphone },
+      { title: "Gestor de Mídias IA", href: "/media", icon: Image },
+      { title: "Gestor de Tráfego IA", href: "/campaigns", icon: Megaphone },
+      { title: "Gestão de Criativos", href: "/creatives", icon: Sparkles },
     ],
   },
   {
