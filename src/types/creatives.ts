@@ -2,7 +2,7 @@
  * Gestão de Criativos — Tipos e Interfaces
  * 
  * Módulo para geração de criativos com IA (vídeos e imagens)
- * 5 abas: UGC Cliente, UGC 100% IA, Vídeos Curtos, Vídeos Tech, Imagens Produto
+ * 6 abas: UGC Cliente, UGC 100% IA, Vídeos Curtos, Vídeos Tech, Imagens Produto, Avatar Mascote
  */
 
 // === Status de Jobs ===
@@ -14,7 +14,8 @@ export type CreativeType =
   | 'ugc_ai_video'           // Aba 2: UGC 100% IA
   | 'short_video'            // Aba 3: Vídeos curtos (pessoa falando)
   | 'tech_product_video'     // Aba 4: Vídeos tecnológicos de produtos
-  | 'product_image';         // Aba 5: Imagens de pessoas segurando produto
+  | 'product_image'          // Aba 5: Imagens de pessoas segurando produto
+  | 'avatar_mascot';         // Aba 6: Avatar/Mascote animado (tipo Magalu)
 
 // === Aspect Ratios ===
 export type AspectRatio = '16:9' | '9:16' | '1:1' | '4:3' | '3:4';
@@ -155,6 +156,50 @@ export const CREATIVE_MODELS: Record<CreativeType, AIModelConfig[]> = {
       costEstimate: 2,
     },
   ],
+  avatar_mascot: [
+    {
+      id: 'kling-avatar-mascot-pro',
+      name: 'Kling AI Avatar v2 Pro',
+      provider: 'fal',
+      endpoint: 'fal-ai/kling-video/ai-avatar/v2/pro',
+      description: 'Avatar/mascote animado falando (talking head) — máxima qualidade',
+      isDefault: true,
+      costEstimate: 80,
+      fallbackModel: 'kling-avatar-mascot-std',
+    },
+    {
+      id: 'kling-avatar-mascot-std',
+      name: 'Kling AI Avatar v2 Standard',
+      provider: 'fal',
+      endpoint: 'fal-ai/kling-video/ai-avatar/v2/standard',
+      description: 'Avatar/mascote (fallback econômico)',
+      costEstimate: 40,
+    },
+    {
+      id: 'f5-tts',
+      name: 'F5 TTS (Text-to-Speech)',
+      provider: 'fal',
+      endpoint: 'fal-ai/f5-tts',
+      description: 'Geração de voz a partir de texto com clonagem',
+      costEstimate: 10,
+    },
+    {
+      id: 'chatterbox-s2s-mascot',
+      name: 'ChatterboxHD S2S',
+      provider: 'fal',
+      endpoint: 'resemble-ai/chatterboxhd/speech-to-speech',
+      description: 'Conversão de voz (se enviar áudio base)',
+      costEstimate: 20,
+    },
+    {
+      id: 'sync-lipsync-mascot',
+      name: 'Sync LipSync v2 Pro',
+      provider: 'fal',
+      endpoint: 'fal-ai/sync-lipsync/v2/pro',
+      description: 'Pós-processo de sincronização labial',
+      costEstimate: 40,
+    },
+  ],
 };
 
 // === Presets por Tipo ===
@@ -188,6 +233,11 @@ export const DEFAULT_PRESETS: CreativePreset[] = [
   { id: 'image-bathroom', name: 'Pessoa no Banheiro', description: 'Segurando produto no banheiro', type: 'product_image', settings: { scene: 'bathroom' } },
   { id: 'image-gym', name: 'Pessoa na Academia', description: 'Segurando produto na academia', type: 'product_image', settings: { scene: 'gym' } },
   { id: 'image-outdoor', name: 'Pessoa ao Ar Livre', description: 'Luz natural externa', type: 'product_image', settings: { scene: 'outdoor' } },
+  
+  // Avatar Mascote
+  { id: 'mascot-corporate', name: 'Mascote Corporativo', description: 'Avatar falando sobre produto/marca', type: 'avatar_mascot', settings: { style: 'corporate' } },
+  { id: 'mascot-friendly', name: 'Mascote Amigável', description: 'Tom mais casual e próximo', type: 'avatar_mascot', settings: { style: 'friendly' } },
+  { id: 'mascot-expert', name: 'Mascote Especialista', description: 'Tom educativo/tutorial', type: 'avatar_mascot', settings: { style: 'expert' } },
 ];
 
 // === Job de Geração ===
@@ -310,6 +360,21 @@ export interface ProductImageForm {
   pose: 'holding' | 'using' | 'displaying';
   variations: number;
   brief?: string;
+}
+
+// === Formulário Avatar Mascote ===
+export interface AvatarMascotForm {
+  avatar_image: File | null;
+  avatar_style: 'cartoon' | '3d' | 'realistic' | 'anime';
+  script: string;
+  voice_source: 'tts' | 'upload' | 'reference';
+  voice_text?: string; // para TTS
+  voice_audio?: File | null; // para upload ou referência
+  voice_preset: string;
+  tone: 'corporate' | 'friendly' | 'expert' | 'casual' | 'energetic';
+  aspect_ratio: AspectRatio;
+  duration: VideoDuration;
+  apply_lipsync_post: boolean;
 }
 
 // === Pasta de Criativos ===

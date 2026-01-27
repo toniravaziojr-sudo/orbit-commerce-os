@@ -24,6 +24,7 @@ import {
   Info,
   Loader2,
   LayoutGrid,
+  Wand2,
 } from 'lucide-react';
 import { useCreativeStats, useCreativesFolder } from '@/hooks/useCreatives';
 import { UGCClientTab } from '@/components/creatives/UGCClientTab';
@@ -31,6 +32,7 @@ import { UGCAITab } from '@/components/creatives/UGCAITab';
 import { ShortVideoTab } from '@/components/creatives/ShortVideoTab';
 import { TechProductTab } from '@/components/creatives/TechProductTab';
 import { ProductImageTab } from '@/components/creatives/ProductImageTab';
+import { AvatarMascotTab } from '@/components/creatives/AvatarMascotTab';
 import { CreativeGallery } from '@/components/creatives/CreativeGallery';
 import type { CreativeType } from '@/types/creatives';
 
@@ -66,6 +68,12 @@ const TABS: { id: TabId; label: string; icon: React.ElementType; description: st
     label: 'Imagens Produto',
     icon: Image,
     description: 'Pessoas reais segurando o produto',
+  },
+  {
+    id: 'avatar_mascot',
+    label: 'Avatar Mascote',
+    icon: Wand2,
+    description: 'Mascote/personagem animado falando (tipo Lu da Magalu)',
   },
   {
     id: 'gallery',
@@ -150,7 +158,7 @@ export default function Creatives() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabId)} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6 h-auto">
+        <TabsList className="grid w-full grid-cols-7 h-auto">
           {TABS.map((tab) => {
             const Icon = tab.icon;
             const count = tab.id === 'gallery' 
@@ -219,6 +227,10 @@ export default function Creatives() {
 
         <TabsContent value="product_image" className="mt-6">
           <ProductImageTab />
+        </TabsContent>
+
+        <TabsContent value="avatar_mascot" className="mt-6">
+          <AvatarMascotTab />
         </TabsContent>
 
         <TabsContent value="gallery" className="mt-6">
