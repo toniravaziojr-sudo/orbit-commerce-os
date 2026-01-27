@@ -24,21 +24,128 @@ const UF_LIST = [
   "RS", "RO", "RR", "SC", "SP", "SE", "TO"
 ];
 
-// Nichos populares com ícones e CNAEs mapeados
-const NICHOS_SUGERIDOS = [
-  { label: "Cosméticos", keywords: ["cosmetico", "beleza", "perfumaria", "maquiagem"], icon: "💄", cnae: "4772-5" },
-  { label: "Eletrônicos", keywords: ["eletronico", "informatica", "celular", "tecnologia"], icon: "📱", cnae: "4751-2" },
-  { label: "Moda", keywords: ["roupa", "vestuario", "moda", "calcado", "acessorio"], icon: "👗", cnae: "4781-4" },
-  { label: "Casa e Decoração", keywords: ["moveis", "decoracao", "casa", "cama mesa banho"], icon: "🏠", cnae: "4754-7" },
-  { label: "Imóveis", keywords: ["imovel", "imobiliaria", "corretora", "aluguel"], icon: "🏢", cnae: "6821-8" },
-  { label: "Restaurantes", keywords: ["restaurante", "alimentacao", "comida", "lanchonete"], icon: "🍽️", cnae: "5611-2" },
-  { label: "Saúde e Bem-estar", keywords: ["farmacia", "saude", "clinica", "estetica"], icon: "💊", cnae: "4771-7" },
-  { label: "Academias", keywords: ["academia", "fitness", "esporte", "crossfit"], icon: "🏋️", cnae: "9313-1" },
-  { label: "Pet Shop", keywords: ["pet", "animal", "veterinaria", "racao"], icon: "🐾", cnae: "4789-0" },
-  { label: "Automotivo", keywords: ["automovel", "carro", "mecanica", "autopeca"], icon: "🚗", cnae: "4530-7" },
-  { label: "Educação", keywords: ["escola", "curso", "educacao", "ensino"], icon: "📚", cnae: "8599-6" },
-  { label: "Construção", keywords: ["construcao", "material", "obra", "ferragem"], icon: "🔨", cnae: "4744-0" },
+// Categorias de nichos organizadas por segmento
+const NICHO_CATEGORIES = [
+  {
+    category: "🏭 Indústrias & Fábricas",
+    nichos: [
+      { label: "Fábrica de Alimentos", keywords: ["fabrica alimentos", "industria alimenticia"], icon: "🏭", cnae: "1091-1" },
+      { label: "Fábrica de Roupas", keywords: ["confeccao", "fabrica roupas", "industria textil"], icon: "🧵", cnae: "1412-6" },
+      { label: "Fábrica de Cosméticos", keywords: ["industria cosmetico", "fabrica perfume"], icon: "🧴", cnae: "2063-1" },
+      { label: "Fábrica de Móveis", keywords: ["industria moveis", "fabrica moveis"], icon: "🪑", cnae: "3101-2" },
+      { label: "Metalúrgica", keywords: ["metalurgica", "siderurgica", "ferro"], icon: "⚙️", cnae: "2599-3" },
+      { label: "Fábrica de Plásticos", keywords: ["industria plastico", "fabrica plastico"], icon: "🧪", cnae: "2229-3" },
+      { label: "Fábrica de Calçados", keywords: ["fabrica calcados", "industria calcados"], icon: "👟", cnae: "1539-4" },
+      { label: "Fábrica de Bebidas", keywords: ["fabrica bebidas", "industria bebidas"], icon: "🍺", cnae: "1121-6" },
+    ]
+  },
+  {
+    category: "🛍️ Comércios Varejistas",
+    nichos: [
+      { label: "Cosméticos", keywords: ["cosmetico", "beleza", "perfumaria", "maquiagem"], icon: "💄", cnae: "4772-5" },
+      { label: "Eletrônicos", keywords: ["eletronico", "informatica", "celular", "tecnologia"], icon: "📱", cnae: "4751-2" },
+      { label: "Moda e Vestuário", keywords: ["roupa", "vestuario", "moda", "calcado", "acessorio"], icon: "👗", cnae: "4781-4" },
+      { label: "Casa e Decoração", keywords: ["moveis", "decoracao", "casa", "cama mesa banho"], icon: "🏠", cnae: "4754-7" },
+      { label: "Pet Shop", keywords: ["pet", "animal", "veterinaria", "racao"], icon: "🐾", cnae: "4789-0" },
+      { label: "Farmácia", keywords: ["farmacia", "drogaria", "medicamento"], icon: "💊", cnae: "4771-7" },
+      { label: "Supermercado", keywords: ["supermercado", "mercado", "mercearia"], icon: "🛒", cnae: "4711-3" },
+      { label: "Material de Construção", keywords: ["construcao", "material", "ferragem"], icon: "🔨", cnae: "4744-0" },
+      { label: "Papelaria", keywords: ["papelaria", "escritorio", "livraria"], icon: "📝", cnae: "4761-0" },
+      { label: "Joalheria", keywords: ["joalheria", "relojoaria", "bijuteria"], icon: "💎", cnae: "4783-1" },
+      { label: "Ótica", keywords: ["otica", "oculos", "lentes"], icon: "👓", cnae: "4774-1" },
+      { label: "Brinquedos", keywords: ["brinquedo", "loja brinquedo"], icon: "🧸", cnae: "4763-6" },
+    ]
+  },
+  {
+    category: "📦 Atacadistas & Distribuidores",
+    nichos: [
+      { label: "Atacadista Alimentos", keywords: ["atacado alimentos", "distribuidor alimentos"], icon: "📦", cnae: "4639-7" },
+      { label: "Atacadista Bebidas", keywords: ["atacado bebidas", "distribuidor bebidas"], icon: "🍷", cnae: "4635-4" },
+      { label: "Atacadista Cosméticos", keywords: ["atacado cosmeticos", "distribuidor cosmeticos"], icon: "🧴", cnae: "4646-0" },
+      { label: "Atacadista Roupas", keywords: ["atacado roupas", "distribuidor vestuario"], icon: "👕", cnae: "4642-7" },
+      { label: "Atacadista Eletrônicos", keywords: ["atacado eletronico", "distribuidor informatica"], icon: "💻", cnae: "4651-6" },
+      { label: "Atacadista Materiais", keywords: ["atacado construcao", "distribuidor material"], icon: "🧱", cnae: "4679-6" },
+    ]
+  },
+  {
+    category: "🍽️ Alimentação",
+    nichos: [
+      { label: "Restaurante", keywords: ["restaurante", "alimentacao", "comida"], icon: "🍽️", cnae: "5611-2" },
+      { label: "Lanchonete", keywords: ["lanchonete", "fast food", "hamburguer"], icon: "🍔", cnae: "5611-2" },
+      { label: "Pizzaria", keywords: ["pizzaria", "pizza"], icon: "🍕", cnae: "5611-2" },
+      { label: "Cafeteria", keywords: ["cafeteria", "cafe", "padaria"], icon: "☕", cnae: "5611-2" },
+      { label: "Açougue", keywords: ["acougue", "carne", "frigorifico"], icon: "🥩", cnae: "4722-9" },
+      { label: "Hortifruti", keywords: ["hortifruti", "frutas", "verduras"], icon: "🥬", cnae: "4724-5" },
+      { label: "Doceria", keywords: ["doceria", "confeitaria", "bolos"], icon: "🎂", cnae: "1091-1" },
+    ]
+  },
+  {
+    category: "🏥 Saúde & Bem-estar",
+    nichos: [
+      { label: "Clínica Médica", keywords: ["clinica", "consultorio", "medico"], icon: "🏥", cnae: "8630-5" },
+      { label: "Clínica Odontológica", keywords: ["dentista", "odontologia", "clinica dental"], icon: "🦷", cnae: "8630-5" },
+      { label: "Clínica Estética", keywords: ["estetica", "clinica beleza", "procedimentos"], icon: "✨", cnae: "9602-5" },
+      { label: "Academia", keywords: ["academia", "fitness", "esporte", "crossfit"], icon: "🏋️", cnae: "9313-1" },
+      { label: "Salão de Beleza", keywords: ["salao", "cabeleireiro", "barbearia"], icon: "💇", cnae: "9602-5" },
+      { label: "Spa", keywords: ["spa", "massagem", "relaxamento"], icon: "🧖", cnae: "9609-2" },
+      { label: "Laboratório", keywords: ["laboratorio", "exames", "analises"], icon: "🔬", cnae: "8640-2" },
+    ]
+  },
+  {
+    category: "🏢 Serviços & Imóveis",
+    nichos: [
+      { label: "Imobiliária", keywords: ["imovel", "imobiliaria", "corretora", "aluguel"], icon: "🏢", cnae: "6821-8" },
+      { label: "Contabilidade", keywords: ["contabilidade", "contador", "escritorio contabil"], icon: "📊", cnae: "6920-6" },
+      { label: "Advocacia", keywords: ["advocacia", "advogado", "escritorio advocacia"], icon: "⚖️", cnae: "6911-7" },
+      { label: "Agência Marketing", keywords: ["marketing", "publicidade", "agencia digital"], icon: "📣", cnae: "7311-4" },
+      { label: "Coworking", keywords: ["coworking", "escritorio compartilhado"], icon: "💼", cnae: "8211-3" },
+      { label: "Segurança", keywords: ["seguranca", "vigilancia", "monitoramento"], icon: "🛡️", cnae: "8011-1" },
+    ]
+  },
+  {
+    category: "🚗 Automotivo",
+    nichos: [
+      { label: "Loja de Autopeças", keywords: ["autopeca", "peca carro", "loja autopeca"], icon: "🔧", cnae: "4530-7" },
+      { label: "Oficina Mecânica", keywords: ["mecanica", "oficina", "conserto carro"], icon: "🔩", cnae: "4520-0" },
+      { label: "Concessionária", keywords: ["concessionaria", "revenda carro", "loja carro"], icon: "🚗", cnae: "4511-1" },
+      { label: "Lava-Jato", keywords: ["lava jato", "lavagem carro", "lava rapido"], icon: "🚿", cnae: "4520-0" },
+      { label: "Borracharia", keywords: ["borracharia", "pneu", "troca pneu"], icon: "⚫", cnae: "4520-0" },
+      { label: "Auto Elétrica", keywords: ["auto eletrica", "eletrica carro"], icon: "⚡", cnae: "4520-0" },
+    ]
+  },
+  {
+    category: "📚 Educação",
+    nichos: [
+      { label: "Escola", keywords: ["escola", "colegio", "ensino"], icon: "🏫", cnae: "8513-9" },
+      { label: "Curso de Idiomas", keywords: ["idiomas", "ingles", "espanhol", "escola idiomas"], icon: "🌐", cnae: "8593-7" },
+      { label: "Curso Profissionalizante", keywords: ["curso", "profissionalizante", "tecnico"], icon: "📚", cnae: "8599-6" },
+      { label: "Escola de Música", keywords: ["musica", "escola musica", "aula musica"], icon: "🎵", cnae: "8592-9" },
+      { label: "Auto Escola", keywords: ["autoescola", "cfc", "habilitacao"], icon: "🚘", cnae: "8599-6" },
+    ]
+  },
+  {
+    category: "🎉 Eventos & Festas",
+    nichos: [
+      { label: "Buffet", keywords: ["buffet", "festa", "eventos"], icon: "🎊", cnae: "5620-1" },
+      { label: "Casa de Festas", keywords: ["casa festas", "salao festas", "eventos"], icon: "🎈", cnae: "9329-8" },
+      { label: "Decoração de Festas", keywords: ["decoracao festa", "baloes", "ornamentacao"], icon: "🎀", cnae: "9329-8" },
+      { label: "DJ e Som", keywords: ["dj", "som", "iluminacao", "eventos"], icon: "🎧", cnae: "9001-9" },
+      { label: "Fotografia", keywords: ["fotografia", "fotografo", "estudio foto"], icon: "📷", cnae: "7420-0" },
+    ]
+  },
+  {
+    category: "🌾 Agronegócio",
+    nichos: [
+      { label: "Loja Agropecuária", keywords: ["agropecuaria", "agro", "insumos agricolas"], icon: "🌾", cnae: "4789-0" },
+      { label: "Veterinária Rural", keywords: ["veterinaria", "animal", "gado"], icon: "🐄", cnae: "7500-1" },
+      { label: "Máquinas Agrícolas", keywords: ["maquinas agricolas", "trator", "implementos"], icon: "🚜", cnae: "4661-3" },
+      { label: "Sementes e Mudas", keywords: ["sementes", "mudas", "viveiro"], icon: "🌱", cnae: "0121-1" },
+    ]
+  },
 ];
+
+// Lista flat para renderização
+const NICHOS_SUGERIDOS = NICHO_CATEGORIES.flatMap(cat => cat.nichos);
 
 interface SearchResult {
   cnpj: string;
@@ -263,28 +370,33 @@ export default function B2BSearchTab() {
             </TabsList>
 
             <TabsContent value="nicho" className="space-y-6">
-              {/* Nichos Sugeridos */}
-              <div className="space-y-3">
+              {/* Nichos Sugeridos por Categoria */}
+              <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
                 <Label className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-primary" />
                   Selecione um Nicho
                 </Label>
-                <div className="flex flex-wrap gap-2">
-                  {NICHOS_SUGERIDOS.map((nicho) => (
-                    <Badge
-                      key={nicho.label}
-                      variant={selectedNicho === nicho.label ? "default" : "outline"}
-                      className="cursor-pointer text-sm py-2 px-3 hover:bg-primary/10 transition-colors"
-                      onClick={() => {
-                        setSelectedNicho(selectedNicho === nicho.label ? "" : nicho.label);
-                        setCustomNicho("");
-                      }}
-                    >
-                      <span className="mr-1">{nicho.icon}</span>
-                      {nicho.label}
-                    </Badge>
-                  ))}
-                </div>
+                {NICHO_CATEGORIES.map((cat) => (
+                  <div key={cat.category} className="space-y-2">
+                    <p className="text-sm font-medium text-muted-foreground">{cat.category}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {cat.nichos.map((nicho) => (
+                        <Badge
+                          key={nicho.label}
+                          variant={selectedNicho === nicho.label ? "default" : "outline"}
+                          className="cursor-pointer text-sm py-2 px-3 hover:bg-primary/10 transition-colors"
+                          onClick={() => {
+                            setSelectedNicho(selectedNicho === nicho.label ? "" : nicho.label);
+                            setCustomNicho("");
+                          }}
+                        >
+                          <span className="mr-1">{nicho.icon}</span>
+                          {nicho.label}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
 
               {/* Nicho Personalizado */}
