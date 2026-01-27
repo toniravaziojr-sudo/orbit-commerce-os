@@ -199,7 +199,8 @@ const fullNavigation: NavGroup[] = [
   },
 ];
 
-// Navigation for Platform Admin (Comando Central) - REDUCED MENU
+// Navigation for Platform Admin (Comando Central) - ONLY PLATFORM MODULES
+// Client modules (Marketing, CRM, ERP, etc.) are accessed via "Minha Loja" mode
 const platformAdminNavigation: NavGroup[] = [
   {
     label: "Plataforma",
@@ -211,40 +212,6 @@ const platformAdminNavigation: NavGroup[] = [
       { title: "Emails do Sistema", href: "/platform/emails", icon: Mail },
       { title: "Avisos da Plataforma", href: "/platform/announcements", icon: Bell },
       { title: "Tutoriais por Módulo", href: "/platform/tutorials", icon: BookOpen },
-    ],
-  },
-  {
-    label: "Marketing",
-    items: [
-      { title: "Integrações Marketing", href: "/marketing", icon: TrendingUp },
-      { title: "Atribuição de venda", href: "/marketing/atribuicao", icon: TrendingUp },
-    ],
-  },
-  {
-    label: "CRM",
-    items: [
-      { title: "Notificações", href: "/notifications", icon: Bell },
-      { title: "Atendimento", href: "/support", icon: MessageSquare },
-      { title: "Emails", href: "/emails", icon: Mail },
-    ],
-  },
-  {
-    label: "ERP",
-    items: [
-      { title: "Fiscal", href: "/fiscal", icon: FileText },
-      { title: "Financeiro", href: "/finance", icon: DollarSign },
-    ],
-  },
-  {
-    label: "Sistema",
-    items: [
-      { title: "Integrações", href: "/integrations", icon: Plug },
-    ],
-  },
-  {
-    label: "Negócio",
-    items: [
-      { title: "Clientes", href: "/customers", icon: Users },
     ],
   },
 ];
