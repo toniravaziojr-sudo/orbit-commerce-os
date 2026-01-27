@@ -314,6 +314,9 @@ export function AppSidebar() {
     return openGroups[group.label];
   };
 
+  // Modules that should be locked for non-admin users
+  const COMING_SOON_MODULES = ['/marketplaces/shopee', '/campaigns'];
+  
   const renderNavItem = (item: NavItem) => {
     // Owner-only items visibility check
     if (item.ownerOnly && !isOwner && !isPlatformOp) {
@@ -330,8 +333,14 @@ export function AppSidebar() {
     // Hide module status indicators for demo users (e.g., Shopee reviewers)
     const status = (isSpecialTenant && !isDemoMode) ? getModuleStatus(item.href) : undefined;
 
+    // Determine if item should be locked:
+    // 1. If item has locked=true in definition, always lock
+    // 2. If item is in COMING_SOON_MODULES and user is NOT platform operator, lock it
+    const isComingSoon = COMING_SOON_MODULES.includes(item.href);
+    const shouldBeLocked = item.locked || (isComingSoon && !isPlatformOperator);
+
     // Locked items render differently - no navigation
-    if (item.locked) {
+    if (shouldBeLocked) {
       const lockedContent = (
         <div
           className={cn(
