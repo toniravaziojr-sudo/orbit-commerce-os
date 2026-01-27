@@ -28,7 +28,7 @@ Ferramentas de engajamento, automação e geração de criativos com IA.
 | Quizzes | `/quizzes` | 🟧 Pending (ver quizzes.md) |
 | Gestor de Mídias IA | `/media` | ✅ Ready |
 | Gestor de Tráfego IA | `/campaigns` | 🟧 Pending |
-| Gestão de Criativos | `/creatives` | 🟧 Pending (ver seção 6) |
+| Gestão de Criativos | `/creatives` | ✅ Ready (ver seção 6) |
 
 ---
 
@@ -185,7 +185,7 @@ A divisão reflete nas permissões:
 
 ## 6. Gestão de Criativos
 
-> **STATUS:** 🟧 Pending  
+> **STATUS:** ✅ Ready  
 > **Rota:** `/creatives`
 
 Módulo para geração de criativos com IA (vídeos e imagens) via fal.ai e OpenAI.
@@ -193,12 +193,13 @@ Módulo para geração de criativos com IA (vídeos e imagens) via fal.ai e Open
 ### Arquivos Principais
 | Arquivo | Descrição |
 |---------|-----------|
-| `src/pages/Creatives.tsx` | Página principal com 5 abas |
+| `src/pages/Creatives.tsx` | Página principal com 6 abas |
 | `src/types/creatives.ts` | Tipos e configurações de modelos |
 | `src/hooks/useCreatives.ts` | Hooks para jobs e pasta |
 | `src/components/creatives/*` | Componentes de cada aba |
+| `src/components/creatives/CreativeGallery.tsx` | Galeria visual dos criativos gerados |
 
-### As 5 Abas
+### As 6 Abas
 
 #### Aba 1: UGC Cliente (Transformar vídeo)
 | Campo | Descrição |
@@ -235,7 +236,14 @@ Módulo para geração de criativos com IA (vídeos e imagens) via fal.ai e Open
 | **Cenas** | Banheiro, quarto, academia, outdoor |
 | **Modelo** | GPT Image 1.5 Edit (preserva rótulo) |
 
-### Modelos por Provider
+#### Aba 6: Galeria
+| Campo | Descrição |
+|-------|-----------|
+| **Funcionalidade** | Visualização de todos os criativos gerados |
+| **Views** | Grid (cards) e Lista (tabela) |
+| **Filtros** | Tipo de criativo, status, busca por prompt/produto |
+| **Ações** | Download, link externo, preview com detalhes |
+| **Componente** | `CreativeGallery.tsx` |
 
 #### fal.ai
 ```typescript
@@ -398,4 +406,5 @@ CREATE TYPE creative_job_status AS ENUM (
 - [x] Gestão de Criativos (UI básica)
 - [x] Gestão de Criativos (Tabela creative_jobs)
 - [x] Gestão de Criativos (Edge Functions generate/process)
+- [x] Gestão de Criativos (Galeria visual)
 - [ ] Gestão de Criativos (Webhook fal.ai)
