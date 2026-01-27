@@ -8,6 +8,13 @@
 
 O módulo ChatGPT é um assistente de IA integrado que permite aos usuários realizar pesquisas, consultas e interações de forma conversacional, similar à experiência do ChatGPT original.
 
+**IMPORTANTE**: Este módulo é SEPARADO do Auxiliar de Comando. Cada um tem seu próprio histórico de conversas.
+
+| Módulo | Propósito | Tabelas |
+|--------|-----------|---------|
+| **Auxiliar de Comando** | Executar ações no sistema (editar produtos, criar campanhas, etc.) | `command_conversations`, `command_messages` |
+| **ChatGPT** | Pesquisas gerais, tirar dúvidas, gerar conteúdo | `chatgpt_conversations`, `chatgpt_messages` |
+
 ## 2. Arquitetura
 
 ### 2.1 Componentes
@@ -15,22 +22,25 @@ O módulo ChatGPT é um assistente de IA integrado que permite aos usuários rea
 | Componente | Caminho | Descrição |
 |------------|---------|-----------|
 | Página Principal | `src/pages/ChatGPT.tsx` | Interface completa do chat |
+| Hook de Estado | `src/hooks/useChatGPT.ts` | Gerenciamento de conversas e mensagens |
 | Edge Function | `supabase/functions/chatgpt-chat/index.ts` | Proxy para AI Gateway |
 
-### 2.2 Tabelas Utilizadas
+### 2.2 Tabelas (Separadas do Auxiliar de Comando)
 
-O módulo reutiliza as tabelas existentes do Auxiliar de Comando:
+| Tabela | Descrição |
+|--------|-----------|
+| `chatgpt_conversations` | Armazena conversas do ChatGPT |
+| `chatgpt_messages` | Armazena mensagens do ChatGPT |
 
-- `command_conversations` - Armazena conversas
-- `command_messages` - Armazena mensagens
+**NÃO REUTILIZAR** as tabelas `command_conversations` e `command_messages` - essas são exclusivas do Auxiliar de Comando.
 
 ## 3. Funcionalidades
 
 ### 3.1 Chat Conversacional
 
 - **Streaming de respostas** - Respostas aparecem em tempo real
-- **Histórico de conversas** - Sidebar com conversas anteriores
-- **Markdown rendering** - Suporte completo a formatação
+- **Histórico independente** - Separado do Auxiliar de Comando
+- **Markdown rendering** - Suporte completo a formatação com `prose` classes
 - **Modelo utilizado** - `openai/gpt-5` via Lovable AI Gateway
 
 ### 3.2 Interface
@@ -94,7 +104,7 @@ O assistente é configurado para:
 ## 6. Navegação
 
 - **Grupo:** Principal (logo abaixo de "Central de Comando")
-- **Ícone:** `MessageSquare`
+- **Ícone:** `Sparkles`
 - **Label:** "ChatGPT"
 
 ## 7. Proibições
@@ -105,9 +115,11 @@ O assistente é configurado para:
 | Desabilitar streaming | UX degradada |
 | Remover system prompt | Comportamento inconsistente |
 | Usar modelo diferente sem aprovação | Custos e qualidade |
+| Misturar histórico com Auxiliar de Comando | Confunde propósitos |
 
 ## 8. Dependências
 
 - `react-markdown` - Renderização de markdown
 - `@tanstack/react-query` - Cache e gerenciamento de estado
 - Lovable AI Gateway - Backend de IA
+- `src/hooks/useChatGPT.ts` - Hook separado para estado
