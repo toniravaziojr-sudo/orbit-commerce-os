@@ -75,7 +75,7 @@ export function usePurchases() {
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      return data as Purchase[];
+      return (data as unknown) as Purchase[];
     },
     enabled: !!tenantId,
   });
