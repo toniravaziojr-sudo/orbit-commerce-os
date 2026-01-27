@@ -604,6 +604,48 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_pricing: {
+        Row: {
+          cost_usd: number
+          created_at: string
+          effective_from: string
+          effective_until: string | null
+          has_audio: boolean | null
+          id: string
+          model: string
+          pricing_type: string
+          provider: string
+          quality: string | null
+          resolution: string | null
+        }
+        Insert: {
+          cost_usd: number
+          created_at?: string
+          effective_from?: string
+          effective_until?: string | null
+          has_audio?: boolean | null
+          id?: string
+          model: string
+          pricing_type: string
+          provider: string
+          quality?: string | null
+          resolution?: string | null
+        }
+        Update: {
+          cost_usd?: number
+          created_at?: string
+          effective_from?: string
+          effective_until?: string | null
+          has_audio?: boolean | null
+          id?: string
+          model?: string
+          pricing_type?: string
+          provider?: string
+          quality?: string | null
+          resolution?: string | null
+        }
+        Relationships: []
+      }
       ai_support_config: {
         Row: {
           ai_model: string | null
@@ -2281,6 +2323,154 @@ export type Database = {
             foreignKeyName: "creative_jobs_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      credit_ledger: {
+        Row: {
+          cost_usd: number | null
+          created_at: string
+          credits_delta: number
+          description: string | null
+          feature: string | null
+          id: string
+          idempotency_key: string | null
+          job_id: string | null
+          metadata: Json | null
+          model: string | null
+          provider: string | null
+          sell_usd: number | null
+          tenant_id: string
+          transaction_type: string
+          units_json: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          cost_usd?: number | null
+          created_at?: string
+          credits_delta: number
+          description?: string | null
+          feature?: string | null
+          id?: string
+          idempotency_key?: string | null
+          job_id?: string | null
+          metadata?: Json | null
+          model?: string | null
+          provider?: string | null
+          sell_usd?: number | null
+          tenant_id: string
+          transaction_type: string
+          units_json?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          cost_usd?: number | null
+          created_at?: string
+          credits_delta?: number
+          description?: string | null
+          feature?: string | null
+          id?: string
+          idempotency_key?: string | null
+          job_id?: string | null
+          metadata?: Json | null
+          model?: string | null
+          provider?: string | null
+          sell_usd?: number | null
+          tenant_id?: string
+          transaction_type?: string
+          units_json?: Json | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_ledger_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      credit_packages: {
+        Row: {
+          bonus_credits: number | null
+          created_at: string
+          credits: number
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          price_cents: number
+          sku: string
+          sort_order: number | null
+          updated_at: string
+        }
+        Insert: {
+          bonus_credits?: number | null
+          created_at?: string
+          credits: number
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          price_cents: number
+          sku: string
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Update: {
+          bonus_credits?: number | null
+          created_at?: string
+          credits?: number
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          price_cents?: number
+          sku?: string
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      credit_wallet: {
+        Row: {
+          balance_credits: number
+          created_at: string
+          id: string
+          lifetime_consumed: number
+          lifetime_purchased: number
+          reserved_credits: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          balance_credits?: number
+          created_at?: string
+          id?: string
+          lifetime_consumed?: number
+          lifetime_purchased?: number
+          reserved_credits?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          balance_credits?: number
+          created_at?: string
+          id?: string
+          lifetime_consumed?: number
+          lifetime_purchased?: number
+          reserved_credits?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_wallet_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -7918,6 +8108,127 @@ export type Database = {
           },
         ]
       }
+      plan_limits: {
+        Row: {
+          ai_images_per_month: number | null
+          ai_videos_per_month: number | null
+          assistant_interactions_per_month: number | null
+          created_at: string
+          creative_avatar_per_month: number | null
+          creative_product_per_month: number | null
+          creative_shorts_per_month: number | null
+          creative_tech_per_month: number | null
+          creative_ugc_ai_per_month: number | null
+          creative_ugc_per_month: number | null
+          id: string
+          import_uses_per_month: number | null
+          max_users: number | null
+          orders_per_month: number | null
+          plan_key: string
+          sales_fee_bps: number | null
+          seo_generations_per_month: number | null
+          storage_bytes: number | null
+          traffic_ads_accounts: number | null
+          traffic_campaigns_per_month: number | null
+          updated_at: string
+        }
+        Insert: {
+          ai_images_per_month?: number | null
+          ai_videos_per_month?: number | null
+          assistant_interactions_per_month?: number | null
+          created_at?: string
+          creative_avatar_per_month?: number | null
+          creative_product_per_month?: number | null
+          creative_shorts_per_month?: number | null
+          creative_tech_per_month?: number | null
+          creative_ugc_ai_per_month?: number | null
+          creative_ugc_per_month?: number | null
+          id?: string
+          import_uses_per_month?: number | null
+          max_users?: number | null
+          orders_per_month?: number | null
+          plan_key: string
+          sales_fee_bps?: number | null
+          seo_generations_per_month?: number | null
+          storage_bytes?: number | null
+          traffic_ads_accounts?: number | null
+          traffic_campaigns_per_month?: number | null
+          updated_at?: string
+        }
+        Update: {
+          ai_images_per_month?: number | null
+          ai_videos_per_month?: number | null
+          assistant_interactions_per_month?: number | null
+          created_at?: string
+          creative_avatar_per_month?: number | null
+          creative_product_per_month?: number | null
+          creative_shorts_per_month?: number | null
+          creative_tech_per_month?: number | null
+          creative_ugc_ai_per_month?: number | null
+          creative_ugc_per_month?: number | null
+          id?: string
+          import_uses_per_month?: number | null
+          max_users?: number | null
+          orders_per_month?: number | null
+          plan_key?: string
+          sales_fee_bps?: number | null
+          seo_generations_per_month?: number | null
+          storage_bytes?: number | null
+          traffic_ads_accounts?: number | null
+          traffic_campaigns_per_month?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_limits_plan_key_fkey"
+            columns: ["plan_key"]
+            isOneToOne: true
+            referencedRelation: "billing_plans"
+            referencedColumns: ["plan_key"]
+          },
+        ]
+      }
+      plan_module_access: {
+        Row: {
+          access_level: string
+          allowed_features: Json | null
+          blocked_features: Json | null
+          created_at: string
+          id: string
+          module_key: string
+          notes: string | null
+          plan_key: string
+        }
+        Insert: {
+          access_level?: string
+          allowed_features?: Json | null
+          blocked_features?: Json | null
+          created_at?: string
+          id?: string
+          module_key: string
+          notes?: string | null
+          plan_key: string
+        }
+        Update: {
+          access_level?: string
+          allowed_features?: Json | null
+          blocked_features?: Json | null
+          created_at?: string
+          id?: string
+          module_key?: string
+          notes?: string | null
+          plan_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_module_access_plan_key_fkey"
+            columns: ["plan_key"]
+            isOneToOne: false
+            referencedRelation: "billing_plans"
+            referencedColumns: ["plan_key"]
+          },
+        ]
+      }
       plans: {
         Row: {
           created_at: string
@@ -12180,6 +12491,24 @@ export type Database = {
         Args: { p_token: string; p_user_id: string }
         Returns: Json
       }
+      add_credits: {
+        Args: {
+          p_bonus: number
+          p_credits: number
+          p_description?: string
+          p_idempotency_key: string
+          p_tenant_id: string
+        }
+        Returns: number
+      }
+      check_credit_balance: {
+        Args: { p_credits_needed: number; p_tenant_id: string }
+        Returns: {
+          credits_missing: number
+          current_balance: number
+          has_balance: boolean
+        }[]
+      }
       check_tenant_order_limit: {
         Args: { p_tenant_id: string }
         Returns: {
@@ -12191,6 +12520,26 @@ export type Database = {
         }[]
       }
       cleanup_expired_meta_oauth_states: { Args: never; Returns: undefined }
+      consume_credits: {
+        Args: {
+          p_cost_usd: number
+          p_credits: number
+          p_feature: string
+          p_from_reserve?: boolean
+          p_idempotency_key: string
+          p_job_id?: string
+          p_model: string
+          p_provider: string
+          p_tenant_id: string
+          p_units_json: Json
+          p_user_id: string
+        }
+        Returns: {
+          error_message: string
+          new_balance: number
+          success: boolean
+        }[]
+      }
       create_tenant_for_user: {
         Args: { p_name: string; p_slug: string }
         Returns: {
@@ -12349,6 +12698,19 @@ export type Database = {
       record_ai_usage: {
         Args: { p_tenant_id: string; p_usage_cents: number }
         Returns: undefined
+      }
+      reserve_credits: {
+        Args: {
+          p_credits: number
+          p_idempotency_key: string
+          p_job_id?: string
+          p_tenant_id: string
+        }
+        Returns: {
+          error_message: string
+          new_balance: number
+          success: boolean
+        }[]
       }
       search_knowledge_base: {
         Args: {

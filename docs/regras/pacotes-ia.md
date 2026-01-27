@@ -1,118 +1,230 @@
 # Pacotes IA — Regras e Especificações
 
-> **Status:** 🟧 Pending (não validado)  
+> **Status:** 🟢 Implementado  
 > **Última atualização:** 2025-01-27
 
 ---
 
 ## Visão Geral
 
-Sistema para comercialização de pacotes de créditos de IA para lojistas. Os pacotes permitem acesso a funcionalidades de inteligência artificial como atendimento automatizado, geração de conteúdo e análise de dados.
+Sistema de créditos de IA para lojistas. Os créditos permitem acesso a funcionalidades de inteligência artificial como atendimento automatizado, geração de conteúdo, imagens, vídeos e análise de dados.
+
+---
 
 ## Arquivos Principais
 
 | Arquivo | Propósito |
 |---------|-----------|
-| `src/pages/AIPackages.tsx` | Página principal de pacotes |
-| `src/hooks/useAIPackages.ts` | CRUD de pacotes e assinaturas |
-| `src/components/ai-packages/` | Componentes UI |
+| `src/pages/AIPackages.tsx` | Página principal de créditos |
+| `src/hooks/useCredits.ts` | Hook de créditos, wallet e ledger |
+| `src/components/ai-packages/CreditBalance.tsx` | Card de saldo |
+| `src/components/ai-packages/CreditPackageCard.tsx` | Card de pacote |
+| `src/components/ai-packages/CreditLedgerTable.tsx` | Histórico de transações |
+| `src/components/ai-packages/AIPricingTable.tsx` | Tabela de preços |
+
+---
+
+## Constantes do Sistema
+
+```typescript
+CREDIT_USD = 0.01      // 1 crédito = US$ 0,01
+CREDIT_MARKUP = 1.5    // 50% markup sobre custo do provedor
+```
+
+---
 
 ## Tabelas
 
-### ai_packages (Gerenciada pela Plataforma)
+### credit_packages (Pacotes para Compra)
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
 | `id` | UUID | PK |
+| `sku` | TEXT | Identificador único (CC_CREDITS_1K, etc) |
 | `name` | TEXT | Nome do pacote |
 | `description` | TEXT | Descrição |
-| `credits` | INTEGER | Quantidade de créditos incluídos |
+| `credits` | INTEGER | Quantidade de créditos |
+| `bonus_credits` | INTEGER | Bônus adicional |
 | `price_cents` | INTEGER | Preço em centavos (BRL) |
-| `features` | JSONB | Lista de features incluídas |
 | `is_active` | BOOLEAN | Se está disponível para compra |
 | `sort_order` | INTEGER | Ordem de exibição |
-| `created_at` | TIMESTAMPTZ | Data de criação |
-| `updated_at` | TIMESTAMPTZ | Data de atualização |
 
-### tenant_ai_subscriptions
+### credit_wallet (Carteira do Tenant)
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
 | `id` | UUID | PK |
 | `tenant_id` | UUID | FK para tenants |
-| `package_id` | UUID | FK para ai_packages |
-| `status` | TEXT | `active`, `cancelled`, `expired` |
-| `credits_remaining` | INTEGER | Créditos restantes |
-| `started_at` | TIMESTAMPTZ | Início da assinatura |
-| `expires_at` | TIMESTAMPTZ | Expiração (se aplicável) |
-| `created_at` | TIMESTAMPTZ | Data de criação |
-| `updated_at` | TIMESTAMPTZ | Data de atualização |
+| `balance_credits` | INTEGER | Saldo atual |
+| `reserved_credits` | INTEGER | Créditos reservados para jobs |
+| `lifetime_purchased` | INTEGER | Total já comprado |
+| `lifetime_consumed` | INTEGER | Total já consumido |
 
-### tenant_ai_usage
+### credit_ledger (Histórico de Transações)
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
 | `id` | UUID | PK |
 | `tenant_id` | UUID | FK para tenants |
-| `subscription_id` | UUID | FK para tenant_ai_subscriptions |
-| `feature` | TEXT | Feature utilizada |
-| `credits_used` | INTEGER | Créditos consumidos |
-| `metadata` | JSONB | Dados adicionais do uso |
-| `created_at` | TIMESTAMPTZ | Data de uso |
+| `user_id` | UUID | Usuário que executou (opcional) |
+| `transaction_type` | TEXT | purchase, consume, reserve, refund, bonus, adjust |
+| `provider` | TEXT | openai, fal, gemini |
+| `model` | TEXT | Modelo utilizado |
+| `feature` | TEXT | chat, vision, image, video, seo, embedding |
+| `units_json` | JSONB | Unidades consumidas |
+| `cost_usd` | DECIMAL | Custo real do provedor |
+| `sell_usd` | DECIMAL | Custo com markup 50% |
+| `credits_delta` | INTEGER | Variação de créditos |
+| `idempotency_key` | TEXT | Controle de duplicação |
+| `job_id` | UUID | Referência a job (vídeos/avatares) |
 
-## Acesso
+### ai_pricing (Tabela de Preços)
 
-- **Lojistas (Tenants)**: Visualizam pacotes disponíveis, contratam e monitoram uso
-- **Platform Operators**: Gerenciam pacotes globais (CRUD)
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `provider` | TEXT | openai, fal, gemini |
+| `model` | TEXT | Nome do modelo |
+| `pricing_type` | TEXT | per_1m_tokens_in, per_second, per_image, etc |
+| `cost_usd` | DECIMAL | Custo base (provedor) |
+| `resolution` | TEXT | low_1024, medium_1024x1536, etc |
+| `quality` | TEXT | standard, pro, fast |
+| `has_audio` | BOOLEAN | Se inclui áudio (vídeos) |
+
+---
+
+## Pacotes Disponíveis
+
+| SKU | Créditos | Bônus | Preço (BRL) |
+|-----|----------|-------|-------------|
+| CC_CREDITS_1K | 1.000 | 0 | R$ 10,00 |
+| CC_CREDITS_5K | 5.000 | 0 | R$ 50,00 |
+| CC_CREDITS_15K | 15.000 | 500 | R$ 150,00 |
+| CC_CREDITS_50K | 50.000 | 2.500 | R$ 500,00 |
+| CC_CREDITS_150K | 150.000 | 10.000 | R$ 1.500,00 |
+| CC_CREDITS_500K | 500.000 | 50.000 | R$ 5.000,00 |
+
+---
+
+## Custos por Funcionalidade (Estimativas)
+
+| Funcionalidade | Provedor | Modelo | ~Créditos |
+|----------------|----------|--------|-----------|
+| Chat/Atendimento IA | OpenAI | GPT-5.2 | 3/msg |
+| Análise de Imagem | OpenAI | GPT-4o | 5/img |
+| Transcrição de Áudio | OpenAI | Whisper | 1/min |
+| SEO/Texto | Gemini | 2.5 Flash | 2/geração |
+| Geração de Imagem | Fal.AI | GPT Image 1.5 | 8/img |
+| Vídeo 10s (standard) | Fal.AI | Sora 2 | 150 |
+| Avatar 10s | Fal.AI | Kling Avatar | 175 |
+| Embedding RAG | OpenAI | text-3-small | 1/1k tokens |
+
+---
+
+## Funções RPC
+
+### check_credit_balance
+```sql
+SELECT * FROM check_credit_balance(tenant_id, credits_needed);
+-- Retorna: has_balance, current_balance, credits_missing
+```
+
+### reserve_credits
+```sql
+SELECT * FROM reserve_credits(tenant_id, credits, idempotency_key, job_id);
+-- Reserva créditos antes de job longo
+```
+
+### consume_credits
+```sql
+SELECT * FROM consume_credits(
+  tenant_id, user_id, credits, idempotency_key,
+  provider, model, feature, units_json, cost_usd,
+  job_id, from_reserve
+);
+-- Debita créditos após uso real
+```
+
+### add_credits
+```sql
+SELECT add_credits(tenant_id, credits, bonus, idempotency_key, description);
+-- Adiciona créditos após compra
+```
+
+---
+
+## Fluxo de Consumo
+
+```
+1. Antes da operação:
+   - check_credit_balance() para verificar saldo
+   - Se saldo insuficiente: bloquear e informar
+
+2. Para jobs curtos (chat, SEO, imagem):
+   - Executar operação
+   - Calcular custo com usage retornado
+   - consume_credits() direto
+
+3. Para jobs longos (vídeo, avatar):
+   - reserve_credits() antes de iniciar
+   - Executar operação
+   - Ao finalizar: consume_credits(from_reserve=true)
+   - Se diferença: ajustar com refund ou consume adicional
+```
+
+---
 
 ## Layout da Página
 
-### Para Tenants
+### Abas
 
-| Seção | Descrição |
-|-------|-----------|
-| Pacote Atual | Card com informações do pacote contratado e créditos restantes |
-| Histórico de Uso | Tabela com consumo de créditos por feature |
-| Pacotes Disponíveis | Grid de cards com pacotes para upgrade/contratação |
+| Aba | Conteúdo |
+|-----|----------|
+| Créditos | Saldo atual + Grid de pacotes para compra |
+| Consumo | Histórico de consumo filtrado |
+| Histórico | Todas as transações (compras, consumos, etc) |
+| Tabela de Preços | Custos por funcionalidade |
 
-### Para Platform Operators
+### Card de Saldo
+- Créditos disponíveis (balance - reserved)
+- Créditos reservados (badge)
+- Progresso de uso (lifetime)
+- Stats: comprados / consumidos
+- Botão "Comprar Créditos"
+- Aviso de saldo baixo (< 100)
 
-| Seção | Descrição |
-|-------|-----------|
-| Gerenciar Pacotes | CRUD completo de pacotes de IA |
-| Estatísticas | Métricas de adoção e uso por tenant |
+---
 
-## Features de IA (Exemplos)
+## Avisos Obrigatórios
 
-| Feature Key | Label | Descrição |
-|-------------|-------|-----------|
-| `ai_support` | Atendimento IA | Respostas automáticas no suporte |
-| `ai_content` | Geração de Conteúdo | Descrições de produtos, posts |
-| `ai_analytics` | Análise Inteligente | Insights e recomendações |
-| `ai_images` | Geração de Imagens | Criação de imagens com IA |
-| `ai_campaigns` | Campanhas IA | Criação automática de campanhas |
+1. Na página de pacotes:
+   - "Todos os planos requerem cartão de crédito"
+   - "Custos de IA podem variar. Veja a aba Tabela de Preços"
+   - "Não tem cartão? Fale conosco"
+
+2. Nos locais com IA:
+   - Exibir custo médio estimado em créditos
+   - Badge com consumo (ex: "~5 créditos")
+
+---
 
 ## Regras de Negócio
 
-1. **Créditos**: Cada ação de IA consome créditos do pacote contratado
-2. **Expiração**: Créditos podem expirar conforme regras do pacote
-3. **Upgrade**: Tenant pode fazer upgrade a qualquer momento
-4. **Limite**: Quando créditos acabam, features de IA são desabilitadas até nova compra
+| Regra | Descrição |
+|-------|-----------|
+| Saldo mínimo | Operação bloqueada se saldo < créditos necessários |
+| Idempotency | Toda transação requer idempotency_key único |
+| Reserva | Jobs > 30s devem reservar antes de executar |
+| Markup | 50% sobre custo do provedor |
+| Audit trail | Todas as transações no ledger |
 
-## Fluxo de Contratação
-
-```
-1. Tenant visualiza pacotes disponíveis
-2. Seleciona pacote desejado
-3. Confirma contratação (integração com billing)
-4. Sistema cria tenant_ai_subscription
-5. Créditos ficam disponíveis imediatamente
-```
+---
 
 ## Proibições
 
 | Proibido | Motivo |
 |----------|--------|
-| Créditos negativos | Sempre validar antes de consumir |
-| Editar pacotes de outro tenant | RLS obrigatório |
-| Deletar histórico de uso | Auditoria |
+| Créditos negativos | Constraint CHECK no banco |
+| Dupla cobrança | idempotency_key evita |
+| Executar sem saldo | Validação antes de iniciar |
+| Mostrar custo USD | Sempre usar créditos/BRL |
+| Deletar histórico | Auditoria obrigatória |
