@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
 
-export interface SupplierType {
+export interface PurchaseSupplierType {
   id: string;
   tenant_id: string;
   name: string;
@@ -13,15 +13,15 @@ export interface SupplierType {
   updated_at: string;
 }
 
-export type SupplierTypeInsert = Omit<SupplierType, 'id' | 'created_at' | 'updated_at'>;
+export type PurchaseSupplierTypeInsert = Omit<PurchaseSupplierType, 'id' | 'created_at' | 'updated_at'>;
 
-export function useSupplierTypes() {
+export function usePurchaseSupplierTypes() {
   const { currentTenant } = useAuth();
   const tenantId = currentTenant?.id;
   const queryClient = useQueryClient();
 
   const { data: supplierTypes = [], isLoading, error } = useQuery({
-    queryKey: ['supplier-types', tenantId],
+    queryKey: ['purchase-supplier-types', tenantId],
     queryFn: async () => {
       if (!tenantId) return [];
       const { data, error } = await supabase
@@ -32,7 +32,7 @@ export function useSupplierTypes() {
         .order('name');
       
       if (error) throw error;
-      return data as SupplierType[];
+      return data as PurchaseSupplierType[];
     },
     enabled: !!tenantId,
   });
@@ -50,7 +50,7 @@ export function useSupplierTypes() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['supplier-types', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['purchase-supplier-types', tenantId] });
       toast.success('Tipo de fornecedor criado');
     },
     onError: (error) => {
@@ -68,7 +68,7 @@ export function useSupplierTypes() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['supplier-types', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['purchase-supplier-types', tenantId] });
       toast.success('Tipo de fornecedor removido');
     },
     onError: (error) => {

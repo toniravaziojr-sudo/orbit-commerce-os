@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
 
-export interface Supplier {
+export interface PurchaseSupplier {
   id: string;
   tenant_id: string;
   name: string;
@@ -19,16 +19,16 @@ export interface Supplier {
   updated_at: string;
 }
 
-export type SupplierInsert = Omit<Supplier, 'id' | 'created_at' | 'updated_at'>;
-export type SupplierUpdate = Partial<SupplierInsert>;
+export type PurchaseSupplierInsert = Omit<PurchaseSupplier, 'id' | 'created_at' | 'updated_at'>;
+export type PurchaseSupplierUpdate = Partial<PurchaseSupplierInsert>;
 
-export function useSuppliers() {
+export function usePurchaseSuppliers() {
   const { currentTenant } = useAuth();
   const tenantId = currentTenant?.id;
   const queryClient = useQueryClient();
 
   const { data: suppliers = [], isLoading, error } = useQuery({
-    queryKey: ['suppliers', tenantId],
+    queryKey: ['purchase-suppliers', tenantId],
     queryFn: async () => {
       if (!tenantId) return [];
       const { data, error } = await supabase
@@ -38,13 +38,13 @@ export function useSuppliers() {
         .order('name');
       
       if (error) throw error;
-      return data as Supplier[];
+      return data as PurchaseSupplier[];
     },
     enabled: !!tenantId,
   });
 
   const createSupplier = useMutation({
-    mutationFn: async (supplier: Omit<SupplierInsert, 'tenant_id'>) => {
+    mutationFn: async (supplier: Omit<PurchaseSupplierInsert, 'tenant_id'>) => {
       if (!tenantId) throw new Error('Tenant não encontrado');
       const { data, error } = await supabase
         .from('suppliers')
@@ -56,7 +56,7 @@ export function useSuppliers() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['suppliers', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['purchase-suppliers', tenantId] });
       toast.success('Fornecedor cadastrado com sucesso');
     },
     onError: (error) => {
@@ -65,7 +65,7 @@ export function useSuppliers() {
   });
 
   const updateSupplier = useMutation({
-    mutationFn: async ({ id, ...updates }: SupplierUpdate & { id: string }) => {
+    mutationFn: async ({ id, ...updates }: PurchaseSupplierUpdate & { id: string }) => {
       const { data, error } = await supabase
         .from('suppliers')
         .update(updates)
@@ -77,7 +77,7 @@ export function useSuppliers() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['suppliers', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['purchase-suppliers', tenantId] });
       toast.success('Fornecedor atualizado com sucesso');
     },
     onError: (error) => {
@@ -95,7 +95,7 @@ export function useSuppliers() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['suppliers', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['purchase-suppliers', tenantId] });
       toast.success('Fornecedor removido com sucesso');
     },
     onError: (error) => {
