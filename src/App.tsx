@@ -102,6 +102,7 @@ import Influencers from "@/pages/Influencers";
 
 import Affiliates from "@/pages/Affiliates";
 import SupportCenter from "@/pages/SupportCenter";
+import AIPackages from "@/pages/AIPackages";
 import QAStorefront from "@/pages/admin/QAStorefront";
 
 // Storefront Pages
@@ -368,6 +369,7 @@ const App = () => {
                   
                   <Route path="/affiliates" element={<Affiliates />} />
                   <Route path="/support-center" element={<SupportCenter />} />
+                  <Route path="/ai-packages" element={<AIPackages />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/settings/domains" element={<Domains />} />
                   <Route path="/settings/billing" element={<BillingSettings />} />

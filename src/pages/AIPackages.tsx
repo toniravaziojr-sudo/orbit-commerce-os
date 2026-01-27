@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useAuth } from "@/hooks/useAuth";
+import { usePlatformOperator } from "@/hooks/usePlatformOperator";
 
 // Placeholder data - will be replaced with real data from hooks
 const mockPackages = [
@@ -39,7 +39,7 @@ const mockPackages = [
 ];
 
 export default function AIPackages() {
-  const { isPlatformAdmin } = useAuth();
+  const { isPlatformOperator } = usePlatformOperator();
   const [activeTab, setActiveTab] = useState("packages");
 
   const formatPrice = (cents: number) => {
@@ -55,7 +55,7 @@ export default function AIPackages() {
         title="Pacotes IA"
         description="Gerencie seus créditos de inteligência artificial"
         actions={
-          isPlatformAdmin ? (
+          isPlatformOperator ? (
             <Button>
               <Package className="h-4 w-4 mr-2" />
               Novo Pacote

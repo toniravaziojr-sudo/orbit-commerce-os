@@ -44,6 +44,7 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   // CRM
   '/notifications': 'ready',
   '/support': 'pending',
+  '/ai-packages': 'pending',
   '/emails': 'ready',
   '/reviews': 'ready',
   

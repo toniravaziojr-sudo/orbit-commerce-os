@@ -47,14 +47,14 @@ export function useAIPackages() {
   const packagesQuery = useQuery({
     queryKey: ["ai-packages"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("ai_packages")
         .select("*")
         .eq("is_active", true)
         .order("sort_order", { ascending: true });
 
       if (error) throw error;
-      return data as AIPackage[];
+      return (data || []) as AIPackage[];
     },
   });
 
@@ -64,7 +64,7 @@ export function useAIPackages() {
     queryFn: async () => {
       if (!currentTenant?.id) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("tenant_ai_subscriptions")
         .select("*, package:ai_packages(*)")
         .eq("tenant_id", currentTenant.id)
@@ -83,7 +83,7 @@ export function useAIPackages() {
     queryFn: async () => {
       if (!currentTenant?.id) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("tenant_ai_usage")
         .select("*")
         .eq("tenant_id", currentTenant.id)
@@ -91,7 +91,7 @@ export function useAIPackages() {
         .limit(100);
 
       if (error) throw error;
-      return data as TenantAIUsage[];
+      return (data || []) as TenantAIUsage[];
     },
     enabled: !!currentTenant?.id,
   });
@@ -102,7 +102,7 @@ export function useAIPackages() {
       if (!currentTenant?.id) throw new Error("Tenant não encontrado");
 
       // Get package details
-      const { data: pkg, error: pkgError } = await supabase
+      const { data: pkg, error: pkgError } = await (supabase as any)
         .from("ai_packages")
         .select("*")
         .eq("id", packageId)
@@ -111,13 +111,13 @@ export function useAIPackages() {
       if (pkgError) throw pkgError;
 
       // Create subscription
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("tenant_ai_subscriptions")
         .insert({
           tenant_id: currentTenant.id,
           package_id: packageId,
           status: "active",
-          credits_remaining: pkg.credits,
+          credits_remaining: (pkg as AIPackage).credits,
           started_at: new Date().toISOString(),
         })
         .select()
@@ -159,20 +159,20 @@ export function useAIPackagesAdmin() {
   const allPackagesQuery = useQuery({
     queryKey: ["ai-packages-admin"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("ai_packages")
         .select("*")
         .order("sort_order", { ascending: true });
 
       if (error) throw error;
-      return data as AIPackage[];
+      return (data || []) as AIPackage[];
     },
   });
 
   // Create package
   const createMutation = useMutation({
     mutationFn: async (pkg: Omit<AIPackage, "id" | "created_at" | "updated_at">) => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("ai_packages")
         .insert(pkg)
         .select()
@@ -195,7 +195,7 @@ export function useAIPackagesAdmin() {
   // Update package
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<AIPackage> & { id: string }) => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("ai_packages")
         .update(updates)
         .eq("id", id)
@@ -219,7 +219,7 @@ export function useAIPackagesAdmin() {
   // Delete package
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("ai_packages")
         .delete()
         .eq("id", id);
