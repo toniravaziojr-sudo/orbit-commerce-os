@@ -98,6 +98,33 @@ Sistema de controle de acesso baseado em roles (RBAC) para gerenciamento de equi
 
 ---
 
+## Admin Mode (Platform Operators)
+
+Platform operators têm acesso a um toggle de contexto no header:
+
+| Modo | Descrição | Sidebar |
+|------|-----------|---------|
+| **Plataforma** | Administração do app.comandocentral.com.br | Módulos de admin |
+| **Minha Loja** | Ferramentas de cliente para comandocentral.com.br | Módulos de cliente |
+
+### Arquivos
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/contexts/AdminModeContext.tsx` | Context de Admin Mode |
+| `src/components/layout/AdminModeToggle.tsx` | Toggle UI |
+| `src/hooks/usePlatformOperator.ts` | Verificação de platform admin |
+
+### Regras
+
+| Regra | Descrição |
+|-------|-----------|
+| **Acesso** | Apenas platform operators (tabela `platform_admins`) |
+| **Persistência** | `localStorage` key `admin-mode-preference` |
+| **Fallback** | Não-admins sempre em modo "store" |
+
+---
+
 ## Fluxo de Convite
 
 ```
