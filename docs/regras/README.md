@@ -63,6 +63,7 @@ Este diretório contém as regras e especificações separadas por módulo para 
 |---------|-----------|--------|
 | [crm.md](./crm.md) | Notificações e Atendimento | 🟧 Pending |
 | [suporte.md](./suporte.md) | Central de Suporte | 🟧 Pending |
+| [pacotes-ia.md](./pacotes-ia.md) | Pacotes de Créditos IA | 🟧 Pending |
 
 ---
 

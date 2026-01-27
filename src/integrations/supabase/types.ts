@@ -565,6 +565,45 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_packages: {
+        Row: {
+          created_at: string
+          credits: number
+          description: string | null
+          features: Json
+          id: string
+          is_active: boolean
+          name: string
+          price_cents: number
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          credits?: number
+          description?: string | null
+          features?: Json
+          id?: string
+          is_active?: boolean
+          name: string
+          price_cents?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          credits?: number
+          description?: string | null
+          features?: Json
+          id?: string
+          is_active?: boolean
+          name?: string
+          price_cents?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ai_support_config: {
         Row: {
           ai_model: string | null
@@ -11132,6 +11171,102 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "tenant_addons_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_ai_subscriptions: {
+        Row: {
+          created_at: string
+          credits_remaining: number
+          expires_at: string | null
+          id: string
+          package_id: string
+          started_at: string
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          credits_remaining?: number
+          expires_at?: string | null
+          id?: string
+          package_id: string
+          started_at?: string
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          credits_remaining?: number
+          expires_at?: string | null
+          id?: string
+          package_id?: string
+          started_at?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_ai_subscriptions_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "ai_packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_ai_subscriptions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_ai_usage: {
+        Row: {
+          created_at: string
+          credits_used: number
+          feature: string
+          id: string
+          metadata: Json | null
+          subscription_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          credits_used?: number
+          feature: string
+          id?: string
+          metadata?: Json | null
+          subscription_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          credits_used?: number
+          feature?: string
+          id?: string
+          metadata?: Json | null
+          subscription_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_ai_usage_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_ai_subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_ai_usage_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"

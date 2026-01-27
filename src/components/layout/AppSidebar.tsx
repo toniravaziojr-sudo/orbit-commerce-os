@@ -48,6 +48,7 @@ import {
   LifeBuoy,
   CreditCard,
   UserCheck,
+  Cpu,
   Handshake,
   UsersRound,
 } from "lucide-react";
@@ -191,6 +192,7 @@ const fullNavigation: NavGroup[] = [
     label: "Suporte",
     items: [
       { title: "Suporte", href: "/support-center", icon: LifeBuoy },
+      { title: "Pacotes IA", href: "/ai-packages", icon: Cpu },
     ],
   },
 ];
