@@ -196,18 +196,18 @@ Para implementar este módulo nos planos do site (Lovable), seguir estas especif
 
 ### 10.1 Planos e Limites
 
-```
-Básico       → Bloqueado (não exibir na página de planos)
-Evolução     → Bloqueado (não exibir na página de planos)
-Profissional → ChatGPT: até US$ 2/mês incluídos
-Avançado     → ChatGPT: até US$ 5/mês incluídos
-Impulso      → ChatGPT: até US$ 10/mês incluídos
-Consolidar   → ChatGPT: até US$ 15/mês incluídos
-Comando Máximo → ChatGPT: até US$ 25/mês incluídos
-Customizado  → ChatGPT: Ilimitado
-```
+| Plano | Acesso | Limite Incluído (USD/mês) | Excedente |
+|-------|--------|---------------------------|-----------|
+| Básico | ❌ Bloqueado | - | - |
+| Evolução | ❌ Bloqueado | - | - |
+| Profissional | ✅ Liberado | US$ 2,00 | Cobrado à parte |
+| Avançado | ✅ Liberado | US$ 5,00 | Cobrado à parte |
+| Impulso | ✅ Liberado | US$ 10,00 | Cobrado à parte |
+| Consolidar | ✅ Liberado | US$ 15,00 | Cobrado à parte |
+| Comando Máximo | ✅ Liberado | US$ 25,00 | Cobrado à parte |
+| Customizado | ✅ Liberado | Ilimitado | - |
 
-### 10.2 Feature Bullets (para exibição)
+### 10.2 Feature Bullets (para exibição nos cards)
 
 | Plano | Bullet Point |
 |-------|--------------|
@@ -220,14 +220,70 @@ Customizado  → ChatGPT: Ilimitado
 | Comando Máximo | ✅ ChatGPT: US$ 25/mês incluídos |
 | Customizado | ✅ ChatGPT: Ilimitado |
 
-### 10.3 Observações para o Site
+### 10.3 Implementação Visual
 
-1. **Texto explicativo sugerido:**
-   > "Pesquise na internet, tire dúvidas e gere conteúdo com inteligência artificial. Uso acima do limite incluído é cobrado à parte na fatura mensal."
+**Ícone:** `Sparkles` (lucide-react)
 
-2. **Tooltip/Help:**
-   > "O ChatGPT é um assistente de IA para pesquisas e geração de conteúdo. Cada plano inclui um limite mensal de uso em dólares. Uso excedente é cobrado proporcionalmente."
+**Estilização dos bullets:**
+- Planos bloqueados: cor cinza/muted, ícone `X` vermelho
+- Planos liberados: cor verde/success, ícone `Check` verde
 
-3. **Destaque visual:**
-   - Usar ícone `Sparkles` ou similar
-   - Cores: verde para incluído, cinza para bloqueado
+### 10.4 Textos de Apoio
+
+**Tooltip/Help (ao passar mouse sobre o bullet):**
+> "O ChatGPT é um assistente de IA para pesquisas e geração de conteúdo. Cada plano inclui um limite mensal de uso em dólares. Uso excedente é cobrado proporcionalmente na fatura mensal."
+
+**Descrição curta (para seção de features):**
+> "Pesquise na internet, tire dúvidas e gere conteúdo com inteligência artificial. Uso acima do limite incluído é cobrado à parte na fatura mensal."
+
+### 10.5 API de Dados
+
+Os dados já estão disponíveis na API `public-plans`:
+
+```
+GET /functions/v1/public-plans
+```
+
+Response inclui `feature_bullets[]` com os textos já formatados para cada plano.
+
+---
+
+## 11. Prompt para Lovable Site
+
+**Copiar e colar este prompt no projeto do site:**
+
+---
+
+### Implementar exibição do módulo ChatGPT na página de planos
+
+A API `public-plans` (endpoint `/functions/v1/public-plans`) já retorna os dados atualizados com os bullets do ChatGPT no campo `feature_bullets`.
+
+#### Requisitos:
+
+1. **Exibir o bullet de ChatGPT em cada card de plano**, usando os dados já retornados pela API:
+
+| Plano | Exibição |
+|-------|----------|
+| Básico | ❌ ChatGPT: Não disponível |
+| Evolução | ❌ ChatGPT: Não disponível |
+| Profissional | ✅ ChatGPT: US$ 2/mês incluídos |
+| Avançado | ✅ ChatGPT: US$ 5/mês incluídos |
+| Impulso | ✅ ChatGPT: US$ 10/mês incluídos |
+| Consolidar | ✅ ChatGPT: US$ 15/mês incluídos |
+| Comando Máximo | ✅ ChatGPT: US$ 25/mês incluídos |
+| Customizado | ✅ ChatGPT: Ilimitado |
+
+2. **Estilização:**
+   - Usar ícone `Sparkles` (do lucide-react) ao lado do texto "ChatGPT"
+   - Bullets com "Não disponível" devem ter cor cinza/muted e ícone ❌
+   - Bullets com valores incluídos devem ter cor verde/success e ícone ✅
+
+3. **Tooltip (opcional mas recomendado):**
+   > "O ChatGPT é um assistente de IA para pesquisas e geração de conteúdo. Cada plano inclui um limite mensal de uso em dólares. Uso excedente é cobrado proporcionalmente na fatura mensal."
+
+4. **Observação técnica:**
+   - Os dados já vêm prontos do backend em `feature_bullets[]`
+   - Não é necessário hardcodar valores, apenas renderizar o array
+   - O bullet de ChatGPT está incluído junto com os demais features de cada plano
+
+---
