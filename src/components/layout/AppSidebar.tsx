@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useIsSpecialTenant } from "@/hooks/useIsSpecialTenant";
 import { useDemoMode } from "@/hooks/useDemoMode";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useAdminModeSafe } from "@/contexts/AdminModeContext";
 import { PlatformAdminGate } from "@/components/auth/PlatformAdminGate";
 import { FeatureGate } from "@/components/layout/FeatureGate";
 import { getModuleStatus, ModuleStatus } from "@/config/module-status";
@@ -286,19 +287,40 @@ export function AppSidebar() {
   const { isSpecialTenant } = useIsSpecialTenant();
   const { isDemoMode } = useDemoMode();
   const { isOwner, isSidebarItemVisible, isPlatformOperator: isPlatformOp } = usePermissions();
+  
+  // Admin Mode context - for platform operators to switch between Platform and Store views
+  // Using safe version that works even outside AdminModeProvider
+  const adminMode = useAdminModeSafe();
 
   // Persist open groups state
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(openGroups));
   }, [openGroups]);
 
-  // Determine which navigation to show based on tenant type
+  // Determine which navigation to show based on:
+  // 1. For platform operators: use AdminMode toggle (platform vs store)
+  // 2. For platform tenants (without toggle): always show platform nav
+  // 3. For regular users: always show full client nav
   const { navigation, showPlatformSection } = useMemo(() => {
+    // Platform operator using toggle
+    if (isPlatformOperator) {
+      if (adminMode.isPlatformMode) {
+        // Platform mode: show platform admin navigation
+        return { navigation: platformAdminNavigation, showPlatformSection: false };
+      } else {
+        // Store mode: show full client navigation (no separate platform section)
+        return { navigation: fullNavigation, showPlatformSection: false };
+      }
+    }
+    
+    // Regular platform tenant (not operator) - show platform nav
     if (isPlatformTenant) {
       return { navigation: platformAdminNavigation, showPlatformSection: false };
     }
-    return { navigation: fullNavigation, showPlatformSection: isPlatformOperator };
-  }, [isPlatformTenant, isPlatformOperator]);
+    
+    // Regular customer tenant - show full navigation
+    return { navigation: fullNavigation, showPlatformSection: false };
+  }, [isPlatformTenant, isPlatformOperator, adminMode.isPlatformMode]);
 
   const isActive = (href: string) => {
     if (href === "/") return location.pathname === "/";
