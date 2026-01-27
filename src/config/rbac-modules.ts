@@ -59,7 +59,7 @@ export const ROUTE_TO_PERMISSION: Record<string, { module: string; submodule?: s
   
   // Parcerias
   '/influencers': { module: 'partnerships', submodule: 'influencers' },
-  '/suppliers': { module: 'partnerships', submodule: 'suppliers' },
+  
   '/affiliates': { module: 'partnerships', submodule: 'affiliates' },
   
   // Marketplaces
@@ -73,7 +73,7 @@ export const ROUTE_TO_PERMISSION: Record<string, { module: string; submodule?: s
   '/import': { module: 'system', submodule: 'import' },
   '/files': { module: 'utilities', submodule: 'files' },
   '/reports': { module: 'utilities', submodule: 'reports' },
-  '/b2b-extractor': { module: 'utilities', submodule: 'b2b-extractor' },
+  
   '/settings': { module: 'system', submodule: 'settings' },
   '/settings/domains': { module: 'system', submodule: 'settings' },
   '/settings/billing': { module: 'system', submodule: 'settings' },
@@ -173,10 +173,10 @@ export const MODULES: ModuleConfig[] = [
   {
     key: 'partnerships',
     label: 'Parcerias',
-    description: 'Influencers, fornecedores e afiliados',
+    description: 'Influencers e afiliados',
     submodules: [
       { key: 'influencers', label: 'Influencers', route: '/influencers' },
-      { key: 'suppliers', label: 'Fornecedores', route: '/suppliers' },
+      
       { key: 'affiliates', label: 'Afiliados', route: '/affiliates' },
     ],
   },
@@ -204,11 +204,11 @@ export const MODULES: ModuleConfig[] = [
   {
     key: 'utilities',
     label: 'Utilitários',
-    description: 'Meu Drive, Relatórios e Extrator B2B',
+    description: 'Meu Drive e Relatórios',
     submodules: [
       { key: 'files', label: 'Meu Drive', route: '/files' },
       { key: 'reports', label: 'Relatórios', route: '/reports' },
-      { key: 'b2b-extractor', label: 'Extrator B2B', route: '/b2b-extractor' },
+      
     ],
   },
 ];
