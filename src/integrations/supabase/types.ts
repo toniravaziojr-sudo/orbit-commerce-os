@@ -2332,6 +2332,7 @@ export type Database = {
           status: Database["public"]["Enums"]["creative_job_status"]
           tenant_id: string
           type: Database["public"]["Enums"]["creative_type"]
+          updated_at: string | null
         }
         Insert: {
           authorization_accepted_at?: string | null
@@ -2359,6 +2360,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["creative_job_status"]
           tenant_id: string
           type: Database["public"]["Enums"]["creative_type"]
+          updated_at?: string | null
         }
         Update: {
           authorization_accepted_at?: string | null
@@ -2386,6 +2388,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["creative_job_status"]
           tenant_id?: string
           type?: Database["public"]["Enums"]["creative_type"]
+          updated_at?: string | null
         }
         Relationships: [
           {
