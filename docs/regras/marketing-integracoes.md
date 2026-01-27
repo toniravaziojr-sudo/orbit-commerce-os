@@ -1,7 +1,7 @@
 # Marketing — Regras e Especificações
 
 > **STATUS:** 🟧 Pending (parcialmente implementado)  
-> **Última atualização:** 2025-01-26
+> **Última atualização:** 2025-01-27
 
 ---
 
@@ -20,14 +20,15 @@ Integrações com plataformas e configurações de atribuição/conversão.
 | Aumentar Ticket | `/offers` | ✅ Ready (ver ofertas.md) |
 
 ### Marketing Avançado
-Ferramentas de engajamento e campanhas.
+Ferramentas de engajamento, automação e geração de criativos com IA.
 
 | Submódulo | Rota | Status |
 |-----------|------|--------|
 | Email Marketing | `/email-marketing` | 🟧 Pending (ver email-marketing.md) |
 | Quizzes | `/quizzes` | 🟧 Pending (ver quizzes.md) |
-| Mídias Sociais | `/media` | ✅ Ready |
-| Criador de Campanhas | `/campaigns` | 🟧 Pending |
+| Gestor de Mídias IA | `/media` | ✅ Ready |
+| Gestor de Tráfego IA | `/campaigns` | 🟧 Pending |
+| Gestão de Criativos | `/creatives` | 🟧 Pending (ver seção 6) |
 
 ---
 
@@ -38,7 +39,7 @@ A divisão reflete nas permissões:
 | Módulo RBAC | Key | Descrição |
 |-------------|-----|-----------|
 | Marketing Básico | `marketing-basic` | Integrações, atribuição, descontos e ofertas |
-| Marketing Avançado | `marketing-advanced` | Email marketing, quizzes, mídias sociais e campanhas |
+| Marketing Avançado | `marketing-advanced` | Email marketing, quizzes, gestor de mídias, tráfego e criativos |
 
 ---
 
@@ -140,7 +141,9 @@ A divisão reflete nas permissões:
 
 ---
 
-## 4. Gestão de Mídias
+## 4. Gestor de Mídias IA
+
+> **Antigo nome:** Mídias Sociais
 
 ### Arquivos
 | Arquivo | Descrição |
@@ -158,7 +161,9 @@ A divisão reflete nas permissões:
 
 ---
 
-## 5. Criador de Campanhas
+## 5. Gestor de Tráfego IA
+
+> **Antigo nome:** Criador de Campanhas
 
 ### Tipos de Campanha
 | Tipo | Descrição |
@@ -178,11 +183,153 @@ A divisão reflete nas permissões:
 
 ---
 
+## 6. Gestão de Criativos
+
+> **STATUS:** 🟧 Pending  
+> **Rota:** `/creatives`
+
+Módulo para geração de criativos com IA (vídeos e imagens) via fal.ai e OpenAI.
+
+### Arquivos Principais
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/pages/Creatives.tsx` | Página principal com 5 abas |
+| `src/types/creatives.ts` | Tipos e configurações de modelos |
+| `src/hooks/useCreatives.ts` | Hooks para jobs e pasta |
+| `src/components/creatives/*` | Componentes de cada aba |
+
+### As 5 Abas
+
+#### Aba 1: UGC Cliente (Transformar vídeo)
+| Campo | Descrição |
+|-------|-----------|
+| **Entrada** | Vídeo base + imagens referência |
+| **Opções** | Trocar pessoa, fundo, voz |
+| **Modelos** | PixVerse Swap, ChatterboxHD, Sync LipSync |
+
+#### Aba 2: UGC 100% IA (Avatar IA)
+| Campo | Descrição |
+|-------|-----------|
+| **Entrada** | Script + referência avatar |
+| **Modos** | Avatar falando / Full video |
+| **Modelos** | Kling AI Avatar v2 Pro, Veo 3.1, Sora 2 |
+
+#### Aba 3: Vídeos Curtos (Talking Head)
+| Campo | Descrição |
+|-------|-----------|
+| **Entrada** | Tópico + bullets + tom |
+| **Opções** | Variações A/B/C |
+| **Modelos** | Kling AI Avatar, Sync LipSync |
+
+#### Aba 4: Vídeos Tech (Produto)
+| Campo | Descrição |
+|-------|-----------|
+| **Entrada** | Produto + imagens + estilo |
+| **Estilos** | Tech premium, Clean studio, Futurista |
+| **Modelos** | Veo 3.1 First/Last Frame, Sora 2 Image-to-Video |
+
+#### Aba 5: Imagens Produto (Pessoas segurando)
+| Campo | Descrição |
+|-------|-----------|
+| **Entrada** | Produto + cenário + perfil |
+| **Cenas** | Banheiro, quarto, academia, outdoor |
+| **Modelo** | GPT Image 1.5 Edit (preserva rótulo) |
+
+### Modelos por Provider
+
+#### fal.ai
+```typescript
+{
+  // Swap pessoa/fundo
+  'fal-ai/pixverse/swap': { modes: ['person', 'background'] },
+  
+  // Voice conversion
+  'resemble-ai/chatterboxhd/speech-to-speech': {},
+  
+  // Lipsync
+  'fal-ai/sync-lipsync/v2/pro': {},
+  
+  // Avatar IA
+  'fal-ai/kling-video/ai-avatar/v2/pro': {},
+  
+  // Text/Image to Video
+  'fal-ai/veo3.1': {},
+  'fal-ai/veo3.1/first-last-frame-to-video': {},
+  'fal-ai/veo3.1/image-to-video': {},
+  'fal-ai/sora-2/text-to-video/pro': {},
+  'fal-ai/sora-2/image-to-video/pro': {},
+}
+```
+
+#### OpenAI (via Lovable AI Gateway)
+```typescript
+{
+  'gpt-image-1.5/edit': { 
+    description: 'Imagens realistas com produto preservado' 
+  },
+}
+```
+
+### Armazenamento
+- **Pasta automática:** `Criativos com IA` dentro da Media Library do tenant
+- **Criação automática:** Se não existir, criar na primeira geração
+
+### Jobs Assíncronos
+```typescript
+interface CreativeJob {
+  id: string;
+  tenant_id: string;
+  type: CreativeType; // 'ugc_client_video' | 'ugc_ai_video' | 'short_video' | 'tech_product_video' | 'product_image'
+  status: 'queued' | 'running' | 'succeeded' | 'failed';
+  
+  // Inputs
+  prompt: string;
+  product_id?: string;
+  reference_images?: string[];
+  reference_video_url?: string;
+  settings: Record<string, unknown>;
+  
+  // Pipeline
+  pipeline_steps?: PipelineStep[];
+  current_step?: number;
+  
+  // Output
+  output_urls?: string[];
+  output_folder_id?: string;
+  
+  // Compliance
+  has_authorization?: boolean;
+  
+  // Metadata
+  error_message?: string;
+  cost_cents?: number;
+  created_at: string;
+  completed_at?: string;
+}
+```
+
+### Compliance (Obrigatório)
+- Checkbox de autorização em abas que alteram rosto/voz
+- Impedir geração sem aceite
+- Guardar aceite no job (auditável)
+
+### Edge Functions
+| Function | Descrição |
+|----------|-----------|
+| `creative-generate` | Inicia job e enfileira |
+| `creative-process` | Processa pipeline de modelos |
+| `creative-webhook` | Recebe callbacks do fal.ai |
+
+---
+
 ## Pendências
 
 - [ ] Dashboard de atribuição
 - [ ] Integração Google Ads
 - [ ] Módulo de email marketing completo
 - [ ] Automações de marketing
-- [ ] Gestão de campanhas
+- [ ] Gestão de tráfego IA completa
 - [ ] Relatórios de ROI
+- [x] Gestão de Criativos (UI básica)
+- [ ] Gestão de Criativos (Edge Functions)
+- [ ] Gestão de Criativos (Tabela creative_jobs)
