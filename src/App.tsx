@@ -90,7 +90,7 @@ import Shopee from "@/pages/marketplaces/Shopee";
 import Olist from "@/pages/marketplaces/Olist";
 import Files from "@/pages/Files";
 import Reports from "@/pages/Reports";
-import B2BExtractor from "@/pages/B2BExtractor";
+
 import CommandCenter from "@/pages/CommandCenter";
 import PersonalData from "@/pages/account/PersonalData";
 import CompanyData from "@/pages/account/CompanyData";
@@ -99,7 +99,7 @@ import PlatformBilling from "@/pages/platform/PlatformBilling";
 import PlatformAnnouncements from "@/pages/platform/PlatformAnnouncements";
 import PlatformTutorials from "@/pages/platform/PlatformTutorials";
 import Influencers from "@/pages/Influencers";
-import SupplierLeadsPage from "@/pages/SupplierLeads";
+
 import Affiliates from "@/pages/Affiliates";
 import SupportCenter from "@/pages/SupportCenter";
 import QAStorefront from "@/pages/admin/QAStorefront";
@@ -349,7 +349,7 @@ const App = () => {
                   <Route path="/marketplaces/olist" element={<Olist />} />
                   <Route path="/files" element={<Files />} />
                   <Route path="/reports" element={<Reports />} />
-                  <Route path="/b2b-extractor" element={<B2BExtractor />} />
+                  
                   <Route path="/marketing" element={<Marketing />} />
                   <Route path="/marketing/atribuicao" element={<Attribution />} />
                   <Route path="/email-marketing" element={<EmailMarketing />} />
@@ -365,7 +365,7 @@ const App = () => {
                   <Route path="/import" element={<Import />} />
                   <Route path="/purchases" element={<Purchases />} />
                   <Route path="/influencers" element={<Influencers />} />
-                  <Route path="/suppliers" element={<SupplierLeadsPage />} />
+                  
                   <Route path="/affiliates" element={<Affiliates />} />
                   <Route path="/support-center" element={<SupportCenter />} />
                   <Route path="/settings" element={<Settings />} />

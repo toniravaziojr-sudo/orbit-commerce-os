@@ -156,7 +156,7 @@ const fullNavigation: NavGroup[] = [
     collapsible: true,
     items: [
       { title: "Influencers", href: "/influencers", icon: UserCheck, locked: true },
-      { title: "Fornecedores", href: "/suppliers", icon: Building2 },
+      
       { title: "Afiliados", href: "/affiliates", icon: Handshake },
     ],
   },
@@ -184,7 +184,7 @@ const fullNavigation: NavGroup[] = [
     items: [
       { title: "Meu Drive", href: "/files", icon: FolderOpen },
       { title: "Relatórios", href: "/reports", icon: BarChart3 },
-      { title: "Extrator B2B", href: "/b2b-extractor", icon: Building2 },
+      
     ],
   },
   {

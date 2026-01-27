@@ -50,7 +50,7 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   // ERP
   '/fiscal': 'ready',
   '/finance': 'pending',
-  '/purchases': 'pending',
+  '/purchases': 'ready',
   '/shipping': 'pending',
   
   // Sistema
