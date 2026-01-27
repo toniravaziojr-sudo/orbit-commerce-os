@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { useChatGPT } from "@/hooks/useChatGPT";
 import { useAuth } from "@/hooks/useAuth";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 export default function ChatGPT() {
   const { user } = useAuth();
@@ -161,8 +162,8 @@ export default function ChatGPT() {
                           )}
                         >
                           {message.role === "assistant" ? (
-                            <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5">
-                              <ReactMarkdown>{message.content || ""}</ReactMarkdown>
+                            <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:mt-4 prose-headings:mb-2 prose-headings:font-semibold prose-p:my-2 prose-ul:my-2 prose-ul:list-disc prose-ul:pl-4 prose-ol:my-2 prose-ol:list-decimal prose-ol:pl-4 prose-li:my-1 prose-strong:font-semibold prose-strong:text-foreground [&_br]:block [&_br]:my-1">
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content || ""}</ReactMarkdown>
                             </div>
                           ) : (
                             <p className="text-sm whitespace-pre-wrap">{message.content}</p>
@@ -178,8 +179,8 @@ export default function ChatGPT() {
                           <Sparkles className="h-4 w-4" />
                         </div>
                         <div className="flex-1 rounded-2xl bg-muted px-4 py-3 max-w-[80%]">
-                          <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5">
-                            <ReactMarkdown>{streamingContent}</ReactMarkdown>
+                          <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:mt-4 prose-headings:mb-2 prose-headings:font-semibold prose-p:my-2 prose-ul:my-2 prose-ul:list-disc prose-ul:pl-4 prose-ol:my-2 prose-ol:list-decimal prose-ol:pl-4 prose-li:my-1 prose-strong:font-semibold prose-strong:text-foreground [&_br]:block [&_br]:my-1">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingContent}</ReactMarkdown>
                           </div>
                           <span className="inline-block h-4 w-0.5 animate-pulse bg-primary ml-0.5" />
                         </div>
