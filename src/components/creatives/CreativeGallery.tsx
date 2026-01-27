@@ -47,6 +47,7 @@ const TYPE_LABELS: Record<CreativeType, string> = {
   short_video: 'Vídeo Curto',
   tech_product_video: 'Vídeo Tech',
   product_image: 'Imagem',
+  avatar_mascot: 'Avatar Mascote',
 };
 
 const TYPE_ICONS: Record<CreativeType, React.ReactNode> = {
@@ -55,6 +56,7 @@ const TYPE_ICONS: Record<CreativeType, React.ReactNode> = {
   short_video: <Video className="h-4 w-4" />,
   tech_product_video: <Video className="h-4 w-4" />,
   product_image: <Image className="h-4 w-4" />,
+  avatar_mascot: <Video className="h-4 w-4" />,
 };
 
 interface CreativeGalleryProps {

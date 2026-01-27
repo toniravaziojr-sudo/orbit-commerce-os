@@ -4,5 +4,6 @@ export { UGCAITab } from './UGCAITab';
 export { ShortVideoTab } from './ShortVideoTab';
 export { TechProductTab } from './TechProductTab';
 export { ProductImageTab } from './ProductImageTab';
+export { AvatarMascotTab } from './AvatarMascotTab';
 export { CreativeJobsList } from './CreativeJobsList';
 export { CreativeGallery } from './CreativeGallery';

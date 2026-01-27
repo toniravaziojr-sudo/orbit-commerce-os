@@ -89,16 +89,18 @@ export function useCreativeJobs(type?: CreativeType) {
     queryFn: async (): Promise<CreativeJob[]> => {
       if (!tenantId) return [];
 
-      let query = supabase
+      // Build base query
+      const baseQuery = supabase
         .from('creative_jobs')
         .select('*')
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false })
         .limit(50);
 
-      if (type) {
-        query = query.eq('type', type);
-      }
+      // Apply type filter if provided (using filter method for flexibility with new types)
+      const query = type 
+        ? baseQuery.filter('type', 'eq', type)
+        : baseQuery;
 
       const { data, error } = await query;
 
@@ -256,6 +258,7 @@ export function useCreativeStats() {
         short_video: 0,
         tech_product_video: 0,
         product_image: 0,
+        avatar_mascot: 0,
       };
 
       let queued = 0, running = 0, succeeded = 0, failed = 0, totalCost = 0;
