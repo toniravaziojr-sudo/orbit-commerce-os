@@ -2141,6 +2141,112 @@ export type Database = {
           },
         ]
       }
+      creative_jobs: {
+        Row: {
+          authorization_accepted_at: string | null
+          completed_at: string | null
+          cost_cents: number | null
+          created_at: string
+          created_by: string
+          current_step: number | null
+          error_message: string | null
+          has_authorization: boolean | null
+          id: string
+          output_folder_id: string | null
+          output_urls: string[] | null
+          pipeline_steps: Json | null
+          processing_time_ms: number | null
+          product_id: string | null
+          product_image_url: string | null
+          product_name: string | null
+          prompt: string
+          reference_audio_url: string | null
+          reference_images: string[] | null
+          reference_video_url: string | null
+          settings: Json
+          started_at: string | null
+          status: Database["public"]["Enums"]["creative_job_status"]
+          tenant_id: string
+          type: Database["public"]["Enums"]["creative_type"]
+        }
+        Insert: {
+          authorization_accepted_at?: string | null
+          completed_at?: string | null
+          cost_cents?: number | null
+          created_at?: string
+          created_by: string
+          current_step?: number | null
+          error_message?: string | null
+          has_authorization?: boolean | null
+          id?: string
+          output_folder_id?: string | null
+          output_urls?: string[] | null
+          pipeline_steps?: Json | null
+          processing_time_ms?: number | null
+          product_id?: string | null
+          product_image_url?: string | null
+          product_name?: string | null
+          prompt: string
+          reference_audio_url?: string | null
+          reference_images?: string[] | null
+          reference_video_url?: string | null
+          settings?: Json
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["creative_job_status"]
+          tenant_id: string
+          type: Database["public"]["Enums"]["creative_type"]
+        }
+        Update: {
+          authorization_accepted_at?: string | null
+          completed_at?: string | null
+          cost_cents?: number | null
+          created_at?: string
+          created_by?: string
+          current_step?: number | null
+          error_message?: string | null
+          has_authorization?: boolean | null
+          id?: string
+          output_folder_id?: string | null
+          output_urls?: string[] | null
+          pipeline_steps?: Json | null
+          processing_time_ms?: number | null
+          product_id?: string | null
+          product_image_url?: string | null
+          product_name?: string | null
+          prompt?: string
+          reference_audio_url?: string | null
+          reference_images?: string[] | null
+          reference_video_url?: string | null
+          settings?: Json
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["creative_job_status"]
+          tenant_id?: string
+          type?: Database["public"]["Enums"]["creative_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creative_jobs_output_folder_id_fkey"
+            columns: ["output_folder_id"]
+            isOneToOne: false
+            referencedRelation: "files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creative_jobs_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creative_jobs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       custom_blocks: {
         Row: {
           block_type: string
@@ -12073,6 +12179,10 @@ export type Database = {
         Args: { post_id: string }
         Returns: undefined
       }
+      increment_creative_usage: {
+        Args: { p_cost_cents: number; p_tenant_id: string }
+        Returns: undefined
+      }
       increment_tenant_order_usage: {
         Args: { p_order_total_cents: number; p_tenant_id: string }
         Returns: undefined
@@ -12241,6 +12351,13 @@ export type Database = {
         | "bot"
         | "resolved"
         | "spam"
+      creative_job_status: "queued" | "running" | "succeeded" | "failed"
+      creative_type:
+        | "ugc_client_video"
+        | "ugc_ai_video"
+        | "short_video"
+        | "tech_product_video"
+        | "product_image"
       delivery_status:
         | "label_created"
         | "posted"
@@ -12495,6 +12612,14 @@ export const Constants = {
         "bot",
         "resolved",
         "spam",
+      ],
+      creative_job_status: ["queued", "running", "succeeded", "failed"],
+      creative_type: [
+        "ugc_client_video",
+        "ugc_ai_video",
+        "short_video",
+        "tech_product_video",
+        "product_image",
       ],
       delivery_status: [
         "label_created",

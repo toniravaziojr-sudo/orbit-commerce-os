@@ -537,3 +537,9 @@ verify_jwt = false
 
 [functions.ai-media-queue-process]
 verify_jwt = false
+
+[functions.creative-generate]
+verify_jwt = true
+
+[functions.creative-process]
+verify_jwt = false
