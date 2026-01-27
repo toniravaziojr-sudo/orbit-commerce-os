@@ -13,8 +13,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { TypeSelector } from "@/components/ui/type-selector";
 import { Check, ChevronsUpDown, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Purchase } from "@/hooks/usePurchases";
-import type { Supplier } from "@/hooks/useSuppliers";
+import type { Purchase, Supplier } from "@/hooks/usePurchases";
 import { usePurchaseTypes } from "@/hooks/usePurchaseTypes";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";

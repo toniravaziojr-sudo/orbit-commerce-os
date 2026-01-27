@@ -9,8 +9,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { TypeSelector } from "@/components/ui/type-selector";
-import type { Supplier } from "@/hooks/useSuppliers";
-import { useSupplierTypes } from "@/hooks/useSupplierTypes";
+import type { PurchaseSupplier } from "@/hooks/usePurchaseSuppliers";
+import { usePurchaseSupplierTypes } from "@/hooks/usePurchaseSupplierTypes";
+
+export type Supplier = PurchaseSupplier;
 
 const formSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -41,7 +43,7 @@ export function SupplierFormDialog({
   onSubmit,
   isLoading,
 }: SupplierFormDialogProps) {
-  const { supplierTypes, createSupplierType, deleteSupplierType } = useSupplierTypes();
+  const { supplierTypes, createSupplierType, deleteSupplierType } = usePurchaseSupplierTypes();
   
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
