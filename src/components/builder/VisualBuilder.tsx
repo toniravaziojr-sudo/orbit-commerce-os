@@ -32,7 +32,7 @@ import { useThankYouSettings } from './ThankYouSettingsPanel';
 import { BuilderDebugPanel, DebugQueryState, addSupabaseError } from './BuilderDebugPanel';
 // MiniCartPreview is now rendered inside BuilderCanvas
 import { toast } from 'sonner';
-import { LayoutGrid } from 'lucide-react';
+import { LayoutGrid, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { 
   useGlobalLayoutForEditor, 
   applyGlobalLayout, 
@@ -171,6 +171,17 @@ export function VisualBuilder({
   }, [miniCartPreviewFromUrl, isInMiniCartSettings, setShowMiniCartPreview]);
   
   const [canvasViewport, setCanvasViewport] = useState<'desktop' | 'mobile'>('desktop');
+  
+  // Right sidebar (props editor) visibility toggle - persisted in localStorage
+  const [showRightSidebar, setShowRightSidebar] = useState(() => {
+    const stored = localStorage.getItem('builder-right-sidebar-visible');
+    return stored !== 'false'; // Default to visible
+  });
+  
+  // Persist right sidebar visibility
+  useEffect(() => {
+    localStorage.setItem('builder-right-sidebar-visible', String(showRightSidebar));
+  }, [showRightSidebar]);
   
   // Example selectors state (for Product/Category templates)
   const [exampleProductId, setExampleProductId] = useState<string>('');
@@ -1038,9 +1049,25 @@ export function VisualBuilder({
           />
         </div>
 
-        {/* Right Sidebar - Props Editor */}
+        {/* Right Sidebar Toggle Button - Always visible when not in preview mode */}
         {!isPreviewMode && (
-          <div className="w-72 flex-shrink-0 bg-background shadow-sm">
+          <button
+            onClick={() => setShowRightSidebar(!showRightSidebar)}
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-background border border-r-0 rounded-l-md p-1.5 shadow-sm hover:bg-muted transition-colors"
+            style={{ right: showRightSidebar ? '288px' : '0' }}
+            title={showRightSidebar ? 'Ocultar painel de configurações' : 'Mostrar painel de configurações'}
+          >
+            {showRightSidebar ? (
+              <PanelRightClose className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <PanelRightOpen className="h-4 w-4 text-muted-foreground" />
+            )}
+          </button>
+        )}
+
+        {/* Right Sidebar - Props Editor */}
+        {!isPreviewMode && showRightSidebar && (
+          <div className="w-72 flex-shrink-0 bg-background shadow-sm relative">
             {store.selectedBlock && store.selectedBlockDefinition ? (
               // Header/Footer: Show message to use Theme Settings instead
               store.selectedBlock.type === 'Header' || store.selectedBlock.type === 'Footer' ? (
