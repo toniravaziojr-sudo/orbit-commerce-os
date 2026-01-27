@@ -12,7 +12,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
@@ -25,19 +24,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 interface PricingRow {
   feature: string;
   icon: React.ReactNode;
-  provider: string;
-  model: string;
   unit: string;
-  costUsd: number;
   credits: number;
   note?: string;
 }
-
-const PROVIDER_COLORS: Record<string, string> = {
-  openai: 'bg-green-100 text-green-800',
-  fal: 'bg-purple-100 text-purple-800',
-  gemini: 'bg-blue-100 text-blue-800',
-};
 
 export function AIPricingTable() {
   const { data: pricing, isLoading } = useAIPricing();
@@ -63,10 +53,7 @@ export function AIPricingTable() {
     rows.push({
       feature: 'Chat/Atendimento IA',
       icon: <Bot className="h-4 w-4" />,
-      provider: 'OpenAI',
-      model: 'GPT-5.2',
       unit: 'por mensagem (~1.5k tokens)',
-      costUsd: avgMsgCost,
       credits: calculateCreditsForCost(avgMsgCost),
       note: 'Média de consumo por mensagem',
     });
@@ -80,10 +67,7 @@ export function AIPricingTable() {
     rows.push({
       feature: 'Análise de Imagem',
       icon: <Image className="h-4 w-4" />,
-      provider: 'OpenAI',
-      model: 'GPT-4o',
       unit: 'por imagem analisada',
-      costUsd: visionCost,
       credits: calculateCreditsForCost(visionCost),
     });
   }
@@ -94,10 +78,7 @@ export function AIPricingTable() {
     rows.push({
       feature: 'Transcrição de Áudio',
       icon: <Mic className="h-4 w-4" />,
-      provider: 'OpenAI',
-      model: 'Whisper',
       unit: 'por minuto',
-      costUsd: whisper.cost_usd,
       credits: calculateCreditsForCost(whisper.cost_usd),
     });
   }
@@ -108,10 +89,7 @@ export function AIPricingTable() {
     rows.push({
       feature: 'Busca Semântica (RAG)',
       icon: <Search className="h-4 w-4" />,
-      provider: 'OpenAI',
-      model: 'Embeddings',
       unit: 'por 1M tokens',
-      costUsd: embedding.cost_usd,
       credits: calculateCreditsForCost(embedding.cost_usd),
     });
   }
@@ -124,10 +102,7 @@ export function AIPricingTable() {
     rows.push({
       feature: 'SEO / Geração de Texto',
       icon: <FileText className="h-4 w-4" />,
-      provider: 'Gemini',
-      model: '2.5 Flash',
       unit: 'por geração',
-      costUsd: seoCost,
       credits: calculateCreditsForCost(seoCost),
     });
   }
@@ -138,10 +113,7 @@ export function AIPricingTable() {
     rows.push({
       feature: 'Geração de Imagem',
       icon: <Image className="h-4 w-4" />,
-      provider: 'Fal.AI',
-      model: 'GPT Image 1.5',
       unit: 'por imagem (1024px)',
-      costUsd: imageMedium.cost_usd,
       credits: calculateCreditsForCost(imageMedium.cost_usd),
       note: 'Qualidade média',
     });
@@ -153,10 +125,7 @@ export function AIPricingTable() {
     rows.push({
       feature: 'Geração de Vídeo',
       icon: <Video className="h-4 w-4" />,
-      provider: 'Fal.AI',
-      model: 'Sora 2',
       unit: 'por 10 segundos',
-      costUsd: soraStd.cost_usd * 10,
       credits: calculateCreditsForCost(soraStd.cost_usd * 10),
       note: 'Qualidade standard',
     });
@@ -168,10 +137,7 @@ export function AIPricingTable() {
     rows.push({
       feature: 'Avatar IA',
       icon: <Video className="h-4 w-4" />,
-      provider: 'Fal.AI',
-      model: 'Kling Avatar',
       unit: 'por 10 segundos',
-      costUsd: avatar.cost_usd * 10,
       credits: calculateCreditsForCost(avatar.cost_usd * 10),
     });
   }
@@ -190,8 +156,6 @@ export function AIPricingTable() {
           <TableHeader>
             <TableRow>
               <TableHead>Funcionalidade</TableHead>
-              <TableHead>Provedor</TableHead>
-              <TableHead>Modelo</TableHead>
               <TableHead>Unidade</TableHead>
               <TableHead className="text-right">Créditos</TableHead>
             </TableRow>
@@ -212,17 +176,6 @@ export function AIPricingTable() {
                       </Tooltip>
                     )}
                   </div>
-                </TableCell>
-                <TableCell>
-                  <Badge 
-                    variant="secondary" 
-                    className={PROVIDER_COLORS[row.provider.toLowerCase()] || ''}
-                  >
-                    {row.provider}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {row.model}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {row.unit}
