@@ -90,6 +90,7 @@ import Shopee from "@/pages/marketplaces/Shopee";
 import Olist from "@/pages/marketplaces/Olist";
 import Files from "@/pages/Files";
 import Reports from "@/pages/Reports";
+import B2BExtractor from "@/pages/B2BExtractor";
 import CommandCenter from "@/pages/CommandCenter";
 import PersonalData from "@/pages/account/PersonalData";
 import CompanyData from "@/pages/account/CompanyData";
@@ -348,6 +349,7 @@ const App = () => {
                   <Route path="/marketplaces/olist" element={<Olist />} />
                   <Route path="/files" element={<Files />} />
                   <Route path="/reports" element={<Reports />} />
+                  <Route path="/b2b-extractor" element={<B2BExtractor />} />
                   <Route path="/marketing" element={<Marketing />} />
                   <Route path="/marketing/atribuicao" element={<Attribution />} />
                   <Route path="/email-marketing" element={<EmailMarketing />} />

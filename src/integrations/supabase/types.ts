@@ -690,6 +690,472 @@ export type Database = {
           },
         ]
       }
+      b2b_audience_members: {
+        Row: {
+          added_at: string
+          audience_id: string
+          consent_updated_at: string | null
+          email_consent:
+            | Database["public"]["Enums"]["b2b_consent_status"]
+            | null
+          entity_id: string
+          id: string
+          notes: string | null
+          phone_consent:
+            | Database["public"]["Enums"]["b2b_consent_status"]
+            | null
+          tenant_id: string
+          whatsapp_consent:
+            | Database["public"]["Enums"]["b2b_consent_status"]
+            | null
+        }
+        Insert: {
+          added_at?: string
+          audience_id: string
+          consent_updated_at?: string | null
+          email_consent?:
+            | Database["public"]["Enums"]["b2b_consent_status"]
+            | null
+          entity_id: string
+          id?: string
+          notes?: string | null
+          phone_consent?:
+            | Database["public"]["Enums"]["b2b_consent_status"]
+            | null
+          tenant_id: string
+          whatsapp_consent?:
+            | Database["public"]["Enums"]["b2b_consent_status"]
+            | null
+        }
+        Update: {
+          added_at?: string
+          audience_id?: string
+          consent_updated_at?: string | null
+          email_consent?:
+            | Database["public"]["Enums"]["b2b_consent_status"]
+            | null
+          entity_id?: string
+          id?: string
+          notes?: string | null
+          phone_consent?:
+            | Database["public"]["Enums"]["b2b_consent_status"]
+            | null
+          tenant_id?: string
+          whatsapp_consent?:
+            | Database["public"]["Enums"]["b2b_consent_status"]
+            | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_audience_members_audience_id_fkey"
+            columns: ["audience_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_audiences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_audience_members_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_audience_members_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_audiences: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          entities_with_consent: number | null
+          entities_with_email: number | null
+          entities_with_phone: number | null
+          filter_criteria: Json | null
+          id: string
+          is_active: boolean | null
+          name: string
+          tags: string[] | null
+          tenant_id: string
+          total_entities: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          entities_with_consent?: number | null
+          entities_with_email?: number | null
+          entities_with_phone?: number | null
+          filter_criteria?: Json | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          tags?: string[] | null
+          tenant_id: string
+          total_entities?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          entities_with_consent?: number | null
+          entities_with_email?: number | null
+          entities_with_phone?: number | null
+          filter_criteria?: Json | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          tags?: string[] | null
+          tenant_id?: string
+          total_entities?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_audiences_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_entities: {
+        Row: {
+          bairro: string | null
+          capital_social: number | null
+          cep: string | null
+          cidade: string | null
+          cnae_descricao: string | null
+          cnae_principal: string | null
+          cnpj: string | null
+          complemento: string | null
+          created_at: string
+          data_abertura: string | null
+          data_quality_score: number | null
+          email: string | null
+          enriched_at: string | null
+          enrichment_provider: string | null
+          external_id: string | null
+          facebook: string | null
+          has_email: boolean | null
+          has_phone: boolean | null
+          has_whatsapp: boolean | null
+          id: string
+          instagram: string | null
+          latitude: number | null
+          linkedin: string | null
+          logradouro: string | null
+          longitude: number | null
+          natureza_juridica: string | null
+          nome_fantasia: string | null
+          numero: string | null
+          porte: string | null
+          razao_social: string | null
+          situacao_cadastral: string | null
+          source_provider: string | null
+          source_type: Database["public"]["Enums"]["b2b_source_type"] | null
+          source_url: string | null
+          telefone: string | null
+          telefone_secundario: string | null
+          tenant_id: string
+          uf: string | null
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          bairro?: string | null
+          capital_social?: number | null
+          cep?: string | null
+          cidade?: string | null
+          cnae_descricao?: string | null
+          cnae_principal?: string | null
+          cnpj?: string | null
+          complemento?: string | null
+          created_at?: string
+          data_abertura?: string | null
+          data_quality_score?: number | null
+          email?: string | null
+          enriched_at?: string | null
+          enrichment_provider?: string | null
+          external_id?: string | null
+          facebook?: string | null
+          has_email?: boolean | null
+          has_phone?: boolean | null
+          has_whatsapp?: boolean | null
+          id?: string
+          instagram?: string | null
+          latitude?: number | null
+          linkedin?: string | null
+          logradouro?: string | null
+          longitude?: number | null
+          natureza_juridica?: string | null
+          nome_fantasia?: string | null
+          numero?: string | null
+          porte?: string | null
+          razao_social?: string | null
+          situacao_cadastral?: string | null
+          source_provider?: string | null
+          source_type?: Database["public"]["Enums"]["b2b_source_type"] | null
+          source_url?: string | null
+          telefone?: string | null
+          telefone_secundario?: string | null
+          tenant_id: string
+          uf?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          bairro?: string | null
+          capital_social?: number | null
+          cep?: string | null
+          cidade?: string | null
+          cnae_descricao?: string | null
+          cnae_principal?: string | null
+          cnpj?: string | null
+          complemento?: string | null
+          created_at?: string
+          data_abertura?: string | null
+          data_quality_score?: number | null
+          email?: string | null
+          enriched_at?: string | null
+          enrichment_provider?: string | null
+          external_id?: string | null
+          facebook?: string | null
+          has_email?: boolean | null
+          has_phone?: boolean | null
+          has_whatsapp?: boolean | null
+          id?: string
+          instagram?: string | null
+          latitude?: number | null
+          linkedin?: string | null
+          logradouro?: string | null
+          longitude?: number | null
+          natureza_juridica?: string | null
+          nome_fantasia?: string | null
+          numero?: string | null
+          porte?: string | null
+          razao_social?: string | null
+          situacao_cadastral?: string | null
+          source_provider?: string | null
+          source_type?: Database["public"]["Enums"]["b2b_source_type"] | null
+          source_url?: string | null
+          telefone?: string | null
+          telefone_secundario?: string | null
+          tenant_id?: string
+          uf?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_entities_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_export_logs: {
+        Row: {
+          audience_id: string | null
+          consent_verified: boolean | null
+          created_at: string
+          export_channel: string | null
+          export_type: string
+          file_url: string | null
+          filter_applied: Json | null
+          id: string
+          legal_basis: string | null
+          tenant_id: string
+          total_records: number
+          user_id: string
+        }
+        Insert: {
+          audience_id?: string | null
+          consent_verified?: boolean | null
+          created_at?: string
+          export_channel?: string | null
+          export_type: string
+          file_url?: string | null
+          filter_applied?: Json | null
+          id?: string
+          legal_basis?: string | null
+          tenant_id: string
+          total_records?: number
+          user_id: string
+        }
+        Update: {
+          audience_id?: string | null
+          consent_verified?: boolean | null
+          created_at?: string
+          export_channel?: string | null
+          export_type?: string
+          file_url?: string | null
+          filter_applied?: Json | null
+          id?: string
+          legal_basis?: string | null
+          tenant_id?: string
+          total_records?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_export_logs_audience_id_fkey"
+            columns: ["audience_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_audiences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_export_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_search_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          error_count: number | null
+          error_message: string | null
+          id: string
+          job_type: string
+          processed_items: number | null
+          result_summary: Json | null
+          search_params: Json
+          source_id: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["b2b_job_status"]
+          success_count: number | null
+          tenant_id: string
+          total_items: number | null
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          error_count?: number | null
+          error_message?: string | null
+          id?: string
+          job_type?: string
+          processed_items?: number | null
+          result_summary?: Json | null
+          search_params?: Json
+          source_id?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["b2b_job_status"]
+          success_count?: number | null
+          tenant_id: string
+          total_items?: number | null
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          error_count?: number | null
+          error_message?: string | null
+          id?: string
+          job_type?: string
+          processed_items?: number | null
+          result_summary?: Json | null
+          search_params?: Json
+          source_id?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["b2b_job_status"]
+          success_count?: number | null
+          tenant_id?: string
+          total_items?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_search_jobs_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "b2b_sources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "b2b_search_jobs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      b2b_sources: {
+        Row: {
+          api_key_encrypted: string | null
+          config: Json | null
+          created_at: string
+          display_name: string
+          id: string
+          is_enabled: boolean | null
+          last_quota_reset: string | null
+          provider_name: string
+          quota_daily: number | null
+          quota_used_today: number | null
+          source_type: Database["public"]["Enums"]["b2b_source_type"]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          api_key_encrypted?: string | null
+          config?: Json | null
+          created_at?: string
+          display_name: string
+          id?: string
+          is_enabled?: boolean | null
+          last_quota_reset?: string | null
+          provider_name: string
+          quota_daily?: number | null
+          quota_used_today?: number | null
+          source_type: Database["public"]["Enums"]["b2b_source_type"]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          api_key_encrypted?: string | null
+          config?: Json | null
+          created_at?: string
+          display_name?: string
+          id?: string
+          is_enabled?: boolean | null
+          last_quota_reset?: string | null
+          provider_name?: string
+          quota_daily?: number | null
+          quota_used_today?: number | null
+          source_type?: Database["public"]["Enums"]["b2b_source_type"]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "b2b_sources_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_checkout_sessions: {
         Row: {
           billing_cycle: string
@@ -12215,6 +12681,7 @@ export type Database = {
         Args: { p_tenant_id: string; p_usage_cents: number }
         Returns: undefined
       }
+      reset_b2b_source_quota: { Args: never; Returns: undefined }
       search_knowledge_base: {
         Args: {
           p_query_embedding: string
@@ -12343,6 +12810,14 @@ export type Database = {
         | "support"
         | "finance"
         | "viewer"
+      b2b_consent_status: "pending" | "opted_in" | "opted_out" | "unknown"
+      b2b_job_status:
+        | "pending"
+        | "processing"
+        | "completed"
+        | "failed"
+        | "cancelled"
+      b2b_source_type: "cnpj_api" | "poi_api" | "enrichment_provider" | "manual"
       conversation_status:
         | "new"
         | "open"
@@ -12605,6 +13080,15 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["owner", "admin", "operator", "support", "finance", "viewer"],
+      b2b_consent_status: ["pending", "opted_in", "opted_out", "unknown"],
+      b2b_job_status: [
+        "pending",
+        "processing",
+        "completed",
+        "failed",
+        "cancelled",
+      ],
+      b2b_source_type: ["cnpj_api", "poi_api", "enrichment_provider", "manual"],
       conversation_status: [
         "new",
         "open",
