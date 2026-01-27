@@ -229,19 +229,29 @@ serve(async (req) => {
 
     console.log(`[creative-generate] Job ${job.id} created for tenant ${tenant_id}, type: ${type}`);
 
-    // TODO: Enfileirar para processamento (creative-process)
-    // Por enquanto, o job fica em 'queued' e pode ser processado por um scheduler
+    // Disparar processamento assíncrono (fire and forget)
+    fetch(`${supabaseUrl}/functions/v1/creative-process`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${supabaseServiceKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ job_id: job.id }),
+    }).catch(err => {
+      console.error(`[creative-generate] Failed to trigger processing for ${job.id}:`, err);
+    });
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         data: {
           job_id: job.id,
-          status: job.status,
+          status: 'queued',
           type: job.type,
           cost_estimate_cents: costEstimate,
           folder_id: folderId,
           pipeline_steps: pipelineSteps.length,
+          message: 'Geração iniciada. Acompanhe o progresso na Galeria.',
         }
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
