@@ -1,5 +1,5 @@
 // =============================================
-// B2B SEARCH TAB - Busca por CNPJ, CNAE, Cidade/UF
+// B2B SEARCH TAB - Busca por Nicho + Localidade
 // =============================================
 
 import { useState } from "react";
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Search, Building2, MapPin, Hash, Loader2, CheckCircle, XCircle, Plus } from "lucide-react";
+import { Search, Building2, MapPin, Hash, Loader2, Plus, Sparkles, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,6 +22,22 @@ const UF_LIST = [
   "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA",
   "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN",
   "RS", "RO", "RR", "SC", "SP", "SE", "TO"
+];
+
+// Nichos populares com ícones e CNAEs mapeados
+const NICHOS_SUGERIDOS = [
+  { label: "Cosméticos", keywords: ["cosmetico", "beleza", "perfumaria", "maquiagem"], icon: "💄", cnae: "4772-5" },
+  { label: "Eletrônicos", keywords: ["eletronico", "informatica", "celular", "tecnologia"], icon: "📱", cnae: "4751-2" },
+  { label: "Moda", keywords: ["roupa", "vestuario", "moda", "calcado", "acessorio"], icon: "👗", cnae: "4781-4" },
+  { label: "Casa e Decoração", keywords: ["moveis", "decoracao", "casa", "cama mesa banho"], icon: "🏠", cnae: "4754-7" },
+  { label: "Imóveis", keywords: ["imovel", "imobiliaria", "corretora", "aluguel"], icon: "🏢", cnae: "6821-8" },
+  { label: "Restaurantes", keywords: ["restaurante", "alimentacao", "comida", "lanchonete"], icon: "🍽️", cnae: "5611-2" },
+  { label: "Saúde e Bem-estar", keywords: ["farmacia", "saude", "clinica", "estetica"], icon: "💊", cnae: "4771-7" },
+  { label: "Academias", keywords: ["academia", "fitness", "esporte", "crossfit"], icon: "🏋️", cnae: "9313-1" },
+  { label: "Pet Shop", keywords: ["pet", "animal", "veterinaria", "racao"], icon: "🐾", cnae: "4789-0" },
+  { label: "Automotivo", keywords: ["automovel", "carro", "mecanica", "autopeca"], icon: "🚗", cnae: "4530-7" },
+  { label: "Educação", keywords: ["escola", "curso", "educacao", "ensino"], icon: "📚", cnae: "8599-6" },
+  { label: "Construção", keywords: ["construcao", "material", "obra", "ferragem"], icon: "🔨", cnae: "4744-0" },
 ];
 
 interface SearchResult {
@@ -46,19 +62,84 @@ interface SearchResult {
 
 export default function B2BSearchTab() {
   const { currentTenant, user } = useAuth();
-  const [searchType, setSearchType] = useState<"cnpj" | "cnae">("cnpj");
+  const [searchType, setSearchType] = useState<"nicho" | "cnpj">("nicho");
   const [isLoading, setIsLoading] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [savedEntities, setSavedEntities] = useState<Set<string>>(new Set());
   
-  // CNPJ search
-  const [cnpjInput, setCnpjInput] = useState("");
-  
-  // CNAE search
+  // Nicho search
+  const [selectedNicho, setSelectedNicho] = useState<string>("");
+  const [customNicho, setCustomNicho] = useState("");
   const [uf, setUf] = useState("");
   const [cidade, setCidade] = useState("");
-  const [cnaeCode, setCnaeCode] = useState("");
-  const [nicho, setNicho] = useState("");
+  
+  // CNPJ search
+  const [cnpjInput, setCnpjInput] = useState("");
+
+  const getNichoInfo = () => {
+    if (selectedNicho) {
+      return NICHOS_SUGERIDOS.find(n => n.label === selectedNicho);
+    }
+    return null;
+  };
+
+  const handleNichoSearch = async () => {
+    if (!uf) {
+      toast.error("Selecione um estado");
+      return;
+    }
+
+    if (!selectedNicho && !customNicho) {
+      toast.error("Selecione ou digite um nicho");
+      return;
+    }
+
+    if (!currentTenant?.id) {
+      toast.error("Selecione uma loja primeiro");
+      return;
+    }
+
+    setIsLoading(true);
+    setResults([]);
+
+    const nichoInfo = getNichoInfo();
+    const searchKeyword = customNicho || nichoInfo?.keywords[0] || selectedNicho.toLowerCase();
+    const cnaeCode = nichoInfo?.cnae;
+
+    try {
+      const { data, error } = await supabase.functions.invoke("b2b-search", {
+        body: {
+          action: "search_nicho",
+          uf,
+          cidade: cidade || undefined,
+          cnae: cnaeCode || undefined,
+          nicho: searchKeyword,
+          tenant_id: currentTenant.id,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success && data?.entities?.length > 0) {
+        setResults(data.entities);
+        toast.success(`${data.entities.length} empresas encontradas!`);
+      } else if (data?.code === "NICHO_NOT_IMPLEMENTED") {
+        // Fallback: mostrar mensagem informativa
+        toast.info(
+          "A busca em lote por nicho requer integração com provedor de dados. " +
+          "Por enquanto, use a busca por CNPJ específico.",
+          { duration: 5000 }
+        );
+      } else {
+        toast.info(data?.error || "Nenhuma empresa encontrada com esses critérios");
+      }
+    } catch (err: any) {
+      console.error("Nicho search error:", err);
+      toast.error(err.message || "Erro na busca");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleCnpjSearch = async () => {
     const cleanCnpj = extractDigits(cnpjInput);
@@ -96,48 +177,6 @@ export default function B2BSearchTab() {
     } catch (err: any) {
       console.error("CNPJ search error:", err);
       toast.error(err.message || "Erro ao buscar CNPJ");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleCnaeSearch = async () => {
-    if (!uf) {
-      toast.error("Selecione um estado");
-      return;
-    }
-
-    if (!currentTenant?.id) {
-      toast.error("Selecione uma loja primeiro");
-      return;
-    }
-
-    setIsLoading(true);
-    setResults([]);
-
-    try {
-      const { data, error } = await supabase.functions.invoke("b2b-search", {
-        body: {
-          action: "search_cnae",
-          uf,
-          cidade: cidade || undefined,
-          cnae: cnaeCode || undefined,
-          nicho: nicho || undefined,
-          tenant_id: currentTenant.id,
-        },
-      });
-
-      if (error) throw error;
-
-      if (data?.success && data?.entities?.length > 0) {
-        setResults(data.entities);
-        toast.success(`${data.entities.length} empresas encontradas!`);
-      } else {
-        toast.info("Nenhuma empresa encontrada com esses critérios");
-      }
-    } catch (err: any) {
-      console.error("CNAE search error:", err);
-      toast.error(err.message || "Erro na busca");
     } finally {
       setIsLoading(false);
     }
@@ -207,21 +246,129 @@ export default function B2BSearchTab() {
             Buscar Empresas
           </CardTitle>
           <CardDescription>
-            Pesquise por CNPJ específico ou por critérios como CNAE, cidade e estado
+            Escolha um nicho de mercado e uma localidade para encontrar empresas
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs value={searchType} onValueChange={(v) => setSearchType(v as "cnpj" | "cnae")}>
+          <Tabs value={searchType} onValueChange={(v) => setSearchType(v as "nicho" | "cnpj")}>
             <TabsList className="mb-4">
+              <TabsTrigger value="nicho" className="flex items-center gap-2">
+                <Tag className="h-4 w-4" />
+                Por Nicho + Localidade
+              </TabsTrigger>
               <TabsTrigger value="cnpj" className="flex items-center gap-2">
                 <Hash className="h-4 w-4" />
                 Por CNPJ
               </TabsTrigger>
-              <TabsTrigger value="cnae" className="flex items-center gap-2">
-                <MapPin className="h-4 w-4" />
-                Por Região/CNAE
-              </TabsTrigger>
             </TabsList>
+
+            <TabsContent value="nicho" className="space-y-6">
+              {/* Nichos Sugeridos */}
+              <div className="space-y-3">
+                <Label className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  Selecione um Nicho
+                </Label>
+                <div className="flex flex-wrap gap-2">
+                  {NICHOS_SUGERIDOS.map((nicho) => (
+                    <Badge
+                      key={nicho.label}
+                      variant={selectedNicho === nicho.label ? "default" : "outline"}
+                      className="cursor-pointer text-sm py-2 px-3 hover:bg-primary/10 transition-colors"
+                      onClick={() => {
+                        setSelectedNicho(selectedNicho === nicho.label ? "" : nicho.label);
+                        setCustomNicho("");
+                      }}
+                    >
+                      <span className="mr-1">{nicho.icon}</span>
+                      {nicho.label}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              {/* Nicho Personalizado */}
+              <div className="space-y-2">
+                <Label htmlFor="custom-nicho">Ou digite um nicho personalizado</Label>
+                <Input
+                  id="custom-nicho"
+                  placeholder="Ex: barbearia, coworking, papelaria..."
+                  value={customNicho}
+                  onChange={(e) => {
+                    setCustomNicho(e.target.value);
+                    setSelectedNicho("");
+                  }}
+                />
+              </div>
+
+              {/* Localidade */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="uf">Estado *</Label>
+                  <Select value={uf} onValueChange={setUf}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o estado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {UF_LIST.map((state) => (
+                        <SelectItem key={state} value={state}>
+                          {state}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cidade">Cidade (opcional)</Label>
+                  <Input
+                    id="cidade"
+                    placeholder="Ex: São Paulo"
+                    value={cidade}
+                    onChange={(e) => setCidade(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Resumo da busca */}
+              {(selectedNicho || customNicho) && uf && (
+                <div className="bg-muted/50 p-4 rounded-lg">
+                  <p className="text-sm">
+                    <span className="font-medium">Buscando:</span>{" "}
+                    <span className="text-primary font-semibold">
+                      {selectedNicho || customNicho}
+                    </span>
+                    {" em "}
+                    <span className="font-semibold">
+                      {cidade ? `${cidade}/${uf}` : uf}
+                    </span>
+                    {getNichoInfo()?.cnae && (
+                      <span className="text-muted-foreground text-xs ml-2">
+                        (CNAE: {getNichoInfo()?.cnae})
+                      </span>
+                    )}
+                  </p>
+                </div>
+              )}
+
+              <Button 
+                onClick={handleNichoSearch} 
+                disabled={isLoading || (!selectedNicho && !customNicho) || !uf}
+                size="lg"
+                className="w-full md:w-auto"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Search className="h-4 w-4 mr-2" />
+                )}
+                Buscar Empresas
+              </Button>
+              
+              <p className="text-xs text-muted-foreground">
+                ⚠️ A busca em lote por nicho requer integração com provedor de dados empresariais. 
+                Para busca imediata, use a aba "Por CNPJ" com CNPJs específicos.
+              </p>
+            </TabsContent>
 
             <TabsContent value="cnpj" className="space-y-4">
               <div className="flex gap-4">
@@ -246,63 +393,8 @@ export default function B2BSearchTab() {
                   </Button>
                 </div>
               </div>
-            </TabsContent>
-
-            <TabsContent value="cnae" className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div>
-                  <Label htmlFor="uf">Estado *</Label>
-                  <Select value={uf} onValueChange={setUf}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {UF_LIST.map((state) => (
-                        <SelectItem key={state} value={state}>
-                          {state}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="cidade">Cidade</Label>
-                  <Input
-                    id="cidade"
-                    placeholder="Ex: São Paulo"
-                    value={cidade}
-                    onChange={(e) => setCidade(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="cnae">CNAE</Label>
-                  <Input
-                    id="cnae"
-                    placeholder="Ex: 4711-3"
-                    value={cnaeCode}
-                    onChange={(e) => setCnaeCode(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="nicho">Palavra-chave</Label>
-                  <Input
-                    id="nicho"
-                    placeholder="Ex: restaurante"
-                    value={nicho}
-                    onChange={(e) => setNicho(e.target.value)}
-                  />
-                </div>
-              </div>
-              <Button onClick={handleCnaeSearch} disabled={isLoading}>
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Search className="h-4 w-4" />
-                )}
-                <span className="ml-2">Buscar</span>
-              </Button>
               <p className="text-xs text-muted-foreground">
-                * A busca por CNAE/região utiliza APIs públicas com limite de consultas.
+                Consulta dados públicos via BrasilAPI (CNPJ, endereço, situação cadastral).
               </p>
             </TabsContent>
           </Tabs>

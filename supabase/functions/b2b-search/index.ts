@@ -18,6 +18,15 @@ interface SearchCnpjRequest {
   tenant_id: string;
 }
 
+interface SearchNichoRequest {
+  action: 'search_nicho';
+  uf: string;
+  cidade?: string;
+  cnae?: string;
+  nicho?: string;
+  tenant_id: string;
+}
+
 interface SearchCnaeRequest {
   action: 'search_cnae';
   uf: string;
@@ -27,7 +36,7 @@ interface SearchCnaeRequest {
   tenant_id: string;
 }
 
-type RequestBody = SearchCnpjRequest | SearchCnaeRequest;
+type RequestBody = SearchCnpjRequest | SearchNichoRequest | SearchCnaeRequest;
 
 serve(async (req) => {
   // Handle CORS
@@ -44,6 +53,8 @@ serve(async (req) => {
 
     if (body.action === 'search_cnpj') {
       return await handleCnpjSearch(body, supabase);
+    } else if (body.action === 'search_nicho') {
+      return await handleNichoSearch(body, supabase);
     } else if (body.action === 'search_cnae') {
       return await handleCnaeSearch(body, supabase);
     } else {
@@ -139,6 +150,35 @@ async function handleCnpjSearch(body: SearchCnpjRequest, supabase: any) {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
+}
+
+async function handleNichoSearch(body: SearchNichoRequest, supabase: any) {
+  const { uf, cidade, cnae, nicho, tenant_id } = body;
+  
+  // Verificar quota
+  const quotaCheck = await checkAndIncrementQuota(supabase, tenant_id, 'nicho_search');
+  if (!quotaCheck.allowed) {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Quota diária esgotada', code: 'QUOTA_EXCEEDED' }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+  
+  // Por enquanto, retornar aviso de que busca em lote requer implementação adicional
+  // A busca em massa por nicho geralmente requer acesso a bases de dados comerciais
+  // Como alternativa futura: integração com DataSeek, Econodata, ou base offline de CNPJs
+  
+  console.log(`[b2b-search] Nicho search: ${nicho} in ${cidade || 'all'}/${uf}, CNAE: ${cnae || 'any'}`);
+  
+  return new Response(
+    JSON.stringify({ 
+      success: false, 
+      error: 'Busca por nicho/região requer integração com provedor de dados empresariais (DataSeek, Econodata, etc). Use a busca por CNPJ específico por enquanto.',
+      code: 'NICHO_NOT_IMPLEMENTED',
+      searched: { uf, cidade, cnae, nicho }
+    }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
 }
 
 async function handleCnaeSearch(body: SearchCnaeRequest, supabase: any) {
