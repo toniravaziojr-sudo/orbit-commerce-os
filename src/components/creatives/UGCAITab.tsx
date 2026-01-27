@@ -29,11 +29,29 @@ export function UGCAITab() {
   const [script, setScript] = useState('');
   const [duration, setDuration] = useState<string>('15');
   const [aspectRatio, setAspectRatio] = useState<string>('9:16');
+  const [voice, setVoice] = useState<string>('male-mature');
+  const [cta, setCta] = useState('');
 
   const { data: jobs, isLoading } = useCreativeJobs('ugc_ai_video');
   const createJob = useCreateCreativeJob();
 
   const models = CREATIVE_MODELS.ugc_ai_video;
+
+  const handleGenerate = () => {
+    if (!script.trim()) return;
+    
+    createJob.mutate({
+      type: 'ugc_ai_video',
+      prompt: script,
+      settings: {
+        mode,
+        duration: parseInt(duration),
+        aspect_ratio: aspectRatio,
+        voice,
+        cta: cta || undefined,
+      },
+    });
+  };
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -100,7 +118,11 @@ Exemplo:
           {/* CTA Opcional */}
           <div className="space-y-2">
             <Label>CTA Final (opcional)</Label>
-            <Input placeholder="Ex: Compre agora com 20% de desconto!" />
+            <Input 
+              value={cta}
+              onChange={(e) => setCta(e.target.value)}
+              placeholder="Ex: Compre agora com 20% de desconto!" 
+            />
           </div>
 
           {/* Avatar Reference (optional) */}
@@ -117,7 +139,7 @@ Exemplo:
           {/* Voice Preset */}
           <div className="space-y-2">
             <Label>Voz</Label>
-            <Select defaultValue="female-young">
+            <Select value={voice} onValueChange={setVoice}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -175,9 +197,13 @@ Exemplo:
           </div>
 
           {/* Submit */}
-          <Button className="w-full" disabled={!script.trim()}>
+          <Button 
+            className="w-full" 
+            disabled={!script.trim() || createJob.isPending}
+            onClick={handleGenerate}
+          >
             <Sparkles className="h-4 w-4 mr-2" />
-            Gerar UGC com IA
+            {createJob.isPending ? 'Gerando...' : 'Gerar UGC com IA'}
           </Button>
         </CardContent>
       </Card>
