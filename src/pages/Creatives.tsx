@@ -2,7 +2,7 @@
  * Gestão de Criativos — Página Principal
  * 
  * Módulo para geração de criativos com IA (vídeos e imagens)
- * 5 abas: UGC Cliente, UGC 100% IA, Vídeos Curtos, Vídeos Tech, Imagens Produto
+ * 6 abas: UGC Cliente, UGC 100% IA, Vídeos Curtos, Vídeos Tech, Imagens Produto, Galeria
  */
 
 import { useState } from 'react';
@@ -23,6 +23,7 @@ import {
   FolderOpen,
   Info,
   Loader2,
+  LayoutGrid,
 } from 'lucide-react';
 import { useCreativeStats, useCreativesFolder } from '@/hooks/useCreatives';
 import { UGCClientTab } from '@/components/creatives/UGCClientTab';
@@ -30,9 +31,12 @@ import { UGCAITab } from '@/components/creatives/UGCAITab';
 import { ShortVideoTab } from '@/components/creatives/ShortVideoTab';
 import { TechProductTab } from '@/components/creatives/TechProductTab';
 import { ProductImageTab } from '@/components/creatives/ProductImageTab';
+import { CreativeGallery } from '@/components/creatives/CreativeGallery';
 import type { CreativeType } from '@/types/creatives';
 
-const TABS: { id: CreativeType; label: string; icon: React.ElementType; description: string }[] = [
+type TabId = CreativeType | 'gallery';
+
+const TABS: { id: TabId; label: string; icon: React.ElementType; description: string }[] = [
   {
     id: 'ugc_client_video',
     label: 'UGC: Cliente Gravou',
@@ -63,10 +67,16 @@ const TABS: { id: CreativeType; label: string; icon: React.ElementType; descript
     icon: Image,
     description: 'Pessoas reais segurando o produto',
   },
+  {
+    id: 'gallery',
+    label: 'Galeria',
+    icon: LayoutGrid,
+    description: 'Visualizar todos os criativos gerados',
+  },
 ];
 
 export default function Creatives() {
-  const [activeTab, setActiveTab] = useState<CreativeType>('ugc_client_video');
+  const [activeTab, setActiveTab] = useState<TabId>('ugc_client_video');
   const { data: stats, isLoading: statsLoading } = useCreativeStats();
   const { data: folderId, isLoading: folderLoading } = useCreativesFolder();
 
@@ -139,11 +149,13 @@ export default function Creatives() {
       </Alert>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as CreativeType)} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5 h-auto">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabId)} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-6 h-auto">
           {TABS.map((tab) => {
             const Icon = tab.icon;
-            const count = stats?.byType?.[tab.id] || 0;
+            const count = tab.id === 'gallery' 
+              ? (stats?.succeeded || 0) 
+              : (stats?.byType?.[tab.id as CreativeType] || 0);
             return (
               <TabsTrigger
                 key={tab.id}
@@ -207,6 +219,20 @@ export default function Creatives() {
 
         <TabsContent value="product_image" className="mt-6">
           <ProductImageTab />
+        </TabsContent>
+
+        <TabsContent value="gallery" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Galeria de Criativos</CardTitle>
+              <CardDescription>
+                Todos os criativos gerados em formato visual. Use os filtros para encontrar rapidamente.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <CreativeGallery showFilters />
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
