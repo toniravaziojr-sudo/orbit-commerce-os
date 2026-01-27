@@ -79,7 +79,6 @@ Este diretório contém as regras e especificações separadas por módulo para 
 |---------|-----------|--------|
 | [afiliados.md](./afiliados.md) | Programa de Afiliados | 🟧 Pending |
 | [influencers.md](./influencers.md) | Gestão de Influencers | 🟧 Pending |
-| [fornecedores.md](./fornecedores.md) | Gestão de Fornecedores | 🟧 Pending |
 
 ---
 
@@ -109,7 +108,7 @@ Este diretório contém as regras e especificações separadas por módulo para 
 | Status | Quantidade | Significado |
 |--------|------------|-------------|
 | ✅ Ready | **29** | 100% funcional e validado |
-| 🟧 Pending | **12** | Em construção/incompleto |
+| 🟧 Pending | **11** | Em construção/incompleto |
 
 ---
 

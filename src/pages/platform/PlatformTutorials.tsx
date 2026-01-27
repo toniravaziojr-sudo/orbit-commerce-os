@@ -78,7 +78,6 @@ const availableModules = [
   { key: 'purchases', label: 'Compras' },
   { key: 'shipping', label: 'Logística' },
   { key: 'influencers', label: 'Influencers' },
-  { key: 'suppliers', label: 'Fornecedores' },
   { key: 'affiliates', label: 'Afiliados' },
   { key: 'integrations', label: 'Integrações' },
   { key: 'import', label: 'Importar Dados' },

@@ -81,7 +81,7 @@ Sistema de controle de acesso baseado em roles (RBAC) para gerenciamento de equi
 | `marketing` | integrations, attribution, email-marketing, offers, reviews, media, campaigns |
 | `crm` | notifications, support, emails |
 | `erp` | fiscal, finance, purchases, shipping |
-| `partnerships` | influencers, suppliers, affiliates |
+| `partnerships` | influencers, affiliates |
 | `marketplaces` | mercadolivre |
 | `system` | integrations, import, files, settings, users (owner only) |
 
