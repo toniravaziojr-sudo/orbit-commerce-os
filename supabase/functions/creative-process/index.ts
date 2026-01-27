@@ -267,16 +267,21 @@ async function processFalPipeline(
 
   let previousOutput: string | null = job.reference_video_url || null;
 
+  console.log(`[creative-process] Pipeline has ${pipelineSteps.length} steps:`, pipelineSteps.map((s: any) => s.model_id));
+
   for (const step of pipelineSteps) {
     const endpoint = FAL_ENDPOINTS[step.model_id];
     if (!endpoint) {
-      console.warn(`[creative-process] Unknown model: ${step.model_id}`);
+      console.warn(`[creative-process] Unknown model: ${step.model_id}, skipping step`);
       continue;
     }
+
+    console.log(`[creative-process] Executing step: ${step.step_id}, model: ${step.model_id}, endpoint: ${endpoint}`);
 
     try {
       // Montar payload baseado no modelo
       const payload = buildFalPayload(step.model_id, job, previousOutput);
+      console.log(`[creative-process] Payload for ${step.model_id}:`, JSON.stringify(payload).substring(0, 500));
 
       // Submeter para fal.ai (usando queue para async)
       const submitResponse = await fetch(`https://queue.fal.run/${endpoint}`, {
@@ -290,13 +295,16 @@ async function processFalPipeline(
 
       if (!submitResponse.ok) {
         const errorText = await submitResponse.text();
+        console.error(`[creative-process] Fal submit failed:`, errorText);
         throw new Error(`Fal submit error: ${submitResponse.status} - ${errorText}`);
       }
 
       const submitData = await submitResponse.json();
       const requestId = submitData.request_id;
+      console.log(`[creative-process] Fal request submitted, request_id: ${requestId}`);
 
       if (!requestId) {
+        console.error(`[creative-process] No request_id in response:`, submitData);
         throw new Error('No request_id from fal.ai');
       }
 
