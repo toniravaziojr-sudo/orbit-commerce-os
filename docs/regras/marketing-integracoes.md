@@ -193,13 +193,14 @@ Módulo para geração de criativos com IA (vídeos e imagens) via fal.ai e Open
 ### Arquivos Principais
 | Arquivo | Descrição |
 |---------|-----------|
-| `src/pages/Creatives.tsx` | Página principal com 6 abas |
+| `src/pages/Creatives.tsx` | Página principal com 7 abas |
 | `src/types/creatives.ts` | Tipos e configurações de modelos |
 | `src/hooks/useCreatives.ts` | Hooks para jobs e pasta |
 | `src/components/creatives/*` | Componentes de cada aba |
 | `src/components/creatives/CreativeGallery.tsx` | Galeria visual dos criativos gerados |
+| `src/components/creatives/AvatarMascotTab.tsx` | Aba de Avatar Mascote |
 
-### As 6 Abas
+### As 7 Abas
 
 #### Aba 1: UGC Cliente (Transformar vídeo)
 | Campo | Descrição |
@@ -236,7 +237,17 @@ Módulo para geração de criativos com IA (vídeos e imagens) via fal.ai e Open
 | **Cenas** | Banheiro, quarto, academia, outdoor |
 | **Modelo** | GPT Image 1.5 Edit (preserva rótulo) |
 
-#### Aba 6: Galeria
+#### Aba 6: Avatar Mascote (Personagem Animado)
+| Campo | Descrição |
+|-------|-----------|
+| **Entrada** | Imagem do mascote + script + voz |
+| **Estilos** | Cartoon, 3D, Realista |
+| **Fontes de Voz** | TTS (f5-tts), Upload de áudio, Clonagem (ChatterboxHD) |
+| **Pós-processo** | Sync LipSync v2 Pro (opcional) |
+| **Modelos** | Kling Avatar v2 Pro (primário), Kling Avatar v2 Standard (fallback) |
+| **Componente** | `AvatarMascotTab.tsx` |
+
+#### Aba 7: Galeria
 | Campo | Descrição |
 |-------|-----------|
 | **Funcionalidade** | Visualização de todos os criativos gerados |
