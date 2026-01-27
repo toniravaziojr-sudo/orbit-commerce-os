@@ -12358,6 +12358,7 @@ export type Database = {
         | "short_video"
         | "tech_product_video"
         | "product_image"
+        | "avatar_mascot"
       delivery_status:
         | "label_created"
         | "posted"
@@ -12620,6 +12621,7 @@ export const Constants = {
         "short_video",
         "tech_product_video",
         "product_image",
+        "avatar_mascot",
       ],
       delivery_status: [
         "label_created",
