@@ -1,10 +1,13 @@
 # Planos e Billing — Regras e Especificações
 
-> **STATUS:** 🟧 Pending (em construção)
+> **STATUS:** 🟢 Implementado (v2.0)  
+> **Última atualização:** 2025-01-27
+
+---
 
 ## Visão Geral
 
-Sistema de planos, assinaturas e cobrança para tenants da plataforma.
+Sistema de planos, assinaturas, créditos de IA e cobrança para tenants da plataforma.
 
 ---
 
@@ -14,85 +17,25 @@ Sistema de planos, assinaturas e cobrança para tenants da plataforma.
 |---------|-----------|
 | `src/config/feature-access.ts` | Configuração de acesso por plano |
 | `src/hooks/usePlans.ts` | Hooks de planos e assinaturas |
+| `src/hooks/useCredits.ts` | Hooks de créditos de IA |
 | `src/hooks/useTenantAccess.ts` | Hook de acesso do tenant |
-| `src/hooks/useTenantType.ts` | Hook de tipo do tenant |
 | `src/pages/platform/PlatformBilling.tsx` | Dashboard de billing (admin) |
-| `src/pages/account/Billing.tsx` | Página de billing do tenant |
+| `src/pages/AIPackages.tsx` | Página de créditos de IA |
 
 ---
 
-## Hierarquia de Planos
+## Estrutura de Planos (8 tiers)
 
-| Plano | Nível | Descrição |
-|-------|-------|-----------|
-| `start` | 1 | Plano inicial/gratuito |
-| `growth` | 2 | Crescimento |
-| `scale` | 3 | Escala |
-| `enterprise` | 4 | Empresarial |
-| `unlimited` | 5 | Ilimitado (interno) |
-
----
-
-## Tipos de Tenant
-
-| Tipo | Descrição |
-|------|-----------|
-| `platform` | Tenant da plataforma (Comando Central) |
-| `customer` | Tenant cliente (loja) |
-
----
-
-## Campos Especiais
-
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| `plan` | enum | Plano atual do tenant |
-| `is_special` | boolean | Acesso especial (equivale a unlimited) |
-| `type` | enum | 'platform' ou 'customer' |
-
----
-
-## Verificação de Acesso por Plano
-
-```typescript
-// src/config/feature-access.ts
-export const FEATURE_CONFIG: Record<string, FeatureConfig> = {
-  'fiscal': {
-    minPlan: 'enterprise',
-    description: 'Módulo fiscal para emissão de NF-e',
-  },
-  'whatsapp': {
-    minPlan: 'enterprise',
-    description: 'Integração com WhatsApp Business',
-  },
-  'automations': {
-    minPlan: 'scale',
-    description: 'Automações de marketing e operações',
-  },
-  'multi_users': {
-    allowedPlans: ['enterprise', 'unlimited'],
-    description: 'Múltiplos usuários por tenant',
-  },
-};
-```
-
----
-
-## Hook useTenantAccess
-
-```typescript
-const {
-  tenantType,    // 'platform' | 'customer'
-  plan,          // 'start' | 'growth' | 'scale' | 'enterprise' | 'unlimited'
-  isSpecial,     // boolean
-  isPlatform,    // boolean
-  isUnlimited,   // plan === 'unlimited' || isSpecial
-  planLevel,     // 1-5
-  canAccess,     // (featureKey) => boolean
-  isLoading,
-  overrides,     // feature overrides do tenant
-} = useTenantAccess();
-```
+| Plano | Preço/mês | Pedidos/mês | Sugestão |
+|-------|-----------|-------------|----------|
+| `basico` | 2,5% vendas | Ilimitado | Para quem está começando |
+| `evolucao` | R$ 397,00 | 350 | Até 30 mil/mês |
+| `profissional` | R$ 699,90 | 500 | 30 a 50 mil/mês |
+| `avancado` | R$ 1.299,00 | 1.000 | 70 a 120 mil/mês |
+| `impulso` | R$ 2.499,90 | 1.500 | 130 a 200 mil/mês |
+| `consolidar` | R$ 3.997,00 | 3.000 | 200 a 300 mil/mês |
+| `comando_maximo` | R$ 5.990,00 | 5.000 | Acima de 300 mil/mês |
+| `customizado` | Sob consulta | Negociável | Faturamento consolidado |
 
 ---
 
@@ -101,92 +44,158 @@ const {
 ### `billing_plans`
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
-| plan_key | text | PK (start, growth, etc) |
-| name | text | Nome exibido |
-| price_monthly_cents | int | Preço mensal em centavos |
-| price_annual_cents | int | Preço anual em centavos |
-| included_orders_per_month | int | Limite de pedidos |
-| feature_bullets | jsonb | Lista de features |
-| is_active | boolean | Se está ativo |
-| is_public | boolean | Se aparece na página de preços |
+| plan_key | TEXT PK | Identificador do plano |
+| name | TEXT | Nome exibido |
+| description | TEXT | Descrição curta |
+| price_monthly_cents | INT | Preço mensal em centavos |
+| price_annual_cents | INT | Preço anual em centavos |
+| included_orders_per_month | INT | Limite de pedidos |
+| support_level | TEXT | email, chat, whatsapp, priority, dedicated |
+| feature_bullets | JSONB | Lista de features para exibição |
+| is_recommended | BOOL | Se é o plano destacado |
+| sort_order | INT | Ordem de exibição |
 
-### `tenant_subscriptions`
+### `plan_limits`
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
-| tenant_id | uuid | FK para tenants |
-| plan_key | text | Plano atual |
-| billing_cycle | text | 'monthly' ou 'annual' |
-| status | text | 'active', 'trial', 'past_due', etc |
-| current_period_end | timestamptz | Fim do período atual |
-| mp_preapproval_id | text | ID da assinatura no Mercado Pago |
+| plan_key | TEXT FK | Referência ao plano |
+| orders_per_month | INT | Limite de pedidos |
+| sales_fee_bps | INT | Taxa sobre vendas (basis points, 250 = 2.5%) |
+| max_users | INT | Limite de usuários |
+| storage_bytes | BIGINT | Armazenamento em bytes |
+| import_uses_per_month | INT | Usos de importação |
+| assistant_interactions_per_month | INT | Interações com Auxiliar de Comando |
+| ai_images_per_month | INT | Imagens IA incluídas |
+| ai_videos_per_month | INT | Vídeos IA incluídos |
+| creative_* | INT | Limites do Gestor de Criativos |
+| traffic_* | INT | Limites de Gestão de Tráfego |
+| seo_generations_per_month | INT | Gerações SEO incluídas |
 
-### `tenant_feature_overrides`
+### `plan_module_access`
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
-| tenant_id | uuid | FK para tenants |
-| feature_key | text | Chave da feature |
-| is_enabled | boolean | Se está habilitada |
-
-### `tenant_monthly_usage`
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| tenant_id | uuid | FK para tenants |
-| year_month | text | '2024-01', etc |
-| orders_count | int | Quantidade de pedidos |
-| gmv_cents | int | Volume bruto de vendas |
+| plan_key | TEXT FK | Referência ao plano |
+| module_key | TEXT | Identificador do módulo |
+| access_level | TEXT | 'none', 'partial', 'full' |
+| blocked_features | JSONB | Features bloqueadas |
+| notes | TEXT | Observações |
 
 ---
 
-## Feature Overrides
+## Sistema de Créditos de IA
 
-Permite habilitar/desabilitar features específicas para um tenant, sobrescrevendo a regra do plano.
+### Constantes
+```typescript
+CREDIT_USD = 0.01      // 1 crédito = US$ 0,01
+CREDIT_MARKUP = 1.5    // 50% markup sobre custo
+```
+
+### Tabelas
+
+#### `credit_packages`
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| sku | TEXT | Identificador único |
+| name | TEXT | Nome do pacote |
+| credits | INT | Créditos incluídos |
+| bonus_credits | INT | Bônus adicional |
+| price_cents | INT | Preço em centavos |
+
+#### `credit_wallet`
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| tenant_id | UUID FK | Tenant |
+| balance_credits | INT | Saldo atual |
+| reserved_credits | INT | Créditos reservados |
+| lifetime_purchased | INT | Total comprado |
+| lifetime_consumed | INT | Total consumido |
+
+#### `credit_ledger`
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| transaction_type | TEXT | purchase, consume, reserve, refund, bonus, adjust |
+| provider | TEXT | openai, fal, gemini |
+| model | TEXT | Modelo utilizado |
+| feature | TEXT | chat, vision, image, video, etc |
+| units_json | JSONB | Unidades consumidas |
+| cost_usd | DECIMAL | Custo real do provedor |
+| sell_usd | DECIMAL | Custo com markup |
+| credits_delta | INT | Variação de créditos |
+| idempotency_key | TEXT | Controle de duplicação |
+
+#### `ai_pricing`
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| provider | TEXT | Provedor (openai, fal, gemini) |
+| model | TEXT | Modelo |
+| pricing_type | TEXT | per_1m_tokens_in, per_second, per_image, etc |
+| cost_usd | DECIMAL | Custo base do provedor |
+| resolution | TEXT | Resolução (para imagens) |
+| quality | TEXT | Qualidade (standard, pro) |
+| has_audio | BOOL | Se inclui áudio (para vídeos) |
+
+### Pacotes Disponíveis (SKUs)
+
+| SKU | Créditos | Bônus | Preço |
+|-----|----------|-------|-------|
+| CC_CREDITS_1K | 1.000 | 0 | R$ 10,00 |
+| CC_CREDITS_5K | 5.000 | 0 | R$ 50,00 |
+| CC_CREDITS_15K | 15.000 | 500 | R$ 150,00 |
+| CC_CREDITS_50K | 50.000 | 2.500 | R$ 500,00 |
+| CC_CREDITS_150K | 150.000 | 10.000 | R$ 1.500,00 |
+| CC_CREDITS_500K | 500.000 | 50.000 | R$ 5.000,00 |
+
+### Cálculo de Créditos
 
 ```typescript
-// Exemplo: habilitar fiscal para tenant específico
-// mesmo que não tenha plano enterprise
-INSERT INTO tenant_feature_overrides 
-(tenant_id, feature_key, is_enabled)
-VALUES ('uuid', 'fiscal', true);
+// Custo do provedor → Preço de venda → Créditos
+sell_usd = cost_usd * CREDIT_MARKUP  // +50%
+credits = ceil(sell_usd / CREDIT_USD)
+```
+
+### Funções RPC
+
+| Função | Descrição |
+|--------|-----------|
+| `check_credit_balance(tenant_id, credits_needed)` | Verifica saldo disponível |
+| `reserve_credits(tenant_id, credits, idempotency_key)` | Reserva para job longo |
+| `consume_credits(...)` | Debita créditos após uso |
+| `add_credits(tenant_id, credits, bonus, idempotency_key)` | Adiciona após compra |
+
+---
+
+## Fluxo de Débito de Créditos
+
+```
+1. Verificar saldo: check_credit_balance()
+2. Se job longo (vídeo/avatar): reserve_credits()
+3. Executar operação de IA
+4. Calcular custo real com usage retornado
+5. consume_credits() com idempotency_key
+6. Para reservas: ajustar diferença ou refund
 ```
 
 ---
 
-## Fluxo de Cobrança (Mercado Pago)
+## Restrições por Módulo
 
-```
-1. Tenant escolhe plano
-2. Frontend chama `useActivateSubscription()`
-3. Edge function cria preapproval no MP
-4. MP retorna init_point (URL de pagamento)
-5. Tenant completa pagamento
-6. Webhook MP notifica status
-7. Sistema atualiza tenant_subscriptions
-```
-
----
-
-## Dashboard Admin (PlatformBilling)
-
-Funcionalidades:
-- Lista de todas as assinaturas
-- Métricas: total, ativos, inadimplentes, MRR
-- Gestão de planos
-- Histórico de eventos de billing
+### Exemplo: Plano Básico
+| Módulo | Acesso | Bloqueios |
+|--------|--------|-----------|
+| Central | Parcial | analytics, reports, agenda, assistant |
+| E-commerce | Parcial | export_orders, export_customers |
+| Marketing Avançado | Nenhum | Tudo bloqueado |
+| CRM | Parcial | whatsapp_notifications, support_chat |
+| Parcerias | Nenhum | Tudo bloqueado |
+| Suporte | Parcial | whatsapp, customizacoes |
 
 ---
 
-## Verificação de Limite de Pedidos
+## Avisos Obrigatórios na UI
 
-```typescript
-// Hook useOrderLimitCheck
-const { 
-  allowed,           // boolean
-  current_count,     // número atual
-  limit,             // limite do plano
-  remaining,         // restantes
-  percentage_used,   // % usado
-} = useOrderLimitCheck();
-```
+1. **Pagamento:** "Todos os planos requerem cartão de crédito"
+2. **Custos variáveis:** "Custos de uso de IA podem variar. Tabela de valores disponível no sistema."
+3. **Alternativa:** "Não tem cartão de crédito? Fale conosco"
 
 ---
 
@@ -194,20 +203,19 @@ const {
 
 | Regra | Descrição |
 |-------|-----------|
+| **Saldo insuficiente** | Bloqueia execução e informa créditos faltantes |
+| **Idempotency** | Toda transação deve ter idempotency_key |
+| **Reserva** | Jobs longos reservam antes, ajustam depois |
+| **Markup** | 50% sobre custo do provedor |
 | **Default allow** | Features não configuradas são permitidas |
-| **Unlimited bypass** | `isUnlimited` = true ignora todas as restrições |
-| **Override priority** | Feature override > regra do plano |
-| **Platform bypass** | Tenants `platform` não usam feature gating |
 
 ---
 
-## Status de Implementação
+## Proibições
 
-- [x] Hierarquia de planos
-- [x] Hook useTenantAccess
-- [x] Feature overrides
-- [x] Dashboard admin básico
-- [ ] Integração completa Mercado Pago
-- [ ] Emails de cobrança
-- [ ] Dunning (inadimplência)
-- [ ] Upgrade/downgrade automático
+| Proibido | Motivo |
+|----------|--------|
+| Créditos negativos | Constraint no banco |
+| Dupla cobrança | idempotency_key obrigatório |
+| Ignorar limites do plano | RPC valida antes |
+| Mostrar custos USD | Sempre exibir em créditos/BRL |
