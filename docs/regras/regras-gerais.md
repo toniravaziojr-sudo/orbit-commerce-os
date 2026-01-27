@@ -64,12 +64,41 @@ Esconder via feature-flag. **NUNCA** deixar "UI quebrada" em produção.
 
 ## Tenants Âncora
 
-| Tenant | Email | Tenant ID |
-|--------|-------|-----------|
-| **Super Admin (Platform)** | `toniravaziojr@gmail.com` | - |
-| **Tenant Base Especial** | `respeiteohomem@gmail.com` | `d1a4d0ed-8842-495e-b741-540a9a345b25` |
+| Tenant | Email | Tenant ID | Descrição |
+|--------|-------|-----------|-----------|
+| **Super Admin (Platform)** | `toniravaziojr@gmail.com` | `cc000000-0000-0000-0000-000000000001` | Admin da plataforma com Admin Mode Toggle |
+| **Tenant Base Especial** | `respeiteohomem@gmail.com` | `d1a4d0ed-8842-495e-b741-540a9a345b25` | Tenant cliente especial (plan=unlimited, is_special=true) |
 
 > "Somente no tenant base especial" = **SPECIAL ONLY** (não afetar platform/admin nem customers).
+
+---
+
+## Admin Mode (Toggle de Contexto)
+
+O Platform Admin tem acesso a dois modos de visualização via toggle pills no header:
+
+| Modo | Ícone | Descrição | Sidebar |
+|------|-------|-----------|---------|
+| **Plataforma** | `Building2` | Administração do Comando Central | Módulos de admin (Health, Planos, Avisos, Tutoriais, Integrações Plataforma) |
+| **Minha Loja** | `Store` | Ferramentas de loja/e-commerce | Todos módulos de cliente (Produtos, Pedidos, CRM, Marketing, etc) |
+
+### Arquivos do Admin Mode
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/contexts/AdminModeContext.tsx` | Context + Provider + hooks (useAdminMode, useAdminModeSafe) |
+| `src/components/layout/AdminModeToggle.tsx` | Toggle pills UI |
+| `src/hooks/usePlatformOperator.ts` | Hook para verificar se usuário é platform admin |
+
+### Regras
+
+| Regra | Descrição |
+|-------|-----------|
+| **Visibilidade** | Toggle só aparece para platform operators |
+| **Persistência** | Modo salvo em `localStorage` (key: `admin-mode-preference`) |
+| **Default** | Platform operators iniciam em modo "Plataforma" |
+| **Fallback** | Usuários não-admin sempre veem modo "Minha Loja" |
+| **Sidebar** | Muda completamente baseado no modo ativo |
 
 ---
 
