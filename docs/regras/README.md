@@ -63,7 +63,7 @@ Este diretório contém as regras e especificações separadas por módulo para 
 |---------|-----------|--------|
 | [crm.md](./crm.md) | Notificações e Atendimento | 🟧 Pending |
 | [suporte.md](./suporte.md) | Central de Suporte | 🟧 Pending |
-| [pacotes-ia.md](./pacotes-ia.md) | Pacotes de Créditos IA | 🟧 Pending |
+| [pacotes-ia.md](./pacotes-ia.md) | Pacotes de Créditos IA | ✅ Ready |
 
 ---
 
@@ -95,7 +95,7 @@ Este diretório contém as regras e especificações separadas por módulo para 
 | Arquivo | Descrição | Status |
 |---------|-----------|--------|
 | [usuarios-permissoes.md](./usuarios-permissoes.md) | Usuários e RBAC | ✅ Ready |
-| [planos-billing.md](./planos-billing.md) | Planos e Cobrança | 🟧 Pending |
+| [planos-billing.md](./planos-billing.md) | Planos e Cobrança | ✅ Ready |
 | [integracoes.md](./integracoes.md) | Hub de Integrações | 🟧 Pending |
 | [platform-emails.md](./platform-emails.md) | Emails da Plataforma (Admin) | ✅ Ready |
 | [platform-admin.md](./platform-admin.md) | Avisos e Tutoriais (Platform Admin) | ✅ Ready |
@@ -108,8 +108,8 @@ Este diretório contém as regras e especificações separadas por módulo para 
 
 | Status | Quantidade | Significado |
 |--------|------------|-------------|
-| ✅ Ready | **29** | 100% funcional e validado |
-| 🟧 Pending | **11** | Em construção/incompleto |
+| ✅ Ready | **31** | 100% funcional e validado |
+| 🟧 Pending | **9** | Em construção/incompleto |
 
 ---
 
