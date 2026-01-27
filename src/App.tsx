@@ -25,6 +25,7 @@ import Support from "@/pages/Support";
 import Media from "@/pages/Media";
 import MediaCampaignDetail from "@/pages/MediaCampaignDetail";
 import Campaigns from "@/pages/Campaigns";
+import Creatives from "@/pages/Creatives";
 import Integrations from "@/pages/Integrations";
 import Marketing from "@/pages/Marketing";
 import Finance from "@/pages/Finance";
@@ -335,6 +336,7 @@ const App = () => {
                   <Route path="/media" element={<Media />} />
                   <Route path="/media/campaign/:campaignId" element={<MediaCampaignDetail />} />
                   <Route path="/campaigns" element={<Campaigns />} />
+                  <Route path="/creatives" element={<Creatives />} />
                   <Route path="/offers" element={<Offers />} />
                   <Route path="/buy-together" element={<Navigate to="/offers" replace />} />
                   <Route path="/reviews" element={<Reviews />} />
