@@ -4,7 +4,7 @@
  * Pipeline: Kling AI Avatar v2 Pro / Veo 3.1 / Sora 2
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,16 +13,21 @@ import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Bot, 
   User, 
   Video,
   Sparkles,
   Upload,
+  Loader2,
+  CheckCircle2,
+  Zap,
 } from 'lucide-react';
 import { useCreativeJobs, useCreateCreativeJob } from '@/hooks/useCreatives';
 import { CREATIVE_MODELS } from '@/types/creatives';
 import { CreativeJobsList } from './CreativeJobsList';
+import { toast } from 'sonner';
 
 export function UGCAITab() {
   const [mode, setMode] = useState<'avatar' | 'full_video'>('avatar');
@@ -32,12 +37,18 @@ export function UGCAITab() {
   const [voice, setVoice] = useState<string>('male-mature');
   const [cta, setCta] = useState('');
 
-  const { data: jobs, isLoading } = useCreativeJobs('ugc_ai_video');
+  const [justCreated, setJustCreated] = useState(false);
+  
+  const { data: jobs, isLoading, refetch } = useCreativeJobs('ugc_ai_video');
   const createJob = useCreateCreativeJob();
 
   const models = CREATIVE_MODELS.ugc_ai_video;
+  
+  // Detectar jobs em processamento
+  const activeJobs = jobs?.filter(j => j.status === 'queued' || j.status === 'running') || [];
+  const hasActiveJobs = activeJobs.length > 0;
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     if (!script.trim()) return;
     
     createJob.mutate({
@@ -50,8 +61,32 @@ export function UGCAITab() {
         voice,
         cta: cta || undefined,
       },
+    }, {
+      onSuccess: () => {
+        // Reset form e mostrar feedback
+        setScript('');
+        setCta('');
+        setJustCreated(true);
+        
+        // Refetch para mostrar o novo job
+        setTimeout(() => refetch(), 500);
+        
+        // Remover destaque após 5s
+        setTimeout(() => setJustCreated(false), 5000);
+      }
     });
   };
+  
+  // Polling mais frequente quando há jobs ativos
+  useEffect(() => {
+    if (!hasActiveJobs) return;
+    
+    const interval = setInterval(() => {
+      refetch();
+    }, 5000);
+    
+    return () => clearInterval(interval);
+  }, [hasActiveJobs, refetch]);
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -66,6 +101,18 @@ export function UGCAITab() {
             Crie vídeos com avatares IA realistas falando como uma pessoa
           </CardDescription>
         </CardHeader>
+        
+        {/* Alerta de sucesso */}
+        {justCreated && (
+          <div className="px-6">
+            <Alert className="bg-primary/10 border-primary/30 animate-pulse">
+              <Zap className="h-4 w-4 text-primary" />
+              <AlertDescription className="text-primary">
+                <strong>Geração iniciada!</strong> Acompanhe o progresso no painel ao lado →
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
         <CardContent className="space-y-6">
           {/* Modo */}
           <div className="space-y-3">
@@ -209,13 +256,31 @@ Exemplo:
       </Card>
 
       {/* Lista de Jobs */}
-      <Card>
+      <Card className={hasActiveJobs ? 'ring-2 ring-primary/50 ring-offset-2' : ''}>
         <CardHeader>
-          <CardTitle className="text-base">Histórico de Gerações</CardTitle>
-          <CardDescription>Acompanhe o status dos seus criativos</CardDescription>
+          <CardTitle className="text-base flex items-center gap-2">
+            {hasActiveJobs && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+            Histórico de Gerações
+            {hasActiveJobs && (
+              <Badge variant="secondary" className="ml-auto animate-pulse">
+                {activeJobs.length} em andamento
+              </Badge>
+            )}
+          </CardTitle>
+          <CardDescription>
+            {hasActiveJobs 
+              ? 'Processando seus criativos... Atualizando automaticamente.'
+              : 'Acompanhe o status dos seus criativos'
+            }
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <CreativeJobsList jobs={jobs || []} isLoading={isLoading} type="ugc_ai_video" />
+          <CreativeJobsList 
+            jobs={jobs || []} 
+            isLoading={isLoading} 
+            type="ugc_ai_video" 
+            highlightNew={justCreated}
+          />
         </CardContent>
       </Card>
     </div>
