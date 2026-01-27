@@ -353,11 +353,21 @@ async function processFalPipeline(
         throw new Error('Fal job timeout');
       }
 
+      // Verificar se o resultado é um erro de validação do fal.ai
+      if (result.detail && Array.isArray(result.detail)) {
+        const errorMsgs = result.detail.map((d: any) => d.msg || JSON.stringify(d)).join('; ');
+        console.error(`[creative-process] Fal validation error:`, result.detail);
+        throw new Error(`Fal validation error: ${errorMsgs}`);
+      }
+
       // Extrair URL do resultado (varia por modelo)
       const outputUrl = extractOutputUrl(result, step.model_id);
+      console.log(`[creative-process] Extracted output URL:`, outputUrl);
       if (outputUrl) {
         urls.push(outputUrl);
         previousOutput = outputUrl;
+      } else {
+        console.warn(`[creative-process] No output URL found in result`);
       }
 
       // Estimar custo (valores aproximados)
@@ -459,20 +469,33 @@ function buildFalPayload(modelId: string, job: any, previousOutput: string | nul
       };
 
     case 'veo31-text-video':
-    case 'sora2-text-video':
+    case 'sora2-text-video': {
+      // Veo3.1 aceita apenas '4s', '6s', '8s' como duration
+      const durationNum = Number(settings.duration) || 8;
+      const validDurations = [4, 6, 8];
+      const closestDuration = validDurations.reduce((prev, curr) => 
+        Math.abs(curr - durationNum) < Math.abs(prev - durationNum) ? curr : prev
+      );
       return {
         prompt: job.prompt,
-        duration: settings.duration || 10,
+        duration: `${closestDuration}s`,
         aspect_ratio: settings.aspect_ratio || '16:9',
       };
+    }
 
-    case 'veo31-first-last':
+    case 'veo31-first-last': {
+      const durationNum2 = Number(settings.duration) || 6;
+      const validDurations2 = [4, 6, 8];
+      const closestDuration2 = validDurations2.reduce((prev, curr) => 
+        Math.abs(curr - durationNum2) < Math.abs(prev - durationNum2) ? curr : prev
+      );
       return {
         prompt: job.prompt,
         first_frame_image: settings.first_frame || job.product_image_url,
         last_frame_image: settings.last_frame,
-        duration: settings.duration || 5,
+        duration: `${closestDuration2}s`,
       };
+    }
 
     case 'veo31-image-video':
     case 'sora2-image-video':
