@@ -543,3 +543,6 @@ verify_jwt = true
 
 [functions.creative-process]
 verify_jwt = false
+
+[functions.chatgpt-chat]
+verify_jwt = false

@@ -21,6 +21,7 @@ export interface ModuleTutorial {
 const routeToModuleMap: Record<string, string> = {
   '/': 'command-center',
   '/command-center': 'command-center',
+  '/chatgpt': 'chatgpt',
   '/orders': 'orders',
   '/abandoned-checkouts': 'abandoned-checkouts',
   '/products': 'products',
