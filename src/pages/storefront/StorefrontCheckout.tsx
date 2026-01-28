@@ -1,18 +1,22 @@
 // =============================================
 // STOREFRONT CHECKOUT - Public checkout page
 // =============================================
-// SISTEMA: Esta página renderiza o CheckoutStepWizard diretamente.
-// O checkout é uma página de sistema (não editável por blocos).
-// A configuração de layout pode ser feita via Admin > Integrações.
+// SISTEMA: Esta página renderiza o CheckoutStepWizard com header/footer
+// configuráveis exclusivos do checkout (checkout_header_config/checkout_footer_config).
+// Configuração via Builder: ao clicar no header/footer no template de checkout.
 
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { usePublicStorefront } from '@/hooks/useStorefront';
+import { usePublicGlobalLayout } from '@/hooks/useGlobalLayoutIntegration';
 import { CheckoutStepWizard } from '@/components/storefront/checkout/CheckoutStepWizard';
+import { StorefrontHeaderContent } from '@/components/storefront/StorefrontHeaderContent';
+import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
 import { Loader2 } from 'lucide-react';
 import { isPreviewUrl } from '@/lib/sanitizePublicUrl';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { getStoreBaseUrl } from '@/lib/publicUrls';
+import type { BlockNode } from '@/lib/builder/types';
 
 export default function StorefrontCheckout() {
   const tenantSlug = useTenantSlug();
@@ -28,9 +32,46 @@ export default function StorefrontCheckout() {
     }
   }, [searchParams, tenantSlug, navigate]);
 
-  const { tenant, storeSettings, headerMenu, isLoading } = usePublicStorefront(tenantSlug || '');
+  const { tenant, storeSettings, isLoading } = usePublicStorefront(tenantSlug || '');
+  const { data: globalLayout, isLoading: layoutLoading } = usePublicGlobalLayout(tenantSlug || '');
 
-  if (isLoading) {
+  // Merge checkout-specific configs with checkout-optimized defaults
+  const checkoutHeaderConfig = useMemo((): BlockNode => {
+    const savedConfig = globalLayout?.checkout_header_config;
+    return {
+      id: 'checkout-header',
+      type: 'Header',
+      props: {
+        // Checkout-optimized defaults (minimal distractions)
+        showSearch: false,
+        showCart: true,
+        showHeaderMenu: false,
+        customerAreaEnabled: false,
+        sticky: true,
+        featuredPromosEnabled: false,
+        // Override with saved config
+        ...savedConfig?.props,
+      },
+    };
+  }, [globalLayout?.checkout_header_config]);
+
+  const checkoutFooterConfig = useMemo((): BlockNode => {
+    const savedConfig = globalLayout?.checkout_footer_config;
+    return {
+      id: 'checkout-footer',
+      type: 'Footer',
+      props: {
+        // Checkout-optimized defaults (minimal distractions)
+        showSocial: false,
+        showNewsletterSection: false,
+        menuId: '',
+        // Override with saved config
+        ...savedConfig?.props,
+      },
+    };
+  }, [globalLayout?.checkout_footer_config]);
+
+  if (isLoading || layoutLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -48,54 +89,24 @@ export default function StorefrontCheckout() {
 
   return (
     <div className="storefront-container min-h-screen flex flex-col">
-      {/* Simplified header for checkout */}
-      <header className="border-b bg-background">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-center">
-          {storeSettings?.logo_url ? (
-            <img 
-              src={storeSettings.logo_url} 
-              alt={storeSettings.store_name || 'Logo'} 
-              className="h-10 object-contain"
-            />
-          ) : (
-            <span className="text-xl font-bold text-foreground">
-              {storeSettings?.store_name || tenant?.name}
-            </span>
-          )}
-        </div>
-        {/* Simple menu for checkout */}
-        {headerMenu?.items && headerMenu.items.length > 0 && (
-          <nav className="border-t">
-            <div className="container mx-auto px-4 py-2 flex items-center justify-center gap-6">
-              {headerMenu.items.slice(0, 3).map((item) => (
-                <a 
-                  key={item.id} 
-                  href={item.url || '#'}
-                  className="text-sm text-muted-foreground hover:text-foreground"
-                >
-                  {item.label}
-                </a>
-              ))}
-            </div>
-          </nav>
-        )}
-      </header>
+      {/* Checkout header - uses checkout_header_config */}
+      <StorefrontHeaderContent
+        tenantSlug={tenantSlug || ''}
+        headerConfig={checkoutHeaderConfig}
+        isEditing={false}
+      />
 
       {/* Main checkout content */}
       <main className="flex-1 bg-muted/30">
         <CheckoutStepWizard tenantId={tenant.id} />
       </main>
 
-      {/* Simplified footer for checkout */}
-      <footer className="border-t bg-background py-6">
-        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>
-            {storeSettings?.business_legal_name || storeSettings?.store_name || tenant?.name}
-            {storeSettings?.business_cnpj && ` - CNPJ: ${storeSettings.business_cnpj}`}
-          </p>
-          <p className="mt-1">Todos os direitos reservados.</p>
-        </div>
-      </footer>
+      {/* Checkout footer - uses checkout_footer_config */}
+      <StorefrontFooterContent
+        tenantSlug={tenantSlug || ''}
+        footerConfig={checkoutFooterConfig}
+        isEditing={false}
+      />
     </div>
   );
 }

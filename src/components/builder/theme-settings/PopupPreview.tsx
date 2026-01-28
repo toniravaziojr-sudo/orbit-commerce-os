@@ -32,7 +32,8 @@ export function PopupPreview({ config, isOpen, onClose }: PopupPreviewProps) {
 
   const bgColor = config.background_color || '#ffffff';
   const textColor = config.text_color || '#000000';
-  const btnBgColor = config.button_bg_color || '#3b82f6';
+  // Use CSS variable fallback for theme primary color when not set
+  const btnBgColor = config.button_bg_color || 'var(--theme-button-primary-bg, hsl(var(--primary)))';
   const btnTextColor = config.button_text_color || '#ffffff';
   const layout = config.layout || 'centered';
   const hasImage = config.image_url && layout === 'side-image';

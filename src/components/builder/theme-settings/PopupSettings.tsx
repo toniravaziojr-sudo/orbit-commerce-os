@@ -470,16 +470,18 @@ export function PopupSettings({ tenantId, templateSetId }: PopupSettingsProps) {
               <div className="flex gap-2">
                 <input
                   type="color"
-                  value={localConfig.button_bg_color || '#3b82f6'}
+                  value={localConfig.button_bg_color || ''}
                   onChange={(e) => updateProp('button_bg_color', e.target.value)}
                   className="h-9 w-12 rounded border cursor-pointer"
                 />
                 <Input
-                  value={localConfig.button_bg_color || '#3b82f6'}
+                  value={localConfig.button_bg_color || ''}
                   onChange={(e) => updateProp('button_bg_color', e.target.value)}
+                  placeholder="Herda do tema"
                   className="flex-1 font-mono text-xs"
                 />
               </div>
+              <p className="text-[10px] text-muted-foreground">Deixe vazio para usar cor primária do tema</p>
             </div>
             <div className="space-y-2">
               <Label className="text-xs">Texto do Botão</Label>
