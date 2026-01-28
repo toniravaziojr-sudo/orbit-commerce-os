@@ -43,12 +43,12 @@ const fontWeightMap: Record<string, string> = {
   bold: '700',
 };
 
-// Default variant colors
+// Default variant colors - Use theme CSS variables instead of raw --primary
 const variantColors: Record<string, { bg: string; text: string; border?: string }> = {
-  primary: { bg: 'hsl(var(--primary))', text: 'hsl(var(--primary-foreground))' },
-  secondary: { bg: 'hsl(var(--secondary))', text: 'hsl(var(--secondary-foreground))' },
-  outline: { bg: 'transparent', text: 'hsl(var(--primary))', border: 'hsl(var(--primary))' },
-  ghost: { bg: 'transparent', text: 'hsl(var(--primary))' },
+  primary: { bg: 'var(--theme-button-primary-bg, #1a1a1a)', text: 'var(--theme-button-primary-text, #ffffff)' },
+  secondary: { bg: 'var(--theme-button-secondary-bg, #f5f5f5)', text: 'var(--theme-button-secondary-text, #1a1a1a)' },
+  outline: { bg: 'transparent', text: 'var(--theme-button-primary-bg, #1a1a1a)', border: 'var(--theme-button-primary-bg, #1a1a1a)' },
+  ghost: { bg: 'transparent', text: 'var(--theme-button-primary-bg, #1a1a1a)' },
 };
 
 export function ButtonBlock({ 

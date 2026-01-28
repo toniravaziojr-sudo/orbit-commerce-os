@@ -1,10 +1,10 @@
 // =============================================
 // BUILDER THEME INJECTOR HOOK - Injects theme CSS in builder preview
-// Uses draft themeSettings for real-time preview
+// Uses draft themeSettings for real-time preview (typography AND colors)
 // =============================================
 
 import { useEffect } from 'react';
-import { useThemeSettings, ThemeTypography } from './useThemeSettings';
+import { useThemeSettings, ThemeTypography, ThemeColors, DEFAULT_THEME_COLORS } from './useThemeSettings';
 import { getFontFamily } from './usePublicThemeSettings';
 
 const BUILDER_STYLE_ID = 'builder-theme-styles';
@@ -12,6 +12,7 @@ const BUILDER_STYLE_ID = 'builder-theme-styles';
 /**
  * Hook to inject theme CSS into the builder preview
  * Uses draft_content.themeSettings for real-time preview
+ * Injects BOTH typography AND color variables
  */
 export function useBuilderThemeInjector(
   tenantId: string | undefined,
@@ -30,16 +31,35 @@ export function useBuilderThemeInjector(
 
     // Generate CSS from draft themeSettings
     const typography = themeSettings?.typography;
+    const colors = themeSettings?.colors;
+    
     const headingFontFamily = getFontFamily(typography?.headingFont || 'inter');
     const bodyFontFamily = getFontFamily(typography?.bodyFont || 'inter');
     const baseFontSize = typography?.baseFontSize || 16;
 
+    // Build color CSS variables from themeSettings.colors
+    // Use saved colors or defaults (NOT blue!)
+    const buttonPrimaryBg = colors?.buttonPrimaryBg || DEFAULT_THEME_COLORS.buttonPrimaryBg;
+    const buttonPrimaryText = colors?.buttonPrimaryText || DEFAULT_THEME_COLORS.buttonPrimaryText;
+    const buttonSecondaryBg = colors?.buttonSecondaryBg || DEFAULT_THEME_COLORS.buttonSecondaryBg;
+    const buttonSecondaryText = colors?.buttonSecondaryText || DEFAULT_THEME_COLORS.buttonSecondaryText;
+    const textPrimary = colors?.textPrimary || DEFAULT_THEME_COLORS.textPrimary;
+    const textSecondary = colors?.textSecondary || DEFAULT_THEME_COLORS.textSecondary;
+
     const css = `
-      /* Builder Theme Preview - Typography */
+      /* Builder Theme Preview - Typography & Colors */
       :root {
         --sf-heading-font: ${headingFontFamily};
         --sf-body-font: ${bodyFontFamily};
         --sf-base-font-size: ${baseFontSize}px;
+        
+        /* Theme colors - from Configurações do Tema > Cores */
+        --theme-button-primary-bg: ${buttonPrimaryBg};
+        --theme-button-primary-text: ${buttonPrimaryText};
+        --theme-button-secondary-bg: ${buttonSecondaryBg};
+        --theme-button-secondary-text: ${buttonSecondaryText};
+        --theme-text-primary: ${textPrimary};
+        --theme-text-secondary: ${textSecondary};
       }
       
       /* Apply typography to builder preview canvas */
@@ -86,6 +106,26 @@ export function useBuilderThemeInjector(
       .storefront-container li {
         font-family: var(--sf-body-font);
       }
+
+      /* Theme-aware button styles for builder preview */
+      .builder-preview-canvas .sf-btn-primary,
+      .storefront-container .sf-btn-primary {
+        background-color: var(--theme-button-primary-bg);
+        color: var(--theme-button-primary-text);
+      }
+      .builder-preview-canvas .sf-btn-primary:hover,
+      .storefront-container .sf-btn-primary:hover {
+        opacity: 0.9;
+      }
+      .builder-preview-canvas .sf-btn-secondary,
+      .storefront-container .sf-btn-secondary {
+        background-color: var(--theme-button-secondary-bg);
+        color: var(--theme-button-secondary-text);
+      }
+      .builder-preview-canvas .sf-btn-secondary:hover,
+      .storefront-container .sf-btn-secondary:hover {
+        opacity: 0.9;
+      }
     `;
 
     const styleElement = document.createElement('style');
@@ -100,5 +140,5 @@ export function useBuilderThemeInjector(
         styleToRemove.remove();
       }
     };
-  }, [tenantId, templateSetId, themeSettings?.typography]);
+  }, [tenantId, templateSetId, themeSettings?.typography, themeSettings?.colors]);
 }
