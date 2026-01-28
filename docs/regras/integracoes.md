@@ -111,11 +111,12 @@ A aba `domain-email` unifica duas seções:
 | Stripe | 🟧 Pending | Planejado |
 | PIX direto | ✅ Ready | Via gateways |
 
-### 2. Redes Sociais
+### 2. Redes Sociais / Mídias
 | Plataforma | Status | Descrição |
 |------------|--------|-----------|
 | Meta (FB/IG) | ✅ Ready | Catálogo, pixel |
 | Instagram | ✅ Ready | Via Meta |
+| **YouTube** | ✅ Ready | Upload, agendamento, analytics (via Gestor de Mídias IA) |
 | Late | ✅ Ready | Agendamento de posts |
 | TikTok Ads | 🟧 Pending | Pixel/Conversions |
 | Google | 🟧 Pending | Merchant Center |
@@ -353,6 +354,75 @@ Conexões são salvas em `marketplace_connections` com:
 
 ---
 
+## Integração YouTube (Gestor de Mídias IA)
+
+### Visão Geral
+
+O YouTube está integrado ao **Gestor de Mídias IA** para upload, agendamento e monitoramento de vídeos.
+
+### Funcionalidades
+
+| Feature | Status | Descrição |
+|---------|--------|-----------|
+| OAuth Connect | ✅ Ready | Conexão via Google OAuth 2.0 |
+| Upload de Vídeos | ✅ Ready | Upload resumable com metadados |
+| Agendamento | ✅ Ready | PublishAt para publicação futura |
+| Thumbnails | ✅ Ready | Upload de thumbnail customizada |
+| Analytics | 🟧 Pending | Views, watch time, CTR |
+| Legendas | 🟧 Pending | Auto-captions via YouTube |
+
+### Tabelas do Banco
+
+| Tabela | Descrição |
+|--------|-----------|
+| `youtube_connections` | Conexões OAuth por tenant |
+| `youtube_uploads` | Fila de uploads com status |
+| `youtube_analytics` | Cache de métricas |
+| `youtube_oauth_states` | Estados temporários do OAuth |
+
+### Consumo de Créditos
+
+O YouTube utiliza o sistema de créditos IA para gerenciar a quota da API do Google:
+
+| Operação | Créditos | Justificativa |
+|----------|----------|---------------|
+| Upload base | 16 | 1600 unidades de quota |
+| +Thumbnail | 1 | 50 unidades extras |
+| +Captions | 2 | 100 unidades extras |
+| +1GB de vídeo | 1 | Overhead de transferência |
+
+**Fórmula:** `calculate_youtube_upload_credits(file_size_bytes, has_thumbnail, has_captions)`
+
+### Edge Functions
+
+| Function | Descrição |
+|----------|-----------|
+| `youtube-oauth-start` | Inicia fluxo OAuth |
+| `youtube-oauth-callback` | Processa callback e salva tokens |
+| `youtube-upload` | Upload assíncrono com consumo de créditos |
+
+### Fluxo de Upload
+
+```
+1. Usuário seleciona vídeo no Gestor de Mídias IA
+2. Verifica saldo de créditos
+3. Reserva créditos necessários
+4. Cria job em youtube_uploads (status: pending)
+5. Background: Download vídeo → Upload para YouTube
+6. Ao concluir: Consume créditos reservados
+7. Atualiza status para completed com youtube_video_id
+```
+
+### Hooks e Componentes
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/hooks/useYouTubeConnection.ts` | Gerencia conexão OAuth |
+| `src/components/integrations/YouTubeSettings.tsx` | UI de configuração |
+| `src/pages/integrations/YouTubeCallback.tsx` | Handler do callback OAuth |
+
+---
+
 ## Pendências
 
 - [ ] Implementar integrações ERP (Bling)
@@ -361,3 +431,5 @@ Conexões são salvas em `marketplace_connections` com:
 - [ ] Emissão de NF-e via Olist
 - [ ] Melhorar UX de reconexão OAuth
 - [ ] Logs de erro por integração
+- [ ] YouTube Analytics sync
+- [ ] YouTube auto-captions

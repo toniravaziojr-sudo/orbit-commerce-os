@@ -101,6 +101,53 @@ if (result?.publicUrl) {
 
 ---
 
+## Gestor de Mídias IA — Integração YouTube
+
+O módulo "Gestor de Mídias IA" (`/media`) inclui integração com YouTube para upload e agendamento de vídeos.
+
+### Funcionalidades
+
+| Feature | Descrição |
+|---------|-----------|
+| Upload de Vídeos | Upload resumable para YouTube com metadados (título, descrição, tags) |
+| Agendamento | Publicação futura via `publishAt` |
+| Thumbnails | Upload de thumbnail customizada |
+| Analytics | Visualização de métricas (views, watch time) - em desenvolvimento |
+
+### Consumo de Créditos
+
+O YouTube utiliza o sistema de **Pacotes IA** (créditos) para gerenciar a quota da API do Google:
+
+| Operação | Créditos | Quota Google |
+|----------|----------|--------------|
+| Upload base | 16 | 1600 unidades |
+| +Thumbnail | 1 | 50 unidades |
+| +Captions | 2 | 100 unidades |
+| +1GB de vídeo | 1 | overhead |
+
+**Limite diário:** A API do Google tem quota de 10.000 unidades/dia. Com 16 créditos por upload, permite ~6 uploads/dia por canal.
+
+### Fluxo de Upload
+
+```
+1. Verificar saldo de créditos (check_credit_balance)
+2. Reservar créditos (reserve_credits)
+3. Criar job em youtube_uploads
+4. Background: Download vídeo → Upload para YouTube
+5. Consumir créditos reservados (consume_credits)
+6. Atualizar status para completed
+```
+
+### Componentes
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/hooks/useYouTubeConnection.ts` | Hook para gerenciar conexão OAuth |
+| `src/components/integrations/YouTubeSettings.tsx` | UI de configuração |
+| `supabase/functions/youtube-upload/index.ts` | Edge Function de upload |
+
+---
+
 ## Arquivos Relacionados
 
 | Se for editar... | Leia este doc primeiro |
@@ -109,3 +156,5 @@ if (result?.publicUrl) {
 | `src/lib/uploadAndRegisterToSystemDrive.ts` | Este documento |
 | `src/lib/registerFileToDrive.ts` | Este documento |
 | Qualquer componente com upload de imagem | Este documento |
+| `src/hooks/useYouTubeConnection.ts` | Este documento |
+| `src/pages/Media.tsx` | Este documento |

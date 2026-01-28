@@ -2,6 +2,62 @@
 
 > **REGRAS NÃO NEGOCIÁVEIS** — Aplicáveis a TODO o sistema.
 
+---
+
+## 🚀 Feature Rollout — Regra de Implementação Gradual
+
+> **REGRA CRÍTICA NÃO NEGOCIÁVEL** — Aplica-se a TODAS as implementações de novos recursos ou alterações em módulos de cliente/usuário.
+
+### Fluxo Obrigatório
+
+| Etapa | Descrição |
+|-------|-----------|
+| **1. Implementar no Admin** | Toda nova feature/ajuste DEVE ser implementada **PRIMEIRO** e **EXCLUSIVAMENTE** no tenant do usuário admin (`toniravaziojr@gmail.com`) |
+| **2. Testar no Admin** | O usuário admin testa a funcionalidade em seu próprio tenant |
+| **3. Validar com Usuário** | Aguardar confirmação explícita do usuário: "Pode liberar para os outros" |
+| **4. Liberar para Todos** | Só então remover qualquer gate/flag e disponibilizar para todos os tenants |
+
+### Mecanismo de Controle
+
+Para implementar esta regra, usar uma das abordagens:
+
+**Opção A - Feature Flag por Tenant:**
+```typescript
+// Verificar se é o tenant admin
+const isAdminTenant = tenantId === 'cc000000-0000-0000-0000-000000000001';
+
+// Ou verificar se é platform operator em modo store
+const { isPlatformOperator } = usePlatformOperator();
+const { isStoreMode } = useAdminModeSafe();
+const canAccessNewFeature = isPlatformOperator && isStoreMode;
+```
+
+**Opção B - Tabela de Feature Flags:**
+```sql
+-- Verificar em billing_feature_flags ou criar tenant_feature_flags
+SELECT is_enabled FROM feature_flags WHERE flag_key = 'youtube_upload' AND tenant_id = ?
+```
+
+### Proibições
+
+| ❌ Proibido | ✅ Correto |
+|-------------|------------|
+| Liberar feature nova para todos imediatamente | Implementar primeiro no admin, testar, depois liberar |
+| Implementar direto em produção sem gate | Usar feature flag para controlar acesso |
+| Assumir que "funciona" sem teste do admin | Aguardar confirmação explícita do usuário |
+| Liberar sem comando explícito | Aguardar: "Pode liberar para os outros" |
+
+### Comandos do Usuário
+
+| Comando | Ação |
+|---------|------|
+| "Implementar X" (sem especificar) | Implementar APENAS no tenant admin |
+| "Pode liberar para os outros" | Remover gate e disponibilizar para todos |
+| "Liberar X para todos" | Remover gate e disponibilizar para todos |
+| "Testar X primeiro" | Implementar no admin com feature flag |
+
+---
+
 ## Abordagem Estrutural (Regra Permanente)
 
 Quando um problema/lógica envolver vários componentes (frontend + Edge Functions + banco + RLS + jobs), a correção deve ser feita no **pipeline/lógica global** — não em ajustes item-a-item — para reduzir regressões e retrabalho.
