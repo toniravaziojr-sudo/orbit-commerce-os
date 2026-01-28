@@ -12752,6 +12752,8 @@ export type Database = {
           last_error: string | null
           last_sync_at: string | null
           metadata: Json | null
+          oauth_error_code: string | null
+          oauth_error_details: Json | null
           profile_data: Json | null
           quota_reset_at: string | null
           quota_used_today: number | null
@@ -12778,6 +12780,8 @@ export type Database = {
           last_error?: string | null
           last_sync_at?: string | null
           metadata?: Json | null
+          oauth_error_code?: string | null
+          oauth_error_details?: Json | null
           profile_data?: Json | null
           quota_reset_at?: string | null
           quota_used_today?: number | null
@@ -12804,6 +12808,8 @@ export type Database = {
           last_error?: string | null
           last_sync_at?: string | null
           metadata?: Json | null
+          oauth_error_code?: string | null
+          oauth_error_details?: Json | null
           profile_data?: Json | null
           quota_reset_at?: string | null
           quota_used_today?: number | null
@@ -12869,6 +12875,7 @@ export type Database = {
       }
       youtube_uploads: {
         Row: {
+          actual_publish_at: string | null
           calendar_item_id: string | null
           category_id: string | null
           completed_at: string | null
@@ -12887,7 +12894,9 @@ export type Database = {
           metadata: Json | null
           privacy_status: string
           publish_at: string | null
+          publish_status: string | null
           retry_count: number | null
+          scheduled_publish_at_utc: string | null
           started_at: string | null
           status: string
           tags: string[] | null
@@ -12902,6 +12911,7 @@ export type Database = {
           youtube_video_url: string | null
         }
         Insert: {
+          actual_publish_at?: string | null
           calendar_item_id?: string | null
           category_id?: string | null
           completed_at?: string | null
@@ -12920,7 +12930,9 @@ export type Database = {
           metadata?: Json | null
           privacy_status?: string
           publish_at?: string | null
+          publish_status?: string | null
           retry_count?: number | null
+          scheduled_publish_at_utc?: string | null
           started_at?: string | null
           status?: string
           tags?: string[] | null
@@ -12935,6 +12947,7 @@ export type Database = {
           youtube_video_url?: string | null
         }
         Update: {
+          actual_publish_at?: string | null
           calendar_item_id?: string | null
           category_id?: string | null
           completed_at?: string | null
@@ -12953,7 +12966,9 @@ export type Database = {
           metadata?: Json | null
           privacy_status?: string
           publish_at?: string | null
+          publish_status?: string | null
           retry_count?: number | null
+          scheduled_publish_at_utc?: string | null
           started_at?: string | null
           status?: string
           tags?: string[] | null
@@ -13224,6 +13239,10 @@ export type Database = {
       is_platform_admin_by_auth: { Args: never; Returns: boolean }
       is_tenant_owner: {
         Args: { _tenant_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_youtube_available_for_tenant: {
+        Args: { p_tenant_id: string }
         Returns: boolean
       }
       migrate_existing_templates_to_sets: { Args: never; Returns: undefined }
