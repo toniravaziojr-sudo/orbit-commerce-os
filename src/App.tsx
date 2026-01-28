@@ -41,6 +41,7 @@ import PageBuilder from "@/pages/PageBuilder";
 import PageTemplates from "@/pages/PageTemplates";
 import TemplateBuilder from "@/pages/TemplateBuilder";
 import BillingSettings from "@/pages/settings/BillingSettings";
+import AddPaymentMethod from "@/pages/settings/AddPaymentMethod";
 
 
 import Reviews from "@/pages/Reviews";
@@ -375,6 +376,7 @@ const App = () => {
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/settings/domains" element={<Domains />} />
                   <Route path="/settings/billing" element={<BillingSettings />} />
+                  <Route path="/settings/add-payment-method" element={<AddPaymentMethod />} />
                   <Route path="/settings/fiscal" element={<Navigate to="/fiscal?tab=configuracoes" replace />} />
                   {/* Account routes */}
                   <Route path="/account/personal" element={<PersonalData />} />

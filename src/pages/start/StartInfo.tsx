@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { Loader2, ArrowLeft, CreditCard, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface PlanInfo {
   plan_key: string;
@@ -25,6 +26,7 @@ const formSchema = z.object({
   owner_name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
   store_name: z.string().min(2, 'Nome da loja deve ter pelo menos 2 caracteres'),
   phone: z.string().optional(),
+  password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres').optional(),
   terms: z.boolean().refine(val => val === true, 'Você deve aceitar os termos'),
 });
 
@@ -37,15 +39,37 @@ export default function StartInfo() {
   const [loading, setLoading] = useState(false);
   const [planInfo, setPlanInfo] = useState<PlanInfo | null>(null);
   const [planLoading, setPlanLoading] = useState(true);
+  const [signupData, setSignupData] = useState<{
+    email?: string;
+    fullName?: string;
+    businessName?: string;
+    password?: string;
+  } | null>(null);
 
-  const planKey = searchParams.get('plan') || 'start';
+  const planKey = searchParams.get('plan') || 'basico';
   const cycle = (searchParams.get('cycle') as 'monthly' | 'annual') || 'monthly';
   const testToken = searchParams.get('test_token') || undefined;
+
+  // Verifica se é plano básico (gratuito, sem pagamento inicial)
+  const isBasicPlan = planKey === 'basico';
 
   // Block test10 plan without valid test_token in URL
   const isTestPlanBlocked = planKey === 'test10' && !testToken;
 
-  // Fetch plan info (including non-public plans like test10)
+  // Carregar dados do signup prévio (se veio do Auth.tsx)
+  useEffect(() => {
+    const storedData = sessionStorage.getItem('signup_data');
+    if (storedData) {
+      try {
+        const parsed = JSON.parse(storedData);
+        setSignupData(parsed);
+      } catch (e) {
+        console.error('Error parsing signup data:', e);
+      }
+    }
+  }, []);
+
+  // Fetch plan info
   useEffect(() => {
     async function loadPlanInfo() {
       setPlanLoading(true);
@@ -78,18 +102,95 @@ export default function StartInfo() {
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      email: '',
-      owner_name: '',
-      store_name: '',
+      email: signupData?.email || '',
+      owner_name: signupData?.fullName || '',
+      store_name: signupData?.businessName || '',
       phone: '',
+      password: '',
       terms: false,
     },
   });
+
+  // Atualizar form quando signupData carregar
+  useEffect(() => {
+    if (signupData) {
+      form.setValue('email', signupData.email || '');
+      form.setValue('owner_name', signupData.fullName || '');
+      form.setValue('store_name', signupData.businessName || '');
+    }
+  }, [signupData, form]);
 
   const onSubmit = async (data: FormData) => {
     setLoading(true);
 
     try {
+      // Para plano básico: criar conta diretamente sem pagamento
+      if (isBasicPlan) {
+        // Usar a senha do signup anterior ou a nova
+        const password = signupData?.password || data.password;
+        
+        if (!password || password.length < 6) {
+          toast({
+            title: 'Senha necessária',
+            description: 'Por favor, informe uma senha com pelo menos 6 caracteres.',
+            variant: 'destructive',
+          });
+          setLoading(false);
+          return;
+        }
+
+        // Chamar edge function para criar conta + tenant + subscription (basico)
+        const response = await supabase.functions.invoke('start-create-basic-account', {
+          body: {
+            email: data.email,
+            password: password,
+            owner_name: data.owner_name,
+            store_name: data.store_name,
+            phone: data.phone || undefined,
+            utm: Object.fromEntries(
+              Array.from(searchParams.entries()).filter(([key]) => key.startsWith('utm_'))
+            ),
+          },
+        });
+
+        if (response.error) {
+          throw new Error(response.error.message);
+        }
+
+        const result = response.data;
+
+        if (!result.success) {
+          throw new Error(result.error || 'Erro ao criar conta');
+        }
+
+        // Limpar dados do signup
+        sessionStorage.removeItem('signup_data');
+
+        // Fazer login automático
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: data.email,
+          password: password,
+        });
+
+        if (signInError) {
+          toast({
+            title: 'Conta criada!',
+            description: 'Faça login para continuar.',
+          });
+          navigate('/auth');
+        } else {
+          toast({
+            title: 'Conta criada com sucesso!',
+            description: 'Bem-vindo ao Comando Central!',
+          });
+          // Redirecionar para getting-started ou dashboard
+          navigate('/getting-started');
+        }
+
+        return;
+      }
+
+      // Para planos pagos: criar checkout no Mercado Pago
       const response = await supabase.functions.invoke('start-create-checkout', {
         body: {
           plan_key: planKey,
@@ -98,7 +199,7 @@ export default function StartInfo() {
           owner_name: data.owner_name,
           store_name: data.store_name,
           phone: data.phone || undefined,
-          test_token: testToken, // Pass test_token for test10 plan
+          test_token: testToken,
           utm: Object.fromEntries(
             Array.from(searchParams.entries()).filter(([key]) => key.startsWith('utm_'))
           ),
@@ -115,6 +216,9 @@ export default function StartInfo() {
         throw new Error(result.error || 'Erro ao criar checkout');
       }
 
+      // Limpar dados do signup
+      sessionStorage.removeItem('signup_data');
+
       // Redirecionar para o Mercado Pago
       if (result.init_point) {
         window.location.href = result.init_point;
@@ -125,7 +229,7 @@ export default function StartInfo() {
       console.error('Checkout error:', error);
       toast({
         title: 'Erro',
-        description: error.message || 'Não foi possível iniciar o checkout',
+        description: error.message || 'Não foi possível processar',
         variant: 'destructive',
       });
     } finally {
@@ -149,24 +253,48 @@ export default function StartInfo() {
           <CardHeader className="text-center">
             <CardTitle>Seus dados</CardTitle>
             <CardDescription>
-              Preencha os dados para continuar com o pagamento
+              {isBasicPlan 
+                ? 'Preencha os dados para criar sua conta' 
+                : 'Preencha os dados para continuar com o pagamento'}
             </CardDescription>
             {planInfo && !planLoading && (
               <div className="mt-4 p-3 bg-muted rounded-lg">
                 <div className="flex items-center justify-center gap-2">
                   <Badge variant="outline">{planInfo.name}</Badge>
-                  <span className="font-semibold text-lg">
-                    {formatPrice(displayPrice)}
-                  </span>
-                  <span className="text-sm text-muted-foreground">
-                    /{cycle === 'monthly' ? 'mês' : 'ano'}
-                  </span>
+                  {isBasicPlan ? (
+                    <span className="font-semibold text-lg text-green-600">
+                      Gratuito
+                    </span>
+                  ) : (
+                    <>
+                      <span className="font-semibold text-lg">
+                        {formatPrice(displayPrice)}
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        /{cycle === 'monthly' ? 'mês' : 'ano'}
+                      </span>
+                    </>
+                  )}
                 </div>
+                {isBasicPlan && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Taxa de 2,5% sobre vendas
+                  </p>
+                )}
               </div>
             )}
           </CardHeader>
 
           <CardContent>
+            {isBasicPlan && (
+              <Alert className="mb-4 border-amber-500/50 bg-amber-500/10">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                <AlertDescription className="text-sm">
+                  Para publicar sua loja e usar todas as funcionalidades, você precisará cadastrar um cartão de crédito após criar a conta.
+                </AlertDescription>
+              </Alert>
+            )}
+
             {isTestPlanBlocked ? (
               <div className="text-center py-8">
                 <p className="text-destructive font-medium">Plano de teste indisponível</p>
@@ -244,6 +372,27 @@ export default function StartInfo() {
                   )}
                 />
 
+                {/* Campo de senha para plano básico (se não veio do signup) */}
+                {isBasicPlan && !signupData?.password && (
+                  <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Senha</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="password"
+                            placeholder="Mínimo 6 caracteres"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
                 <FormField
                   control={form.control}
                   name="terms"
@@ -278,8 +427,13 @@ export default function StartInfo() {
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Processando...
                     </>
+                  ) : isBasicPlan ? (
+                    'Criar minha conta'
                   ) : (
-                    'Ir para pagamento'
+                    <>
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      Ir para pagamento
+                    </>
                   )}
                 </Button>
               </form>
@@ -289,7 +443,9 @@ export default function StartInfo() {
         </Card>
 
         <p className="text-center text-sm text-muted-foreground mt-4">
-          Pagamento seguro via Mercado Pago
+          {isBasicPlan 
+            ? '🔒 Seus dados estão protegidos'
+            : 'Pagamento seguro via Mercado Pago'}
         </p>
       </div>
     </div>
