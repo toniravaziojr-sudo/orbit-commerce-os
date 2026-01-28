@@ -971,14 +971,14 @@ export function PageSettingsContent({
                           <div className="flex gap-2">
                             <Input
                               type="color"
-                              value={String(settings.customButtonColor || '#6366f1')}
+                              value={String(settings.customButtonColor || '#1a1a1a')}
                               onChange={(e) => handleChange('customButtonColor', e.target.value)}
                               className="h-8 w-12 p-1"
                             />
                             <Input
                               value={String(settings.customButtonColor || '')}
                               onChange={(e) => handleChange('customButtonColor', e.target.value)}
-                              placeholder="#6366f1"
+                              placeholder="#1a1a1a"
                               className="h-8 text-sm flex-1"
                             />
                           </div>

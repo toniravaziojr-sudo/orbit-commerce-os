@@ -32,11 +32,13 @@ export function AccordionBlock({
   defaultOpen = -1,
   variant = 'default',
   backgroundColor = 'transparent',
-  accentColor = '#1a1a1a',
+  accentColor,
 }: AccordionBlockProps) {
   const defaultValue = defaultOpen >= 0 && defaultOpen < items.length 
     ? [`item-${defaultOpen}`] 
     : [];
+  // Use theme color if no custom accentColor is set
+  const effectiveAccentColor = accentColor || 'var(--theme-button-primary-bg, #1a1a1a)';
 
   const variantClasses = {
     default: '',
@@ -88,7 +90,7 @@ export function AccordionBlock({
               >
                 <AccordionTrigger 
                   className="text-left hover:no-underline py-4"
-                  style={{ '--accent-color': accentColor } as React.CSSProperties}
+                  style={{ '--accent-color': effectiveAccentColor } as React.CSSProperties}
                 >
                   <span className="font-medium text-foreground pr-4">
                     {item.title}
@@ -118,7 +120,7 @@ export function AccordionBlock({
               >
                 <AccordionTrigger 
                   className="text-left hover:no-underline py-4"
-                  style={{ '--accent-color': accentColor } as React.CSSProperties}
+                  style={{ '--accent-color': effectiveAccentColor } as React.CSSProperties}
                 >
                   <span className="font-medium text-foreground pr-4">
                     {item.title}

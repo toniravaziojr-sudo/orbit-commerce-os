@@ -90,10 +90,12 @@ export function StatsNumbersBlock({
   layout = 'horizontal',
   animateNumbers = true,
   backgroundColor = 'transparent',
-  accentColor = '#1a1a1a',
+  accentColor,
   textColor,
 }: StatsNumbersBlockProps) {
   const isGrid = layout === 'grid' || items.length > 4;
+  // Use theme color if no custom accentColor is set
+  const effectiveAccentColor = accentColor || 'var(--theme-button-primary-bg, #1a1a1a)';
 
   return (
     <section 
@@ -134,7 +136,7 @@ export function StatsNumbersBlock({
             >
               <div 
                 className="text-3xl md:text-5xl font-bold mb-2"
-                style={{ color: accentColor }}
+                style={{ color: effectiveAccentColor }}
               >
                 {item.prefix}
                 <AnimatedNumber value={item.number} animate={animateNumbers} />

@@ -620,7 +620,7 @@ const blockDefinitions: BlockDefinition[] = [
       subtitle: 'Descubra produtos incríveis',
       imageDesktop: '',
       imageMobile: '',
-      backgroundColor: '#6366f1',
+      backgroundColor: '',
       textColor: '#ffffff',
       buttonText: 'Ver Produtos',
       buttonUrl: '/produtos',
@@ -657,7 +657,7 @@ const blockDefinitions: BlockDefinition[] = [
       backgroundColor: {
         type: 'color',
         label: 'Cor de Fundo (se sem imagem)',
-        defaultValue: '#6366f1',
+        defaultValue: '',
       },
       textColor: {
         type: 'color',
@@ -2502,7 +2502,7 @@ const blockDefinitions: BlockDefinition[] = [
         { number: 3, title: 'Passo 3', description: 'Descrição do terceiro passo' },
       ],
       layout: 'horizontal',
-      accentColor: '#6366f1',
+      accentColor: '',
       showNumbers: true,
       backgroundColor: 'transparent',
     },
@@ -2596,7 +2596,7 @@ const blockDefinitions: BlockDefinition[] = [
       layout: 'horizontal',
       animateNumbers: true,
       backgroundColor: 'transparent',
-      accentColor: '#6366f1',
+      accentColor: '',
     },
     propsSchema: {
       title: { type: 'string', label: 'Título' },
@@ -2656,7 +2656,7 @@ const blockDefinitions: BlockDefinition[] = [
       defaultOpen: -1,
       variant: 'default',
       backgroundColor: 'transparent',
-      accentColor: '#6366f1',
+      accentColor: '',
     },
     propsSchema: {
       title: { type: 'string', label: 'Título' },

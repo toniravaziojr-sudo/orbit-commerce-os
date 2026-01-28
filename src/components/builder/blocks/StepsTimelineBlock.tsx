@@ -24,11 +24,13 @@ export function StepsTimelineBlock({
   subtitle,
   steps = [],
   layout = 'horizontal',
-  accentColor = '#1a1a1a',
+  accentColor,
   showNumbers = true,
   backgroundColor = 'transparent',
 }: StepsTimelineBlockProps) {
   const isHorizontal = layout === 'horizontal';
+  // Use theme color if no custom accentColor is set
+  const effectiveAccentColor = accentColor || 'var(--theme-button-primary-bg, #1a1a1a)';
   
   return (
     <section 
@@ -64,7 +66,7 @@ export function StepsTimelineBlock({
             <div 
               className="hidden md:block absolute top-8 left-0 right-0 h-0.5 z-0"
               style={{ 
-                background: `linear-gradient(to right, ${accentColor}40, ${accentColor}, ${accentColor}40)`,
+                background: `linear-gradient(to right, ${effectiveAccentColor}40, ${effectiveAccentColor}, ${effectiveAccentColor}40)`,
                 left: '10%',
                 right: '10%',
               }}
@@ -86,9 +88,9 @@ export function StepsTimelineBlock({
                   isHorizontal ? 'w-16 h-16 mb-4' : 'w-12 h-12'
                 )}
                 style={{ 
-                  backgroundColor: accentColor,
+                  backgroundColor: effectiveAccentColor,
                   color: '#ffffff',
-                  boxShadow: `0 4px 14px ${accentColor}40`,
+                  boxShadow: `0 4px 14px ${effectiveAccentColor}40`,
                 }}
               >
                 {showNumbers ? (step.number ?? index + 1) : (
@@ -100,7 +102,7 @@ export function StepsTimelineBlock({
               {!isHorizontal && index < steps.length - 1 && (
                 <div 
                   className="absolute left-6 top-14 w-0.5 h-full -translate-x-1/2"
-                  style={{ backgroundColor: `${accentColor}30` }}
+                  style={{ backgroundColor: `${effectiveAccentColor}30` }}
                 />
               )}
 
