@@ -162,99 +162,21 @@ export default function Auth() {
   const handleSignUp = async (data: SignUpFormData) => {
     setIsLoading(true);
     try {
-      // Gerar slug a partir do nome do negócio
-      const tenantSlug = generateSlug(data.businessName);
-      
-      // Armazenar dados da loja pendente no localStorage
-      localStorage.setItem('pending_store', JSON.stringify({
-        name: data.businessName,
-        slug: tenantSlug,
+      // NOVO FLUXO UNIFICADO: Redirecionar para seleção de planos
+      // Salvar dados do signup para usar após seleção do plano
+      sessionStorage.setItem('signup_data', JSON.stringify({
+        email: data.email,
+        fullName: data.fullName,
+        businessName: data.businessName,
+        password: data.password,
       }));
       
-      // 1. Criar conta do usuário (auto-confirm está ativo)
-      const { error } = await signUp(data.email, data.password, data.fullName);
+      toast.success('Ótimo! Agora escolha seu plano para continuar.');
       
-      if (error) {
-        localStorage.removeItem('pending_store');
-        if (error.message.includes('User already registered')) {
-          toast.error('Este email já está cadastrado. Tente fazer login.');
-        } else {
-          toast.error(error.message);
-        }
-        return;
-      }
-
-      // 2. Aguardar a sessão ser criada (auto-confirm ativo)
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const { data: sessionData } = await supabase.auth.getSession();
-      
-      if (sessionData?.session?.user) {
-        // Criar tenant automaticamente
-        try {
-          const { data: newTenant, error: tenantError } = await supabase.rpc('create_tenant_for_user', {
-            p_name: data.businessName,
-            p_slug: tenantSlug,
-          });
-
-          if (tenantError) {
-            console.error('Error creating tenant:', tenantError);
-            toast.warning('Conta criada! Configure sua loja após fazer login.');
-          } else if (newTenant) {
-            localStorage.removeItem('pending_store');
-            
-            // Provisionar domínio padrão
-            try {
-              await supabase.functions.invoke('domains-provision-default', {
-                body: {
-                  tenant_id: newTenant.id,
-                  tenant_slug: tenantSlug,
-                },
-              });
-            } catch (domainError) {
-              console.error('Error provisioning default domain:', domainError);
-            }
-            
-            // Enviar email de boas-vindas customizado
-            try {
-              await supabase.functions.invoke('send-auth-email', {
-                body: {
-                  email: data.email,
-                  user_name: data.fullName,
-                  email_type: 'welcome',
-                  store_name: data.businessName,
-                },
-              });
-            } catch (emailError) {
-              console.error('Error sending welcome email:', emailError);
-            }
-            
-            // Agendar email tutorial para 1 hora depois
-            try {
-              await supabase.functions.invoke('schedule-tutorial-email', {
-                body: {
-                  user_id: sessionData.session.user.id,
-                  email: data.email,
-                  full_name: data.fullName,
-                },
-              });
-              console.log('Tutorial email scheduled successfully');
-            } catch (tutorialError) {
-              console.error('Error scheduling tutorial email:', tutorialError);
-            }
-            
-            toast.success('Conta e loja criadas com sucesso!');
-            return;
-          }
-        } catch (tenantSetupError) {
-          console.error('Error in tenant setup:', tenantSetupError);
-        }
-      } else {
-        // Fallback: sessão não criada imediatamente
-        toast.error('Erro ao criar conta. Tente novamente.');
-      }
+      // Redirecionar para seleção de planos
+      navigate('/start');
     } catch (error) {
-      toast.error('Erro ao criar conta. Tente novamente.');
+      toast.error('Erro ao processar cadastro. Tente novamente.');
     } finally {
       setIsLoading(false);
     }
