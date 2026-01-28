@@ -37,6 +37,7 @@ import { IntegrationAlerts } from "@/components/dashboard/IntegrationAlerts";
 import { CommunicationsWidget } from "@/components/dashboard/CommunicationsWidget";
 import { FiscalAlertsWidget } from "@/components/dashboard/FiscalAlertsWidget";
 import { OrderLimitWarning } from "@/components/billing/OrderLimitWarning";
+import { PaymentMethodBanner } from "@/components/billing/PaymentMethodBanner";
 
 const DEMO_ATTENTION_ITEMS = [
   {
@@ -120,6 +121,8 @@ function DashboardContent() {
 
   return (
     <div className="space-y-8 animate-fade-in">
+      {/* Payment Method Banner for Basic Plan */}
+      <PaymentMethodBanner />
       {/* Date Range Filter */}
       <div className="flex justify-end">
         <DateRangeFilter
