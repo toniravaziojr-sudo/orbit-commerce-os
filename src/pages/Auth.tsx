@@ -76,9 +76,22 @@ export default function Auth() {
   const planParams = usePlanFromUrl();
   
   // Salvar plano e UTMs no storage quando presentes na URL
-  // E também definir tab inicial baseado na URL
+  // E também definir tab inicial baseado na URL e mostrar erros de OAuth
   useEffect(() => {
     const urlTab = searchParams.get('tab');
+    const errorParam = searchParams.get('error');
+    
+    // Mostrar erro se veio de bloqueio de OAuth (usuário novo tentando login)
+    if (errorParam === 'no_account') {
+      toast.error('Esta conta não existe. Por favor, crie uma conta primeiro.');
+      setActiveTab('signup');
+      // Limpar o parâmetro de erro da URL
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('error');
+      window.history.replaceState({}, '', newUrl.toString());
+      return;
+    }
+    
     if (urlTab === 'signup') {
       setActiveTab('signup');
     }
@@ -93,47 +106,10 @@ export default function Auth() {
   // Redirect if already logged in
   useEffect(() => {
     if (user && !authLoading) {
-      // Verificar intenção do OAuth
-      const oauthIntent = sessionStorage.getItem('oauth_intent');
-      sessionStorage.removeItem('oauth_intent'); // Limpar após uso
-      
       // Check for pending invite token first
       const pendingInviteToken = sessionStorage.getItem('pending_invite_token');
       if (pendingInviteToken) {
         navigate('/accept-invite', { replace: true });
-        return;
-      }
-      
-      // Se tentou LOGIN com Google mas não tem tenant (usuário novo), bloquear
-      if (oauthIntent === 'login') {
-        // Verificar se é usuário novo (sem tenant)
-        // O useAuth já carrega os tenants, então verificamos aqui
-        // Se não tem tenants E não veio de convite, é usuário novo tentando login
-        const checkNewUser = async () => {
-          const { data: roles } = await supabase
-            .from('user_roles')
-            .select('id')
-            .eq('user_id', user.id)
-            .limit(1);
-          
-          if (!roles || roles.length === 0) {
-            // Usuário novo tentando fazer LOGIN - bloquear
-            toast.error('Esta conta não existe. Por favor, crie uma conta primeiro.');
-            await supabase.auth.signOut();
-            setActiveTab('signup');
-            return;
-          }
-          
-          // Usuário existente - continuar normalmente
-          const storedPlan = sessionStorage.getItem('selected_plan');
-          if (storedPlan) {
-            navigate('/settings/billing', { replace: true });
-          } else {
-            const redirectTo = searchParams.get('redirect') || '/';
-            navigate(redirectTo, { replace: true });
-          }
-        };
-        checkNewUser();
         return;
       }
       
@@ -281,21 +257,21 @@ export default function Auth() {
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     try {
-      // Marcar intenção como LOGIN - será verificado após callback
-      sessionStorage.setItem('oauth_intent', 'login');
+      // Marcar intenção como LOGIN - usa localStorage para persistir após redirect
+      localStorage.setItem('oauth_intent', 'login');
       
       const result = await lovable.auth.signInWithOAuth('google', {
-        redirect_uri: window.location.origin,
+        redirect_uri: `${window.location.origin}/auth`,
       });
       
       if (result.error) {
-        sessionStorage.removeItem('oauth_intent');
+        localStorage.removeItem('oauth_intent');
         toast.error('Erro ao fazer login com Google. Tente novamente.');
         setIsLoading(false);
       }
       // Se redirected, o usuário foi redirecionado para o Google
     } catch (error) {
-      sessionStorage.removeItem('oauth_intent');
+      localStorage.removeItem('oauth_intent');
       toast.error('Erro ao fazer login com Google. Tente novamente.');
       setIsLoading(false);
     }
@@ -305,21 +281,21 @@ export default function Auth() {
   const handleGoogleSignup = async () => {
     setIsLoading(true);
     try {
-      // Marcar intenção como SIGNUP - permite criar novo usuário
-      sessionStorage.setItem('oauth_intent', 'signup');
+      // Marcar intenção como SIGNUP - usa localStorage para persistir após redirect
+      localStorage.setItem('oauth_intent', 'signup');
       
       const result = await lovable.auth.signInWithOAuth('google', {
-        redirect_uri: window.location.origin,
+        redirect_uri: `${window.location.origin}/auth`,
       });
       
       if (result.error) {
-        sessionStorage.removeItem('oauth_intent');
+        localStorage.removeItem('oauth_intent');
         toast.error('Erro ao criar conta com Google. Tente novamente.');
         setIsLoading(false);
       }
       // Se redirected, o usuário foi redirecionado para o Google
     } catch (error) {
-      sessionStorage.removeItem('oauth_intent');
+      localStorage.removeItem('oauth_intent');
       toast.error('Erro ao criar conta com Google. Tente novamente.');
       setIsLoading(false);
     }
