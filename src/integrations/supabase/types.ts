@@ -5766,12 +5766,18 @@ export type Database = {
           meta_status: string | null
           tenant_id: string
           tiktok_access_token: string | null
+          tiktok_advertiser_id: string | null
+          tiktok_advertiser_name: string | null
+          tiktok_connected_at: string | null
+          tiktok_connected_by: string | null
           tiktok_enabled: boolean
           tiktok_events_api_enabled: boolean
           tiktok_last_error: string | null
           tiktok_last_test_at: string | null
           tiktok_pixel_id: string | null
+          tiktok_refresh_token: string | null
           tiktok_status: string | null
+          tiktok_token_expires_at: string | null
           updated_at: string
         }
         Insert: {
@@ -5795,12 +5801,18 @@ export type Database = {
           meta_status?: string | null
           tenant_id: string
           tiktok_access_token?: string | null
+          tiktok_advertiser_id?: string | null
+          tiktok_advertiser_name?: string | null
+          tiktok_connected_at?: string | null
+          tiktok_connected_by?: string | null
           tiktok_enabled?: boolean
           tiktok_events_api_enabled?: boolean
           tiktok_last_error?: string | null
           tiktok_last_test_at?: string | null
           tiktok_pixel_id?: string | null
+          tiktok_refresh_token?: string | null
           tiktok_status?: string | null
+          tiktok_token_expires_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -5824,12 +5836,18 @@ export type Database = {
           meta_status?: string | null
           tenant_id?: string
           tiktok_access_token?: string | null
+          tiktok_advertiser_id?: string | null
+          tiktok_advertiser_name?: string | null
+          tiktok_connected_at?: string | null
+          tiktok_connected_by?: string | null
           tiktok_enabled?: boolean
           tiktok_events_api_enabled?: boolean
           tiktok_last_error?: string | null
           tiktok_last_test_at?: string | null
           tiktok_pixel_id?: string | null
+          tiktok_refresh_token?: string | null
           tiktok_status?: string | null
+          tiktok_token_expires_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -12293,6 +12311,50 @@ export type Database = {
         }
         Relationships: []
       }
+      tiktok_oauth_states: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          return_path: string | null
+          scope_packs: string[] | null
+          state_hash: string
+          tenant_id: string
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          return_path?: string | null
+          scope_packs?: string[] | null
+          state_hash: string
+          tenant_id: string
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          return_path?: string | null
+          scope_packs?: string[] | null
+          state_hash?: string
+          tenant_id?: string
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiktok_oauth_states_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -12979,6 +13041,7 @@ export type Database = {
         }[]
       }
       cleanup_expired_meta_oauth_states: { Args: never; Returns: undefined }
+      cleanup_expired_tiktok_oauth_states: { Args: never; Returns: undefined }
       cleanup_expired_youtube_oauth_states: { Args: never; Returns: undefined }
       consume_credits: {
         Args: {
