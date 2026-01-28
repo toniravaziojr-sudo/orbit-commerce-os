@@ -8,7 +8,7 @@ type MediaCampaignStatus = Database["public"]["Enums"]["media_campaign_status"];
 type MediaItemStatus = Database["public"]["Enums"]["media_item_status"];
 type MediaContentType = Database["public"]["Enums"]["media_content_type"];
 
-export type TargetChannel = "all" | "blog" | "facebook" | "instagram";
+export type TargetChannel = "all" | "blog" | "facebook" | "instagram" | "youtube";
 
 export interface MediaCampaign {
   id: string;

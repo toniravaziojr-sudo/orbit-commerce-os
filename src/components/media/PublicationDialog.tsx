@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Newspaper, Instagram, Facebook, Image, Check, Clock, Square, CheckSquare } from "lucide-react";
+import { Newspaper, Instagram, Facebook, Image, Check, Clock, Square, CheckSquare, Youtube, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -29,8 +29,8 @@ import { useMediaCalendarItems, MediaCalendarItem } from "@/hooks/useMediaCampai
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
-export type PublicationType = "feed" | "stories" | "blog";
-export type ChannelType = "instagram" | "facebook" | "feed_instagram" | "feed_facebook" | "story_instagram" | "story_facebook" | "blog";
+export type PublicationType = "feed" | "stories" | "blog" | "youtube";
+export type ChannelType = "instagram" | "facebook" | "feed_instagram" | "feed_facebook" | "story_instagram" | "story_facebook" | "blog" | "youtube";
 
 interface PublicationDialogProps {
   open: boolean;
@@ -42,9 +42,9 @@ interface PublicationDialogProps {
   onBackToList?: () => void;
   /**
    * Tipo da campanha: "blog" mostra apenas formulário de artigo,
-   * "social" ou undefined mostra apenas Feed/Stories
+   * "social" mostra Feed/Stories, "youtube" mostra formulário de vídeo
    */
-  campaignType?: "blog" | "social";
+  campaignType?: "blog" | "social" | "youtube";
 }
 
 // Limites por tipo de publicação por card/dia
@@ -52,6 +52,7 @@ const PUBLICATION_LIMITS = {
   feed: 4,
   stories: 10,
   blog: 2,
+  youtube: 3, // Até 3 vídeos por dia
 };
 
 // Tipos para redes sociais (Feed/Stories)
@@ -66,6 +67,14 @@ const BLOG_PUBLICATION_TYPE = {
   label: "Artigo", 
   icon: Newspaper, 
   description: "Post de blog" 
+};
+
+// Tipo para YouTube
+const YOUTUBE_PUBLICATION_TYPE = { 
+  id: "youtube" as PublicationType, 
+  label: "Vídeo YouTube", 
+  icon: Youtube, 
+  description: "Vídeo para o canal" 
 };
 
 const CHANNELS = [
@@ -102,6 +111,14 @@ const blogFormSchema = z.object({
   scheduled_time: z.string().optional(),
 });
 
+const youtubeFormSchema = z.object({
+  title: z.string().min(1, "Título é obrigatório"),
+  copy: z.string().min(1, "Descrição é obrigatória"),
+  tags: z.string().optional(),
+  scheduled_time: z.string().optional(),
+  generation_prompt: z.string().optional(),
+});
+
 export function PublicationDialog({
   open,
   onOpenChange,
@@ -128,6 +145,7 @@ export function PublicationDialog({
       feed: existingItems.filter(i => i.content_type === "image" || i.content_type === "carousel").length,
       stories: existingItems.filter(i => i.content_type === "story").length,
       blog: existingItems.filter(i => i.content_type === "text").length,
+      youtube: existingItems.filter(i => i.content_type === "video" && i.target_channel === "youtube").length,
     };
   }, [existingItems]);
 
@@ -169,6 +187,17 @@ export function PublicationDialog({
     },
   });
 
+  const youtubeForm = useForm({
+    resolver: zodResolver(youtubeFormSchema),
+    defaultValues: {
+      title: "",
+      copy: "",
+      tags: "",
+      scheduled_time: "10:00",
+      generation_prompt: "",
+    },
+  });
+
   // Reset ao abrir/fechar ou quando muda editItem
   useEffect(() => {
     if (open) {
@@ -176,6 +205,7 @@ export function PublicationDialog({
         // Modo edição: preenche dados
         const type = editItem.content_type === "story" ? "stories" 
           : editItem.content_type === "text" ? "blog" 
+          : (editItem.content_type === "video" && editItem.target_channel === "youtube") ? "youtube"
           : "feed";
         setSelectedType(type);
         
@@ -217,6 +247,14 @@ export function PublicationDialog({
             scheduled_time: editItem.scheduled_time?.slice(0, 5) || "10:00",
             generation_prompt: editItem.generation_prompt || "",
           });
+        } else if (type === "youtube") {
+          youtubeForm.reset({
+            title: editItem.title || "",
+            copy: editItem.copy || "",
+            tags: editItem.hashtags?.join(", ") || "",
+            scheduled_time: editItem.scheduled_time?.slice(0, 5) || "10:00",
+            generation_prompt: editItem.generation_prompt || "",
+          });
         } else {
           blogForm.reset({
             title: editItem.title || "",
@@ -226,11 +264,15 @@ export function PublicationDialog({
         }
       } else {
         // Modo criação: reset
-        // Para campanhas de blog, vai direto para detalhes com tipo "blog"
+        // Para campanhas de blog ou youtube, vai direto para detalhes
         if (campaignType === "blog") {
           setStep("details");
           setSelectedType("blog");
           setSelectedChannels([]);
+        } else if (campaignType === "youtube") {
+          setStep("details");
+          setSelectedType("youtube");
+          setSelectedChannels(["youtube"]);
         } else {
           setStep("type");
           setSelectedType(null);
@@ -239,18 +281,20 @@ export function PublicationDialog({
         feedForm.reset();
         storyForm.reset();
         blogForm.reset();
+        youtubeForm.reset();
       }
     }
   }, [open, editItem, campaignType]);
 
   const handleTypeSelect = (type: PublicationType) => {
     if (!canCreate(type)) {
-      toast.error(`Limite de ${PUBLICATION_LIMITS[type]} ${type === "blog" ? "artigos" : type === "stories" ? "stories" : "posts"} por dia atingido`);
+      toast.error(`Limite de ${PUBLICATION_LIMITS[type]} ${type === "blog" ? "artigos" : type === "stories" ? "stories" : type === "youtube" ? "vídeos" : "posts"} por dia atingido`);
       return;
     }
     setSelectedType(type);
-    if (type === "blog") {
-      // Blog não precisa selecionar canal
+    if (type === "blog" || type === "youtube") {
+      // Blog e YouTube não precisam selecionar canal
+      if (type === "youtube") setSelectedChannels(["youtube"]);
       setStep("details");
     } else {
       setStep("channels");
@@ -433,6 +477,53 @@ export function PublicationDialog({
 
     onOpenChange(false);
     // Após salvar, reabre a lista do dia
+    onBackToList?.();
+  };
+
+  const handleSubmitYoutube = async (values: z.infer<typeof youtubeFormSchema>) => {
+    if (!date || !currentTenant) return;
+
+    const tags = values.tags
+      ? values.tags.split(",").map(t => t.trim()).filter(Boolean)
+      : [];
+
+    const baseData = {
+      title: values.title,
+      copy: values.copy,
+      hashtags: tags, // Reutiliza hashtags para tags do YouTube
+      content_type: "video" as const,
+      target_platforms: ["youtube"],
+      target_channel: "youtube" as const,
+      status: "draft" as const,
+      scheduled_time: values.scheduled_time ? `${values.scheduled_time}:00` : null,
+      generation_prompt: values.generation_prompt || null,
+    };
+
+    if (isEditing && editItem) {
+      await updateItem.mutateAsync({ id: editItem.id, ...baseData });
+    } else {
+      await createItem.mutateAsync({
+        tenant_id: currentTenant.id,
+        campaign_id: campaignId,
+        scheduled_date: format(date, "yyyy-MM-dd"),
+        ...baseData,
+        cta: null,
+        reference_urls: null,
+        asset_url: null,
+        asset_thumbnail_url: null,
+        asset_metadata: {},
+        blog_post_id: null,
+        published_blog_at: null,
+        published_at: null,
+        publish_results: {},
+        version: 1,
+        edited_by: user?.id || null,
+        edited_at: null,
+        metadata: {},
+      });
+    }
+
+    onOpenChange(false);
     onBackToList?.();
   };
 
@@ -847,6 +938,108 @@ export function PublicationDialog({
                       <FormLabel>Horário de Publicação</FormLabel>
                       <FormControl>
                         <Input type="time" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <DialogFooter className="gap-2">
+                  {isEditing && (
+                    <Button type="button" variant="destructive" onClick={handleDelete} className="mr-auto">
+                      Excluir
+                    </Button>
+                  )}
+                  <Button type="button" variant="outline" onClick={handleBack}>Voltar</Button>
+                  <Button type="submit">{isEditing ? "Salvar" : "Criar"}</Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </>
+        )}
+
+        {/* Step 3: Detalhes - YouTube */}
+        {step === "details" && selectedType === "youtube" && (
+          <>
+            <DialogHeader>
+              <DialogTitle>{isEditing ? "Editar" : "Criar"} Vídeo do YouTube</DialogTitle>
+              <DialogDescription className="capitalize">{displayDate}</DialogDescription>
+            </DialogHeader>
+
+            <Form {...youtubeForm}>
+              <form onSubmit={youtubeForm.handleSubmit(handleSubmitYoutube)} className="space-y-4">
+                {/* Aviso: YouTube consome créditos */}
+                <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 text-sm text-destructive flex items-center gap-2">
+                  <Youtube className="h-4 w-4 flex-shrink-0" />
+                  <span>Uploads para YouTube consomem créditos (16+ por vídeo). Certifique-se de ter saldo suficiente.</span>
+                </div>
+
+                <FormField
+                  control={youtubeForm.control}
+                  name="title"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Título do Vídeo</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ex: Tutorial completo de..." maxLength={100} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={youtubeForm.control}
+                  name="copy"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Descrição</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Descrição completa do vídeo..." className="min-h-[100px]" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={youtubeForm.control}
+                    name="tags"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tags (separadas por vírgula)</FormLabel>
+                        <FormControl>
+                          <Input placeholder="marketing, vendas, dicas" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={youtubeForm.control}
+                    name="scheduled_time"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Horário de Publicação</FormLabel>
+                        <FormControl>
+                          <Input type="time" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={youtubeForm.control}
+                  name="generation_prompt"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Notas / Roteiro (opcional)</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Notas sobre o vídeo, roteiro, etc..." className="min-h-[60px]" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

@@ -10,6 +10,7 @@ Este diretório contém as regras e especificações separadas por módulo para 
 | Arquivo | Descrição | Status |
 |---------|-----------|--------|
 | [regras-gerais.md](./regras-gerais.md) | Regras universais do sistema | ✅ Ready |
+| [feature-rollout.md](./feature-rollout.md) | Protocolo de Feature Rollout (Admin First) | ✅ Ready |
 | [edge-functions.md](./edge-functions.md) | Padrões para Edge Functions | ✅ Ready |
 | [tenants.md](./tenants.md) | Multi-Tenancy e Isolamento | ✅ Ready |
 | [dominios.md](./dominios.md) | Domínios e DNS | ✅ Ready |
@@ -54,7 +55,7 @@ Este diretório contém as regras e especificações separadas por módulo para 
 | [geracao-imagens-ai.md](./geracao-imagens-ai.md) | Geração de Imagens com IA | ✅ Ready |
 | [marketing-integracoes.md](./marketing-integracoes.md) | Integrações de Marketing | 🟧 Pending |
 | [email-marketing.md](./email-marketing.md) | Email Marketing | 🟧 Pending |
-| [campanhas.md](./campanhas.md) | Criador de Campanhas | 🟧 Pending |
+| [campanhas.md](./campanhas.md) | Criador de Campanhas (Blog/Social/YouTube) | ✅ Ready |
 
 ---
 
@@ -108,8 +109,8 @@ Este diretório contém as regras e especificações separadas por módulo para 
 
 | Status | Quantidade | Significado |
 |--------|------------|-------------|
-| ✅ Ready | **31** | 100% funcional e validado |
-| 🟧 Pending | **9** | Em construção/incompleto |
+| ✅ Ready | **33** | 100% funcional e validado |
+| 🟧 Pending | **7** | Em construção/incompleto |
 
 ---
 
