@@ -83,12 +83,26 @@ export default function StorefrontCheckout() {
     const globalFooterProps = globalLayout?.footer_config?.props || {};
     const checkoutFooterProps = globalLayout?.checkout_footer_config?.props || {};
     
+    // Helper to check if a value is "empty" (undefined, null, empty string, or empty array)
+    const isEmpty = (value: unknown): boolean => {
+      if (value === undefined || value === null || value === '') return true;
+      if (Array.isArray(value) && value.length === 0) return true;
+      // For objects like { items: [] }, check if items array is empty
+      if (typeof value === 'object' && 'items' in value) {
+        const obj = value as { items?: unknown[] };
+        if (Array.isArray(obj.items) && obj.items.length === 0) return true;
+      }
+      return false;
+    };
+    
     // RULE: Checkout props have ABSOLUTE priority
     // Only inherit visual props that are NOT explicitly set in checkout
     const visualPropsToInherit = [
       'footerBgColor', 'footerTextColor', 'footerTitlesColor', 'logoUrl',
-      // Also inherit image sections (payment methods, security seals) if not set
-      'paymentMethods', 'securitySeals'
+      // Inherit image sections (payment methods, security seals) if not set
+      'paymentMethods', 'securitySeals', 'shippingMethods', 'officialStores',
+      // Also inherit copyright text if not set
+      'copyrightText'
     ];
     
     const mergedProps: Record<string, unknown> = {};
@@ -96,9 +110,10 @@ export default function StorefrontCheckout() {
     // Step 1: Inherit visual props from global ONLY if checkout doesn't have them
     for (const key of visualPropsToInherit) {
       const checkoutValue = checkoutFooterProps[key];
-      if (checkoutValue === undefined || checkoutValue === '') {
-        if (globalFooterProps[key] !== undefined && globalFooterProps[key] !== '') {
-          mergedProps[key] = globalFooterProps[key];
+      if (isEmpty(checkoutValue)) {
+        const globalValue = globalFooterProps[key];
+        if (!isEmpty(globalValue)) {
+          mergedProps[key] = globalValue;
         }
       }
     }
@@ -108,6 +123,15 @@ export default function StorefrontCheckout() {
       if (value !== undefined) {
         mergedProps[key] = value;
       }
+    }
+    
+    // Step 3: Set default visibility toggles to TRUE when there's data inherited
+    // This ensures payment methods and security seals show by default when inherited
+    if (mergedProps.showPaymentMethods === undefined && !isEmpty(mergedProps.paymentMethods)) {
+      mergedProps.showPaymentMethods = true;
+    }
+    if (mergedProps.showSecuritySeals === undefined && !isEmpty(mergedProps.securitySeals)) {
+      mergedProps.showSecuritySeals = true;
     }
     
     return {
