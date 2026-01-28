@@ -102,7 +102,7 @@ export function PaymentResultDisplay({ result, method, onContinue }: PaymentResu
 
         <Button
           onClick={() => window.open(result.boletoUrl, '_blank')}
-          className="w-full"
+          className="w-full sf-btn-primary"
         >
           <ExternalLink className="h-4 w-4 mr-2" />
           Visualizar Boleto

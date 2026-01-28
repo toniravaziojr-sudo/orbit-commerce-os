@@ -209,16 +209,42 @@ export function getThemeSettingsCssVars(themeSettings: ThemeSettings | null): st
  */
 export function getStorefrontThemeCss(themeSettings: ThemeSettings | null): string {
   const typography = themeSettings?.typography;
+  const colors = themeSettings?.colors;
+  
   const headingFontFamily = getFontFamily(typography?.headingFont || 'inter');
   const bodyFontFamily = getFontFamily(typography?.bodyFont || 'inter');
   const baseFontSize = typography?.baseFontSize || 16;
 
+  // Build color CSS variables
+  const colorVars: string[] = [];
+  if (colors?.buttonPrimaryBg) {
+    colorVars.push(`--theme-button-primary-bg: ${colors.buttonPrimaryBg};`);
+  }
+  if (colors?.buttonPrimaryText) {
+    colorVars.push(`--theme-button-primary-text: ${colors.buttonPrimaryText};`);
+  }
+  if (colors?.buttonSecondaryBg) {
+    colorVars.push(`--theme-button-secondary-bg: ${colors.buttonSecondaryBg};`);
+  }
+  if (colors?.buttonSecondaryText) {
+    colorVars.push(`--theme-button-secondary-text: ${colors.buttonSecondaryText};`);
+  }
+  if (colors?.textPrimary) {
+    colorVars.push(`--theme-text-primary: ${colors.textPrimary};`);
+  }
+  if (colors?.textSecondary) {
+    colorVars.push(`--theme-text-secondary: ${colors.textSecondary};`);
+  }
+
+  const colorCss = colorVars.length > 0 ? colorVars.join('\n      ') : '';
+
   return `
-    /* Storefront Theme - Typography */
+    /* Storefront Theme - Typography & Colors */
     :root {
       --sf-heading-font: ${headingFontFamily};
       --sf-body-font: ${bodyFontFamily};
       --sf-base-font-size: ${baseFontSize}px;
+      ${colorCss}
     }
     
     /* Apply typography to storefront container */
@@ -248,6 +274,22 @@ export function getStorefrontThemeCss(themeSettings: ThemeSettings | null): stri
     .storefront-container label,
     .storefront-container li {
       font-family: var(--sf-body-font);
+    }
+
+    /* Theme-aware button styles for storefront */
+    .storefront-container .sf-btn-primary {
+      background-color: var(--theme-button-primary-bg, hsl(var(--primary)));
+      color: var(--theme-button-primary-text, hsl(var(--primary-foreground)));
+    }
+    .storefront-container .sf-btn-primary:hover {
+      opacity: 0.9;
+    }
+    .storefront-container .sf-btn-secondary {
+      background-color: var(--theme-button-secondary-bg, hsl(var(--secondary)));
+      color: var(--theme-button-secondary-text, hsl(var(--secondary-foreground)));
+    }
+    .storefront-container .sf-btn-secondary:hover {
+      opacity: 0.9;
     }
   `;
 }

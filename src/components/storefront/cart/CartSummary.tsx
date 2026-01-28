@@ -81,7 +81,7 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
           <Button 
             size="lg" 
             onClick={handleCheckout}
-            className="shrink-0"
+            className="shrink-0 sf-btn-primary"
           >
             Finalizar
             <ArrowRight className="ml-2 h-4 w-4" />
@@ -144,7 +144,7 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
 
           <Button 
             size="lg" 
-            className="w-full mt-6"
+            className="w-full mt-6 sf-btn-primary"
             onClick={handleCheckout}
           >
             Finalizar compra
@@ -207,7 +207,7 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
 
       <Button 
         size="lg" 
-        className="w-full mt-6"
+        className="w-full mt-6 sf-btn-primary"
         onClick={handleCheckout}
       >
         Finalizar compra
