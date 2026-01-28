@@ -26,7 +26,11 @@ const formSchema = z.object({
   owner_name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
   store_name: z.string().min(2, 'Nome da loja deve ter pelo menos 2 caracteres'),
   phone: z.string().optional(),
-  password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres').optional(),
+  // Password: opcional e só valida min se preenchido
+  password: z.string().optional().refine(
+    (val) => !val || val.length >= 6,
+    'Senha deve ter pelo menos 6 caracteres'
+  ),
   terms: z.boolean().refine(val => val === true, 'Você deve aceitar os termos'),
 });
 
