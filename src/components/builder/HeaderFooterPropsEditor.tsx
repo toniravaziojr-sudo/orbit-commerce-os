@@ -698,42 +698,310 @@ export function HeaderFooterPropsEditor({
 
   // =========================================
   // CHECKOUT: Separate layout (not global)
+  // Dedicated UI with collapsible sections
   // =========================================
   if (isCheckoutPage) {
-    return (
-      <div className="h-full flex flex-col border-l">
-        {/* Header with Checkout-specific indicator */}
-        <div className="p-4 border-b bg-amber-500/10">
-          <div className="flex items-center gap-2">
-            <ShoppingBag className="h-5 w-5 text-amber-600" />
-            <div>
-              <h3 className="font-semibold text-sm flex items-center gap-2">
-                {definition.label}
-                <Badge variant="outline" className="bg-amber-500/10 text-amber-700 border-amber-300">
-                  Checkout
-                </Badge>
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                Layout separado do global (apenas checkout)
-              </p>
+    // Checkout Header UI
+    if (blockType === 'Header') {
+      return (
+        <div className="h-full flex flex-col border-l">
+          {/* Header with Checkout-specific indicator */}
+          <div className="p-3 border-b bg-amber-500/10">
+            <div className="flex items-center gap-2">
+              <ShoppingBag className="h-4 w-4 text-amber-600" />
+              <div>
+                <h3 className="font-medium text-xs flex items-center gap-1.5">
+                  Header do Checkout
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-500/20 text-amber-700 border-amber-400">
+                    Layout Exclusivo
+                  </Badge>
+                </h3>
+                <p className="text-[10px] text-muted-foreground">
+                  Configuração independente do header global
+                </p>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Full props editor for checkout config - bypass SYSTEM_BLOCKS restriction */}
-        <div className="flex-1 overflow-hidden">
-          <PropsEditor
-            definition={definition}
-            props={props}
-            onChange={onChange}
-            onDelete={onDelete}
-            onDuplicate={onDuplicate}
-            canDelete={canDelete}
-            isCheckoutContext={true}
-          />
+          <ScrollArea className="flex-1">
+            <div className="p-2 space-y-1.5">
+              {/* === CORES DO CABEÇALHO DO CHECKOUT === */}
+              <Collapsible open={openSections.colors} onOpenChange={() => toggleSection('colors')}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <Palette className="h-3.5 w-3.5 text-amber-600" />
+                      <span className="font-medium">Cores do Cabeçalho</span>
+                    </div>
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openSections.colors ? 'rotate-180' : ''}`} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="px-2 pb-3 space-y-3">
+                  <ColorInput
+                    label="Cor de Fundo"
+                    value={(props.headerBgColor as string) || ''}
+                    onChange={(v) => updateProp('headerBgColor', v)}
+                    placeholder="Herdar do global"
+                  />
+                  <ColorInput
+                    label="Cor do Texto"
+                    value={(props.headerTextColor as string) || ''}
+                    onChange={(v) => updateProp('headerTextColor', v)}
+                    placeholder="Herdar do global"
+                  />
+                  <ColorInput
+                    label="Cor dos Ícones"
+                    value={(props.headerIconColor as string) || ''}
+                    onChange={(v) => updateProp('headerIconColor', v)}
+                    placeholder="Herdar do global"
+                  />
+                </CollapsibleContent>
+              </Collapsible>
+
+              <Separator />
+
+              {/* === ELEMENTOS VISÍVEIS DO CHECKOUT === */}
+              <Collapsible open={openSections.general} onOpenChange={() => toggleSection('general')}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <Settings className="h-3.5 w-3.5 text-amber-600" />
+                      <span className="font-medium">Elementos Visíveis</span>
+                    </div>
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openSections.general ? 'rotate-180' : ''}`} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="px-2 pb-3 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px]">Mostrar Busca</Label>
+                    <Switch className="scale-90"
+                      checked={Boolean(props.showSearch ?? false)}
+                      onCheckedChange={(v) => updateProp('showSearch', v)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px]">Mostrar Carrinho</Label>
+                    <Switch className="scale-90"
+                      checked={Boolean(props.showCart ?? true)}
+                      onCheckedChange={(v) => updateProp('showCart', v)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px]">Menu de Navegação</Label>
+                    <Switch className="scale-90"
+                      checked={Boolean(props.showHeaderMenu ?? false)}
+                      onCheckedChange={(v) => updateProp('showHeaderMenu', v)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px]">Área do Cliente</Label>
+                    <Switch className="scale-90"
+                      checked={Boolean(props.customerAreaEnabled ?? false)}
+                      onCheckedChange={(v) => updateProp('customerAreaEnabled', v)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px]">Promoções em Destaque</Label>
+                    <Switch className="scale-90"
+                      checked={Boolean(props.featuredPromosEnabled ?? false)}
+                      onCheckedChange={(v) => updateProp('featuredPromosEnabled', v)}
+                    />
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+
+              <Separator />
+
+              {/* === COMPORTAMENTO === */}
+              <Collapsible open={openSections.style} onOpenChange={() => toggleSection('style')}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <Smartphone className="h-3.5 w-3.5 text-amber-600" />
+                      <span className="font-medium">Comportamento</span>
+                    </div>
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openSections.style ? 'rotate-180' : ''}`} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="px-2 pb-3 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px]">Fixar ao Rolar</Label>
+                    <Switch className="scale-90"
+                      checked={Boolean(props.sticky ?? true)}
+                      onCheckedChange={(v) => updateProp('sticky', v)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px]">Fixar no Mobile</Label>
+                    <Switch className="scale-90"
+                      checked={Boolean(props.stickyOnMobile ?? true)}
+                      onCheckedChange={(v) => updateProp('stickyOnMobile', v)}
+                    />
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+
+              <Separator />
+
+              {/* Info note */}
+              <Alert className="mx-2 my-3">
+                <Info className="h-3.5 w-3.5" />
+                <AlertDescription className="text-[10px]">
+                  Estas configurações afetam apenas o checkout. 
+                  Se deixar cores em branco, herda do header global.
+                </AlertDescription>
+              </Alert>
+            </div>
+          </ScrollArea>
         </div>
-      </div>
-    );
+      );
+    }
+
+    // Checkout Footer UI
+    if (blockType === 'Footer') {
+      return (
+        <div className="h-full flex flex-col border-l">
+          {/* Header with Checkout-specific indicator */}
+          <div className="p-3 border-b bg-amber-500/10">
+            <div className="flex items-center gap-2">
+              <ShoppingBag className="h-4 w-4 text-amber-600" />
+              <div>
+                <h3 className="font-medium text-xs flex items-center gap-1.5">
+                  Footer do Checkout
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-500/20 text-amber-700 border-amber-400">
+                    Layout Exclusivo
+                  </Badge>
+                </h3>
+                <p className="text-[10px] text-muted-foreground">
+                  Configuração independente do footer global
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <ScrollArea className="flex-1">
+            <div className="p-2 space-y-1.5">
+              {/* === CORES DO RODAPÉ DO CHECKOUT === */}
+              <Collapsible open={openSections.colors} onOpenChange={() => toggleSection('colors')}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <Palette className="h-3.5 w-3.5 text-amber-600" />
+                      <span className="font-medium">Cores do Rodapé</span>
+                    </div>
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openSections.colors ? 'rotate-180' : ''}`} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="px-2 pb-3 space-y-3">
+                  <ColorInput
+                    label="Cor de Fundo"
+                    value={(props.footerBgColor as string) || ''}
+                    onChange={(v) => updateProp('footerBgColor', v)}
+                    placeholder="Herdar do global"
+                  />
+                  <ColorInput
+                    label="Cor do Texto"
+                    value={(props.footerTextColor as string) || ''}
+                    onChange={(v) => updateProp('footerTextColor', v)}
+                    placeholder="Herdar do global"
+                  />
+                  <ColorInput
+                    label="Cor dos Títulos"
+                    value={(props.footerTitlesColor as string) || ''}
+                    onChange={(v) => updateProp('footerTitlesColor', v)}
+                    placeholder="Herdar do global"
+                  />
+                </CollapsibleContent>
+              </Collapsible>
+
+              <Separator />
+
+              {/* === ELEMENTOS VISÍVEIS DO CHECKOUT === */}
+              <Collapsible open={openSections.general} onOpenChange={() => toggleSection('general')}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <Settings className="h-3.5 w-3.5 text-amber-600" />
+                      <span className="font-medium">Elementos Visíveis</span>
+                    </div>
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openSections.general ? 'rotate-180' : ''}`} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="px-2 pb-3 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px]">Mostrar Logo</Label>
+                    <Switch className="scale-90"
+                      checked={Boolean(props.showLogo ?? true)}
+                      onCheckedChange={(v) => updateProp('showLogo', v)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px]">Mostrar Copyright</Label>
+                    <Switch className="scale-90"
+                      checked={Boolean(props.showCopyright ?? true)}
+                      onCheckedChange={(v) => updateProp('showCopyright', v)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px]">Mostrar SAC</Label>
+                    <Switch className="scale-90"
+                      checked={Boolean(props.showSac ?? false)}
+                      onCheckedChange={(v) => updateProp('showSac', v)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px]">Mostrar Redes Sociais</Label>
+                    <Switch className="scale-90"
+                      checked={Boolean(props.showSocial ?? false)}
+                      onCheckedChange={(v) => updateProp('showSocial', v)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px]">Mostrar Newsletter</Label>
+                    <Switch className="scale-90"
+                      checked={Boolean(props.showNewsletterSection ?? false)}
+                      onCheckedChange={(v) => updateProp('showNewsletterSection', v)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px]">Mostrar Footer 1</Label>
+                    <Switch className="scale-90"
+                      checked={Boolean(props.showFooter1 ?? false)}
+                      onCheckedChange={(v) => updateProp('showFooter1', v)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px]">Mostrar Footer 2</Label>
+                    <Switch className="scale-90"
+                      checked={Boolean(props.showFooter2 ?? false)}
+                      onCheckedChange={(v) => updateProp('showFooter2', v)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px]">Mostrar Info da Loja</Label>
+                    <Switch className="scale-90"
+                      checked={Boolean(props.showStoreInfo ?? false)}
+                      onCheckedChange={(v) => updateProp('showStoreInfo', v)}
+                    />
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+
+              <Separator />
+
+              {/* Info note */}
+              <Alert className="mx-2 my-3">
+                <Info className="h-3.5 w-3.5" />
+                <AlertDescription className="text-[10px]">
+                  Estas configurações afetam apenas o checkout. 
+                  Se deixar cores em branco, herda do footer global.
+                </AlertDescription>
+              </Alert>
+            </div>
+          </ScrollArea>
+        </div>
+      );
+    }
   }
 
   // =========================================
