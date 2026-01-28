@@ -822,7 +822,8 @@ export function StorefrontHeaderContent({
         )}
         
         {/* === DESKTOP SECONDARY NAV BAR: Featured Promos (left) + Header Menu Items (center) === */}
-        {(forceDesktop || !forceMobile) && (hierarchicalMenuItems.length > 0 || featuredPromosUrl || isEditing) && (
+        {/* Only render if showHeaderMenu is true AND (menu has items OR featured promos OR editing) */}
+        {showHeaderMenu && (forceDesktop || !forceMobile) && (hierarchicalMenuItems.length > 0 || featuredPromosUrl || isEditing) && (
           <nav className={cn(
             "flex items-center py-2 border-t border-muted/30",
             forceMobile ? "hidden" : (forceDesktop ? "flex" : "hidden md:flex")

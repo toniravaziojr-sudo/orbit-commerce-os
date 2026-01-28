@@ -984,6 +984,20 @@ export function HeaderFooterPropsEditor({
                       onCheckedChange={(v) => updateProp('showStoreInfo', v)}
                     />
                   </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px]">Mostrar Formas de Pagamento</Label>
+                    <Switch className="scale-90"
+                      checked={Boolean(props.showPaymentMethods ?? false)}
+                      onCheckedChange={(v) => updateProp('showPaymentMethods', v)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px]">Mostrar Selos de Segurança</Label>
+                    <Switch className="scale-90"
+                      checked={Boolean(props.showSecuritySeals ?? false)}
+                      onCheckedChange={(v) => updateProp('showSecuritySeals', v)}
+                    />
+                  </div>
                 </CollapsibleContent>
               </Collapsible>
 

@@ -86,7 +86,9 @@ export default function StorefrontCheckout() {
     // RULE: Checkout props have ABSOLUTE priority
     // Only inherit visual props that are NOT explicitly set in checkout
     const visualPropsToInherit = [
-      'footerBgColor', 'footerTextColor', 'footerTitlesColor', 'logoUrl'
+      'footerBgColor', 'footerTextColor', 'footerTitlesColor', 'logoUrl',
+      // Also inherit image sections (payment methods, security seals) if not set
+      'paymentMethods', 'securitySeals'
     ];
     
     const mergedProps: Record<string, unknown> = {};
