@@ -364,24 +364,23 @@ export function VisualBuilder({
         // to reflect settings changes without losing user's other edits
         const currentContent = store.content;
         if (currentContent?.children && globalLayout) {
-          // For checkout: merge global visual props + checkout functional props
-          // For other pages: use global config directly
+          // For checkout: use checkout configs DIRECTLY without merge
+          // This preserves user's edits in checkout editor
           let headerConfig: typeof globalLayout.header_config;
           let footerConfig: typeof globalLayout.footer_config;
           
           if (isCheckoutPage) {
-            // Checkout inherits colors/visual from global, overrides with checkout-specific props
+            // CHECKOUT INDEPENDENCE: Use checkout configs directly - NO MERGE
+            // This ensures toggle changes and color edits persist
             headerConfig = {
               ...globalLayout.checkout_header_config,
               props: {
-                ...globalLayout.header_config.props,
                 ...globalLayout.checkout_header_config.props,
               },
             };
             footerConfig = {
               ...globalLayout.checkout_footer_config,
               props: {
-                ...globalLayout.footer_config.props,
                 ...globalLayout.checkout_footer_config.props,
               },
             };
