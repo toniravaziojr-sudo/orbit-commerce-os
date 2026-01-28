@@ -45,6 +45,13 @@ export default function StartInfo() {
     businessName?: string;
     password?: string;
   } | null>(null);
+  
+  // Estado para usuário OAuth já autenticado
+  const [existingUser, setExistingUser] = useState<{
+    id: string;
+    email: string;
+    fullName?: string;
+  } | null>(null);
 
   const planKey = searchParams.get('plan') || 'basico';
   const cycle = (searchParams.get('cycle') as 'monthly' | 'annual') || 'monthly';
@@ -55,6 +62,23 @@ export default function StartInfo() {
 
   // Block test10 plan without valid test_token in URL
   const isTestPlanBlocked = planKey === 'test10' && !testToken;
+
+  // Detectar se usuário já está autenticado (OAuth) - carregar dados
+  useEffect(() => {
+    async function checkExistingSession() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const user = session.user;
+        setExistingUser({
+          id: user.id,
+          email: user.email || '',
+          fullName: user.user_metadata?.full_name || user.user_metadata?.name || '',
+        });
+        console.log('[StartInfo] Detected existing OAuth user:', user.email);
+      }
+    }
+    checkExistingSession();
+  }, []);
 
   // Carregar dados do signup prévio (se veio do Auth.tsx)
   useEffect(() => {
@@ -111,14 +135,18 @@ export default function StartInfo() {
     },
   });
 
-  // Atualizar form quando signupData carregar
+  // Atualizar form quando signupData ou existingUser carregar
   useEffect(() => {
-    if (signupData) {
+    // Prioridade: existingUser (OAuth) > signupData (formulário normal)
+    if (existingUser) {
+      form.setValue('email', existingUser.email || '');
+      form.setValue('owner_name', existingUser.fullName || '');
+    } else if (signupData) {
       form.setValue('email', signupData.email || '');
       form.setValue('owner_name', signupData.fullName || '');
       form.setValue('store_name', signupData.businessName || '');
     }
-  }, [signupData, form]);
+  }, [signupData, existingUser, form]);
 
   const onSubmit = async (data: FormData) => {
     setLoading(true);
@@ -126,7 +154,61 @@ export default function StartInfo() {
     try {
       // Para plano básico: criar conta diretamente sem pagamento
       if (isBasicPlan) {
-        // Usar a senha do signup anterior ou a nova
+        // CASO 1: Usuário OAuth já está autenticado - apenas criar tenant
+        if (existingUser) {
+          console.log('[StartInfo] OAuth user detected - creating tenant only');
+          
+          // Gerar slug a partir do nome da loja
+          const slug = data.store_name
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+            .substring(0, 50);
+          
+          // Usar RPC para criar tenant (já corrigida para usar pending_payment_method)
+          const { data: newTenant, error: createError } = await supabase
+            .rpc('create_tenant_for_user', {
+              p_name: data.store_name,
+              p_slug: slug,
+            });
+          
+          if (createError) {
+            if (createError.message?.includes('Slug already exists')) {
+              toast({
+                title: 'Nome em uso',
+                description: 'Este nome de loja já está em uso. Escolha outro.',
+                variant: 'destructive',
+              });
+              setLoading(false);
+              return;
+            }
+            throw createError;
+          }
+          
+          // Atualizar profile com nome se não tiver
+          if (data.owner_name && data.owner_name !== existingUser.fullName) {
+            await supabase
+              .from('profiles')
+              .update({ full_name: data.owner_name })
+              .eq('id', existingUser.id);
+          }
+          
+          // Limpar dados do signup
+          sessionStorage.removeItem('signup_data');
+          
+          toast({
+            title: 'Loja criada com sucesso!',
+            description: 'Bem-vindo ao Comando Central!',
+          });
+          
+          // Forçar refresh da página para recarregar dados do usuário
+          window.location.href = '/getting-started';
+          return;
+        }
+        
+        // CASO 2: Novo usuário - criar conta completa
         const password = signupData?.password || data.password;
         
         if (!password || password.length < 6) {
@@ -323,8 +405,15 @@ export default function StartInfo() {
                           type="email"
                           placeholder="seu@email.com"
                           {...field}
+                          disabled={!!existingUser}
+                          className={existingUser ? 'bg-muted' : ''}
                         />
                       </FormControl>
+                      {existingUser && (
+                        <p className="text-xs text-muted-foreground">
+                          Logado como {existingUser.email}
+                        </p>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
@@ -372,8 +461,8 @@ export default function StartInfo() {
                   )}
                 />
 
-                {/* Campo de senha para plano básico (se não veio do signup) */}
-                {isBasicPlan && !signupData?.password && (
+                {/* Campo de senha para plano básico (se não veio do signup E não é OAuth) */}
+                {isBasicPlan && !signupData?.password && !existingUser && (
                   <FormField
                     control={form.control}
                     name="password"
@@ -428,7 +517,7 @@ export default function StartInfo() {
                       Processando...
                     </>
                   ) : isBasicPlan ? (
-                    'Criar minha conta'
+                    existingUser ? 'Criar minha loja' : 'Criar minha conta'
                   ) : (
                     <>
                       <CreditCard className="h-4 w-4 mr-2" />
