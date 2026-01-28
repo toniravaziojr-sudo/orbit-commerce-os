@@ -153,7 +153,77 @@ A tipografia da loja é gerenciada **exclusivamente** em **Configuração do tem
 
 ---
 
-## Sistema de Cores Global
+## Sistema de Cores Global e Injeção de Tema
+
+As cores do tema são gerenciadas **exclusivamente** em **Configuração do tema > Cores** (`ColorSettings.tsx`) e **injetadas dinamicamente** via CSS no storefront.
+
+### Injeção de Cores (StorefrontThemeInjector)
+
+O sistema injeta variáveis CSS e classes para botões diretamente no `<head>` do documento, garantindo que as cores do tema sejam aplicadas em toda a loja.
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    FLOW DE INJEÇÃO DE CORES                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│  1. storefront_template_sets.published_content.themeSettings.colors     │
+│     ↓                                                                    │
+│  2. usePublicThemeSettings(tenantSlug)                                   │
+│     ↓                                                                    │
+│  3. getStorefrontThemeCss(themeSettings)                                 │
+│     ↓                                                                    │
+│  4. StorefrontThemeInjector → <style id="storefront-theme-styles">      │
+│     ↓                                                                    │
+│  5. CSS Variables + Classes aplicadas via :root e .storefront-container │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### CSS Variables de Cores Injetadas
+
+| Variável | Origem | Uso |
+|----------|--------|-----|
+| `--theme-button-primary-bg` | `colors.buttonPrimaryBg` | Background de botões primários |
+| `--theme-button-primary-text` | `colors.buttonPrimaryText` | Texto de botões primários |
+| `--theme-button-secondary-bg` | `colors.buttonSecondaryBg` | Background de botões secundários |
+| `--theme-button-secondary-text` | `colors.buttonSecondaryText` | Texto de botões secundários |
+| `--theme-text-primary` | `colors.textPrimary` | Cor de texto principal |
+| `--theme-text-secondary` | `colors.textSecondary` | Cor de texto secundário |
+
+### Classes CSS Injetadas
+
+```css
+/* Botão Primário - herda do tema ou fallback para --primary */
+.storefront-container .sf-btn-primary {
+  background-color: var(--theme-button-primary-bg, hsl(var(--primary)));
+  color: var(--theme-button-primary-text, hsl(var(--primary-foreground)));
+}
+
+/* Botão Secundário */
+.storefront-container .sf-btn-secondary {
+  background-color: var(--theme-button-secondary-bg, hsl(var(--secondary)));
+  color: var(--theme-button-secondary-text, hsl(var(--secondary-foreground)));
+}
+```
+
+### Uso das Classes sf-btn-*
+
+| Componente | Classe | Arquivo |
+|------------|--------|---------|
+| Botão "Finalizar" do carrinho | `sf-btn-primary` | `CartSummary.tsx` |
+| Botões de navegação do checkout | `sf-btn-primary` | `CheckoutStepWizard.tsx` |
+| Botão "Visualizar Boleto" | `sf-btn-primary` | `PaymentResult.tsx` |
+| Botões CTA em blocos do builder | `sf-btn-primary` | Blocos individuais |
+
+### Arquivos Relacionados
+
+| Arquivo | Responsabilidade |
+|---------|------------------|
+| `src/hooks/usePublicThemeSettings.ts` | Hook + `getStorefrontThemeCss()` |
+| `src/components/storefront/StorefrontThemeInjector.tsx` | Injeção no DOM |
+| `src/hooks/useBuilderThemeInjector.ts` | Preview no builder |
+
+---
+
+## Hierarquia de Aplicação de Cores
 
 As cores do tema são gerenciadas **exclusivamente** em **Configuração do tema > Cores** (`ColorSettings.tsx`).
 
