@@ -284,6 +284,8 @@ export function AppSidebar() {
   const isModuleAccessible = (moduleKey?: string): boolean => {
     // Platform operators have full access
     if (isPlatformOperator) return true;
+    // Unlimited/special tenants have full access (no module blocking)
+    if (isUnlimited) return true;
     // If no moduleKey specified or no access data, allow
     if (!moduleKey || !moduleAccess) return true;
     // Check module access

@@ -1,7 +1,7 @@
 # Marketing — Regras e Especificações
 
 > **STATUS:** 🟧 Pending (parcialmente implementado)  
-> **Última atualização:** 2025-01-27
+> **Última atualização:** 2026-01-28
 
 ---
 
@@ -48,10 +48,84 @@ A divisão reflete nas permissões:
 ### Plataformas
 | Plataforma | Status | Funcionalidades |
 |------------|--------|-----------------|
-| Meta (FB/IG) | ✅ Ready | Pixel, Catálogo, CAPI |
+| Meta (FB/IG) | ✅ Ready | Pixel, Catálogo, CAPI, OAuth integrador |
 | Google Ads | 🟧 Pending | Conversions, Merchant |
-| TikTok | 🟧 Pending | Pixel, Events |
+| TikTok | ✅ Ready | Pixel, Events API, OAuth integrador |
 | Pinterest | 🟧 Pending | Tag, Catálogo |
+
+### TikTok OAuth (Integrador)
+
+> **STATUS:** ✅ Ready  
+> **Adicionado em:** 2026-01-28
+
+Integração OAuth2 em nível de integrador (plataforma), onde o Comando Central atua como aplicativo autorizado no TikTok Business.
+
+#### Fluxo de Conexão
+```
+1. Usuário clica "Conectar TikTok" no painel
+2. Frontend chama Edge Function `tiktok-oauth-start`
+3. Edge Function gera state CSRF e redireciona para TikTok
+4. Usuário autoriza no TikTok
+5. TikTok redireciona para `/integrations/tiktok/callback`
+6. Callback page chama `tiktok-oauth-callback`
+7. Edge Function troca auth_code por tokens
+8. Tokens salvos em `marketing_integrations`
+9. Popup fecha e UI atualiza
+```
+
+#### Edge Functions
+
+| Function | Descrição | JWT |
+|----------|-----------|-----|
+| `tiktok-oauth-start` | Gera URL de autorização OAuth | Requer |
+| `tiktok-oauth-callback` | Troca código por tokens e salva | Não requer |
+
+#### Tabelas
+
+**`tiktok_oauth_states`** (anti-CSRF)
+```sql
+id UUID PK
+tenant_id UUID NOT NULL
+state TEXT UNIQUE NOT NULL
+redirect_uri TEXT NOT NULL
+created_at TIMESTAMPTZ
+expires_at TIMESTAMPTZ
+```
+
+**`marketing_integrations`** (campos adicionados)
+```sql
+tiktok_access_token TEXT
+tiktok_refresh_token TEXT  
+tiktok_token_expires_at TIMESTAMPTZ
+tiktok_advertiser_id TEXT
+tiktok_connected_at TIMESTAMPTZ
+```
+
+#### Secrets Requeridos
+| Secret | Descrição |
+|--------|-----------|
+| `TIKTOK_APP_ID` | App ID do TikTok Developer Portal |
+| `TIKTOK_APP_SECRET` | App Secret do TikTok Developer Portal |
+
+#### Arquivos
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `supabase/functions/tiktok-oauth-start/index.ts` | Inicia fluxo OAuth |
+| `supabase/functions/tiktok-oauth-callback/index.ts` | Processa callback |
+| `src/hooks/useTikTokConnection.ts` | Hook de estado da conexão |
+| `src/pages/TikTokOAuthCallback.tsx` | Página de callback |
+| `src/components/integrations/TikTokIntegrationCard.tsx` | Card de integração |
+
+#### Redirect URI (Configurar no TikTok Developer Portal)
+```
+https://app.comandocentral.com.br/integrations/tiktok/callback
+```
+
+#### Escopos Solicitados
+```
+advertiser.basic.read,advertiser.pixel.read,advertiser.pixel.write
+```
 
 ### Meta Pixel & CAPI
 ```typescript
