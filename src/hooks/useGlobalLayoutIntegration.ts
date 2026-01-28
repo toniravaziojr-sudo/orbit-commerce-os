@@ -143,21 +143,22 @@ export function applyGlobalLayout(
 ): BlockNode {
   if (!content || !globalLayout) return content;
 
-  // For checkout pages: inherit visual props (colors) from global, but use checkout-specific functional props
-  // This allows checkout to have its own "minimalist" layout while maintaining brand consistency
+  // For checkout pages: use checkout-specific configs INDEPENDENTLY
+  // The merge with global is ONLY done at initial load to get visual defaults
+  // After that, checkout configs are fully independent and editable
   let headerConfig: BlockNode;
   let footerConfig: BlockNode;
 
   if (isCheckout) {
-    // Merge: global props (colors, styling) + checkout-specific props (functional toggles)
-    // Checkout props take priority over global for overlapping keys
+    // CHECKOUT INDEPENDENCE: Use checkout configs directly WITHOUT merging global
+    // Visual properties (colors) are only inherited at initial creation
+    // All subsequent edits are stored and read from checkout_*_config exclusively
     headerConfig = {
       ...globalLayout.checkout_header_config,
       id: 'checkout-header',
       props: {
-        // First: inherit all global visual props (colors, background, etc.)
-        ...globalLayout.header_config.props,
-        // Then: apply checkout-specific overrides (these take priority)
+        // Use checkout config props directly - NO MERGE with global
+        // This ensures changes made in checkout editor are preserved
         ...globalLayout.checkout_header_config.props,
       },
     };
@@ -165,9 +166,8 @@ export function applyGlobalLayout(
       ...globalLayout.checkout_footer_config,
       id: 'checkout-footer',
       props: {
-        // First: inherit all global visual props (colors, background, etc.)
-        ...globalLayout.footer_config.props,
-        // Then: apply checkout-specific overrides (these take priority)
+        // Use checkout config props directly - NO MERGE with global
+        // This ensures changes made in checkout editor are preserved
         ...globalLayout.checkout_footer_config.props,
       },
     };

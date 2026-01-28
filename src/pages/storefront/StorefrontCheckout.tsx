@@ -36,28 +36,46 @@ export default function StorefrontCheckout() {
   const { tenant, storeSettings, isLoading } = usePublicStorefront(tenantSlug || '');
   const { data: globalLayout, isLoading: layoutLoading } = usePublicGlobalLayout(tenantSlug || '');
 
-  // Merge: global visual props (colors) + checkout-specific functional props
-  // This allows checkout to maintain brand consistency while having its own minimalist layout
+  // Build checkout header config with INDEPENDENT props
+  // Visual props (colors) are only inherited if NOT set in checkout config
   const checkoutHeaderConfig = useMemo((): BlockNode => {
     const globalHeaderProps = globalLayout?.header_config?.props || {};
     const checkoutHeaderProps = globalLayout?.checkout_header_config?.props || {};
     
+    // Build merged props: global visual props as fallback, checkout props as priority
+    // This means: if checkout has a color set, use it; otherwise fall back to global
+    const mergedProps: Record<string, unknown> = {};
+    
+    // List of visual/styling props that can be inherited from global
+    const visualProps = ['headerBgColor', 'headerTextColor', 'logoUrl', 'mobileLogoUrl', 'logoWidth', 'logoHeight'];
+    
+    // First pass: inherit visual props from global (as fallback only)
+    for (const key of visualProps) {
+      if (globalHeaderProps[key] !== undefined && globalHeaderProps[key] !== '') {
+        mergedProps[key] = globalHeaderProps[key];
+      }
+    }
+    
+    // Apply checkout defaults
+    mergedProps.showSearch = false;
+    mergedProps.showCart = true;
+    mergedProps.showHeaderMenu = false;
+    mergedProps.customerAreaEnabled = false;
+    mergedProps.sticky = true;
+    mergedProps.featuredPromosEnabled = false;
+    
+    // Second pass: override with ALL checkout-specific props (these take full priority)
+    for (const [key, value] of Object.entries(checkoutHeaderProps)) {
+      // Only override if value is explicitly set (not undefined)
+      if (value !== undefined) {
+        mergedProps[key] = value;
+      }
+    }
+    
     return {
       id: 'checkout-header',
       type: 'Header',
-      props: {
-        // First: inherit all global visual props (colors, background, styling)
-        ...globalHeaderProps,
-        // Then: apply checkout-specific defaults (minimal distractions)
-        showSearch: false,
-        showCart: true,
-        showHeaderMenu: false,
-        customerAreaEnabled: false,
-        sticky: true,
-        featuredPromosEnabled: false,
-        // Finally: apply saved checkout config (user customizations take priority)
-        ...checkoutHeaderProps,
-      },
+      props: mergedProps,
     };
   }, [globalLayout?.header_config?.props, globalLayout?.checkout_header_config?.props]);
 
@@ -65,25 +83,42 @@ export default function StorefrontCheckout() {
     const globalFooterProps = globalLayout?.footer_config?.props || {};
     const checkoutFooterProps = globalLayout?.checkout_footer_config?.props || {};
     
+    // Build merged props: global visual props as fallback, checkout props as priority
+    const mergedProps: Record<string, unknown> = {};
+    
+    // List of visual/styling props that can be inherited from global
+    const visualProps = ['footerBgColor', 'footerTextColor', 'footerTitlesColor', 'logoUrl'];
+    
+    // First pass: inherit visual props from global (as fallback only)
+    for (const key of visualProps) {
+      if (globalFooterProps[key] !== undefined && globalFooterProps[key] !== '') {
+        mergedProps[key] = globalFooterProps[key];
+      }
+    }
+    
+    // Apply checkout defaults
+    mergedProps.menuId = '';
+    mergedProps.showSocial = false;
+    mergedProps.showNewsletterSection = false;
+    mergedProps.showFooter1 = false;
+    mergedProps.showFooter2 = false;
+    mergedProps.showSac = false;
+    mergedProps.showLogo = true;
+    mergedProps.showStoreInfo = false;
+    mergedProps.showCopyright = true;
+    
+    // Second pass: override with ALL checkout-specific props (these take full priority)
+    for (const [key, value] of Object.entries(checkoutFooterProps)) {
+      // Only override if value is explicitly set (not undefined)
+      if (value !== undefined) {
+        mergedProps[key] = value;
+      }
+    }
+    
     return {
       id: 'checkout-footer',
       type: 'Footer',
-      props: {
-        // First: inherit all global visual props (colors, background, styling)
-        ...globalFooterProps,
-        // Then: apply checkout-specific defaults (minimal distractions)
-        menuId: '',
-        showSocial: false,
-        showNewsletterSection: false,
-        showFooter1: false,  // Hide menu columns
-        showFooter2: false,  // Hide policy links
-        showSac: false,      // Hide SAC/contact section
-        showLogo: true,      // Keep logo for brand recognition
-        showStoreInfo: false, // Hide legal info
-        showCopyright: true,  // Keep copyright
-        // Finally: apply saved checkout config (user customizations take priority)
-        ...checkoutFooterProps,
-      },
+      props: mergedProps,
     };
   }, [globalLayout?.footer_config?.props, globalLayout?.checkout_footer_config?.props]);
 
