@@ -311,6 +311,10 @@ export function StorefrontFooterContent({
   // Keep for backwards compatibility
   const showLegal = getBoolean('showLegal', true);
   
+  // Image sections visibility toggles
+  const showPaymentMethods = getBoolean('showPaymentMethods', true);
+  const showSecuritySeals = getBoolean('showSecuritySeals', true);
+  
   // Footer menu visibility
   // Priority: props passed by PublicTemplateRenderer > footerConfig > default true
   const showFooter1 = showFooter1Override !== undefined 
@@ -405,8 +409,8 @@ export function StorefrontFooterContent({
   const officialStores = getImageSection('officialStores', 'Lojas Oficiais');
 
   const hasImageSections = 
-    paymentMethods.items.length > 0 || 
-    securitySeals.items.length > 0 || 
+    (showPaymentMethods && paymentMethods.items.length > 0) || 
+    (showSecuritySeals && securitySeals.items.length > 0) || 
     shippingMethods.items.length > 0 || 
     officialStores.items.length > 0;
 
@@ -1227,8 +1231,8 @@ export function StorefrontFooterContent({
         {/* Image Sections: Payment, Security, Shipping, Official Stores */}
         {hasImageSections && (
           <div className="border-t mt-6 md:mt-8 pt-6 md:pt-8 space-y-6 px-6 md:px-0 md:container md:mx-auto">
-            {/* Payment Methods */}
-            {paymentMethods.items.length > 0 && (
+            {/* Payment Methods - respects showPaymentMethods toggle */}
+            {showPaymentMethods && paymentMethods.items.length > 0 && (
               <div className="text-center">
                 <h4 
                   className="text-sm font-medium text-muted-foreground mb-3"
@@ -1249,8 +1253,8 @@ export function StorefrontFooterContent({
               </div>
             )}
 
-            {/* Security Seals */}
-            {securitySeals.items.length > 0 && (
+            {/* Security Seals - respects showSecuritySeals toggle */}
+            {showSecuritySeals && securitySeals.items.length > 0 && (
               <div className="text-center">
                 <h4 
                   className="text-sm font-medium text-muted-foreground mb-3"
