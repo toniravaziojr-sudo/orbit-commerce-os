@@ -75,10 +75,12 @@ export function ProtectedRoute({ children, requireTenant = true }: ProtectedRout
     return <Navigate to="/no-access" replace />;
   }
 
-  // Se precisa de tenant e não tem nenhum, redireciona para criar loja
+  // Se precisa de tenant e não tem nenhum, redireciona para seleção de plano (/start)
+  // Isso garante que TODOS os novos usuários passem pelo fluxo de billing
   // MAS só se não houver convite pendente E já esperamos o suficiente E não foi convidado antes
   if (requireTenant && tenants.length === 0 && !hasPendingInvite && hasWaitedForData && !wasInvited) {
-    return <Navigate to="/create-store" replace />;
+    console.log('[ProtectedRoute] User has no tenants - redirecting to /start for plan selection');
+    return <Navigate to="/start" replace />;
   }
 
   // Se precisa de tenant e não tem um selecionado (mas tem lojas), deixa a seleção acontecer
