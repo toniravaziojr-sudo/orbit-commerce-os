@@ -42,6 +42,8 @@ interface PropsEditorProps {
   canDelete?: boolean;
   pageType?: string;
   blockType?: string;
+  /** When true, bypasses the SYSTEM_BLOCKS redirect for Header/Footer (checkout has its own layout) */
+  isCheckoutContext?: boolean;
 }
 
 // Define which props belong to the Header notice group
@@ -68,6 +70,7 @@ export function PropsEditor({
   canDelete = true,
   pageType,
   blockType,
+  isCheckoutContext = false,
 }: PropsEditorProps) {
   const [noticeOpen, setNoticeOpen] = useState(false);
   
@@ -101,7 +104,8 @@ export function PropsEditor({
     'OrderDetail',
   ];
   
-  const isSystemBlock = SYSTEM_BLOCKS.includes(definition.type);
+  // In checkout context, Header/Footer should NOT be blocked - they have their own config
+  const isSystemBlock = SYSTEM_BLOCKS.includes(definition.type) && !isCheckoutContext;
   
   // Get the redirect message based on block type
   const getSystemBlockRedirect = (type: string): { section: string; description: string } => {

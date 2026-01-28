@@ -720,7 +720,7 @@ export function HeaderFooterPropsEditor({
           </div>
         </div>
 
-        {/* Full props editor for checkout config */}
+        {/* Full props editor for checkout config - bypass SYSTEM_BLOCKS restriction */}
         <div className="flex-1 overflow-hidden">
           <PropsEditor
             definition={definition}
@@ -729,6 +729,7 @@ export function HeaderFooterPropsEditor({
             onDelete={onDelete}
             onDuplicate={onDuplicate}
             canDelete={canDelete}
+            isCheckoutContext={true}
           />
         </div>
       </div>
