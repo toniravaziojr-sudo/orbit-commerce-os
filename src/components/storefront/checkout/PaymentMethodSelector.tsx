@@ -50,6 +50,10 @@ interface PaymentMethodSelectorProps {
   disabled?: boolean;
   methodsOrder?: PaymentMethod[];
   customLabels?: Record<string, string>;
+  // NEW: Visibility toggles for each payment method
+  showPix?: boolean;
+  showBoleto?: boolean;
+  showCreditCard?: boolean;
 }
 
 export function PaymentMethodSelector({
@@ -60,6 +64,10 @@ export function PaymentMethodSelector({
   disabled = false,
   methodsOrder = ['pix', 'credit_card', 'boleto'],
   customLabels = {},
+  // NEW: Default to true (show all)
+  showPix = true,
+  showBoleto = true,
+  showCreditCard = true,
 }: PaymentMethodSelectorProps) {
   const formatCardNumber = (value: string): string => {
     const digits = value.replace(/\D/g, '').slice(0, 16);
@@ -74,12 +82,18 @@ export function PaymentMethodSelector({
     return digits;
   };
 
-  // Get ordered methods based on methodsOrder prop
+  // Get ordered methods based on methodsOrder prop - filter by visibility
   const orderedMethods = useMemo(() => {
     return methodsOrder
       .filter(method => PAYMENT_METHODS[method])
+      .filter(method => {
+        if (method === 'pix' && !showPix) return false;
+        if (method === 'boleto' && !showBoleto) return false;
+        if (method === 'credit_card' && !showCreditCard) return false;
+        return true;
+      })
       .map(method => PAYMENT_METHODS[method]);
-  }, [methodsOrder]);
+  }, [methodsOrder, showPix, showBoleto, showCreditCard]);
 
   return (
     <div className="border rounded-lg p-4">

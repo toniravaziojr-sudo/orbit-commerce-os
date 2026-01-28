@@ -46,6 +46,10 @@ interface CheckoutDemoBlockProps {
   showTrustBadges?: boolean;
   showCouponField?: boolean;
   showTestimonials?: boolean;
+  // NEW: Payment methods visibility toggles
+  showPix?: boolean;
+  showBoleto?: boolean;
+  showCreditCard?: boolean;
   // Tenant ID for fetching real testimonials
   tenantId?: string;
   // Textos editáveis
@@ -108,6 +112,10 @@ export function CheckoutDemoBlock({
   showTrustBadges = true,
   showCouponField = true,
   showTestimonials = true,
+  // NEW: Payment methods visibility (default to true)
+  showPix = true,
+  showBoleto = true,
+  showCreditCard = true,
   tenantId,
   contactTitle = 'Informações de Contato',
   shippingTitle = 'Endereço de Entrega',
@@ -161,8 +169,15 @@ export function CheckoutDemoBlock({
     },
   };
 
-  // Get ordered methods based on config
-  const orderedMethods = paymentMethodsOrder.filter(m => PAYMENT_METHODS_CONFIG[m]);
+  // Get ordered methods based on config - filter by visibility flags
+  const orderedMethods = paymentMethodsOrder
+    .filter(m => PAYMENT_METHODS_CONFIG[m])
+    .filter(m => {
+      if (m === 'pix' && !showPix) return false;
+      if (m === 'boleto' && !showBoleto) return false;
+      if (m === 'credit_card' && !showCreditCard) return false;
+      return true;
+    });
 
   return (
     <div className="container mx-auto px-4 py-8">

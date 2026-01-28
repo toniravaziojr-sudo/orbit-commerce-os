@@ -769,6 +769,9 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
                 onCardDataChange={setCardData}
                 methodsOrder={checkoutConfig.paymentMethodsOrder}
                 customLabels={checkoutConfig.paymentMethodLabels}
+                showPix={checkoutConfig.showPix}
+                showBoleto={checkoutConfig.showBoleto}
+                showCreditCard={checkoutConfig.showCreditCard}
               />
             )}
 
@@ -1263,6 +1266,9 @@ function Step4Payment({
   onCardDataChange,
   methodsOrder,
   customLabels,
+  showPix,
+  showBoleto,
+  showCreditCard,
 }: { 
   disabled: boolean;
   paymentMethod: PaymentMethod;
@@ -1271,6 +1277,9 @@ function Step4Payment({
   onCardDataChange: (data: CardData) => void;
   methodsOrder?: PaymentMethod[];
   customLabels?: Partial<Record<PaymentMethod, string>>;
+  showPix?: boolean;
+  showBoleto?: boolean;
+  showCreditCard?: boolean;
 }) {
   return (
     <div className="space-y-6">
@@ -1287,6 +1296,9 @@ function Step4Payment({
         disabled={disabled}
         methodsOrder={methodsOrder}
         customLabels={customLabels}
+        showPix={showPix}
+        showBoleto={showBoleto}
+        showCreditCard={showCreditCard}
       />
     </div>
   );

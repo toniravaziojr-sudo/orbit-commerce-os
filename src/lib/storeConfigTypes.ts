@@ -125,6 +125,10 @@ export interface CheckoutConfig {
   purchaseEventTiming: 'all_orders' | 'paid_only';
   // Custom labels shown on each payment method (e.g., "5% OFF", "até 12x sem juros")
   paymentMethodLabels?: PaymentMethodCustomLabels;
+  // NEW: Visibility toggles for each payment method
+  showPix?: boolean;
+  showBoleto?: boolean;
+  showCreditCard?: boolean;
 }
 
 // Default configurations
@@ -197,6 +201,10 @@ export const defaultCheckoutConfig: CheckoutConfig = {
   paymentMethodsOrder: ['pix', 'credit_card', 'boleto'],
   purchaseEventTiming: 'paid_only',
   paymentMethodLabels: {},
+  // NEW: Default to show all payment methods
+  showPix: true,
+  showBoleto: true,
+  showCreditCard: true,
 };
 
 // Parse functions for database JSONB
@@ -350,5 +358,9 @@ export function parseCheckoutConfig(data: unknown): CheckoutConfig {
     paymentMethodsOrder,
     purchaseEventTiming: obj.purchaseEventTiming === 'all_orders' ? 'all_orders' : 'paid_only',
     paymentMethodLabels,
+    // NEW: Parse visibility toggles (default to true)
+    showPix: obj.showPix !== false,
+    showBoleto: obj.showBoleto !== false,
+    showCreditCard: obj.showCreditCard !== false,
   };
 }
