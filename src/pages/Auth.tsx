@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { lovable } from '@/integrations/lovable';
 import logoHorizontal from '@/assets/logo-horizontal.png';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -58,10 +59,14 @@ type ResetPasswordFormData = z.infer<typeof resetPasswordSchema>;
 export default function Auth() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, signIn, signUp, signInWithGoogle, resetPassword, isLoading: authLoading } = useAuth();
+  const { user, signIn, signUp, resetPassword, isLoading: authLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
-  const [activeTab, setActiveTab] = useState<string>('login');
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    // Detectar tab inicial via URL (para links diretos como /auth?tab=signup)
+    const urlTab = new URLSearchParams(window.location.search).get('tab');
+    return urlTab === 'signup' ? 'signup' : 'login';
+  });
   const [loginError, setLoginError] = useState<string | null>(null);
   
   // Detectar modo convite (usuário convidado não cria loja)
@@ -71,13 +76,19 @@ export default function Auth() {
   const planParams = usePlanFromUrl();
   
   // Salvar plano e UTMs no storage quando presentes na URL
+  // E também definir tab inicial baseado na URL
   useEffect(() => {
+    const urlTab = searchParams.get('tab');
+    if (urlTab === 'signup') {
+      setActiveTab('signup');
+    }
+    
     if (planParams.plan && !isInviteMode) {
       savePlanSelectionToStorage(planParams);
       // Se tem plano selecionado, ir direto para signup
       setActiveTab('signup');
     }
-  }, [planParams.plan, isInviteMode]);
+  }, [planParams.plan, isInviteMode, searchParams]);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -272,13 +283,20 @@ export default function Auth() {
     try {
       // Marcar intenção como LOGIN - será verificado após callback
       sessionStorage.setItem('oauth_intent', 'login');
-      const { error } = await signInWithGoogle();
-      if (error) {
-        toast.error(error.message);
+      
+      const result = await lovable.auth.signInWithOAuth('google', {
+        redirect_uri: window.location.origin,
+      });
+      
+      if (result.error) {
+        sessionStorage.removeItem('oauth_intent');
+        toast.error('Erro ao fazer login com Google. Tente novamente.');
+        setIsLoading(false);
       }
+      // Se redirected, o usuário foi redirecionado para o Google
     } catch (error) {
+      sessionStorage.removeItem('oauth_intent');
       toast.error('Erro ao fazer login com Google. Tente novamente.');
-    } finally {
       setIsLoading(false);
     }
   };
@@ -289,13 +307,20 @@ export default function Auth() {
     try {
       // Marcar intenção como SIGNUP - permite criar novo usuário
       sessionStorage.setItem('oauth_intent', 'signup');
-      const { error } = await signInWithGoogle();
-      if (error) {
-        toast.error(error.message);
+      
+      const result = await lovable.auth.signInWithOAuth('google', {
+        redirect_uri: window.location.origin,
+      });
+      
+      if (result.error) {
+        sessionStorage.removeItem('oauth_intent');
+        toast.error('Erro ao criar conta com Google. Tente novamente.');
+        setIsLoading(false);
       }
+      // Se redirected, o usuário foi redirecionado para o Google
     } catch (error) {
+      sessionStorage.removeItem('oauth_intent');
       toast.error('Erro ao criar conta com Google. Tente novamente.');
-    } finally {
       setIsLoading(false);
     }
   };
