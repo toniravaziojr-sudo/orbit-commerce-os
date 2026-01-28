@@ -95,8 +95,7 @@ import Reports from "@/pages/Reports";
 
 import CommandCenter from "@/pages/CommandCenter";
 import ChatGPT from "@/pages/ChatGPT";
-import PersonalData from "@/pages/account/PersonalData";
-import CompanyData from "@/pages/account/CompanyData";
+import AccountData from "@/pages/account/AccountData";
 import AccountBilling from "@/pages/account/Billing";
 import PlatformBilling from "@/pages/platform/PlatformBilling";
 import PlatformAnnouncements from "@/pages/platform/PlatformAnnouncements";
@@ -367,7 +366,7 @@ const App = () => {
                   <Route path="/fiscal" element={<Fiscal />} />
                   <Route path="/fiscal/products" element={<FiscalProductsConfig />} />
                   <Route path="/fiscal/operation-natures" element={<OperationNaturesSettings />} />
-                  <Route path="/import" element={<Import />} />
+                  <Route path="/import" element={<GatedRoute moduleKey="sistema_importacao" moduleName="Importação de Dados" moduleDescription="Importe produtos, clientes e pedidos de outras plataformas"><Import /></GatedRoute>} />
                   <Route path="/purchases" element={<GatedRoute moduleKey="erp_compras" moduleName="ERP Compras" moduleDescription="Gestão de compras e fornecedores"><Purchases /></GatedRoute>} />
                   <Route path="/influencers" element={<GatedRoute moduleKey="parcerias" moduleName="Parcerias" moduleDescription="Gestão de influencers"><Influencers /></GatedRoute>} />
                   
@@ -380,8 +379,9 @@ const App = () => {
                   <Route path="/settings/add-payment-method" element={<AddPaymentMethod />} />
                   <Route path="/settings/fiscal" element={<Navigate to="/fiscal?tab=configuracoes" replace />} />
                   {/* Account routes */}
-                  <Route path="/account/personal" element={<PersonalData />} />
-                  <Route path="/account/company" element={<CompanyData />} />
+                  <Route path="/account/personal" element={<Navigate to="/account/data" replace />} />
+                  <Route path="/account/company" element={<Navigate to="/account/data" replace />} />
+                  <Route path="/account/data" element={<AccountData />} />
                   <Route path="/account/billing" element={<AccountBilling />} />
                   <Route path="/storefront" element={<StorefrontSettings />} />
                   <Route path="/storefront/conversao" element={<Navigate to="/abandoned-checkouts" replace />} />

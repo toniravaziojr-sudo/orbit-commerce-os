@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { User, LogOut, Building2, CreditCard } from "lucide-react";
+import { User, LogOut, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -100,13 +100,9 @@ export function AppHeader() {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate("/account/personal")}>
+            <DropdownMenuItem onClick={() => navigate("/account/data")}>
               <User className="mr-2 h-4 w-4" />
-              Dados Pessoais
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/account/company")}>
-              <Building2 className="mr-2 h-4 w-4" />
-              Dados da Empresa
+              Dados da Conta
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate("/account/billing")}>
               <CreditCard className="mr-2 h-4 w-4" />
