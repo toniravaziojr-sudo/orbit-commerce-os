@@ -127,7 +127,20 @@ export function useYouTubeConnection() {
               `YouTube conectado! Canal: ${event.data.channel || "Seu canal"}`
             );
           } else {
-            toast.error(event.data.error || "Erro ao conectar YouTube");
+            // Show detailed error based on error code
+            const errorCode = event.data.errorCode;
+            let errorMessage = event.data.error || "Erro ao conectar YouTube";
+            
+            // Add context for specific errors
+            if (errorCode === 'testing_mode_restriction') {
+              errorMessage = "OAuth em modo Testing: seu email não é um usuário de teste";
+            } else if (errorCode === 'unverified_app_cap') {
+              errorMessage = "Limite de usuários atingido. App precisa de verificação.";
+            } else if (errorCode === 'access_denied') {
+              errorMessage = "Você cancelou a autorização";
+            }
+            
+            toast.error(errorMessage);
           }
         }
       };

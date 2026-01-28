@@ -360,6 +360,28 @@ Conexões são salvas em `marketplace_connections` com:
 
 O YouTube está integrado ao **Gestor de Mídias IA** para upload, agendamento e monitoramento de vídeos.
 
+### ⚠️ REGRA DE ROLLOUT (CRÍTICA)
+
+> **NÃO NEGOCIÁVEL** — O YouTube segue rollout controlado por feature flag.
+
+| Status | Descrição |
+|--------|-----------|
+| `testing` | OAuth Consent Screen em "Testing" no Google Cloud |
+| `in_production_unverified` | Publicado mas aguardando verificação |
+| `verified` | Verificado pelo Google, liberado para todos |
+
+**Feature Flag:** `youtube_enabled_for_all_tenants`
+
+Enquanto `is_enabled = false`:
+- ✅ Platform admins têm acesso
+- ✅ Tenant admin (owner é platform admin) tem acesso
+- ❌ Demais tenants NÃO têm acesso
+
+**Como liberar para todos:**
+1. Publicar app no Google Cloud (OAuth consent screen → Publish app)
+2. Submeter para verificação se usar escopos sensíveis
+3. Após aprovação: `UPDATE billing_feature_flags SET is_enabled = true WHERE flag_key = 'youtube_enabled_for_all_tenants'`
+
 ### Funcionalidades
 
 | Feature | Status | Descrição |
@@ -371,12 +393,36 @@ O YouTube está integrado ao **Gestor de Mídias IA** para upload, agendamento e
 | Analytics | 🟧 Pending | Views, watch time, CTR |
 | Legendas | 🟧 Pending | Auto-captions via YouTube |
 
+### Agendamento de Publicação (publishAt)
+
+Para agendar publicação, o YouTube exige:
+1. `privacyStatus` DEVE ser `"private"`
+2. `publishAt` em formato ISO 8601 UTC (ex: `2026-01-30T15:00:00Z`)
+3. Data/hora DEVE ser pelo menos 1 hora no futuro
+
+A Edge Function `youtube-upload` valida automaticamente e força `privacyStatus: 'private'` quando `publishAt` está presente.
+
+**Erros comuns:**
+- `invalidPublishAt`: Horário muito próximo ou no passado
+- Vídeo não vai público se `publishAt` estiver no passado
+
+### Tratamento de Erros OAuth
+
+| Código | Descrição | Ação |
+|--------|-----------|------|
+| `testing_mode_restriction` | Email não é test user | Adicionar email no Google Cloud Console |
+| `unverified_app_cap` | Limite de 100 usuários | Submeter app para verificação |
+| `access_denied` | Usuário cancelou | Tentar novamente |
+| `consent_required` | Permissões recusadas | Aceitar todas as permissões |
+| `quota_exceeded` | Quota diária esgotada | Aguardar reset (PT: meia-noite) |
+| `no_channel` | Usuário sem canal | Criar canal no YouTube |
+
 ### Tabelas do Banco
 
 | Tabela | Descrição |
 |--------|-----------|
-| `youtube_connections` | Conexões OAuth por tenant |
-| `youtube_uploads` | Fila de uploads com status |
+| `youtube_connections` | Conexões OAuth por tenant (inclui `oauth_error_code` para debug) |
+| `youtube_uploads` | Fila de uploads com status e `scheduled_publish_at_utc` |
 | `youtube_analytics` | Cache de métricas |
 | `youtube_oauth_states` | Estados temporários do OAuth |
 
@@ -393,24 +439,37 @@ O YouTube utiliza o sistema de créditos IA para gerenciar a quota da API do Goo
 
 **Fórmula:** `calculate_youtube_upload_credits(file_size_bytes, has_thumbnail, has_captions)`
 
+**Limite diário:** ~6 uploads por canal (quota Google: 10.000 unidades/dia)
+
 ### Edge Functions
 
 | Function | Descrição |
 |----------|-----------|
 | `youtube-oauth-start` | Inicia fluxo OAuth |
-| `youtube-oauth-callback` | Processa callback e salva tokens |
-| `youtube-upload` | Upload assíncrono com consumo de créditos |
+| `youtube-oauth-callback` | Processa callback com tratamento de erros detalhado |
+| `youtube-upload` | Upload assíncrono com validação de `publishAt` |
 
-### Fluxo de Upload
+### Fluxo de Upload com Agendamento
 
 ```
-1. Usuário seleciona vídeo no Gestor de Mídias IA
-2. Verifica saldo de créditos
-3. Reserva créditos necessários
-4. Cria job em youtube_uploads (status: pending)
-5. Background: Download vídeo → Upload para YouTube
-6. Ao concluir: Consume créditos reservados
-7. Atualiza status para completed com youtube_video_id
+1. Usuário seleciona vídeo + data/hora de publicação
+2. Converte horário local → UTC ISO 8601
+3. Valida: publishAt > now() + 1h
+4. Verifica saldo de créditos
+5. Reserva créditos necessários
+6. Cria job em youtube_uploads:
+   - status: 'pending'
+   - privacy_status: 'private' (obrigatório para agendamento)
+   - publish_at: <UTC ISO>
+7. Background:
+   - Download vídeo
+   - Upload para YouTube com publishAt
+   - YouTube agenda automaticamente
+8. Ao concluir:
+   - Consume créditos
+   - status: 'completed'
+   - publish_status: 'scheduled'
+9. YouTube publica automaticamente no horário
 ```
 
 ### Hooks e Componentes
@@ -418,8 +477,22 @@ O YouTube utiliza o sistema de créditos IA para gerenciar a quota da API do Goo
 | Arquivo | Descrição |
 |---------|-----------|
 | `src/hooks/useYouTubeConnection.ts` | Gerencia conexão OAuth |
-| `src/components/integrations/YouTubeSettings.tsx` | UI de configuração |
-| `src/pages/integrations/YouTubeCallback.tsx` | Handler do callback OAuth |
+| `src/hooks/useYouTubeAvailability.ts` | Verifica se YouTube está disponível para o tenant |
+| `src/components/integrations/YouTubeSettings.tsx` | UI de configuração com controle de rollout |
+| `src/pages/integrations/YouTubeCallback.tsx` | Handler do callback OAuth com mensagens de erro |
+
+### Configuração no Google Cloud Console
+
+**Redirect URIs obrigatórias:**
+```
+https://ojssezfjhdvvncsqyhyq.supabase.co/functions/v1/youtube-oauth-callback
+```
+
+**Escopos mínimos para MVP (Agendamento):**
+```
+https://www.googleapis.com/auth/youtube.upload
+https://www.googleapis.com/auth/youtube.readonly
+```
 
 ---
 
@@ -429,7 +502,8 @@ O YouTube utiliza o sistema de créditos IA para gerenciar a quota da API do Goo
 - [ ] Sincronização de pedidos Olist → Sistema
 - [ ] Sincronização de estoque Sistema → Olist
 - [ ] Emissão de NF-e via Olist
-- [ ] Melhorar UX de reconexão OAuth
+- [x] ~~Melhorar UX de reconexão OAuth~~ (mensagens de erro detalhadas)
 - [ ] Logs de erro por integração
 - [ ] YouTube Analytics sync
 - [ ] YouTube auto-captions
+- [ ] YouTube: sync job para verificar status de vídeos agendados

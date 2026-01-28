@@ -1,10 +1,12 @@
 // ============================================
 // YOUTUBE SETTINGS - Integration UI Component
+// Production-ready with rollout control
 // ============================================
 
 import { useState } from "react";
-import { Youtube, Loader2, ExternalLink, RefreshCw, Unlink, Users, Video, Settings2 } from "lucide-react";
+import { Youtube, Loader2, ExternalLink, RefreshCw, Unlink, Users, Video, Settings2, AlertTriangle, Lock } from "lucide-react";
 import { useYouTubeConnection } from "@/hooks/useYouTubeConnection";
+import { useYouTubeAvailability } from "@/hooks/useYouTubeAvailability";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -37,12 +39,56 @@ export function YouTubeSettings() {
     disconnect,
     refetch,
   } = useYouTubeConnection();
+  
+  const { isAvailable, reason, rolloutStatus, isLoading: isCheckingAvailability } = useYouTubeAvailability();
 
-  if (isLoading) {
+  if (isLoading || isCheckingAvailability) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Show locked state if not available
+  if (!isAvailable) {
+    return (
+      <Card className="opacity-75">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+                <Youtube className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <div>
+                <CardTitle className="flex items-center gap-2 text-muted-foreground">
+                  YouTube
+                  <Badge variant="outline" className="gap-1">
+                    <Lock className="h-3 w-3" />
+                    Em breve
+                  </Badge>
+                </CardTitle>
+                <CardDescription>
+                  Publique e agende vídeos diretamente no seu canal
+                </CardDescription>
+              </div>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              A integração do YouTube está em fase de validação e será liberada em breve para todos os clientes.
+              {rolloutStatus === 'testing' && (
+                <span className="block mt-1 text-xs text-muted-foreground">
+                  Status: Aguardando verificação do Google OAuth
+                </span>
+              )}
+            </AlertDescription>
+          </Alert>
         </CardContent>
       </Card>
     );

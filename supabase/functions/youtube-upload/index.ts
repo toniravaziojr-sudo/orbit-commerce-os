@@ -214,7 +214,21 @@ async function processYouTubeUpload(supabase: any, uploadJob: any, connection: a
     const videoBuffer = await videoResponse.arrayBuffer();
     const videoBlob = new Blob([videoBuffer], { type: 'video/mp4' });
 
-    // Step 2: Create YouTube video resource
+    // Step 2: Validate publishAt if scheduling
+    if (uploadJob.publish_at) {
+      const publishDate = new Date(uploadJob.publish_at);
+      const now = new Date();
+      const minFutureMs = 60 * 60 * 1000; // 1 hour minimum
+      
+      if (publishDate.getTime() < now.getTime() + minFutureMs) {
+        throw new Error('invalidPublishAt: A data de publicação deve ser pelo menos 1 hora no futuro.');
+      }
+    }
+
+    // Step 3: Create YouTube video resource
+    // IMPORTANT: For scheduling to work, privacyStatus MUST be 'private'
+    const effectivePrivacy = uploadJob.publish_at ? 'private' : (uploadJob.privacy_status || 'private');
+    
     const videoMetadata = {
       snippet: {
         title: uploadJob.title,
@@ -223,7 +237,7 @@ async function processYouTubeUpload(supabase: any, uploadJob: any, connection: a
         categoryId: uploadJob.category_id || '22', // Default: People & Blogs
       },
       status: {
-        privacyStatus: uploadJob.privacy_status || 'private',
+        privacyStatus: effectivePrivacy,
         publishAt: uploadJob.publish_at || undefined,
         selfDeclaredMadeForKids: false,
       },
