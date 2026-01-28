@@ -436,7 +436,13 @@ export function CategoryPageLayout({
                     <div className="mt-2 flex flex-col gap-1.5">
                       {/* 1º Botão "Adicionar ao carrinho" (se ativo) */}
                       {showAddToCartButton && (
-                        <button className="w-full py-1.5 px-3 text-xs border border-primary text-primary bg-transparent rounded-md hover:bg-primary/10 transition-colors flex items-center justify-center gap-1">
+                        <button 
+                          className="w-full py-1.5 px-3 text-xs border bg-transparent rounded-md hover:opacity-80 transition-colors flex items-center justify-center gap-1"
+                          style={{
+                            borderColor: 'var(--theme-button-primary-bg)',
+                            color: 'var(--theme-button-primary-bg)',
+                          }}
+                        >
                           <ShoppingCart className="h-3 w-3" />
                           <span>Adicionar</span>
                         </button>
@@ -529,8 +535,12 @@ export function CategoryPageLayout({
                               "w-full py-1.5 px-3 text-xs rounded-md transition-colors flex items-center justify-center gap-1",
                               addedProducts.has(product.id)
                                 ? "bg-green-500 text-white border-green-500"
-                                : "border border-primary text-primary bg-transparent hover:bg-primary/10"
+                                : "border bg-transparent hover:opacity-80"
                             )}
+                            style={!addedProducts.has(product.id) ? {
+                              borderColor: 'var(--theme-button-primary-bg)',
+                              color: 'var(--theme-button-primary-bg)',
+                            } : undefined}
                             onClick={(e) => handleAddToCart(e, product)}
                             disabled={addedProducts.has(product.id)}
                           >

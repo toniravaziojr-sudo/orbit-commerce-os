@@ -198,7 +198,9 @@ export function StorefrontHeaderContent({
     );
   };
 
-  const primaryColor = storeSettings?.primary_color || '#6366f1';
+  // Use CSS variable from themeSettings instead of legacy store_settings.primary_color
+  // The --theme-button-primary-bg is injected by useBuilderThemeInjector (builder) or StorefrontThemeInjector (public)
+  const primaryColor = 'var(--theme-button-primary-bg, #1a1a1a)';
   
   // Organize menu items into hierarchy (parents with children)
   const hierarchicalMenuItems = useMemo((): MenuItemWithChildren[] => {
