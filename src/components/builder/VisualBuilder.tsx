@@ -1069,19 +1069,38 @@ export function VisualBuilder({
         {!isPreviewMode && showRightSidebar && store.selectedBlock && (
           <div className="w-72 flex-shrink-0 bg-background shadow-sm relative">
             {store.selectedBlock && store.selectedBlockDefinition ? (
-              // Header/Footer: Show message to use Theme Settings instead
+              // Header/Footer: Check if it's checkout page for dedicated editor
               store.selectedBlock.type === 'Header' || store.selectedBlock.type === 'Footer' ? (
-                <div className="h-full flex items-center justify-center p-6 border-l">
-                  <div className="text-center text-muted-foreground">
-                    <LayoutGrid className="h-10 w-10 mx-auto mb-3 opacity-30" />
-                    <p className="text-sm font-medium">
-                      {store.selectedBlock.type === 'Header' ? 'Cabeçalho' : 'Rodapé'}
-                    </p>
-                    <p className="text-xs mt-1">
-                      Configure em <strong>Configurações do tema</strong> no menu esquerdo
-                    </p>
+                // CHECKOUT: Show full HeaderFooterPropsEditor for independent config
+                isCheckoutPage ? (
+                  <HeaderFooterPropsEditor
+                    definition={store.selectedBlockDefinition}
+                    props={store.selectedBlock.props}
+                    onChange={handlePropsChange}
+                    onDelete={handleDeleteBlock}
+                    onDuplicate={handleDuplicateBlock}
+                    canDelete={false}
+                    isHomePage={isHomePage}
+                    isCheckoutPage={isCheckoutPage}
+                    blockType={store.selectedBlock.type as 'Header' | 'Footer'}
+                    tenantId={tenantId}
+                    pageType={pageType}
+                    pageId={pageId}
+                  />
+                ) : (
+                  // OTHER PAGES: Show message to use Theme Settings
+                  <div className="h-full flex items-center justify-center p-6 border-l">
+                    <div className="text-center text-muted-foreground">
+                      <LayoutGrid className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                      <p className="text-sm font-medium">
+                        {store.selectedBlock.type === 'Header' ? 'Cabeçalho' : 'Rodapé'}
+                      </p>
+                      <p className="text-xs mt-1">
+                        Configure em <strong>Configurações do tema</strong> no menu esquerdo
+                      </p>
+                    </div>
                   </div>
-                </div>
+                )
               ) : (
                 <PropsEditor
                   definition={store.selectedBlockDefinition}
