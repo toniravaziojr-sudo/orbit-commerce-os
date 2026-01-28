@@ -507,6 +507,89 @@ Módulos bloqueados devem ser visíveis mas não utilizáveis. Usar:
 
 ---
 
+## Controle de Acesso por Plano na Sidebar
+
+O menu lateral (AppSidebar) implementa controle de acesso baseado em planos para garantir que usuários só vejam/acessem módulos permitidos pelo seu plano.
+
+### Implementação
+
+**Arquivo:** `src/components/layout/AppSidebar.tsx`
+
+```typescript
+// Mapeamento de grupos do menu para módulos de acesso
+interface NavGroup {
+  moduleKey?: string;  // Mapeia para plan_module_access.module_key
+  // ...
+}
+
+interface NavItem {
+  blockedFeature?: string;  // Feature específica que bloqueia este item
+  // ...
+}
+```
+
+### Comportamento
+
+| Situação | Comportamento Visual |
+|----------|---------------------|
+| Módulo `access_level = 'none'` | Grupo exibe 🔒 e badge "Upgrade" |
+| Feature bloqueada | Item exibe 🔒 com tooltip explicativo |
+| Plataforma Admin | Acesso total (bypass) |
+
+### Módulos Mapeados
+
+| moduleKey | Grupo no Menu |
+|-----------|---------------|
+| `marketing_advanced` | Marketing Avançado (Campanhas, Email Marketing, etc.) |
+| `partnerships` | Parcerias (Afiliados, Influencers, Fornecedores) |
+| `crm` | CRM (Notificações, Suporte) |
+| `erp` | ERP (Fiscal, Financeiro, Compras) |
+| `integrations` | Integrações |
+
+### Features Bloqueadas por Item
+
+| blockedFeature | Item | Condição |
+|----------------|------|----------|
+| `chatgpt` | ChatGPT | Planos básico/evolução |
+| `email_marketing` | Email Marketing | Planos básico/evolução |
+| `user_management` | Gestão de Usuários | Somente owners veem |
+
+### Hook Utilizado
+
+```typescript
+import { useAllModuleAccess } from '@/hooks/useTenantAccess';
+
+const { 
+  isLoading,
+  isFeatureBlocked  // (moduleKey, feature?) => boolean
+} = useAllModuleAccess();
+```
+
+### Regras de Renderização
+
+```typescript
+// Grupo bloqueado
+if (isModuleBlocked(group.moduleKey)) {
+  return (
+    <SidebarGroup disabled>
+      <Lock /> {group.label} <Badge>Upgrade</Badge>
+    </SidebarGroup>
+  );
+}
+
+// Item bloqueado
+if (isFeatureBlocked(groupModuleKey, item.blockedFeature)) {
+  return (
+    <SidebarItem disabled>
+      <Lock /> {item.label}
+      <Tooltip>Disponível em planos superiores</Tooltip>
+    </SidebarItem>
+  );
+}
+```
+
+---
+
 ## Regras de Negócio
 
 | Regra | Descrição |
