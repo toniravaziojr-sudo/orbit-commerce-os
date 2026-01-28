@@ -85,6 +85,7 @@ import BlockSuggestions from "@/pages/BlockSuggestions";
 import DemoEstruturaPage from "@/pages/DemoEstruturaPage";
 import LateCallback from "@/pages/integrations/LateCallback";
 import MetaOAuthCallback from "@/pages/MetaOAuthCallback";
+import YouTubeCallback from "@/pages/integrations/YouTubeCallback";
 import NotFound from "@/pages/NotFound";
 import Marketplaces from "@/pages/Marketplaces";
 import MercadoLivre from "@/pages/marketplaces/MercadoLivre";
@@ -192,6 +193,8 @@ const App = () => {
               <Route path="/integrations/late/callback" element={<LateCallback />} />
               {/* Meta OAuth callback - handles Meta connection result */}
               <Route path="/integrations/meta/callback" element={<MetaOAuthCallback />} />
+              {/* YouTube OAuth callback - handles YouTube connection result */}
+              <Route path="/integrations/youtube/callback" element={<YouTubeCallback />} />
               <Route path="/demo-estrutura" element={<DemoEstruturaPage />} />
               <Route path="/accept-invite" element={<AcceptInvite />} />
               {/* Preview route for review page (development only) */}

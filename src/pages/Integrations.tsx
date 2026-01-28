@@ -5,6 +5,7 @@ import {
   Boxes,
   Globe,
   MoreHorizontal,
+  Youtube,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -12,11 +13,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PaymentGatewaySettings } from "@/components/payments/PaymentGatewaySettings";
 import { LateConnectionSettings } from "@/components/integrations/LateConnectionSettings";
 import { MetaUnifiedSettings } from "@/components/integrations/MetaUnifiedSettings";
+import { YouTubeSettings } from "@/components/integrations/YouTubeSettings";
 import { MarketplacesIntegrationTab } from "@/components/integrations/MarketplacesIntegrationTab";
 import { DomainAndEmailSettings } from "@/components/integrations/DomainAndEmailSettings";
 import { usePaymentProviders } from "@/hooks/usePaymentProviders";
 import { useLateConnection } from "@/hooks/useLateConnection";
 import { useMeliConnection } from "@/hooks/useMeliConnection";
+import { useYouTubeConnection } from "@/hooks/useYouTubeConnection";
 import { StatusBadge } from "@/components/ui/status-badge";
 
 // Future ERP integrations
@@ -34,10 +37,11 @@ export default function Integrations() {
   const { providers: paymentProviders, isLoading: loadingPayments } = usePaymentProviders();
   const { isConnected: lateConnected } = useLateConnection();
   const { isConnected: meliConnected } = useMeliConnection();
+  const { isConnected: youtubeConnected } = useYouTubeConnection();
   const [activeTab, setActiveTab] = useState("payments");
 
   const activePaymentGateways = paymentProviders.filter(p => p.is_enabled).length;
-  const socialAccountsCount = lateConnected ? 1 : 0;
+  const socialAccountsCount = (lateConnected ? 1 : 0) + (youtubeConnected ? 1 : 0);
   const marketplacesCount = meliConnected ? 1 : 0;
 
   return (
@@ -73,10 +77,12 @@ export default function Integrations() {
                 <Share2 className="h-6 w-6 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Meta</p>
+                <p className="text-sm text-muted-foreground">Redes Sociais</p>
                 <p className="text-2xl font-bold">
                   {socialAccountsCount}
-                  <span className="text-sm font-normal text-muted-foreground ml-1">{lateConnected ? "conectado" : "pendente"}</span>
+                  <span className="text-sm font-normal text-muted-foreground ml-1">
+                    {socialAccountsCount === 1 ? "conectado" : socialAccountsCount > 0 ? "conectados" : "pendente"}
+                  </span>
                 </p>
               </div>
             </div>
@@ -109,7 +115,11 @@ export default function Integrations() {
           </TabsTrigger>
           <TabsTrigger value="social" className="gap-2">
             <Share2 className="h-4 w-4" />
-            <span className="hidden sm:inline">Meta</span>
+            <span className="hidden sm:inline">Redes Sociais</span>
+          </TabsTrigger>
+          <TabsTrigger value="youtube" className="gap-2">
+            <Youtube className="h-4 w-4" />
+            <span className="hidden sm:inline">YouTube</span>
           </TabsTrigger>
           <TabsTrigger value="marketplaces" className="gap-2">
             <Boxes className="h-4 w-4" />
@@ -132,6 +142,10 @@ export default function Integrations() {
         <TabsContent value="social" className="space-y-6">
           <MetaUnifiedSettings />
           <LateConnectionSettings />
+        </TabsContent>
+
+        <TabsContent value="youtube" className="space-y-6">
+          <YouTubeSettings />
         </TabsContent>
 
         <TabsContent value="marketplaces" className="space-y-6">
