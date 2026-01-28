@@ -360,34 +360,21 @@ export function VisualBuilder({
   useEffect(() => {
     if (!layoutLoading && !overridesLoading) {
       if (store.isDirty) {
-        // When dirty, only update header/footer blocks from globalLayout
-        // to reflect settings changes without losing user's other edits
+        // CHECKOUT PAGES: When dirty, DO NOT sync header/footer from globalLayout
+        // This preserves user's local edits until they click "Save"
+        // The globalLayout data is stale until save happens
+        if (isCheckoutPage) {
+          // For checkout: skip header/footer sync entirely when editing
+          // User's local changes should persist without being overwritten
+          return;
+        }
+        
+        // For non-checkout pages: sync header/footer from globalLayout
+        // This reflects settings changes without losing user's other edits
         const currentContent = store.content;
         if (currentContent?.children && globalLayout) {
-          // For checkout: use checkout configs DIRECTLY without merge
-          // This preserves user's edits in checkout editor
-          let headerConfig: typeof globalLayout.header_config;
-          let footerConfig: typeof globalLayout.footer_config;
-          
-          if (isCheckoutPage) {
-            // CHECKOUT INDEPENDENCE: Use checkout configs directly - NO MERGE
-            // This ensures toggle changes and color edits persist
-            headerConfig = {
-              ...globalLayout.checkout_header_config,
-              props: {
-                ...globalLayout.checkout_header_config.props,
-              },
-            };
-            footerConfig = {
-              ...globalLayout.checkout_footer_config,
-              props: {
-                ...globalLayout.checkout_footer_config.props,
-              },
-            };
-          } else {
-            headerConfig = globalLayout.header_config;
-            footerConfig = globalLayout.footer_config;
-          }
+          const headerConfig = globalLayout.header_config;
+          const footerConfig = globalLayout.footer_config;
           
           const updatedChildren = currentContent.children.map(child => {
             if (child.type === 'Header') {
@@ -406,7 +393,7 @@ export function VisualBuilder({
         }
         return;
       }
-      // Preserve selection when only pageOverrides change (to keep sidebar visible)
+      // When not dirty: apply full global layout (initial load or after save)
       store.setContent(contentWithGlobalLayout, true);
     }
   }, [pageType, contentWithGlobalLayout, layoutLoading, overridesLoading, store, store.isDirty, globalLayout, isCheckoutPage]);
