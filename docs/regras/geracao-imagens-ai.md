@@ -150,6 +150,24 @@ A chave `FAL_API_KEY` deve ser configurada em:
 - **Seção:** Fal.AI
 - **Armazenamento:** `platform_credentials` (tabela de credenciais globais)
 
+### Fluxo de Credenciais nas Edge Functions
+
+Todas as Edge Functions de geração usam `getCredential()` do shared module:
+
+```typescript
+import { getCredential } from "../_shared/platform-credentials.ts";
+
+const falApiKey = await getCredential(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  "FAL_API_KEY"
+);
+```
+
+**Prioridade de busca:**
+1. Banco de dados (`platform_credentials`) — preferencial
+2. Variável de ambiente (fallback)
+
 ---
 
 ## Custos Estimados
