@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { 
   ExternalLink, 
   Loader2, 
@@ -24,9 +25,13 @@ import {
   Music2,
   Lock,
   Server,
-  Globe
+  Globe,
+  Link2,
+  Unlink,
+  ChevronDown
 } from 'lucide-react';
 import { useMarketingIntegrations, MarketingIntegration } from '@/hooks/useMarketingIntegrations';
+import { TikTokIntegrationCard } from './TikTokIntegrationCard';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -438,117 +443,10 @@ export function MarketingIntegrationsSettings() {
 
         {/* TikTok Tab */}
         <TabsContent value="tiktok">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Music2 className="h-5 w-5" />
-                    TikTok Pixel
-                  </CardTitle>
-                  <CardDescription>
-                    Rastreie conversões e otimize suas campanhas no TikTok Ads
-                  </CardDescription>
-                </div>
-                <StatusIndicator status={config?.tiktok_status || 'inactive'} />
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Client-side Section */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <Globe className="h-4 w-4" />
-                  Client-side (Pixel)
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="tiktok-enabled">Ativar TikTok Pixel</Label>
-                  <Switch
-                    id="tiktok-enabled"
-                    checked={tiktokEnabled}
-                    onCheckedChange={setTiktokEnabled}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="tiktok-pixel-id">Pixel ID</Label>
-                  <Input
-                    id="tiktok-pixel-id"
-                    placeholder="XXXXXXXXXXXXXXXXX"
-                    value={tiktokPixelId}
-                    onChange={(e) => setTiktokPixelId(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Encontre seu Pixel ID no{' '}
-                    <a 
-                      href="https://ads.tiktok.com/marketing_api/apps" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline inline-flex items-center gap-1"
-                    >
-                      TikTok Ads Manager <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </p>
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Server-side Section */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <Server className="h-4 w-4" />
-                  Server-side (Events API)
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="tiktok-events-api-enabled">Ativar Events API</Label>
-                    <p className="text-xs text-muted-foreground">Melhora atribuição e reduz perda por bloqueadores</p>
-                  </div>
-                  <Switch
-                    id="tiktok-events-api-enabled"
-                    checked={tiktokEventsApiEnabled}
-                    onCheckedChange={setTiktokEventsApiEnabled}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="tiktok-access-token" className="flex items-center gap-2">
-                    <Lock className="h-3 w-3" />
-                    Access Token
-                    {tiktokTokenConfigured && (
-                      <Badge variant="secondary" className="text-xs">Configurado</Badge>
-                    )}
-                  </Label>
-                  <Input
-                    id="tiktok-access-token"
-                    type="password"
-                    placeholder={tiktokTokenConfigured ? '••••••••••••' : 'Cole seu access token aqui'}
-                    value={tiktokAccessToken}
-                    onChange={(e) => setTiktokAccessToken(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Token nunca é exibido após salvo. Para alterar, insira um novo.
-                  </p>
-                </div>
-              </div>
-
-              {config?.tiktok_last_error && (
-                <Alert variant="destructive">
-                  <XCircle className="h-4 w-4" />
-                  <AlertDescription>{config.tiktok_last_error}</AlertDescription>
-                </Alert>
-              )}
-
-              <div className="pt-4">
-                <Button onClick={handleSaveTikTok} disabled={upsertConfig.isPending}>
-                  {upsertConfig.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Salvar
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <TikTokIntegrationCard 
+            config={config}
+            upsertConfig={upsertConfig}
+          />
         </TabsContent>
       </Tabs>
     </div>
