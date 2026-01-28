@@ -1065,8 +1065,8 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
           {showBadges && (
             isEditing ? (
               <div className="flex flex-wrap gap-2">
-                <span className="px-2 py-1 bg-blue-500 text-white text-xs font-bold rounded">Novo</span>
-                <span className="px-2 py-1 bg-orange-500 text-white text-xs font-bold rounded">Mais Vendido</span>
+                <span className="px-2 py-1 bg-foreground text-background text-xs font-bold rounded">Novo</span>
+                <span className="px-2 py-1 bg-muted-foreground text-background text-xs font-bold rounded">Mais Vendido</span>
                 <span className="text-xs text-muted-foreground">[Selos do Aumentar Ticket]</span>
               </div>
             ) : (

@@ -70,7 +70,7 @@ const defaultConfig: Partial<PopupConfig> = {
   birth_date_required: false,
   background_color: '#ffffff',
   text_color: '#000000',
-  button_bg_color: '#3b82f6',
+  button_bg_color: '', // Empty = inherits from theme primary
   button_text_color: '#ffffff',
   trigger_type: 'delay',
   trigger_delay_seconds: 5,

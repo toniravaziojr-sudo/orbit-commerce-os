@@ -311,7 +311,7 @@ const blockDefinitions: BlockDefinition[] = [
       // Barra Superior (Aviso Geral)
       noticeEnabled: false,
       noticeText: '',
-      noticeBgColor: '#1e40af',
+      noticeBgColor: '', // Empty = inherits from theme primary color
       noticeTextColor: '#ffffff',
       noticeAnimation: 'fade',
       // Barra Superior - ação
@@ -468,7 +468,8 @@ const blockDefinitions: BlockDefinition[] = [
       noticeBgColor: {
         type: 'color',
         label: 'Cor de Fundo',
-        defaultValue: '#1e40af',
+        defaultValue: '', // Empty = inherits from theme
+        placeholder: 'Usar cor primária do tema',
       },
       noticeTextColor: {
         type: 'color',

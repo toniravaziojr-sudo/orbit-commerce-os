@@ -197,7 +197,7 @@ export const defaultHomeTemplate: BlockNode = {
         sticky: true,
         noticeEnabled: true,
         noticeText: 'Frete grátis em compras acima de R$199! Aproveite nossas ofertas.',
-        noticeBgColor: '#1e40af',
+        noticeBgColor: '', // Empty = inherits from theme primary
         noticeTextColor: '#ffffff',
       },
     },
@@ -324,7 +324,7 @@ export const defaultHomeTemplate: BlockNode = {
         footerTextColor: '',
         noticeEnabled: false,
         noticeText: '',
-        noticeBgColor: '#1e40af',
+        noticeBgColor: '', // Empty = inherits from theme primary
         noticeTextColor: '#ffffff',
       },
     },
@@ -348,7 +348,7 @@ export const defaultCategoryTemplate: BlockNode = {
         sticky: true,
         noticeEnabled: false,
         noticeText: '',
-        noticeBgColor: '#1e40af',
+        noticeBgColor: '', // Empty = inherits from theme primary
         noticeTextColor: '#ffffff',
       },
     },
@@ -394,7 +394,7 @@ export const defaultCategoryTemplate: BlockNode = {
         footerTextColor: '',
         noticeEnabled: false,
         noticeText: '',
-        noticeBgColor: '#1e40af',
+        noticeBgColor: '', // Empty = inherits from theme primary
         noticeTextColor: '#ffffff',
       },
     },
@@ -471,7 +471,7 @@ export const defaultCartTemplate: BlockNode = {
         sticky: true,
         noticeEnabled: true,
         noticeText: 'Frete grátis em compras acima de R$199!',
-        noticeBgColor: '#1e40af',
+        noticeBgColor: '', // Empty = inherits from theme primary
         noticeTextColor: '#ffffff',
       },
     },
@@ -620,7 +620,7 @@ export const defaultInstitutionalTemplate: BlockNode = {
         sticky: true,
         noticeEnabled: false,
         noticeText: '',
-        noticeBgColor: '#1e40af',
+        noticeBgColor: '', // Empty = inherits from theme primary
         noticeTextColor: '#ffffff',
       },
     },
@@ -661,7 +661,7 @@ export const defaultInstitutionalTemplate: BlockNode = {
         footerTextColor: '',
         noticeEnabled: false,
         noticeText: '',
-        noticeBgColor: '#1e40af',
+        noticeBgColor: '', // Empty = inherits from theme primary
         noticeTextColor: '#ffffff',
       },
     },
@@ -808,7 +808,7 @@ export const defaultAccountTemplate: BlockNode = {
         sticky: true,
         noticeEnabled: false,
         noticeText: '',
-        noticeBgColor: '#1e40af',
+        noticeBgColor: '', // Empty = inherits from theme primary
         noticeTextColor: '#ffffff',
       },
     },
@@ -837,7 +837,7 @@ export const defaultAccountTemplate: BlockNode = {
         footerTextColor: '',
         noticeEnabled: false,
         noticeText: '',
-        noticeBgColor: '#1e40af',
+        noticeBgColor: '', // Empty = inherits from theme primary
         noticeTextColor: '#ffffff',
       },
     },
@@ -860,7 +860,7 @@ export const defaultAccountOrdersTemplate: BlockNode = {
         sticky: true,
         noticeEnabled: false,
         noticeText: '',
-        noticeBgColor: '#1e40af',
+        noticeBgColor: '', // Empty = inherits from theme primary
         noticeTextColor: '#ffffff',
       },
     },
@@ -889,7 +889,7 @@ export const defaultAccountOrdersTemplate: BlockNode = {
         footerTextColor: '',
         noticeEnabled: false,
         noticeText: '',
-        noticeBgColor: '#1e40af',
+        noticeBgColor: '', // Empty = inherits from theme primary
         noticeTextColor: '#ffffff',
       },
     },
@@ -912,7 +912,7 @@ export const defaultAccountOrderDetailTemplate: BlockNode = {
         sticky: true,
         noticeEnabled: false,
         noticeText: '',
-        noticeBgColor: '#1e40af',
+        noticeBgColor: '', // Empty = inherits from theme primary
         noticeTextColor: '#ffffff',
       },
     },
@@ -941,7 +941,7 @@ export const defaultAccountOrderDetailTemplate: BlockNode = {
         footerTextColor: '',
         noticeEnabled: false,
         noticeText: '',
-        noticeBgColor: '#1e40af',
+        noticeBgColor: '', // Empty = inherits from theme primary
         noticeTextColor: '#ffffff',
       },
     },
