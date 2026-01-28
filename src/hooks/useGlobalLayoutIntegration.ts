@@ -33,6 +33,7 @@ const defaultFooterConfig: BlockNode = {
   },
 };
 
+// Checkout-specific defaults: minimal distractions for conversion
 const defaultCheckoutHeaderConfig: BlockNode = {
   id: 'checkout-header',
   type: 'Header',
@@ -41,6 +42,11 @@ const defaultCheckoutHeaderConfig: BlockNode = {
     showSearch: false,
     showCart: true,
     sticky: true,
+    // Checkout-specific: hide navigation elements
+    showHeaderMenu: false,
+    customerAreaEnabled: false,
+    featuredPromosEnabled: false,
+    noticeEnabled: false,
   },
 };
 
@@ -50,6 +56,7 @@ const defaultCheckoutFooterConfig: BlockNode = {
   props: {
     menuId: '',
     showSocial: false,
+    showNewsletterSection: false,
     copyrightText: '© 2024 Minha Loja. Todos os direitos reservados.',
   },
 };
