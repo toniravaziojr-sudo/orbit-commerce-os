@@ -1,7 +1,7 @@
 # Planos e Billing — Regras e Especificações
 
-> **STATUS:** 🟢 Implementado (v2.0)  
-> **Última atualização:** 2025-01-27
+> **STATUS:** 🟢 Implementado (v2.1)  
+> **Última atualização:** 2025-01-28
 
 ---
 
@@ -19,6 +19,9 @@ Sistema de planos, assinaturas, créditos de IA e cobrança para tenants da plat
 | `src/hooks/usePlans.ts` | Hooks de planos e assinaturas |
 | `src/hooks/useCredits.ts` | Hooks de créditos de IA |
 | `src/hooks/useTenantAccess.ts` | Hook de acesso do tenant |
+| `src/hooks/useSubscriptionStatus.ts` | Hook de status da assinatura e cartão |
+| `src/components/billing/PaymentMethodGate.tsx` | Componente de bloqueio por cartão |
+| `src/pages/settings/AddPaymentMethod.tsx` | Página de cadastro de cartão |
 | `src/pages/platform/PlatformBilling.tsx` | Dashboard de billing (admin) |
 | `src/pages/AIPackages.tsx` | Página de créditos de IA |
 
@@ -234,14 +237,201 @@ SELECT record_notification_usage(
 
 ---
 
+## Fluxo de Onboarding Unificado
+
+Tanto signup quanto login devem passar pelo mesmo fluxo de seleção de plano.
+
+### Sequência Obrigatória
+
+```
+1. Auth (signup/login/OAuth)
+   ↓
+2. Se novo usuário → Redireciona para /start (seleção de plano)
+   ↓
+3. Usuário escolhe plano:
+   - Plano pago → Checkout Mercado Pago → Tenant criado após pagamento
+   - Plano básico → Tenant criado imediatamente com status 'pending_payment_method'
+   ↓
+4. Plano básico: Usuário pode usar sistema, mas funcionalidades completas
+   exigem cadastro de cartão (PaymentMethodGate)
+```
+
+### Status da Assinatura
+
+| Status | Descrição |
+|--------|-----------|
+| `pending_payment_method` | Plano básico sem cartão cadastrado |
+| `active` | Assinatura ativa (pago ou básico com cartão) |
+| `suspended` | Pagamento pendente/falhou |
+| `cancelled` | Assinatura cancelada |
+
+### Hook: `useSubscriptionStatus`
+
+```typescript
+const { 
+  subscription,      // Dados completos da assinatura
+  needsPaymentMethod, // true se precisa cadastrar cartão
+  canPublishStore,   // true se pode publicar loja
+  canUseFullFeatures, // true se pode usar todas funcionalidades
+  isBasicPlan,       // true se é plano básico
+  hasPaymentMethod,  // true se tem cartão cadastrado
+} = useSubscriptionStatus();
+```
+
+### Regras de Acesso por Plano
+
+| Plano | Pode usar sistema | Pode publicar loja | Funcionalidades completas |
+|-------|-------------------|--------------------|-----------------------------|
+| Básico sem cartão | ✅ Sim | ❌ Não | ❌ Não |
+| Básico com cartão | ✅ Sim | ✅ Sim | ✅ Sim |
+| Planos pagos (active) | ✅ Sim | ✅ Sim | ✅ Sim |
+| Planos pagos (suspended) | ⚠️ Limitado | ❌ Não | ❌ Não |
+
+---
+
+## PaymentMethodGate — Bloqueio por Cartão
+
+Componente que bloqueia ações até o usuário cadastrar cartão de crédito.
+
+### Uso
+
+```tsx
+import { PaymentMethodGate } from '@/components/billing/PaymentMethodGate';
+
+// Modo block (padrão) - substitui conteúdo
+<PaymentMethodGate action="publicar sua loja">
+  <PublishStoreButton />
+</PaymentMethodGate>
+
+// Modo blur - mostra conteúdo borrado com overlay
+<PaymentMethodGate mode="blur" action="acessar relatórios">
+  <ReportsPage />
+</PaymentMethodGate>
+
+// Modo alert - mostra alerta acima do conteúdo
+<PaymentMethodGate mode="alert" action="criar campanha">
+  <CampaignForm />
+</PaymentMethodGate>
+```
+
+### Props
+
+| Prop | Tipo | Padrão | Descrição |
+|------|------|--------|-----------|
+| `mode` | `'block' \| 'blur' \| 'alert'` | `'block'` | Tipo de bloqueio visual |
+| `title` | `string` | "Cadastre seu cartão..." | Título customizado |
+| `description` | `string` | Auto-gerado | Descrição customizada |
+| `action` | `string` | "continuar" | Ação sendo bloqueada |
+| `forceShow` | `boolean` | `false` | Forçar exibição (debug) |
+
+### Hook Auxiliar
+
+```typescript
+import { useCanPerformAction } from '@/components/billing/PaymentMethodGate';
+
+const { canPublishStore, checkAction } = useCanPerformAction();
+
+if (!checkAction('publish')) {
+  // Mostrar bloqueio ou redirecionar
+}
+```
+
+---
+
+## Plano Básico — Regras Especiais
+
+O plano básico permite uso imediato, mas com restrições até cadastrar cartão:
+
+### Sem Cartão Cadastrado
+- ✅ Pode acessar dashboard
+- ✅ Pode cadastrar produtos
+- ✅ Pode configurar loja
+- ❌ **NÃO pode publicar loja**
+- ❌ **NÃO pode usar funcionalidades completas**
+- ⚠️ Exibe `PaymentMethodGate` em ações bloqueadas
+
+### Com Cartão Cadastrado
+- ✅ Todas funcionalidades liberadas
+- ✅ Pode publicar loja
+- ✅ Taxa de 2,5% sobre vendas será cobrada automaticamente
+
+### Fluxo de Cadastro de Cartão
+
+```
+1. Usuário tenta ação bloqueada → PaymentMethodGate aparece
+2. Clica em "Cadastrar cartão" → Redireciona para /settings/add-payment-method
+3. Preenche dados do cartão
+4. Edge function billing-add-payment-method processa:
+   - Valida cartão
+   - Salva método de pagamento criptografado
+   - Atualiza tenant_subscriptions.status para 'active'
+   - Atualiza payment_method_type, card_last_four, card_brand
+5. Usuário é redirecionado para dashboard com funcionalidades liberadas
+```
+
+---
+
+## Edge Functions de Billing
+
+### `start-create-basic-account`
+Cria tenant e assinatura para plano básico.
+
+**Request:**
+```json
+{
+  "store_name": "Minha Loja",
+  "owner_name": "João Silva",
+  "email": "joao@email.com",
+  "slug": "minha-loja"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "tenant_id": "uuid",
+  "subscription_status": "pending_payment_method"
+}
+```
+
+### `billing-add-payment-method`
+Cadastra cartão de crédito para tenant.
+
+**Request:**
+```json
+{
+  "tenant_id": "uuid",
+  "card_data": {
+    "number": "4111111111111111",
+    "holder_name": "JOAO SILVA",
+    "exp_month": "12",
+    "exp_year": "28",
+    "cvv": "123"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "card_brand": "visa",
+  "card_last_four": "1111"
+}
+```
+
+---
+
 ## Plano Básico Automático
 
-Quando um usuário cria uma conta sem escolher plano, o sistema:
+Quando um usuário cria uma conta pelo plano básico, o sistema:
 1. Cria o tenant com `plan = 'start'`
-2. Cria assinatura em `tenant_subscriptions` com `plan_key = 'basico'` e `status = 'active'`
+2. Cria assinatura em `tenant_subscriptions` com `plan_key = 'basico'` e `status = 'pending_payment_method'`
 3. Inicializa `credit_wallet` com saldo zero
+4. Usuário pode usar sistema, mas funcionalidades completas exigem cadastro de cartão
 
-Isso permite que o usuário comece a usar a plataforma imediatamente com o plano básico (taxa de 2,5% sobre vendas).
+Isso permite que o usuário comece a usar a plataforma imediatamente, com incentivo para cadastrar cartão.
 
 ---
 
