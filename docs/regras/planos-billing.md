@@ -1,6 +1,6 @@
 # Planos e Billing — Regras e Especificações
 
-> **STATUS:** 🟢 Implementado (v2.1)  
+> **STATUS:** 🟢 Implementado (v2.2)  
 > **Última atualização:** 2025-01-28
 
 ---
@@ -246,15 +246,52 @@ Tanto signup quanto login devem passar pelo mesmo fluxo de seleção de plano.
 ```
 1. Auth (signup/login/OAuth)
    ↓
-2. Se novo usuário → Redireciona para /start (seleção de plano)
+2. ProtectedRoute verifica se usuário tem tenant
    ↓
-3. Usuário escolhe plano:
+3. Se NÃO tem tenant → Redireciona para /start (seleção de plano)
+   - NUNCA para /create-store diretamente
+   ↓
+4. Usuário escolhe plano em /start:
    - Plano pago → Checkout Mercado Pago → Tenant criado após pagamento
-   - Plano básico → Tenant criado imediatamente com status 'pending_payment_method'
+   - Plano básico → create_tenant_for_user com status 'pending_payment_method'
    ↓
-4. Plano básico: Usuário pode usar sistema, mas funcionalidades completas
+5. Plano básico: Usuário pode usar sistema, mas funcionalidades completas
    exigem cadastro de cartão (PaymentMethodGate)
 ```
+
+### Redirecionamento no ProtectedRoute
+
+**CRÍTICO:** O `ProtectedRoute.tsx` deve redirecionar usuários sem tenant para `/start`:
+
+```typescript
+// src/components/auth/ProtectedRoute.tsx
+if (requireTenant && tenants.length === 0 && !hasPendingInvite && hasWaitedForData && !wasInvited) {
+  console.log('[ProtectedRoute] User has no tenants - redirecting to /start for plan selection');
+  return <Navigate to="/start" replace />;
+}
+```
+
+### RPC `create_tenant_for_user`
+
+**CRÍTICO:** O RPC deve criar assinaturas com `pending_payment_method` para plano básico:
+
+```sql
+-- CORRETO
+INSERT INTO public.tenant_subscriptions (tenant_id, plan_key, status, billing_cycle)
+VALUES (v_tenant.id, 'basico', 'pending_payment_method', 'monthly');
+
+-- ERRADO (causava bypass)
+-- VALUES (v_tenant.id, 'basico', 'active', 'monthly');
+```
+
+### OAuth (Google Login)
+
+Usuários que fazem login via OAuth também passam pelo fluxo:
+1. Autenticam com Google
+2. ProtectedRoute detecta que não têm tenant
+3. Redireciona para `/start`
+4. `StartInfo.tsx` detecta sessão existente e pré-preenche dados
+5. Ao confirmar, usa `create_tenant_for_user` (não cria novo usuário)
 
 ### Status da Assinatura
 
@@ -527,3 +564,6 @@ O módulo ChatGPT possui limites de uso em USD incluídos por plano:
 | Mostrar custos USD | Sempre exibir em créditos/BRL |
 | Esconder módulos bloqueados | Mostrar com CTA de upgrade |
 | Permitir ChatGPT em planos bloqueados | Regra de negócio |
+| Criar assinatura básica com status `active` | Deve ser `pending_payment_method` |
+| Redirecionar para `/create-store` sem passar por `/start` | Bypass de billing |
+| Criar tenant via RPC com status `active` para plano básico | Causa liberação indevida |
