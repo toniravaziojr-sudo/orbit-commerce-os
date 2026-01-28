@@ -44,10 +44,12 @@ import {
   ExternalLink,
   ChevronRight,
   FolderOpen,
+  CreditCard,
 } from 'lucide-react';
 import { getPreviewUrlWithValidation } from '@/lib/publicUrls';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -114,6 +116,7 @@ export function BuilderToolbar({
   const navigate = useNavigate();
   const { currentTenant } = useAuth();
   const { primaryOrigin } = usePrimaryPublicHost(currentTenant?.id, tenantSlug);
+  const { canPublishStore, needsPaymentMethod, isBasicPlan } = useSubscriptionStatus();
 
   // Fetch products for Product template (for preview URL only, no UI selector)
   const { data: products } = useQuery({
@@ -413,7 +416,7 @@ export function BuilderToolbar({
           </span>
         </Button>
 
-        {/* Publish with confirmation */}
+        {/* Publish with confirmation or payment gate */}
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button 
@@ -428,19 +431,43 @@ export function BuilderToolbar({
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Publicar alterações?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Isso tornará as alterações visíveis para todos os visitantes da loja.
-                O conteúdo atual será substituído pelo novo.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={onPublish}>
-                Sim, publicar agora
-              </AlertDialogAction>
-            </AlertDialogFooter>
+            {needsPaymentMethod && isBasicPlan ? (
+              <>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="flex items-center gap-2">
+                    <CreditCard className="h-5 w-5 text-primary" />
+                    Cadastre seu cartão de crédito
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Para publicar sua loja no plano básico, você precisa cadastrar um cartão de crédito. 
+                    Isso é necessário para cobranças da taxa de 2,5% sobre suas vendas.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => navigate('/settings/add-payment-method')}>
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    Cadastrar cartão
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </>
+            ) : (
+              <>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Publicar alterações?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Isso tornará as alterações visíveis para todos os visitantes da loja.
+                    O conteúdo atual será substituído pelo novo.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={onPublish}>
+                    Sim, publicar agora
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </>
+            )}
           </AlertDialogContent>
         </AlertDialog>
 
