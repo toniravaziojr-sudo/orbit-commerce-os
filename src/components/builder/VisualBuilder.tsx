@@ -253,34 +253,17 @@ export function VisualBuilder({
 
   // Apply global layout to initial content for display
   // Also apply page overrides for non-home pages
-  // Filter legacy blocks (like OrderBumpSlot) even for checkout pages
+  // For checkout pages, apply checkout-specific header/footer from globalLayout
   const contentWithGlobalLayout = useMemo(() => {
-    // For checkout pages, only filter legacy blocks without applying full global layout
-    if (isCheckoutPage) {
-      // Filter out legacy blocks like OrderBumpSlot from checkout content
-      const LEGACY_CHECKOUT_BLOCKS = ['OrderBumpSlot'];
-      if (startingContent?.children) {
-        const filterLegacyBlocks = (children: BlockNode[]): BlockNode[] => {
-          return children
-            .filter(child => !LEGACY_CHECKOUT_BLOCKS.includes(child.type))
-            .map(child => ({
-              ...child,
-              children: child.children ? filterLegacyBlocks(child.children) : undefined,
-            }));
-        };
-        return {
-          ...startingContent,
-          children: filterLegacyBlocks(startingContent.children),
-        };
-      }
-      return startingContent;
-    }
-    
     if (!globalLayout) return startingContent;
+    
     // For home page, no overrides; for other pages, apply overrides
-    const overridesToApply = isHomePage ? null : pageOverrides;
+    // For checkout, pageOverrides is null (checkout has its own separate layout)
+    const overridesToApply = isHomePage ? null : (isCheckoutPage ? null : pageOverrides);
+    
     // isEditing=true so header/footer always appear in builder (with hidden prop if disabled)
     // Pass pageType to filter duplicate blocks (e.g., CompreJuntoSlot, ProductGrid on product pages)
+    // For checkout pages, applyGlobalLayout will use checkout_header_config/checkout_footer_config
     return applyGlobalLayout(startingContent, globalLayout, isCheckoutPage, overridesToApply, true, pageType);
   }, [startingContent, globalLayout, isCheckoutPage, isHomePage, pageOverrides, pageType]);
 
@@ -381,12 +364,20 @@ export function VisualBuilder({
         // to reflect settings changes without losing user's other edits
         const currentContent = store.content;
         if (currentContent?.children && globalLayout) {
+          // Use checkout-specific config for checkout pages
+          const headerConfig = isCheckoutPage 
+            ? globalLayout.checkout_header_config 
+            : globalLayout.header_config;
+          const footerConfig = isCheckoutPage 
+            ? globalLayout.checkout_footer_config 
+            : globalLayout.footer_config;
+          
           const updatedChildren = currentContent.children.map(child => {
             if (child.type === 'Header') {
-              return { ...globalLayout.header_config, id: child.id, hidden: child.hidden };
+              return { ...headerConfig, id: child.id, hidden: child.hidden };
             }
             if (child.type === 'Footer') {
-              return { ...globalLayout.footer_config, id: child.id, hidden: child.hidden };
+              return { ...footerConfig, id: child.id, hidden: child.hidden };
             }
             return child;
           });
@@ -401,7 +392,7 @@ export function VisualBuilder({
       // Preserve selection when only pageOverrides change (to keep sidebar visible)
       store.setContent(contentWithGlobalLayout, true);
     }
-  }, [pageType, contentWithGlobalLayout, layoutLoading, overridesLoading, store, store.isDirty, globalLayout]);
+  }, [pageType, contentWithGlobalLayout, layoutLoading, overridesLoading, store, store.isDirty, globalLayout, isCheckoutPage]);
 
 
   // Warn before leaving with unsaved changes
@@ -656,9 +647,10 @@ export function VisualBuilder({
     // Get the default template for this page type
     let defaultContent = getDefaultTemplate(pageType);
     
-    // Apply global layout to the default template (for non-checkout pages)
-    if (globalLayout && !isCheckoutPage) {
-      defaultContent = applyGlobalLayout(defaultContent, globalLayout, isCheckoutPage, null);
+    // Apply global layout to the default template
+    // For checkout pages, this will apply checkout-specific header/footer
+    if (globalLayout) {
+      defaultContent = applyGlobalLayout(defaultContent, globalLayout, isCheckoutPage, null, true, pageType);
     }
     
     store.setContent(defaultContent);
