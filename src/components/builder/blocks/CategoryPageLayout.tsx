@@ -427,7 +427,7 @@ export function CategoryPageLayout({
                           {formatPrice(demoProduct.compareAtPrice)}
                         </span>
                       )}
-                      <span className="text-sm font-semibold text-primary">
+                      <span className="text-sm font-semibold" style={{ color: 'var(--theme-text-primary, #1a1a1a)' }}>
                         {formatPrice(demoProduct.price)}
                       </span>
                     </div>
@@ -451,18 +451,18 @@ export function CategoryPageLayout({
                       {/* 2º Botão personalizado (se ativo) */}
                       {customButtonEnabled && customButtonText && (
                         <button
-                          className="w-full py-1.5 px-3 text-xs rounded-md text-center transition-colors"
-                          style={{ 
-                            backgroundColor: customButtonColor || 'hsl(var(--primary))',
+                          className="w-full py-1.5 px-3 text-xs rounded-md text-center transition-colors sf-btn-secondary"
+                          style={customButtonColor ? { 
+                            backgroundColor: customButtonColor,
                             color: '#ffffff'
-                          }}
+                          } : undefined}
                         >
                           {customButtonText}
                         </button>
                       )}
                       
-                      {/* 3º Botão principal "Comprar agora" */}
-                      <button className="w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors">
+                      {/* 3º Botão principal "Comprar agora" - usa sf-btn-primary para respeitar tema */}
+                      <button className="w-full py-1.5 px-3 text-xs rounded-md hover:opacity-90 transition-colors sf-btn-primary">
                         {buyNowButtonText}
                       </button>
                     </div>
@@ -521,7 +521,7 @@ export function CategoryPageLayout({
                             {formatPrice(product.compare_at_price)}
                           </span>
                         )}
-                        <span className="text-sm font-semibold text-primary">
+                        <span className="text-sm font-semibold" style={{ color: 'var(--theme-text-primary, #1a1a1a)' }}>
                           {formatPrice(product.price)}
                         </span>
                       </div>
@@ -562,11 +562,11 @@ export function CategoryPageLayout({
                         {customButtonEnabled && customButtonText && (
                           <a
                             href={customButtonLink || '#'}
-                            className="w-full py-1.5 px-3 text-xs rounded-md text-center transition-colors"
-                            style={{ 
-                              backgroundColor: customButtonColor || 'hsl(var(--primary))',
+                            className="w-full py-1.5 px-3 text-xs rounded-md text-center transition-colors sf-btn-secondary"
+                            style={customButtonColor ? { 
+                              backgroundColor: customButtonColor,
                               color: '#ffffff'
-                            }}
+                            } : undefined}
                             onClick={(e) => e.stopPropagation()}
                           >
                             {customButtonText}
@@ -578,14 +578,14 @@ export function CategoryPageLayout({
                         {quickBuyEnabled ? (
                           <button
                             onClick={(e) => handleQuickBuy(e, product)}
-                            className="w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-center"
+                            className="w-full py-1.5 px-3 text-xs rounded-md hover:opacity-90 transition-colors text-center sf-btn-primary"
                           >
                             {buyNowButtonText}
                           </button>
                         ) : (
                           <a
                             href={isEditing ? undefined : productUrl || undefined}
-                            className="w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-center"
+                            className="w-full py-1.5 px-3 text-xs rounded-md hover:opacity-90 transition-colors text-center sf-btn-primary"
                           >
                             {buyNowButtonText}
                           </a>

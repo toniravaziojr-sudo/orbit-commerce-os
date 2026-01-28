@@ -337,8 +337,8 @@ export function StorefrontFooterContent({
   const footerTextColor = getString('footerTextColor', null);
   const footerTitlesColor = getString('footerTitlesColor', null) || footerTextColor;
   
-  // Primary color: config > settings > default
-  const primaryColor = getString('primaryColor', storeSettings?.primary_color, '#6366f1') || '#6366f1';
+  // Primary color: config > settings > theme default (neutral, not blue)
+  const primaryColor = getString('primaryColor', storeSettings?.primary_color, '#1a1a1a') || '#1a1a1a';
   
   // Contact info: config > store_settings
   const whatsApp = getString('whatsApp', storeSettings?.social_whatsapp);

@@ -90,7 +90,7 @@ const iconMap: Record<string, LucideIcon> = {
 
 export function InfoHighlightsBlock({
   items = [],
-  iconColor = '#6366f1',
+  iconColor = '#1a1a1a',
   textColor = '#1f2937',
   layout = 'horizontal',
   context,

@@ -65,11 +65,11 @@ export function TextBannersBlock({
         <div>
           <Link
             to={ctaUrl}
-            className="inline-flex items-center justify-center px-6 py-3 rounded-md font-medium transition-colors"
-            style={{
-              backgroundColor: ctaBgColor || 'hsl(var(--primary))',
-              color: ctaTextColor || 'hsl(var(--primary-foreground))',
-            }}
+            className="inline-flex items-center justify-center px-6 py-3 rounded-md font-medium transition-colors sf-btn-primary"
+            style={ctaBgColor ? {
+              backgroundColor: ctaBgColor,
+              color: ctaTextColor || '#ffffff',
+            } : undefined}
           >
             {ctaText}
           </Link>

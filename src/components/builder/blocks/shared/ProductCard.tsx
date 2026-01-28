@@ -233,12 +233,12 @@ export function ProductCard({
                   if (!isEditing) onQuickBuy(e, product);
                 }}
                 disabled={isEditing}
-                className="w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-center disabled:opacity-50"
+                className="w-full py-1.5 px-3 text-xs rounded-md hover:opacity-90 transition-colors text-center disabled:opacity-50 sf-btn-primary"
               >
                 {buyNowButtonText}
               </button>
             ) : (
-              <span className="w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md text-center">
+              <span className="w-full py-1.5 px-3 text-xs rounded-md text-center sf-btn-primary">
                 {buyNowButtonText}
               </span>
             )}
@@ -342,12 +342,12 @@ export function ProductCard({
                   e.stopPropagation();
                   onQuickBuy(e, product);
                 }}
-                className="w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-center"
+                className="w-full py-1.5 px-3 text-xs rounded-md hover:opacity-90 transition-colors text-center sf-btn-primary"
               >
                 {buyNowButtonText}
               </button>
             ) : (
-              <span className="w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md text-center">
+              <span className="w-full py-1.5 px-3 text-xs rounded-md text-center sf-btn-primary">
                 {buyNowButtonText}
               </span>
             )}
@@ -460,12 +460,12 @@ export function ProductCard({
                 e.stopPropagation();
                 onQuickBuy(e, product);
               }}
-              className="w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-center"
+              className="w-full py-1.5 px-3 text-xs rounded-md hover:opacity-90 transition-colors text-center sf-btn-primary"
             >
               {buyNowButtonText}
             </button>
           ) : (
-            <span className="w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md text-center">
+            <span className="w-full py-1.5 px-3 text-xs rounded-md text-center sf-btn-primary">
               {buyNowButtonText}
             </span>
           )}

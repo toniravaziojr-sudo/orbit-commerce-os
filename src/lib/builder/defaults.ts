@@ -219,7 +219,7 @@ export const defaultHomeTemplate: BlockNode = {
       type: 'InfoHighlights',
       props: {
         items: demoBenefitsItems,
-        iconColor: '#6366f1',
+        iconColor: '#1a1a1a',
         textColor: '#1f2937',
         layout: 'horizontal',
       },

@@ -62,8 +62,9 @@ export function HeroBlock({
   const btnId = `hero-btn-${Math.random().toString(36).substr(2, 9)}`;
   
   // Calculate hover colors if not provided (darken base color)
+  // Use neutral fallbacks, not blue
   const baseBgColor = buttonColor || '#ffffff';
-  const baseTextColor = buttonTextColor || (buttonColor ? '#ffffff' : (backgroundColor || '#6366f1'));
+  const baseTextColor = buttonTextColor || (buttonColor ? '#ffffff' : (backgroundColor || '#1a1a1a'));
   const hoverBg = buttonHoverBgColor || baseBgColor;
   const hoverText = buttonHoverTextColor || baseTextColor;
 
@@ -79,7 +80,7 @@ export function HeroBlock({
     <div 
       className="relative flex items-center justify-center overflow-hidden"
       style={{ 
-        backgroundColor: desktopImage ? undefined : (backgroundColor || 'hsl(var(--primary))'),
+        backgroundColor: desktopImage ? undefined : (backgroundColor || '#f3f4f6'),
         minHeight: heightMap[height] || '400px',
       }}
     >
