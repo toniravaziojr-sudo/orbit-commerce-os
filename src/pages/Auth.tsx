@@ -82,10 +82,47 @@ export default function Auth() {
   // Redirect if already logged in
   useEffect(() => {
     if (user && !authLoading) {
+      // Verificar intenção do OAuth
+      const oauthIntent = sessionStorage.getItem('oauth_intent');
+      sessionStorage.removeItem('oauth_intent'); // Limpar após uso
+      
       // Check for pending invite token first
       const pendingInviteToken = sessionStorage.getItem('pending_invite_token');
       if (pendingInviteToken) {
         navigate('/accept-invite', { replace: true });
+        return;
+      }
+      
+      // Se tentou LOGIN com Google mas não tem tenant (usuário novo), bloquear
+      if (oauthIntent === 'login') {
+        // Verificar se é usuário novo (sem tenant)
+        // O useAuth já carrega os tenants, então verificamos aqui
+        // Se não tem tenants E não veio de convite, é usuário novo tentando login
+        const checkNewUser = async () => {
+          const { data: roles } = await supabase
+            .from('user_roles')
+            .select('id')
+            .eq('user_id', user.id)
+            .limit(1);
+          
+          if (!roles || roles.length === 0) {
+            // Usuário novo tentando fazer LOGIN - bloquear
+            toast.error('Esta conta não existe. Por favor, crie uma conta primeiro.');
+            await supabase.auth.signOut();
+            setActiveTab('signup');
+            return;
+          }
+          
+          // Usuário existente - continuar normalmente
+          const storedPlan = sessionStorage.getItem('selected_plan');
+          if (storedPlan) {
+            navigate('/settings/billing', { replace: true });
+          } else {
+            const redirectTo = searchParams.get('redirect') || '/';
+            navigate(redirectTo, { replace: true });
+          }
+        };
+        checkNewUser();
         return;
       }
       
@@ -229,15 +266,35 @@ export default function Auth() {
     }
   };
 
+  // Handler para LOGIN com Google (apenas usuários existentes)
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     try {
+      // Marcar intenção como LOGIN - será verificado após callback
+      sessionStorage.setItem('oauth_intent', 'login');
       const { error } = await signInWithGoogle();
       if (error) {
         toast.error(error.message);
       }
     } catch (error) {
       toast.error('Erro ao fazer login com Google. Tente novamente.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handler para SIGNUP com Google (cria novo usuário)
+  const handleGoogleSignup = async () => {
+    setIsLoading(true);
+    try {
+      // Marcar intenção como SIGNUP - permite criar novo usuário
+      sessionStorage.setItem('oauth_intent', 'signup');
+      const { error } = await signInWithGoogle();
+      if (error) {
+        toast.error(error.message);
+      }
+    } catch (error) {
+      toast.error('Erro ao criar conta com Google. Tente novamente.');
     } finally {
       setIsLoading(false);
     }
@@ -660,7 +717,7 @@ export default function Auth() {
                 <Button
                   variant="outline"
                   className="w-full"
-                  onClick={handleGoogleLogin}
+                  onClick={activeTab === 'login' ? handleGoogleLogin : handleGoogleSignup}
                   disabled={isLoading}
                 >
                   <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
@@ -681,7 +738,7 @@ export default function Auth() {
                       fill="#EA4335"
                     />
                   </svg>
-                  Google
+                  {activeTab === 'login' ? 'Entrar com Google' : 'Criar conta com Google'}
                 </Button>
               </CardContent>
             </>
