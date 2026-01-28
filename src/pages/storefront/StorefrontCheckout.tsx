@@ -63,10 +63,16 @@ export default function StorefrontCheckout() {
       type: 'Footer',
       props: {
         // Checkout-optimized defaults (minimal distractions)
+        menuId: '',
         showSocial: false,
         showNewsletterSection: false,
-        menuId: '',
-        // Override with saved config
+        showFooter1: false,  // Hide menu columns
+        showFooter2: false,  // Hide policy links
+        showSac: false,      // Hide SAC/contact section
+        showLogo: true,      // Keep logo for brand recognition
+        showStoreInfo: false, // Hide legal info
+        showCopyright: true,  // Keep copyright
+        // Override with saved config - user customizations take priority
         ...savedConfig?.props,
       },
     };
