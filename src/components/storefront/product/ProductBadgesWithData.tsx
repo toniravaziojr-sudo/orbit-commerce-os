@@ -31,8 +31,9 @@ export function ProductBadgesWithData({ productId, className = '' }: ProductBadg
           key={badge.id}
           className="gap-1 text-xs font-bold"
           style={{
-            backgroundColor: badge.background_color || '#3b82f6',
-            color: badge.text_color || '#ffffff',
+            // Badge colors come from database; fallback to theme-friendly dark/light
+            backgroundColor: badge.background_color || 'var(--theme-button-primary-bg, #1a1a1a)',
+            color: badge.text_color || 'var(--theme-button-primary-text, #ffffff)',
           }}
         >
           <Tag className="w-3 h-3" />

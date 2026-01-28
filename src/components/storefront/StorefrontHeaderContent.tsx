@@ -103,7 +103,8 @@ export function StorefrontHeaderContent({
   // Notice bar props
   const noticeEnabled = Boolean(props.noticeEnabled);
   const noticeText = String(props.noticeText || '');
-  const noticeBgColor = String(props.noticeBgColor || '#1e40af');
+  // Empty noticeBgColor = inherit from theme primary (--theme-button-primary-bg or fallback #1a1a1a)
+  const noticeBgColor = String(props.noticeBgColor || '');
   const noticeTextColor = String(props.noticeTextColor || '#ffffff');
   const noticeAnimation = String(props.noticeAnimation || 'fade');
   const noticeActionEnabled = Boolean(props.noticeActionEnabled);
@@ -357,7 +358,8 @@ export function StorefrontHeaderContent({
           ref={noticeRef}
           className="px-4 py-2 text-center text-sm"
           style={{
-            backgroundColor: noticeBgColor,
+            // Use theme primary color when noticeBgColor is empty
+            backgroundColor: noticeBgColor || 'var(--theme-button-primary-bg, #1a1a1a)',
             color: noticeTextColor,
             ...getNoticeAnimationStyles(),
           }}

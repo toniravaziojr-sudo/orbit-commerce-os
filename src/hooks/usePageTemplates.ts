@@ -75,7 +75,7 @@ export function usePageTemplates() {
               sticky: true,
               noticeEnabled: false,
               noticeText: '',
-              noticeBgColor: '#1e40af',
+              noticeBgColor: '', // Empty = inherits from theme primary
               noticeTextColor: '#ffffff',
             }
           },
@@ -100,7 +100,7 @@ export function usePageTemplates() {
               footerTextColor: '',
               noticeEnabled: false,
               noticeText: '',
-              noticeBgColor: '#1e40af',
+              noticeBgColor: '', // Empty = inherits from theme primary
               noticeTextColor: '#ffffff',
             }
           }
