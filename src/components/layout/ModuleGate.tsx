@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useModuleAccess, AccessLevel } from '@/hooks/useModuleAccess';
 import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
 import { Button } from '@/components/ui/button';
-import { Loader2, Eye, Sparkles } from 'lucide-react';
+import { Loader2, Eye, Sparkles, Lock } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface ModuleGateProps {
@@ -16,7 +16,7 @@ interface ModuleGateProps {
    * - 'hide': não mostra nada (default)
    * - 'blur': mostra conteúdo borrado com overlay de upgrade
    * - 'prompt': mostra apenas o prompt de upgrade
-   * - 'preview': permite visualização com banner de upgrade no topo
+   * - 'preview': permite visualização com banner de upgrade no topo (BLOQUEADO)
    */
   blockedMode?: 'hide' | 'blur' | 'prompt' | 'preview';
   /** Nome amigável do módulo para exibir no prompt */
@@ -35,7 +35,7 @@ interface ModuleGateProps {
  * - 'hide': esconde completamente (para submenus/itens de navegação)
  * - 'blur': mostra preview borrado com CTA de upgrade (para páginas)
  * - 'prompt': mostra apenas o prompt de upgrade (para seções)
- * - 'preview': permite visualização com banner de upgrade no topo (modo visualização)
+ * - 'preview': mostra conteúdo com overlay bloqueador e banner de upgrade
  * 
  * Usage:
  * ```tsx
@@ -80,12 +80,16 @@ export function ModuleGate({
       return (
         <div className="relative">
           {/* Conteúdo borrado */}
-          <div className="blur-sm pointer-events-none select-none opacity-50">
+          <div className="blur-sm select-none opacity-50" aria-hidden="true">
             {children}
           </div>
           
-          {/* Overlay com prompt */}
-          <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          {/* Overlay com prompt - bloqueia toda interação */}
+          <div 
+            className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm z-50"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.preventDefault()}
+          >
             <UpgradePrompt 
               moduleKey={moduleKey}
               moduleName={moduleName || moduleKey}
@@ -110,28 +114,59 @@ export function ModuleGate({
       return (
         <div className="relative">
           {/* Banner de upgrade no topo */}
-          <Alert className="mb-4 border-primary/50 bg-primary/5">
-            <Eye className="h-4 w-4 text-primary" />
+          <Alert className="mb-4 border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
+            <Lock className="h-4 w-4 text-amber-600" />
             <AlertDescription className="flex items-center justify-between flex-wrap gap-2">
-              <span className="text-sm">
-                <strong>Modo Visualização</strong> — O módulo{' '}
+              <span className="text-sm text-amber-800 dark:text-amber-200">
+                <strong>🔒 Módulo Bloqueado</strong> — O módulo{' '}
                 <span className="font-semibold">{moduleName || moduleKey}</span>{' '}
-                não está disponível no seu plano atual. Faça upgrade para desbloquear.
+                não está disponível no seu plano. Você pode visualizar, mas não editar.
               </span>
               <Button 
                 size="sm" 
                 onClick={() => navigate('/settings/billing')}
-                className="gap-2"
+                className="gap-2 bg-amber-600 hover:bg-amber-700"
               >
                 <Sparkles className="h-4 w-4" />
-                Ver Planos
+                Fazer Upgrade
               </Button>
             </AlertDescription>
           </Alert>
           
-          {/* Conteúdo com interatividade limitada */}
-          <div className="pointer-events-none select-none opacity-70">
-            {children}
+          {/* Container relativo para o conteúdo e overlay */}
+          <div className="relative">
+            {/* Conteúdo visual (sem interatividade real) */}
+            <div 
+              className="opacity-60 grayscale-[30%]" 
+              aria-hidden="true"
+              style={{ filter: 'grayscale(30%) opacity(0.6)' }}
+            >
+              {children}
+            </div>
+            
+            {/* Overlay invisível que bloqueia TODA interação */}
+            <div 
+              className="absolute inset-0 z-40 cursor-not-allowed"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onKeyDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onFocus={(e) => {
+                e.preventDefault();
+                (e.target as HTMLElement).blur?.();
+              }}
+              tabIndex={-1}
+              role="presentation"
+              aria-label="Módulo bloqueado - faça upgrade para acessar"
+            />
           </div>
         </div>
       );

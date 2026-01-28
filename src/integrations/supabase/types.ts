@@ -10499,6 +10499,7 @@ export type Database = {
           accent_color: string | null
           benefit_config: Json | null
           business_cnpj: string | null
+          business_cpf: string | null
           business_legal_name: string | null
           cart_config: Json | null
           checkout_config: Json | null
@@ -10543,6 +10544,7 @@ export type Database = {
           accent_color?: string | null
           benefit_config?: Json | null
           business_cnpj?: string | null
+          business_cpf?: string | null
           business_legal_name?: string | null
           cart_config?: Json | null
           checkout_config?: Json | null
@@ -10587,6 +10589,7 @@ export type Database = {
           accent_color?: string | null
           benefit_config?: Json | null
           business_cnpj?: string | null
+          business_cpf?: string | null
           business_legal_name?: string | null
           cart_config?: Json | null
           checkout_config?: Json | null
