@@ -143,12 +143,38 @@ export function applyGlobalLayout(
 ): BlockNode {
   if (!content || !globalLayout) return content;
 
-  const headerConfig = isCheckout 
-    ? globalLayout.checkout_header_config 
-    : globalLayout.header_config;
-  const footerConfig = isCheckout 
-    ? globalLayout.checkout_footer_config 
-    : globalLayout.footer_config;
+  // For checkout pages: inherit visual props (colors) from global, but use checkout-specific functional props
+  // This allows checkout to have its own "minimalist" layout while maintaining brand consistency
+  let headerConfig: BlockNode;
+  let footerConfig: BlockNode;
+
+  if (isCheckout) {
+    // Merge: global props (colors, styling) + checkout-specific props (functional toggles)
+    // Checkout props take priority over global for overlapping keys
+    headerConfig = {
+      ...globalLayout.checkout_header_config,
+      id: 'checkout-header',
+      props: {
+        // First: inherit all global visual props (colors, background, etc.)
+        ...globalLayout.header_config.props,
+        // Then: apply checkout-specific overrides (these take priority)
+        ...globalLayout.checkout_header_config.props,
+      },
+    };
+    footerConfig = {
+      ...globalLayout.checkout_footer_config,
+      id: 'checkout-footer',
+      props: {
+        // First: inherit all global visual props (colors, background, etc.)
+        ...globalLayout.footer_config.props,
+        // Then: apply checkout-specific overrides (these take priority)
+        ...globalLayout.checkout_footer_config.props,
+      },
+    };
+  } else {
+    headerConfig = globalLayout.header_config;
+    footerConfig = globalLayout.footer_config;
+  }
 
   // Global visibility flags
   const globalHeaderEnabled = globalLayout.header_enabled ?? true;

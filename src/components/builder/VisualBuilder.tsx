@@ -364,13 +364,31 @@ export function VisualBuilder({
         // to reflect settings changes without losing user's other edits
         const currentContent = store.content;
         if (currentContent?.children && globalLayout) {
-          // Use checkout-specific config for checkout pages
-          const headerConfig = isCheckoutPage 
-            ? globalLayout.checkout_header_config 
-            : globalLayout.header_config;
-          const footerConfig = isCheckoutPage 
-            ? globalLayout.checkout_footer_config 
-            : globalLayout.footer_config;
+          // For checkout: merge global visual props + checkout functional props
+          // For other pages: use global config directly
+          let headerConfig: typeof globalLayout.header_config;
+          let footerConfig: typeof globalLayout.footer_config;
+          
+          if (isCheckoutPage) {
+            // Checkout inherits colors/visual from global, overrides with checkout-specific props
+            headerConfig = {
+              ...globalLayout.checkout_header_config,
+              props: {
+                ...globalLayout.header_config.props,
+                ...globalLayout.checkout_header_config.props,
+              },
+            };
+            footerConfig = {
+              ...globalLayout.checkout_footer_config,
+              props: {
+                ...globalLayout.footer_config.props,
+                ...globalLayout.checkout_footer_config.props,
+              },
+            };
+          } else {
+            headerConfig = globalLayout.header_config;
+            footerConfig = globalLayout.footer_config;
+          }
           
           const updatedChildren = currentContent.children.map(child => {
             if (child.type === 'Header') {
