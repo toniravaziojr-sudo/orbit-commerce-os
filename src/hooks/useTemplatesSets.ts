@@ -253,11 +253,16 @@ export function useTemplateSets() {
 
       if (unmarkError) throw unmarkError;
 
-      // Update store_settings with the new published template
+      // Upsert store_settings with the new published template (INSERT or UPDATE)
       const { error: settingsError } = await supabase
         .from('store_settings')
-        .update({ published_template_id: templateId })
-        .eq('tenant_id', currentTenant.id);
+        .upsert({ 
+          tenant_id: currentTenant.id, 
+          published_template_id: templateId,
+          is_published: true 
+        }, { 
+          onConflict: 'tenant_id' 
+        });
 
       if (settingsError) throw settingsError;
 
