@@ -157,6 +157,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Função para verificar e bloquear login de usuários novos via OAuth
+  const handleOAuthLoginValidation = async (userId: string): Promise<boolean> => {
+    const oauthIntent = localStorage.getItem('oauth_intent');
+    localStorage.removeItem('oauth_intent'); // Limpar após uso
+    
+    // Se a intenção era LOGIN (não signup), verificar se usuário tem conta
+    if (oauthIntent === 'login') {
+      const { data: roles } = await supabase
+        .from('user_roles')
+        .select('id')
+        .eq('user_id', userId)
+        .limit(1);
+      
+      if (!roles || roles.length === 0) {
+        // Usuário novo tentando fazer LOGIN - bloquear
+        console.log('[useAuth] Blocking new user trying to login without account');
+        await supabase.auth.signOut();
+        // Redirecionar para auth com mensagem de erro via URL
+        window.location.href = '/auth?tab=signup&error=no_account';
+        return false;
+      }
+    }
+    return true;
+  };
+
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -166,15 +191,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Defer data loading to prevent deadlock
         if (newSession?.user) {
-          setTimeout(() => {
-            loadUserData(newSession.user.id).then((valid) => {
-              if (!valid) {
-                // Sessão inválida, já fez logout
-                setUser(null);
-                setSession(null);
-              }
+          setTimeout(async () => {
+            // Verificar se é OAuth login de usuário novo (bloquear)
+            const isValid = await handleOAuthLoginValidation(newSession.user.id);
+            if (!isValid) {
+              setUser(null);
+              setSession(null);
               setIsLoading(false);
-            });
+              return;
+            }
+            
+            const valid = await loadUserData(newSession.user.id);
+            if (!valid) {
+              // Sessão inválida, já fez logout
+              setUser(null);
+              setSession(null);
+            }
+            setIsLoading(false);
           }, 0);
         } else {
           setProfile(null);
@@ -187,18 +220,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
 
     // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
+    supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
       setSession(existingSession);
       setUser(existingSession?.user ?? null);
 
       if (existingSession?.user) {
-        loadUserData(existingSession.user.id).then((valid) => {
-          if (!valid) {
-            setUser(null);
-            setSession(null);
-          }
+        // Verificar se é OAuth login de usuário novo (bloquear)
+        const isValid = await handleOAuthLoginValidation(existingSession.user.id);
+        if (!isValid) {
+          setUser(null);
+          setSession(null);
           setIsLoading(false);
-        });
+          return;
+        }
+        
+        const valid = await loadUserData(existingSession.user.id);
+        if (!valid) {
+          setUser(null);
+          setSession(null);
+        }
+        setIsLoading(false);
       } else {
         setIsLoading(false);
       }
