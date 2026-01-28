@@ -36,33 +36,42 @@ export default function StorefrontCheckout() {
   const { tenant, storeSettings, isLoading } = usePublicStorefront(tenantSlug || '');
   const { data: globalLayout, isLoading: layoutLoading } = usePublicGlobalLayout(tenantSlug || '');
 
-  // Merge checkout-specific configs with checkout-optimized defaults
+  // Merge: global visual props (colors) + checkout-specific functional props
+  // This allows checkout to maintain brand consistency while having its own minimalist layout
   const checkoutHeaderConfig = useMemo((): BlockNode => {
-    const savedConfig = globalLayout?.checkout_header_config;
+    const globalHeaderProps = globalLayout?.header_config?.props || {};
+    const checkoutHeaderProps = globalLayout?.checkout_header_config?.props || {};
+    
     return {
       id: 'checkout-header',
       type: 'Header',
       props: {
-        // Checkout-optimized defaults (minimal distractions)
+        // First: inherit all global visual props (colors, background, styling)
+        ...globalHeaderProps,
+        // Then: apply checkout-specific defaults (minimal distractions)
         showSearch: false,
         showCart: true,
         showHeaderMenu: false,
         customerAreaEnabled: false,
         sticky: true,
         featuredPromosEnabled: false,
-        // Override with saved config
-        ...savedConfig?.props,
+        // Finally: apply saved checkout config (user customizations take priority)
+        ...checkoutHeaderProps,
       },
     };
-  }, [globalLayout?.checkout_header_config]);
+  }, [globalLayout?.header_config?.props, globalLayout?.checkout_header_config?.props]);
 
   const checkoutFooterConfig = useMemo((): BlockNode => {
-    const savedConfig = globalLayout?.checkout_footer_config;
+    const globalFooterProps = globalLayout?.footer_config?.props || {};
+    const checkoutFooterProps = globalLayout?.checkout_footer_config?.props || {};
+    
     return {
       id: 'checkout-footer',
       type: 'Footer',
       props: {
-        // Checkout-optimized defaults (minimal distractions)
+        // First: inherit all global visual props (colors, background, styling)
+        ...globalFooterProps,
+        // Then: apply checkout-specific defaults (minimal distractions)
         menuId: '',
         showSocial: false,
         showNewsletterSection: false,
@@ -72,11 +81,11 @@ export default function StorefrontCheckout() {
         showLogo: true,      // Keep logo for brand recognition
         showStoreInfo: false, // Hide legal info
         showCopyright: true,  // Keep copyright
-        // Override with saved config - user customizations take priority
-        ...savedConfig?.props,
+        // Finally: apply saved checkout config (user customizations take priority)
+        ...checkoutFooterProps,
       },
     };
-  }, [globalLayout?.checkout_footer_config]);
+  }, [globalLayout?.footer_config?.props, globalLayout?.checkout_footer_config?.props]);
 
   if (isLoading || layoutLoading) {
     return (
