@@ -234,13 +234,15 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
               </div>
               <ColorInput
                 label="Cor de Fundo"
-                value={localProps.noticeBgColor || '#1e40af'}
+                value={localProps.noticeBgColor || ''}
                 onChange={(v) => updateProp('noticeBgColor', v)}
+                placeholder="Herda do tema"
               />
               <ColorInput
                 label="Cor do Texto"
-                value={localProps.noticeTextColor || '#ffffff'}
+                value={localProps.noticeTextColor || ''}
                 onChange={(v) => updateProp('noticeTextColor', v)}
+                placeholder="Herda do tema"
               />
               <div className="flex items-center justify-between">
                 <Label className="text-[11px]">Exibir Link</Label>

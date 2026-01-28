@@ -940,13 +940,15 @@ export function HeaderFooterPropsEditor({
                     </div>
                     <ColorInput
                       label="Cor de Fundo"
-                      value={(props.noticeBgColor as string) || '#1e40af'}
+                      value={(props.noticeBgColor as string) || ''}
                       onChange={(v) => updateProp('noticeBgColor', v)}
+                      placeholder="Herda do tema"
                     />
                     <ColorInput
                       label="Cor do Texto"
-                      value={(props.noticeTextColor as string) || '#ffffff'}
+                      value={(props.noticeTextColor as string) || ''}
                       onChange={(v) => updateProp('noticeTextColor', v)}
+                      placeholder="Herda do tema"
                     />
                     <div className="space-y-1.5">
                       <Label className="text-xs">Animação de Entrada</Label>

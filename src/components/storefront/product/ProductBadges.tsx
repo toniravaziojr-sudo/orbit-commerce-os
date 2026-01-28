@@ -33,10 +33,10 @@ export function ProductBadges({
 }: ProductBadgesProps) {
   const badges: React.ReactNode[] = [];
 
-  // New badge
+  // New badge - uses primary color from theme
   if (isNew) {
     badges.push(
-      <Badge key="new" className="gap-1 text-xs font-bold bg-blue-500 hover:bg-blue-600">
+      <Badge key="new" className="gap-1 text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground">
         <Star className="w-3 h-3" />
         Novo
       </Badge>

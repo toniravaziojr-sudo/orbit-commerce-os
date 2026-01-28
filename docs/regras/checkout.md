@@ -18,7 +18,7 @@ Fluxo de finalização da compra com múltiplas formas de pagamento, order bumps
 
 | Área | Descrição |
 |------|-----------|
-| Header/Footer | Elementos globais do template |
+| Header/Footer | **Exclusivos do checkout** — configuração separada via `checkout_header_config` / `checkout_footer_config` |
 | Dados do cliente | Nome, email, telefone, CPF |
 | Endereço de entrega | Formulário com busca de CEP |
 | Forma de pagamento | PIX, Boleto, Cartão de Crédito |
@@ -26,6 +26,41 @@ Fluxo de finalização da compra com múltiplas formas de pagamento, order bumps
 | Resumo do pedido | Itens, subtotal, frete, descontos, total |
 | Testimonials | Prova social (depoimentos de clientes) |
 | Selos de segurança | Badges de confiança e segurança |
+
+---
+
+## Header e Footer do Checkout (EXCLUSIVOS)
+
+O checkout possui configuração **independente** de header e footer, separada do layout global da loja.
+
+### Objetivo
+Minimizar distrações durante a finalização da compra (sem menus de navegação, redes sociais, etc.)
+
+### Defaults do Checkout
+
+| Elemento | Prop | Default Checkout | Default Global |
+|----------|------|------------------|----------------|
+| Header | `showSearch` | `false` | `true` |
+| Header | `showHeaderMenu` | `false` | `true` |
+| Header | `customerAreaEnabled` | `false` | `true` |
+| Header | `featuredPromosEnabled` | `false` | `true/false` |
+| Footer | `showSocial` | `false` | `true` |
+| Footer | `showNewsletterSection` | `false` | `true/false` |
+| Footer | `menuId` | `''` (vazio) | menu configurado |
+
+### Configuração no Builder
+
+1. Acesse o template **Checkout** no Builder
+2. Clique no **Header** ou **Footer** na área de preview
+3. O painel lateral exibirá as configurações **exclusivas do checkout**
+4. As alterações são salvas em `storefront_global_layout.checkout_header_config` / `checkout_footer_config`
+
+### Armazenamento
+
+| Coluna | Tabela | Descrição |
+|--------|--------|-----------|
+| `checkout_header_config` | `storefront_global_layout` | BlockNode JSON do header do checkout |
+| `checkout_footer_config` | `storefront_global_layout` | BlockNode JSON do footer do checkout |
 
 ---
 
