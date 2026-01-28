@@ -218,9 +218,31 @@ As cores do tema são gerenciadas **exclusivamente** em **Configuração do tema
 
 1. **SEMPRE** usar `valor || undefined` para props de cor (nunca fallback fixo)
 2. **SEMPRE** usar classes semânticas Tailwind (`text-foreground`, `bg-muted`) quando não há personalização
-3. **NUNCA** usar cores hardcoded (ex: `#000000`) em estilos de bloco
+3. **NUNCA** usar cores hardcoded (ex: `#000000`, `#1e40af`, `#3b82f6`) em estilos de bloco
 4. Cores personalizadas **SOBRESCREVEM** o tema global apenas no bloco específico
 5. A configuração legada de cores em `store_settings` foi **REMOVIDA** - usar apenas `themeSettings.colors`
+6. **NUNCA** usar classes Tailwind com cores hardcoded (ex: `bg-blue-500`, `text-blue-600`)
+7. Defaults no registry e defaults.ts devem usar **strings vazias** (`""`) para permitir herança do tema
+8. Fallbacks devem usar **CSS variables** (ex: `var(--theme-button-primary-bg)`) nunca hex codes
+
+### Padrão de Fallback Correto
+
+```typescript
+// ✅ CORRETO - usa CSS variable como fallback
+backgroundColor: noticeBgColor || 'var(--theme-button-primary-bg, var(--primary))'
+
+// ✅ CORRETO - string vazia no default permite herança
+const DEFAULTS = {
+  noticeBgColor: '', // Herda do tema
+  button_bg_color: '', // Herda do tema
+};
+
+// ❌ ERRADO - hex code hardcoded
+backgroundColor: noticeBgColor || '#1e40af'
+
+// ❌ ERRADO - classe Tailwind com cor fixa
+className="bg-blue-500"
+```
 
 ---
 
