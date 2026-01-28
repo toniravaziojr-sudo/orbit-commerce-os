@@ -12,8 +12,9 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Globe, Settings, Info, RotateCcw, ShoppingBag, AlertCircle, Palette, Smartphone, Bell, ChevronDown, Phone, MessageCircle, User, Tag, CreditCard, ShieldCheck, Truck, Store, Plus, Trash2 } from 'lucide-react';
+import { Globe, Settings, Info, RotateCcw, ShoppingBag, AlertCircle, Palette, Smartphone, Bell, ChevronDown, Phone, MessageCircle, User, Tag, CreditCard, ShieldCheck, Truck, Store, Plus, Trash2, Type } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -985,18 +986,53 @@ export function HeaderFooterPropsEditor({
                     />
                   </div>
                   <div className="flex items-center justify-between">
-                    <Label className="text-[11px]">Mostrar Formas de Pagamento</Label>
+                    <div>
+                      <Label className="text-[11px]">Mostrar Formas de Pagamento</Label>
+                      <p className="text-[9px] text-muted-foreground">Herdado do footer global</p>
+                    </div>
                     <Switch className="scale-90"
-                      checked={Boolean(props.showPaymentMethods ?? false)}
+                      checked={Boolean(props.showPaymentMethods ?? true)}
                       onCheckedChange={(v) => updateProp('showPaymentMethods', v)}
                     />
                   </div>
                   <div className="flex items-center justify-between">
-                    <Label className="text-[11px]">Mostrar Selos de Segurança</Label>
+                    <div>
+                      <Label className="text-[11px]">Mostrar Selos de Segurança</Label>
+                      <p className="text-[9px] text-muted-foreground">Herdado do footer global</p>
+                    </div>
                     <Switch className="scale-90"
-                      checked={Boolean(props.showSecuritySeals ?? false)}
+                      checked={Boolean(props.showSecuritySeals ?? true)}
                       onCheckedChange={(v) => updateProp('showSecuritySeals', v)}
                     />
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+
+              <Separator />
+
+              {/* === TEXTOS PERSONALIZÁVEIS DO CHECKOUT === */}
+              <Collapsible open={openSections.titles} onOpenChange={() => toggleSection('titles')}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <Type className="h-3.5 w-3.5 text-purple-600" />
+                      <span className="font-medium">Textos Personalizáveis</span>
+                    </div>
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openSections.titles ? 'rotate-180' : ''}`} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="px-2 pb-3 space-y-3">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">Texto do Copyright</Label>
+                    <Textarea
+                      value={(props.copyrightText as string) || ''}
+                      onChange={(e) => updateProp('copyrightText', e.target.value)}
+                      placeholder="© {ano} {nome da loja}. Todos os direitos reservados."
+                      className="text-[11px] min-h-[60px] resize-none"
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      Deixe vazio para usar o padrão automático
+                    </p>
                   </div>
                 </CollapsibleContent>
               </Collapsible>
@@ -1009,6 +1045,7 @@ export function HeaderFooterPropsEditor({
                 <AlertDescription className="text-[10px]">
                   Estas configurações afetam apenas o checkout. 
                   Se deixar cores em branco, herda do footer global.
+                  Formas de pagamento e selos de segurança são herdados do footer global.
                 </AlertDescription>
               </Alert>
             </div>
