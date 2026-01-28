@@ -6,6 +6,7 @@ import { LogoIcon } from "@/components/branding/Logo";
 import { usePlatformOperator } from "@/hooks/usePlatformOperator";
 import { useTenantType } from "@/hooks/useTenantType";
 import { useTenantAccess } from "@/hooks/useTenantAccess";
+import { useAllModuleAccess, AccessLevel } from "@/hooks/useModuleAccess";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsSpecialTenant } from "@/hooks/useIsSpecialTenant";
 import { useDemoMode } from "@/hooks/useDemoMode";
@@ -52,6 +53,7 @@ import {
   Cpu,
   Handshake,
   UsersRound,
+  Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -67,6 +69,7 @@ interface NavItem {
   adminOnly?: boolean;
   ownerOnly?: boolean; // Only visible to tenant owner
   locked?: boolean; // Module is locked and shows "Em breve" tag
+  blockedFeature?: string; // Feature key that blocks this item if in blocked_features
 }
 
 interface NavGroup {
@@ -74,19 +77,22 @@ interface NavGroup {
   items: NavItem[];
   adminOnly?: boolean;
   collapsible?: boolean;
+  moduleKey?: string; // Maps to plan_module_access.module_key
 }
 
 // Full navigation for tenant users - with collapsible groups
 const fullNavigation: NavGroup[] = [
   {
     label: "Principal",
+    moduleKey: "central",
     items: [
       { title: "Central de Comando", href: "/command-center", icon: LayoutDashboard },
-      { title: "ChatGPT", href: "/chatgpt", icon: Sparkles },
+      { title: "ChatGPT", href: "/chatgpt", icon: Sparkles, blockedFeature: "assistant" },
     ],
   },
   {
     label: "E-commerce",
+    moduleKey: "ecommerce",
     collapsible: true,
     items: [
       { title: "Pedidos", href: "/orders", icon: ShoppingCart },
@@ -97,6 +103,7 @@ const fullNavigation: NavGroup[] = [
   },
   {
     label: "Loja Online",
+    moduleKey: "loja_online",
     collapsible: true,
     items: [
       { title: "Loja Virtual", href: "/storefront", icon: Store },
@@ -107,28 +114,31 @@ const fullNavigation: NavGroup[] = [
   },
   {
     label: "Blog",
+    moduleKey: "blog",
     collapsible: true,
     items: [
       { title: "Posts do Blog", href: "/blog", icon: BookOpen },
-      { title: "Campanhas IA", href: "/blog/campaigns", icon: Sparkles },
+      { title: "Campanhas IA", href: "/blog/campaigns", icon: Sparkles, blockedFeature: "ai_campaigns" },
     ],
   },
   {
     label: "Marketing Básico",
+    moduleKey: "marketing_basico",
     collapsible: true,
     items: [
       { title: "Integrações Marketing", href: "/marketing", icon: TrendingUp },
-      { title: "Atribuição de venda", href: "/marketing/atribuicao", icon: TrendingUp },
+      { title: "Atribuição de venda", href: "/marketing/atribuicao", icon: TrendingUp, blockedFeature: "attribution" },
       { title: "Descontos", href: "/discounts", icon: Percent },
       { title: "Aumentar Ticket", href: "/offers", icon: TrendingUp },
     ],
   },
   {
     label: "Marketing Avançado",
+    moduleKey: "marketing_avancado",
     collapsible: true,
     items: [
-      { title: "Email Marketing", href: "/email-marketing", icon: Mail },
-      { title: "Quizzes", href: "/quizzes", icon: FileText },
+      { title: "Email Marketing", href: "/email-marketing", icon: Mail, blockedFeature: "email_marketing" },
+      { title: "Quizzes", href: "/quizzes", icon: FileText, blockedFeature: "quizzes" },
       { title: "Gestor de Mídias IA", href: "/media", icon: Image },
       { title: "Gestor de Tráfego IA", href: "/campaigns", icon: Megaphone },
       { title: "Gestão de Criativos", href: "/creatives", icon: Sparkles },
@@ -136,10 +146,11 @@ const fullNavigation: NavGroup[] = [
   },
   {
     label: "CRM",
+    moduleKey: "crm",
     collapsible: true,
     items: [
       { title: "Notificações", href: "/notifications", icon: Bell },
-      { title: "Atendimento", href: "/support", icon: MessageSquare },
+      { title: "Atendimento", href: "/support", icon: MessageSquare, blockedFeature: "support_chat" },
       { title: "Emails", href: "/emails", icon: Mail },
       { title: "Avaliações", href: "/reviews", icon: Star },
     ],
@@ -148,27 +159,28 @@ const fullNavigation: NavGroup[] = [
     label: "ERP",
     collapsible: true,
     items: [
-      { title: "Fiscal", href: "/fiscal", icon: FileText },
-      { title: "Financeiro", href: "/finance", icon: DollarSign },
-      { title: "Compras", href: "/purchases", icon: ShoppingBag },
-      { title: "Logística", href: "/shipping", icon: Truck },
+      { title: "Fiscal", href: "/fiscal", icon: FileText }, // erp_fiscal - full access
+      { title: "Financeiro", href: "/finance", icon: DollarSign, blockedFeature: "erp_financeiro" },
+      { title: "Compras", href: "/purchases", icon: ShoppingBag, blockedFeature: "erp_compras" },
+      { title: "Logística", href: "/shipping", icon: Truck }, // erp_logistica - partial
     ],
   },
   {
     label: "Parcerias",
+    moduleKey: "parcerias",
     collapsible: true,
     items: [
       { title: "Influencers", href: "/influencers", icon: UserCheck, locked: true },
-      
       { title: "Afiliados", href: "/affiliates", icon: Handshake },
     ],
   },
   {
     label: "Marketplaces",
+    moduleKey: "marketplaces",
     collapsible: true,
     items: [
-      { title: "Mercado Livre", href: "/marketplaces/mercadolivre", icon: Building2 },
-      { title: "Shopee", href: "/marketplaces/shopee", icon: ShoppingBag },
+      { title: "Mercado Livre", href: "/marketplaces/mercadolivre", icon: Building2, blockedFeature: "mercadolivre" },
+      { title: "Shopee", href: "/marketplaces/shopee", icon: ShoppingBag, blockedFeature: "shopee" },
       { title: "Olist", href: "/marketplaces/olist", icon: Package },
     ],
   },
@@ -176,22 +188,23 @@ const fullNavigation: NavGroup[] = [
     label: "Sistema",
     collapsible: true,
     items: [
-      { title: "Integrações", href: "/integrations", icon: Plug },
-      { title: "Importar Dados", href: "/import", icon: Upload },
-      { title: "Usuários e Permissões", href: "/system/users", icon: UsersRound, ownerOnly: true },
+      { title: "Integrações", href: "/integrations", icon: Plug }, // sistema_integracoes
+      { title: "Importar Dados", href: "/import", icon: Upload, blockedFeature: "sistema_importacao" },
+      { title: "Usuários e Permissões", href: "/system/users", icon: UsersRound, ownerOnly: true, blockedFeature: "sistema_usuarios" },
     ],
   },
   {
     label: "Utilitários",
+    moduleKey: "central",
     collapsible: true,
     items: [
       { title: "Meu Drive", href: "/files", icon: FolderOpen },
-      { title: "Relatórios", href: "/reports", icon: BarChart3 },
-      
+      { title: "Relatórios", href: "/reports", icon: BarChart3, blockedFeature: "reports" },
     ],
   },
   {
     label: "Suporte",
+    moduleKey: "suporte",
     items: [
       { title: "Suporte", href: "/support-center", icon: LifeBuoy },
       { title: "Pacotes IA", href: "/ai-packages", icon: Cpu },
@@ -255,6 +268,9 @@ export function AppSidebar() {
   const { isDemoMode } = useDemoMode();
   const { isOwner, isSidebarItemVisible, isPlatformOperator: isPlatformOp } = usePermissions();
   
+  // Get module access info for all modules
+  const { data: moduleAccess, isLoading: moduleAccessLoading } = useAllModuleAccess();
+  
   // Admin Mode context - for platform operators to switch between Platform and Store views
   // Using safe version that works even outside AdminModeProvider
   const adminMode = useAdminModeSafe();
@@ -263,6 +279,47 @@ export function AppSidebar() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(openGroups));
   }, [openGroups]);
+
+  // Helper function to check if a module is accessible
+  const isModuleAccessible = (moduleKey?: string): boolean => {
+    // Platform operators have full access
+    if (isPlatformOperator) return true;
+    // If no moduleKey specified or no access data, allow
+    if (!moduleKey || !moduleAccess) return true;
+    // Check module access
+    const access = moduleAccess[moduleKey];
+    return !access || access.hasAccess;
+  };
+
+  // Helper function to check if a feature is blocked
+  const isFeatureBlocked = (moduleKey?: string, featureKey?: string): boolean => {
+    // Platform operators have full access
+    if (isPlatformOperator) return false;
+    // If no feature specified, not blocked
+    if (!featureKey) return false;
+    
+    // Check module-specific blocked features first
+    if (moduleKey && moduleAccess) {
+      const access = moduleAccess[moduleKey];
+      if (access?.blockedFeatures?.includes(featureKey)) {
+        return true;
+      }
+    }
+    
+    // Check for ERP-specific modules that have their own access levels
+    if (featureKey === 'erp_financeiro' || featureKey === 'erp_compras') {
+      const access = moduleAccess?.[featureKey];
+      return access?.accessLevel === 'none';
+    }
+    
+    // Check sistema modules
+    if (featureKey === 'sistema_importacao' || featureKey === 'sistema_usuarios') {
+      const access = moduleAccess?.[featureKey];
+      return access?.accessLevel === 'none';
+    }
+    
+    return false;
+  };
 
   // Determine which navigation to show based on:
   // 1. For platform operators: use AdminMode toggle (platform vs store)
@@ -317,7 +374,7 @@ export function AppSidebar() {
   // Modules that should be locked for non-admin users
   const COMING_SOON_MODULES = ['/marketplaces/shopee', '/campaigns'];
   
-  const renderNavItem = (item: NavItem) => {
+  const renderNavItem = (item: NavItem, groupModuleKey?: string) => {
     // Owner-only items visibility check
     if (item.ownerOnly && !isOwner && !isPlatformOp) {
       return null;
@@ -339,6 +396,9 @@ export function AppSidebar() {
     const isComingSoon = COMING_SOON_MODULES.includes(item.href);
     const shouldBeLocked = item.locked || (isComingSoon && !isPlatformOperator);
 
+    // Check if feature is blocked by plan
+    const isBlockedByPlan = !isPlatformOperator && isFeatureBlocked(groupModuleKey, item.blockedFeature);
+
     // Locked items render differently - no navigation
     if (shouldBeLocked) {
       const lockedContent = (
@@ -352,7 +412,7 @@ export function AppSidebar() {
           {!collapsed && (
             <>
               <span className="flex-1 truncate">{item.title}</span>
-              <span className="text-[10px] font-semibold bg-amber-500/30 text-amber-500 px-1.5 py-0.5 rounded">
+              <span className="text-[10px] font-semibold bg-amber-500/30 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded">
                 Em breve
               </span>
             </>
@@ -372,6 +432,48 @@ export function AppSidebar() {
             </Tooltip>
           ) : (
             lockedContent
+          )}
+        </li>
+      );
+    }
+
+    // Blocked by plan - show with lock icon
+    if (isBlockedByPlan) {
+      const blockedContent = (
+        <div
+          className={cn(
+            "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium cursor-not-allowed",
+            "text-sidebar-foreground/50"
+          )}
+        >
+          <Icon className="h-4 w-4 flex-shrink-0 opacity-50" />
+          {!collapsed && (
+            <>
+              <span className="flex-1 truncate opacity-70">{item.title}</span>
+              <Lock className="h-3 w-3 text-muted-foreground" />
+            </>
+          )}
+        </div>
+      );
+
+      return (
+        <li key={item.href}>
+          {collapsed ? (
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>{blockedContent}</TooltipTrigger>
+              <TooltipContent side="right" className="font-medium">
+                {item.title}
+                <span className="ml-1 text-muted-foreground text-xs">Upgrade necessário</span>
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <Tooltip delayDuration={200}>
+              <TooltipTrigger asChild>{blockedContent}</TooltipTrigger>
+              <TooltipContent side="right">
+                <p className="font-medium">Funcionalidade bloqueada</p>
+                <p className="text-xs text-muted-foreground">Faça upgrade do seu plano para acessar</p>
+              </TooltipContent>
+            </Tooltip>
           )}
         </li>
       );
@@ -427,6 +529,9 @@ export function AppSidebar() {
   };
 
   const renderNavGroup = (group: NavGroup) => {
+    // Check if the entire module is blocked (access_level = 'none')
+    const moduleBlocked = !isPlatformOperator && group.moduleKey && !isModuleAccessible(group.moduleKey);
+    
     // Filter items based on permissions - THIS IS CRITICAL FOR RBAC
     const visibleItems = group.items.filter(item => {
       if (item.ownerOnly && !isOwner && !isPlatformOp) return false;
@@ -444,7 +549,37 @@ export function AppSidebar() {
     if (collapsed) {
       return (
         <div key={group.label} className="mb-2">
-          <ul className="space-y-0.5">{visibleItems.map(renderNavItem)}</ul>
+          <ul className="space-y-0.5">{visibleItems.map(item => renderNavItem(item, group.moduleKey))}</ul>
+        </div>
+      );
+    }
+
+    // If entire module is blocked, show locked group
+    if (moduleBlocked) {
+      return (
+        <div key={group.label} className="mb-1">
+          <div
+            className={cn(
+              "flex w-full items-center justify-between px-2 py-2 rounded-md",
+              "bg-muted/30 text-sidebar-foreground/50 cursor-not-allowed"
+            )}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <Lock className="h-4 w-4 flex-shrink-0" />
+              <span className="text-xs font-semibold uppercase tracking-wide truncate">{group.label}</span>
+            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-[10px] font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded cursor-help">
+                  Upgrade
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p className="font-medium">Módulo bloqueado</p>
+                <p className="text-xs text-muted-foreground">Disponível em planos superiores</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
         </div>
       );
     }
@@ -479,7 +614,7 @@ export function AppSidebar() {
             </CollapsibleTrigger>
             <CollapsibleContent>
               <ul className="space-y-0.5 mt-1 ml-2 pl-4 border-l border-sidebar-border/50">
-                {visibleItems.map(renderNavItem)}
+                {visibleItems.map(item => renderNavItem(item, group.moduleKey))}
               </ul>
             </CollapsibleContent>
           </Collapsible>
@@ -493,7 +628,7 @@ export function AppSidebar() {
         <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/50">
           {group.label}
         </p>
-        <ul className="space-y-0.5">{visibleItems.map(renderNavItem)}</ul>
+        <ul className="space-y-0.5">{visibleItems.map(item => renderNavItem(item, group.moduleKey))}</ul>
       </div>
     );
   };
