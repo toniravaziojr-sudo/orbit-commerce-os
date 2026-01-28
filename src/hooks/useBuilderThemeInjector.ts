@@ -83,6 +83,15 @@ export function useBuilderThemeInjector(
     const buttonSecondaryText = colors?.buttonSecondaryText || DEFAULT_THEME_COLORS.buttonSecondaryText;
     const textPrimary = colors?.textPrimary || DEFAULT_THEME_COLORS.textPrimary;
     const textSecondary = colors?.textSecondary || DEFAULT_THEME_COLORS.textSecondary;
+    // Special tag colors
+    const successBg = colors?.successBg || DEFAULT_THEME_COLORS.successBg;
+    const successText = colors?.successText || DEFAULT_THEME_COLORS.successText;
+    const warningBg = colors?.warningBg || DEFAULT_THEME_COLORS.warningBg;
+    const warningText = colors?.warningText || DEFAULT_THEME_COLORS.warningText;
+    const dangerBg = colors?.dangerBg || DEFAULT_THEME_COLORS.dangerBg;
+    const dangerText = colors?.dangerText || DEFAULT_THEME_COLORS.dangerText;
+    const highlightBg = colors?.highlightBg || DEFAULT_THEME_COLORS.highlightBg;
+    const highlightText = colors?.highlightText || DEFAULT_THEME_COLORS.highlightText;
 
     // Convert hex to HSL for Tailwind CSS variable override
     const primaryHsl = hexToHslValues(buttonPrimaryBg);
@@ -102,6 +111,15 @@ export function useBuilderThemeInjector(
         --theme-button-secondary-text: ${buttonSecondaryText};
         --theme-text-primary: ${textPrimary};
         --theme-text-secondary: ${textSecondary};
+        /* Special tag colors */
+        --theme-success-bg: ${successBg};
+        --theme-success-text: ${successText};
+        --theme-warning-bg: ${warningBg};
+        --theme-warning-text: ${warningText};
+        --theme-danger-bg: ${dangerBg};
+        --theme-danger-text: ${dangerText};
+        --theme-highlight-bg: ${highlightBg};
+        --theme-highlight-text: ${highlightText};
       }
       
       /* CRITICAL: Override Tailwind's --primary inside builder preview to use theme colors */
@@ -170,6 +188,28 @@ export function useBuilderThemeInjector(
       .builder-preview-canvas .sf-btn-secondary:hover,
       .storefront-container .sf-btn-secondary:hover {
         opacity: 0.9;
+      }
+      
+      /* Special tag colors - theme-based classes */
+      .builder-preview-canvas .sf-tag-success,
+      .storefront-container .sf-tag-success {
+        background-color: var(--theme-success-bg, #22c55e) !important;
+        color: var(--theme-success-text, #ffffff) !important;
+      }
+      .builder-preview-canvas .sf-tag-warning,
+      .storefront-container .sf-tag-warning {
+        background-color: var(--theme-warning-bg, #f97316) !important;
+        color: var(--theme-warning-text, #ffffff) !important;
+      }
+      .builder-preview-canvas .sf-tag-danger,
+      .storefront-container .sf-tag-danger {
+        background-color: var(--theme-danger-bg, #ef4444) !important;
+        color: var(--theme-danger-text, #ffffff) !important;
+      }
+      .builder-preview-canvas .sf-tag-highlight,
+      .storefront-container .sf-tag-highlight {
+        background-color: var(--theme-highlight-bg, #3b82f6) !important;
+        color: var(--theme-highlight-text, #ffffff) !important;
       }
     `;
 

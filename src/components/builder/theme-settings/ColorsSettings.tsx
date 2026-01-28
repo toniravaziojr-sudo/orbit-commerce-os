@@ -19,7 +19,7 @@ interface ColorInput {
   id: keyof ThemeColors;
   label: string;
   description: string;
-  group: 'primary' | 'secondary' | 'text';
+  group: 'primary' | 'secondary' | 'text' | 'tags';
 }
 
 const colorInputs: ColorInput[] = [
@@ -62,6 +62,58 @@ const colorInputs: ColorInput[] = [
     description: 'Descrições, legendas, informações de frete e textos auxiliares', 
     group: 'text' 
   },
+  // Special tags - success
+  { 
+    id: 'successBg', 
+    label: 'Fundo Tags Sucesso', 
+    description: 'Tags "Grátis", "Frete Grátis", "5% OFF", indicadores positivos', 
+    group: 'tags' 
+  },
+  { 
+    id: 'successText', 
+    label: 'Texto Tags Sucesso', 
+    description: 'Texto dentro das tags de sucesso', 
+    group: 'tags' 
+  },
+  // Special tags - warning
+  { 
+    id: 'warningBg', 
+    label: 'Fundo Tags Destaque', 
+    description: 'Tags "Mais Vendido", "Novo", "Promoção", destaques de produtos', 
+    group: 'tags' 
+  },
+  { 
+    id: 'warningText', 
+    label: 'Texto Tags Destaque', 
+    description: 'Texto dentro das tags de destaque', 
+    group: 'tags' 
+  },
+  // Special tags - danger
+  { 
+    id: 'dangerBg', 
+    label: 'Fundo Tags Desconto', 
+    description: 'Tags "-37%", "Últimas unidades", alertas e descontos', 
+    group: 'tags' 
+  },
+  { 
+    id: 'dangerText', 
+    label: 'Texto Tags Desconto', 
+    description: 'Texto dentro das tags de desconto/alerta', 
+    group: 'tags' 
+  },
+  // Special tags - highlight
+  { 
+    id: 'highlightBg', 
+    label: 'Fundo Tags Info', 
+    description: 'Tags "Novo", informativos, badges de categoria', 
+    group: 'tags' 
+  },
+  { 
+    id: 'highlightText', 
+    label: 'Texto Tags Info', 
+    description: 'Texto dentro das tags informativas', 
+    group: 'tags' 
+  },
 ];
 
 export function ColorsSettings({ tenantId, templateSetId }: ColorsSettingsProps) {
@@ -99,6 +151,7 @@ export function ColorsSettings({ tenantId, templateSetId }: ColorsSettingsProps)
   const primaryInputs = colorInputs.filter(c => c.group === 'primary');
   const secondaryInputs = colorInputs.filter(c => c.group === 'secondary');
   const textInputs = colorInputs.filter(c => c.group === 'text');
+  const tagsInputs = colorInputs.filter(c => c.group === 'tags');
 
   if (isLoading) {
     return (
@@ -157,6 +210,11 @@ export function ColorsSettings({ tenantId, templateSetId }: ColorsSettingsProps)
       {renderColorGroup(textInputs, 'Cores de Texto')}
 
       <Separator />
+      
+      {/* Tags Colors */}
+      {renderColorGroup(tagsInputs, 'Cores das Tags Especiais')}
+
+      <Separator />
 
       {/* Preview */}
       <div className="p-4 rounded-lg border space-y-4">
@@ -192,6 +250,46 @@ export function ColorsSettings({ tenantId, templateSetId }: ColorsSettingsProps)
           <p className="text-sm" style={{ color: localColors.textSecondary }}>
             Descrição secundária com texto auxiliar
           </p>
+        </div>
+
+        {/* Tags Preview */}
+        <div className="flex flex-wrap gap-2">
+          <span 
+            className="px-2 py-1 rounded text-xs font-medium"
+            style={{ 
+              backgroundColor: localColors.successBg,
+              color: localColors.successText,
+            }}
+          >
+            Frete Grátis
+          </span>
+          <span 
+            className="px-2 py-1 rounded text-xs font-medium"
+            style={{ 
+              backgroundColor: localColors.warningBg,
+              color: localColors.warningText,
+            }}
+          >
+            Mais Vendido
+          </span>
+          <span 
+            className="px-2 py-1 rounded text-xs font-medium"
+            style={{ 
+              backgroundColor: localColors.dangerBg,
+              color: localColors.dangerText,
+            }}
+          >
+            -37%
+          </span>
+          <span 
+            className="px-2 py-1 rounded text-xs font-medium"
+            style={{ 
+              backgroundColor: localColors.highlightBg,
+              color: localColors.highlightText,
+            }}
+          >
+            Novo
+          </span>
         </div>
       </div>
 

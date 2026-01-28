@@ -1099,7 +1099,7 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
                 <p className="text-muted-foreground line-through text-base md:text-lg">
                   R$ {productCompareAtPrice.toFixed(2).replace('.', ',')}
                 </p>
-                <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded">
+                <span className="sf-tag-danger text-xs font-bold px-2 py-1 rounded">
                   -{discountPercent}%
                 </span>
               </>

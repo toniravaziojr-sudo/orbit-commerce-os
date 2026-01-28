@@ -183,7 +183,7 @@ export function OrderBumpSection({ tenantId, disabled = false }: OrderBumpSectio
         <Gift className="h-5 w-5 text-primary" />
         <h3 className="font-semibold">{activeRule.title || 'Oferta Especial!'}</h3>
         {discountLabel && (
-          <Badge variant="secondary" className="bg-green-100 text-green-700 text-xs ml-auto">
+          <Badge variant="secondary" className="sf-tag-success text-xs ml-auto">
             {discountLabel}
           </Badge>
         )}

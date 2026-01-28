@@ -22,6 +22,15 @@ export interface ThemeColors {
   buttonSecondaryText: string;
   textPrimary: string;
   textSecondary: string;
+  // Special tag colors
+  successBg: string;
+  successText: string;
+  warningBg: string;
+  warningText: string;
+  dangerBg: string;
+  dangerText: string;
+  highlightBg: string;
+  highlightText: string;
 }
 
 export interface ThemeTypography {
@@ -145,6 +154,15 @@ export const DEFAULT_THEME_COLORS: ThemeColors = {
   buttonSecondaryText: '#1a1a1a',
   textPrimary: '#1a1a1a',
   textSecondary: '#666666',
+  // Special tag colors
+  successBg: '#22c55e',
+  successText: '#ffffff',
+  warningBg: '#f97316',
+  warningText: '#ffffff',
+  dangerBg: '#ef4444',
+  dangerText: '#ffffff',
+  highlightBg: '#3b82f6',
+  highlightText: '#ffffff',
 };
 
 export const DEFAULT_THEME_TYPOGRAPHY: ThemeTypography = {

@@ -235,6 +235,31 @@ export function getStorefrontThemeCss(themeSettings: ThemeSettings | null): stri
   if (colors?.textSecondary) {
     colorVars.push(`--theme-text-secondary: ${colors.textSecondary};`);
   }
+  // Special tag colors
+  if (colors?.successBg) {
+    colorVars.push(`--theme-success-bg: ${colors.successBg};`);
+  }
+  if (colors?.successText) {
+    colorVars.push(`--theme-success-text: ${colors.successText};`);
+  }
+  if (colors?.warningBg) {
+    colorVars.push(`--theme-warning-bg: ${colors.warningBg};`);
+  }
+  if (colors?.warningText) {
+    colorVars.push(`--theme-warning-text: ${colors.warningText};`);
+  }
+  if (colors?.dangerBg) {
+    colorVars.push(`--theme-danger-bg: ${colors.dangerBg};`);
+  }
+  if (colors?.dangerText) {
+    colorVars.push(`--theme-danger-text: ${colors.dangerText};`);
+  }
+  if (colors?.highlightBg) {
+    colorVars.push(`--theme-highlight-bg: ${colors.highlightBg};`);
+  }
+  if (colors?.highlightText) {
+    colorVars.push(`--theme-highlight-text: ${colors.highlightText};`);
+  }
 
   const colorCss = colorVars.length > 0 ? colorVars.join('\n      ') : '';
 
@@ -300,6 +325,24 @@ export function getStorefrontThemeCss(themeSettings: ThemeSettings | null): stri
     }
     .storefront-container .sf-btn-secondary:hover {
       opacity: 0.9;
+    }
+    
+    /* Special tag colors - theme-based classes */
+    .storefront-container .sf-tag-success {
+      background-color: var(--theme-success-bg, #22c55e) !important;
+      color: var(--theme-success-text, #ffffff) !important;
+    }
+    .storefront-container .sf-tag-warning {
+      background-color: var(--theme-warning-bg, #f97316) !important;
+      color: var(--theme-warning-text, #ffffff) !important;
+    }
+    .storefront-container .sf-tag-danger {
+      background-color: var(--theme-danger-bg, #ef4444) !important;
+      color: var(--theme-danger-text, #ffffff) !important;
+    }
+    .storefront-container .sf-tag-highlight {
+      background-color: var(--theme-highlight-bg, #3b82f6) !important;
+      color: var(--theme-highlight-text, #ffffff) !important;
     }
   `;
 }

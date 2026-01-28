@@ -33,30 +33,30 @@ export function ProductBadges({
 }: ProductBadgesProps) {
   const badges: React.ReactNode[] = [];
 
-  // New badge - uses primary color from theme
+  // New badge - uses theme highlight color
   if (isNew) {
     badges.push(
-      <Badge key="new" className="gap-1 text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground">
+      <Badge key="new" className="gap-1 text-xs font-bold sf-tag-highlight">
         <Star className="w-3 h-3" />
         Novo
       </Badge>
     );
   }
 
-  // Best seller badge
+  // Best seller badge - uses theme warning color
   if (isBestSeller) {
     badges.push(
-      <Badge key="bestseller" className="gap-1 text-xs font-bold bg-orange-500 hover:bg-orange-600">
+      <Badge key="bestseller" className="gap-1 text-xs font-bold sf-tag-warning">
         <Flame className="w-3 h-3" />
         Mais Vendido
       </Badge>
     );
   }
 
-  // Free shipping badge
+  // Free shipping badge - uses theme success color
   if (hasFreeShipping) {
     badges.push(
-      <Badge key="freeshipping" className="gap-1 text-xs font-bold bg-green-500 hover:bg-green-600">
+      <Badge key="freeshipping" className="gap-1 text-xs font-bold sf-tag-success">
         <Truck className="w-3 h-3" />
         Frete Grátis
       </Badge>

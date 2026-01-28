@@ -88,7 +88,7 @@ export function CheckoutOrderSummary({
           <span className="text-muted-foreground">Frete ({effectiveShipping.label})</span>
           <span>
             {effectiveShipping.isFree || freeShipping ? (
-              <span className="text-green-600 font-medium">Grátis</span>
+              <span className="sf-tag-success font-medium px-2 py-0.5 rounded text-xs">Grátis</span>
             ) : (
               formatCurrency(totals.shippingTotal)
             )}
@@ -98,7 +98,7 @@ export function CheckoutOrderSummary({
 
       {/* Discount line with coupon badge */}
       {(totals.discountTotal > 0 || appliedDiscount) && (
-        <div className="flex justify-between text-sm text-green-600">
+        <div className="flex justify-between text-sm sf-tag-success px-2 py-1 rounded">
           <span className="flex items-center gap-1.5">
             <Tag className="h-3.5 w-3.5" />
             {appliedDiscount?.discount_name || 'Desconto'}
@@ -114,7 +114,7 @@ export function CheckoutOrderSummary({
 
       {/* Free shipping badge (separate from discount) */}
       {freeShipping && !effectiveShipping && (
-        <div className="flex justify-between text-sm text-green-600">
+        <div className="flex justify-between text-sm sf-tag-success px-2 py-1 rounded">
           <span className="flex items-center gap-1.5">
             <Tag className="h-3.5 w-3.5" />
             Frete grátis aplicado
