@@ -20,6 +20,8 @@ import { usePaymentProviders } from "@/hooks/usePaymentProviders";
 import { useLateConnection } from "@/hooks/useLateConnection";
 import { useMeliConnection } from "@/hooks/useMeliConnection";
 import { useYouTubeConnection } from "@/hooks/useYouTubeConnection";
+import { usePlatformOperator } from "@/hooks/usePlatformOperator";
+import { useAdminModeSafe } from "@/contexts/AdminModeContext";
 import { StatusBadge } from "@/components/ui/status-badge";
 
 // Future ERP integrations
@@ -38,10 +40,15 @@ export default function Integrations() {
   const { isConnected: lateConnected } = useLateConnection();
   const { isConnected: meliConnected } = useMeliConnection();
   const { isConnected: youtubeConnected } = useYouTubeConnection();
+  const { isPlatformOperator } = usePlatformOperator();
+  const { isStoreMode } = useAdminModeSafe();
   const [activeTab, setActiveTab] = useState("payments");
 
+  // YouTube is only visible for platform operators in store mode (following rollout protocol)
+  const showYouTube = isPlatformOperator && isStoreMode;
+  
   const activePaymentGateways = paymentProviders.filter(p => p.is_enabled).length;
-  const socialAccountsCount = (lateConnected ? 1 : 0) + (youtubeConnected ? 1 : 0);
+  const socialAccountsCount = (lateConnected ? 1 : 0) + (showYouTube && youtubeConnected ? 1 : 0);
   const marketplacesCount = meliConnected ? 1 : 0;
 
   return (
@@ -117,10 +124,12 @@ export default function Integrations() {
             <Share2 className="h-4 w-4" />
             <span className="hidden sm:inline">Redes Sociais</span>
           </TabsTrigger>
-          <TabsTrigger value="youtube" className="gap-2">
-            <Youtube className="h-4 w-4" />
-            <span className="hidden sm:inline">YouTube</span>
-          </TabsTrigger>
+          {showYouTube && (
+            <TabsTrigger value="youtube" className="gap-2">
+              <Youtube className="h-4 w-4" />
+              <span className="hidden sm:inline">YouTube</span>
+            </TabsTrigger>
+          )}
           <TabsTrigger value="marketplaces" className="gap-2">
             <Boxes className="h-4 w-4" />
             <span className="hidden sm:inline">Marketplaces</span>
@@ -144,9 +153,11 @@ export default function Integrations() {
           <LateConnectionSettings />
         </TabsContent>
 
-        <TabsContent value="youtube" className="space-y-6">
-          <YouTubeSettings />
-        </TabsContent>
+        {showYouTube && (
+          <TabsContent value="youtube" className="space-y-6">
+            <YouTubeSettings />
+          </TabsContent>
+        )}
 
         <TabsContent value="marketplaces" className="space-y-6">
           <MarketplacesIntegrationTab />

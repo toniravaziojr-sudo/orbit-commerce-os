@@ -262,7 +262,7 @@ export function AppSidebar() {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(getInitialOpenGroups);
   const location = useLocation();
   const { isPlatformOperator } = usePlatformOperator();
-  const { isPlatformTenant, isLoading: isTenantTypeLoading } = useTenantType();
+  const { isPlatformTenant, isUnlimited, isLoading: isTenantTypeLoading } = useTenantType();
   const { currentTenant, tenants } = useAuth();
   const { isSpecialTenant } = useIsSpecialTenant();
   const { isDemoMode } = useDemoMode();
@@ -295,6 +295,8 @@ export function AppSidebar() {
   const isFeatureBlocked = (moduleKey?: string, featureKey?: string): boolean => {
     // Platform operators have full access
     if (isPlatformOperator) return false;
+    // Unlimited/special tenants have full access (no upgrade badges)
+    if (isUnlimited) return false;
     // If no feature specified, not blocked
     if (!featureKey) return false;
     
