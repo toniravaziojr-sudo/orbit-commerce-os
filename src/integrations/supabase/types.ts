@@ -12607,6 +12607,328 @@ export type Database = {
           },
         ]
       }
+      youtube_analytics: {
+        Row: {
+          average_view_duration_seconds: number | null
+          average_view_percentage: number | null
+          comments: number | null
+          ctr: number | null
+          demographics: Json | null
+          dislikes: number | null
+          fetched_at: string
+          id: string
+          likes: number | null
+          period_end: string
+          period_start: string
+          shares: number | null
+          tenant_id: string
+          traffic_sources: Json | null
+          video_id: string
+          views: number | null
+          watch_time_minutes: number | null
+        }
+        Insert: {
+          average_view_duration_seconds?: number | null
+          average_view_percentage?: number | null
+          comments?: number | null
+          ctr?: number | null
+          demographics?: Json | null
+          dislikes?: number | null
+          fetched_at?: string
+          id?: string
+          likes?: number | null
+          period_end: string
+          period_start: string
+          shares?: number | null
+          tenant_id: string
+          traffic_sources?: Json | null
+          video_id: string
+          views?: number | null
+          watch_time_minutes?: number | null
+        }
+        Update: {
+          average_view_duration_seconds?: number | null
+          average_view_percentage?: number | null
+          comments?: number | null
+          ctr?: number | null
+          demographics?: Json | null
+          dislikes?: number | null
+          fetched_at?: string
+          id?: string
+          likes?: number | null
+          period_end?: string
+          period_start?: string
+          shares?: number | null
+          tenant_id?: string
+          traffic_sources?: Json | null
+          video_id?: string
+          views?: number | null
+          watch_time_minutes?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "youtube_analytics_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      youtube_connections: {
+        Row: {
+          access_token: string
+          channel_custom_url: string | null
+          channel_id: string
+          channel_thumbnail_url: string | null
+          channel_title: string | null
+          connected_by: string | null
+          connection_status: string
+          created_at: string
+          id: string
+          is_active: boolean
+          last_error: string | null
+          last_sync_at: string | null
+          metadata: Json | null
+          profile_data: Json | null
+          quota_reset_at: string | null
+          quota_used_today: number | null
+          refresh_token: string
+          scopes: string[] | null
+          subscriber_count: number | null
+          tenant_id: string
+          token_expires_at: string
+          token_type: string | null
+          updated_at: string
+          video_count: number | null
+        }
+        Insert: {
+          access_token: string
+          channel_custom_url?: string | null
+          channel_id: string
+          channel_thumbnail_url?: string | null
+          channel_title?: string | null
+          connected_by?: string | null
+          connection_status?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_error?: string | null
+          last_sync_at?: string | null
+          metadata?: Json | null
+          profile_data?: Json | null
+          quota_reset_at?: string | null
+          quota_used_today?: number | null
+          refresh_token: string
+          scopes?: string[] | null
+          subscriber_count?: number | null
+          tenant_id: string
+          token_expires_at: string
+          token_type?: string | null
+          updated_at?: string
+          video_count?: number | null
+        }
+        Update: {
+          access_token?: string
+          channel_custom_url?: string | null
+          channel_id?: string
+          channel_thumbnail_url?: string | null
+          channel_title?: string | null
+          connected_by?: string | null
+          connection_status?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_error?: string | null
+          last_sync_at?: string | null
+          metadata?: Json | null
+          profile_data?: Json | null
+          quota_reset_at?: string | null
+          quota_used_today?: number | null
+          refresh_token?: string
+          scopes?: string[] | null
+          subscriber_count?: number | null
+          tenant_id?: string
+          token_expires_at?: string
+          token_type?: string | null
+          updated_at?: string
+          video_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "youtube_connections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      youtube_oauth_states: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          redirect_url: string | null
+          scopes: string[] | null
+          state: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          redirect_url?: string | null
+          scopes?: string[] | null
+          state: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          redirect_url?: string | null
+          scopes?: string[] | null
+          state?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "youtube_oauth_states_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      youtube_uploads: {
+        Row: {
+          calendar_item_id: string | null
+          category_id: string | null
+          completed_at: string | null
+          connection_id: string
+          created_at: string
+          credits_consumed: number | null
+          credits_reserved: number | null
+          description: string | null
+          error_message: string | null
+          file_mime_type: string | null
+          file_path: string | null
+          file_size_bytes: number | null
+          file_url: string | null
+          id: string
+          idempotency_key: string | null
+          metadata: Json | null
+          privacy_status: string
+          publish_at: string | null
+          retry_count: number | null
+          started_at: string | null
+          status: string
+          tags: string[] | null
+          tenant_id: string
+          thumbnail_uploaded: boolean | null
+          thumbnail_url: string | null
+          title: string
+          updated_at: string
+          upload_progress: number | null
+          youtube_thumbnail_url: string | null
+          youtube_video_id: string | null
+          youtube_video_url: string | null
+        }
+        Insert: {
+          calendar_item_id?: string | null
+          category_id?: string | null
+          completed_at?: string | null
+          connection_id: string
+          created_at?: string
+          credits_consumed?: number | null
+          credits_reserved?: number | null
+          description?: string | null
+          error_message?: string | null
+          file_mime_type?: string | null
+          file_path?: string | null
+          file_size_bytes?: number | null
+          file_url?: string | null
+          id?: string
+          idempotency_key?: string | null
+          metadata?: Json | null
+          privacy_status?: string
+          publish_at?: string | null
+          retry_count?: number | null
+          started_at?: string | null
+          status?: string
+          tags?: string[] | null
+          tenant_id: string
+          thumbnail_uploaded?: boolean | null
+          thumbnail_url?: string | null
+          title: string
+          updated_at?: string
+          upload_progress?: number | null
+          youtube_thumbnail_url?: string | null
+          youtube_video_id?: string | null
+          youtube_video_url?: string | null
+        }
+        Update: {
+          calendar_item_id?: string | null
+          category_id?: string | null
+          completed_at?: string | null
+          connection_id?: string
+          created_at?: string
+          credits_consumed?: number | null
+          credits_reserved?: number | null
+          description?: string | null
+          error_message?: string | null
+          file_mime_type?: string | null
+          file_path?: string | null
+          file_size_bytes?: number | null
+          file_url?: string | null
+          id?: string
+          idempotency_key?: string | null
+          metadata?: Json | null
+          privacy_status?: string
+          publish_at?: string | null
+          retry_count?: number | null
+          started_at?: string | null
+          status?: string
+          tags?: string[] | null
+          tenant_id?: string
+          thumbnail_uploaded?: boolean | null
+          thumbnail_url?: string | null
+          title?: string
+          updated_at?: string
+          upload_progress?: number | null
+          youtube_thumbnail_url?: string | null
+          youtube_video_id?: string | null
+          youtube_video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "youtube_uploads_calendar_item_id_fkey"
+            columns: ["calendar_item_id"]
+            isOneToOne: false
+            referencedRelation: "media_calendar_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "youtube_uploads_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "youtube_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "youtube_uploads_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -12623,6 +12945,14 @@ export type Database = {
           p_description?: string
           p_idempotency_key: string
           p_tenant_id: string
+        }
+        Returns: number
+      }
+      calculate_youtube_upload_credits: {
+        Args: {
+          p_file_size_bytes: number
+          p_include_captions?: boolean
+          p_include_thumbnail?: boolean
         }
         Returns: number
       }
@@ -12649,6 +12979,7 @@ export type Database = {
         }[]
       }
       cleanup_expired_meta_oauth_states: { Args: never; Returns: undefined }
+      cleanup_expired_youtube_oauth_states: { Args: never; Returns: undefined }
       consume_credits: {
         Args: {
           p_cost_usd: number
