@@ -90,20 +90,34 @@ A tipografia da loja é gerenciada **exclusivamente** em **Configuração do tem
 │  STOREFRONT PÚBLICO:                                                     │
 │  StorefrontThemeInjector.tsx                                             │
 │  → Injeta <style> no <head> com CSS para .storefront-container          │
+│  → Injeta variáveis CSS de tipografia E cores do tema                   │
 │                                                                          │
 │  BUILDER PREVIEW:                                                        │
 │  useBuilderThemeInjector.ts                                              │
 │  → Injeta <style> no <head> para preview em tempo real                  │
+│  → Inclui AMBOS: tipografia (--sf-*) E cores (--theme-button-*)          │
+│  → Aplica classes .sf-btn-primary e .sf-btn-secondary                   │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### CSS Variables Geradas
 
+#### Tipografia
 | Variável | Descrição |
 |----------|-----------|
 | `--sf-heading-font` | font-family para H1-H6 |
 | `--sf-body-font` | font-family para p, span, button, input, etc |
 | `--sf-base-font-size` | Tamanho base em px |
+
+#### Cores do Tema (Injetadas por AMBOS os injetores)
+| Variável | Descrição |
+|----------|-----------|
+| `--theme-button-primary-bg` | Background de botões primários |
+| `--theme-button-primary-text` | Texto de botões primários |
+| `--theme-button-secondary-bg` | Background de botões secundários |
+| `--theme-button-secondary-text` | Texto de botões secundários |
+| `--theme-text-primary` | Cor de texto principal |
+| `--theme-text-secondary` | Cor de texto secundário |
 
 ### Seletores Aplicados
 
