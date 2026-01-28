@@ -86,6 +86,10 @@ export interface CheckoutSettings {
   testimonialsEnabled?: boolean;
   showTrustBadges?: boolean;
   showSecuritySeals?: boolean;
+  // Payment methods visibility toggles
+  showPix?: boolean;
+  showBoleto?: boolean;
+  showCreditCard?: boolean;
   // Payment methods config (from store_settings.checkout_config)
   paymentMethodsOrder?: ('pix' | 'credit_card' | 'boleto')[];
   paymentMethodLabels?: Record<string, string>;

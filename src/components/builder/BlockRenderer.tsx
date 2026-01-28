@@ -1350,6 +1350,11 @@ function CheckoutBlock({ isEditing, context, showOrderBump, showTimeline }: any)
   // Payment methods order and custom labels from checkout config
   const paymentMethodsOrder = checkoutSettings?.paymentMethodsOrder || ['pix', 'credit_card', 'boleto'];
   const paymentMethodLabels = checkoutSettings?.paymentMethodLabels || {};
+  
+  // NEW: Payment methods visibility toggles
+  const showPix = checkoutSettings?.showPix ?? true;
+  const showBoleto = checkoutSettings?.showBoleto ?? true;
+  const showCreditCard = checkoutSettings?.showCreditCard ?? true;
 
   if (isEditing) {
     return (
@@ -1362,6 +1367,9 @@ function CheckoutBlock({ isEditing, context, showOrderBump, showTimeline }: any)
         tenantId={tenantId}
         paymentMethodsOrder={paymentMethodsOrder}
         paymentMethodLabels={paymentMethodLabels}
+        showPix={showPix}
+        showBoleto={showBoleto}
+        showCreditCard={showCreditCard}
         isEditing 
       />
     );

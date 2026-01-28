@@ -174,6 +174,47 @@ export function CheckoutSettingsPanel({
                   onCheckedChange={(checked) => handleChange('showSecuritySeals', checked)}
                 />
               </div>
+
+              {/* PAYMENT METHODS SECTION */}
+              <div className="pt-3 border-t">
+                <p className="text-sm font-medium mb-3">Formas de Pagamento</p>
+                
+                {/* PIX */}
+                <div className="flex items-center justify-between mb-2">
+                  <Label htmlFor="showPix" className="text-sm">
+                    Exibir PIX
+                  </Label>
+                  <Switch
+                    id="showPix"
+                    checked={settings.showPix ?? true}
+                    onCheckedChange={(checked) => handleChange('showPix', checked)}
+                  />
+                </div>
+
+                {/* Boleto */}
+                <div className="flex items-center justify-between mb-2">
+                  <Label htmlFor="showBoleto" className="text-sm">
+                    Exibir Boleto
+                  </Label>
+                  <Switch
+                    id="showBoleto"
+                    checked={settings.showBoleto ?? true}
+                    onCheckedChange={(checked) => handleChange('showBoleto', checked)}
+                  />
+                </div>
+
+                {/* Credit Card */}
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="showCreditCard" className="text-sm">
+                    Exibir Cartão de Crédito
+                  </Label>
+                  <Switch
+                    id="showCreditCard"
+                    checked={settings.showCreditCard ?? true}
+                    onCheckedChange={(checked) => handleChange('showCreditCard', checked)}
+                  />
+                </div>
+              </div>
             </div>
           </AccordionContent>
         </AccordionItem>
