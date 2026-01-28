@@ -48,11 +48,23 @@ export function PlanCard({ plan, isCurrentPlan, isPopular, onSelect, disabled }:
 
       <CardContent className="flex-1">
         <div className="text-center mb-6">
-          <span className="text-4xl font-bold">
-            {plan.monthly_fee_cents === 0 ? 'Grátis' : formatCurrency(plan.monthly_fee_cents)}
-          </span>
-          {plan.monthly_fee_cents > 0 && (
-            <span className="text-muted-foreground">/mês</span>
+          {/* Plano básico tem taxa de 2.5% sobre vendas, não é grátis */}
+          {plan.plan_key === 'basico' ? (
+            <>
+              <span className="text-3xl font-bold">2,5%</span>
+              <span className="text-muted-foreground text-lg ml-1">sobre vendas</span>
+            </>
+          ) : plan.is_custom ? (
+            <>
+              <span className="text-2xl font-bold">Sob consulta</span>
+            </>
+          ) : (
+            <>
+              <span className="text-4xl font-bold">
+                {formatCurrency(plan.monthly_fee_cents)}
+              </span>
+              <span className="text-muted-foreground">/mês</span>
+            </>
           )}
         </div>
 
@@ -90,7 +102,7 @@ export function PlanCard({ plan, isCurrentPlan, isPopular, onSelect, disabled }:
             onClick={() => onSelect?.(plan.plan_key)}
             disabled={disabled}
           >
-            {plan.monthly_fee_cents === 0 ? 'Começar Grátis' : 'Assinar Agora'}
+            {plan.plan_key === 'basico' ? 'Começar Agora' : 'Assinar Agora'}
           </Button>
         )}
       </CardFooter>

@@ -437,23 +437,28 @@ export function AppSidebar() {
       );
     }
 
-    // Blocked by plan - show with lock icon
+    // Blocked by plan - allow navigation but show Upgrade badge
     if (isBlockedByPlan) {
       const blockedContent = (
-        <div
+        <NavLink
+          to={item.href}
           className={cn(
-            "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium cursor-not-allowed",
-            "text-sidebar-foreground/50"
+            "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-all",
+            active
+              ? "bg-sidebar-accent text-sidebar-accent-foreground"
+              : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
           )}
         >
-          <Icon className="h-4 w-4 flex-shrink-0 opacity-50" />
+          <Icon className={cn("h-4 w-4 flex-shrink-0", active ? "text-sidebar-primary" : "")} />
           {!collapsed && (
             <>
-              <span className="flex-1 truncate opacity-70">{item.title}</span>
-              <Lock className="h-3 w-3 text-muted-foreground" />
+              <span className="flex-1 truncate">{item.title}</span>
+              <span className="text-[10px] font-semibold bg-primary/20 text-primary px-1.5 py-0.5 rounded">
+                Upgrade
+              </span>
             </>
           )}
-        </div>
+        </NavLink>
       );
 
       return (
@@ -463,17 +468,11 @@ export function AppSidebar() {
               <TooltipTrigger asChild>{blockedContent}</TooltipTrigger>
               <TooltipContent side="right" className="font-medium">
                 {item.title}
-                <span className="ml-1 text-muted-foreground text-xs">Upgrade necessário</span>
+                <span className="ml-1 text-primary text-xs">Upgrade necessário</span>
               </TooltipContent>
             </Tooltip>
           ) : (
-            <Tooltip delayDuration={200}>
-              <TooltipTrigger asChild>{blockedContent}</TooltipTrigger>
-              <TooltipContent side="right">
-                <p className="font-medium">Funcionalidade bloqueada</p>
-                <p className="text-xs text-muted-foreground">Faça upgrade do seu plano para acessar</p>
-              </TooltipContent>
-            </Tooltip>
+            blockedContent
           )}
         </li>
       );

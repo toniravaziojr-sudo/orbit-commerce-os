@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AppShell } from "@/components/layout/AppShell";
+import { GatedRoute } from "@/components/layout/GatedRoute";
 import { CommandAssistantProvider, CommandAssistantPanel } from "@/components/command-assistant";
 
 // Admin Pages
@@ -338,10 +339,10 @@ const App = () => {
                   <Route path="/customers/:id" element={<CustomerDetail />} />
                   <Route path="/notifications" element={<Notifications />} />
                   <Route path="/support" element={<Support />} />
-                  <Route path="/media" element={<Media />} />
-                  <Route path="/media/campaign/:campaignId" element={<MediaCampaignDetail />} />
-                  <Route path="/campaigns" element={<Campaigns />} />
-                  <Route path="/creatives" element={<Creatives />} />
+                  <Route path="/media" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado" moduleDescription="Gestor de Mídias IA para campanhas de conteúdo"><Media /></GatedRoute>} />
+                  <Route path="/media/campaign/:campaignId" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado"><MediaCampaignDetail /></GatedRoute>} />
+                  <Route path="/campaigns" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado" moduleDescription="Gestor de Tráfego IA para campanhas"><Campaigns /></GatedRoute>} />
+                  <Route path="/creatives" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado" moduleDescription="Gestão de Criativos IA"><Creatives /></GatedRoute>} />
                   <Route path="/offers" element={<Offers />} />
                   <Route path="/buy-together" element={<Navigate to="/offers" replace />} />
                   <Route path="/reviews" element={<Reviews />} />
@@ -356,21 +357,21 @@ const App = () => {
                   
                   <Route path="/marketing" element={<Marketing />} />
                   <Route path="/marketing/atribuicao" element={<Attribution />} />
-                  <Route path="/email-marketing" element={<EmailMarketing />} />
-                  <Route path="/email-marketing/list/:listId" element={<EmailMarketingListDetail />} />
-                  <Route path="/quizzes" element={<Quizzes />} />
-                  <Route path="/quizzes/:quizId" element={<QuizEditor />} />
-                  <Route path="/finance" element={<Finance />} />
+                  <Route path="/email-marketing" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado" moduleDescription="Email Marketing para campanhas"><EmailMarketing /></GatedRoute>} />
+                  <Route path="/email-marketing/list/:listId" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado"><EmailMarketingListDetail /></GatedRoute>} />
+                  <Route path="/quizzes" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado" moduleDescription="Quizzes interativos"><Quizzes /></GatedRoute>} />
+                  <Route path="/quizzes/:quizId" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado"><QuizEditor /></GatedRoute>} />
+                  <Route path="/finance" element={<GatedRoute moduleKey="erp_financeiro" moduleName="ERP Financeiro" moduleDescription="Gestão financeira e contas"><Finance /></GatedRoute>} />
                   <Route path="/payments" element={<Navigate to="/integrations" replace />} />
                   <Route path="/shipping" element={<Navigate to="/integrations" replace />} />
                   <Route path="/fiscal" element={<Fiscal />} />
                   <Route path="/fiscal/products" element={<FiscalProductsConfig />} />
                   <Route path="/fiscal/operation-natures" element={<OperationNaturesSettings />} />
                   <Route path="/import" element={<Import />} />
-                  <Route path="/purchases" element={<Purchases />} />
-                  <Route path="/influencers" element={<Influencers />} />
+                  <Route path="/purchases" element={<GatedRoute moduleKey="erp_compras" moduleName="ERP Compras" moduleDescription="Gestão de compras e fornecedores"><Purchases /></GatedRoute>} />
+                  <Route path="/influencers" element={<GatedRoute moduleKey="parcerias" moduleName="Parcerias" moduleDescription="Gestão de influencers"><Influencers /></GatedRoute>} />
                   
-                  <Route path="/affiliates" element={<Affiliates />} />
+                  <Route path="/affiliates" element={<GatedRoute moduleKey="parcerias" moduleName="Parcerias" moduleDescription="Programa de afiliados"><Affiliates /></GatedRoute>} />
                   <Route path="/support-center" element={<SupportCenter />} />
                   <Route path="/ai-packages" element={<AIPackages />} />
                   <Route path="/settings" element={<Settings />} />
