@@ -171,6 +171,24 @@ A tipografia da loja é gerenciada **exclusivamente** em **Configuração do tem
 
 As cores do tema são gerenciadas **exclusivamente** em **Configuração do tema > Cores** (`ColorSettings.tsx`) e **injetadas dinamicamente** via CSS no storefront.
 
+### ⚠️ REGRA CRÍTICA: Override de `--primary` do Tailwind
+
+O sistema **SOBRESCREVE** a variável `--primary` do Tailwind dentro dos escopos `.storefront-container` e `.builder-preview-canvas` para garantir que as cores do tema sejam aplicadas corretamente.
+
+```css
+/* INJETADO DINAMICAMENTE pelos theme injectors */
+.storefront-container,
+.builder-preview-canvas {
+  --primary: [HSL do tema convertido de hex];
+  --primary-foreground: [HSL do tema convertido de hex];
+}
+```
+
+**Por que isso é necessário:**
+- O Tailwind usa `hsl(var(--primary))` para classes como `bg-primary`, `text-primary`, `border-primary`
+- Sem esse override, essas classes usariam o valor padrão do `index.css` (indigo/azul)
+- Com o override, todas as classes `*-primary` respeitam as cores definidas em "Configurações do Tema"
+
 ### Injeção de Cores (StorefrontThemeInjector)
 
 O sistema injeta variáveis CSS e classes para botões diretamente no `<head>` do documento, garantindo que as cores do tema sejam aplicadas em toda a loja.
@@ -183,11 +201,11 @@ O sistema injeta variáveis CSS e classes para botões diretamente no `<head>` d
 │     ↓                                                                    │
 │  2. usePublicThemeSettings(tenantSlug)                                   │
 │     ↓                                                                    │
-│  3. getStorefrontThemeCss(themeSettings)                                 │
+│  3. getStorefrontThemeCss(themeSettings) + hexToHslValues()              │
 │     ↓                                                                    │
 │  4. StorefrontThemeInjector → <style id="storefront-theme-styles">      │
 │     ↓                                                                    │
-│  5. CSS Variables + Classes aplicadas via :root e .storefront-container │
+│  5. CSS Variables + Classes + OVERRIDE de --primary aplicados           │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -195,6 +213,8 @@ O sistema injeta variáveis CSS e classes para botões diretamente no `<head>` d
 
 | Variável | Origem | Uso |
 |----------|--------|-----|
+| `--primary` | `colors.buttonPrimaryBg` (convertido para HSL) | **OVERRIDE** da variável Tailwind |
+| `--primary-foreground` | `colors.buttonPrimaryText` (convertido para HSL) | **OVERRIDE** da variável Tailwind |
 | `--theme-button-primary-bg` | `colors.buttonPrimaryBg` | Background de botões primários |
 | `--theme-button-primary-text` | `colors.buttonPrimaryText` | Texto de botões primários |
 | `--theme-button-secondary-bg` | `colors.buttonSecondaryBg` | Background de botões secundários |
@@ -202,21 +222,30 @@ O sistema injeta variáveis CSS e classes para botões diretamente no `<head>` d
 | `--theme-text-primary` | `colors.textPrimary` | Cor de texto principal |
 | `--theme-text-secondary` | `colors.textSecondary` | Cor de texto secundário |
 
-### Classes CSS Injetadas
+### Classes CSS Injetadas (com !important)
 
 ```css
-/* Botão Primário - herda do tema ou fallback para --primary */
+/* Botão Primário - !important para sobrescrever Tailwind */
 .storefront-container .sf-btn-primary {
-  background-color: var(--theme-button-primary-bg, hsl(var(--primary)));
-  color: var(--theme-button-primary-text, hsl(var(--primary-foreground)));
+  background-color: var(--theme-button-primary-bg, #1a1a1a) !important;
+  color: var(--theme-button-primary-text, #ffffff) !important;
 }
 
 /* Botão Secundário */
 .storefront-container .sf-btn-secondary {
-  background-color: var(--theme-button-secondary-bg, hsl(var(--secondary)));
-  color: var(--theme-button-secondary-text, hsl(var(--secondary-foreground)));
+  background-color: var(--theme-button-secondary-bg, #f5f5f5) !important;
+  color: var(--theme-button-secondary-text, #1a1a1a) !important;
 }
 ```
+
+### Fallbacks Neutros (NÃO AZUL)
+
+| Contexto | Fallback Antigo | Fallback Atual |
+|----------|-----------------|----------------|
+| Botão primário BG | `#3b82f6` (azul) | `#1a1a1a` (preto) |
+| Botão primário texto | `#ffffff` | `#ffffff` |
+| Botão secundário BG | `#e5e7eb` | `#f5f5f5` |
+| Botão secundário texto | `#1f2937` | `#1a1a1a` |
 
 ### Uso das Classes sf-btn-*
 
@@ -226,14 +255,25 @@ O sistema injeta variáveis CSS e classes para botões diretamente no `<head>` d
 | Botões de navegação do checkout | `sf-btn-primary` | `CheckoutStepWizard.tsx` |
 | Botão "Visualizar Boleto" | `sf-btn-primary` | `PaymentResult.tsx` |
 | Botões CTA em blocos do builder | `sf-btn-primary` | Blocos individuais |
+| ProductCard "Comprar" | `sf-btn-primary` | `ProductCard.tsx` |
+| ProductCTAs "Comprar agora" | `sf-btn-primary` | `ProductCTAs.tsx` |
 
 ### Arquivos Relacionados
 
 | Arquivo | Responsabilidade |
 |---------|------------------|
-| `src/hooks/usePublicThemeSettings.ts` | Hook + `getStorefrontThemeCss()` |
-| `src/components/storefront/StorefrontThemeInjector.tsx` | Injeção no DOM |
-| `src/hooks/useBuilderThemeInjector.ts` | Preview no builder |
+| `src/hooks/usePublicThemeSettings.ts` | Hook + `getStorefrontThemeCss()` + `hexToHslValues()` |
+| `src/components/storefront/StorefrontThemeInjector.tsx` | Injeção no DOM público |
+| `src/hooks/useBuilderThemeInjector.ts` | Preview no builder + override de --primary |
+
+### ❌ Proibições Absolutas
+
+| Proibido | Motivo |
+|----------|--------|
+| Usar `bg-primary` sem `.sf-btn-primary` em botões do storefront | Pode não ter override aplicado |
+| Hardcodar cores hex (`#3b82f6`, `#6366f1`) em componentes | Ignora tema do cliente |
+| Usar fallbacks azuis em qualquer lugar | Confunde usuários |
+| Criar estilos inline com cores fixas em blocos | Quebra herança do tema |
 
 ---
 
