@@ -12,6 +12,7 @@ import { usePublicGlobalLayout } from '@/hooks/useGlobalLayoutIntegration';
 import { CheckoutStepWizard } from '@/components/storefront/checkout/CheckoutStepWizard';
 import { StorefrontHeaderContent } from '@/components/storefront/StorefrontHeaderContent';
 import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
+import { StorefrontThemeInjector } from '@/components/storefront/StorefrontThemeInjector';
 import { Loader2 } from 'lucide-react';
 import { isPreviewUrl } from '@/lib/sanitizePublicUrl';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
@@ -88,8 +89,12 @@ export default function StorefrontCheckout() {
   }
 
   return (
-    <div className="storefront-container min-h-screen flex flex-col">
-      {/* Checkout header - uses checkout_header_config */}
+    <>
+      {/* Inject theme CSS variables for buttons and text */}
+      <StorefrontThemeInjector tenantSlug={tenantSlug || ''} />
+      
+      <div className="storefront-container min-h-screen flex flex-col">
+        {/* Checkout header - uses checkout_header_config */}
       <StorefrontHeaderContent
         tenantSlug={tenantSlug || ''}
         headerConfig={checkoutHeaderConfig}
@@ -107,6 +112,7 @@ export default function StorefrontCheckout() {
         footerConfig={checkoutFooterConfig}
         isEditing={false}
       />
-    </div>
+      </div>
+    </>
   );
 }

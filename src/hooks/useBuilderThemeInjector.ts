@@ -107,11 +107,11 @@ export function useBuilderThemeInjector(
         font-family: var(--sf-body-font);
       }
 
-      /* Theme-aware button styles for builder preview */
+      /* Theme-aware button styles for builder preview - !important to override Tailwind bg-primary */
       .builder-preview-canvas .sf-btn-primary,
       .storefront-container .sf-btn-primary {
-        background-color: var(--theme-button-primary-bg);
-        color: var(--theme-button-primary-text);
+        background-color: var(--theme-button-primary-bg) !important;
+        color: var(--theme-button-primary-text) !important;
       }
       .builder-preview-canvas .sf-btn-primary:hover,
       .storefront-container .sf-btn-primary:hover {
@@ -119,8 +119,8 @@ export function useBuilderThemeInjector(
       }
       .builder-preview-canvas .sf-btn-secondary,
       .storefront-container .sf-btn-secondary {
-        background-color: var(--theme-button-secondary-bg);
-        color: var(--theme-button-secondary-text);
+        background-color: var(--theme-button-secondary-bg) !important;
+        color: var(--theme-button-secondary-text) !important;
       }
       .builder-preview-canvas .sf-btn-secondary:hover,
       .storefront-container .sf-btn-secondary:hover {

@@ -276,17 +276,17 @@ export function getStorefrontThemeCss(themeSettings: ThemeSettings | null): stri
       font-family: var(--sf-body-font);
     }
 
-    /* Theme-aware button styles for storefront */
+    /* Theme-aware button styles for storefront - !important to override Tailwind bg-primary */
     .storefront-container .sf-btn-primary {
-      background-color: var(--theme-button-primary-bg, hsl(var(--primary)));
-      color: var(--theme-button-primary-text, hsl(var(--primary-foreground)));
+      background-color: var(--theme-button-primary-bg, #1a1a1a) !important;
+      color: var(--theme-button-primary-text, #ffffff) !important;
     }
     .storefront-container .sf-btn-primary:hover {
       opacity: 0.9;
     }
     .storefront-container .sf-btn-secondary {
-      background-color: var(--theme-button-secondary-bg, hsl(var(--secondary)));
-      color: var(--theme-button-secondary-text, hsl(var(--secondary-foreground)));
+      background-color: var(--theme-button-secondary-bg, #e5e5e5) !important;
+      color: var(--theme-button-secondary-text, #1a1a1a) !important;
     }
     .storefront-container .sf-btn-secondary:hover {
       opacity: 0.9;
