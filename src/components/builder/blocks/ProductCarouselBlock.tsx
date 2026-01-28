@@ -178,13 +178,13 @@ export function ProductCarouselBlock({
                               {formatPrice(product.compare_at_price)}
                             </span>
                           )}
-                          <span className="text-sm font-semibold text-primary">
+                          <span className="text-sm font-semibold" style={{ color: 'var(--theme-text-primary, #1a1a1a)' }}>
                             {formatPrice(product.price)}
                           </span>
                         </div>
                       )}
                       {showButton && (
-                        <button className="mt-2 w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md">
+                        <button className="mt-2 w-full py-1.5 px-3 text-xs rounded-md sf-btn-primary">
                           {buttonText}
                         </button>
                       )}

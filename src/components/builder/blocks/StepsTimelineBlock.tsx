@@ -24,7 +24,7 @@ export function StepsTimelineBlock({
   subtitle,
   steps = [],
   layout = 'horizontal',
-  accentColor = '#6366f1',
+  accentColor = '#1a1a1a',
   showNumbers = true,
   backgroundColor = 'transparent',
 }: StepsTimelineBlockProps) {

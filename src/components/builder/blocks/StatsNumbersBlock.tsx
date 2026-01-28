@@ -90,7 +90,7 @@ export function StatsNumbersBlock({
   layout = 'horizontal',
   animateNumbers = true,
   backgroundColor = 'transparent',
-  accentColor = '#6366f1',
+  accentColor = '#1a1a1a',
   textColor,
 }: StatsNumbersBlockProps) {
   const isGrid = layout === 'grid' || items.length > 4;

@@ -32,7 +32,7 @@ export function AccordionBlock({
   defaultOpen = -1,
   variant = 'default',
   backgroundColor = 'transparent',
-  accentColor = '#6366f1',
+  accentColor = '#1a1a1a',
 }: AccordionBlockProps) {
   const defaultValue = defaultOpen >= 0 && defaultOpen < items.length 
     ? [`item-${defaultOpen}`] 

@@ -161,9 +161,12 @@ export function FooterNewsletterForm({
             "disabled:opacity-50 disabled:cursor-not-allowed",
             "hover:opacity-90 active:scale-[0.98]"
           )}
-          style={{
-            backgroundColor: buttonBgColor || 'hsl(var(--primary))',
-            color: buttonTextColor || 'hsl(var(--primary-foreground))',
+          style={buttonBgColor ? {
+            backgroundColor: buttonBgColor,
+            color: buttonTextColor || '#ffffff',
+          } : {
+            backgroundColor: 'var(--theme-button-primary-bg, #1a1a1a)',
+            color: buttonTextColor || 'var(--theme-button-primary-text, #ffffff)',
           }}
           aria-label={buttonText || 'Inscrever-se'}
         >

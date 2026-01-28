@@ -842,10 +842,12 @@ export function StorefrontHeaderContent({
                 >
                   <LinkWrapper
                     to={featuredPromosUrl}
-                    className="text-xs font-bold hover:opacity-90 whitespace-nowrap px-3 py-1.5 rounded-md transition-all inline-flex items-center gap-1.5"
-                    style={{ 
+                    className="text-xs font-bold hover:opacity-90 whitespace-nowrap px-3 py-1.5 rounded-md transition-all inline-flex items-center gap-1.5 sf-btn-primary"
+                    style={featuredPromosBgColor ? { 
                       color: featuredPromosTextColor || '#ffffff',
-                      backgroundColor: featuredPromosBgColor || primaryColor || 'hsl(var(--primary))'
+                      backgroundColor: featuredPromosBgColor
+                    } : {
+                      color: featuredPromosTextColor || '#ffffff'
                     }}
                   >
                     {featuredPromosLabel}
