@@ -55,9 +55,16 @@ const defaultCheckoutFooterConfig: BlockNode = {
   type: 'Footer',
   props: {
     menuId: '',
+    // Checkout-optimized: hide all navigation and contact elements
     showSocial: false,
     showNewsletterSection: false,
-    copyrightText: '© 2024 Minha Loja. Todos os direitos reservados.',
+    showFooter1: false,  // Hide menu columns
+    showFooter2: false,  // Hide policy links
+    showSac: false,      // Hide SAC/contact section
+    showLogo: true,      // Keep logo for brand recognition
+    showStoreInfo: false, // Hide legal info
+    showCopyright: true,  // Keep copyright
+    copyrightText: '© 2024 Sua Loja. Todos os direitos reservados.',
   },
 };
 
