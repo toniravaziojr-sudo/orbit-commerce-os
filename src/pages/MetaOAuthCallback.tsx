@@ -26,55 +26,48 @@ export default function MetaOAuthCallback() {
   const [errorMessage, setErrorMessage] = useState<string>("");
   const processedRef = useRef(false);
 
-  // Função para notificar janela pai e fechar popup
+  // Função para redirecionar de forma robusta
+  // IMPORTANTE: O Google Tradutor pode quebrar window.opener e postMessage
+  // Por isso, SEMPRE fazemos redirect direto após um breve delay
   const notifyParentAndClose = (success: boolean, error?: string) => {
-    const messageData = {
-      type: "meta:connected",
-      success,
-      error,
-    };
-
     const baseUrl = window.location.origin;
     const redirectUrl = success
       ? `${baseUrl}/integrations?meta_connected=true`
       : `${baseUrl}/integrations?meta_error=${encodeURIComponent(error || 'Erro')}`;
 
-    // Tentar comunicar com janela pai (se aberto como popup)
-    if (window.opener && !window.opener.closed) {
-      try {
-        window.opener.postMessage(messageData, "*");
-        console.log("[MetaOAuthCallback] Mensagem enviada para janela pai");
-      } catch (e) {
-        console.error("[MetaOAuthCallback] Falha ao enviar postMessage:", e);
+    // Tentar notificar janela pai (pode falhar com Google Tradutor)
+    try {
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage({
+          type: "meta:connected",
+          success,
+          error,
+        }, "*");
+        console.log("[MetaOAuthCallback] postMessage enviado");
       }
-
-      // Tentar fechar popup após delay para mostrar resultado
-      setTimeout(() => {
-        // Verificar se estamos em um popup real (window.opener existe e não fechou)
-        const isPopup = window.opener && !window.opener.closed;
-        
-        if (isPopup) {
-          // Tentar fechar o popup
-          window.close();
-          
-          // Verificar se realmente fechou após um breve delay
-          // Se não fechou, redirecionar
-          setTimeout(() => {
-            // Se ainda estamos aqui, o browser bloqueou o fechamento
-            console.log("[MetaOAuthCallback] Popup não fechou, redirecionando...");
-            window.location.replace(redirectUrl);
-          }, 500);
-        } else {
-          // Não é popup, redirecionar
-          window.location.replace(redirectUrl);
-        }
-      }, 1500);
-    } else {
-      // Sem opener - redirecionar imediatamente para /integrations
-      console.log("[MetaOAuthCallback] Sem opener, redirecionando para /integrations");
-      // Usar replace para não adicionar ao histórico
-      window.location.replace(redirectUrl);
+    } catch (e) {
+      console.warn("[MetaOAuthCallback] postMessage falhou (esperado com Google Tradutor):", e);
     }
+
+    // SEMPRE redirecionar após delay - não depender de window.close()
+    // O Google Tradutor frequentemente quebra window.opener e window.close()
+    setTimeout(() => {
+      // Tentar fechar se for popup
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.close();
+        }
+      } catch (e) {
+        console.warn("[MetaOAuthCallback] window.close() falhou:", e);
+      }
+      
+      // Após mais um breve delay, forçar redirect se ainda estiver aberto
+      setTimeout(() => {
+        console.log("[MetaOAuthCallback] Forçando redirect para:", redirectUrl);
+        // Usar href ao invés de replace para garantir navegação
+        window.location.href = redirectUrl;
+      }, 300);
+    }, 1200);
   };
 
   useEffect(() => {
