@@ -242,13 +242,15 @@ export function getStorefrontThemeCss(themeSettings: ThemeSettings | null): stri
     colorVars.push(`--theme-text-secondary: ${colors.textSecondary};`);
   }
   // Accent color for UI details
+  // Accent color for UI details
+  const accentColor = colors?.accentColor || '#22c55e';
   if (colors?.accentColor) {
     colorVars.push(`--theme-accent-color: ${colors.accentColor};`);
   }
-  // Special tag colors
-  if (colors?.successBg) {
-    colorVars.push(`--theme-success-bg: ${colors.successBg};`);
-  }
+  // Special tag colors - SUCCESS inherits from accent if not explicitly set
+  // This ensures consistent coloring when user only changes accent color
+  const successBg = colors?.successBg || accentColor;
+  colorVars.push(`--theme-success-bg: ${successBg};`);
   if (colors?.successText) {
     colorVars.push(`--theme-success-text: ${colors.successText};`);
   }
@@ -339,16 +341,23 @@ export function getStorefrontThemeCss(themeSettings: ThemeSettings | null): stri
       background-color: var(--theme-button-secondary-hover, var(--theme-button-secondary-bg, #d5d5d5)) !important;
     }
     
-    /* Accent color for UI details (checkmarks, icons, links) */
+    /* Accent color for UI details (checkmarks, icons, links, text) */
     .storefront-container .sf-accent-icon,
-    .storefront-container .sf-accent-check {
+    .storefront-container .sf-accent-check,
+    .storefront-container .sf-accent-text {
       color: var(--theme-accent-color, #22c55e) !important;
     }
     .storefront-container .sf-accent-bg {
       background-color: var(--theme-accent-color, #22c55e) !important;
+      color: #ffffff !important;
     }
     .storefront-container .sf-accent-bg-light {
       background-color: color-mix(in srgb, var(--theme-accent-color, #22c55e) 15%, transparent) !important;
+    }
+    
+    /* Accent border */
+    .storefront-container .sf-accent-border {
+      border-color: var(--theme-accent-color, #22c55e) !important;
     }
     
     /* Special tag colors - theme-based classes */

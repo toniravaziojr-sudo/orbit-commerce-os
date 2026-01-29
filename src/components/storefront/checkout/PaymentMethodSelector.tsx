@@ -22,21 +22,21 @@ const PAYMENT_METHODS: Record<PaymentMethod, PaymentMethodConfig> = {
   pix: {
     value: 'pix',
     id: 'payment-pix',
-    icon: <QrCode className="h-5 w-5 text-green-600" />,
+    icon: <QrCode className="h-5 w-5 sf-accent-icon" style={{ color: 'var(--theme-accent-color, #22c55e)' }} />,
     label: 'PIX',
     description: 'Pagamento instantâneo',
   },
   boleto: {
     value: 'boleto',
     id: 'payment-boleto',
-    icon: <Barcode className="h-5 w-5 text-blue-600" />,
+    icon: <Barcode className="h-5 w-5" style={{ color: 'var(--theme-highlight-bg, #3b82f6)' }} />,
     label: 'Boleto Bancário',
     description: 'Vencimento em 3 dias úteis',
   },
   credit_card: {
     value: 'credit_card',
     id: 'payment-card',
-    icon: <CreditCard className="h-5 w-5 text-purple-600" />,
+    icon: <CreditCard className="h-5 w-5" style={{ color: 'var(--theme-highlight-bg, #8b5cf6)' }} />,
     label: 'Cartão de Crédito',
     description: 'Em até 12x sem juros',
   },
@@ -118,7 +118,7 @@ export function PaymentMethodSelector({
               <p className="text-sm text-muted-foreground">{method.description}</p>
             </div>
             {customLabels[method.value] && (
-              <span className="text-xs font-semibold bg-primary text-primary-foreground px-2 py-1 rounded">
+              <span className="text-xs font-semibold sf-tag-success px-2 py-1 rounded">
                 {customLabels[method.value]}
               </span>
             )}

@@ -900,8 +900,8 @@ function ProgressTimeline({
                   !isCompleted && !isCurrent && "bg-muted text-muted-foreground cursor-not-allowed"
                 )}
                 style={isCompleted ? {
-                  backgroundColor: 'var(--checkout-step-completed-bg, var(--theme-accent-color, rgb(34 197 94)))' + '20',
-                  color: 'var(--checkout-step-completed-text, var(--theme-accent-color, rgb(34 197 94)))',
+                  backgroundColor: 'color-mix(in srgb, var(--theme-accent-color, #22c55e) 15%, transparent)',
+                  color: 'var(--theme-accent-color, #22c55e)',
                   cursor: 'pointer',
                 } : undefined}
               >
@@ -938,7 +938,7 @@ function ProgressTimeline({
                     !isCompleted && !isCurrent && "bg-muted text-muted-foreground"
                   )}
                   style={isCompleted ? {
-                    backgroundColor: 'var(--checkout-step-completed-solid, var(--theme-accent-color, rgb(34 197 94)))',
+                    backgroundColor: 'var(--theme-accent-color, #22c55e)',
                     color: 'white',
                   } : undefined}
                 >
@@ -952,7 +952,7 @@ function ProgressTimeline({
                   <div 
                     className={cn("w-6 h-0.5", !isCompleted && "bg-muted")}
                     style={currentStep > step.id ? {
-                      backgroundColor: 'var(--checkout-step-completed-solid, var(--theme-accent-color, rgb(34 197 94)))',
+                      backgroundColor: 'var(--theme-accent-color, #22c55e)',
                     } : undefined}
                   />
                 )}
@@ -1025,7 +1025,7 @@ function Step1PersonalData({
             </div>
             {errors.customerEmail && <p className="text-sm text-destructive mt-1">{errors.customerEmail}</p>}
             {isExistingCustomer && !errors.customerEmail && (
-              <p className="text-sm text-green-600 mt-1 flex items-center gap-1">
+              <p className="text-sm mt-1 flex items-center gap-1 sf-accent-icon">
                 <Check className="h-3 w-3" /> Bem-vindo de volta!
               </p>
             )}
@@ -1252,7 +1252,7 @@ function Step3Shipping({
                 </div>
                 <div className="text-right">
                   {option.isFree ? (
-                    <span className="sf-accent-icon font-semibold" style={{ color: 'var(--theme-accent-color, #22c55e)' }}>Grátis</span>
+                    <span className="sf-accent-icon font-semibold">Grátis</span>
                   ) : (
                     <span className="font-semibold">{formatCurrency(option.price)}</span>
                   )}
