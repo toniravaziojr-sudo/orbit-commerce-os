@@ -36,12 +36,15 @@ const ruleTypeConfig: Record<RuleType, { label: string; description: string }> =
 };
 
 const triggerConditionLabels: Record<string, string> = {
+  // Payment conditions
   payment_approved: 'Pagamento aprovado',
   pix_generated: 'PIX gerado',
   boleto_generated: 'Boleto gerado',
   payment_declined: 'Pagamento recusado',
   payment_expired: 'Pagamento expirado/cancelado',
+  // Shipping conditions
   posted: 'Enviado/Postado',
+  in_transit: 'Em trânsito',
   first_movement: 'A caminho (1ª movimentação)',
   out_for_delivery: 'Chegando (em rota)',
   awaiting_pickup: 'Aguardando retirada',
