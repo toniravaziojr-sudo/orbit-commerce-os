@@ -190,26 +190,32 @@ export function useBuilderThemeInjector(
         font-family: var(--sf-body-font);
       }
 
-      /* Theme-aware button styles for builder preview - !important to override Tailwind bg-primary */
+      /* Theme-aware button styles for builder preview - !important to override Tailwind hover classes */
       .builder-preview-canvas .sf-btn-primary,
-      .storefront-container .sf-btn-primary {
+      .storefront-container .sf-btn-primary,
+      .sf-btn-primary {
         background-color: var(--theme-button-primary-bg) !important;
         color: var(--theme-button-primary-text) !important;
         transition: background-color 0.2s ease, color 0.2s ease;
       }
       .builder-preview-canvas .sf-btn-primary:hover,
-      .storefront-container .sf-btn-primary:hover {
+      .storefront-container .sf-btn-primary:hover,
+      .sf-btn-primary:hover {
         background-color: var(--theme-button-primary-hover) !important;
+        color: var(--theme-button-primary-text) !important;
       }
       .builder-preview-canvas .sf-btn-secondary,
-      .storefront-container .sf-btn-secondary {
+      .storefront-container .sf-btn-secondary,
+      .sf-btn-secondary {
         background-color: var(--theme-button-secondary-bg) !important;
         color: var(--theme-button-secondary-text) !important;
         transition: background-color 0.2s ease, color 0.2s ease;
       }
       .builder-preview-canvas .sf-btn-secondary:hover,
-      .storefront-container .sf-btn-secondary:hover {
+      .storefront-container .sf-btn-secondary:hover,
+      .sf-btn-secondary:hover {
         background-color: var(--theme-button-secondary-hover) !important;
+        color: var(--theme-button-secondary-text) !important;
       }
       
       /* Special tag colors - theme-based classes */
