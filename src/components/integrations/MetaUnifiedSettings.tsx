@@ -34,7 +34,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 interface ScopePackInfo {
@@ -112,6 +112,37 @@ export function MetaUnifiedSettings() {
     displayPhoneNumber: "",
   });
 
+  // Fetch existing WhatsApp config to pre-populate test mode fields
+  const { data: whatsappConfig } = useQuery({
+    queryKey: ["whatsapp-meta-config", tenantId],
+    queryFn: async () => {
+      if (!tenantId) return null;
+      
+      const { data, error } = await supabase
+        .from("whatsapp_configs")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .eq("provider", "meta")
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!tenantId,
+  });
+
+  // Pre-populate test credentials when config exists and section is expanded
+  useEffect(() => {
+    if (whatsappConfig && showTestConfig) {
+      setTestCredentials({
+        phoneNumberId: whatsappConfig.phone_number_id || "",
+        accessToken: whatsappConfig.access_token || "",
+        wabaId: whatsappConfig.waba_id || "",
+        displayPhoneNumber: whatsappConfig.display_phone_number || whatsappConfig.phone_number || "",
+      });
+    }
+  }, [whatsappConfig, showTestConfig]);
+
   // Check URL params for OAuth callback
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -177,8 +208,7 @@ export function MetaUnifiedSettings() {
     },
     onSuccess: () => {
       toast.success("Credenciais de teste salvas!");
-      setShowTestConfig(false);
-      setTestCredentials({ phoneNumberId: "", accessToken: "", wabaId: "", displayPhoneNumber: "" });
+      // Keep the section open and don't clear fields - just refresh the data
       queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
       queryClient.invalidateQueries({ queryKey: ["meta-connection-status"] });
     },
@@ -525,9 +555,16 @@ export function MetaUnifiedSettings() {
                   <div>
                     <CardTitle className="text-base flex items-center gap-2">
                       Modo de Teste (WhatsApp)
-                      <Badge variant="outline" className="border-amber-400 text-amber-700 dark:text-amber-400">
-                        Temporário
-                      </Badge>
+                      {whatsappConfig?.connection_status === "connected" ? (
+                        <Badge className="bg-green-600 text-white">
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Configurado
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="border-amber-400 text-amber-700 dark:text-amber-400">
+                          Temporário
+                        </Badge>
+                      )}
                     </CardTitle>
                     <CardDescription className="text-xs">
                       Para validação do app na Meta (será removido após aprovação)
