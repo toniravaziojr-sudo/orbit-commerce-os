@@ -83,7 +83,7 @@ export function FeatureListBlock({
   title,
   subtitle,
   items = defaultItems,
-  iconColor = '#22c55e',
+  iconColor, // Empty = inherit from theme accent color
   textColor,
   showButton = false,
   buttonText = 'Saiba mais',
@@ -91,6 +91,9 @@ export function FeatureListBlock({
   backgroundColor = 'transparent',
   context,
 }: FeatureListBlockProps) {
+  // Use theme accent color as fallback when iconColor is empty
+  const effectiveIconColor = iconColor || 'var(--theme-accent-color, #22c55e)';
+  
   if (items.length === 0) {
     return null;
   }
@@ -130,7 +133,7 @@ export function FeatureListBlock({
               >
                 <span 
                   className="flex-shrink-0 mt-0.5"
-                  style={{ color: iconColor || undefined }}
+                  style={{ color: effectiveIconColor }}
                 >
                   <IconComponent className="h-5 w-5" />
                 </span>

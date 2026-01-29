@@ -40,14 +40,17 @@ interface TrackingLookupBlockProps {
   isEditing?: boolean;
 }
 
+// Status icons use CSS classes that inherit theme colors via CSS variables
+// sf-accent-icon = --theme-accent-color (success states)
+// sf-tag-warning/sf-tag-danger classes for other states
 const STATUS_ICONS: Record<string, React.ReactNode> = {
   label_created: <Package className="w-5 h-5" />,
   posted: <Package className="w-5 h-5" />,
   in_transit: <Truck className="w-5 h-5" />,
   out_for_delivery: <Truck className="w-5 h-5 text-primary" />,
-  delivered: <CheckCircle2 className="w-5 h-5 text-green-600" />,
-  failed: <AlertCircle className="w-5 h-5 text-amber-500" />,
-  returned: <AlertCircle className="w-5 h-5 text-red-500" />,
+  delivered: <CheckCircle2 className="w-5 h-5 sf-accent-icon" style={{ color: 'var(--theme-accent-color, var(--primary))' }} />,
+  failed: <AlertCircle className="w-5 h-5" style={{ color: 'var(--theme-warning-bg, #f97316)' }} />,
+  returned: <AlertCircle className="w-5 h-5" style={{ color: 'var(--theme-danger-bg, #ef4444)' }} />,
   canceled: <AlertCircle className="w-5 h-5 text-muted-foreground" />,
   unknown: <Clock className="w-5 h-5 text-muted-foreground" />,
 };

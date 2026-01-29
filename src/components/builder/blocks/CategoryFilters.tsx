@@ -134,6 +134,7 @@ export function CategoryFilters({
               max={maxPrice}
               step={10}
               className="w-full"
+              useAccentColor
             />
             <div className="flex items-center justify-between text-sm text-muted-foreground">
               <span>{formatPrice(localPriceRange[0])}</span>

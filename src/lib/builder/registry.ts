@@ -1169,7 +1169,7 @@ const blockDefinitions: BlockDefinition[] = [
         { id: '2', icon: 'Check', text: 'Outro benefício importante' },
         { id: '3', icon: 'Check', text: 'Mais uma característica' },
       ],
-      iconColor: '#22c55e',
+      iconColor: '', // Empty = inherit from theme accent color
       textColor: '',
       showButton: false,
       buttonText: 'Saiba mais',
@@ -1195,7 +1195,7 @@ const blockDefinitions: BlockDefinition[] = [
       iconColor: {
         type: 'color',
         label: 'Cor dos Ícones',
-        defaultValue: '#22c55e',
+        placeholder: 'Padrão do tema (Cor de destaque)',
       },
       textColor: {
         type: 'color',
@@ -1238,7 +1238,7 @@ const blockDefinitions: BlockDefinition[] = [
       imageMobile: '',
       imagePosition: 'left',
       features: [],
-      iconColor: '#22c55e',
+      iconColor: '', // Empty = inherit from theme accent color
       showButton: false,
       buttonText: 'Saiba mais',
       buttonUrl: '#',
@@ -1286,7 +1286,7 @@ const blockDefinitions: BlockDefinition[] = [
       iconColor: {
         type: 'color',
         label: 'Cor dos Ícones',
-        defaultValue: '#22c55e',
+        placeholder: 'Padrão do tema (Cor de destaque)',
       },
       showButton: {
         type: 'boolean',
