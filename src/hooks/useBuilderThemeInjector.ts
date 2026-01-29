@@ -142,9 +142,8 @@ export function useBuilderThemeInjector(
         --theme-highlight-text: ${highlightText};
       }
       
-      /* CRITICAL: Override Tailwind's --primary inside builder preview to use theme colors */
+      /* CRITICAL: Override Tailwind's --primary inside storefront to use theme colors */
       /* This makes ALL bg-primary, text-primary, border-primary respect the theme */
-      .builder-preview-canvas,
       .storefront-container {
         --primary: ${primaryHsl};
         --primary-foreground: ${primaryFgHsl};
@@ -153,12 +152,6 @@ export function useBuilderThemeInjector(
       }
       
       /* Apply heading font to all headings */
-      .builder-preview-canvas h1,
-      .builder-preview-canvas h2,
-      .builder-preview-canvas h3,
-      .builder-preview-canvas h4,
-      .builder-preview-canvas h5,
-      .builder-preview-canvas h6,
       .storefront-container h1,
       .storefront-container h2,
       .storefront-container h3,
@@ -169,15 +162,6 @@ export function useBuilderThemeInjector(
       }
       
       /* Apply body font to paragraphs, buttons, and general text */
-      .builder-preview-canvas p,
-      .builder-preview-canvas span,
-      .builder-preview-canvas a,
-      .builder-preview-canvas button,
-      .builder-preview-canvas input,
-      .builder-preview-canvas textarea,
-      .builder-preview-canvas select,
-      .builder-preview-canvas label,
-      .builder-preview-canvas li,
       .storefront-container p,
       .storefront-container span,
       .storefront-container a,
@@ -190,100 +174,63 @@ export function useBuilderThemeInjector(
         font-family: var(--sf-body-font);
       }
 
-      /* Theme-aware button styles - MAXIMUM SPECIFICITY to override ALL Tailwind hover classes */
-      /* The key is to neutralize Tailwind's hover:bg-primary/90 by targeting with higher specificity */
-      /* We use [class*="sf-btn-"] attribute selector + multiple classes for maximum specificity */
+      /* Theme-aware button styles - uses .storefront-container for proper scoping */
+      /* These styles work in both builder (edit mode) and production */
       
-      /* PRIMARY BUTTON - Normal state (buttons, spans, and links) */
+      /* PRIMARY BUTTON - Normal state */
       .storefront-container button.sf-btn-primary,
       .storefront-container span.sf-btn-primary,
-      .storefront-container a.sf-btn-primary,
-      .builder-preview-canvas button.sf-btn-primary,
-      .builder-preview-canvas span.sf-btn-primary,
-      .builder-preview-canvas a.sf-btn-primary,
-      button.sf-btn-primary.rounded-full,
-      button[class*="sf-btn-primary"],
-      a[class*="sf-btn-primary"],
-      span[class*="sf-btn-primary"],
-      .sf-btn-primary {
-        background-color: var(--theme-button-primary-bg) !important;
-        color: var(--theme-button-primary-text) !important;
-        transition: background-color 0.2s ease, color 0.2s ease, transform 0.1s ease !important;
+      .storefront-container a.sf-btn-primary {
+        background-color: var(--theme-button-primary-bg);
+        color: var(--theme-button-primary-text);
+        transition: background-color 0.2s ease, color 0.2s ease, transform 0.1s ease;
       }
       
-      /* PRIMARY BUTTON - Hover state - CRITICAL: disable Tailwind's hover:bg-primary/90 */
+      /* PRIMARY BUTTON - Hover state */
       .storefront-container button.sf-btn-primary:hover,
       .storefront-container span.sf-btn-primary:hover,
-      .storefront-container a.sf-btn-primary:hover,
-      .builder-preview-canvas button.sf-btn-primary:hover,
-      .builder-preview-canvas span.sf-btn-primary:hover,
-      .builder-preview-canvas a.sf-btn-primary:hover,
-      button.sf-btn-primary.rounded-full:hover,
-      button[class*="sf-btn-primary"]:hover,
-      a[class*="sf-btn-primary"]:hover,
-      span[class*="sf-btn-primary"]:hover,
-      .sf-btn-primary:hover {
-        background-color: var(--theme-button-primary-hover) !important;
-        color: var(--theme-button-primary-text) !important;
-        opacity: 1 !important;
+      .storefront-container a.sf-btn-primary:hover {
+        background-color: var(--theme-button-primary-hover);
+        color: var(--theme-button-primary-text);
+        opacity: 1;
         transform: translateY(-1px);
       }
       
       /* SECONDARY BUTTON - Normal state */
       .storefront-container button.sf-btn-secondary,
       .storefront-container span.sf-btn-secondary,
-      .storefront-container a.sf-btn-secondary,
-      .builder-preview-canvas button.sf-btn-secondary,
-      .builder-preview-canvas span.sf-btn-secondary,
-      .builder-preview-canvas a.sf-btn-secondary,
-      button.sf-btn-secondary.rounded-full,
-      button[class*="sf-btn-secondary"],
-      a[class*="sf-btn-secondary"],
-      span[class*="sf-btn-secondary"],
-      .sf-btn-secondary {
-        background-color: var(--theme-button-secondary-bg) !important;
-        color: var(--theme-button-secondary-text) !important;
-        transition: background-color 0.2s ease, color 0.2s ease, transform 0.1s ease !important;
+      .storefront-container a.sf-btn-secondary {
+        background-color: var(--theme-button-secondary-bg);
+        color: var(--theme-button-secondary-text);
+        transition: background-color 0.2s ease, color 0.2s ease, transform 0.1s ease;
       }
       
       /* SECONDARY BUTTON - Hover state */
       .storefront-container button.sf-btn-secondary:hover,
       .storefront-container span.sf-btn-secondary:hover,
-      .storefront-container a.sf-btn-secondary:hover,
-      .builder-preview-canvas button.sf-btn-secondary:hover,
-      .builder-preview-canvas span.sf-btn-secondary:hover,
-      .builder-preview-canvas a.sf-btn-secondary:hover,
-      button.sf-btn-secondary.rounded-full:hover,
-      button[class*="sf-btn-secondary"]:hover,
-      a[class*="sf-btn-secondary"]:hover,
-      span[class*="sf-btn-secondary"]:hover,
-      .sf-btn-secondary:hover {
-        background-color: var(--theme-button-secondary-hover) !important;
-        color: var(--theme-button-secondary-text) !important;
-        opacity: 1 !important;
+      .storefront-container a.sf-btn-secondary:hover {
+        background-color: var(--theme-button-secondary-hover);
+        color: var(--theme-button-secondary-text);
+        opacity: 1;
         transform: translateY(-1px);
       }
       
       /* Special tag colors - theme-based classes */
-      .builder-preview-canvas .sf-tag-success,
       .storefront-container .sf-tag-success {
-        background-color: var(--theme-success-bg, #22c55e) !important;
-        color: var(--theme-success-text, #ffffff) !important;
+        background-color: var(--theme-success-bg, #22c55e);
+        color: var(--theme-success-text, #ffffff);
       }
-      .builder-preview-canvas .sf-tag-warning,
       .storefront-container .sf-tag-warning {
-        background-color: var(--theme-warning-bg, #f97316) !important;
-        color: var(--theme-warning-text, #ffffff) !important;
+        background-color: var(--theme-warning-bg, #f97316);
+        color: var(--theme-warning-text, #ffffff);
       }
-      .builder-preview-canvas .sf-tag-danger,
       .storefront-container .sf-tag-danger {
-        background-color: var(--theme-danger-bg, #ef4444) !important;
-        color: var(--theme-danger-text, #ffffff) !important;
+        background-color: var(--theme-danger-bg, #ef4444);
+        color: var(--theme-danger-text, #ffffff);
       }
-      .builder-preview-canvas .sf-tag-highlight,
       .storefront-container .sf-tag-highlight {
-        background-color: var(--theme-highlight-bg, #3b82f6) !important;
-        color: var(--theme-highlight-text, #ffffff) !important;
+        background-color: var(--theme-highlight-bg, #3b82f6);
+        color: var(--theme-highlight-text, #ffffff);
       }
 
       /* Custom CSS from theme settings */
