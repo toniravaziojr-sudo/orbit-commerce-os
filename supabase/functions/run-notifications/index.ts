@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.2.0"; // Fixed column names for whatsapp_messages
+const VERSION = "v1.3.0"; // Unified timeline - WhatsApp notifications now appear in Atendimento
 // ===========================================================
 
 const corsHeaders = {
@@ -274,6 +274,122 @@ async function sendEmail(
   }
 }
 
+// ============= UNIFIED TIMELINE - Register WhatsApp messages in Atendimento =============
+
+/**
+ * Registers a WhatsApp notification in the unified Atendimento timeline.
+ * Creates or updates a conversation and inserts the message for full visibility.
+ */
+async function registerInAttendanceTimeline(
+  supabase: any,
+  tenantId: string,
+  phone: string,
+  message: string,
+  providerMessageId: string | null,
+  notificationType: string = 'notification'
+): Promise<void> {
+  try {
+    console.log(`[RunNotifications] Registering in timeline for ${phone}`);
+    
+    // 1) Find or create conversation for this phone
+    let conversationId: string | null = null;
+    
+    // First check if there's an existing open conversation with this phone
+    const { data: existingConv } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('channel_type', 'whatsapp')
+      .eq('customer_phone', phone)
+      .in('status', ['new', 'open', 'waiting_customer', 'waiting_agent', 'bot'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    
+    if (existingConv) {
+      conversationId = existingConv.id;
+      console.log(`[RunNotifications] Found existing conversation: ${conversationId}`);
+    } else {
+      // Try to find customer by phone
+      const { data: customer } = await supabase
+        .from('customers')
+        .select('id, full_name, email')
+        .eq('tenant_id', tenantId)
+        .eq('phone', phone)
+        .is('deleted_at', null)
+        .maybeSingle();
+      
+      // Create new conversation
+      const { data: newConv, error: convError } = await supabase
+        .from('conversations')
+        .insert({
+          tenant_id: tenantId,
+          channel_type: 'whatsapp',
+          customer_id: customer?.id || null,
+          customer_name: customer?.full_name || phone,
+          customer_phone: phone,
+          customer_email: customer?.email || null,
+          status: 'bot', // Notification-initiated conversations start as bot
+          priority: 0,
+          message_count: 0,
+          unread_count: 0,
+          tags: ['notification'],
+          subject: `Notificação WhatsApp`,
+        })
+        .select('id')
+        .single();
+      
+      if (convError) {
+        console.error(`[RunNotifications] Error creating conversation:`, convError);
+        return;
+      }
+      
+      conversationId = newConv.id;
+      console.log(`[RunNotifications] Created new conversation: ${conversationId}`);
+    }
+    
+    // 2) Insert message into unified timeline
+    const { error: msgError } = await supabase
+      .from('messages')
+      .insert({
+        conversation_id: conversationId,
+        tenant_id: tenantId,
+        direction: 'outbound',
+        sender_type: 'system',
+        sender_name: 'Sistema',
+        content: message,
+        content_type: 'text',
+        delivery_status: 'sent',
+        is_ai_generated: false,
+        is_internal: false,
+        is_note: false,
+        external_id: providerMessageId,
+      });
+    
+    if (msgError) {
+      console.error(`[RunNotifications] Error inserting message:`, msgError);
+      return;
+    }
+    
+    // 3) Update conversation counters
+    await supabase
+      .from('conversations')
+      .update({
+        message_count: supabase.rpc ? undefined : 1, // Will be handled by trigger
+        last_message_at: new Date().toISOString(),
+      })
+      .eq('id', conversationId);
+    
+    console.log(`[RunNotifications] Message registered in timeline for conversation ${conversationId}`);
+    
+  } catch (error) {
+    // Non-fatal - log and continue (notification was already sent successfully)
+    console.error(`[RunNotifications] Error registering in timeline:`, error);
+  }
+}
+
+// ============= END UNIFIED TIMELINE =============
+
 // WhatsApp config cache per tenant
 const whatsappConfigCache: Map<string, { config: WhatsAppConfig | null; timestamp: number }> = new Map();
 const WHATSAPP_CACHE_TTL = 60000; // 1 minute
@@ -456,6 +572,9 @@ async function sendWhatsAppViaMeta(
       provider_message_id: messageId,
     });
 
+    // Register in unified Atendimento timeline
+    await registerInAttendanceTimeline(supabase, tenantId, cleanPhone, message, messageId, 'notification');
+
     return {
       success: true,
       messageId: messageId,
@@ -552,6 +671,9 @@ async function sendWhatsAppViaZAPI(
       provider_response: sendData,
       sent_at: new Date().toISOString(),
     });
+
+    // Register in unified Atendimento timeline
+    await registerInAttendanceTimeline(supabase, tenantId, cleanPhone, message, sendData.messageId || sendData.zapiMessageId, 'notification');
 
     return {
       success: true,
