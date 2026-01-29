@@ -459,6 +459,7 @@ export function HeaderFooterPropsEditor({
     promos: false,
     general: false,
     notice: false,
+    layout: false,
   });
 
   // Fetch page overrides (only for non-home, non-checkout pages)
@@ -761,6 +762,39 @@ export function HeaderFooterPropsEditor({
 
               <Separator />
 
+              {/* === POSIÇÃO DO LOGO === */}
+              <Collapsible open={openSections.layout} onOpenChange={() => toggleSection('layout')}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <Settings className="h-3.5 w-3.5 text-amber-600" />
+                      <span className="font-medium">Layout do Logo</span>
+                    </div>
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openSections.layout ? 'rotate-180' : ''}`} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="px-2 pb-3 space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px]">Posição do Logo</Label>
+                    <Select
+                      value={(props.logoPosition as string) || 'center'}
+                      onValueChange={(v) => updateProp('logoPosition', v)}
+                    >
+                      <SelectTrigger className="w-full h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="left">Esquerda</SelectItem>
+                        <SelectItem value="center">Centro</SelectItem>
+                        <SelectItem value="right">Direita</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+
+              <Separator />
+
               {/* === ELEMENTOS VISÍVEIS DO CHECKOUT === */}
               <Collapsible open={openSections.general} onOpenChange={() => toggleSection('general')}>
                 <CollapsibleTrigger asChild>
@@ -806,6 +840,20 @@ export function HeaderFooterPropsEditor({
                     <Switch className="scale-90"
                       checked={Boolean(props.featuredPromosEnabled ?? false)}
                       onCheckedChange={(v) => updateProp('featuredPromosEnabled', v)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px]">Mostrar Atendimento (SAC)</Label>
+                    <Switch className="scale-90"
+                      checked={Boolean(props.showSac ?? false)}
+                      onCheckedChange={(v) => updateProp('showSac', v)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px]">Mostrar Selos de Segurança</Label>
+                    <Switch className="scale-90"
+                      checked={Boolean(props.showSecuritySeals ?? false)}
+                      onCheckedChange={(v) => updateProp('showSecuritySeals', v)}
                     />
                   </div>
                 </CollapsibleContent>
@@ -1010,6 +1058,32 @@ export function HeaderFooterPropsEditor({
 
               <Separator />
 
+              {/* === FORMAS DE PAGAMENTO DO CHECKOUT === */}
+              <FooterImageSection
+                title="Formas de Pagamento"
+                icon={<CreditCard className="h-3.5 w-3.5 text-amber-600" />}
+                sectionKey="paymentMethods"
+                props={props}
+                updateProp={updateProp}
+                openSections={openSections}
+                toggleSection={toggleSection}
+              />
+
+              <Separator />
+
+              {/* === SELOS DE SEGURANÇA DO CHECKOUT === */}
+              <FooterImageSection
+                title="Selos de Segurança"
+                icon={<ShieldCheck className="h-3.5 w-3.5 text-amber-600" />}
+                sectionKey="securitySeals"
+                props={props}
+                updateProp={updateProp}
+                openSections={openSections}
+                toggleSection={toggleSection}
+              />
+
+              <Separator />
+
               {/* === TEXTOS PERSONALIZÁVEIS DO CHECKOUT === */}
               <Collapsible open={openSections.titles} onOpenChange={() => toggleSection('titles')}>
                 <CollapsibleTrigger asChild>
@@ -1045,7 +1119,7 @@ export function HeaderFooterPropsEditor({
                 <AlertDescription className="text-[10px]">
                   Estas configurações afetam apenas o checkout. 
                   Se deixar cores em branco, herda do footer global.
-                  Formas de pagamento e selos de segurança são herdados do footer global.
+                  Se deixar formas de pagamento/selos vazios, herda do footer global.
                 </AlertDescription>
               </Alert>
             </div>

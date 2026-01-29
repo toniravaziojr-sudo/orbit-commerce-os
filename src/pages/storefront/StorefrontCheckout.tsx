@@ -88,16 +88,15 @@ export default function StorefrontCheckout() {
       if (value === undefined || value === null || value === '') return true;
       if (Array.isArray(value) && value.length === 0) return true;
       // For objects like { items: [] }, check if items array is empty
-      if (typeof value === 'object' && 'items' in value) {
+      if (typeof value === 'object' && value !== null && 'items' in value) {
         const obj = value as { items?: unknown[] };
         if (Array.isArray(obj.items) && obj.items.length === 0) return true;
       }
       return false;
     };
     
-    // RULE: Checkout props have ABSOLUTE priority
-    // Only inherit visual props that are NOT explicitly set in checkout
-    const visualPropsToInherit = [
+    // Props that should be inherited from global when empty in checkout
+    const propsToInherit = [
       'footerBgColor', 'footerTextColor', 'footerTitlesColor', 'logoUrl',
       // Inherit image sections (payment methods, security seals) if not set
       'paymentMethods', 'securitySeals', 'shippingMethods', 'officialStores',
@@ -107,10 +106,24 @@ export default function StorefrontCheckout() {
     
     const mergedProps: Record<string, unknown> = {};
     
-    // Step 1: Inherit visual props from global ONLY if checkout doesn't have them
-    for (const key of visualPropsToInherit) {
-      const checkoutValue = checkoutFooterProps[key];
-      if (isEmpty(checkoutValue)) {
+    // Step 1: Start with ALL checkout props that have values
+    for (const [key, value] of Object.entries(checkoutFooterProps)) {
+      // For inheritable props, only add if not empty
+      if (propsToInherit.includes(key)) {
+        if (!isEmpty(value)) {
+          mergedProps[key] = value;
+        }
+      } else {
+        // For non-inheritable props (toggles, etc), always use checkout value
+        if (value !== undefined) {
+          mergedProps[key] = value;
+        }
+      }
+    }
+    
+    // Step 2: Fill in missing inheritable props from global
+    for (const key of propsToInherit) {
+      if (isEmpty(mergedProps[key])) {
         const globalValue = globalFooterProps[key];
         if (!isEmpty(globalValue)) {
           mergedProps[key] = globalValue;
@@ -118,14 +131,7 @@ export default function StorefrontCheckout() {
       }
     }
     
-    // Step 2: Apply ALL checkout-specific props (ABSOLUTE PRIORITY)
-    for (const [key, value] of Object.entries(checkoutFooterProps)) {
-      if (value !== undefined) {
-        mergedProps[key] = value;
-      }
-    }
-    
-    // Step 3: Set default visibility toggles to TRUE when there's data inherited
+    // Step 3: Set default visibility toggles to TRUE when there's data
     // This ensures payment methods and security seals show by default when inherited
     if (mergedProps.showPaymentMethods === undefined && !isEmpty(mergedProps.paymentMethods)) {
       mergedProps.showPaymentMethods = true;
