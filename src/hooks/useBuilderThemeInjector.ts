@@ -90,8 +90,10 @@ export function useBuilderThemeInjector(
     // Build color CSS variables from effective colors (draft or saved)
     const buttonPrimaryBg = colors?.buttonPrimaryBg || DEFAULT_THEME_COLORS.buttonPrimaryBg;
     const buttonPrimaryText = colors?.buttonPrimaryText || DEFAULT_THEME_COLORS.buttonPrimaryText;
+    const buttonPrimaryHover = colors?.buttonPrimaryHover || DEFAULT_THEME_COLORS.buttonPrimaryHover;
     const buttonSecondaryBg = colors?.buttonSecondaryBg || DEFAULT_THEME_COLORS.buttonSecondaryBg;
     const buttonSecondaryText = colors?.buttonSecondaryText || DEFAULT_THEME_COLORS.buttonSecondaryText;
+    const buttonSecondaryHover = colors?.buttonSecondaryHover || DEFAULT_THEME_COLORS.buttonSecondaryHover;
     const textPrimary = colors?.textPrimary || DEFAULT_THEME_COLORS.textPrimary;
     const textSecondary = colors?.textSecondary || DEFAULT_THEME_COLORS.textSecondary;
     // Special tag colors
@@ -121,8 +123,10 @@ export function useBuilderThemeInjector(
         /* Theme colors - from Configurações do Tema > Cores */
         --theme-button-primary-bg: ${buttonPrimaryBg};
         --theme-button-primary-text: ${buttonPrimaryText};
+        --theme-button-primary-hover: ${buttonPrimaryHover};
         --theme-button-secondary-bg: ${buttonSecondaryBg};
         --theme-button-secondary-text: ${buttonSecondaryText};
+        --theme-button-secondary-hover: ${buttonSecondaryHover};
         --theme-text-primary: ${textPrimary};
         --theme-text-secondary: ${textSecondary};
         /* Accent color for UI elements (checkmarks, sliders, icons) */
@@ -191,19 +195,21 @@ export function useBuilderThemeInjector(
       .storefront-container .sf-btn-primary {
         background-color: var(--theme-button-primary-bg) !important;
         color: var(--theme-button-primary-text) !important;
+        transition: background-color 0.2s ease, color 0.2s ease;
       }
       .builder-preview-canvas .sf-btn-primary:hover,
       .storefront-container .sf-btn-primary:hover {
-        opacity: 0.9;
+        background-color: var(--theme-button-primary-hover) !important;
       }
       .builder-preview-canvas .sf-btn-secondary,
       .storefront-container .sf-btn-secondary {
         background-color: var(--theme-button-secondary-bg) !important;
         color: var(--theme-button-secondary-text) !important;
+        transition: background-color 0.2s ease, color 0.2s ease;
       }
       .builder-preview-canvas .sf-btn-secondary:hover,
       .storefront-container .sf-btn-secondary:hover {
-        opacity: 0.9;
+        background-color: var(--theme-button-secondary-hover) !important;
       }
       
       /* Special tag colors - theme-based classes */
