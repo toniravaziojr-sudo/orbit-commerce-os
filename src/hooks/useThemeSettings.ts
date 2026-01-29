@@ -18,10 +18,14 @@ import type { BlockNode } from '@/lib/builder/types';
 export interface ThemeColors {
   buttonPrimaryBg: string;
   buttonPrimaryText: string;
+  buttonPrimaryHover: string;
   buttonSecondaryBg: string;
   buttonSecondaryText: string;
+  buttonSecondaryHover: string;
   textPrimary: string;
   textSecondary: string;
+  // Accent color for UI details (checkmarks, icons, links)
+  accentColor: string;
   // Special tag colors
   successBg: string;
   successText: string;
@@ -150,10 +154,14 @@ export interface ThemeSettings {
 export const DEFAULT_THEME_COLORS: ThemeColors = {
   buttonPrimaryBg: '#1a1a1a',
   buttonPrimaryText: '#ffffff',
+  buttonPrimaryHover: '#333333',
   buttonSecondaryBg: '#f5f5f5',
   buttonSecondaryText: '#1a1a1a',
+  buttonSecondaryHover: '#e5e5e5',
   textPrimary: '#1a1a1a',
   textSecondary: '#666666',
+  // Accent color for UI details (checkmarks, icons, links)
+  accentColor: '#22c55e',
   // Special tag colors
   successBg: '#22c55e',
   successText: '#ffffff',
