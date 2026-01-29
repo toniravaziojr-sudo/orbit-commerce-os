@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useState, useRef } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { usePlatformOperator } from '@/hooks/usePlatformOperator';
@@ -18,9 +18,22 @@ export function ProtectedRoute({ children, requireTenant = true }: ProtectedRout
   
   // Track if we've waited enough for data to load
   const [hasWaitedForData, setHasWaitedForData] = useState(false);
+  
+  // REGRA CRÍTICA: Após a primeira carga, NUNCA mais bloquear a UI com loader de tela cheia
+  // Isso evita que refetches de queries (ex: ao abrir popup OAuth) causem tela cinza
+  const initialLoadCompleteRef = useRef(false);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
   // Check for pending invite token - if exists, don't redirect to create-store
   const hasPendingInvite = !!sessionStorage.getItem('pending_invite_token');
+
+  // Marcar carga inicial como completa quando todos os loadings terminarem pela primeira vez
+  useEffect(() => {
+    if (!isLoading && !platformLoading && !inviteLoading && !initialLoadCompleteRef.current) {
+      initialLoadCompleteRef.current = true;
+      setInitialLoadComplete(true);
+    }
+  }, [isLoading, platformLoading, inviteLoading]);
 
   // Give some time for user roles to load after auth is ready
   useEffect(() => {
@@ -35,8 +48,9 @@ export function ProtectedRoute({ children, requireTenant = true }: ProtectedRout
     }
   }, [isLoading, user, userRoles.length, hasPendingInvite]);
 
-  // Wait for all loading states
-  if (isLoading || platformLoading || inviteLoading) {
+  // Só mostra loader na PRIMEIRA carga - após isso, NUNCA bloqueia a tela
+  // Isso é crítico para evitar tela cinza durante operações como OAuth popups
+  if ((isLoading || platformLoading || inviteLoading) && !initialLoadComplete) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
