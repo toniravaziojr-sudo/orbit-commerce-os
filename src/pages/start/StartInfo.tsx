@@ -79,6 +79,12 @@ export default function StartInfo() {
           fullName: user.user_metadata?.full_name || user.user_metadata?.name || '',
         });
         console.log('[StartInfo] Detected existing OAuth user:', user.email);
+        
+        // Limpar oauth_intent após chegar em /start (signup via Google completado)
+        if (localStorage.getItem('oauth_intent') === 'signup') {
+          console.log('[StartInfo] Clearing oauth_intent after Google signup redirect');
+          localStorage.removeItem('oauth_intent');
+        }
       }
     }
     checkExistingSession();
