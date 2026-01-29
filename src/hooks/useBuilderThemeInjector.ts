@@ -175,41 +175,46 @@ export function useBuilderThemeInjector(
       }
 
       /* Theme-aware button styles - uses .storefront-container for proper scoping */
-      /* IMPORTANT: Uses !important to override Tailwind's hover:bg-accent from ghost variant */
+      /* IMPORTANT: Uses maximum specificity to override Tailwind's hover:bg-accent from ghost variant */
+      /* Double class selector + !important guarantees priority over Tailwind compiled styles */
       /* These styles work in both builder (edit mode) and production */
       
-      /* PRIMARY BUTTON - Normal state */
-      .storefront-container button.sf-btn-primary,
-      .storefront-container span.sf-btn-primary,
-      .storefront-container a.sf-btn-primary {
+      /* PRIMARY BUTTON - Normal state (higher specificity with double selector) */
+      .storefront-container button.sf-btn-primary.sf-btn-primary,
+      .storefront-container span.sf-btn-primary.sf-btn-primary,
+      .storefront-container a.sf-btn-primary.sf-btn-primary,
+      .storefront-container .sf-btn-primary[class] {
         background-color: var(--theme-button-primary-bg) !important;
         color: var(--theme-button-primary-text) !important;
         transition: background-color 0.2s ease, color 0.2s ease, transform 0.1s ease !important;
       }
       
-      /* PRIMARY BUTTON - Hover state - MUST use !important to override Tailwind hover:bg-accent */
-      .storefront-container button.sf-btn-primary:hover,
-      .storefront-container span.sf-btn-primary:hover,
-      .storefront-container a.sf-btn-primary:hover {
+      /* PRIMARY BUTTON - Hover state - Maximum specificity to override Tailwind hover:bg-accent */
+      .storefront-container button.sf-btn-primary.sf-btn-primary:hover,
+      .storefront-container span.sf-btn-primary.sf-btn-primary:hover,
+      .storefront-container a.sf-btn-primary.sf-btn-primary:hover,
+      .storefront-container .sf-btn-primary[class]:hover {
         background-color: var(--theme-button-primary-hover) !important;
         color: var(--theme-button-primary-text) !important;
         opacity: 1 !important;
         transform: translateY(-1px) !important;
       }
       
-      /* SECONDARY BUTTON - Normal state */
-      .storefront-container button.sf-btn-secondary,
-      .storefront-container span.sf-btn-secondary,
-      .storefront-container a.sf-btn-secondary {
+      /* SECONDARY BUTTON - Normal state (higher specificity with double selector) */
+      .storefront-container button.sf-btn-secondary.sf-btn-secondary,
+      .storefront-container span.sf-btn-secondary.sf-btn-secondary,
+      .storefront-container a.sf-btn-secondary.sf-btn-secondary,
+      .storefront-container .sf-btn-secondary[class] {
         background-color: var(--theme-button-secondary-bg) !important;
         color: var(--theme-button-secondary-text) !important;
         transition: background-color 0.2s ease, color 0.2s ease, transform 0.1s ease !important;
       }
       
-      /* SECONDARY BUTTON - Hover state - MUST use !important to override Tailwind hover:bg-accent */
-      .storefront-container button.sf-btn-secondary:hover,
-      .storefront-container span.sf-btn-secondary:hover,
-      .storefront-container a.sf-btn-secondary:hover {
+      /* SECONDARY BUTTON - Hover state - Maximum specificity to override Tailwind hover:bg-accent */
+      .storefront-container button.sf-btn-secondary.sf-btn-secondary:hover,
+      .storefront-container span.sf-btn-secondary.sf-btn-secondary:hover,
+      .storefront-container a.sf-btn-secondary.sf-btn-secondary:hover,
+      .storefront-container .sf-btn-secondary[class]:hover {
         background-color: var(--theme-button-secondary-hover) !important;
         color: var(--theme-button-secondary-text) !important;
         opacity: 1 !important;
