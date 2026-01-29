@@ -25,7 +25,7 @@ import { usePageOverrides, PageOverrides } from '@/hooks/usePageOverrides';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface HeaderFooterPropsEditorProps {
   definition: BlockDefinition;
@@ -105,7 +105,7 @@ function PromotionsSection({
   toggleSection: (key: string) => void;
 }) {
   // Fetch pages for selection (institutional + landing_page)
-  const { data: pages, isLoading } = useQuery({
+  const { data: pages, isLoading: pagesLoading } = useQuery({
     queryKey: ['admin-pages-for-promos', tenantId],
     queryFn: async () => {
       if (!tenantId) return [];
@@ -121,22 +121,64 @@ function PromotionsSection({
     enabled: !!tenantId,
   });
 
-  const selectedPageId = (props.featuredPromosPageId as string) || '';
-  const selectedPage = pages?.find(p => p.id === selectedPageId);
+  // Fetch categories for selection
+  const { data: categories, isLoading: categoriesLoading } = useQuery({
+    queryKey: ['admin-categories-for-promos', tenantId],
+    queryFn: async () => {
+      if (!tenantId) return [];
+      const { data, error } = await supabase
+        .from('categories')
+        .select('id, name, slug')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .order('name');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!tenantId,
+  });
 
-  // For backwards compatibility, if we have a slug but no ID, try to find by slug
-  const legacySlug = (props.featuredPromosPageSlug as string) || '';
-  const pageFromSlug = !selectedPageId && legacySlug ? pages?.find(p => p.slug === legacySlug) : null;
+  const isLoading = pagesLoading || categoriesLoading;
+
+  // Current value - supports new format (category:slug, page:slug) and legacy (page ID)
+  const currentTarget = (props.featuredPromosTarget as string) || '';
   
-  // If we found page by slug, auto-migrate to ID
-  if (pageFromSlug && !selectedPageId) {
-    updateProp('featuredPromosPageId', pageFromSlug.id);
-  }
+  // For backwards compatibility, convert legacy page ID to new format
+  const legacyPageId = (props.featuredPromosPageId as string) || '';
+  const legacySlug = (props.featuredPromosPageSlug as string) || '';
+  
+  // Auto-migrate legacy formats to new format
+  useEffect(() => {
+    if (!currentTarget && (legacyPageId || legacySlug)) {
+      const page = legacyPageId 
+        ? pages?.find(p => p.id === legacyPageId)
+        : pages?.find(p => p.slug === legacySlug);
+      if (page) {
+        updateProp('featuredPromosTarget', `page:${page.slug}`);
+        // Clear legacy props
+        if (legacyPageId) updateProp('featuredPromosPageId', '');
+        if (legacySlug) updateProp('featuredPromosPageSlug', '');
+      }
+    }
+  }, [currentTarget, legacyPageId, legacySlug, pages, updateProp]);
 
-  const effectivePageId = selectedPageId || pageFromSlug?.id || '';
-  const effectivePage = selectedPage || pageFromSlug;
+  // Parse current target to get label
+  const getTargetLabel = () => {
+    if (!currentTarget || currentTarget === 'none') return null;
+    if (currentTarget.startsWith('category:')) {
+      const slug = currentTarget.replace('category:', '');
+      const cat = categories?.find(c => c.slug === slug);
+      return cat ? `📁 ${cat.name}` : null;
+    }
+    if (currentTarget.startsWith('page:')) {
+      const slug = currentTarget.replace('page:', '');
+      const page = pages?.find(p => p.slug === slug);
+      return page ? `📄 ${page.title}` : null;
+    }
+    return null;
+  };
 
-  const hasValidPage = Boolean(effectivePageId && effectivePage);
+  const hasValidTarget = currentTarget && currentTarget !== 'none' && getTargetLabel();
 
   return (
     <Collapsible open={openSections.promos} onOpenChange={() => toggleSection('promos')}>
@@ -183,55 +225,59 @@ function PromotionsSection({
             />
             
             <div className="space-y-1">
-              <Label className="text-[10px]">Página de destino</Label>
+              <Label className="text-[10px]">Destino</Label>
               {isLoading ? (
-                <p className="text-[10px] text-muted-foreground">Carregando páginas...</p>
-              ) : pages && pages.length > 0 ? (
+                <p className="text-[10px] text-muted-foreground">Carregando...</p>
+              ) : (
                 <Select
-                  value={effectivePageId}
-                  onValueChange={(v) => {
-                    updateProp('featuredPromosPageId', v);
-                    // Clear legacy slug
-                    if (props.featuredPromosPageSlug) {
-                      updateProp('featuredPromosPageSlug', '');
-                    }
-                  }}
+                  value={currentTarget || 'none'}
+                  onValueChange={(v) => updateProp('featuredPromosTarget', v === 'none' ? '' : v)}
                 >
                   <SelectTrigger className="w-full h-7 text-xs">
-                    <SelectValue placeholder="Selecione uma página" />
+                    <SelectValue placeholder="Selecione o destino" />
                   </SelectTrigger>
                   <SelectContent>
-                    {pages.map((page) => (
-                      <SelectItem key={page.id} value={page.id}>
-                        <span className="flex items-center gap-2">
-                          {page.title}
-                          <span className="text-xs text-muted-foreground">
-                            ({page.type === 'landing_page' ? 'Landing' : 'Institucional'})
-                          </span>
-                          {!page.is_published && (
-                            <span className="text-xs text-amber-600">(Rascunho)</span>
-                          )}
-                        </span>
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="none" className="text-xs">
+                      <span className="text-muted-foreground">Nenhum destino</span>
+                    </SelectItem>
+                    {categories && categories.filter(c => c.id && c.slug).length > 0 && (
+                      <>
+                        <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase">
+                          Categorias
+                        </div>
+                        {categories.filter(c => c.id && c.slug).map((cat) => (
+                          <SelectItem key={cat.id} value={`category:${cat.slug}`} className="text-xs">
+                            📁 {cat.name}
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
+                    {pages && pages.filter(p => p.id && p.slug).length > 0 && (
+                      <>
+                        <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase">
+                          Páginas
+                        </div>
+                        {pages.filter(p => p.id && p.slug).map((page) => (
+                          <SelectItem key={page.id} value={`page:${page.slug}`} className="text-xs">
+                            📄 {page.title}
+                            {!page.is_published && (
+                              <span className="text-xs text-amber-600 ml-1">(Rascunho)</span>
+                            )}
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
                   </SelectContent>
                 </Select>
-              ) : (
-                <Alert className="py-2">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription className="text-xs">
-                    Nenhuma página encontrada. Crie uma página institucional ou landing page primeiro.
-                  </AlertDescription>
-                </Alert>
               )}
               
-              {props.featuredPromosEnabled && !hasValidPage && pages && pages.length > 0 && (
-                <p className="text-xs text-amber-600">⚠️ Selecione uma página para exibir o link</p>
+              {props.featuredPromosEnabled && !hasValidTarget && !isLoading && (
+                <p className="text-xs text-amber-600">⚠️ Selecione um destino para exibir o link</p>
               )}
               
-              {effectivePage && (
+              {hasValidTarget && (
                 <p className="text-xs text-muted-foreground">
-                  Link: /page/{effectivePage.slug}
+                  Destino: {getTargetLabel()}
                 </p>
               )}
             </div>

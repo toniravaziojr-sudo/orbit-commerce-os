@@ -8,7 +8,7 @@ import { formatCnpj } from '@/lib/formatCnpj';
 import { cn } from '@/lib/utils';
 import type { BlockNode } from '@/lib/builder/types';
 import { FooterNewsletterForm } from './footer/FooterNewsletterForm';
-
+import { paymentSvgPresets, securitySvgPresets, svgToDataUri } from '@/lib/builder/svg-presets';
 
 // TikTok icon component (not in lucide)
 function TikTokIcon({ className }: { className?: string }) {
@@ -392,19 +392,35 @@ export function StorefrontFooterContent({
     items: ImageSectionItem[];
   }
   
-  const getImageSection = (key: string, defaultTitle: string): ImageSectionData => {
+  // Default payment methods presets (when no custom items configured)
+  const defaultPaymentItems: ImageSectionItem[] = paymentSvgPresets
+    .slice(0, 6) // Show first 6 payment methods by default
+    .map(preset => ({ imageUrl: svgToDataUri(preset.svg) }));
+  
+  // Default security seals presets (when no custom items configured)
+  const defaultSecurityItems: ImageSectionItem[] = securitySvgPresets
+    .slice(0, 4) // Show first 4 security seals by default
+    .map(preset => ({ imageUrl: svgToDataUri(preset.svg) }));
+
+  const getImageSection = (key: string, defaultTitle: string, defaultItems: ImageSectionItem[] = []): ImageSectionData => {
     const sectionData = configProps[key] as ImageSectionData | undefined;
     if (sectionData && typeof sectionData === 'object' && Array.isArray(sectionData.items)) {
+      const filteredItems = sectionData.items.filter((item: ImageSectionItem) => item?.imageUrl);
+      // If items configured but empty array, return defaults
+      if (filteredItems.length === 0 && defaultItems.length > 0) {
+        return { title: sectionData.title || defaultTitle, items: defaultItems };
+      }
       return {
         title: sectionData.title || defaultTitle,
-        items: sectionData.items.filter((item: ImageSectionItem) => item?.imageUrl),
+        items: filteredItems,
       };
     }
-    return { title: defaultTitle, items: [] };
+    // No config at all - use defaults
+    return { title: defaultTitle, items: defaultItems };
   };
 
-  const paymentMethods = getImageSection('paymentMethods', 'Formas de Pagamento');
-  const securitySeals = getImageSection('securitySeals', 'Selos de Segurança');
+  const paymentMethods = getImageSection('paymentMethods', 'Formas de Pagamento', defaultPaymentItems);
+  const securitySeals = getImageSection('securitySeals', 'Selos de Segurança', defaultSecurityItems);
   const shippingMethods = getImageSection('shippingMethods', 'Formas de Envio');
   const officialStores = getImageSection('officialStores', 'Lojas Oficiais');
 
