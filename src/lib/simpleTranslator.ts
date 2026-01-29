@@ -202,6 +202,7 @@ const translations: Record<string, string> = {
 
 let isTranslating = false;
 let observer: MutationObserver | null = null;
+let isProcessing = false; // Flag para evitar recursão
 
 function translateTextNode(node: Text): void {
   const originalText = node.textContent?.trim();
@@ -213,14 +214,16 @@ function translateTextNode(node: Text): void {
     return;
   }
   
-  // Traduz partes do texto
+  // Traduz partes do texto (apenas se houver match)
   let newText = node.textContent || '';
+  let changed = false;
   for (const [pt, en] of Object.entries(translations)) {
     if (newText.includes(pt)) {
-      newText = newText.replace(new RegExp(pt, 'g'), en);
+      newText = newText.split(pt).join(en); // Evita regex para performance
+      changed = true;
     }
   }
-  if (newText !== node.textContent) {
+  if (changed) {
     node.textContent = newText;
   }
 }
@@ -270,27 +273,34 @@ export function enableTranslation(): void {
   // Traduz conteúdo inicial
   walkAndTranslate(document.body);
   
-  // Observa mudanças no DOM
+  // Observa mudanças no DOM - SEM characterData para evitar loop
   observer = new MutationObserver((mutations) => {
-    for (const mutation of mutations) {
-      if (mutation.type === 'childList') {
-        mutation.addedNodes.forEach((node) => {
-          if (node.nodeType === Node.TEXT_NODE) {
-            translateTextNode(node as Text);
-          } else if (node.nodeType === Node.ELEMENT_NODE) {
-            walkAndTranslate(node);
-          }
-        });
-      } else if (mutation.type === 'characterData' && mutation.target.nodeType === Node.TEXT_NODE) {
-        translateTextNode(mutation.target as Text);
+    // Evita recursão
+    if (isProcessing) return;
+    isProcessing = true;
+    
+    try {
+      for (const mutation of mutations) {
+        if (mutation.type === 'childList') {
+          mutation.addedNodes.forEach((node) => {
+            if (node.nodeType === Node.TEXT_NODE) {
+              translateTextNode(node as Text);
+            } else if (node.nodeType === Node.ELEMENT_NODE) {
+              walkAndTranslate(node);
+            }
+          });
+        }
+        // REMOVIDO: characterData causa loop infinito
       }
+    } finally {
+      isProcessing = false;
     }
   });
   
+  // Apenas childList, sem characterData
   observer.observe(document.body, {
     childList: true,
     subtree: true,
-    characterData: true,
   });
   
   console.log('[SimpleTranslator] Translation enabled');
