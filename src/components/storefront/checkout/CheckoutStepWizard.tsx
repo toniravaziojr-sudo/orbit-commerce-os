@@ -663,7 +663,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
             Adicione produtos ao carrinho antes de finalizar a compra.
           </p>
           <Link to={urls.home()}>
-            <Button className="sf-btn-primary">
+            <Button variant="ghost" className="sf-btn-primary hover:bg-transparent">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Voltar para a loja
             </Button>
@@ -794,7 +794,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
               </Button>
 
               {currentStep < 4 ? (
-                <Button onClick={handleNext} disabled={isProcessing || isTransitioning} className="sf-btn-primary">
+                <Button variant="ghost" onClick={handleNext} disabled={isProcessing || isTransitioning} className="sf-btn-primary hover:bg-transparent">
                   {isTransitioning ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -809,9 +809,10 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
                 </Button>
               ) : (
                 <Button 
+                  variant="ghost"
                   onClick={handlePayment} 
                   disabled={isProcessing}
-                  className="min-w-[160px] sf-btn-primary"
+                  className="min-w-[160px] sf-btn-primary hover:bg-transparent"
                 >
                   {isProcessing ? (
                     <>

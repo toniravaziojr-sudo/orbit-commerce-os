@@ -323,22 +323,49 @@ export function getStorefrontThemeCss(themeSettings: ThemeSettings | null): stri
       font-family: var(--sf-body-font);
     }
 
-    /* Theme-aware button styles for storefront - !important to override Tailwind bg-primary */
-    .storefront-container .sf-btn-primary {
+    /* Theme-aware button styles for storefront - MAXIMUM SPECIFICITY to override Tailwind */
+    /* Supports buttons, links, and spans with sf-btn-* classes */
+    .storefront-container button.sf-btn-primary,
+    .storefront-container a.sf-btn-primary,
+    .storefront-container span.sf-btn-primary,
+    .storefront-container .sf-btn-primary,
+    button[class*="sf-btn-primary"],
+    a[class*="sf-btn-primary"] {
       background-color: var(--theme-button-primary-bg, #1a1a1a) !important;
       color: var(--theme-button-primary-text, #ffffff) !important;
-      transition: background-color 0.2s ease;
+      transition: background-color 0.2s ease, color 0.2s ease, transform 0.1s ease !important;
     }
-    .storefront-container .sf-btn-primary:hover {
+    .storefront-container button.sf-btn-primary:hover,
+    .storefront-container a.sf-btn-primary:hover,
+    .storefront-container span.sf-btn-primary:hover,
+    .storefront-container .sf-btn-primary:hover,
+    button[class*="sf-btn-primary"]:hover,
+    a[class*="sf-btn-primary"]:hover {
       background-color: var(--theme-button-primary-hover, var(--theme-button-primary-bg, #333333)) !important;
+      color: var(--theme-button-primary-text, #ffffff) !important;
+      opacity: 1 !important;
+      transform: translateY(-1px);
     }
-    .storefront-container .sf-btn-secondary {
+    .storefront-container button.sf-btn-secondary,
+    .storefront-container a.sf-btn-secondary,
+    .storefront-container span.sf-btn-secondary,
+    .storefront-container .sf-btn-secondary,
+    button[class*="sf-btn-secondary"],
+    a[class*="sf-btn-secondary"] {
       background-color: var(--theme-button-secondary-bg, #e5e5e5) !important;
       color: var(--theme-button-secondary-text, #1a1a1a) !important;
-      transition: background-color 0.2s ease;
+      transition: background-color 0.2s ease, color 0.2s ease, transform 0.1s ease !important;
     }
-    .storefront-container .sf-btn-secondary:hover {
+    .storefront-container button.sf-btn-secondary:hover,
+    .storefront-container a.sf-btn-secondary:hover,
+    .storefront-container span.sf-btn-secondary:hover,
+    .storefront-container .sf-btn-secondary:hover,
+    button[class*="sf-btn-secondary"]:hover,
+    a[class*="sf-btn-secondary"]:hover {
       background-color: var(--theme-button-secondary-hover, var(--theme-button-secondary-bg, #d5d5d5)) !important;
+      color: var(--theme-button-secondary-text, #1a1a1a) !important;
+      opacity: 1 !important;
+      transform: translateY(-1px);
     }
     
     /* Accent color for UI details (checkmarks, icons, links, text) */

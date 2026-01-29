@@ -190,35 +190,78 @@ export function useBuilderThemeInjector(
         font-family: var(--sf-body-font);
       }
 
-      /* Theme-aware button styles for builder preview - HIGH SPECIFICITY to override Tailwind */
-      /* Using button.sf-btn-primary to beat Tailwind's hover:bg-primary/90 specificity */
-      button.sf-btn-primary,
+      /* Theme-aware button styles - MAXIMUM SPECIFICITY to override ALL Tailwind hover classes */
+      /* The key is to neutralize Tailwind's hover:bg-primary/90 by targeting with higher specificity */
+      /* We use [class*="sf-btn-"] attribute selector + multiple classes for maximum specificity */
+      
+      /* PRIMARY BUTTON - Normal state (buttons, spans, and links) */
+      .storefront-container button.sf-btn-primary,
+      .storefront-container span.sf-btn-primary,
+      .storefront-container a.sf-btn-primary,
       .builder-preview-canvas button.sf-btn-primary,
-      .storefront-container button.sf-btn-primary {
+      .builder-preview-canvas span.sf-btn-primary,
+      .builder-preview-canvas a.sf-btn-primary,
+      button.sf-btn-primary.rounded-full,
+      button[class*="sf-btn-primary"],
+      a[class*="sf-btn-primary"],
+      span[class*="sf-btn-primary"],
+      .sf-btn-primary {
         background-color: var(--theme-button-primary-bg) !important;
         color: var(--theme-button-primary-text) !important;
-        transition: background-color 0.2s ease, color 0.2s ease !important;
+        transition: background-color 0.2s ease, color 0.2s ease, transform 0.1s ease !important;
       }
-      button.sf-btn-primary:hover,
+      
+      /* PRIMARY BUTTON - Hover state - CRITICAL: disable Tailwind's hover:bg-primary/90 */
+      .storefront-container button.sf-btn-primary:hover,
+      .storefront-container span.sf-btn-primary:hover,
+      .storefront-container a.sf-btn-primary:hover,
       .builder-preview-canvas button.sf-btn-primary:hover,
-      .storefront-container button.sf-btn-primary:hover {
+      .builder-preview-canvas span.sf-btn-primary:hover,
+      .builder-preview-canvas a.sf-btn-primary:hover,
+      button.sf-btn-primary.rounded-full:hover,
+      button[class*="sf-btn-primary"]:hover,
+      a[class*="sf-btn-primary"]:hover,
+      span[class*="sf-btn-primary"]:hover,
+      .sf-btn-primary:hover {
         background-color: var(--theme-button-primary-hover) !important;
         color: var(--theme-button-primary-text) !important;
         opacity: 1 !important;
+        transform: translateY(-1px);
       }
-      button.sf-btn-secondary,
+      
+      /* SECONDARY BUTTON - Normal state */
+      .storefront-container button.sf-btn-secondary,
+      .storefront-container span.sf-btn-secondary,
+      .storefront-container a.sf-btn-secondary,
       .builder-preview-canvas button.sf-btn-secondary,
-      .storefront-container button.sf-btn-secondary {
+      .builder-preview-canvas span.sf-btn-secondary,
+      .builder-preview-canvas a.sf-btn-secondary,
+      button.sf-btn-secondary.rounded-full,
+      button[class*="sf-btn-secondary"],
+      a[class*="sf-btn-secondary"],
+      span[class*="sf-btn-secondary"],
+      .sf-btn-secondary {
         background-color: var(--theme-button-secondary-bg) !important;
         color: var(--theme-button-secondary-text) !important;
-        transition: background-color 0.2s ease, color 0.2s ease !important;
+        transition: background-color 0.2s ease, color 0.2s ease, transform 0.1s ease !important;
       }
-      button.sf-btn-secondary:hover,
+      
+      /* SECONDARY BUTTON - Hover state */
+      .storefront-container button.sf-btn-secondary:hover,
+      .storefront-container span.sf-btn-secondary:hover,
+      .storefront-container a.sf-btn-secondary:hover,
       .builder-preview-canvas button.sf-btn-secondary:hover,
-      .storefront-container button.sf-btn-secondary:hover {
+      .builder-preview-canvas span.sf-btn-secondary:hover,
+      .builder-preview-canvas a.sf-btn-secondary:hover,
+      button.sf-btn-secondary.rounded-full:hover,
+      button[class*="sf-btn-secondary"]:hover,
+      a[class*="sf-btn-secondary"]:hover,
+      span[class*="sf-btn-secondary"]:hover,
+      .sf-btn-secondary:hover {
         background-color: var(--theme-button-secondary-hover) !important;
         color: var(--theme-button-secondary-text) !important;
         opacity: 1 !important;
+        transform: translateY(-1px);
       }
       
       /* Special tag colors - theme-based classes */
