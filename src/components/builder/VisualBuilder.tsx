@@ -125,7 +125,7 @@ export function VisualBuilder({
   const isDebugMode = searchParams.get('debug') === '1';
   
   // All hooks must be called before any conditional returns
-  const [isPreviewMode, setIsPreviewMode] = useState(false);
+  // WYSIWYG Builder: No separate preview mode - builder IS the preview
   const [isInteractMode, setIsInteractMode] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showAddBlockDrawer, setShowAddBlockDrawer] = useState(false);
@@ -1019,7 +1019,6 @@ export function VisualBuilder({
         pageSlug={pageSlug}
         templateSetId={templateSetId}
         storeIsDirty={store.isDirty}
-        isPreviewMode={isPreviewMode}
         isInteractMode={isInteractMode}
         canUndo={store.canUndo}
         canRedo={store.canRedo}
@@ -1029,7 +1028,6 @@ export function VisualBuilder({
         onRedo={store.redo}
         onSave={handleSave}
         onPublish={handlePublish}
-        onTogglePreview={() => setIsPreviewMode(!isPreviewMode)}
         onToggleInteract={() => setIsInteractMode(!isInteractMode)}
         onReset={handleReset}
         onViewHistory={() => setShowVersionHistory(true)}
@@ -1041,9 +1039,8 @@ export function VisualBuilder({
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar - Unified Structure (Yampi-style) */}
-        {!isPreviewMode && (
-          <div className="w-56 flex-shrink-0 border-r bg-background flex flex-col shadow-sm">
+        {/* Left Sidebar - Always visible (WYSIWYG builder) */}
+        <div className="w-56 flex-shrink-0 border-r bg-background flex flex-col shadow-sm">
             {/* Unified Sidebar - No more page-specific settings here */}
             {/* Settings moved to ThemeSettingsPanel > Páginas */}
             <BuilderSidebar
@@ -1059,7 +1056,6 @@ export function VisualBuilder({
               templateName={pageTypeLabels[pageType] || 'Tema'}
             />
           </div>
-        )}
 
         {/* Add Block Drawer */}
         <AddBlockDrawer
@@ -1100,7 +1096,7 @@ export function VisualBuilder({
             onDeleteBlock={handleDeleteBlockById}
             onToggleHidden={handleToggleHidden}
             onUpdateProps={store.updateProps}
-            isPreviewMode={isPreviewMode}
+            isPreviewMode={false}
             isInteractMode={isInteractMode}
             isSafeMode={isSafeMode}
             viewport={canvasViewport}
@@ -1112,7 +1108,7 @@ export function VisualBuilder({
         </div>
 
         {/* Right Sidebar Toggle Button - Only show when block is selected */}
-        {!isPreviewMode && store.selectedBlock && (
+        {store.selectedBlock && (
           <button
             onClick={() => setShowRightSidebar(!showRightSidebar)}
             className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-background border border-r-0 rounded-l-md p-1.5 shadow-sm hover:bg-muted transition-colors"
@@ -1128,7 +1124,7 @@ export function VisualBuilder({
         )}
 
         {/* Right Sidebar - Props Editor - Auto-hide when no block selected */}
-        {!isPreviewMode && showRightSidebar && store.selectedBlock && (
+        {showRightSidebar && store.selectedBlock && (
           <div className="w-72 flex-shrink-0 bg-background shadow-sm relative">
             {store.selectedBlock && store.selectedBlockDefinition ? (
               // Header/Footer: Check if it's checkout page for dedicated editor

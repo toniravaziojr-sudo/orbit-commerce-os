@@ -35,7 +35,6 @@ import {
   Redo2,
   Save,
   Upload,
-  Eye,
   MousePointer2,
   MoreVertical,
   RotateCcw,
@@ -63,7 +62,6 @@ interface BuilderToolbarProps {
   pageSlug?: string; // For institutional/landing pages
   templateSetId?: string; // For multi-template system - preserve across page changes
   isDirty: boolean;
-  isPreviewMode: boolean;
   isInteractMode: boolean;
   canUndo: boolean;
   canRedo: boolean;
@@ -73,7 +71,6 @@ interface BuilderToolbarProps {
   onRedo: () => void;
   onSave: () => void;
   onPublish: () => void;
-  onTogglePreview: () => void;
   onToggleInteract: () => void;
   onReset?: () => void;
   onViewHistory?: () => void;
@@ -94,7 +91,6 @@ export function BuilderToolbar({
   pageSlug,
   templateSetId,
   isDirty,
-  isPreviewMode,
   isInteractMode,
   canUndo,
   canRedo,
@@ -104,7 +100,6 @@ export function BuilderToolbar({
   onRedo,
   onSave,
   onPublish,
-  onTogglePreview,
   onToggleInteract,
   onReset,
   onViewHistory,
@@ -336,7 +331,7 @@ export function BuilderToolbar({
           variant="ghost"
           size="icon"
           onClick={onUndo}
-          disabled={!canUndo || isPreviewMode}
+          disabled={!canUndo || isInteractMode}
           title="Desfazer (Ctrl+Z)"
           className="h-7 w-7"
         >
@@ -346,7 +341,7 @@ export function BuilderToolbar({
           variant="ghost"
           size="icon"
           onClick={onRedo}
-          disabled={!canRedo || isPreviewMode}
+          disabled={!canRedo || isInteractMode}
           title="Refazer (Ctrl+Y)"
           className="h-7 w-7"
         >
@@ -357,31 +352,17 @@ export function BuilderToolbar({
       {/* Right: Actions */}
       <div className="flex items-center gap-1.5">
         {/* Interact Mode Toggle - Only when not in preview */}
-        {!isPreviewMode && (
-          <Button
-            variant={isInteractMode ? 'default' : 'outline'}
-            size="sm"
-            onClick={onToggleInteract}
-            className="gap-1 h-7 px-2 text-xs"
-            title="Modo Interagir: clique e teste os botões no canvas"
-          >
-            <MousePointer2 className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">
-              {isInteractMode ? 'Editar' : 'Testar'}
-            </span>
-          </Button>
-        )}
-
-        {/* Preview Button */}
+        {/* Interact Mode Toggle - Test buttons/links without leaving builder */}
         <Button
-          variant={isPreviewMode ? 'default' : 'outline'}
+          variant={isInteractMode ? 'default' : 'outline'}
           size="sm"
-          onClick={onTogglePreview}
+          onClick={onToggleInteract}
           className="gap-1 h-7 px-2 text-xs"
+          title="Modo Testar: clique e teste os botões/links no canvas"
         >
-          <Eye className="h-3.5 w-3.5" />
+          <MousePointer2 className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">
-            {isPreviewMode ? 'Sair Preview' : 'Preview'}
+            {isInteractMode ? 'Voltar a Editar' : 'Testar'}
           </span>
         </Button>
 
