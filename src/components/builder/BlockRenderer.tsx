@@ -197,9 +197,15 @@ export function BlockRenderer({
     );
   }
 
+  // Handle click - intercept clicks on interactive elements in edit mode
   const handleClick = (e: React.MouseEvent) => {
     if (isEditing && onSelect) {
-      e.stopPropagation();
+      const target = e.target as HTMLElement;
+      // If clicked on button/link in edit mode, prevent action but still select the block
+      if (target.closest('button, a[href]')) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
       onSelect(node.id);
     }
   };
@@ -354,8 +360,10 @@ export function BlockRenderer({
           'relative transition-all group/block-actions',
           isEditing && node.type !== 'RichText' && 'cursor-pointer',
           isEditing && node.type === 'RichText' && 'cursor-text',
-          isEditing && 'hover:outline hover:outline-2 hover:outline-primary/50',
-          isSelected && isEditing && 'outline outline-2 outline-primary ring-2 ring-primary/20',
+          // Non-intrusive selection: use ring only when selected, subtle visual on hover
+          // This allows child elements (buttons, links) to receive their native :hover events
+          isEditing && !isSelected && 'hover:ring-1 hover:ring-primary/30 hover:ring-offset-1',
+          isSelected && isEditing && 'ring-2 ring-primary ring-offset-2',
         )}
       >
         {isSelected && isEditing && (
@@ -386,8 +394,10 @@ export function BlockRenderer({
           'relative transition-all group/block-actions',
           isEditing && node.type !== 'RichText' && 'cursor-pointer',
           isEditing && node.type === 'RichText' && 'cursor-text',
-          isEditing && 'hover:outline hover:outline-2 hover:outline-primary/50',
-          isSelected && isEditing && 'outline outline-2 outline-primary ring-2 ring-primary/20',
+          // Non-intrusive selection: use ring only when selected, subtle visual on hover
+          // This allows child elements (buttons, links) to receive their native :hover events
+          isEditing && !isSelected && 'hover:ring-1 hover:ring-primary/30 hover:ring-offset-1',
+          isSelected && isEditing && 'ring-2 ring-primary ring-offset-2',
           node.hidden && isEditing && 'opacity-40'
       )}
     >
