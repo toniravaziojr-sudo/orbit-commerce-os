@@ -144,18 +144,23 @@ export function MetaUnifiedSettings() {
     }
   }, [whatsappConfig, showTestConfig]);
 
-  // Check URL params for OAuth callback
+  // Check URL params for OAuth callback (both meta_connected and whatsapp_connected for backwards compatibility)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const connected = params.get("whatsapp_connected");
-    const error = params.get("whatsapp_error");
+    const metaConnected = params.get("meta_connected");
+    const metaError = params.get("meta_error");
+    const whatsappConnected = params.get("whatsapp_connected");
+    const whatsappError = params.get("whatsapp_error");
     
-    if (connected === "true") {
-      toast.success("WhatsApp conectado com sucesso!");
+    if (metaConnected === "true" || whatsappConnected === "true") {
+      toast.success("Conta Meta conectada com sucesso!");
       refetch();
       window.history.replaceState({}, "", window.location.pathname);
-    } else if (error) {
-      toast.error(`Erro ao conectar: ${decodeURIComponent(error)}`);
+    } else if (metaError) {
+      toast.error(`Erro ao conectar: ${decodeURIComponent(metaError)}`);
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (whatsappError) {
+      toast.error(`Erro ao conectar: ${decodeURIComponent(whatsappError)}`);
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, [refetch]);
