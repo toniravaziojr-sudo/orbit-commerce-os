@@ -175,50 +175,47 @@ export function useBuilderThemeInjector(
       }
 
       /* Theme-aware button styles - uses .storefront-container for proper scoping */
-      /* IMPORTANT: Uses maximum specificity to override Tailwind's hover:bg-accent from ghost variant */
-      /* Double class selector + !important guarantees priority over Tailwind compiled styles */
-      /* These styles work in both builder (edit mode) and production */
+      /* IMPORTANT: Uses attribute selector [class*="sf-btn-"] for reliable single-class matching */
+      /* Combined with !important to override Tailwind's hover:bg-accent from ghost variant */
       
-      /* PRIMARY BUTTON - Normal state (higher specificity with double selector) */
-      .storefront-container button.sf-btn-primary.sf-btn-primary,
-      .storefront-container span.sf-btn-primary.sf-btn-primary,
-      .storefront-container a.sf-btn-primary.sf-btn-primary,
-      .storefront-container .sf-btn-primary[class] {
+      /* PRIMARY BUTTON - Normal state */
+      .storefront-container button[class*="sf-btn-primary"],
+      .storefront-container span[class*="sf-btn-primary"],
+      .storefront-container a[class*="sf-btn-primary"] {
         background-color: var(--theme-button-primary-bg) !important;
         color: var(--theme-button-primary-text) !important;
-        transition: background-color 0.2s ease, color 0.2s ease, transform 0.1s ease !important;
+        transition: all 0.2s ease !important;
       }
       
-      /* PRIMARY BUTTON - Hover state - Maximum specificity to override Tailwind hover:bg-accent */
-      .storefront-container button.sf-btn-primary.sf-btn-primary:hover,
-      .storefront-container span.sf-btn-primary.sf-btn-primary:hover,
-      .storefront-container a.sf-btn-primary.sf-btn-primary:hover,
-      .storefront-container .sf-btn-primary[class]:hover {
+      /* PRIMARY BUTTON - Hover state */
+      .storefront-container button[class*="sf-btn-primary"]:hover:not(:disabled),
+      .storefront-container span[class*="sf-btn-primary"]:hover,
+      .storefront-container a[class*="sf-btn-primary"]:hover {
         background-color: var(--theme-button-primary-hover) !important;
         color: var(--theme-button-primary-text) !important;
         opacity: 1 !important;
         transform: translateY(-1px) !important;
+        filter: brightness(1.05) !important;
       }
       
-      /* SECONDARY BUTTON - Normal state (higher specificity with double selector) */
-      .storefront-container button.sf-btn-secondary.sf-btn-secondary,
-      .storefront-container span.sf-btn-secondary.sf-btn-secondary,
-      .storefront-container a.sf-btn-secondary.sf-btn-secondary,
-      .storefront-container .sf-btn-secondary[class] {
+      /* SECONDARY BUTTON - Normal state */
+      .storefront-container button[class*="sf-btn-secondary"],
+      .storefront-container span[class*="sf-btn-secondary"],
+      .storefront-container a[class*="sf-btn-secondary"] {
         background-color: var(--theme-button-secondary-bg) !important;
         color: var(--theme-button-secondary-text) !important;
-        transition: background-color 0.2s ease, color 0.2s ease, transform 0.1s ease !important;
+        transition: all 0.2s ease !important;
       }
       
-      /* SECONDARY BUTTON - Hover state - Maximum specificity to override Tailwind hover:bg-accent */
-      .storefront-container button.sf-btn-secondary.sf-btn-secondary:hover,
-      .storefront-container span.sf-btn-secondary.sf-btn-secondary:hover,
-      .storefront-container a.sf-btn-secondary.sf-btn-secondary:hover,
-      .storefront-container .sf-btn-secondary[class]:hover {
+      /* SECONDARY BUTTON - Hover state */
+      .storefront-container button[class*="sf-btn-secondary"]:hover:not(:disabled),
+      .storefront-container span[class*="sf-btn-secondary"]:hover,
+      .storefront-container a[class*="sf-btn-secondary"]:hover {
         background-color: var(--theme-button-secondary-hover) !important;
         color: var(--theme-button-secondary-text) !important;
         opacity: 1 !important;
         transform: translateY(-1px) !important;
+        filter: brightness(1.05) !important;
       }
       
       /* Special tag colors - theme-based classes */

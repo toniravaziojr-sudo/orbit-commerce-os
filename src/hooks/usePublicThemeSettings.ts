@@ -323,58 +323,48 @@ export function getStorefrontThemeCss(themeSettings: ThemeSettings | null): stri
       font-family: var(--sf-body-font);
     }
 
-    /* Theme-aware button styles for storefront - MAXIMUM SPECIFICITY to override Tailwind */
-    /* Uses double class selector (.class.class) for maximum specificity */
-    /* Supports buttons, links, and spans with sf-btn-* classes */
+    /* Theme-aware button styles for storefront - attribute selectors for reliable matching */
+    /* Uses [class*="sf-btn-"] to match single class in className attribute */
+    /* Combined with !important to override Tailwind's compiled styles */
     
     /* PRIMARY BUTTON - Normal state */
-    .storefront-container button.sf-btn-primary.sf-btn-primary,
-    .storefront-container a.sf-btn-primary.sf-btn-primary,
-    .storefront-container span.sf-btn-primary.sf-btn-primary,
-    .storefront-container .sf-btn-primary[class],
-    button[class*="sf-btn-primary"][class*="sf-btn-primary"],
-    a[class*="sf-btn-primary"][class*="sf-btn-primary"] {
+    .storefront-container button[class*="sf-btn-primary"],
+    .storefront-container a[class*="sf-btn-primary"],
+    .storefront-container span[class*="sf-btn-primary"] {
       background-color: var(--theme-button-primary-bg, #1a1a1a) !important;
       color: var(--theme-button-primary-text, #ffffff) !important;
-      transition: background-color 0.2s ease, color 0.2s ease, transform 0.1s ease !important;
+      transition: all 0.2s ease !important;
     }
     
     /* PRIMARY BUTTON - Hover state */
-    .storefront-container button.sf-btn-primary.sf-btn-primary:hover,
-    .storefront-container a.sf-btn-primary.sf-btn-primary:hover,
-    .storefront-container span.sf-btn-primary.sf-btn-primary:hover,
-    .storefront-container .sf-btn-primary[class]:hover,
-    button[class*="sf-btn-primary"][class*="sf-btn-primary"]:hover,
-    a[class*="sf-btn-primary"][class*="sf-btn-primary"]:hover {
+    .storefront-container button[class*="sf-btn-primary"]:hover:not(:disabled),
+    .storefront-container a[class*="sf-btn-primary"]:hover,
+    .storefront-container span[class*="sf-btn-primary"]:hover {
       background-color: var(--theme-button-primary-hover, var(--theme-button-primary-bg, #333333)) !important;
       color: var(--theme-button-primary-text, #ffffff) !important;
       opacity: 1 !important;
       transform: translateY(-1px) !important;
+      filter: brightness(1.05) !important;
     }
     
     /* SECONDARY BUTTON - Normal state */
-    .storefront-container button.sf-btn-secondary.sf-btn-secondary,
-    .storefront-container a.sf-btn-secondary.sf-btn-secondary,
-    .storefront-container span.sf-btn-secondary.sf-btn-secondary,
-    .storefront-container .sf-btn-secondary[class],
-    button[class*="sf-btn-secondary"][class*="sf-btn-secondary"],
-    a[class*="sf-btn-secondary"][class*="sf-btn-secondary"] {
+    .storefront-container button[class*="sf-btn-secondary"],
+    .storefront-container a[class*="sf-btn-secondary"],
+    .storefront-container span[class*="sf-btn-secondary"] {
       background-color: var(--theme-button-secondary-bg, #e5e5e5) !important;
       color: var(--theme-button-secondary-text, #1a1a1a) !important;
-      transition: background-color 0.2s ease, color 0.2s ease, transform 0.1s ease !important;
+      transition: all 0.2s ease !important;
     }
     
     /* SECONDARY BUTTON - Hover state */
-    .storefront-container button.sf-btn-secondary.sf-btn-secondary:hover,
-    .storefront-container a.sf-btn-secondary.sf-btn-secondary:hover,
-    .storefront-container span.sf-btn-secondary.sf-btn-secondary:hover,
-    .storefront-container .sf-btn-secondary[class]:hover,
-    button[class*="sf-btn-secondary"][class*="sf-btn-secondary"]:hover,
-    a[class*="sf-btn-secondary"][class*="sf-btn-secondary"]:hover {
+    .storefront-container button[class*="sf-btn-secondary"]:hover:not(:disabled),
+    .storefront-container a[class*="sf-btn-secondary"]:hover,
+    .storefront-container span[class*="sf-btn-secondary"]:hover {
       background-color: var(--theme-button-secondary-hover, var(--theme-button-secondary-bg, #d5d5d5)) !important;
       color: var(--theme-button-secondary-text, #1a1a1a) !important;
       opacity: 1 !important;
       transform: translateY(-1px) !important;
+      filter: brightness(1.05) !important;
     }
     
     /* Accent color for UI details (checkmarks, icons, links, text) */
