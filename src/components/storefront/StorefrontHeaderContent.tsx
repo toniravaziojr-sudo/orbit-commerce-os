@@ -129,6 +129,12 @@ export function StorefrontHeaderContent({
   // Header menu visibility (from page overrides)
   const showHeaderMenu = props.showHeaderMenu !== undefined ? Boolean(props.showHeaderMenu) : true;
   
+  // SAC/Atendimento visibility (for checkout)
+  const showSac = props.showSac !== undefined ? Boolean(props.showSac) : true;
+  
+  // Logo position (for checkout: left, center, right)
+  const logoPosition = String(props.logoPosition || 'center') as 'left' | 'center' | 'right';
+  
   // Featured promos props
   const featuredPromosEnabled = Boolean(props.featuredPromosEnabled);
   const featuredPromosLabel = String(props.featuredPromosLabel || 'Promoções');
@@ -653,16 +659,22 @@ export function StorefrontHeaderContent({
             </div>
           )}
 
-          {/* === CENTER REGION: Logo (always centered) === */}
+          {/* === CENTER REGION: Logo (position controlled by logoPosition prop) === */}
           <LinkWrapper 
             to={baseUrl || '/'} 
             className={cn(
               "flex items-center gap-2 shrink-0",
-              // Mobile: centered absolutely
+              // Mobile: always centered
               forceMobile ? "absolute left-1/2 -translate-x-1/2" : 
-              // Desktop: centered via flex
-              forceDesktop ? "static translate-x-0" : 
-              // Responsive: mobile centered, desktop static
+              // Desktop with logoPosition
+              forceDesktop ? (
+                logoPosition === 'left' ? "order-first mr-auto" :
+                logoPosition === 'right' ? "order-last ml-auto" :
+                "static translate-x-0"
+              ) : 
+              // Responsive: mobile centered, desktop respects logoPosition
+              logoPosition === 'left' ? "absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0 md:order-first md:mr-auto" :
+              logoPosition === 'right' ? "absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0 md:order-last md:ml-auto" :
               "absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0"
             )}
           >
@@ -691,11 +703,12 @@ export function StorefrontHeaderContent({
           {/* === DESKTOP RIGHT REGION: Attendance Dropdown + Account Icon + Cart Icon === */}
           {(forceDesktop || !forceMobile) && (
             <div className={cn(
-              "flex items-center justify-end gap-3 flex-1",
+              "flex items-center justify-end gap-3",
+              logoPosition === 'left' ? "flex-1" : logoPosition === 'right' ? "flex-1 order-first" : "flex-1",
               forceMobile ? "hidden" : (forceDesktop ? "flex" : "hidden md:flex")
             )}>
               {/* Attendance Dropdown - Shows demo when no real contact in editor */}
-              {(hasContactInfo || isEditing) && (
+              {showSac && (hasContactInfo || isEditing) && (
                 <HeaderAttendanceDropdown
                   phoneNumber={demoContactInfo?.phone || phoneNumber}
                   whatsAppNumber={demoContactInfo?.whatsapp || whatsAppNumber}

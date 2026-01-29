@@ -44,9 +44,24 @@ Minimizar distrações durante a finalização da compra (sem menus de navegaç�
 | Header | `showHeaderMenu` | `false` | `true` |
 | Header | `customerAreaEnabled` | `false` | `true` |
 | Header | `featuredPromosEnabled` | `false` | `true/false` |
+| Header | `showSac` | `false` | `true` |
+| Header | `showSecuritySeals` | `false` | `true/false` |
+| Header | `logoPosition` | `center` | N/A |
 | Footer | `showSocial` | `false` | `true` |
 | Footer | `showNewsletterSection` | `false` | `true/false` |
 | Footer | `menuId` | `''` (vazio) | menu configurado |
+| Footer | `showPaymentMethods` | `true` | `true` |
+| Footer | `showSecuritySeals` | `true` | `true` |
+
+### Props Exclusivas do Checkout
+
+| Prop | Tipo | Descrição |
+|------|------|-----------|
+| `logoPosition` | `'left' \| 'center' \| 'right'` | Posição do logo no header do checkout |
+| `showSac` | boolean | Exibe dropdown de atendimento (SAC) no header |
+| `paymentMethods` | ImageSectionData | Bandeiras de pagamento (herda do global se vazio) |
+| `securitySeals` | ImageSectionData | Selos de segurança (herda do global se vazio) |
+| `copyrightText` | string | Texto customizado do copyright |
 
 ### Configuração no Builder
 
@@ -61,6 +76,12 @@ Minimizar distrações durante a finalização da compra (sem menus de navegaç�
 |--------|--------|-----------|
 | `checkout_header_config` | `storefront_global_layout` | BlockNode JSON do header do checkout |
 | `checkout_footer_config` | `storefront_global_layout` | BlockNode JSON do footer do checkout |
+
+### Regras de Herança
+
+1. **Props editáveis** (cores, imagens, texto): Se vazias no checkout, herdam do global
+2. **Toggles de visibilidade**: Valor do checkout tem prioridade absoluta
+3. **Formas de pagamento/selos**: Se não definidas no checkout, herdam do footer global
 
 ---
 
