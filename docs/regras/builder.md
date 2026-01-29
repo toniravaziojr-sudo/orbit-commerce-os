@@ -290,16 +290,47 @@ O sistema injeta variáveis CSS e classes para botões diretamente no `<head>` d
 ### Classes CSS Injetadas (com !important)
 
 ```css
-/* Botão Primário - !important para sobrescrever Tailwind */
+/* Botão Primário Sólido - !important para sobrescrever Tailwind */
 .storefront-container .sf-btn-primary {
   background-color: var(--theme-button-primary-bg, #1a1a1a) !important;
   color: var(--theme-button-primary-text, #ffffff) !important;
 }
+.storefront-container .sf-btn-primary:hover {
+  background-color: var(--theme-button-primary-hover) !important;
+  transform: translateY(-1px) !important;
+}
 
-/* Botão Secundário */
+/* Botão Primário Outline - Hover preenche com cor primária */
+.storefront-container .sf-btn-outline-primary {
+  background-color: transparent !important;
+  color: var(--theme-button-primary-bg, #1a1a1a) !important;
+  border: 1px solid var(--theme-button-primary-bg, #1a1a1a) !important;
+}
+.storefront-container .sf-btn-outline-primary:hover {
+  background-color: var(--theme-button-primary-bg, #1a1a1a) !important;
+  color: var(--theme-button-primary-text, #ffffff) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Botão Secundário Sólido */
 .storefront-container .sf-btn-secondary {
   background-color: var(--theme-button-secondary-bg, #f5f5f5) !important;
   color: var(--theme-button-secondary-text, #1a1a1a) !important;
+}
+.storefront-container .sf-btn-secondary:hover {
+  background-color: var(--theme-button-secondary-hover) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Botão Secundário Outline */
+.storefront-container .sf-btn-outline-secondary {
+  background-color: transparent !important;
+  color: var(--theme-button-secondary-text, #1a1a1a) !important;
+  border: 1px solid var(--theme-button-secondary-bg, #e5e5e5) !important;
+}
+.storefront-container .sf-btn-outline-secondary:hover {
+  background-color: var(--theme-button-secondary-bg, #e5e5e5) !important;
+  transform: translateY(-1px) !important;
 }
 ```
 
@@ -320,7 +351,8 @@ O sistema injeta variáveis CSS e classes para botões diretamente no `<head>` d
 | Botões de navegação do checkout | `sf-btn-primary` | `CheckoutStepWizard.tsx` |
 | Botão "Visualizar Boleto" | `sf-btn-primary` | `PaymentResult.tsx` |
 | Botões CTA em blocos do builder | `sf-btn-primary` | Blocos individuais |
-| ProductCard "Comprar" | `sf-btn-primary` | `ProductCard.tsx` |
+| ProductCard "Comprar agora" | `sf-btn-primary` | `ProductCard.tsx` |
+| ProductCard "Adicionar" | `sf-btn-outline-primary` | `ProductCard.tsx` |
 | ProductCTAs "Comprar agora" | `sf-btn-primary` | `ProductCTAs.tsx` |
 
 ### Arquivos Relacionados

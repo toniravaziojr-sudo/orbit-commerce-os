@@ -328,18 +328,18 @@ export function getStorefrontThemeCss(themeSettings: ThemeSettings | null): stri
     /* Combined with !important to override Tailwind's compiled styles */
     
     /* PRIMARY BUTTON - Normal state */
-    .storefront-container button[class*="sf-btn-primary"],
-    .storefront-container a[class*="sf-btn-primary"],
-    .storefront-container span[class*="sf-btn-primary"] {
+    .storefront-container button[class*="sf-btn-primary"]:not([class*="sf-btn-outline"]),
+    .storefront-container a[class*="sf-btn-primary"]:not([class*="sf-btn-outline"]),
+    .storefront-container span[class*="sf-btn-primary"]:not([class*="sf-btn-outline"]) {
       background-color: var(--theme-button-primary-bg, #1a1a1a) !important;
       color: var(--theme-button-primary-text, #ffffff) !important;
       transition: all 0.2s ease !important;
     }
     
     /* PRIMARY BUTTON - Hover state */
-    .storefront-container button[class*="sf-btn-primary"]:hover:not(:disabled),
-    .storefront-container a[class*="sf-btn-primary"]:hover,
-    .storefront-container span[class*="sf-btn-primary"]:hover {
+    .storefront-container button[class*="sf-btn-primary"]:not([class*="sf-btn-outline"]):hover:not(:disabled),
+    .storefront-container a[class*="sf-btn-primary"]:not([class*="sf-btn-outline"]):hover,
+    .storefront-container span[class*="sf-btn-primary"]:not([class*="sf-btn-outline"]):hover {
       background-color: var(--theme-button-primary-hover, var(--theme-button-primary-bg, #333333)) !important;
       color: var(--theme-button-primary-text, #ffffff) !important;
       opacity: 1 !important;
@@ -347,24 +347,66 @@ export function getStorefrontThemeCss(themeSettings: ThemeSettings | null): stri
       filter: brightness(1.05) !important;
     }
     
+    /* OUTLINE PRIMARY BUTTON - Normal state (transparent bg with primary border/text) */
+    .storefront-container button[class*="sf-btn-outline-primary"],
+    .storefront-container a[class*="sf-btn-outline-primary"],
+    .storefront-container span[class*="sf-btn-outline-primary"] {
+      background-color: transparent !important;
+      color: var(--theme-button-primary-bg, #1a1a1a) !important;
+      border: 1px solid var(--theme-button-primary-bg, #1a1a1a) !important;
+      transition: all 0.2s ease !important;
+    }
+    
+    /* OUTLINE PRIMARY BUTTON - Hover state (fill with primary bg) */
+    .storefront-container button[class*="sf-btn-outline-primary"]:hover:not(:disabled),
+    .storefront-container a[class*="sf-btn-outline-primary"]:hover,
+    .storefront-container span[class*="sf-btn-outline-primary"]:hover {
+      background-color: var(--theme-button-primary-bg, #1a1a1a) !important;
+      color: var(--theme-button-primary-text, #ffffff) !important;
+      border-color: var(--theme-button-primary-bg, #1a1a1a) !important;
+      opacity: 1 !important;
+      transform: translateY(-1px) !important;
+    }
+    
     /* SECONDARY BUTTON - Normal state */
-    .storefront-container button[class*="sf-btn-secondary"],
-    .storefront-container a[class*="sf-btn-secondary"],
-    .storefront-container span[class*="sf-btn-secondary"] {
+    .storefront-container button[class*="sf-btn-secondary"]:not([class*="sf-btn-outline"]),
+    .storefront-container a[class*="sf-btn-secondary"]:not([class*="sf-btn-outline"]),
+    .storefront-container span[class*="sf-btn-secondary"]:not([class*="sf-btn-outline"]) {
       background-color: var(--theme-button-secondary-bg, #e5e5e5) !important;
       color: var(--theme-button-secondary-text, #1a1a1a) !important;
       transition: all 0.2s ease !important;
     }
     
     /* SECONDARY BUTTON - Hover state */
-    .storefront-container button[class*="sf-btn-secondary"]:hover:not(:disabled),
-    .storefront-container a[class*="sf-btn-secondary"]:hover,
-    .storefront-container span[class*="sf-btn-secondary"]:hover {
+    .storefront-container button[class*="sf-btn-secondary"]:not([class*="sf-btn-outline"]):hover:not(:disabled),
+    .storefront-container a[class*="sf-btn-secondary"]:not([class*="sf-btn-outline"]):hover,
+    .storefront-container span[class*="sf-btn-secondary"]:not([class*="sf-btn-outline"]):hover {
       background-color: var(--theme-button-secondary-hover, var(--theme-button-secondary-bg, #d5d5d5)) !important;
       color: var(--theme-button-secondary-text, #1a1a1a) !important;
       opacity: 1 !important;
       transform: translateY(-1px) !important;
       filter: brightness(1.05) !important;
+    }
+    
+    /* OUTLINE SECONDARY BUTTON - Normal state */
+    .storefront-container button[class*="sf-btn-outline-secondary"],
+    .storefront-container a[class*="sf-btn-outline-secondary"],
+    .storefront-container span[class*="sf-btn-outline-secondary"] {
+      background-color: transparent !important;
+      color: var(--theme-button-secondary-text, #1a1a1a) !important;
+      border: 1px solid var(--theme-button-secondary-bg, #e5e5e5) !important;
+      transition: all 0.2s ease !important;
+    }
+    
+    /* OUTLINE SECONDARY BUTTON - Hover state */
+    .storefront-container button[class*="sf-btn-outline-secondary"]:hover:not(:disabled),
+    .storefront-container a[class*="sf-btn-outline-secondary"]:hover,
+    .storefront-container span[class*="sf-btn-outline-secondary"]:hover {
+      background-color: var(--theme-button-secondary-bg, #e5e5e5) !important;
+      color: var(--theme-button-secondary-text, #1a1a1a) !important;
+      border-color: var(--theme-button-secondary-bg, #e5e5e5) !important;
+      opacity: 1 !important;
+      transform: translateY(-1px) !important;
     }
     
     /* Accent color for UI details (checkmarks, icons, links, text) */

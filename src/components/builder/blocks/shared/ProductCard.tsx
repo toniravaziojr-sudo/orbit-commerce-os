@@ -185,12 +185,8 @@ export function ProductCard({
                   "w-full py-1.5 px-3 text-xs rounded-md transition-colors flex items-center justify-center gap-1",
                   isAddedToCart
                     ? "bg-green-500 text-white border-green-500"
-                    : "border bg-transparent hover:opacity-80"
+                    : "sf-btn-outline-primary"
                 )}
-                style={!isAddedToCart ? {
-                  borderColor: 'var(--theme-button-primary-bg)',
-                  color: 'var(--theme-button-primary-bg)',
-                } : undefined}
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -302,7 +298,7 @@ export function ProductCard({
                   "w-full py-1.5 px-3 text-xs rounded-md transition-colors flex items-center justify-center gap-1",
                   isAddedToCart
                     ? "bg-green-500 text-white border-green-500"
-                    : "border border-primary text-primary bg-transparent hover:bg-primary/10"
+                    : "sf-btn-outline-primary"
                 )}
                 onClick={(e) => {
                   e.preventDefault();
@@ -416,12 +412,8 @@ export function ProductCard({
                 "w-full py-1.5 px-3 text-xs rounded-md transition-colors flex items-center justify-center gap-1",
                 isAddedToCart
                   ? "bg-green-500 text-white border-green-500"
-                  : "border bg-transparent hover:opacity-80"
+                  : "sf-btn-outline-primary"
               )}
-              style={!isAddedToCart ? {
-                borderColor: 'var(--theme-button-primary-bg)',
-                color: 'var(--theme-button-primary-bg)',
-              } : undefined}
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
