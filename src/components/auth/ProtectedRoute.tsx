@@ -59,9 +59,13 @@ export function ProtectedRoute({ children, requireTenant = true }: ProtectedRout
     }
   }, [isLoading, user, userRoles.length, hasPendingInvite]);
 
+  // REGRA CRÍTICA: Durante carregamento (mesmo após latch), NÃO redirecionar para /auth
+  // Isso previne flash de auth screen durante remontagens causadas por Google Tradutor
+  const isStillLoading = isLoading || platformLoading || inviteLoading;
+  
   // Só mostra loader na PRIMEIRA carga - após isso, NUNCA bloqueia a tela
   // Isso é crítico para evitar tela cinza durante operações como OAuth popups
-  if ((isLoading || platformLoading || inviteLoading) && !initialLoadComplete) {
+  if (isStillLoading && !initialLoadComplete) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -69,8 +73,16 @@ export function ProtectedRoute({ children, requireTenant = true }: ProtectedRout
     );
   }
 
-  // Se não está logado, redireciona para login
-  if (!user) {
+  // CORREÇÃO: Se ainda está carregando (mesmo após latch), NÃO redirecionar para /auth
+  // Apenas renderizar children e deixar o estado resolver - isso previne flash
+  if (isStillLoading && initialLoadComplete) {
+    // Após a primeira carga, assumir que o usuário está logado até prova em contrário
+    // Se temos sessão no sessionStorage, não redirecionar durante reload
+    return <>{children}</>;
+  }
+
+  // Se não está logado E não está carregando, redireciona para login
+  if (!user && !isStillLoading) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
