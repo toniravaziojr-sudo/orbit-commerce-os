@@ -199,15 +199,11 @@ export function ProductCTAs({
           </button>
         </div>
         
-        {/* Comprar Agora - Uses theme primary button colors */}
+        {/* Comprar Agora - Uses theme primary button colors via sf-btn-primary class */}
         <Button
           onClick={handleBuyNow}
           disabled={isOutOfStock || isAddingToCart || disableBuyButtons}
           className="flex-1 h-10 rounded-full sf-btn-primary font-semibold uppercase tracking-wide text-sm"
-          style={{
-            backgroundColor: 'var(--theme-button-primary-bg)',
-            color: 'var(--theme-button-primary-text)',
-          }}
         >
           {isAddingToCart ? (
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -217,7 +213,7 @@ export function ProductCTAs({
         </Button>
       </div>
       
-      {/* Adicionar ao Carrinho - Uses theme secondary button colors */}
+      {/* Adicionar ao Carrinho - Uses theme secondary button colors via sf-btn-secondary class */}
       {showAddToCartButton && (
         <Button
           variant="outline"
@@ -225,8 +221,6 @@ export function ProductCTAs({
           disabled={isOutOfStock || isAddingToCart || disableBuyButtons}
           className="w-full h-12 rounded-full sf-btn-secondary font-semibold uppercase tracking-wide text-sm border-2"
           style={{
-            backgroundColor: 'var(--theme-button-secondary-bg)',
-            color: 'var(--theme-button-secondary-text)',
             borderColor: 'var(--theme-button-primary-bg)',
           }}
         >
