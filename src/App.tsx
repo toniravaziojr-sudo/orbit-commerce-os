@@ -6,7 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AppShell } from "@/components/layout/AppShell";
-import { GatedRoute } from "@/components/layout/GatedRoute";
+import { GatedRoute, FeatureGatedRoute } from "@/components/layout/GatedRoute";
 import { CommandAssistantProvider, CommandAssistantPanel } from "@/components/command-assistant";
 
 // Admin Pages
@@ -338,8 +338,8 @@ const App = () => {
                   <Route path="/pages" element={<Pages />} />
                   <Route path="/page-templates" element={<PageTemplates />} />
                   <Route path="/blog" element={<Blog />} />
-                  <Route path="/blog/campaigns" element={<BlogCampaigns />} />
-                  <Route path="/blog/campaigns/:campaignId" element={<BlogCampaignDetail />} />
+                  <Route path="/blog/campaigns" element={<FeatureGatedRoute moduleKey="blog" featureKey="ai_campaigns" featureName="Campanhas IA" featureDescription="Crie campanhas de blog com IA"><BlogCampaigns /></FeatureGatedRoute>} />
+                  <Route path="/blog/campaigns/:campaignId" element={<FeatureGatedRoute moduleKey="blog" featureKey="ai_campaigns" featureName="Campanhas IA"><BlogCampaignDetail /></FeatureGatedRoute>} />
                   <Route path="/customers" element={<Customers />} />
                   <Route path="/customers/:id" element={<CustomerDetail />} />
                   <Route path="/notifications" element={<Notifications />} />
