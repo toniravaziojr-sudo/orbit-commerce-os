@@ -16,37 +16,44 @@ export default function TikTokOAuthCallback() {
   const [errorMessage, setErrorMessage] = useState<string>("");
   const processedRef = useRef(false);
 
-  // Função para notificar janela pai e fechar popup
+  // Função para redirecionar de forma robusta
+  // IMPORTANTE: O Google Tradutor pode quebrar window.opener e postMessage
+  // Por isso, SEMPRE fazemos redirect direto após um breve delay
   const notifyParentAndClose = (success: boolean, error?: string) => {
-    const messageData = {
-      type: "tiktok:connected",
-      success,
-      error,
-    };
+    const baseUrl = window.location.origin;
+    const redirectUrl = success
+      ? `${baseUrl}/marketing?tiktok_connected=true`
+      : `${baseUrl}/marketing?tiktok_error=${encodeURIComponent(error || 'Erro')}`;
 
-    // Tentar comunicar com janela pai (se aberto como popup)
-    if (window.opener && !window.opener.closed) {
-      try {
-        window.opener.postMessage(messageData, "*");
-        console.log("[TikTokOAuthCallback] Mensagem enviada para janela pai");
-      } catch (e) {
-        console.error("[TikTokOAuthCallback] Falha ao enviar postMessage:", e);
+    // Tentar notificar janela pai (pode falhar com Google Tradutor)
+    try {
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage({
+          type: "tiktok:connected",
+          success,
+          error,
+        }, "*");
+        console.log("[TikTokOAuthCallback] postMessage enviado");
       }
-
-      // Fechar popup após mostrar resultado
-      setTimeout(() => {
-        window.close();
-      }, 1500);
-    } else {
-      // Sem opener - redirecionar após delay
-      setTimeout(() => {
-        const baseUrl = window.location.origin;
-        const redirectUrl = success
-          ? `${baseUrl}/marketing?tiktok_connected=true`
-          : `${baseUrl}/marketing?tiktok_error=${encodeURIComponent(error || 'Erro')}`;
-        window.location.href = redirectUrl;
-      }, 2000);
+    } catch (e) {
+      console.warn("[TikTokOAuthCallback] postMessage falhou:", e);
     }
+
+    // SEMPRE redirecionar após delay - não depender de window.close()
+    setTimeout(() => {
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.close();
+        }
+      } catch (e) {
+        console.warn("[TikTokOAuthCallback] window.close() falhou:", e);
+      }
+      
+      setTimeout(() => {
+        console.log("[TikTokOAuthCallback] Forçando redirect para:", redirectUrl);
+        window.location.href = redirectUrl;
+      }, 300);
+    }, 1200);
   };
 
   useEffect(() => {
