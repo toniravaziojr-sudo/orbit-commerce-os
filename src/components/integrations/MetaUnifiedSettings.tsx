@@ -244,30 +244,18 @@ export function MetaUnifiedSettings() {
     },
   });
 
-  // REGRA: NUNCA mostrar loader de tela cheia durante OAuth
-  // O isLoading fica true quando invalidamos queries, mas não podemos bloquear a UI
-  // Marcamos quando o load inicial completou para nunca mais bloquear a UI
+  // REGRA CRÍTICA: NUNCA mostrar loader de tela cheia após carga inicial
+  // O isLoading fica true durante refetches/invalidações de query
+  // Uma vez que carregamos os dados, marcamos para NUNCA mais bloquear a UI
   useEffect(() => {
     if (!isLoading && !initialLoadComplete) {
       setInitialLoadComplete(true);
     }
   }, [isLoading, initialLoadComplete]);
   
-  // Só mostra loader na carga inicial, NUNCA após isso
-  // Isso evita tela cinza durante OAuth ou refetch
-  if (isLoading && !initialLoadComplete) {
-    return (
-      <Card>
-        <CardContent className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </CardContent>
-      </Card>
-    );
-  }
-  
-  // Só mostra loader na carga inicial, NUNCA após isso
-  // Isso evita tela cinza durante OAuth ou refetch
-  if (isLoading && !initialLoadComplete) {
+  // Só mostra loader na primeiríssima carga, antes de ter qualquer dado
+  // APÓS isso, NUNCA mais bloqueia a tela - isso é regra do sistema
+  if (isLoading && !initialLoadComplete && !isConnecting) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-12">
