@@ -61,12 +61,98 @@ export const paymentSvgPresets: SvgPreset[] = [
   }
 ];
 
+// Security seals SVGs
+export const securitySvgPresets: SvgPreset[] = [
+  {
+    id: 'ssl-secure',
+    name: 'SSL Seguro',
+    category: 'security',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="50" height="34" viewBox="0 0 50 34" fill="none"><rect width="50" height="34" rx="4" fill="#22C55E"/><path d="M25 8C22.2386 8 20 10.2386 20 13V15H19C17.8954 15 17 15.8954 17 17V25C17 26.1046 17.8954 27 19 27H31C32.1046 27 33 26.1046 33 25V17C33 15.8954 32.1046 15 31 15H30V13C30 10.2386 27.7614 8 25 8ZM22 13C22 11.3431 23.3431 10 25 10C26.6569 10 28 11.3431 28 13V15H22V13ZM26 22.7324V24C26 24.5523 25.5523 25 25 25C24.4477 25 24 24.5523 24 24V22.7324C23.4022 22.3866 23 21.7403 23 21C23 19.8954 23.8954 19 25 19C26.1046 19 27 19.8954 27 21C27 21.7403 26.5978 22.3866 26 22.7324Z" fill="white"/></svg>`
+  },
+  {
+    id: 'site-secure',
+    name: 'Site Seguro',
+    category: 'security',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="50" height="34" viewBox="0 0 50 34" fill="none"><rect width="50" height="34" rx="4" fill="#3B82F6"/><path d="M25 7L14 11.5V16.5C14 22.85 18.7 28.77 25 30C31.3 28.77 36 22.85 36 16.5V11.5L25 7ZM23 24L18 19L19.41 17.59L23 21.17L30.59 13.58L32 15L23 24Z" fill="white"/></svg>`
+  },
+  {
+    id: 'verified-secure',
+    name: 'Compra Verificada',
+    category: 'security',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="50" height="34" viewBox="0 0 50 34" fill="none"><rect width="50" height="34" rx="4" fill="#8B5CF6"/><path d="M25 6L15 10V16C15 22.55 19.25 28.74 25 30C30.75 28.74 35 22.55 35 16V10L25 6ZM23 24L18 19L19.41 17.59L23 21.17L30.59 13.58L32 15L23 24Z" fill="white"/></svg>`
+  },
+  {
+    id: 'money-back',
+    name: 'Garantia de Devolução',
+    category: 'security',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="50" height="34" viewBox="0 0 50 34" fill="none"><rect width="50" height="34" rx="4" fill="#F59E0B"/><path d="M25 7C18.3726 7 13 12.3726 13 19C13 25.6274 18.3726 31 25 31C31.6274 31 37 25.6274 37 19C37 12.3726 31.6274 7 25 7ZM25 28C20.0294 28 16 23.9706 16 19C16 14.0294 20.0294 10 25 10C29.9706 10 34 14.0294 34 19C34 23.9706 29.9706 28 25 28ZM26 14H24V20L29 23L30 21.5L26 19V14Z" fill="white"/></svg>`
+  },
+  {
+    id: 'encrypted-data',
+    name: 'Dados Criptografados',
+    category: 'security',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="50" height="34" viewBox="0 0 50 34" fill="none"><rect width="50" height="34" rx="4" fill="#10B981"/><path d="M16 14H34V12H16V14ZM16 18H34V16H16V18ZM16 22H28V20H16V22ZM30 22L32.5 19.5L34.5 21.5L32.5 23.5L30 21L27 24L25.5 22.5L27 21L29 19L27 17L25.5 18.5L24 17L27 14L30 17L32 15L33.5 16.5L32 18L30 16L28 18L30 20L32 18L34 20L32 22L30 22Z" fill="white"/></svg>`
+  },
+  {
+    id: 'privacy-protected',
+    name: 'Privacidade Protegida',
+    category: 'security',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="50" height="34" viewBox="0 0 50 34" fill="none"><rect width="50" height="34" rx="4" fill="#6366F1"/><path d="M25 7C22.24 7 20 9.24 20 12C20 14.76 22.24 17 25 17C27.76 17 30 14.76 30 12C30 9.24 27.76 7 25 7ZM25 15C23.35 15 22 13.65 22 12C22 10.35 23.35 9 25 9C26.65 9 28 10.35 28 12C28 13.65 26.65 15 25 15ZM25 19C21.67 19 15 20.67 15 24V27H35V24C35 20.67 28.33 19 25 19ZM33 25H17V24C17 22.67 22.33 21 25 21C27.67 21 33 22.67 33 24V25Z" fill="white"/></svg>`
+  },
+  {
+    id: 'anti-fraud',
+    name: 'Proteção Anti-Fraude',
+    category: 'security',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="50" height="34" viewBox="0 0 50 34" fill="none"><rect width="50" height="34" rx="4" fill="#EF4444"/><path d="M25 6L14 11V17C14 23.55 18.84 29.74 25 31C31.16 29.74 36 23.55 36 17V11L25 6ZM25 16.99H34C33.47 22.11 29.72 26.78 25 27.93V17H16V12.3L25 8.19V16.99Z" fill="white"/></svg>`
+  },
+  {
+    id: 'safe-checkout',
+    name: 'Checkout Seguro',
+    category: 'security',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="50" height="34" viewBox="0 0 50 34" fill="none"><rect width="50" height="34" rx="4" fill="#0EA5E9"/><path d="M33 13H32V11C32 7.14 28.86 4 25 4C21.14 4 18 7.14 18 11V13H17C15.9 13 15 13.9 15 15V27C15 28.1 15.9 29 17 29H33C34.1 29 35 28.1 35 27V15C35 13.9 34.1 13 33 13ZM20 11C20 8.24 22.24 6 25 6C27.76 6 30 8.24 30 11V13H20V11ZM33 27H17V15H33V27ZM25 23C26.1 23 27 22.1 27 21C27 19.9 26.1 19 25 19C23.9 19 23 19.9 23 21C23 22.1 23.9 23 25 23Z" fill="white"/></svg>`
+  }
+];
+
+// Shipping method SVGs
+export const shippingSvgPresets: SvgPreset[] = [
+  {
+    id: 'correios',
+    name: 'Correios',
+    category: 'shipping',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="50" height="34" viewBox="0 0 50 34" fill="none"><rect width="50" height="34" rx="4" fill="#FFCC00"/><path d="M35 11H31L29 8H21L19 11H15C13.9 11 13 11.9 13 13V24C13 25.1 13.9 26 15 26H35C36.1 26 37 25.1 37 24V13C37 11.9 36.1 11 35 11ZM25 23C22.24 23 20 20.76 20 18C20 15.24 22.24 13 25 13C27.76 13 30 15.24 30 18C30 20.76 27.76 23 25 23Z" fill="#003366"/></svg>`
+  },
+  {
+    id: 'sedex',
+    name: 'Sedex',
+    category: 'shipping',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="50" height="34" viewBox="0 0 50 34" fill="none"><rect width="50" height="34" rx="4" fill="#FF6600"/><text x="25" y="20" text-anchor="middle" fill="white" font-size="10" font-family="Arial" font-weight="bold">SEDEX</text></svg>`
+  },
+  {
+    id: 'jadlog',
+    name: 'Jadlog',
+    category: 'shipping',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="50" height="34" viewBox="0 0 50 34" fill="none"><rect width="50" height="34" rx="4" fill="#E30613"/><text x="25" y="20" text-anchor="middle" fill="white" font-size="9" font-family="Arial" font-weight="bold">JADLOG</text></svg>`
+  },
+  {
+    id: 'melhor-envio',
+    name: 'Melhor Envio',
+    category: 'shipping',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="50" height="34" viewBox="0 0 50 34" fill="none"><rect width="50" height="34" rx="4" fill="#00A859"/><path d="M15 22H35V19H15V22ZM15 13V16H35V13H15ZM25 9L15 12H35L25 9ZM15 25H35L25 28L15 25Z" fill="white"/></svg>`
+  },
+  {
+    id: 'free-shipping',
+    name: 'Frete Grátis',
+    category: 'shipping',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="50" height="34" viewBox="0 0 50 34" fill="none"><rect width="50" height="34" rx="4" fill="#22C55E"/><path d="M33 11H29V8H15C13.9 8 13 8.9 13 10V22H15C15 23.66 16.34 25 18 25C19.66 25 21 23.66 21 22H29C29 23.66 30.34 25 32 25C33.66 25 35 23.66 35 22H37V16L33 11ZM18 23.5C17.17 23.5 16.5 22.83 16.5 22C16.5 21.17 17.17 20.5 18 20.5C18.83 20.5 19.5 21.17 19.5 22C19.5 22.83 18.83 23.5 18 23.5ZM32.5 12.5L34.96 16H29V12.5H32.5ZM32 23.5C31.17 23.5 30.5 22.83 30.5 22C30.5 21.17 31.17 20.5 32 20.5C32.83 20.5 33.5 21.17 33.5 22C33.5 22.83 32.83 23.5 32 23.5Z" fill="white"/></svg>`
+  }
+];
+
 // Type for preset categories
 export type SvgPresetCategory = SvgPreset['category'];
 
 // Get all presets
 export const getAllSvgPresets = (): SvgPreset[] => {
-  return [...paymentSvgPresets];
+  return [...paymentSvgPresets, ...securitySvgPresets, ...shippingSvgPresets];
 };
 
 // Get presets by category
