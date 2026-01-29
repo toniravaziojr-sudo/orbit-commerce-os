@@ -343,7 +343,7 @@ const App = () => {
                   <Route path="/customers" element={<Customers />} />
                   <Route path="/customers/:id" element={<CustomerDetail />} />
                   <Route path="/notifications" element={<Notifications />} />
-                  <Route path="/support" element={<Support />} />
+                  <Route path="/support" element={<FeatureGatedRoute moduleKey="crm" featureKey="support_chat" featureName="Atendimento" featureDescription="Inbox unificado e chat com IA"><Support /></FeatureGatedRoute>} />
                   <Route path="/media" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado" moduleDescription="Gestor de Mídias IA para campanhas de conteúdo"><Media /></GatedRoute>} />
                   <Route path="/media/campaign/:campaignId" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado"><MediaCampaignDetail /></GatedRoute>} />
                   <Route path="/campaigns" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado" moduleDescription="Gestor de Tráfego IA para campanhas"><Campaigns /></GatedRoute>} />
@@ -351,7 +351,7 @@ const App = () => {
                   <Route path="/offers" element={<Offers />} />
                   <Route path="/buy-together" element={<Navigate to="/offers" replace />} />
                   <Route path="/reviews" element={<Reviews />} />
-                  <Route path="/emails" element={<Emails />} />
+                  <Route path="/emails" element={<FeatureGatedRoute moduleKey="crm" featureKey="emails" featureName="Gestão de Emails" featureDescription="Caixas de email e inbox"><Emails /></FeatureGatedRoute>} />
                   <Route path="/integrations" element={<Integrations />} />
                   <Route path="/marketplaces" element={<Marketplaces />} />
                   <Route path="/marketplaces/mercadolivre" element={<FeatureGatedRoute moduleKey="marketplaces" featureKey="mercadolivre" featureName="Mercado Livre" featureDescription="Integração com Mercado Livre"><MercadoLivre /></FeatureGatedRoute>} />
