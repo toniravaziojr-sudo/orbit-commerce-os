@@ -243,13 +243,17 @@ export function ProductCTAs({
         </Button>
       )}
       
-      {/* Comprar pelo WhatsApp */}
+      {/* Comprar pelo WhatsApp - usa cor de sucesso do tema */}
       {showWhatsAppButton && (
         <Button
           variant="outline"
           onClick={handleWhatsApp}
           disabled={disableInteraction}
-          className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm border-2 border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700"
+          className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm border-2"
+          style={{
+            borderColor: 'var(--theme-success-bg, #22c55e)',
+            color: 'var(--theme-success-bg, #22c55e)',
+          }}
         >
           <MessageCircle className="w-5 h-5 mr-2" />
           Comprar pelo WhatsApp

@@ -255,7 +255,13 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
       {/* PIX Payment Section - SERVER-SIDE DATA */}
       {paymentInstructions?.method === 'pix' && paymentInstructions.pix_qr_code && order?.payment_status === 'pending' && (
         <div className="border rounded-lg p-6 bg-muted/30 text-center space-y-4 mb-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-100 text-green-700 text-sm font-medium">
+          <div 
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--theme-accent-color, #22c55e) 15%, transparent)',
+              color: 'var(--theme-accent-color, #22c55e)',
+            }}
+          >
             <Clock className="h-4 w-4" />
             Aguardando pagamento PIX
           </div>

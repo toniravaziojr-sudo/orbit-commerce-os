@@ -185,7 +185,14 @@ export function BuyTogetherSection({ tenantId }: { tenantId: string }) {
                       <span className="text-sm text-muted-foreground line-through">
                         R$ {rule.suggested_product.price.toFixed(2).replace('.', ',')}
                       </span>
-                      <Badge variant="secondary" className="bg-green-100 text-green-700 text-xs">
+                      <Badge 
+                        variant="secondary" 
+                        className="text-xs"
+                        style={{
+                          backgroundColor: 'color-mix(in srgb, var(--theme-accent-color, #22c55e) 15%, transparent)',
+                          color: 'var(--theme-accent-color, #22c55e)',
+                        }}
+                      >
                         -{rule.discount_type === 'percentage' ? `${rule.discount_value}%` : `R$ ${rule.discount_value}`}
                       </Badge>
                     </>

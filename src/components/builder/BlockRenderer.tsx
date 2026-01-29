@@ -1099,7 +1099,13 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
                 <p className="text-muted-foreground line-through text-base md:text-lg">
                   R$ {productCompareAtPrice.toFixed(2).replace('.', ',')}
                 </p>
-                <span className="sf-tag-danger text-xs font-bold px-2 py-1 rounded">
+                <span 
+                  className="text-xs font-bold px-2 py-1 rounded"
+                  style={{
+                    backgroundColor: 'var(--theme-danger-bg, #ef4444)',
+                    color: 'var(--theme-danger-text, #ffffff)',
+                  }}
+                >
                   -{discountPercent}%
                 </span>
               </>

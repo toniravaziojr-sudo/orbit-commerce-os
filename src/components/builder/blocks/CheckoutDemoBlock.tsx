@@ -372,19 +372,36 @@ export function CheckoutDemoBlock({
             </Card>
           )}
 
-          {/* Order Bump */}
+          {/* Order Bump - usa cores do tema */}
           {showOrderBump && orderBumpProduct && (
-            <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20">
+            <Card 
+              className="border"
+              style={{
+                borderColor: 'color-mix(in srgb, var(--theme-highlight-bg, #f59e0b) 40%, transparent)',
+                backgroundColor: 'color-mix(in srgb, var(--theme-highlight-bg, #f59e0b) 8%, transparent)',
+              }}
+            >
               <CardContent className="pt-4">
                 <div className="flex items-start gap-3">
                   <Checkbox id="checkout-bump" className="mt-1" />
                   <label htmlFor="checkout-bump" className="flex-1 cursor-pointer">
                     <div className="flex items-center gap-2 mb-2">
-                      <Sparkles className="h-4 w-4 text-amber-600" />
-                      <span className="font-semibold text-sm text-amber-700 dark:text-amber-400">
+                      <Sparkles className="h-4 w-4" style={{ color: 'var(--theme-highlight-bg, #f59e0b)' }} />
+                      <span 
+                        className="font-semibold text-sm"
+                        style={{ color: 'var(--theme-highlight-bg, #f59e0b)' }}
+                      >
                         ADICIONE E ECONOMIZE!
                       </span>
-                      <Badge className="bg-amber-500 text-white text-xs">{orderBumpProduct.discountLabel}</Badge>
+                      <Badge 
+                        className="text-xs"
+                        style={{
+                          backgroundColor: 'var(--theme-highlight-bg, #f59e0b)',
+                          color: 'var(--theme-highlight-text, #ffffff)',
+                        }}
+                      >
+                        {orderBumpProduct.discountLabel}
+                      </Badge>
                     </div>
                     <div className="flex gap-3">
                       <img
@@ -401,7 +418,10 @@ export function CheckoutDemoBlock({
                               R$ {orderBumpProduct.compare_at_price.toFixed(2)}
                             </span>
                           )}
-                          <span className="font-bold text-amber-600">
+                          <span 
+                            className="font-bold"
+                            style={{ color: 'var(--theme-accent-color, #22c55e)' }}
+                          >
                             + R$ {orderBumpProduct.price.toFixed(2)}
                           </span>
                         </div>

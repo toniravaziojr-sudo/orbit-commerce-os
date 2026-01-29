@@ -154,7 +154,14 @@ export function CrossSellSection({ tenantId }: CrossSellSectionProps) {
           {activeRule.title || 'Você também pode gostar'}
         </h3>
         {discountLabel && (
-          <Badge variant="secondary" className="bg-green-100 text-green-700 text-xs">
+          <Badge 
+            variant="secondary" 
+            className="text-xs"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--theme-accent-color, #22c55e) 15%, transparent)',
+              color: 'var(--theme-accent-color, #22c55e)',
+            }}
+          >
             {discountLabel}
           </Badge>
         )}

@@ -119,7 +119,7 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
                 <span className="text-muted-foreground truncate">Frete ({effectiveShipping.label})</span>
                 <span className="shrink-0">
                   {effectiveShipping.isFree ? (
-                    <span className="text-green-600">Grátis</span>
+                    <span style={{ color: 'var(--theme-accent-color, #22c55e)' }}>Grátis</span>
                   ) : (
                     formatCurrency(totals.shippingTotal)
                   )}
@@ -128,7 +128,10 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
             )}
 
             {appliedDiscount?.free_shipping && (
-              <div className="text-xs text-green-600 flex items-center gap-1">
+              <div 
+                className="text-xs flex items-center gap-1"
+                style={{ color: 'var(--theme-accent-color, #22c55e)' }}
+              >
                 <Tag className="h-3 w-3 shrink-0" />
                 <span className="truncate">Frete grátis aplicado via cupom</span>
               </div>

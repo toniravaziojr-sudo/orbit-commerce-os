@@ -114,7 +114,13 @@ export function ProductReviewsSection({ productId, tenantId }: ProductReviewsSec
                     <div className="flex items-center gap-2 mb-1">
                       {renderStars(review.rating)}
                       {review.is_verified_purchase && (
-                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                        <span 
+                          className="text-xs px-2 py-0.5 rounded-full"
+                          style={{
+                            backgroundColor: 'color-mix(in srgb, var(--theme-accent-color, #22c55e) 15%, transparent)',
+                            color: 'var(--theme-accent-color, #22c55e)',
+                          }}
+                        >
                           Compra verificada
                         </span>
                       )}
