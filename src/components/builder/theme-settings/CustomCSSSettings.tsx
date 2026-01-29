@@ -1,15 +1,18 @@
 // =============================================
 // CUSTOM CSS SETTINGS - Advanced styling
 // Uses centralized useThemeSettings hook (template-wide)
+// IMPORTANT: CSS updates DRAFT state for real-time preview
+// Changes are NOT saved until user clicks "Salvar" in toolbar
 // =============================================
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, CheckCircle2, Copy, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useThemeCustomCss } from '@/hooks/useThemeSettings';
+import { useBuilderDraftTheme } from '@/hooks/useBuilderDraftTheme';
 
 interface CustomCSSSettingsProps {
   tenantId: string;
@@ -31,40 +34,40 @@ const exampleCSS = `/* Exemplo de CSS customizado */
 }`;
 
 export function CustomCSSSettings({ tenantId, templateSetId }: CustomCSSSettingsProps) {
-  const { customCss: savedCss, updateCustomCss, isLoading, isSaving } = useThemeCustomCss(tenantId, templateSetId);
+  const { customCss: savedCss, isLoading } = useThemeCustomCss(tenantId, templateSetId);
+  const draftTheme = useBuilderDraftTheme();
   const [localCss, setLocalCss] = useState('');
   const [isValid, setIsValid] = useState(true);
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [hasChanges, setHasChanges] = useState(false);
   const initialLoadDone = useRef(false);
 
-  // Initialize local state from hook data
+  // Initialize local state from saved CSS (or draft if available)
   useEffect(() => {
     if (savedCss !== undefined && !initialLoadDone.current) {
-      setLocalCss(savedCss);
+      // If there's already a draft, use that; otherwise use saved
+      const effectiveCss = draftTheme?.draftCustomCss !== null ? draftTheme.draftCustomCss : savedCss;
+      setLocalCss(effectiveCss);
       initialLoadDone.current = true;
+      // If draft exists, mark as having changes
+      if (draftTheme?.draftCustomCss !== null) {
+        setHasChanges(true);
+      }
     }
-  }, [savedCss]);
+  }, [savedCss, draftTheme?.draftCustomCss]);
 
-  // Debounced save
-  const debouncedSave = useCallback((value: string) => {
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-    saveTimeoutRef.current = setTimeout(() => {
-      updateCustomCss(value);
-    }, 1000); // Longer debounce for CSS to allow more typing
-  }, [updateCustomCss]);
-
+  // Update draft for REAL-TIME PREVIEW without saving to database
   const handleCSSChange = (value: string) => {
     setLocalCss(value);
+    setHasChanges(true);
     
     // Basic CSS validation
     try {
       const hasUnmatchedBraces = (value.match(/{/g) || []).length !== (value.match(/}/g) || []).length;
       setIsValid(!hasUnmatchedBraces);
       
-      if (!hasUnmatchedBraces) {
-        debouncedSave(value);
+      // Update draft state for real-time preview in builder canvas
+      if (draftTheme) {
+        draftTheme.setDraftCustomCss(value);
       }
     } catch {
       setIsValid(false);
@@ -86,6 +89,14 @@ export function CustomCSSSettings({ tenantId, templateSetId }: CustomCSSSettings
 
   return (
     <div className="space-y-4">
+      {/* Notice about pending changes */}
+      {hasChanges && (
+        <div className="flex items-center gap-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded text-xs text-amber-700 dark:text-amber-300">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>Alterações pendentes. Clique em <strong>Salvar</strong> na barra superior para aplicar.</span>
+        </div>
+      )}
+
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label className="text-sm font-medium">CSS customizado</Label>
@@ -150,8 +161,8 @@ export function CustomCSSSettings({ tenantId, templateSetId }: CustomCSSSettings
         </div>
       </div>
 
-      <p className="text-xs text-muted-foreground text-center">
-        {isSaving ? '💾 Salvando...' : '✓ CSS salvo automaticamente neste template'}
+      <p className="text-[10px] text-muted-foreground text-center">
+        {hasChanges ? '⚠️ Alterações pendentes - clique em Salvar na barra superior' : '✓ CSS sincronizado com o tema'}
       </p>
     </div>
   );

@@ -99,6 +99,13 @@ function BuilderToolbarWithDraftCheck(props: Omit<React.ComponentProps<typeof Bu
   return <BuilderToolbar {...toolbarProps} isDirty={isDirty} />;
 }
 
+// Component that injects theme CSS - MUST be inside BuilderDraftThemeProvider
+// This ensures useBuilderDraftTheme() returns the context value, not null
+function BuilderThemeInjectorInner({ tenantId, templateSetId }: { tenantId: string; templateSetId?: string }) {
+  useBuilderThemeInjector(tenantId, templateSetId);
+  return null;
+}
+
 export function VisualBuilder({
   tenantId,
   pageType,
@@ -253,8 +260,8 @@ export function VisualBuilder({
     pageId,
   });
 
-  // Inject theme CSS (typography) into builder preview - real-time updates
-  useBuilderThemeInjector(tenantId, templateSetId);
+  // NOTE: Theme CSS injection is now handled by BuilderThemeInjectorInner
+  // which is rendered inside BuilderDraftThemeProvider to access draft context
 
   // Get initial content from prop or default template
   const startingContent = useMemo(() => 
@@ -979,6 +986,7 @@ export function VisualBuilder({
 
   return (
     <BuilderDraftThemeProvider>
+    <BuilderThemeInjectorInner tenantId={tenantId} templateSetId={templateSetId} />
     <DraftThemeRefSync />
     <CanvasRichTextProvider onBlockSelect={store.selectBlock}>
     <CanvasEditorProvider>

@@ -79,6 +79,10 @@ export function useBuilderThemeInjector(
     const typography = draftTheme?.getEffectiveTypography(savedTypography) || savedTypography;
     const colors = draftTheme?.getEffectiveColors(savedColors) || savedColors;
     
+    // Get effective custom CSS (draft overrides saved)
+    const savedCustomCss = themeSettings?.customCss || '';
+    const customCss = draftTheme?.getEffectiveCustomCss(savedCustomCss) || savedCustomCss;
+    
     const headingFontFamily = getFontFamily(typography?.headingFont || 'inter');
     const bodyFontFamily = getFontFamily(typography?.bodyFont || 'inter');
     const baseFontSize = typography?.baseFontSize || 16;
@@ -223,6 +227,9 @@ export function useBuilderThemeInjector(
         background-color: var(--theme-highlight-bg, #3b82f6) !important;
         color: var(--theme-highlight-text, #ffffff) !important;
       }
+
+      /* Custom CSS from theme settings */
+      ${customCss}
     `;
 
     const styleElement = document.createElement('style');
@@ -242,8 +249,10 @@ export function useBuilderThemeInjector(
     templateSetId, 
     themeSettings?.typography, 
     themeSettings?.colors,
+    themeSettings?.customCss,
     // Re-run when draft changes for real-time preview
     draftTheme?.draftColors,
     draftTheme?.draftTypography,
+    draftTheme?.draftCustomCss,
   ]);
 }
