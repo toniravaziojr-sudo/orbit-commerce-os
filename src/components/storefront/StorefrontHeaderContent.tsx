@@ -574,7 +574,7 @@ export function StorefrontHeaderContent({
                               className="py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-lg flex items-center gap-3"
                               onClick={handleLinkClick}
                             >
-                              <MessageCircle className="h-5 w-5 text-green-600" />
+                              <MessageCircle className="h-5 w-5" style={{ color: 'var(--theme-accent-color, #22c55e)' }} />
                               WhatsApp
                             </a>
                           )}
@@ -584,7 +584,7 @@ export function StorefrontHeaderContent({
                               className="py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-lg flex items-center gap-3"
                               onClick={handleLinkClick}
                             >
-                              <Phone className="h-5 w-5 text-blue-600" />
+                              <Phone className="h-5 w-5" style={{ color: 'var(--theme-button-primary-bg, #1a1a1a)' }} />
                               Telefone
                             </a>
                           )}
@@ -594,7 +594,7 @@ export function StorefrontHeaderContent({
                               className="py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-lg flex items-center gap-3"
                               onClick={handleLinkClick}
                             >
-                              <Mail className="h-5 w-5 text-red-600" />
+                              <Mail className="h-5 w-5" style={{ color: 'var(--theme-button-primary-bg, #1a1a1a)' }} />
                               Email
                             </a>
                           )}
@@ -615,7 +615,7 @@ export function StorefrontHeaderContent({
                               className="p-2 hover:bg-muted rounded-lg"
                               onClick={handleLinkClick}
                             >
-                              <Facebook className="h-6 w-6 text-blue-600" />
+                              <Facebook className="h-6 w-6" style={{ color: '#1877F2' }} />
                             </a>
                           )}
                           {socialInstagram && (
@@ -626,7 +626,7 @@ export function StorefrontHeaderContent({
                               className="p-2 hover:bg-muted rounded-lg"
                               onClick={handleLinkClick}
                             >
-                              <Instagram className="h-6 w-6 text-pink-600" />
+                              <Instagram className="h-6 w-6" style={{ color: '#E4405F' }} />
                             </a>
                           )}
                         </div>
@@ -1193,22 +1193,22 @@ export function StorefrontHeaderContent({
             {/* Security Seals - Right side */}
             {showSecuritySeals && (
               <div className="flex items-center gap-2">
-                {/* Default security seals icons */}
+                {/* Default security seals icons - theme-aware accent color */}
                 <div className="flex items-center gap-1.5">
                   <div className="flex items-center gap-1 px-2 py-1 bg-muted/30 rounded text-[10px] text-muted-foreground">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--theme-accent-color, #22c55e)' }}>
                       <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                     </svg>
                     <span>SSL Seguro</span>
                   </div>
                   <div className="flex items-center gap-1 px-2 py-1 bg-muted/30 rounded text-[10px] text-muted-foreground">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--theme-accent-color, #22c55e)' }}>
                       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                     </svg>
                     <span>Site Seguro</span>
                   </div>
                   <div className="flex items-center gap-1 px-2 py-1 bg-muted/30 rounded text-[10px] text-muted-foreground">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--theme-accent-color, #22c55e)' }}>
                       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>
                     </svg>
                     <span>Compra Verificada</span>
@@ -1252,23 +1252,23 @@ export function StorefrontHeaderContent({
               </div>
             )}
             
-            {/* Security Seals - Mobile */}
+            {/* Security Seals - Mobile (theme-aware) */}
             {showSecuritySeals && (
               <div className="flex items-center justify-center gap-2 flex-wrap">
                 <div className="flex items-center gap-1 px-1.5 py-0.5 bg-muted/30 rounded text-[9px] text-muted-foreground">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-600">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--theme-accent-color, #22c55e)' }}>
                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                   </svg>
                   <span>SSL</span>
                 </div>
                 <div className="flex items-center gap-1 px-1.5 py-0.5 bg-muted/30 rounded text-[9px] text-muted-foreground">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--theme-accent-color, #22c55e)' }}>
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                   </svg>
                   <span>Seguro</span>
                 </div>
                 <div className="flex items-center gap-1 px-1.5 py-0.5 bg-muted/30 rounded text-[9px] text-muted-foreground">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-600">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--theme-accent-color, #22c55e)' }}>
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>
                   </svg>
                   <span>Verificado</span>

@@ -1,18 +1,23 @@
 // =============================================
 // COLORS SETTINGS - Theme color palette for buttons and text
 // Uses centralized useThemeSettings hook (template-wide)
+// IMPORTANT: Colors are NOT auto-saved - they require explicit Save/Publish
+// to prevent unwanted changes from being persisted
 // =============================================
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
 import { useThemeColors, DEFAULT_THEME_COLORS, ThemeColors } from '@/hooks/useThemeSettings';
+import { useBuilderStore } from '@/hooks/useBuilderStore';
 
 interface ColorsSettingsProps {
   tenantId: string;
   templateSetId?: string;
+  // Optional callback to mark the builder as dirty when colors change
+  onColorsChange?: (colors: ThemeColors) => void;
 }
 
 interface ColorInput {
@@ -135,10 +140,10 @@ const colorInputs: ColorInput[] = [
   },
 ];
 
-export function ColorsSettings({ tenantId, templateSetId }: ColorsSettingsProps) {
-  const { colors: savedColors, updateColors, isLoading, isSaving } = useThemeColors(tenantId, templateSetId);
+export function ColorsSettings({ tenantId, templateSetId, onColorsChange }: ColorsSettingsProps) {
+  const { colors: savedColors, isLoading } = useThemeColors(tenantId, templateSetId);
   const [localColors, setLocalColors] = useState<ThemeColors>(DEFAULT_THEME_COLORS);
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [hasChanges, setHasChanges] = useState(false);
   const initialLoadDone = useRef(false);
 
   // Initialize local state from hook data
@@ -149,20 +154,16 @@ export function ColorsSettings({ tenantId, templateSetId }: ColorsSettingsProps)
     }
   }, [savedColors]);
 
-  // Debounced save
-  const debouncedSave = useCallback((newColors: Partial<ThemeColors>) => {
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-    saveTimeoutRef.current = setTimeout(() => {
-      updateColors(newColors);
-    }, 500);
-  }, [updateColors]);
-
+  // NO AUTO-SAVE: Colors only update local state and optionally notify parent
+  // Changes are saved when user clicks "Salvar" in the builder toolbar
   const handleColorChange = (id: keyof ThemeColors, value: string) => {
     setLocalColors(prev => {
       const updated = { ...prev, [id]: value };
-      debouncedSave({ [id]: value });
+      setHasChanges(true);
+      // Notify parent component to mark builder as dirty
+      if (onColorsChange) {
+        onColorsChange(updated);
+      }
       return updated;
     });
   };
@@ -211,8 +212,16 @@ export function ColorsSettings({ tenantId, templateSetId }: ColorsSettingsProps)
 
   return (
     <div className="space-y-4">
+      {/* Notice about pending changes */}
+      {hasChanges && (
+        <div className="flex items-center gap-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded text-xs text-amber-700 dark:text-amber-300">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>Alterações pendentes. Clique em <strong>Salvar</strong> para aplicar.</span>
+        </div>
+      )}
+      
       <p className="text-xs text-muted-foreground">
-        Configure as cores dos botões e textos. Alterações são salvas automaticamente.
+        Configure as cores dos botões e textos. Clique em "Salvar" para aplicar as alterações.
       </p>
 
       {/* Button Primary */}
@@ -337,7 +346,7 @@ export function ColorsSettings({ tenantId, templateSetId }: ColorsSettingsProps)
       </div>
 
       <p className="text-[10px] text-muted-foreground text-center">
-        {isSaving ? '💾 Salvando...' : '✓ Cores salvas automaticamente neste template'}
+        {hasChanges ? '⚠️ Alterações pendentes - clique em Salvar' : '✓ Cores sincronizadas com o tema'}
       </p>
     </div>
   );

@@ -194,15 +194,23 @@ export function ImageCarouselBlock({
   
   return (
     <div className="image-carousel w-full sf-carousel-container">
-      {/* Mobile-responsive styles injected via CSS classes */}
+      {/* Mobile-responsive styles - CRITICAL: Force single slide on mobile */}
       <style>{`
-        @media (max-width: 640px) {
-          .sf-carousel-container .sf-carousel-slide-mobile {
+        /* Mobile: Always show 1 slide, regardless of slidesPerView setting */
+        @media (max-width: 639px) {
+          .sf-carousel-container .sf-carousel-slide-responsive {
             flex: 0 0 100% !important;
+            min-width: 100% !important;
+          }
+          .sf-carousel-container .sf-carousel-gap-responsive {
+            gap: 0 !important;
           }
         }
-        @media (min-width: 641px) and (max-width: 768px) {
-          .sf-carousel-container .sf-carousel-slide-mobile {
+        /* Tablet: Show max 2 slides */
+        @media (min-width: 640px) and (max-width: 1023px) {
+          .sf-carousel-container .sf-carousel-slide-2,
+          .sf-carousel-container .sf-carousel-slide-3,
+          .sf-carousel-container .sf-carousel-slide-4 {
             flex: 0 0 50% !important;
           }
         }
@@ -216,11 +224,15 @@ export function ImageCarouselBlock({
       {/* Carousel */}
       <div className="relative">
         <div className="overflow-hidden rounded-lg" ref={emblaRef}>
-          <div className={cn('flex', gapClass)}>
+          <div className={cn('flex sf-carousel-gap-responsive', gapClass)}>
             {parsedImages.map((image, index) => (
               <div 
                 key={image.id}
-                className={cn('relative min-w-0', slideWidthClass)}
+                className={cn(
+                  'relative min-w-0 sf-carousel-slide-responsive',
+                  `sf-carousel-slide-${slidesPerView}`,
+                  slideWidthClass
+                )}
               >
                 {image.linkUrl && !isInBuilder ? (
                   <a 
@@ -252,7 +264,7 @@ export function ImageCarouselBlock({
           </div>
         </div>
         
-        {/* Navigation arrows */}
+        {/* Navigation arrows - Theme-aware */}
         {showArrows && parsedImages.length > slidesPerView && (
           <>
             <button
@@ -260,6 +272,7 @@ export function ImageCarouselBlock({
               disabled={!canScrollPrev}
               className={cn(
                 "absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 shadow-lg flex items-center justify-center transition-all z-10",
+                "sm:left-4",
                 canScrollPrev ? "hover:bg-white cursor-pointer" : "opacity-50 cursor-not-allowed"
               )}
               aria-label="Imagem anterior"
@@ -271,6 +284,7 @@ export function ImageCarouselBlock({
               disabled={!canScrollNext}
               className={cn(
                 "absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 shadow-lg flex items-center justify-center transition-all z-10",
+                "sm:right-4",
                 canScrollNext ? "hover:bg-white cursor-pointer" : "opacity-50 cursor-not-allowed"
               )}
               aria-label="Próxima imagem"
@@ -281,7 +295,7 @@ export function ImageCarouselBlock({
         )}
       </div>
       
-      {/* Dots indicators */}
+      {/* Dots indicators - Theme-aware accent color */}
       {showDots && parsedImages.length > 1 && (
         <div className="flex justify-center gap-2 mt-4">
           {parsedImages.map((_, index) => (
@@ -291,9 +305,10 @@ export function ImageCarouselBlock({
               className={cn(
                 "w-2.5 h-2.5 rounded-full transition-all",
                 index === selectedIndex 
-                  ? "bg-primary w-6" 
+                  ? "w-6" 
                   : "bg-muted-foreground/30 hover:bg-muted-foreground/50"
               )}
+              style={index === selectedIndex ? { backgroundColor: 'var(--theme-accent-color, var(--theme-button-primary-bg, #1a1a1a))' } : undefined}
               aria-label={`Ir para imagem ${index + 1}`}
             />
           ))}
