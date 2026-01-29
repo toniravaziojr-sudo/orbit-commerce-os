@@ -1628,40 +1628,8 @@ const blockDefinitions: BlockDefinition[] = [
     label: 'Detalhes do Produto',
     category: 'ecommerce',
     icon: 'ShoppingBag',
-    defaultProps: {
-      exampleProductId: '',
-      showGallery: true,
-      showDescription: true,
-      showVariants: true,
-      showStock: true,
-    },
-    propsSchema: {
-      exampleProductId: {
-        type: 'product',
-        label: 'Produto de Exemplo',
-        placeholder: 'Para pré-visualização no editor',
-      },
-      showGallery: {
-        type: 'boolean',
-        label: 'Mostrar Galeria',
-        defaultValue: true,
-      },
-      showDescription: {
-        type: 'boolean',
-        label: 'Mostrar Descrição',
-        defaultValue: true,
-      },
-      showVariants: {
-        type: 'boolean',
-        label: 'Mostrar variações',
-        defaultValue: true,
-      },
-      showStock: {
-        type: 'boolean',
-        label: 'Mostrar Estoque',
-        defaultValue: true,
-      },
-    },
+    defaultProps: {},
+    propsSchema: {}, // Settings managed in Theme Settings > Páginas > Produto
     canHaveChildren: false,
     isRemovable: false,
   },
@@ -1670,22 +1638,8 @@ const blockDefinitions: BlockDefinition[] = [
     label: 'Resumo do Carrinho',
     category: 'ecommerce',
     icon: 'ShoppingCart',
-    defaultProps: {
-      showThumbnails: true,
-      showQuantityControls: true,
-    },
-    propsSchema: {
-      showThumbnails: {
-        type: 'boolean',
-        label: 'Mostrar Miniaturas',
-        defaultValue: true,
-      },
-      showQuantityControls: {
-        type: 'boolean',
-        label: 'Controles de Quantidade',
-        defaultValue: true,
-      },
-    },
+    defaultProps: {},
+    propsSchema: {}, // Settings managed in Theme Settings > Páginas > Carrinho
     canHaveChildren: false,
     isRemovable: false,
   },
@@ -1694,16 +1648,8 @@ const blockDefinitions: BlockDefinition[] = [
     label: 'Etapas do Checkout',
     category: 'ecommerce',
     icon: 'ListChecks',
-    defaultProps: {
-      steps: ['Identificação', 'Entrega', 'Pagamento', 'Confirmação'],
-    },
-    propsSchema: {
-      steps: {
-        type: 'array',
-        label: 'Etapas',
-        defaultValue: ['Identificação', 'Entrega', 'Pagamento', 'Confirmação'],
-      },
-    },
+    defaultProps: {},
+    propsSchema: {}, // Settings managed in Theme Settings > Páginas > Checkout
     canHaveChildren: false,
     isRemovable: false,
   },
@@ -3179,32 +3125,8 @@ const blockDefinitions: BlockDefinition[] = [
     label: 'Compre Junto',
     category: 'ecommerce',
     icon: 'ShoppingBag',
-    defaultProps: {
-      title: 'Compre Junto',
-      subtitle: 'Aproveite e leve também',
-      maxItems: 3,
-      variant: 'normal',
-      showWhenEmpty: true,
-      ctaLabel: 'Configurar ofertas',
-      ctaHref: '/offers',
-    },
-    propsSchema: {
-      title: { type: 'string', label: 'Título', defaultValue: 'Compre Junto' },
-      subtitle: { type: 'string', label: 'Subtítulo (opcional)', defaultValue: '' },
-      maxItems: { type: 'number', label: 'Máximo de Itens', defaultValue: 3, min: 1, max: 6 },
-      variant: {
-        type: 'select',
-        label: 'Variante',
-        defaultValue: 'normal',
-        options: [
-          { label: 'Normal', value: 'normal' },
-          { label: 'Compacto', value: 'compact' },
-        ],
-      },
-      showWhenEmpty: { type: 'boolean', label: 'Mostrar quando vazio', defaultValue: true },
-      ctaLabel: { type: 'string', label: 'Texto do CTA', defaultValue: 'Configurar ofertas' },
-      ctaHref: { type: 'string', label: 'Link do CTA', defaultValue: '/offers' },
-    },
+    defaultProps: {},
+    propsSchema: {}, // Settings managed in Theme Settings > Páginas > Produto
     canHaveChildren: false,
   },
   {
@@ -3212,32 +3134,8 @@ const blockDefinitions: BlockDefinition[] = [
     label: 'Sugestões no Carrinho',
     category: 'ecommerce',
     icon: 'Gift',
-    defaultProps: {
-      title: 'Você também pode gostar',
-      subtitle: '',
-      maxItems: 4,
-      variant: 'normal',
-      showWhenEmpty: true,
-      ctaLabel: 'Configurar ofertas',
-      ctaHref: '/offers',
-    },
-    propsSchema: {
-      title: { type: 'string', label: 'Título', defaultValue: 'Você também pode gostar' },
-      subtitle: { type: 'string', label: 'Subtítulo (opcional)', defaultValue: '' },
-      maxItems: { type: 'number', label: 'Máximo de Itens', defaultValue: 4, min: 1, max: 8 },
-      variant: {
-        type: 'select',
-        label: 'Variante',
-        defaultValue: 'normal',
-        options: [
-          { label: 'Normal', value: 'normal' },
-          { label: 'Compacto', value: 'compact' },
-        ],
-      },
-      showWhenEmpty: { type: 'boolean', label: 'Mostrar quando vazio', defaultValue: true },
-      ctaLabel: { type: 'string', label: 'Texto do CTA', defaultValue: 'Configurar ofertas' },
-      ctaHref: { type: 'string', label: 'Link do CTA', defaultValue: '/offers' },
-    },
+    defaultProps: {},
+    propsSchema: {}, // Settings managed in Theme Settings > Páginas > Carrinho
     canHaveChildren: false,
   },
   // NOTE: OrderBumpSlot was REMOVED - duplicated logic with CheckoutContent's internal OrderBumpSection
@@ -3464,32 +3362,8 @@ const blockDefinitions: BlockDefinition[] = [
     label: 'Oferta Pós-Compra',
     category: 'ecommerce',
     icon: 'TrendingUp',
-    defaultProps: {
-      title: 'Oferta Especial',
-      subtitle: 'Aproveite esta oferta exclusiva!',
-      maxItems: 3,
-      variant: 'normal',
-      showWhenEmpty: true,
-      ctaLabel: 'Configurar ofertas',
-      ctaHref: '/offers',
-    },
-    propsSchema: {
-      title: { type: 'string', label: 'Título', defaultValue: 'Oferta Especial' },
-      subtitle: { type: 'string', label: 'Subtítulo (opcional)', defaultValue: 'Aproveite esta oferta exclusiva!' },
-      maxItems: { type: 'number', label: 'Máximo de Itens', defaultValue: 3, min: 1, max: 6 },
-      variant: {
-        type: 'select',
-        label: 'Variante',
-        defaultValue: 'normal',
-        options: [
-          { label: 'Normal', value: 'normal' },
-          { label: 'Compacto', value: 'compact' },
-        ],
-      },
-      showWhenEmpty: { type: 'boolean', label: 'Mostrar quando vazio', defaultValue: true },
-      ctaLabel: { type: 'string', label: 'Texto do CTA', defaultValue: 'Configurar ofertas' },
-      ctaHref: { type: 'string', label: 'Link do CTA', defaultValue: '/offers' },
-    },
+    defaultProps: {},
+    propsSchema: {}, // Settings managed in Theme Settings > Páginas > Obrigado
     canHaveChildren: false,
   },
 ];
