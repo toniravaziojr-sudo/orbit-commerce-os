@@ -205,7 +205,7 @@ export function ProductCTAs({
           variant="ghost"
           onClick={handleBuyNow}
           disabled={isOutOfStock || isAddingToCart || disableBuyButtons}
-          className="flex-1 h-10 rounded-full sf-btn-primary font-semibold uppercase tracking-wide text-sm hover:bg-transparent"
+          className="flex-1 h-10 rounded-full sf-btn-primary font-semibold uppercase tracking-wide text-sm"
         >
           {isAddingToCart ? (
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -222,7 +222,7 @@ export function ProductCTAs({
           variant="ghost"
           onClick={handleAddToCart}
           disabled={isOutOfStock || isAddingToCart || disableBuyButtons}
-          className="w-full h-12 rounded-full sf-btn-secondary font-semibold uppercase tracking-wide text-sm border-2 hover:bg-transparent"
+          className="w-full h-12 rounded-full sf-btn-secondary font-semibold uppercase tracking-wide text-sm border-2"
           style={{
             borderColor: 'var(--theme-button-primary-bg)',
           }}

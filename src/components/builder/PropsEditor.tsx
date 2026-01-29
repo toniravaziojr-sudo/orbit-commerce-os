@@ -92,7 +92,8 @@ export function PropsEditor({
   // SYSTEM BLOCKS - Configured via Theme Settings, not via PropsEditor
   // These blocks have configurations in Theme Settings (Páginas section)
   const SYSTEM_BLOCKS = [
-    // Global layout
+    // Global layout - no local props, configured via Theme Settings
+    'Page',       // Root page container - global in theme
     'Header', 
     'Footer', 
     // Page blocks
@@ -121,6 +122,8 @@ export function PropsEditor({
   // Get the redirect message based on block type
   const getSystemBlockRedirect = (type: string): { section: string; description: string } => {
     switch (type) {
+      case 'Page':
+        return { section: 'Configurações do tema', description: 'Clique em Configurações do tema para personalizar cores e tipografia' };
       case 'Header':
         return { section: 'Cabeçalho', description: 'Configure menus, busca, atendimento e mais' };
       case 'Footer':
