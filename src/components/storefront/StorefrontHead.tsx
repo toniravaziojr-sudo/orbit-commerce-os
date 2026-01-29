@@ -101,16 +101,20 @@ export function StorefrontHead({ tenantId, pageTitle, pageDescription }: Storefr
     const faviconFiles = storeSettings?.favicon_files as Record<string, string> | null;
     const defaultFavicon = storeSettings?.favicon_url;
     
+    // Se não tem favicon configurado, não faz nada (mantém default do index.html)
     if (!faviconFiles && !defaultFavicon) return;
+
+    // SEMPRE remover TODOS os favicons existentes antes de aplicar os novos
+    // Isso é crítico porque o index.html tem múltiplos links de favicon
+    const existingFavicons = document.querySelectorAll(
+      'link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]'
+    );
+    existingFavicons.forEach(el => el.remove());
 
     const createdElements: HTMLLinkElement[] = [];
 
     // Multi-size favicon support
     if (faviconFiles && Object.keys(faviconFiles).length > 0) {
-      // Remove existing favicon links first
-      document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]').forEach(el => el.remove());
-      
-      // Add each size
       const sizeMap: Record<string, { sizes: string; rel: string }> = {
         '16': { sizes: '16x16', rel: 'icon' },
         '32': { sizes: '32x32', rel: 'icon' },
@@ -132,34 +136,29 @@ export function StorefrontHead({ tenantId, pageTitle, pageDescription }: Storefr
         }
       });
       
-      // Also add a default icon for fallback
-      if (faviconFiles['32'] || faviconFiles['16'] || defaultFavicon) {
+      // Fallback shortcut icon
+      const fallbackUrl = faviconFiles['32'] || faviconFiles['16'] || defaultFavicon;
+      if (fallbackUrl) {
         const fallbackLink = document.createElement('link');
         fallbackLink.rel = 'shortcut icon';
-        fallbackLink.href = faviconFiles['32'] || faviconFiles['16'] || defaultFavicon || '/favicon.png';
+        fallbackLink.href = fallbackUrl;
         document.head.appendChild(fallbackLink);
         createdElements.push(fallbackLink);
       }
     } else if (defaultFavicon) {
-      // Simple single favicon
-      let faviconLink = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
-      
-      if (!faviconLink) {
-        faviconLink = document.createElement('link');
-        faviconLink.rel = 'icon';
-        document.head.appendChild(faviconLink);
-        createdElements.push(faviconLink);
-      }
+      // Single favicon - criar todos os tamanhos apontando para a mesma URL
+      const faviconLink = document.createElement('link');
+      faviconLink.rel = 'icon';
+      faviconLink.type = 'image/png';
       faviconLink.href = defaultFavicon;
+      document.head.appendChild(faviconLink);
+      createdElements.push(faviconLink);
       
-      let shortcutLink = document.querySelector<HTMLLinkElement>('link[rel="shortcut icon"]');
-      if (!shortcutLink) {
-        shortcutLink = document.createElement('link');
-        shortcutLink.rel = 'shortcut icon';
-        document.head.appendChild(shortcutLink);
-        createdElements.push(shortcutLink);
-      }
+      const shortcutLink = document.createElement('link');
+      shortcutLink.rel = 'shortcut icon';
       shortcutLink.href = defaultFavicon;
+      document.head.appendChild(shortcutLink);
+      createdElements.push(shortcutLink);
     }
 
     // Cleanup on unmount
