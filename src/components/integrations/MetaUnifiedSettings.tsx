@@ -243,7 +243,9 @@ export function MetaUnifiedSettings() {
     },
   });
 
-  if (isLoading) {
+  // Show loading only on initial load, NOT during OAuth popup (isConnecting)
+  // This prevents the gray screen when the OAuth popup is open
+  if (isLoading && !isConnecting) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-12">
