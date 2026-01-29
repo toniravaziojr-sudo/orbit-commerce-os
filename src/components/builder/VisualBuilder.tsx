@@ -125,8 +125,8 @@ export function VisualBuilder({
   const isDebugMode = searchParams.get('debug') === '1';
   
   // All hooks must be called before any conditional returns
-  // WYSIWYG Builder: No separate preview mode - builder IS the preview
-  const [isInteractMode, setIsInteractMode] = useState(false);
+  // WYSIWYG Builder: Builder IS the preview - no separate modes
+  // Removed isInteractMode - builder is always interactive
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showAddBlockDrawer, setShowAddBlockDrawer] = useState(false);
   
@@ -962,7 +962,6 @@ export function VisualBuilder({
               node={testBlock}
               context={builderContext}
               isEditing={true}
-              isInteractMode={false}
               isSafeMode={false}
             />
           </div>
@@ -1019,7 +1018,6 @@ export function VisualBuilder({
         pageSlug={pageSlug}
         templateSetId={templateSetId}
         storeIsDirty={store.isDirty}
-        isInteractMode={isInteractMode}
         canUndo={store.canUndo}
         canRedo={store.canRedo}
         isSaving={saveDraft.isPending}
@@ -1028,7 +1026,6 @@ export function VisualBuilder({
         onRedo={store.redo}
         onSave={handleSave}
         onPublish={handlePublish}
-        onToggleInteract={() => setIsInteractMode(!isInteractMode)}
         onReset={handleReset}
         onViewHistory={() => setShowVersionHistory(true)}
         onBack={handleBack}
@@ -1097,7 +1094,6 @@ export function VisualBuilder({
             onToggleHidden={handleToggleHidden}
             onUpdateProps={store.updateProps}
             isPreviewMode={false}
-            isInteractMode={isInteractMode}
             isSafeMode={isSafeMode}
             viewport={canvasViewport}
             onViewportChange={setCanvasViewport}

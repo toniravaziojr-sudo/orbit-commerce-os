@@ -23,7 +23,6 @@ interface ProductCTAsProps {
   tenantSlug: string;
   isPreview?: boolean;
   isEditing?: boolean;
-  isInteractMode?: boolean;
   openMiniCartOnAdd?: boolean;
   onOpenMiniCart?: () => void;
   // Novos campos conforme REGRAS.md
@@ -48,7 +47,6 @@ export function ProductCTAs({
   tenantSlug,
   isPreview,
   isEditing,
-  isInteractMode,
   openMiniCartOnAdd,
   onOpenMiniCart,
   showWhatsAppButton = true,
@@ -63,8 +61,9 @@ export function ProductCTAs({
   const { items, addItem } = useCart();
   const { trackAddToCart } = useMarketingEvents();
   
-  // Find if product already in cart (only in Preview/Public/Interact mode)
-  const shouldAllowCartOps = !isEditing || isInteractMode;
+  // WYSIWYG: Builder is always interactive - cart ops work in edit mode
+  // Only disabled for pure preview without product context
+  const shouldAllowCartOps = !!productId;
   const cartItem = shouldAllowCartOps ? items.find(i => i.product_id === productId) : null;
   
   // Local quantity state - always starts at 1 and resets on product change
@@ -164,8 +163,8 @@ export function ProductCTAs({
     window.open(whatsappUrl, '_blank');
   }, [productName]);
   
-  const disableInteraction = isEditing && !isInteractMode;
-  const disableBuyButtons = disableInteraction || requiresVariantSelection;
+  // WYSIWYG: No longer disable interaction in edit mode - builder is always interactive
+  const disableBuyButtons = requiresVariantSelection;
 
   return (
     <div className="space-y-3 pt-2">
@@ -183,7 +182,7 @@ export function ProductCTAs({
           <button
             type="button"
             onClick={() => handleQuantityChange(quantity - 1)}
-            disabled={quantity <= 1 || disableInteraction}
+            disabled={quantity <= 1}
             className="w-10 h-10 flex items-center justify-center hover:bg-muted transition-colors disabled:opacity-50"
           >
             <Minus className="w-4 h-4" />
@@ -192,7 +191,7 @@ export function ProductCTAs({
           <button
             type="button"
             onClick={() => handleQuantityChange(quantity + 1)}
-            disabled={quantity >= maxQuantity || disableInteraction}
+            disabled={quantity >= maxQuantity}
             className="w-10 h-10 flex items-center justify-center hover:bg-muted transition-colors disabled:opacity-50"
           >
             <Plus className="w-4 h-4" />
@@ -245,7 +244,6 @@ export function ProductCTAs({
         <Button
           variant="outline"
           onClick={handleWhatsApp}
-          disabled={disableInteraction}
           className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm border-2"
           style={{
             borderColor: 'var(--theme-success-bg, #22c55e)',

@@ -123,7 +123,6 @@ interface BlockRendererProps {
   context: BlockRenderContext;
   isSelected?: boolean;
   isEditing?: boolean;
-  isInteractMode?: boolean;
   isSafeMode?: boolean; // Safe mode - render only placeholders
   onSelect?: (id: string) => void;
   onAddBlock?: (type: string, parentId: string, index: number) => void;
@@ -141,7 +140,6 @@ export function BlockRenderer({
   context, 
   isSelected = false,
   isEditing = false,
-  isInteractMode = false,
   isSafeMode = false,
   onSelect,
   onAddBlock,
@@ -241,7 +239,6 @@ export function BlockRenderer({
               node={child}
               context={context}
               isEditing={isEditing}
-              isInteractMode={isInteractMode}
               isSafeMode={isSafeMode}
               onSelect={onSelect}
               onAddBlock={onAddBlock}
@@ -320,7 +317,6 @@ export function BlockRenderer({
             node={child}
             context={context}
             isEditing={isEditing}
-            isInteractMode={isInteractMode}
             isSafeMode={isSafeMode}
             onSelect={onSelect}
             onAddBlock={onAddBlock}
@@ -377,7 +373,6 @@ export function BlockRenderer({
         <Component 
           {...node.props} 
           isEditing={isEditing} 
-          isInteractMode={isInteractMode}
           isSelected={isSelected}
           context={context}
           block={node}
@@ -396,20 +391,23 @@ export function BlockRenderer({
   // Selection highlight: We use a CSS ::after overlay that is pointer-events:none
   // Click handling: onMouseDown captures block selection without blocking hovers
   
+  // WYSIWYG Architecture: Block selection via mousedown
+  // Buttons and links remain fully interactive - NO preventDefault on them
+  // This allows hover states and clicks to work naturally
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!isEditing || !onSelect) return;
     
-    // On mousedown, select the block
-    // But DON'T prevent default - this allows focus to work naturally
     const target = e.target as HTMLElement;
     
-    // For interactive elements, we want to:
-    // 1. Select the block (always)
-    // 2. Prevent the action (button click, link navigation) in edit mode
+    // For interactive elements (buttons, links), DON'T prevent default
+    // This allows them to work normally while still selecting the block
     if (target.closest('button, a[href]')) {
-      e.preventDefault(); // Prevent navigation/action
+      // Still select the block, but don't block the action
+      onSelect(node.id);
+      return; // Let the click proceed naturally
     }
     
+    // For non-interactive elements, just select
     onSelect(node.id);
   };
 
@@ -465,7 +463,6 @@ export function BlockRenderer({
           {...node.props} 
           context={context}
           isEditing={isEditing}
-          isInteractMode={isInteractMode}
           isSelected={isSelected}
           block={node}
           blockId={node.id}
@@ -841,7 +838,7 @@ function ProductCardBlock({ productId, showPrice = true, showButton = true, isEd
   );
 }
 
-function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractMode }: any) {
+function ProductDetailsBlock({ exampleProductId, context, isEditing }: any) {
   const productSettings = context?.productSettings || {};
   
   // Theme settings for mini-cart (unified cart action config)
@@ -1175,7 +1172,6 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
                 optionGroups={optionGroups}
                 selectedOptions={selectedOptions}
                 onSelectOption={selectOption}
-                disabled={isEditing && !isInteractMode}
               />
             ) : isEditing ? (
               // Show demo variants in editor when product has no variants
@@ -1218,7 +1214,6 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
             tenantSlug={tenantSlug}
             isPreview={context?.isPreview}
             isEditing={isEditing}
-            isInteractMode={isInteractMode}
             openMiniCartOnAdd={openMiniCartOnAdd}
             onOpenMiniCart={() => setMiniCartOpen(true)}
             showWhatsAppButton={showWhatsAppButton}
@@ -1234,7 +1229,6 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
           {showShippingCalculator && (
             <ShippingCalculator 
               productId={product?.id}
-              isEditing={isEditing && !isInteractMode}
             />
           )}
           
@@ -1274,7 +1268,7 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
           showReviews={showReviews}
           showRelatedProducts={showRelatedProducts}
           viewportOverride={viewportOverride}
-          isEditing={isEditing && !isInteractMode}
+          isEditing={isEditing}
         />
       )}
 
