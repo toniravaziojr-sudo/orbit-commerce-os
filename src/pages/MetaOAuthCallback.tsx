@@ -43,19 +43,30 @@ export default function MetaOAuthCallback() {
         console.error("[MetaOAuthCallback] Falha ao enviar postMessage:", e);
       }
 
-      // Fechar popup após mostrar resultado
+      // Fechar popup após mostrar resultado - usar delay maior para garantir que a mensagem seja processada
       setTimeout(() => {
-        window.close();
+        try {
+          window.close();
+        } catch (e) {
+          // Se falhar ao fechar (algumas browsers bloqueiam), redirecionar
+          console.log("[MetaOAuthCallback] Não foi possível fechar popup, redirecionando...");
+          const baseUrl = window.location.origin;
+          window.location.href = success
+            ? `${baseUrl}/integrations?meta_connected=true`
+            : `${baseUrl}/integrations?meta_error=${encodeURIComponent(error || 'Erro')}`;
+        }
       }, 1500);
     } else {
-      // Sem opener - redirecionar após delay
-      setTimeout(() => {
-        const baseUrl = window.location.origin;
-        const redirectUrl = success
-          ? `${baseUrl}/integrations?meta_connected=true`
-          : `${baseUrl}/integrations?meta_error=${encodeURIComponent(error || 'Erro')}`;
-        window.location.href = redirectUrl;
-      }, 2000);
+      // Sem opener - redirecionar imediatamente para /integrations
+      // Não esperar, redirecionar direto para evitar que o usuário fique preso
+      console.log("[MetaOAuthCallback] Sem opener, redirecionando para /integrations");
+      const baseUrl = window.location.origin;
+      const redirectUrl = success
+        ? `${baseUrl}/integrations?meta_connected=true`
+        : `${baseUrl}/integrations?meta_error=${encodeURIComponent(error || 'Erro')}`;
+      
+      // Usar replace para não adicionar ao histórico
+      window.location.replace(redirectUrl);
     }
   };
 
