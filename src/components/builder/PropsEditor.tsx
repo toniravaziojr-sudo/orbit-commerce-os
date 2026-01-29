@@ -92,16 +92,27 @@ export function PropsEditor({
   // SYSTEM BLOCKS - Configured via Theme Settings, not via PropsEditor
   // These blocks have configurations in Theme Settings (Páginas section)
   const SYSTEM_BLOCKS = [
+    // Global layout
     'Header', 
     'Footer', 
+    // Page blocks
     'Cart', 
+    'CartSummary',
     'Checkout', 
+    'CheckoutSteps',
     'ThankYou',
     'TrackingLookup',
     'BlogListing',
     'AccountHub',
     'OrdersList',
     'OrderDetail',
+    // Ecommerce blocks
+    'ProductDetails',
+    'CategoryPageLayout',
+    // Offer slots
+    'CompreJuntoSlot',
+    'CrossSellSlot',
+    'UpsellSlot',
   ];
   
   // In checkout context, Header/Footer should NOT be blocked - they have their own config
@@ -115,10 +126,14 @@ export function PropsEditor({
       case 'Footer':
         return { section: 'Rodapé', description: 'Configure colunas, menus e informações' };
       case 'Cart':
+      case 'CartSummary':
+      case 'CrossSellSlot':
         return { section: 'Páginas > Carrinho', description: 'Configure frete, cupom, cross-sell e mais' };
       case 'Checkout':
+      case 'CheckoutSteps':
         return { section: 'Páginas > Checkout', description: 'Configure timeline, order bump, depoimentos' };
       case 'ThankYou':
+      case 'UpsellSlot':
         return { section: 'Páginas > Obrigado', description: 'Configure upsell e WhatsApp' };
       case 'TrackingLookup':
         return { section: 'Páginas > Rastreio', description: 'Configure formulário de rastreio' };
@@ -128,6 +143,11 @@ export function PropsEditor({
       case 'OrdersList':
       case 'OrderDetail':
         return { section: 'Páginas > Minha Conta', description: 'Estrutura padrão da área do cliente' };
+      case 'ProductDetails':
+      case 'CompreJuntoSlot':
+        return { section: 'Páginas > Produto', description: 'Configure galeria, variantes e compre junto' };
+      case 'CategoryPageLayout':
+        return { section: 'Páginas > Categoria', description: 'Configure filtros e grid de produtos' };
       default:
         return { section: 'Configurações do tema', description: 'Configure em Configurações do tema' };
     }

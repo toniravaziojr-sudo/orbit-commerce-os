@@ -759,23 +759,39 @@ async function migrateLegacySettings(tenantId: string): Promise<ThemeSettings | 
 // ============================================
 
 export const SYSTEM_BLOCKS = [
+  // Global layout
   'Header',
   'Footer',
+  // Cart page
   'Cart',
+  'CartSummary',
+  'CrossSellSlot',
+  // Checkout page
   'Checkout', 
   'CheckoutStepWizard',
+  'CheckoutSteps',
+  // Thank you page
   'ThankYou',
   'ThankYouContent',
+  'UpsellSlot',
+  // Other pages
   'TrackingLookup',
   'OrderTracking',
   'BlogListing',
   'BlogPostDetail',
+  'AccountHub',
   'AccountDashboard',
   'AccountOrders',
   'AccountOrderDetail',
   'AccountProfile',
+  'OrdersList',
+  'OrderDetail',
+  // Ecommerce core blocks
   'CategoryProducts',
+  'CategoryPageLayout',
   'ProductDetail',
+  'ProductDetails',
+  'CompreJuntoSlot',
 ] as const;
 
 export type SystemBlockType = typeof SYSTEM_BLOCKS[number];
@@ -790,16 +806,23 @@ export function getThemeSettingsSection(blockType: string): string | null {
     'Header': 'Cabeçalho',
     'Footer': 'Rodapé',
     'Cart': 'Páginas → Carrinho',
+    'CartSummary': 'Páginas → Carrinho',
+    'CrossSellSlot': 'Páginas → Carrinho',
     'Checkout': 'Páginas → Checkout',
     'CheckoutStepWizard': 'Páginas → Checkout',
+    'CheckoutSteps': 'Páginas → Checkout',
     'ThankYou': 'Páginas → Obrigado',
     'ThankYouContent': 'Páginas → Obrigado',
+    'UpsellSlot': 'Páginas → Obrigado',
     'TrackingLookup': 'Páginas → Rastreio',
     'OrderTracking': 'Páginas → Rastreio',
     'BlogListing': 'Páginas → Blog',
     'BlogPostDetail': 'Páginas → Blog',
     'CategoryProducts': 'Páginas → Categoria',
+    'CategoryPageLayout': 'Páginas → Categoria',
     'ProductDetail': 'Páginas → Produto',
+    'ProductDetails': 'Páginas → Produto',
+    'CompreJuntoSlot': 'Páginas → Produto',
   };
   return sectionMap[blockType] || null;
 }
