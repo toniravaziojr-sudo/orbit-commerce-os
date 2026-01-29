@@ -158,14 +158,13 @@ Deno.serve(async (req) => {
     if (sendResult.error) {
       console.error(`[meta-whatsapp-send][${traceId}] Send error:`, sendResult.error);
       
-      // Log failed message
+      // Log failed message (use correct column names from schema)
       await supabase.from("whatsapp_messages").insert({
         tenant_id,
-        direction: "outbound",
-        phone: formattedPhone,
-        message: message || `[Template: ${template_name}]`,
+        recipient_phone: formattedPhone,
+        message_type: template_name ? "template" : "text",
+        message_content: message || `[Template: ${template_name}]`,
         status: "failed",
-        provider: "meta",
         error_message: sendResult.error.message,
       });
 
@@ -181,15 +180,15 @@ Deno.serve(async (req) => {
     const messageId = sendResult.messages?.[0]?.id;
     console.log(`[meta-whatsapp-send][${traceId}] Message sent - ID: ${messageId}`);
 
-    // Log successful message
+    // Log successful message (use correct column names from schema)
     await supabase.from("whatsapp_messages").insert({
       tenant_id,
-      direction: "outbound",
-      phone: formattedPhone,
-      message: message || `[Template: ${template_name}]`,
+      recipient_phone: formattedPhone,
+      message_type: template_name ? "template" : "text",
+      message_content: message || `[Template: ${template_name}]`,
       status: "sent",
-      provider: "meta",
-      external_message_id: messageId,
+      sent_at: new Date().toISOString(),
+      provider_message_id: messageId,
     });
 
     return new Response(JSON.stringify({
