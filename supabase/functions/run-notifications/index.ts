@@ -421,14 +421,13 @@ async function sendWhatsAppViaMeta(
     if (sendResult.error) {
       console.error(`[RunNotifications] Meta WhatsApp error:`, sendResult.error);
       
-      // Log failed message
+      // Log failed message (use correct column names from schema)
       await supabase.from('whatsapp_messages').insert({
         tenant_id: tenantId,
-        direction: 'outbound',
-        phone: cleanPhone,
-        message: message.substring(0, 500),
+        recipient_phone: cleanPhone,
+        message_type: 'text',
+        message_content: message.substring(0, 500),
         status: 'failed',
-        provider: 'meta',
         error_message: sendResult.error.message,
       });
 
@@ -442,15 +441,15 @@ async function sendWhatsAppViaMeta(
     const messageId = sendResult.messages?.[0]?.id;
     console.log(`[RunNotifications] Meta WhatsApp sent - ID: ${messageId}`);
 
-    // Log successful message
+    // Log successful message (use correct column names from schema)
     await supabase.from('whatsapp_messages').insert({
       tenant_id: tenantId,
-      direction: 'outbound',
-      phone: cleanPhone,
-      message: message.substring(0, 500),
+      recipient_phone: cleanPhone,
+      message_type: 'text',
+      message_content: message.substring(0, 500),
       status: 'sent',
-      provider: 'meta',
-      external_message_id: messageId,
+      sent_at: new Date().toISOString(),
+      provider_message_id: messageId,
     });
 
     return {
