@@ -5,6 +5,15 @@ import { usePlatformOperator } from '@/hooks/usePlatformOperator';
 import { useWasInvitedUser } from '@/hooks/useWasInvitedUser';
 import { Loader2 } from 'lucide-react';
 
+// MÓDULO GLOBAL: Variável fora do componente React - NUNCA é resetada por remontagens
+// Isso é mais robusto que sessionStorage porque:
+// 1. Não precisa de IO (leitura de storage pode ser lenta)
+// 2. Não pode ser corrompida por extensões de navegador
+// 3. É imediatamente acessível na primeira renderização
+let __globalInitialLoadComplete = typeof window !== 'undefined' 
+  ? sessionStorage.getItem('auth_initial_load_complete') === 'true' 
+  : false;
+
 interface ProtectedRouteProps {
   children: ReactNode;
   requireTenant?: boolean;
@@ -20,23 +29,18 @@ export function ProtectedRoute({ children, requireTenant = true }: ProtectedRout
   const [hasWaitedForData, setHasWaitedForData] = useState(false);
   
   // REGRA CRÍTICA: Após a primeira carga, NUNCA mais bloquear a UI com loader de tela cheia
-  // Isso evita que refetches de queries (ex: ao abrir popup OAuth) causem tela cinza
-  // Usamos sessionStorage para persistir mesmo que o Google Tradutor cause remontagem do React
-  const initialLoadCompleteRef = useRef(
-    sessionStorage.getItem('auth_initial_load_complete') === 'true'
-  );
-  const [initialLoadComplete, setInitialLoadComplete] = useState(
-    initialLoadCompleteRef.current
-  );
+  // Usamos variável de módulo global + sessionStorage para máxima robustez
+  // A variável global é lida ANTES de qualquer remontagem, garantindo que nunca perdemos o estado
+  const [initialLoadComplete, setInitialLoadComplete] = useState(__globalInitialLoadComplete);
 
   // Check for pending invite token - if exists, don't redirect to create-store
   const hasPendingInvite = !!sessionStorage.getItem('pending_invite_token');
 
   // Marcar carga inicial como completa quando todos os loadings terminarem pela primeira vez
-  // Persistir em sessionStorage para sobreviver a remontagens causadas pelo Google Tradutor
+  // Persistir tanto na variável global quanto no sessionStorage
   useEffect(() => {
-    if (!isLoading && !platformLoading && !inviteLoading && !initialLoadCompleteRef.current) {
-      initialLoadCompleteRef.current = true;
+    if (!isLoading && !platformLoading && !inviteLoading && !__globalInitialLoadComplete) {
+      __globalInitialLoadComplete = true;
       sessionStorage.setItem('auth_initial_load_complete', 'true');
       setInitialLoadComplete(true);
     }
