@@ -34,6 +34,11 @@ export default function MetaOAuthCallback() {
       error,
     };
 
+    const baseUrl = window.location.origin;
+    const redirectUrl = success
+      ? `${baseUrl}/integrations?meta_connected=true`
+      : `${baseUrl}/integrations?meta_error=${encodeURIComponent(error || 'Erro')}`;
+
     // Tentar comunicar com janela pai (se aberto como popup)
     if (window.opener && !window.opener.closed) {
       try {
@@ -43,28 +48,30 @@ export default function MetaOAuthCallback() {
         console.error("[MetaOAuthCallback] Falha ao enviar postMessage:", e);
       }
 
-      // Fechar popup após mostrar resultado - usar delay maior para garantir que a mensagem seja processada
+      // Tentar fechar popup após delay para mostrar resultado
       setTimeout(() => {
-        try {
+        // Verificar se estamos em um popup real (window.opener existe e não fechou)
+        const isPopup = window.opener && !window.opener.closed;
+        
+        if (isPopup) {
+          // Tentar fechar o popup
           window.close();
-        } catch (e) {
-          // Se falhar ao fechar (algumas browsers bloqueiam), redirecionar
-          console.log("[MetaOAuthCallback] Não foi possível fechar popup, redirecionando...");
-          const baseUrl = window.location.origin;
-          window.location.href = success
-            ? `${baseUrl}/integrations?meta_connected=true`
-            : `${baseUrl}/integrations?meta_error=${encodeURIComponent(error || 'Erro')}`;
+          
+          // Verificar se realmente fechou após um breve delay
+          // Se não fechou, redirecionar
+          setTimeout(() => {
+            // Se ainda estamos aqui, o browser bloqueou o fechamento
+            console.log("[MetaOAuthCallback] Popup não fechou, redirecionando...");
+            window.location.replace(redirectUrl);
+          }, 500);
+        } else {
+          // Não é popup, redirecionar
+          window.location.replace(redirectUrl);
         }
       }, 1500);
     } else {
       // Sem opener - redirecionar imediatamente para /integrations
-      // Não esperar, redirecionar direto para evitar que o usuário fique preso
       console.log("[MetaOAuthCallback] Sem opener, redirecionando para /integrations");
-      const baseUrl = window.location.origin;
-      const redirectUrl = success
-        ? `${baseUrl}/integrations?meta_connected=true`
-        : `${baseUrl}/integrations?meta_error=${encodeURIComponent(error || 'Erro')}`;
-      
       // Usar replace para não adicionar ao histórico
       window.location.replace(redirectUrl);
     }
