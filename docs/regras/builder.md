@@ -626,3 +626,153 @@ O sistema de edição inline usa uma arquitetura **uncontrolled** para estabilid
 3. **SEMPRE** bloquear eventos de teclado globais (Delete/Backspace) dentro do bloco
 4. **SEMPRE** registrar instância no CanvasRichTextContext ao montar
 5. **SEMPRE** restaurar seleção antes de aplicar formatação via painel lateral
+
+---
+
+## Sistema de Real-time Preview e Salvamento Manual
+
+> **Implementado em:** 2025-01-29
+
+O builder utiliza um sistema de **preview em tempo real** com **salvamento manual**, garantindo feedback visual instantâneo sem persistência automática.
+
+### Arquitetura
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    DRAFT THEME CONTEXT                                   │
+│  Arquivo: src/hooks/useBuilderDraftTheme.tsx                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Estado Local (useState):                                                │
+│  • draftColors: ThemeColors | null                                       │
+│  • draftTypography: ThemeTypography | null                               │
+│  • draftCustomCss: string | null                                         │
+│                                                                          │
+│  Quando NOT NULL: indica alterações não salvas                          │
+│  Quando NULL: usa valores do banco (saved)                              │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    ↓
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    BUILDER THEME INJECTOR                                │
+│  Arquivo: src/hooks/useBuilderThemeInjector.ts                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Prioridade de Valores:                                                  │
+│  1. Draft (local, não salvo) — MAIOR PRIORIDADE                         │
+│  2. Saved (banco de dados)                                               │
+│  3. Defaults                                                             │
+│                                                                          │
+│  Injeta <style id="builder-theme-styles"> no <head>                     │
+│  Atualiza instantaneamente ao detectar mudanças no draft                │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    ↓
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    VISUAL BUILDER                                        │
+│  Arquivo: src/components/builder/VisualBuilder.tsx                      │
+├─────────────────────────────────────────────────────────────────────────┤
+│  BuilderDraftThemeProvider                                               │
+│    ├─ BuilderThemeInjectorInner ← DEVE estar DENTRO do Provider!        │
+│    ├─ DraftThemeRefSync                                                  │
+│    └─ Resto do builder...                                                │
+│                                                                          │
+│  isDirty = store.isDirty || draftTheme.hasDraftChanges                  │
+│                                                                          │
+│  handleSave():                                                           │
+│    1. Merge draft changes into themeSettings                            │
+│    2. Save to storefront_template_sets.draft_content                    │
+│    3. Call draftTheme.clearDraft() após sucesso                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Fluxo de Dados
+
+| Ação do Usuário | Componente de Origem | Destino | Persistência |
+|-----------------|---------------------|---------|--------------|
+| Muda cor | `ColorsSettings.tsx` | `draftTheme.setDraftColors()` | **NÃO** (local) |
+| Muda tipografia | `TypographySettings.tsx` | `draftTheme.setDraftTypography()` | **NÃO** (local) |
+| Muda CSS custom | `CustomCSSSettings.tsx` | `draftTheme.setDraftCustomCss()` | **NÃO** (local) |
+| Clica "Salvar" | `VisualBuilder.tsx` | Supabase + `clearDraft()` | **SIM** (banco) |
+| Clica "Publicar" | `useTemplateSetSave.ts` | `published_content` | **SIM** (público) |
+
+### Comportamento de Reset
+
+| Cenário | Comportamento |
+|---------|---------------|
+| Muda de página sem salvar | Draft é resetado (useState desmontado) |
+| Fecha aba/navegador com alterações | Aviso via `beforeunload` |
+| Clica "Salvar" | Draft persistido + cleared |
+| Clica "Publicar" | `draft_content` → `published_content` |
+
+### Regras Obrigatórias
+
+1. **NUNCA** usar auto-save/debounce em configurações de tema — apenas salvamento manual
+2. **SEMPRE** envolver o `useBuilderThemeInjector` dentro do `BuilderDraftThemeProvider`
+3. **SEMPRE** verificar `hasDraftChanges` para indicador visual de alterações pendentes
+4. **SEMPRE** chamar `clearDraft()` após persistência bem-sucedida
+5. **NUNCA** persistir diretamente do componente de settings — apenas via `handleSave` central
+
+### Arquivos Relacionados
+
+| Arquivo | Responsabilidade |
+|---------|------------------|
+| `src/hooks/useBuilderDraftTheme.tsx` | Context + state local de draft |
+| `src/hooks/useBuilderThemeInjector.ts` | Injeção CSS com prioridade draft > saved |
+| `src/components/builder/VisualBuilder.tsx` | Orquestração + handleSave |
+| `src/components/builder/theme-settings/ColorsSettings.tsx` | Edição de cores → draft |
+| `src/components/builder/theme-settings/TypographySettings.tsx` | Edição de tipografia → draft |
+| `src/components/builder/theme-settings/CustomCSSSettings.tsx` | Edição de CSS → draft |
+
+---
+
+## Sistema de Cores Dinâmicas (Accent Color)
+
+> **Implementado em:** 2025-01-29
+
+O sistema elimina cores hardcoded substituindo-as por variáveis CSS dinâmicas que herdam das configurações do tema.
+
+### Variáveis CSS de Destaque
+
+| Variável | Descrição | Fallback |
+|----------|-----------|----------|
+| `--theme-accent-color` | Cor de destaque principal | `#22c55e` (verde) |
+| `--theme-highlight-bg` | Background de destaques (bumps, urgência) | `#fef3c7` (amber-100) |
+| `--theme-warning-bg` | Background de avisos/timers | `#fef3c7` (amber-100) |
+| `--theme-danger-bg` | Background de badges de desconto | `#ef4444` (red) |
+
+### Uso de `color-mix()` para Opacidade
+
+```css
+/* Background com 10% de opacidade */
+background-color: color-mix(in srgb, var(--theme-accent-color) 10%, transparent);
+
+/* Borda com 30% de opacidade */
+border-color: color-mix(in srgb, var(--theme-accent-color) 30%, transparent);
+
+/* Texto sólido */
+color: var(--theme-accent-color);
+```
+
+### Componentes Migrados (2025-01-29)
+
+| Componente | Cores Antigas | Cores Novas |
+|------------|---------------|-------------|
+| `PaymentBadges.tsx` | `text-green-600`, `bg-green-50` | `--theme-accent-color` + color-mix |
+| `CheckoutShipping.tsx` | `text-green-600` | `--theme-accent-color` |
+| `CartSummary.tsx` | `text-green-600`, `bg-green-50` | `--theme-accent-color` + color-mix |
+| `MiniCartPreview.tsx` | `text-green-600`, `bg-amber-50` | `--theme-accent-color`, `--theme-warning-bg` |
+| `BundlesSection.tsx` | `text-green-600`, `bg-green-50` | `--theme-accent-color` + color-mix |
+| `BuyTogetherSection.tsx` | `text-green-600`, `bg-green-50` | `--theme-accent-color` + color-mix |
+| `CrossSellSection.tsx` | `text-green-600`, `bg-green-50` | `--theme-accent-color` + color-mix |
+| `ProductCTAs.tsx` | `bg-green-500` (WhatsApp) | `--theme-accent-color` |
+| `ThankYouContent.tsx` | `text-green-600`, `bg-green-50` | `--theme-accent-color` + color-mix |
+| `ProductReviewsSection.tsx` | `text-green-600` | `--theme-accent-color` |
+| `CheckoutDemoBlock.tsx` | `bg-amber-50`, `border-amber-200` | `--theme-highlight-bg` |
+| `ProductCard.tsx` | `bg-destructive` | `--theme-danger-bg` |
+| `BlockRenderer.tsx` | classes hardcoded | `--theme-danger-bg` |
+| `CouponInput.tsx` | `text-green-600`, `bg-green-50` | `--theme-accent-color` + color-mix |
+
+### Regras Obrigatórias
+
+1. **NUNCA** usar `text-green-*`, `bg-green-*`, `text-amber-*`, `bg-amber-*` em componentes do storefront
+2. **SEMPRE** usar `var(--theme-accent-color)` para cores de sucesso/destaque
+3. **SEMPRE** usar `color-mix()` para backgrounds com opacidade
+4. **SEMPRE** incluir fallback nas variáveis CSS: `var(--theme-accent-color, #22c55e)`
+5. Cores de feedback (sucesso, aviso, perigo) herdam do accentColor caso não definidas
