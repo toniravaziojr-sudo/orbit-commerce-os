@@ -36,40 +36,46 @@ export default function LateCallback() {
     }
   }, [searchParams]);
 
+  // Função para redirecionar de forma robusta
+  // IMPORTANTE: O Google Tradutor pode quebrar window.opener e postMessage
   const notifyParentAndClose = (
     success: boolean,
     platform: string,
     error?: string
   ) => {
-    const messageData = {
-      type: "late:connected",
-      success,
-      platform,
-      error,
-    };
+    const baseUrl = window.location.origin;
+    const redirectUrl = success
+      ? `${baseUrl}/integrations?late_connected=true&platform=${platform}`
+      : `${baseUrl}/integrations?late_error=${encodeURIComponent(error || 'Erro')}`;
 
-    // Try to communicate with parent window
-    if (window.opener && !window.opener.closed) {
-      try {
-        window.opener.postMessage(messageData, "*");
-      } catch (e) {
-        console.error("Failed to postMessage:", e);
+    // Tentar notificar janela pai (pode falhar com Google Tradutor)
+    try {
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage({
+          type: "late:connected",
+          success,
+          platform,
+          error,
+        }, "*");
       }
-
-      // Close popup after showing result
-      setTimeout(() => {
-        window.close();
-      }, 1500);
-    } else {
-      // No opener - redirect after delay
-      setTimeout(() => {
-        const baseUrl = window.location.origin;
-        const redirectUrl = success
-          ? `${baseUrl}/integrations?late_connected=true&platform=${platform}`
-          : `${baseUrl}/integrations?late_error=${encodeURIComponent(error || 'Erro')}`;
-        window.location.href = redirectUrl;
-      }, 2000);
+    } catch (e) {
+      console.warn("[LateCallback] postMessage falhou:", e);
     }
+
+    // SEMPRE redirecionar após delay
+    setTimeout(() => {
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.close();
+        }
+      } catch (e) {
+        console.warn("[LateCallback] window.close() falhou:", e);
+      }
+      
+      setTimeout(() => {
+        window.location.href = redirectUrl;
+      }, 300);
+    }, 1200);
   };
 
   const handleClose = () => {

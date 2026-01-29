@@ -88,42 +88,49 @@ export default function YouTubeCallback() {
     }
   }, [searchParams]);
 
+  // Função para redirecionar de forma robusta
+  // IMPORTANTE: O Google Tradutor pode quebrar window.opener e postMessage
   const notifyParentAndClose = (
     success: boolean,
-    channel: string | null,
+    channelName: string | null,
     error?: string,
     errorCode?: string
   ) => {
-    const messageData = {
-      type: "youtube:connected",
-      success,
-      channel,
-      error,
-      errorCode,
-    };
+    const baseUrl = window.location.origin;
+    const redirectUrl = success
+      ? `${baseUrl}/integrations?youtube_connected=true`
+      : `${baseUrl}/integrations?youtube_error=${encodeURIComponent(error || "Erro")}`;
 
-    // Try to communicate with parent window
-    if (window.opener && !window.opener.closed) {
-      try {
-        window.opener.postMessage(messageData, "*");
-      } catch (e) {
-        console.error("Failed to postMessage:", e);
+    // Tentar notificar janela pai (pode falhar com Google Tradutor)
+    try {
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage({
+          type: "youtube:connected",
+          success,
+          channel: channelName,
+          error,
+          errorCode,
+        }, "*");
       }
-
-      // Close popup after showing result (longer for errors so user can read)
-      setTimeout(() => {
-        window.close();
-      }, success ? 1500 : 5000);
-    } else {
-      // No opener - redirect after delay
-      setTimeout(() => {
-        const baseUrl = window.location.origin;
-        const redirectUrl = success
-          ? `${baseUrl}/integrations?youtube_connected=true`
-          : `${baseUrl}/integrations?youtube_error=${encodeURIComponent(error || "Erro")}`;
-        window.location.href = redirectUrl;
-      }, success ? 2000 : 5000);
+    } catch (e) {
+      console.warn("[YouTubeCallback] postMessage falhou:", e);
     }
+
+    // SEMPRE redirecionar após delay (mais longo para erros)
+    const delay = success ? 1200 : 4000;
+    setTimeout(() => {
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.close();
+        }
+      } catch (e) {
+        console.warn("[YouTubeCallback] window.close() falhou:", e);
+      }
+      
+      setTimeout(() => {
+        window.location.href = redirectUrl;
+      }, 300);
+    }, delay);
   };
 
   const handleClose = () => {
