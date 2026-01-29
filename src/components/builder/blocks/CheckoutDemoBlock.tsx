@@ -264,7 +264,7 @@ export function CheckoutDemoBlock({
                     <p className="text-muted-foreground">Receba em até 3 dias úteis</p>
                   </div>
                 </div>
-                <Badge variant="secondary" className="text-green-600">Grátis</Badge>
+                <Badge variant="secondary" className="sf-tag-success">Grátis</Badge>
               </div>
             </CardContent>
           </Card>
@@ -482,13 +482,6 @@ export function CheckoutDemoBlock({
               {showTestimonials && (
                 <CheckoutTestimonials tenantId={tenantId} isEditing />
               )}
-
-              {/* Payment icons */}
-              <div className="flex items-center justify-center gap-2 text-muted-foreground">
-                <span className="text-xl">💳</span>
-                <span className="text-xl">📱</span>
-                <span className="text-xl">🏦</span>
-              </div>
             </CardContent>
           </Card>
         </div>

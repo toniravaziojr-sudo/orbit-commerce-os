@@ -223,17 +223,27 @@ export function getStorefrontThemeCss(themeSettings: ThemeSettings | null): stri
   if (colors?.buttonPrimaryText) {
     colorVars.push(`--theme-button-primary-text: ${colors.buttonPrimaryText};`);
   }
+  if (colors?.buttonPrimaryHover) {
+    colorVars.push(`--theme-button-primary-hover: ${colors.buttonPrimaryHover};`);
+  }
   if (colors?.buttonSecondaryBg) {
     colorVars.push(`--theme-button-secondary-bg: ${colors.buttonSecondaryBg};`);
   }
   if (colors?.buttonSecondaryText) {
     colorVars.push(`--theme-button-secondary-text: ${colors.buttonSecondaryText};`);
   }
+  if (colors?.buttonSecondaryHover) {
+    colorVars.push(`--theme-button-secondary-hover: ${colors.buttonSecondaryHover};`);
+  }
   if (colors?.textPrimary) {
     colorVars.push(`--theme-text-primary: ${colors.textPrimary};`);
   }
   if (colors?.textSecondary) {
     colorVars.push(`--theme-text-secondary: ${colors.textSecondary};`);
+  }
+  // Accent color for UI details
+  if (colors?.accentColor) {
+    colorVars.push(`--theme-accent-color: ${colors.accentColor};`);
   }
   // Special tag colors
   if (colors?.successBg) {
@@ -315,16 +325,30 @@ export function getStorefrontThemeCss(themeSettings: ThemeSettings | null): stri
     .storefront-container .sf-btn-primary {
       background-color: var(--theme-button-primary-bg, #1a1a1a) !important;
       color: var(--theme-button-primary-text, #ffffff) !important;
+      transition: background-color 0.2s ease;
     }
     .storefront-container .sf-btn-primary:hover {
-      opacity: 0.9;
+      background-color: var(--theme-button-primary-hover, var(--theme-button-primary-bg, #333333)) !important;
     }
     .storefront-container .sf-btn-secondary {
       background-color: var(--theme-button-secondary-bg, #e5e5e5) !important;
       color: var(--theme-button-secondary-text, #1a1a1a) !important;
+      transition: background-color 0.2s ease;
     }
     .storefront-container .sf-btn-secondary:hover {
-      opacity: 0.9;
+      background-color: var(--theme-button-secondary-hover, var(--theme-button-secondary-bg, #d5d5d5)) !important;
+    }
+    
+    /* Accent color for UI details (checkmarks, icons, links) */
+    .storefront-container .sf-accent-icon,
+    .storefront-container .sf-accent-check {
+      color: var(--theme-accent-color, #22c55e) !important;
+    }
+    .storefront-container .sf-accent-bg {
+      background-color: var(--theme-accent-color, #22c55e) !important;
+    }
+    .storefront-container .sf-accent-bg-light {
+      background-color: color-mix(in srgb, var(--theme-accent-color, #22c55e) 15%, transparent) !important;
     }
     
     /* Special tag colors - theme-based classes */

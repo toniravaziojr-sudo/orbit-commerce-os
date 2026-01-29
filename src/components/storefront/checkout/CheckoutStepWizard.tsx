@@ -900,8 +900,8 @@ function ProgressTimeline({
                   !isCompleted && !isCurrent && "bg-muted text-muted-foreground cursor-not-allowed"
                 )}
                 style={isCompleted ? {
-                  backgroundColor: 'var(--checkout-step-completed-bg, rgb(220 252 231))',
-                  color: 'var(--checkout-step-completed-text, rgb(21 128 61))',
+                  backgroundColor: 'var(--checkout-step-completed-bg, var(--theme-accent-color, rgb(34 197 94)))' + '20',
+                  color: 'var(--checkout-step-completed-text, var(--theme-accent-color, rgb(34 197 94)))',
                   cursor: 'pointer',
                 } : undefined}
               >
@@ -938,7 +938,7 @@ function ProgressTimeline({
                     !isCompleted && !isCurrent && "bg-muted text-muted-foreground"
                   )}
                   style={isCompleted ? {
-                    backgroundColor: 'var(--checkout-step-completed-solid, rgb(34 197 94))',
+                    backgroundColor: 'var(--checkout-step-completed-solid, var(--theme-accent-color, rgb(34 197 94)))',
                     color: 'white',
                   } : undefined}
                 >
@@ -952,7 +952,7 @@ function ProgressTimeline({
                   <div 
                     className={cn("w-6 h-0.5", !isCompleted && "bg-muted")}
                     style={currentStep > step.id ? {
-                      backgroundColor: 'var(--checkout-step-completed-solid, rgb(34 197 94))',
+                      backgroundColor: 'var(--checkout-step-completed-solid, var(--theme-accent-color, rgb(34 197 94)))',
                     } : undefined}
                   />
                 )}
@@ -1252,7 +1252,7 @@ function Step3Shipping({
                 </div>
                 <div className="text-right">
                   {option.isFree ? (
-                    <span className="text-green-600 font-semibold">Grátis</span>
+                    <span className="sf-accent-icon font-semibold" style={{ color: 'var(--theme-accent-color, #22c55e)' }}>Grátis</span>
                   ) : (
                     <span className="font-semibold">{formatCurrency(option.price)}</span>
                   )}
@@ -1376,7 +1376,7 @@ function OrderSummarySidebar({
 
         {/* Discount line */}
         {(totals.discountTotal > 0 || appliedDiscount) && (
-          <div className="flex justify-between text-green-600">
+          <div className="flex justify-between" style={{ color: 'var(--theme-accent-color, #22c55e)' }}>
             <span className="flex items-center gap-1">
               <Tag className="h-3.5 w-3.5" />
               {appliedDiscount?.discount_name || 'Desconto'}

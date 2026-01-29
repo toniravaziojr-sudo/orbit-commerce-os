@@ -36,6 +36,12 @@ const colorInputs: ColorInput[] = [
     description: 'Texto dentro dos botões primários. Use cor clara para fundos escuros', 
     group: 'primary' 
   },
+  { 
+    id: 'buttonPrimaryHover', 
+    label: 'Hover do Botão Primário', 
+    description: 'Cor de fundo ao passar o mouse sobre o botão primário', 
+    group: 'primary' 
+  },
   // Secondary button group
   { 
     id: 'buttonSecondaryBg', 
@@ -48,6 +54,19 @@ const colorInputs: ColorInput[] = [
     label: 'Texto do Botão Secundário', 
     description: 'Texto dentro dos botões secundários', 
     group: 'secondary' 
+  },
+  { 
+    id: 'buttonSecondaryHover', 
+    label: 'Hover do Botão Secundário', 
+    description: 'Cor de fundo ao passar o mouse sobre o botão secundário', 
+    group: 'secondary' 
+  },
+  // Accent color
+  { 
+    id: 'accentColor', 
+    label: 'Cor de Destaque', 
+    description: 'Ícones de check, setas, indicadores de etapas, links e detalhes da interface', 
+    group: 'text' 
   },
   // Text colors
   { 
@@ -220,26 +239,50 @@ export function ColorsSettings({ tenantId, templateSetId }: ColorsSettingsProps)
       <div className="p-4 rounded-lg border space-y-4">
         <p className="text-xs text-muted-foreground uppercase tracking-wider">Preview</p>
         
-        {/* Buttons Preview */}
-        <div className="flex flex-wrap gap-2">
-          <button 
-            className="px-4 py-2 rounded text-sm font-medium transition-colors"
+        {/* Buttons Preview with Hover */}
+        <div className="space-y-2">
+          <p className="text-[10px] text-muted-foreground">Passe o mouse para ver o hover</p>
+          <div className="flex flex-wrap gap-2">
+            <button 
+              className="px-4 py-2 rounded text-sm font-medium transition-colors"
+              style={{ 
+                backgroundColor: localColors.buttonPrimaryBg,
+                color: localColors.buttonPrimaryText,
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = localColors.buttonPrimaryHover || localColors.buttonPrimaryBg}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = localColors.buttonPrimaryBg}
+            >
+              Comprar
+            </button>
+            <button 
+              className="px-4 py-2 rounded text-sm font-medium transition-colors"
+              style={{ 
+                backgroundColor: localColors.buttonSecondaryBg,
+                color: localColors.buttonSecondaryText,
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = localColors.buttonSecondaryHover || localColors.buttonSecondaryBg}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = localColors.buttonSecondaryBg}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+
+        {/* Accent Color Preview */}
+        <div className="flex items-center gap-3 p-3 bg-background rounded border">
+          <div 
+            className="w-8 h-8 rounded-full flex items-center justify-center"
             style={{ 
-              backgroundColor: localColors.buttonPrimaryBg,
-              color: localColors.buttonPrimaryText,
+              backgroundColor: (localColors.accentColor || '#22c55e') + '20',
+              color: localColors.accentColor || '#22c55e',
             }}
           >
-            Comprar
-          </button>
-          <button 
-            className="px-4 py-2 rounded text-sm font-medium transition-colors"
-            style={{ 
-              backgroundColor: localColors.buttonSecondaryBg,
-              color: localColors.buttonSecondaryText,
-            }}
-          >
-            Cancelar
-          </button>
+            ✓
+          </div>
+          <div>
+            <p className="text-sm font-medium">Cor de Destaque</p>
+            <p className="text-xs text-muted-foreground">Checkmarks, ícones, indicadores</p>
+          </div>
         </div>
 
         {/* Text Preview */}
