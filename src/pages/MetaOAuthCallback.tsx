@@ -30,10 +30,14 @@ export default function MetaOAuthCallback() {
   // IMPORTANTE: O Google Tradutor pode quebrar window.opener e postMessage
   // Por isso, SEMPRE fazemos redirect direto após um breve delay
   const notifyParentAndClose = (success: boolean, error?: string) => {
+    // Limpar flag de OAuth em progresso
+    sessionStorage.removeItem('oauth_in_progress');
+    
     const baseUrl = window.location.origin;
+    // Adicionar timestamp para evitar cache
     const redirectUrl = success
-      ? `${baseUrl}/integrations?meta_connected=true`
-      : `${baseUrl}/integrations?meta_error=${encodeURIComponent(error || 'Erro')}`;
+      ? `${baseUrl}/integrations?meta_connected=true&t=${Date.now()}`
+      : `${baseUrl}/integrations?meta_error=${encodeURIComponent(error || 'Erro')}&t=${Date.now()}`;
 
     // Tentar notificar janela pai (pode falhar com Google Tradutor)
     try {

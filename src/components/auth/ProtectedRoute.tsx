@@ -21,16 +21,23 @@ export function ProtectedRoute({ children, requireTenant = true }: ProtectedRout
   
   // REGRA CRÍTICA: Após a primeira carga, NUNCA mais bloquear a UI com loader de tela cheia
   // Isso evita que refetches de queries (ex: ao abrir popup OAuth) causem tela cinza
-  const initialLoadCompleteRef = useRef(false);
-  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  // Usamos sessionStorage para persistir mesmo que o Google Tradutor cause remontagem do React
+  const initialLoadCompleteRef = useRef(
+    sessionStorage.getItem('auth_initial_load_complete') === 'true'
+  );
+  const [initialLoadComplete, setInitialLoadComplete] = useState(
+    initialLoadCompleteRef.current
+  );
 
   // Check for pending invite token - if exists, don't redirect to create-store
   const hasPendingInvite = !!sessionStorage.getItem('pending_invite_token');
 
   // Marcar carga inicial como completa quando todos os loadings terminarem pela primeira vez
+  // Persistir em sessionStorage para sobreviver a remontagens causadas pelo Google Tradutor
   useEffect(() => {
     if (!isLoading && !platformLoading && !inviteLoading && !initialLoadCompleteRef.current) {
       initialLoadCompleteRef.current = true;
+      sessionStorage.setItem('auth_initial_load_complete', 'true');
       setInitialLoadComplete(true);
     }
   }, [isLoading, platformLoading, inviteLoading]);
@@ -73,8 +80,8 @@ export function ProtectedRoute({ children, requireTenant = true }: ProtectedRout
     return <Navigate to="/accept-invite" replace />;
   }
 
-  // Still loading user roles - show spinner
-  if (!hasWaitedForData && userRoles.length === 0 && !hasPendingInvite) {
+  // Still loading user roles - show spinner (ONLY on initial load)
+  if (!hasWaitedForData && userRoles.length === 0 && !hasPendingInvite && !initialLoadComplete) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -98,7 +105,8 @@ export function ProtectedRoute({ children, requireTenant = true }: ProtectedRout
   }
 
   // Se precisa de tenant e não tem um selecionado (mas tem lojas), deixa a seleção acontecer
-  if (requireTenant && !currentTenant && tenants.length > 0) {
+  // ONLY show loader on initial load - never block UI after that
+  if (requireTenant && !currentTenant && tenants.length > 0 && !initialLoadComplete) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

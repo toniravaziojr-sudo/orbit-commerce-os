@@ -115,6 +115,9 @@ export function useMetaConnection() {
       return data;
     },
     onSuccess: (data) => {
+      // Marcar que OAuth está em progresso (protege contra loaders durante o fluxo)
+      sessionStorage.setItem('oauth_in_progress', 'true');
+      
       // Abrir popup para OAuth
       const width = 600;
       const height = 700;
