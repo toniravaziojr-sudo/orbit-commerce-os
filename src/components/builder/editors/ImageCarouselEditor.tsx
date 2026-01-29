@@ -137,6 +137,7 @@ export function ImageCarouselEditor({ items = [], onChange }: ImageCarouselEdito
                       placeholder="Desktop"
                       variant="desktop"
                     />
+                    <p className="text-[10px] text-muted-foreground">Rec: 1920×800px</p>
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Imagem Mobile</Label>
@@ -146,6 +147,7 @@ export function ImageCarouselEditor({ items = [], onChange }: ImageCarouselEdito
                       placeholder="Mobile"
                       variant="mobile"
                     />
+                    <p className="text-[10px] text-muted-foreground">Rec: 768×600px</p>
                   </div>
                 </div>
 

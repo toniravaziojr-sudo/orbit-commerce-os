@@ -77,7 +77,7 @@ export function ContentColumnsBlock({
   imageMobile,
   imagePosition = 'left',
   features = [],
-  iconColor = '#22c55e',
+  iconColor, // Empty = inherit from theme accent color
   showButton = false,
   buttonText = 'Saiba mais',
   buttonUrl = '#',
@@ -88,6 +88,9 @@ export function ContentColumnsBlock({
   // Hook must be called unconditionally (Rules of Hooks)
   const deviceIsMobile = useIsMobile();
   const isMobile = context?.viewport === 'mobile' || (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && deviceIsMobile);
+  
+  // Use theme accent color as fallback when iconColor is empty
+  const effectiveIconColor = iconColor || 'var(--theme-accent-color, #22c55e)';
   
   // Use mobile image if available, else fall back to desktop
   const displayImage = isMobile && imageMobile ? imageMobile : imageDesktop;
@@ -145,7 +148,7 @@ export function ContentColumnsBlock({
               >
                 <span 
                   className="flex-shrink-0 mt-0.5"
-                  style={{ color: iconColor }}
+                  style={{ color: effectiveIconColor }}
                 >
                   <IconComponent className="h-5 w-5" />
                 </span>

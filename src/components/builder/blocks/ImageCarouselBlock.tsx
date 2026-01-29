@@ -158,12 +158,13 @@ export function ImageCarouselBlock({
     }
   }, [gap]);
   
-  // Slides per view class
+  // Slides per view class - adjusts for mobile
+  // On mobile (when container is < 640px), show max 2 slides regardless of setting
   const slideWidthClass = useMemo(() => {
     switch (slidesPerView) {
-      case 2: return 'flex-[0_0_50%]';
-      case 3: return 'flex-[0_0_33.333%]';
-      case 4: return 'flex-[0_0_25%]';
+      case 2: return 'flex-[0_0_50%] sf-carousel-slide-mobile';
+      case 3: return 'flex-[0_0_33.333%] sf-carousel-slide-mobile';
+      case 4: return 'flex-[0_0_25%] sf-carousel-slide-mobile';
       default: return 'flex-[0_0_100%]';
     }
   }, [slidesPerView]);
@@ -192,7 +193,21 @@ export function ImageCarouselBlock({
   };
   
   return (
-    <div className="image-carousel w-full">
+    <div className="image-carousel w-full sf-carousel-container">
+      {/* Mobile-responsive styles injected via CSS classes */}
+      <style>{`
+        @media (max-width: 640px) {
+          .sf-carousel-container .sf-carousel-slide-mobile {
+            flex: 0 0 100% !important;
+          }
+        }
+        @media (min-width: 641px) and (max-width: 768px) {
+          .sf-carousel-container .sf-carousel-slide-mobile {
+            flex: 0 0 50% !important;
+          }
+        }
+      `}</style>
+      
       {/* Title */}
       {title && (
         <h2 className="text-2xl font-bold mb-4 text-center">{title}</h2>
@@ -249,7 +264,7 @@ export function ImageCarouselBlock({
               )}
               aria-label="Imagem anterior"
             >
-              <ChevronLeft className="w-6 h-6 text-gray-800" />
+              <ChevronLeft className="w-6 h-6" style={{ color: 'var(--theme-text-primary, #1a1a1a)' }} />
             </button>
             <button
               onClick={scrollNext}
@@ -260,7 +275,7 @@ export function ImageCarouselBlock({
               )}
               aria-label="Próxima imagem"
             >
-              <ChevronRight className="w-6 h-6 text-gray-800" />
+              <ChevronRight className="w-6 h-6" style={{ color: 'var(--theme-text-primary, #1a1a1a)' }} />
             </button>
           </>
         )}

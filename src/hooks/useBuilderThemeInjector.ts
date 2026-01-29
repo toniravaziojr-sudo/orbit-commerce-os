@@ -93,6 +93,9 @@ export function useBuilderThemeInjector(
     const highlightBg = colors?.highlightBg || DEFAULT_THEME_COLORS.highlightBg;
     const highlightText = colors?.highlightText || DEFAULT_THEME_COLORS.highlightText;
 
+    // Accent color (uses theme setting or default green)
+    const accentColor = colors?.accentColor || DEFAULT_THEME_COLORS.accentColor;
+
     // Convert hex to HSL for Tailwind CSS variable override
     const primaryHsl = hexToHslValues(buttonPrimaryBg);
     const primaryFgHsl = hexToHslValues(buttonPrimaryText);
@@ -111,6 +114,8 @@ export function useBuilderThemeInjector(
         --theme-button-secondary-text: ${buttonSecondaryText};
         --theme-text-primary: ${textPrimary};
         --theme-text-secondary: ${textSecondary};
+        /* Accent color for UI elements (checkmarks, sliders, icons) */
+        --theme-accent-color: ${accentColor};
         /* Special tag colors */
         --theme-success-bg: ${successBg};
         --theme-success-text: ${successText};
