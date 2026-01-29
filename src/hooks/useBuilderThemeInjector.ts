@@ -1,11 +1,13 @@
 // =============================================
 // BUILDER THEME INJECTOR HOOK - Injects theme CSS in builder preview
-// Uses draft themeSettings for real-time preview (typography AND colors)
+// Uses DRAFT state for real-time preview (changes without saving)
+// Falls back to saved themeSettings when no draft is available
 // =============================================
 
 import { useEffect } from 'react';
-import { useThemeSettings, ThemeTypography, ThemeColors, DEFAULT_THEME_COLORS } from './useThemeSettings';
+import { useThemeSettings, ThemeTypography, ThemeColors, DEFAULT_THEME_COLORS, DEFAULT_THEME_TYPOGRAPHY } from './useThemeSettings';
 import { getFontFamily } from './usePublicThemeSettings';
+import { useBuilderDraftTheme } from './useBuilderDraftTheme';
 
 const BUILDER_STYLE_ID = 'builder-theme-styles';
 
@@ -49,14 +51,15 @@ function hexToHslValues(hex: string): string {
 
 /**
  * Hook to inject theme CSS into the builder preview
- * Uses draft_content.themeSettings for real-time preview
- * Injects BOTH typography AND color variables
+ * PRIORITY: Draft state (local unsaved) > Saved state (database)
+ * This enables real-time preview without saving to database
  */
 export function useBuilderThemeInjector(
   tenantId: string | undefined,
   templateSetId: string | undefined
 ) {
   const { themeSettings } = useThemeSettings(tenantId, templateSetId);
+  const draftTheme = useBuilderDraftTheme();
 
   useEffect(() => {
     if (!tenantId || !templateSetId) return;
@@ -67,16 +70,20 @@ export function useBuilderThemeInjector(
       existingStyle.remove();
     }
 
-    // Generate CSS from draft themeSettings
-    const typography = themeSettings?.typography;
-    const colors = themeSettings?.colors;
+    // PRIORITY: Use draft values if available, otherwise fall back to saved values
+    // Draft values are set by ColorsSettings/TypographySettings for real-time preview
+    const savedTypography = themeSettings?.typography;
+    const savedColors = themeSettings?.colors;
+    
+    // Get effective values (draft overrides saved)
+    const typography = draftTheme?.getEffectiveTypography(savedTypography) || savedTypography;
+    const colors = draftTheme?.getEffectiveColors(savedColors) || savedColors;
     
     const headingFontFamily = getFontFamily(typography?.headingFont || 'inter');
     const bodyFontFamily = getFontFamily(typography?.bodyFont || 'inter');
     const baseFontSize = typography?.baseFontSize || 16;
 
-    // Build color CSS variables from themeSettings.colors
-    // Use saved colors or defaults (NOT blue!)
+    // Build color CSS variables from effective colors (draft or saved)
     const buttonPrimaryBg = colors?.buttonPrimaryBg || DEFAULT_THEME_COLORS.buttonPrimaryBg;
     const buttonPrimaryText = colors?.buttonPrimaryText || DEFAULT_THEME_COLORS.buttonPrimaryText;
     const buttonSecondaryBg = colors?.buttonSecondaryBg || DEFAULT_THEME_COLORS.buttonSecondaryBg;
@@ -230,5 +237,13 @@ export function useBuilderThemeInjector(
         styleToRemove.remove();
       }
     };
-  }, [tenantId, templateSetId, themeSettings?.typography, themeSettings?.colors]);
+  }, [
+    tenantId, 
+    templateSetId, 
+    themeSettings?.typography, 
+    themeSettings?.colors,
+    // Re-run when draft changes for real-time preview
+    draftTheme?.draftColors,
+    draftTheme?.draftTypography,
+  ]);
 }

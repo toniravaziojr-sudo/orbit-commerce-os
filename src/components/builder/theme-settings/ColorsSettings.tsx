@@ -1,8 +1,8 @@
 // =============================================
 // COLORS SETTINGS - Theme color palette for buttons and text
 // Uses centralized useThemeSettings hook (template-wide)
-// IMPORTANT: Colors are NOT auto-saved - they require explicit Save/Publish
-// to prevent unwanted changes from being persisted
+// IMPORTANT: Colors update DRAFT state for real-time preview
+// Changes are NOT saved until user clicks "Salvar" in toolbar
 // =============================================
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -11,13 +11,12 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { useThemeColors, DEFAULT_THEME_COLORS, ThemeColors } from '@/hooks/useThemeSettings';
+import { useBuilderDraftTheme } from '@/hooks/useBuilderDraftTheme';
 import { useBuilderStore } from '@/hooks/useBuilderStore';
 
 interface ColorsSettingsProps {
   tenantId: string;
   templateSetId?: string;
-  // Optional callback to mark the builder as dirty when colors change
-  onColorsChange?: (colors: ThemeColors) => void;
 }
 
 interface ColorInput {
@@ -140,29 +139,35 @@ const colorInputs: ColorInput[] = [
   },
 ];
 
-export function ColorsSettings({ tenantId, templateSetId, onColorsChange }: ColorsSettingsProps) {
+export function ColorsSettings({ tenantId, templateSetId }: ColorsSettingsProps) {
   const { colors: savedColors, isLoading } = useThemeColors(tenantId, templateSetId);
+  const draftTheme = useBuilderDraftTheme();
   const [localColors, setLocalColors] = useState<ThemeColors>(DEFAULT_THEME_COLORS);
   const [hasChanges, setHasChanges] = useState(false);
   const initialLoadDone = useRef(false);
 
-  // Initialize local state from hook data
+  // Initialize local state from saved colors (or draft if available)
   useEffect(() => {
     if (savedColors && !initialLoadDone.current) {
-      setLocalColors(savedColors);
+      // If there's already a draft, use that; otherwise use saved
+      const effectiveColors = draftTheme?.draftColors || savedColors;
+      setLocalColors(effectiveColors);
       initialLoadDone.current = true;
+      // If draft exists, mark as having changes
+      if (draftTheme?.draftColors) {
+        setHasChanges(true);
+      }
     }
-  }, [savedColors]);
+  }, [savedColors, draftTheme?.draftColors]);
 
-  // NO AUTO-SAVE: Colors only update local state and optionally notify parent
-  // Changes are saved when user clicks "Salvar" in the builder toolbar
+  // Update draft for REAL-TIME PREVIEW without saving to database
   const handleColorChange = (id: keyof ThemeColors, value: string) => {
     setLocalColors(prev => {
       const updated = { ...prev, [id]: value };
       setHasChanges(true);
-      // Notify parent component to mark builder as dirty
-      if (onColorsChange) {
-        onColorsChange(updated);
+      // Update draft state for real-time preview in builder canvas
+      if (draftTheme) {
+        draftTheme.setDraftColors(updated);
       }
       return updated;
     });
@@ -216,12 +221,12 @@ export function ColorsSettings({ tenantId, templateSetId, onColorsChange }: Colo
       {hasChanges && (
         <div className="flex items-center gap-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded text-xs text-amber-700 dark:text-amber-300">
           <AlertCircle className="h-4 w-4 shrink-0" />
-          <span>Alterações pendentes. Clique em <strong>Salvar</strong> para aplicar.</span>
+          <span>Alterações pendentes. Clique em <strong>Salvar</strong> na barra superior para aplicar.</span>
         </div>
       )}
       
       <p className="text-xs text-muted-foreground">
-        Configure as cores dos botões e textos. Clique em "Salvar" para aplicar as alterações.
+        Configure as cores dos botões e textos. As alterações aparecem em tempo real no preview.
       </p>
 
       {/* Button Primary */}
@@ -346,7 +351,7 @@ export function ColorsSettings({ tenantId, templateSetId, onColorsChange }: Colo
       </div>
 
       <p className="text-[10px] text-muted-foreground text-center">
-        {hasChanges ? '⚠️ Alterações pendentes - clique em Salvar' : '✓ Cores sincronizadas com o tema'}
+        {hasChanges ? '⚠️ Alterações pendentes - clique em Salvar na barra superior' : '✓ Cores sincronizadas com o tema'}
       </p>
     </div>
   );

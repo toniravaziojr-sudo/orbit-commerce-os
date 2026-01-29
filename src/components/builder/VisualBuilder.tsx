@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 import { useBuilderStore } from '@/hooks/useBuilderStore';
 import { useBuilderData } from '@/hooks/useBuilderData';
 import { useTemplateSetSave } from '@/hooks/useTemplateSetSave';
@@ -43,6 +44,7 @@ import { useBuilderThemeInjector } from '@/hooks/useBuilderThemeInjector';
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { CanvasEditorProvider } from './CanvasEditorContext';
 import { CanvasRichTextProvider } from './CanvasRichTextContext';
+import { BuilderDraftThemeProvider, useBuilderDraftTheme, getGlobalDraftThemeRef, DraftThemeRefSync } from '@/hooks/useBuilderDraftTheme';
 
 // Isolation modes for debugging React #300
 type IsolateMode = 'app' | 'visual' | 'canvas' | 'blocks' | 'blocks-real' | 'full';
@@ -86,6 +88,15 @@ function VisualIsolationUI({ mode, message }: { mode: string; message: string })
       </div>
     </div>
   );
+}
+
+// Wrapper component to access draft theme context and combine with store isDirty
+function BuilderToolbarWithDraftCheck(props: Omit<React.ComponentProps<typeof BuilderToolbar>, 'isDirty'> & { storeIsDirty: boolean }) {
+  const draftTheme = useBuilderDraftTheme();
+  const { storeIsDirty, ...toolbarProps } = props;
+  // Combine store dirty state with draft theme changes
+  const isDirty = storeIsDirty || (draftTheme?.hasDraftChanges ?? false);
+  return <BuilderToolbar {...toolbarProps} isDirty={isDirty} />;
 }
 
 export function VisualBuilder({
@@ -399,10 +410,12 @@ export function VisualBuilder({
   }, [pageType, contentWithGlobalLayout, layoutLoading, overridesLoading, store, store.isDirty, globalLayout, isCheckoutPage]);
 
 
-  // Warn before leaving with unsaved changes
+  // Warn before leaving with unsaved changes (includes theme settings drafts)
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (store.isDirty) {
+      const draftTheme = getGlobalDraftThemeRef();
+      const hasPendingChanges = store.isDirty || draftTheme?.hasDraftChanges;
+      if (hasPendingChanges) {
         e.preventDefault();
         e.returnValue = '';
         return '';
@@ -482,10 +495,53 @@ export function VisualBuilder({
   // page_template is treated as 'page' entity but saved directly to page_templates table
   const entityType = (pageType === 'institutional' || pageType === 'landing_page' || pageType === 'page_template') ? 'page' : 'template';
 
+  // Note: Draft theme context is accessed via global ref because handleSave
+  // is defined before the provider wraps the component
+
   // Handle saving draft - save global Header/Footer ONLY from Home page
+  // Also saves any pending theme settings (colors, typography) from draft state
   const handleSave = useCallback(async () => {
     try {
-      // Extract Header/Footer from current content
+      // STEP 1: Save pending theme settings (colors, typography) if draft exists
+      // Access via global ref since we're outside the provider context
+      const draftTheme = getGlobalDraftThemeRef();
+      if (draftTheme?.hasDraftChanges && templateSetId) {
+        const pendingChanges = draftTheme.getPendingChanges();
+        
+        if (pendingChanges) {
+          const { data: current } = await supabase
+            .from('storefront_template_sets')
+            .select('draft_content')
+            .eq('id', templateSetId)
+            .single();
+          
+          const draftContent = (current?.draft_content as Record<string, unknown>) || {};
+          const currentThemeSettings = (draftContent.themeSettings as Record<string, unknown>) || {};
+          
+          const updatedThemeSettings = {
+            ...currentThemeSettings,
+            ...pendingChanges,
+          };
+          
+          const updatedDraftContent = {
+            ...draftContent,
+            themeSettings: updatedThemeSettings,
+          };
+          
+          await supabase
+            .from('storefront_template_sets')
+            .update({ 
+              draft_content: updatedDraftContent as unknown as Json,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', templateSetId);
+          
+          // Clear draft state after successful save
+          draftTheme.clearDraft();
+        }
+      }
+
+      // STEP 2: Extract Header/Footer from current content
       const { header, footer } = extractHeaderFooter(store.content);
       
       // GOVERNANCE: Only save global Header/Footer from Home page
@@ -922,6 +978,8 @@ export function VisualBuilder({
   }
 
   return (
+    <BuilderDraftThemeProvider>
+    <DraftThemeRefSync />
     <CanvasRichTextProvider onBlockSelect={store.selectBlock}>
     <CanvasEditorProvider>
     <>
@@ -944,15 +1002,15 @@ export function VisualBuilder({
       }}
     >
     <div className="h-screen w-screen flex flex-col bg-muted/30 overflow-hidden fixed inset-0 z-50">
-      {/* Toolbar */}
-      <BuilderToolbar
+      {/* Toolbar - wrapped to access draft theme context for isDirty */}
+      <BuilderToolbarWithDraftCheck
         pageTitle={pageTypeLabels[pageType] || pageType}
         pageType={pageType}
         pageId={pageId}
         tenantSlug={context.tenantSlug}
         pageSlug={pageSlug}
         templateSetId={templateSetId}
-        isDirty={store.isDirty}
+        storeIsDirty={store.isDirty}
         isPreviewMode={isPreviewMode}
         isInteractMode={isInteractMode}
         canUndo={store.canUndo}
@@ -1148,5 +1206,6 @@ export function VisualBuilder({
     </>
     </CanvasEditorProvider>
     </CanvasRichTextProvider>
+    </BuilderDraftThemeProvider>
   );
 }
