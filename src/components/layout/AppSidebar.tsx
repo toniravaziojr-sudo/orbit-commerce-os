@@ -151,7 +151,7 @@ const fullNavigation: NavGroup[] = [
     items: [
       { title: "Notificações", href: "/notifications", icon: Bell },
       { title: "Atendimento", href: "/support", icon: MessageSquare, blockedFeature: "support_chat" },
-      { title: "Emails", href: "/emails", icon: Mail },
+      { title: "Emails", href: "/emails", icon: Mail, blockedFeature: "emails" },
       { title: "Avaliações", href: "/reviews", icon: Star },
     ],
   },
