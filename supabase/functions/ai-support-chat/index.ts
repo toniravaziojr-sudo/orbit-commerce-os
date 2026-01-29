@@ -783,8 +783,15 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       let usedModel = aiModel;
       const modelsToTry = [aiModel, ...OPENAI_MODELS.filter(m => m !== aiModel)];
 
+      let lastErrorText = "";
       for (const modelToTry of modelsToTry) {
         try {
+          // GPT-5 models use max_completion_tokens instead of max_tokens
+          const isGpt5Model = modelToTry.startsWith("gpt-5");
+          const tokenParams = isGpt5Model 
+            ? { max_completion_tokens: 1024 }
+            : { max_tokens: 1024 };
+
           response = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -794,7 +801,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             body: JSON.stringify({
               model: modelToTry,
               messages: aiMessages,
-              max_tokens: 1024,
+              ...tokenParams,
               temperature: 0.7,
             }),
           });
@@ -806,17 +813,23 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
             break;
           }
 
-          const errorText = await response.text();
-          console.warn(`[ai-support-chat] Model ${modelToTry} failed:`, response.status, errorText);
+          lastErrorText = await response.text();
+          console.warn(`[ai-support-chat] Model ${modelToTry} failed:`, response.status, lastErrorText);
           
-          if (response.status !== 404) break;
+          // Reset response so we try next model
+          if (response.status === 404 || response.status === 400) {
+            response = null;
+            continue;
+          }
+          break;
         } catch (fetchError) {
           console.error(`[ai-support-chat] Fetch error for ${modelToTry}:`, fetchError);
+          response = null;
         }
       }
 
       if (!response || !response.ok) {
-        const errorText = response ? await response.text() : "No response";
+        const errorText = lastErrorText || "No response";
         console.error("[ai-support-chat] OpenAI API error:", response?.status, errorText);
         
         if (response?.status === 429) {
