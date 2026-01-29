@@ -103,6 +103,7 @@ export function MetaUnifiedSettings() {
   const [selectedPacks, setSelectedPacks] = useState<MetaScopePack[]>(["whatsapp"]);
   const [showTestConfig, setShowTestConfig] = useState(false);
   const [testPhone, setTestPhone] = useState("");
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   
   // Test mode temporary credentials
   const [testCredentials, setTestCredentials] = useState({
@@ -243,9 +244,30 @@ export function MetaUnifiedSettings() {
     },
   });
 
-  // Show loading only on initial load, NOT during OAuth popup (isConnecting)
-  // This prevents the gray screen when the OAuth popup is open
-  if (isLoading && !isConnecting) {
+  // REGRA: NUNCA mostrar loader de tela cheia durante OAuth
+  // O isLoading fica true quando invalidamos queries, mas não podemos bloquear a UI
+  // Marcamos quando o load inicial completou para nunca mais bloquear a UI
+  useEffect(() => {
+    if (!isLoading && !initialLoadComplete) {
+      setInitialLoadComplete(true);
+    }
+  }, [isLoading, initialLoadComplete]);
+  
+  // Só mostra loader na carga inicial, NUNCA após isso
+  // Isso evita tela cinza durante OAuth ou refetch
+  if (isLoading && !initialLoadComplete) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  // Só mostra loader na carga inicial, NUNCA após isso
+  // Isso evita tela cinza durante OAuth ou refetch
+  if (isLoading && !initialLoadComplete) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-12">
