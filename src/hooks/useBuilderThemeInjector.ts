@@ -190,32 +190,35 @@ export function useBuilderThemeInjector(
         font-family: var(--sf-body-font);
       }
 
-      /* Theme-aware button styles for builder preview - !important to override Tailwind hover classes */
-      .builder-preview-canvas .sf-btn-primary,
-      .storefront-container .sf-btn-primary,
-      .sf-btn-primary {
+      /* Theme-aware button styles for builder preview - HIGH SPECIFICITY to override Tailwind */
+      /* Using button.sf-btn-primary to beat Tailwind's hover:bg-primary/90 specificity */
+      button.sf-btn-primary,
+      .builder-preview-canvas button.sf-btn-primary,
+      .storefront-container button.sf-btn-primary {
         background-color: var(--theme-button-primary-bg) !important;
         color: var(--theme-button-primary-text) !important;
-        transition: background-color 0.2s ease, color 0.2s ease;
+        transition: background-color 0.2s ease, color 0.2s ease !important;
       }
-      .builder-preview-canvas .sf-btn-primary:hover,
-      .storefront-container .sf-btn-primary:hover,
-      .sf-btn-primary:hover {
+      button.sf-btn-primary:hover,
+      .builder-preview-canvas button.sf-btn-primary:hover,
+      .storefront-container button.sf-btn-primary:hover {
         background-color: var(--theme-button-primary-hover) !important;
         color: var(--theme-button-primary-text) !important;
+        opacity: 1 !important;
       }
-      .builder-preview-canvas .sf-btn-secondary,
-      .storefront-container .sf-btn-secondary,
-      .sf-btn-secondary {
+      button.sf-btn-secondary,
+      .builder-preview-canvas button.sf-btn-secondary,
+      .storefront-container button.sf-btn-secondary {
         background-color: var(--theme-button-secondary-bg) !important;
         color: var(--theme-button-secondary-text) !important;
-        transition: background-color 0.2s ease, color 0.2s ease;
+        transition: background-color 0.2s ease, color 0.2s ease !important;
       }
-      .builder-preview-canvas .sf-btn-secondary:hover,
-      .storefront-container .sf-btn-secondary:hover,
-      .sf-btn-secondary:hover {
+      button.sf-btn-secondary:hover,
+      .builder-preview-canvas button.sf-btn-secondary:hover,
+      .storefront-container button.sf-btn-secondary:hover {
         background-color: var(--theme-button-secondary-hover) !important;
         color: var(--theme-button-secondary-text) !important;
+        opacity: 1 !important;
       }
       
       /* Special tag colors - theme-based classes */
