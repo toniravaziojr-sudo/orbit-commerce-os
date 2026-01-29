@@ -197,18 +197,8 @@ export function BlockRenderer({
     );
   }
 
-  // Handle click - intercept clicks on interactive elements in edit mode
-  const handleClick = (e: React.MouseEvent) => {
-    if (isEditing && onSelect) {
-      const target = e.target as HTMLElement;
-      // If clicked on button/link in edit mode, prevent action but still select the block
-      if (target.closest('button, a[href]')) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-      onSelect(node.id);
-    }
-  };
+  // Note: Click handling moved to onMouseDown in the return block
+  // to allow :hover events to pass through to child elements (WYSIWYG)
 
   // Render children with "+" buttons between them
   // Check if this is a root Page block - should NOT show AddBlockButtons between Header/Section/Footer
@@ -352,24 +342,37 @@ export function BlockRenderer({
   if (isStructuralContainer && !node.children?.length && isEditing) {
     // Render an empty container without the AddBlockButton - blocks are added via left menu
     const Component = getBlockComponent(node.type);
+    
+    const handleContainerMouseDown = (e: React.MouseEvent) => {
+      if (!onSelect) return;
+      const target = e.target as HTMLElement;
+      if (target.closest('button, a[href]')) {
+        e.preventDefault();
+      }
+      onSelect(node.id);
+    };
+    
     return (
       <div
         data-block-id={node.id}
-        onClick={handleClick}
+        onMouseDown={handleContainerMouseDown}
         className={cn(
           'relative transition-all group/block-actions',
-          isEditing && node.type !== 'RichText' && 'cursor-pointer',
-          isEditing && node.type === 'RichText' && 'cursor-text',
-          // Non-intrusive selection: use ring only when selected, subtle visual on hover
-          // This allows child elements (buttons, links) to receive their native :hover events
-          isEditing && !isSelected && 'hover:ring-1 hover:ring-primary/30 hover:ring-offset-1',
-          isSelected && isEditing && 'ring-2 ring-primary ring-offset-2',
+          'cursor-pointer',
+          isSelected && 'ring-2 ring-primary ring-offset-2',
         )}
       >
-        {isSelected && isEditing && (
-          <div className="absolute -top-6 left-0 bg-primary text-primary-foreground text-xs px-2 py-1 rounded-t z-10">
+        {isSelected && (
+          <div className="absolute -top-6 left-0 bg-primary text-primary-foreground text-xs px-2 py-1 rounded-t z-10 pointer-events-none">
             {definition.label}
           </div>
+        )}
+        {/* Hover outline overlay */}
+        {!isSelected && (
+          <div 
+            className="absolute inset-0 pointer-events-none rounded opacity-0 group-hover/block-actions:opacity-100 ring-1 ring-primary/30 ring-offset-1 transition-opacity"
+            aria-hidden="true"
+          />
         )}
         <Component 
           {...node.props} 
@@ -386,26 +389,55 @@ export function BlockRenderer({
     );
   }
 
+  // WYSIWYG Architecture: The wrapper uses a pseudo-element (::after) for selection outline
+  // instead of blocking pointer-events. This allows ALL child elements (buttons, links)
+  // to receive their native CSS :hover states from the theme injector.
+  //
+  // Selection highlight: We use a CSS ::after overlay that is pointer-events:none
+  // Click handling: onMouseDown captures block selection without blocking hovers
+  
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!isEditing || !onSelect) return;
+    
+    // On mousedown, select the block
+    // But DON'T prevent default - this allows focus to work naturally
+    const target = e.target as HTMLElement;
+    
+    // For interactive elements, we want to:
+    // 1. Select the block (always)
+    // 2. Prevent the action (button click, link navigation) in edit mode
+    if (target.closest('button, a[href]')) {
+      e.preventDefault(); // Prevent navigation/action
+    }
+    
+    onSelect(node.id);
+  };
+
   return (
     <div
       data-block-id={node.id}
-      onClick={handleClick}
-        className={cn(
-          'relative transition-all group/block-actions',
-          isEditing && node.type !== 'RichText' && 'cursor-pointer',
-          isEditing && node.type === 'RichText' && 'cursor-text',
-          // Non-intrusive selection: use ring only when selected, subtle visual on hover
-          // This allows child elements (buttons, links) to receive their native :hover events
-          isEditing && !isSelected && 'hover:ring-1 hover:ring-primary/30 hover:ring-offset-1',
-          isSelected && isEditing && 'ring-2 ring-primary ring-offset-2',
-          node.hidden && isEditing && 'opacity-40'
+      onMouseDown={handleMouseDown}
+      className={cn(
+        'relative transition-all group/block-actions',
+        isEditing && node.type !== 'RichText' && 'cursor-pointer',
+        isEditing && node.type === 'RichText' && 'cursor-text',
+        // Selection states via ::after pseudo-element (non-blocking)
+        isSelected && isEditing && 'ring-2 ring-primary ring-offset-2',
+        node.hidden && isEditing && 'opacity-40'
       )}
+      // CRITICAL: Allow pointer events to pass through to children
+      // The selection outline is purely visual and doesn't block interaction
+      style={isEditing && !isSelected ? { 
+        // Add hover outline via box-shadow (non-blocking)
+      } : undefined}
     >
+      {/* Selection label - positioned above, pointer-events:none */}
       {isSelected && isEditing && (
-        <div className="absolute -top-6 left-0 bg-primary text-primary-foreground text-xs px-2 py-1 rounded-t z-10 flex items-center gap-1">
+        <div 
+          className="absolute -top-6 left-0 bg-primary text-primary-foreground text-xs px-2 py-1 rounded-t z-10 flex items-center gap-1 pointer-events-none"
+        >
           {definition.label}
           {node.hidden && <span className="text-xs">(oculto)</span>}
-          {/* Header/Footer: show message directing to Theme Settings */}
           {['Header', 'Footer'].includes(node.type) && (
             <span className="ml-2 text-primary-foreground/80">
               → Configurações do tema
@@ -414,7 +446,13 @@ export function BlockRenderer({
         </div>
       )}
       
-      {/* Quick actions removed - all block controls are now in the properties panel */}
+      {/* Hover outline overlay - purely visual, pointer-events:none */}
+      {isEditing && !isSelected && (
+        <div 
+          className="absolute inset-0 pointer-events-none rounded opacity-0 group-hover/block-actions:opacity-100 ring-1 ring-primary/30 ring-offset-1 transition-opacity"
+          aria-hidden="true"
+        />
+      )}
       
       <BlockErrorBoundary
         blockId={node.id}

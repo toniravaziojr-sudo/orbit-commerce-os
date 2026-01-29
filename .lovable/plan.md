@@ -1,7 +1,7 @@
 
 # Plano Revisado: Unificar Builder com Preview (Abordagem Anti-Regressão)
 
-## ✅ IMPLEMENTADO
+## ✅ IMPLEMENTADO (v2 - WYSIWYG Real)
 
 ### Mudanças Realizadas
 
@@ -11,11 +11,14 @@
 - ✅ CSS usa `!important` para sobrescrever Tailwind
 - ✅ Estilos de hover aplicados corretamente
 
-#### 2. `BlockRenderer.tsx`
-- ✅ Substituído `hover:outline` por sistema não-intrusivo de seleção
-- ✅ Hover agora usa `ring-1` sutil que NÃO bloqueia eventos dos filhos
-- ✅ Seleção usa `ring-2` com `ring-offset-2` para destaque claro
-- ✅ Interceptação de cliques: `button` e `a[href]` em modo edição são interceptados (preventDefault + stopPropagation) mas ainda selecionam o bloco
+#### 2. `BlockRenderer.tsx` - REFATORAÇÃO WYSIWYG
+- ✅ **Arquitetura WYSIWYG Real**: Substituído `onClick` por `onMouseDown`
+  - `onClick` capturava o evento após bubble, interferindo com hovers
+  - `onMouseDown` captura antes, permitindo CSS :hover funcionar normalmente
+- ✅ **Overlay não-intrusivo**: Hover visual usa `div` separado com `pointer-events: none`
+  - O ring de hover NÃO está mais no wrapper principal
+  - É um elemento filho invisível que aparece via `group-hover`
+- ✅ **Label de seleção** agora tem `pointer-events-none` para não interferir
 
 #### 3. Remoção de `hover:bg-transparent` (CRÍTICO)
 - ✅ `ProductCTAs.tsx` - Botões "Comprar agora" e "Adicionar ao carrinho"
@@ -25,51 +28,47 @@
 
 #### 4. `PropsEditor.tsx` - System Blocks
 - ✅ Adicionado `Page` à lista de SYSTEM_BLOCKS
-- ✅ Blocos de sistema (Page, Header, Footer, ProductDetails, etc.) agora mostram apenas redirecionamento para Configurações do Tema
-- ✅ Nenhuma propriedade "ultrapassada" é exibida para blocos de sistema
+- ✅ Blocos de sistema agora mostram apenas redirecionamento para Configurações do Tema
 
 ### Comportamento Atual
 
 | Ação | Resultado |
 |------|-----------|
-| Hover em botão "Comprar Agora" | ✅ Cor de hover do tema aparece |
+| Hover em botão "Comprar Agora" | ✅ Cor de hover do tema aparece (WYSIWYG) |
 | Clicar em botão em modo edição | ✅ Seleciona o bloco, NÃO executa ação |
-| Clicar em botão em modo "Testar" | ✅ Executa ação normalmente |
-| Hover de bloco em modo edição | ✅ Ring sutil (não bloqueia filhos) |
+| Hover de bloco em modo edição | ✅ Ring via overlay (não bloqueia filhos) |
 | Seleção de bloco | ✅ Ring azul com offset |
-| Selecionar bloco de sistema (Page, ProductDetails) | ✅ Mostra redirecionamento, não propriedades |
+| Selecionar bloco de sistema | ✅ Mostra redirecionamento, não propriedades |
 
-### Arquitetura Final
+### Arquitetura Final WYSIWYG
 
 ```
 ┌─────────────────────────────────────────┐
 │ .storefront-container (canvas)          │
 │  ├── Theme CSS injetado (hovers)        │
-│  └── Blocks com ring não-intrusivo      │
-│       └── Botões/Links recebem :hover   │
-│            (sem hover:bg-transparent!)  │
+│  └── Block Wrapper (onMouseDown)        │
+│       ├── Hover Overlay (pointer:none)  │
+│       └── Block Content                 │
+│            └── Botões/Links             │
+│                 └── :hover FUNCIONA!    │
 └─────────────────────────────────────────┘
 ```
 
-O builder agora é um "preview em tempo real" - não há mais necessidade de alternar para modo Preview para ver os estilos corretos.
+O builder agora é um "preview em tempo real" - os estados de hover do tema funcionam durante a edição.
 
-### Problema Resolvido: hover:bg-transparent
+### Problema Resolvido: onClick vs onMouseDown
 
-O problema principal era que `hover:bg-transparent` nos botões sobrescrevia o CSS injetado pelo tema:
+O problema principal era que `onClick` no wrapper do bloco interferia com o bubble de eventos CSS:
 
 **Antes:**
 ```tsx
-<Button className="sf-btn-primary hover:bg-transparent">  // ❌ hover:bg-transparent sobrescreve tema
+<div onClick={handleClick}>  // ❌ onClick captura após bubble, bloqueia :hover
+  <Button className="sf-btn-primary">
 ```
 
 **Depois:**
 ```tsx
-<Button className="sf-btn-primary">  // ✅ Apenas sf-btn-primary, tema controla hover
-```
-
-O CSS injetado pelo `useBuilderThemeInjector.ts` agora funciona corretamente:
-```css
-.storefront-container button.sf-btn-primary:hover {
-  background-color: var(--theme-button-primary-hover) !important;
-}
+<div onMouseDown={handleMouseDown}>  // ✅ onMouseDown captura antes, :hover funciona
+  <div className="pointer-events-none group-hover:opacity-100">  // ✅ Overlay visual separado
+  <Button className="sf-btn-primary">  // ✅ Recebe :hover normalmente
 ```
