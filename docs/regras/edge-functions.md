@@ -146,3 +146,39 @@ function normalizeEmail(email: string): string {
 - [ ] Nomes de colunas validados contra schema
 - [ ] Emails normalizados
 - [ ] Tenant-scoped
+
+---
+
+## OpenAI API — Parâmetros por Modelo
+
+| Modelo | Parâmetro de Tokens | Temperature |
+|--------|---------------------|-------------|
+| `gpt-4o`, `gpt-4-turbo` | `max_tokens` | `0-2` |
+| `gpt-5`, `gpt-5.2` | `max_completion_tokens` | `0-2` |
+| `gpt-5-mini`, `gpt-5-nano` | `max_completion_tokens` | `1` (fixo!) |
+
+```typescript
+// ✅ CORRETO: Detectar modelo e usar parâmetro apropriado
+const isGpt5Model = model.startsWith("gpt-5");
+const tokenParams = isGpt5Model 
+  ? { max_completion_tokens: 1024 }
+  : { max_tokens: 1024 };
+```
+
+### Fallback entre Modelos
+
+```typescript
+// ✅ CORRETO: Armazenar erro antes de tentar próximo modelo
+let lastErrorText = "";
+for (const modelToTry of modelsToTry) {
+  response = await fetch(...);
+  if (response.ok) break;
+  
+  lastErrorText = await response.text(); // Ler apenas uma vez
+  response = null; // Resetar para próximo modelo
+}
+
+// ❌ ERRADO: Causa "Body already consumed"
+// await response.text() // Primeira vez
+// await response.text() // ERRO!
+```
