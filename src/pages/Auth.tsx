@@ -113,6 +113,17 @@ export default function Auth() {
         return;
       }
       
+      // Verificar se é um signup via Google (novo usuário)
+      // O oauth_intent ainda pode estar no localStorage se acabou de retornar do OAuth
+      const oauthIntent = localStorage.getItem('oauth_intent');
+      if (oauthIntent === 'signup') {
+        // Não limpar aqui - deixar o useAuth lidar
+        // Redirecionar direto para /start para criar loja
+        console.log('[Auth] Google signup detected - redirecting to /start');
+        navigate('/start', { replace: true });
+        return;
+      }
+      
       // Se tem plano salvo, redirecionar para billing
       const storedPlan = sessionStorage.getItem('selected_plan');
       if (storedPlan) {

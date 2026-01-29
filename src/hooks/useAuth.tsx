@@ -160,10 +160,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Função para verificar e bloquear login de usuários novos via OAuth
   const handleOAuthLoginValidation = async (userId: string): Promise<boolean> => {
     const oauthIntent = localStorage.getItem('oauth_intent');
-    localStorage.removeItem('oauth_intent'); // Limpar após uso
     
     // Se a intenção era LOGIN (não signup), verificar se usuário tem conta
     if (oauthIntent === 'login') {
+      localStorage.removeItem('oauth_intent'); // Limpar apenas para login
+      
       const { data: roles } = await supabase
         .from('user_roles')
         .select('id')
@@ -179,6 +180,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false;
       }
     }
+    // NÃO limpar oauth_intent para 'signup' aqui - deixar o Auth.tsx ler e redirecionar para /start
+    // O intent será limpo após o redirecionamento
     return true;
   };
 
