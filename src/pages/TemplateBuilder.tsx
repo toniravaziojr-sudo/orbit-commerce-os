@@ -38,6 +38,22 @@ export default function TemplateBuilder() {
     enabled: !!templateId && !!currentTenant?.id,
   });
 
+  // CRITICAL: Fetch active templateSetId for theme injection
+  // Without this, useBuilderThemeInjector falls back to defaults
+  const { data: activeTemplateSetId } = useQuery({
+    queryKey: ['active-template-set-id', currentTenant?.id],
+    queryFn: async () => {
+      if (!currentTenant?.id) return null;
+      const { data } = await supabase
+        .from('store_settings')
+        .select('published_template_id')
+        .eq('tenant_id', currentTenant.id)
+        .maybeSingle();
+      return data?.published_template_id || null;
+    },
+    enabled: !!currentTenant?.id,
+  });
+
   // Fetch header menu for editor context
   const { data: headerMenuData } = useQuery({
     queryKey: ['editor-header-menu', currentTenant?.id],
@@ -170,6 +186,7 @@ export default function TemplateBuilder() {
       pageSlug={template.slug}
       initialContent={template.content as unknown as BlockNode}
       context={context}
+      templateSetId={activeTemplateSetId || undefined}
     />
   );
 }
