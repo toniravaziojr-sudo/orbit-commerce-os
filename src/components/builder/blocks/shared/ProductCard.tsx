@@ -99,12 +99,12 @@ export function ProductCard({
   const hasDiscount = product.compare_at_price && product.compare_at_price > product.price;
   
   // Container principal com link
+  // WYSIWYG: Permitir hover effects mesmo em modo de edição (pointer-events removido)
   const CardWrapper = ({ children }: { children: React.ReactNode }) => {
     if (isEditing) {
       return (
         <div className={cn(
           'group block bg-card rounded-lg overflow-hidden border transition-shadow hover:shadow-md',
-          'pointer-events-none',
           className
         )}>
           {children}

@@ -2,6 +2,71 @@
 
 > **Status:** CONCLUÍDO E PROTEGIDO ✅ — Qualquer alteração estrutural requer aprovação do usuário.
 
+---
+
+## 🎯 WYSIWYG Unificado (Regra Principal)
+
+O Storefront Builder opera em **um único modo**: o próprio editor É o preview/teste. Não existem modos separados.
+
+### Princípio Fundamental
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    BUILDER = PREVIEW = TESTE                             │
+├─────────────────────────────────────────────────────────────────────────┤
+│  • Não existem modos "Editar", "Preview" ou "Testar"                    │
+│  • O canvas reflete alterações em tempo real durante a edição           │
+│  • Interações funcionais (hover, cliques) estão habilitadas por padrão  │
+│  • O usuário vê exatamente o que o cliente final verá                   │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Arquitetura de Eventos
+
+Para permitir que hovers e interações funcionem durante a edição, o `BlockRenderer.tsx` utiliza `onMouseDown` (não `onClick`) para seleção de blocos:
+
+```tsx
+// ✅ CORRETO - onMouseDown permite :hover funcionar
+<div onMouseDown={handleMouseDown}>
+  <Button className="sf-btn-primary"> // Recebe :hover normalmente
+</div>
+
+// ❌ ERRADO - onClick bloqueia :hover durante bubble
+<div onClick={handleClick}>
+  <Button className="sf-btn-primary">
+</div>
+```
+
+### Regras de Interatividade
+
+| Componente | Comportamento no Builder |
+|------------|--------------------------|
+| Botões com `sf-btn-*` | Hover effects funcionam (CSS injetado) |
+| Links internos | Navegação bloqueada, hover funciona |
+| Cards de produto | Hover effects funcionam, clique seleciona bloco |
+| Inputs/Forms | Interação real habilitada |
+| Carrossel | Navegação funcional |
+
+### Proibições
+
+| Proibido | Motivo |
+|----------|--------|
+| Criar "Modo Preview" separado | Viola princípio WYSIWYG unificado |
+| Criar "Modo Testar" separado | Viola princípio WYSIWYG unificado |
+| Usar `pointer-events-none` em wrappers de bloco | Bloqueia hover effects |
+| Usar `onClick` para seleção de blocos | Interfere com bubble de eventos CSS |
+
+### Arquivos Relacionados
+
+| Arquivo | Responsabilidade |
+|---------|------------------|
+| `BlockRenderer.tsx` | Wrapper com `onMouseDown` + overlay non-blocking |
+| `useBuilderThemeInjector.ts` | Injeção de CSS de hover em `.storefront-container` |
+| `ProductCard.tsx` | Card sem `pointer-events-none` para permitir hovers |
+| `ProductCTAs.tsx` | Botões funcionais mesmo em modo edição |
+
+---
+
 ## Arquitetura Builder vs Storefront Público
 
 ```
