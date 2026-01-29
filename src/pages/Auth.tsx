@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -69,19 +69,21 @@ export default function Auth() {
   });
   const [loginError, setLoginError] = useState<string | null>(null);
   
-  // LATCH PATTERN: Após primeira renderização, não mostrar loader de tela cheia
-  // Isso evita tela cinza quando Google Tradutor causa remontagem
-  const [initialRenderComplete, setInitialRenderComplete] = useState(
-    sessionStorage.getItem('auth_page_rendered') === 'true'
+  // LATCH PATTERN: Usar variável de módulo global para evitar loader após primeira renderização
+  // Isso é mais robusto que sessionStorage pois é imediatamente acessível
+  const authPageRenderedRef = useRef(
+    typeof window !== 'undefined' && sessionStorage.getItem('auth_page_rendered') === 'true'
   );
+  const [initialRenderComplete, setInitialRenderComplete] = useState(authPageRenderedRef.current);
   
   // Marcar que a página já renderizou pelo menos uma vez
   useEffect(() => {
-    if (!authLoading && !initialRenderComplete) {
+    if (!authLoading && !authPageRenderedRef.current) {
+      authPageRenderedRef.current = true;
       sessionStorage.setItem('auth_page_rendered', 'true');
       setInitialRenderComplete(true);
     }
-  }, [authLoading, initialRenderComplete]);
+  }, [authLoading]);
   
   // Detectar modo convite (usuário convidado não cria loja)
   const isInviteMode = !!sessionStorage.getItem('pending_invite_token');
