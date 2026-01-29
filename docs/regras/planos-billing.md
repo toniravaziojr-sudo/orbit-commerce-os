@@ -476,15 +476,43 @@ Isso permite que o usuário comece a usar a plataforma imediatamente, com incent
 
 Módulos bloqueados devem ser visíveis mas não utilizáveis. Usar:
 
-### `ModuleGate` Component
+### `ModuleGate` Component (Módulo Inteiro)
 ```tsx
 <ModuleGate 
-  moduleKey="marketing_advanced" 
+  moduleKey="marketing_avancado" 
   blockedMode="blur" 
   moduleName="Marketing Avançado"
 >
   <MarketingAdvancedPage />
 </ModuleGate>
+```
+
+### `GatedRoute` Component (Rotas de Módulos)
+```tsx
+// Em App.tsx - para módulos totalmente bloqueados
+<Route path="/campaigns" element={
+  <GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado">
+    <Campaigns />
+  </GatedRoute>
+} />
+```
+
+### `FeatureGatedRoute` Component (Funcionalidades dentro de Módulos)
+**IMPORTANTE:** Para cenários de acesso **parcial** onde o módulo está acessível
+mas funcionalidades específicas estão bloqueadas (ex: Blog tem acesso, mas ai_campaigns não).
+
+```tsx
+// Em App.tsx - para features específicas bloqueadas
+<Route path="/blog/campaigns" element={
+  <FeatureGatedRoute 
+    moduleKey="blog" 
+    featureKey="ai_campaigns" 
+    featureName="Campanhas IA"
+    featureDescription="Crie campanhas de blog com IA"
+  >
+    <BlogCampaigns />
+  </FeatureGatedRoute>
+} />
 ```
 
 ### Modos de Bloqueio
@@ -493,8 +521,9 @@ Módulos bloqueados devem ser visíveis mas não utilizáveis. Usar:
 | `hide` | Esconde completamente (para menus) |
 | `blur` | Mostra preview borrado com CTA de upgrade |
 | `prompt` | Mostra apenas o prompt de upgrade |
+| `preview` | Mostra conteúdo com overlay bloqueador (padrão para rotas) |
 
-### `FeatureGate` com CTA
+### `FeatureGate` com CTA (Elementos Inline)
 ```tsx
 <FeatureGate 
   feature="whatsapp" 
@@ -503,6 +532,22 @@ Módulos bloqueados devem ser visíveis mas não utilizáveis. Usar:
 >
   <WhatsAppIntegration />
 </FeatureGate>
+```
+
+### Regra Crítica de Proteção de Rotas
+
+**TODAS** as rotas de funcionalidades bloqueadas por plano DEVEM usar:
+- `GatedRoute` para módulos com `access_level = 'none'`
+- `FeatureGatedRoute` para features em `blocked_features[]` de módulos parciais
+
+Verificar em `plan_module_access`:
+```sql
+-- Módulos bloqueados (access_level = 'none')
+SELECT * FROM plan_module_access WHERE access_level = 'none';
+
+-- Features bloqueadas em módulos parciais
+SELECT * FROM plan_module_access 
+WHERE access_level = 'partial' AND blocked_features != '[]';
 ```
 
 ---
@@ -650,3 +695,65 @@ O módulo ChatGPT possui limites de uso em USD incluídos por plano:
 | Criar assinatura básica com status `active` | Deve ser `pending_payment_method` |
 | Redirecionar para `/create-store` sem passar por `/start` | Bypass de billing |
 | Criar tenant via RPC com status `active` para plano básico | Causa liberação indevida |
+| Rotas de features bloqueadas sem `FeatureGatedRoute` | Permite uso indevido |
+
+---
+
+## Exclusão Completa de Usuários
+
+Para excluir um usuário completamente do sistema, é necessário:
+
+### Ordem de Exclusão (CASCADE)
+
+1. **Dados do Tenant** (se usuário for owner único):
+   - `store_settings`
+   - `store_pages`
+   - `storefront_template_sets`
+   - `credit_wallet`
+   - `credit_ledger`
+   - Outras tabelas com `tenant_id`
+
+2. **Assinaturas e Roles**:
+   - `tenant_subscriptions`
+   - `user_roles`
+
+3. **Tenant** (se vazio):
+   - `tenants`
+
+4. **Profile**:
+   - `profiles`
+
+5. **Auth User** (via Edge Function):
+   - Chamar `admin-delete-user` edge function
+
+### Edge Function: `admin-delete-user`
+
+```typescript
+// Chamada
+await supabase.functions.invoke('admin-delete-user', {
+  body: { user_id: 'uuid-do-usuario' }
+});
+```
+
+### SQL de Exclusão Manual
+
+```sql
+-- 1. Deletar dados do tenant (se owner único)
+DELETE FROM store_settings WHERE tenant_id = 'TENANT_ID';
+DELETE FROM store_pages WHERE tenant_id = 'TENANT_ID';
+DELETE FROM storefront_template_sets WHERE tenant_id = 'TENANT_ID';
+DELETE FROM credit_wallet WHERE tenant_id = 'TENANT_ID';
+DELETE FROM tenant_subscriptions WHERE tenant_id = 'TENANT_ID';
+DELETE FROM user_roles WHERE tenant_id = 'TENANT_ID';
+
+-- 2. Deletar tenant
+DELETE FROM tenants WHERE id = 'TENANT_ID';
+
+-- 3. Deletar profile
+DELETE FROM profiles WHERE id = 'USER_ID';
+
+-- 4. Deletar auth user (via edge function obrigatório)
+-- Chamar admin-delete-user com user_id
+```
+
+**IMPORTANTE:** A exclusão do auth.users só pode ser feita via Admin API (edge function), não via SQL direto.

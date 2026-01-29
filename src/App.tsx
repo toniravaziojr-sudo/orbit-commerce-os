@@ -318,7 +318,7 @@ const App = () => {
                   {/* Redirect root to command-center */}
                   <Route path="/" element={<Navigate to="/command-center" replace />} />
                   <Route path="/command-center" element={<CommandCenter />} />
-                  <Route path="/chatgpt" element={<ChatGPT />} />
+                  <Route path="/chatgpt" element={<FeatureGatedRoute moduleKey="central" featureKey="assistant" featureName="ChatGPT" featureDescription="Assistente IA para atendimento e suporte"><ChatGPT /></FeatureGatedRoute>} />
                   <Route path="/getting-started" element={<GettingStarted />} />
                   {/* Redirect old executions route to command-center tab */}
                   <Route path="/executions" element={<Navigate to="/command-center?tab=executions" replace />} />
@@ -354,14 +354,14 @@ const App = () => {
                   <Route path="/emails" element={<Emails />} />
                   <Route path="/integrations" element={<Integrations />} />
                   <Route path="/marketplaces" element={<Marketplaces />} />
-                  <Route path="/marketplaces/mercadolivre" element={<MercadoLivre />} />
+                  <Route path="/marketplaces/mercadolivre" element={<FeatureGatedRoute moduleKey="marketplaces" featureKey="mercadolivre" featureName="Mercado Livre" featureDescription="Integração com Mercado Livre"><MercadoLivre /></FeatureGatedRoute>} />
                   <Route path="/marketplaces/shopee" element={<Shopee />} />
                   <Route path="/marketplaces/olist" element={<Olist />} />
                   <Route path="/files" element={<Files />} />
-                  <Route path="/reports" element={<Reports />} />
+                  <Route path="/reports" element={<FeatureGatedRoute moduleKey="central" featureKey="reports" featureName="Relatórios" featureDescription="Relatórios avançados"><Reports /></FeatureGatedRoute>} />
                   
                   <Route path="/marketing" element={<Marketing />} />
-                  <Route path="/marketing/atribuicao" element={<Attribution />} />
+                  <Route path="/marketing/atribuicao" element={<FeatureGatedRoute moduleKey="marketing_basico" featureKey="attribution" featureName="Atribuição de Vendas" featureDescription="Atribuição de vendas por canal"><Attribution /></FeatureGatedRoute>} />
                   <Route path="/email-marketing" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado" moduleDescription="Email Marketing para campanhas"><EmailMarketing /></GatedRoute>} />
                   <Route path="/email-marketing/list/:listId" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado"><EmailMarketingListDetail /></GatedRoute>} />
                   <Route path="/quizzes" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado" moduleDescription="Quizzes interativos"><Quizzes /></GatedRoute>} />
