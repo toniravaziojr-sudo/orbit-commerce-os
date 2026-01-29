@@ -186,12 +186,22 @@ export function CheckoutDemoBlock({
         <div className="flex items-center justify-center gap-2 mb-8 overflow-x-auto pb-2">
           {steps.map((step, index) => (
             <React.Fragment key={step.id}>
-              <div className={cn(
-                "flex items-center gap-2 px-3 py-2 rounded-full text-sm whitespace-nowrap",
-                step.completed && "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-                step.active && "bg-primary text-primary-foreground",
-                !step.completed && !step.active && "bg-muted text-muted-foreground"
-              )}>
+              <div 
+                className={cn(
+                  "flex items-center gap-2 px-3 py-2 rounded-full text-sm whitespace-nowrap",
+                  !step.completed && !step.active && "bg-muted text-muted-foreground"
+                )}
+                style={
+                  step.completed ? { 
+                    backgroundColor: 'color-mix(in srgb, var(--theme-accent-color, #22c55e) 15%, transparent)',
+                    color: 'var(--theme-accent-color, #22c55e)'
+                  } : 
+                  step.active ? { 
+                    backgroundColor: 'var(--theme-button-primary-bg, #1a1a1a)',
+                    color: 'var(--theme-button-primary-text, #ffffff)'
+                  } : undefined
+                }
+              >
                 {step.completed ? (
                   <Check className="h-4 w-4" />
                 ) : (
@@ -212,11 +222,14 @@ export function CheckoutDemoBlock({
         {/* Checkout Form - main column */}
         <div className="space-y-6 min-w-0">
           {/* Contact Info (completed) */}
-          <Card className="border-green-200 dark:border-green-900">
+          <Card style={{ borderColor: 'color-mix(in srgb, var(--theme-accent-color, #22c55e) 30%, transparent)' }}>
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                  <Check className="h-3 w-3 text-green-600" />
+                <div 
+                  className="w-6 h-6 rounded-full flex items-center justify-center"
+                  style={{ backgroundColor: 'color-mix(in srgb, var(--theme-accent-color, #22c55e) 15%, transparent)' }}
+                >
+                  <Check className="h-3 w-3" style={{ color: 'var(--theme-accent-color, #22c55e)' }} />
                 </div>
                 {contactTitle}
               </CardTitle>
@@ -233,11 +246,14 @@ export function CheckoutDemoBlock({
           </Card>
 
           {/* Shipping Address (completed) */}
-          <Card className="border-green-200 dark:border-green-900">
+          <Card style={{ borderColor: 'color-mix(in srgb, var(--theme-accent-color, #22c55e) 30%, transparent)' }}>
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                  <Check className="h-3 w-3 text-green-600" />
+                <div 
+                  className="w-6 h-6 rounded-full flex items-center justify-center"
+                  style={{ backgroundColor: 'color-mix(in srgb, var(--theme-accent-color, #22c55e) 15%, transparent)' }}
+                >
+                  <Check className="h-3 w-3" style={{ color: 'var(--theme-accent-color, #22c55e)' }} />
                 </div>
                 {shippingTitle}
               </CardTitle>
@@ -302,7 +318,11 @@ export function CheckoutDemoBlock({
                             </div>
                             {config.sublabel && (
                               method === 'pix' || method === 'boleto' ? (
-                                <Badge variant="secondary" className="text-green-600 text-xs">
+                                <Badge 
+                                  variant="secondary" 
+                                  className="text-xs sf-tag-success"
+                                  style={{ color: 'var(--theme-accent-color, var(--theme-success-text, #22c55e))' }}
+                                >
                                   {config.sublabel}
                                 </Badge>
                               ) : (
@@ -456,7 +476,7 @@ export function CheckoutDemoBlock({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Frete</span>
-                  <span className="text-green-600 font-medium">Grátis</span>
+                  <span className="font-medium" style={{ color: 'var(--theme-accent-color, #22c55e)' }}>Grátis</span>
                 </div>
               </div>
 
