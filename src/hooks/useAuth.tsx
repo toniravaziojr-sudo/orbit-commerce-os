@@ -291,6 +291,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    // Limpar flags de latch pattern no logout para próxima sessão começar fresh
+    sessionStorage.removeItem('auth_initial_load_complete');
+    sessionStorage.removeItem('auth_page_rendered');
     await supabase.auth.signOut();
   };
 

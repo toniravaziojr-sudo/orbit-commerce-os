@@ -69,6 +69,20 @@ export default function Auth() {
   });
   const [loginError, setLoginError] = useState<string | null>(null);
   
+  // LATCH PATTERN: Após primeira renderização, não mostrar loader de tela cheia
+  // Isso evita tela cinza quando Google Tradutor causa remontagem
+  const [initialRenderComplete, setInitialRenderComplete] = useState(
+    sessionStorage.getItem('auth_page_rendered') === 'true'
+  );
+  
+  // Marcar que a página já renderizou pelo menos uma vez
+  useEffect(() => {
+    if (!authLoading && !initialRenderComplete) {
+      sessionStorage.setItem('auth_page_rendered', 'true');
+      setInitialRenderComplete(true);
+    }
+  }, [authLoading, initialRenderComplete]);
+  
   // Detectar modo convite (usuário convidado não cria loja)
   const isInviteMode = !!sessionStorage.getItem('pending_invite_token');
   
@@ -331,7 +345,9 @@ export default function Auth() {
     }
   };
 
-  if (authLoading) {
+  // LATCH: Só mostra loader na PRIMEIRA carga - após isso, nunca bloqueia a tela
+  // Isso é crítico para evitar tela cinza durante operações OAuth ou com Google Tradutor
+  if (authLoading && !initialRenderComplete) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
