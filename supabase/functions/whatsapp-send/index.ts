@@ -1,5 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
+const VERSION = "v1.1.0"; // Using correct column names for whatsapp_messages
+// ===========================================================
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',

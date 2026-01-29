@@ -2,6 +2,71 @@
 
 > **REGRAS FIXAS** — Aplicáveis a TODAS as edge functions do projeto.
 
+---
+
+## ⚠️ VERSIONAMENTO OBRIGATÓRIO (Anti-Regressão)
+
+**REGRA CRÍTICA**: Toda edge function DEVE ter uma constante de versão no topo do arquivo.
+
+```typescript
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+// ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
+const VERSION = "v1.0.0"; // Descrição breve da última mudança
+// ===========================================================
+```
+
+**No início do handler, logar a versão:**
+```typescript
+console.log(`[function-name][${VERSION}] Request received`);
+```
+
+### Checklist de Deploy
+1. [ ] Incrementar VERSION
+2. [ ] Verificar nomes de colunas no schema atual
+3. [ ] Logar erros de insert (não silenciar)
+4. [ ] Após deploy, confirmar versão nos logs
+
+---
+
+## Sincronização Schema ↔ Código
+
+### `whatsapp_messages` — Colunas Corretas
+```typescript
+// ✅ USAR ESTES NOMES:
+{
+  tenant_id: string,           // UUID obrigatório
+  recipient_phone: string,     // NÃO "phone"
+  message_type: string,        // "text", "template", etc.
+  message_content: string,     // NÃO "message"
+  status: string,              // "sent", "failed", "delivered"
+  sent_at?: string,
+  provider_message_id?: string, // NÃO "external_message_id"
+  error_message?: string,
+  provider_response?: object,
+  notification_id?: string,
+  metadata?: object
+}
+
+// ❌ COLUNAS INEXISTENTES (causam erro silencioso):
+// - phone → usar recipient_phone
+// - message → usar message_content
+// - direction → removido
+// - provider → removido
+// - external_message_id → usar provider_message_id
+```
+
+### Mapeamento Tabela → Edge Functions
+| Tabela | Edge Functions |
+|--------|----------------|
+| `whatsapp_messages` | `meta-whatsapp-send`, `run-notifications`, `whatsapp-send` |
+| `notifications` | `run-notifications`, `process-events` |
+| `orders` | `pagarme-webhook`, `mercadopago-webhook` |
+
+**REGRA**: Ao alterar schema de tabela, atualizar TODAS as edge functions listadas.
+
+---
+
 ## Regras Gerais
 
 | Regra | Descrição |
@@ -37,17 +102,6 @@ return new Response(
 );
 ```
 
-### Erro de Sistema (HTTP 500)
-```typescript
-return new Response(
-  JSON.stringify({ success: false, error: 'Internal server error' }),
-  { 
-    status: 500, 
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-  }
-);
-```
-
 ---
 
 ## CORS Headers (Obrigatório)
@@ -59,7 +113,6 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
 };
 
-// Início de TODA edge function:
 if (req.method === 'OPTIONS') {
   return new Response(null, { headers: corsHeaders });
 }
@@ -83,18 +136,13 @@ function normalizeEmail(email: string): string {
 }
 ```
 
-**SEMPRE** normalizar antes de:
-- Buscar usuário
-- Criar usuário
-- Comparar emails
-- Enviar notificações
-
 ---
 
 ## Checklist Antes de Deploy
 
-- [ ] CORS completo em OPTIONS, success E error
-- [ ] Erros de negócio retornam HTTP 200 + `{ success: false }`
+- [ ] VERSION incrementada
+- [ ] CORS completo
+- [ ] Erros de negócio = HTTP 200 + `{ success: false }`
+- [ ] Nomes de colunas validados contra schema
 - [ ] Emails normalizados
-- [ ] Tenant-scoped (sem vazamento)
-- [ ] RLS validado nas tabelas afetadas
+- [ ] Tenant-scoped
