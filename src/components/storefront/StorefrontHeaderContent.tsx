@@ -132,6 +132,9 @@ export function StorefrontHeaderContent({
   // SAC/Atendimento visibility (for checkout)
   const showSac = props.showSac !== undefined ? Boolean(props.showSac) : true;
   
+  // Security seals visibility (for checkout header - independent from footer seals)
+  const showSecuritySeals = props.showSecuritySeals !== undefined ? Boolean(props.showSecuritySeals) : false;
+  
   // Logo position (for checkout: left, center, right)
   const logoPosition = String(props.logoPosition || 'center') as 'left' | 'center' | 'right';
   
@@ -1123,6 +1126,156 @@ export function StorefrontHeaderContent({
             {/* Spacer to balance the featured promos on left */}
             <div className="flex-shrink-0 w-32" />
           </nav>
+        )}
+        
+        {/* === CHECKOUT-ONLY SECONDARY BAR: Featured Promos + Security Seals === */}
+        {/* Shows when header menu is disabled (checkout mode) but featured promos or security seals are enabled */}
+        {!showHeaderMenu && (forceDesktop || !forceMobile) && (featuredPromosEnabled || showSecuritySeals) && (
+          <div 
+            className={cn(
+              "flex items-center justify-between py-2 border-t border-muted/30 px-4 gap-4",
+              forceMobile ? "hidden" : (forceDesktop ? "flex" : "hidden md:flex")
+            )}
+            style={{ 
+              backgroundColor: headerBgColor || undefined,
+              minHeight: '40px'
+            }}
+          >
+            {/* Featured Promos - Left side */}
+            <div className="flex-shrink-0">
+              {featuredPromosEnabled && featuredPromosUrl && (
+                <div 
+                  className="relative"
+                  onMouseEnter={() => setFeaturedPromoHover(true)}
+                  onMouseLeave={() => setFeaturedPromoHover(false)}
+                >
+                  <LinkWrapper
+                    to={featuredPromosUrl}
+                    className="text-xs font-bold hover:opacity-90 whitespace-nowrap px-3 py-1.5 rounded-md transition-all inline-flex items-center gap-1.5 sf-btn-primary"
+                    style={featuredPromosBgColor ? { 
+                      color: featuredPromosTextColor || '#ffffff',
+                      backgroundColor: featuredPromosBgColor
+                    } : {
+                      color: featuredPromosTextColor || '#ffffff'
+                    }}
+                  >
+                    {featuredPromosLabel}
+                  </LinkWrapper>
+                  
+                  {/* Thumbnail popup on hover */}
+                  {featuredPromoHover && featuredPromosThumbnail && (
+                    <div className="absolute top-full left-0 mt-2 z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200">
+                      <div 
+                        className="bg-popover rounded-lg shadow-xl border overflow-hidden"
+                        style={{ borderColor: featuredPromosBgColor || 'hsl(var(--border))' }}
+                      >
+                        <img 
+                          src={featuredPromosThumbnail} 
+                          alt={featuredPromosLabel}
+                          className="w-48 h-36 object-cover"
+                        />
+                        <div className="p-2 text-center" style={{ backgroundColor: featuredPromosBgColor || undefined }}>
+                          <span className="text-xs font-medium text-popover-foreground">{featuredPromosLabel}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* Placeholder for demo in editing mode when promos enabled but no destination */}
+              {featuredPromosEnabled && !featuredPromosUrl && isEditing && (
+                <span className="text-xs font-bold px-3 py-1.5 rounded-md sf-btn-primary opacity-60">
+                  {featuredPromosLabel || 'Promoções'} <span className="text-[10px] opacity-70">(configure destino)</span>
+                </span>
+              )}
+            </div>
+            
+            {/* Security Seals - Right side */}
+            {showSecuritySeals && (
+              <div className="flex items-center gap-2">
+                {/* Default security seals icons */}
+                <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1 px-2 py-1 bg-muted/30 rounded text-[10px] text-muted-foreground">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-600">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                    <span>SSL Seguro</span>
+                  </div>
+                  <div className="flex items-center gap-1 px-2 py-1 bg-muted/30 rounded text-[10px] text-muted-foreground">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
+                    <span>Site Seguro</span>
+                  </div>
+                  <div className="flex items-center gap-1 px-2 py-1 bg-muted/30 rounded text-[10px] text-muted-foreground">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-600">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>
+                    </svg>
+                    <span>Compra Verificada</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* === MOBILE CHECKOUT BAR: Featured Promos + Security Seals (when menu hidden) === */}
+        {!showHeaderMenu && (forceMobile || !forceDesktop) && (featuredPromosEnabled || showSecuritySeals) && (
+          <div 
+            className={cn(
+              "flex flex-col gap-2 py-2 border-t border-muted/30 px-3",
+              forceDesktop ? "hidden" : (forceMobile ? "flex" : "flex md:hidden")
+            )}
+            style={{ backgroundColor: headerBgColor || undefined }}
+          >
+            {/* Featured Promos */}
+            {featuredPromosEnabled && (
+              <div className="flex justify-center">
+                {featuredPromosUrl ? (
+                  <LinkWrapper
+                    to={featuredPromosUrl}
+                    className="text-xs font-bold hover:opacity-90 whitespace-nowrap px-3 py-1.5 rounded-md sf-btn-primary"
+                    style={featuredPromosBgColor ? { 
+                      color: featuredPromosTextColor || '#ffffff',
+                      backgroundColor: featuredPromosBgColor
+                    } : {
+                      color: featuredPromosTextColor || '#ffffff'
+                    }}
+                  >
+                    {featuredPromosLabel}
+                  </LinkWrapper>
+                ) : isEditing ? (
+                  <span className="text-xs font-bold px-3 py-1.5 rounded-md sf-btn-primary opacity-60">
+                    {featuredPromosLabel || 'Promoções'} <span className="text-[10px] opacity-70">(configure)</span>
+                  </span>
+                ) : null}
+              </div>
+            )}
+            
+            {/* Security Seals - Mobile */}
+            {showSecuritySeals && (
+              <div className="flex items-center justify-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1 px-1.5 py-0.5 bg-muted/30 rounded text-[9px] text-muted-foreground">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-600">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  </svg>
+                  <span>SSL</span>
+                </div>
+                <div className="flex items-center gap-1 px-1.5 py-0.5 bg-muted/30 rounded text-[9px] text-muted-foreground">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  </svg>
+                  <span>Seguro</span>
+                </div>
+                <div className="flex items-center gap-1 px-1.5 py-0.5 bg-muted/30 rounded text-[9px] text-muted-foreground">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-600">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>
+                  </svg>
+                  <span>Verificado</span>
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </header>
