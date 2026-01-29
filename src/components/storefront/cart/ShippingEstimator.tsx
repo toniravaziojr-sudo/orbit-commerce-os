@@ -165,7 +165,7 @@ export function ShippingEstimator() {
               </div>
               <div className="text-right">
                 {option.isFree ? (
-                  <span className="font-semibold text-green-600">Grátis</span>
+                  <span className="font-semibold sf-accent-icon">Grátis</span>
                 ) : (
                   <span className="font-semibold">
                     R$ {option.price.toFixed(2).replace('.', ',')}

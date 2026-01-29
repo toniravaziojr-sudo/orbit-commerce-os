@@ -65,7 +65,7 @@ const colorInputs: ColorInput[] = [
   { 
     id: 'accentColor', 
     label: 'Cor de Destaque', 
-    description: 'Ícones de check, setas, indicadores de etapas, links e detalhes da interface', 
+    description: 'Ícones de check, setas, indicadores de etapas, links, "Grátis" e detalhes da interface. Também afeta tags de sucesso se não configuradas.', 
     group: 'text' 
   },
   // Text colors

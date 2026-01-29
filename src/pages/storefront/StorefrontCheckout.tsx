@@ -171,13 +171,11 @@ export default function StorefrontCheckout() {
       {/* Inject theme CSS variables for buttons and text */}
       <StorefrontThemeInjector tenantSlug={tenantSlug || ''} />
       
-      {/* Inject checkout-specific icon color for timeline steps */}
+      {/* Inject checkout-specific accent color for timeline steps if icon color is set */}
       {checkoutIconColor && (
         <style dangerouslySetInnerHTML={{ __html: `
-          :root {
-            --checkout-step-completed-bg: ${checkoutIconColor}20;
-            --checkout-step-completed-text: ${checkoutIconColor};
-            --checkout-step-completed-solid: ${checkoutIconColor};
+          .storefront-container {
+            --theme-accent-color: ${checkoutIconColor};
           }
         `}} />
       )}
