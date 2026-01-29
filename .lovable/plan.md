@@ -1,212 +1,143 @@
 
-# Plano: Configurações Independentes de Header/Footer no Checkout
+# Plano Revisado: Unificar Builder com Preview (Abordagem Anti-Regressão)
 
-## Resumo do Problema
+## Diagnóstico Real do Problema
 
-O sistema atual tem dificuldades em manter as configurações do Header e Footer do checkout **independentes** do layout global. Quando o usuário edita essas configurações na página do Checkout dentro do Builder, as alterações não persistem corretamente ou conflitam com as configurações globais.
+Após análise detalhada do código, identifiquei a **causa raiz** do problema:
 
----
+### Problema 1: Classe CSS Inexistente
+O arquivo `useBuilderThemeInjector.ts` (linhas 147-268) injeta estilos para `.builder-preview-canvas`:
 
-## Análise Técnica
-
-### Arquitetura Atual
-
-```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│                          storefront_global_layout                        │
-├─────────────────────────────────────────────────────────────────────────┤
-│  header_config (global)     │  checkout_header_config (exclusivo)       │
-│  footer_config (global)     │  checkout_footer_config (exclusivo)       │
-└─────────────────────────────────────────────────────────────────────────┘
+```css
+.builder-preview-canvas button.sf-btn-primary:hover { ... }
 ```
 
-O banco de dados **já suporta** a separação. O problema está no **fluxo de edição e renderização**.
+**MAS** essa classe `.builder-preview-canvas` **NÃO EXISTE** em nenhum lugar do código! O `BuilderCanvas.tsx` (linha 271) usa apenas:
 
-### Pontos de Falha Identificados
-
-| Componente | Problema |
-|------------|----------|
-| `HeaderFooterPropsEditor.tsx` | Quando `isCheckoutPage=true`, delega para `PropsEditor` genérico em vez de mostrar UI customizada com seções |
-| `PropsEditor.tsx` | Renderiza baseado no schema do registry, não inclui toggles específicos como `showFooter1`, `showSac` |
-| `StorefrontCheckout.tsx` | Aplica defaults hardcoded antes das props salvas, potencialmente sobrescrevendo |
-| `useGlobalLayoutIntegration.ts` | Defaults são aplicados corretamente, mas não há validação de props existentes |
-
----
-
-## Solução Proposta
-
-### 1. Criar UI Dedicada para Checkout no HeaderFooterPropsEditor
-
-**Arquivo:** `src/components/builder/HeaderFooterPropsEditor.tsx`
-
-Atualmente (linhas 702-737), quando `isCheckoutPage=true`:
-```typescript
-if (isCheckoutPage) {
-  return (
-    <PropsEditor  // ❌ Delega para editor genérico
-      isCheckoutContext={true}
-      ...
-    />
-  );
-}
+```tsx
+className="storefront-container bg-background transition-all duration-300 relative overflow-hidden"
 ```
 
-**Correção:** Criar seções colapsáveis customizadas para checkout, similares às da Home, mas com:
-- Toggles específicos: `showSearch`, `showCart`, `showHeaderMenu`, `customerAreaEnabled`
-- Cores independentes: `headerBgColor`, `headerTextColor`
-- Para Footer: `showFooter1`, `showFooter2`, `showSac`, `showSocial`, `showCopyright`, `showLogo`
+### Problema 2: Modo Preview vs Modo Edição
+A diferença entre os modos não é visual - é funcional:
 
-### 2. Garantir Independência Total nas Props
+| Condição | `isEditing` | Hover CSS funciona? |
+|----------|-------------|---------------------|
+| Preview Mode (`isPreviewMode=true`) | `false` | ✅ Sim - wrapper não interfere |
+| Edit Mode (`isEditing=true`) | `true` | ❌ Não - CSS não está atingindo os elementos |
 
-**Arquivo:** `src/pages/storefront/StorefrontCheckout.tsx`
+O CSS do injector está CORRETO para `.storefront-container`, mas algo impede que funcione no modo edição.
 
-O merge atual (linhas 41-123) aplica:
-1. Props visuais globais como fallback
-2. Defaults hardcoded
-3. Props do checkout
+### Problema 3: Especificidade CSS insuficiente no contexto de edição
+Quando `isEditing=true`, o wrapper do bloco adiciona classes que podem interferir com a propagação de estilos.
 
-**Correção:** Inverter a ordem para:
-1. Props visuais globais como fallback (apenas se checkout não tem)
-2. Props do checkout DIRETAMENTE (sem defaults intermediários)
+## Solução Proposta (Seguindo as Recomendações)
 
-### 3. Verificar Fluxo de Salvamento
+Em vez de "forçar" estilos com `!important` e `z-index`, vamos atacar a raiz:
 
-**Arquivo:** `src/components/builder/VisualBuilder.tsx`
+### Etapa 1: Corrigir CSS do Injector
 
-O salvamento (linhas 515-523) já está correto - usa `updateCheckoutHeader/updateCheckoutFooter`. Apenas garantir que o estado não está sendo sobrescrito pelo `useEffect` de sincronização.
+**Arquivo:** `src/hooks/useBuilderThemeInjector.ts`
 
----
+Remover todas as referências a `.builder-preview-canvas` (classe inexistente) e focar em `.storefront-container` que é a classe real usada pelo canvas.
 
-## Detalhes de Implementação
+**Mudança:**
+- Remover seletores com `.builder-preview-canvas`
+- Adicionar seletores que funcionem DENTRO do contexto de edição
+- Usar seletores que NÃO dependam de `!important` desnecessário
 
-### Passo 1: Criar UI do Checkout no HeaderFooterPropsEditor
+### Etapa 2: Refatorar BlockRenderer para Não Bloquear Hovers
 
-Adicionar novo bloco de código para `isCheckoutPage` que renderiza:
+**Arquivo:** `src/components/builder/BlockRenderer.tsx`
 
-**Para Header do Checkout:**
-```text
-┌─────────────────────────────────────────┐
-│ 🛒 Header do Checkout                   │
-│   Badge: "Checkout - Layout Exclusivo"  │
-├─────────────────────────────────────────┤
-│ ▼ Cores do Cabeçalho                    │
-│   • Cor de Fundo                        │
-│   • Cor do Texto                        │
-│   • Cor dos Ícones                      │
-├─────────────────────────────────────────┤
-│ ▼ Elementos                             │
-│   ○ Mostrar Busca          [toggle]     │
-│   ○ Mostrar Carrinho       [toggle]     │
-│   ○ Menu de Navegação      [toggle]     │
-│   ○ Área do Cliente        [toggle]     │
-│   ○ Fixar ao Rolar         [toggle]     │
-└─────────────────────────────────────────┘
+**Mudança principal:** O wrapper do bloco usa `hover:outline` que não bloqueia hover por si só. O problema real é que o `handleClick` pode estar capturando eventos demais.
+
+Implementar a estratégia recomendada:
+1. Usar pseudo-elemento `::after` para indicador de hover do editor (não bloqueia eventos)
+2. Manter hover de outline, mas garantir que seja puramente visual
+
+**Antes (linha 389):**
+```tsx
+isEditing && 'hover:outline hover:outline-2 hover:outline-primary/50',
 ```
 
-**Para Footer do Checkout:**
-```text
-┌─────────────────────────────────────────┐
-│ 🛒 Footer do Checkout                   │
-│   Badge: "Checkout - Layout Exclusivo"  │
-├─────────────────────────────────────────┤
-│ ▼ Cores do Rodapé                       │
-│   • Cor de Fundo                        │
-│   • Cor do Texto                        │
-├─────────────────────────────────────────┤
-│ ▼ Elementos Visíveis                    │
-│   ○ Mostrar Logo           [toggle]     │
-│   ○ Mostrar Copyright      [toggle]     │
-│   ○ Mostrar SAC            [toggle]     │
-│   ○ Mostrar Redes Sociais  [toggle]     │
-│   ○ Mostrar Footer 1       [toggle]     │
-│   ○ Mostrar Footer 2       [toggle]     │
-│   ○ Mostrar Info da Loja   [toggle]     │
-└─────────────────────────────────────────┘
+**Depois:**
+```tsx
+isEditing && 'relative before:content-[""] before:absolute before:inset-0 before:pointer-events-none before:rounded before:opacity-0 hover:before:opacity-100 before:ring-1 before:ring-primary/30',
 ```
 
-### Passo 2: Simplificar Merge no StorefrontCheckout
+### Etapa 3: Interceptar Cliques Corretamente
 
-```typescript
-const checkoutHeaderConfig = useMemo((): BlockNode => {
-  const checkoutProps = globalLayout?.checkout_header_config?.props || {};
-  const globalProps = globalLayout?.header_config?.props || {};
-  
-  // REGRA: Props do checkout TÊM PRIORIDADE ABSOLUTA
-  // Herança visual apenas para props NÃO definidas no checkout
-  const visualPropsToInherit = ['headerBgColor', 'headerTextColor', 'logoUrl'];
-  
-  const mergedProps: Record<string, unknown> = {};
-  
-  // Herdar props visuais APENAS se não existem no checkout
-  for (const key of visualPropsToInherit) {
-    if (checkoutProps[key] === undefined && globalProps[key]) {
-      mergedProps[key] = globalProps[key];
+**Arquivo:** `src/components/builder/BlockRenderer.tsx`
+
+Em vez de bloquear `pointer-events`, interceptar cliques em modo edição:
+
+**Mudança:**
+```tsx
+const handleClick = (e: React.MouseEvent) => {
+  if (isEditing && onSelect) {
+    const target = e.target as HTMLElement;
+    // Se clicou em botão/link e NÃO está no modo interact, selecionar o bloco
+    if (target.closest('button, a[href]')) {
+      e.preventDefault();
+      e.stopPropagation();
     }
+    onSelect(node.id);
   }
-  
-  // Aplicar TODAS as props do checkout (prioridade máxima)
-  Object.assign(mergedProps, checkoutProps);
-  
-  return { id: 'checkout-header', type: 'Header', props: mergedProps };
-}, [globalLayout]);
+};
 ```
 
-### Passo 3: Garantir Persistência no VisualBuilder
+Isso mantém o hover funcional nos botões mas impede que cliquem acidentalmente enquanto editam.
 
-Verificar que o `useEffect` de sincronização (linhas 360-412) NÃO sobrescreve as props do checkout quando o usuário está editando:
+### Etapa 4: Simplificar Modos (Opcional)
 
-```typescript
-// Quando isDirty E isCheckoutPage, usar checkout configs SEM merge
-if (isCheckoutPage) {
-  headerConfig = globalLayout.checkout_header_config;  // DIRETO
-  footerConfig = globalLayout.checkout_footer_config;  // DIRETO
-}
-```
+**Arquivos:** `BuilderToolbar.tsx`, `VisualBuilder.tsx`
 
----
+Considerar renomear ou redesenhar:
+- "Preview" atual → "Preview Externo" (abre em nova aba)
+- O canvas JÁ É preview em tempo real
 
 ## Arquivos a Modificar
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/components/builder/HeaderFooterPropsEditor.tsx` | Criar UI dedicada para checkout (seções colapsáveis com toggles) |
-| `src/pages/storefront/StorefrontCheckout.tsx` | Simplificar merge para prioridade absoluta das props do checkout |
-| `src/components/builder/VisualBuilder.tsx` | Garantir que sincronização não sobrescreve edições do checkout |
+| Arquivo | Tipo de Mudança |
+|---------|-----------------|
+| `src/hooks/useBuilderThemeInjector.ts` | Remover `.builder-preview-canvas`, focar em `.storefront-container` |
+| `src/components/builder/BlockRenderer.tsx` | Refatorar hover do editor para usar `::before/::after` não-intrusivo |
+| `src/components/builder/BuilderCanvas.tsx` | (Opcional) Adicionar classe `.builder-editing` quando `isEditing=true` |
 
----
+## Checklist de Testes
 
-## Comportamento Esperado Após Implementação
+Antes de considerar implementação completa:
 
-1. **No Builder (página Checkout):**
-   - Clicar no Header → Painel lateral mostra "Header do Checkout" com badge amarelo
-   - Toggles de `showSearch`, `showCart`, etc. funcionam e persistem
-   - Cores podem ser alteradas independentemente do global
+| Teste | Resultado Esperado |
+|-------|-------------------|
+| Hover do botão "Comprar Agora" em modo edição | Cor de hover do tema (ex: vermelho) aparece |
+| Hover de links no header em modo edição | Estilo de hover funciona |
+| Clicar em botão em modo edição | NÃO executa ação, seleciona o bloco |
+| Clicar em botão em modo "Testar" | EXECUTA ação (adiciona ao carrinho) |
+| RichText continua editável | Clique dentro do editor funciona |
+| Drag & drop de blocos | Continua funcionando |
+| Seleção de blocos | Continua mostrando borda azul |
 
-2. **Na Loja Pública (página de checkout):**
-   - Header/Footer renderizam com as configurações exclusivas do checkout
-   - Se uma cor não foi definida no checkout, herda do global
-   - Toggles funcionais (mostrar/ocultar) refletem exatamente o configurado
+## Benefícios da Abordagem
 
-3. **Nas Outras Páginas:**
-   - Header/Footer continuam usando `header_config`/`footer_config` global
-   - Sem impacto nas alterações feitas no checkout
+| Aspecto | Abordagem Anterior | Abordagem Revisada |
+|---------|-------------------|-------------------|
+| CSS `!important` | Usado extensivamente | Minimizado |
+| `z-index` hack | Sim | Não |
+| `pointer-events: auto` forçado | Sim | Não |
+| Risco de regressão | Alto | Baixo |
+| WYSIWYG real | Não | Sim |
 
----
+## Ordem de Implementação
 
-## Riscos e Mitigações
+1. **Primeiro:** Corrigir `useBuilderThemeInjector.ts` (remover classe inexistente)
+2. **Segundo:** Testar se isso já resolve o problema
+3. **Se necessário:** Refatorar `BlockRenderer.tsx` para overlay não-intrusivo
+4. **Por último:** Ajustar interceptação de cliques
 
-| Risco | Mitigação |
-|-------|-----------|
-| Perda de dados salvos anteriormente | Manter compatibilidade com props existentes |
-| Conflito de herança de cores | Testar cenários onde checkout tem cor definida vs. herança |
-| Regressão em outras páginas | Testes end-to-end em home, categoria, produto |
+## Documentação Necessária
 
----
-
-## Documentação a Atualizar
-
-Após implementação, atualizar `docs/regras/checkout.md` com:
-- Lista completa de props editáveis no checkout
-- Regras de herança visual
-- Exemplo de configuração
-
+Após implementação, atualizar:
+- `docs/regras/builder.md` - Adicionar seção sobre "WYSIWYG Real Time"
+- Memory `style/button-hover-states` - Atualizar com nova arquitetura
