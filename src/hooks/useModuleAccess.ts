@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
+import { useTenantType } from '@/hooks/useTenantType';
 import { supabase } from '@/integrations/supabase/client';
 
 export type AccessLevel = 'none' | 'partial' | 'full';
@@ -21,8 +22,21 @@ interface ModuleAccessRecord {
   notes: string | null;
 }
 
+// Resultado para tenants com acesso total (especiais, unlimited, platform)
+const FULL_ACCESS_RESULT: ModuleAccessInfo = {
+  hasAccess: true,
+  accessLevel: 'full',
+  blockedFeatures: [],
+  allowedFeatures: [],
+  planKey: 'unlimited',
+  requiresUpgrade: false,
+};
+
 /**
  * Hook para verificar acesso a módulos específicos baseado no plano do tenant.
+ * 
+ * IMPORTANTE: Tenants especiais (is_special=true), com plano unlimited, ou
+ * do tipo platform têm acesso total - a RPC nem é chamada.
  * 
  * Retorna:
  * - hasAccess: se o módulo está liberado (full ou partial)
@@ -32,8 +46,12 @@ interface ModuleAccessRecord {
  */
 export function useModuleAccess(moduleKey: string): ModuleAccessInfo & { isLoading: boolean } {
   const { currentTenant } = useAuth();
+  const { isUnlimited, isPlatformTenant, isLoading: tenantTypeLoading } = useTenantType();
 
-  const { data, isLoading } = useQuery({
+  // Early return: tenants especiais/unlimited/platform têm acesso total
+  const shouldBypass = isUnlimited || isPlatformTenant;
+
+  const { data, isLoading: queryLoading } = useQuery({
     queryKey: ['module-access', currentTenant?.id, moduleKey],
     queryFn: async (): Promise<ModuleAccessInfo> => {
       if (!currentTenant?.id) {
@@ -76,9 +94,18 @@ export function useModuleAccess(moduleKey: string): ModuleAccessInfo & { isLoadi
         requiresUpgrade: result?.requires_upgrade ?? false,
       };
     },
-    enabled: !!currentTenant?.id,
+    // Só executa a query se NÃO for tenant especial/unlimited/platform
+    enabled: !!currentTenant?.id && !shouldBypass && !tenantTypeLoading,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
+
+  // Se é tenant especial, retorna acesso total imediatamente
+  if (shouldBypass) {
+    return {
+      ...FULL_ACCESS_RESULT,
+      isLoading: tenantTypeLoading,
+    };
+  }
 
   return {
     hasAccess: data?.hasAccess ?? true,
@@ -87,19 +114,26 @@ export function useModuleAccess(moduleKey: string): ModuleAccessInfo & { isLoadi
     allowedFeatures: data?.allowedFeatures ?? [],
     planKey: data?.planKey ?? 'basico',
     requiresUpgrade: data?.requiresUpgrade ?? false,
-    isLoading,
+    isLoading: queryLoading || tenantTypeLoading,
   };
 }
 
 /**
  * Hook para buscar todos os acessos a módulos do tenant de uma vez.
+ * 
+ * IMPORTANTE: Tenants especiais/unlimited/platform recebem objeto vazio da RPC,
+ * o que significa acesso total a tudo.
  */
 export function useAllModuleAccess() {
   const { currentTenant } = useAuth();
+  const { isUnlimited, isPlatformTenant, isLoading: tenantTypeLoading } = useTenantType();
+
+  // Early return: tenants especiais/unlimited/platform têm acesso total
+  const shouldBypass = isUnlimited || isPlatformTenant;
 
   return useQuery({
     queryKey: ['all-module-access', currentTenant?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<Record<string, ModuleAccessInfo>> => {
       if (!currentTenant?.id) return {};
 
       const { data, error } = await supabase
@@ -110,21 +144,32 @@ export function useAllModuleAccess() {
         return {};
       }
 
+      // RPC retorna JSONB array - parse adequadamente
       const modules: Record<string, ModuleAccessInfo> = {};
-      (data as ModuleAccessRecord[] || []).forEach((row) => {
-        modules[row.module_key] = {
-          hasAccess: row.access_level === 'full' || row.access_level === 'partial',
-          accessLevel: row.access_level as AccessLevel,
-          blockedFeatures: row.blocked_features ?? [],
-          allowedFeatures: row.allowed_features ?? [],
-          planKey: 'unknown', // Would need join to get this
-          requiresUpgrade: row.access_level === 'none',
-        };
+      
+      // Se data for null, undefined ou array vazio = acesso total (sem restrições)
+      if (!data || (Array.isArray(data) && data.length === 0)) {
+        return {};
+      }
+
+      // Converter JSONB array para Record (cast via unknown para contornar tipagem estrita do Supabase)
+      const rows = (Array.isArray(data) ? data : []) as unknown as ModuleAccessRecord[];
+      rows.forEach((row) => {
+        if (row && row.module_key) {
+          modules[row.module_key] = {
+            hasAccess: row.access_level === 'full' || row.access_level === 'partial',
+            accessLevel: (row.access_level as AccessLevel) || 'full',
+            blockedFeatures: row.blocked_features ?? [],
+            allowedFeatures: row.allowed_features ?? [],
+            planKey: 'unknown',
+            requiresUpgrade: row.access_level === 'none',
+          };
+        }
       });
 
       return modules;
     },
-    enabled: !!currentTenant?.id,
+    enabled: !!currentTenant?.id && !shouldBypass && !tenantTypeLoading,
     staleTime: 5 * 60 * 1000,
   });
 }

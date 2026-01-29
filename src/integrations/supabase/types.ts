@@ -13158,16 +13158,7 @@ export type Database = {
           tiktok_pixel_id: string
         }[]
       }
-      get_tenant_module_access: {
-        Args: { p_tenant_id: string }
-        Returns: {
-          access_level: string
-          allowed_features: Json
-          blocked_features: Json
-          module_key: string
-          notes: string
-        }[]
-      }
+      get_tenant_module_access: { Args: { p_tenant_id: string }; Returns: Json }
       get_whatsapp_config_for_tenant: {
         Args: { p_tenant_id: string }
         Returns: {
