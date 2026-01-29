@@ -163,10 +163,24 @@ export default function StorefrontCheckout() {
     );
   }
 
+  // Extract icon color for CSS injection to timeline
+  const checkoutIconColor = checkoutHeaderConfig.props?.headerIconColor as string | undefined;
+
   return (
     <>
       {/* Inject theme CSS variables for buttons and text */}
       <StorefrontThemeInjector tenantSlug={tenantSlug || ''} />
+      
+      {/* Inject checkout-specific icon color for timeline steps */}
+      {checkoutIconColor && (
+        <style dangerouslySetInnerHTML={{ __html: `
+          :root {
+            --checkout-step-completed-bg: ${checkoutIconColor}20;
+            --checkout-step-completed-text: ${checkoutIconColor};
+            --checkout-step-completed-solid: ${checkoutIconColor};
+          }
+        `}} />
+      )}
       
       <div className="storefront-container min-h-screen flex flex-col">
         {/* Checkout header - uses checkout_header_config */}

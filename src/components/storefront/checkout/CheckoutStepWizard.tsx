@@ -896,10 +896,14 @@ function ProgressTimeline({
                 disabled={step.id > currentStep}
                 className={cn(
                   "flex items-center gap-2 px-3 py-2 rounded-full text-sm whitespace-nowrap transition-colors",
-                  isCompleted && "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 cursor-pointer hover:bg-green-200 dark:hover:bg-green-900/50",
                   isCurrent && "bg-primary text-primary-foreground",
                   !isCompleted && !isCurrent && "bg-muted text-muted-foreground cursor-not-allowed"
                 )}
+                style={isCompleted ? {
+                  backgroundColor: 'var(--checkout-step-completed-bg, rgb(220 252 231))',
+                  color: 'var(--checkout-step-completed-text, rgb(21 128 61))',
+                  cursor: 'pointer',
+                } : undefined}
               >
                 {isCompleted ? (
                   <Check className="h-4 w-4" />
@@ -930,10 +934,13 @@ function ProgressTimeline({
                   disabled={step.id > currentStep}
                   className={cn(
                     "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors",
-                    isCompleted && "bg-green-500 text-white",
                     isCurrent && "bg-primary text-primary-foreground",
                     !isCompleted && !isCurrent && "bg-muted text-muted-foreground"
                   )}
+                  style={isCompleted ? {
+                    backgroundColor: 'var(--checkout-step-completed-solid, rgb(34 197 94))',
+                    color: 'white',
+                  } : undefined}
                 >
                   {isCompleted ? (
                     <Check className="h-4 w-4" />
@@ -942,10 +949,12 @@ function ProgressTimeline({
                   )}
                 </button>
                 {index < steps.length - 1 && (
-                  <div className={cn(
-                    "w-6 h-0.5",
-                    currentStep > step.id ? "bg-green-500" : "bg-muted"
-                  )} />
+                  <div 
+                    className={cn("w-6 h-0.5", !isCompleted && "bg-muted")}
+                    style={currentStep > step.id ? {
+                      backgroundColor: 'var(--checkout-step-completed-solid, rgb(34 197 94))',
+                    } : undefined}
+                  />
                 )}
               </React.Fragment>
             );
