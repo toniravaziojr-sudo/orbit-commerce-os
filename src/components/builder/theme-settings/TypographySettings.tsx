@@ -1,6 +1,8 @@
 // =============================================
 // TYPOGRAPHY SETTINGS - Font configuration
 // Uses centralized useThemeSettings hook (template-wide)
+// IMPORTANT: Typography updates DRAFT state for real-time preview
+// Changes are NOT saved until user clicks "Salvar" in toolbar
 // =============================================
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -8,9 +10,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Separator } from '@/components/ui/separator';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
 import { useThemeTypography, DEFAULT_THEME_TYPOGRAPHY, ThemeTypography } from '@/hooks/useThemeSettings';
 import { getFontFamily } from '@/hooks/usePublicThemeSettings';
+import { useBuilderDraftTheme } from '@/hooks/useBuilderDraftTheme';
+import { useBuilderStore } from '@/hooks/useBuilderStore';
 
 interface TypographySettingsProps {
   tenantId: string;
@@ -55,33 +59,35 @@ const fontFamilies = [
 ];
 
 export function TypographySettings({ tenantId, templateSetId }: TypographySettingsProps) {
-  const { typography: savedTypography, updateTypography, isLoading, isSaving } = useThemeTypography(tenantId, templateSetId);
+  const { typography: savedTypography, isLoading } = useThemeTypography(tenantId, templateSetId);
+  const draftTheme = useBuilderDraftTheme();
   const [localTypography, setLocalTypography] = useState<ThemeTypography>(DEFAULT_THEME_TYPOGRAPHY);
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [hasChanges, setHasChanges] = useState(false);
   const initialLoadDone = useRef(false);
 
-  // Initialize local state from hook data
+  // Initialize local state from saved typography (or draft if available)
   useEffect(() => {
     if (savedTypography && !initialLoadDone.current) {
-      setLocalTypography(savedTypography);
+      // If there's already a draft, use that; otherwise use saved
+      const effectiveTypography = draftTheme?.draftTypography || savedTypography;
+      setLocalTypography(effectiveTypography);
       initialLoadDone.current = true;
+      // If draft exists, mark as having changes
+      if (draftTheme?.draftTypography) {
+        setHasChanges(true);
+      }
     }
-  }, [savedTypography]);
+  }, [savedTypography, draftTheme?.draftTypography]);
 
-  // Debounced save
-  const debouncedSave = useCallback((updates: Partial<ThemeTypography>) => {
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-    saveTimeoutRef.current = setTimeout(() => {
-      updateTypography(updates);
-    }, 500);
-  }, [updateTypography]);
-
+  // Update draft for REAL-TIME PREVIEW without saving to database
   const handleChange = (key: keyof ThemeTypography, value: string | number) => {
     setLocalTypography(prev => {
       const updated = { ...prev, [key]: value };
-      debouncedSave({ [key]: value });
+      setHasChanges(true);
+      // Update draft state for real-time preview in builder canvas
+      if (draftTheme) {
+        draftTheme.setDraftTypography(updated);
+      }
       return updated;
     });
   };
@@ -96,6 +102,14 @@ export function TypographySettings({ tenantId, templateSetId }: TypographySettin
 
   return (
     <div className="space-y-6">
+      {/* Notice about pending changes */}
+      {hasChanges && (
+        <div className="flex items-center gap-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded text-xs text-amber-700 dark:text-amber-300">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>Alterações pendentes. Clique em <strong>Salvar</strong> na barra superior para aplicar.</span>
+        </div>
+      )}
+
       {/* Heading Font */}
       <div className="space-y-2">
         <Label className="text-sm font-medium">Fonte dos títulos</Label>
@@ -169,8 +183,8 @@ export function TypographySettings({ tenantId, templateSetId }: TypographySettin
         </p>
       </div>
 
-      <p className="text-xs text-muted-foreground text-center">
-        {isSaving ? '💾 Salvando...' : '✓ Tipografia salva automaticamente neste template'}
+      <p className="text-[10px] text-muted-foreground text-center">
+        {hasChanges ? '⚠️ Alterações pendentes - clique em Salvar na barra superior' : '✓ Tipografia sincronizada com o tema'}
       </p>
     </div>
   );
