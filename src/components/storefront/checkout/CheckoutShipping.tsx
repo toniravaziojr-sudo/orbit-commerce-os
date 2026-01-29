@@ -89,8 +89,11 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
       <div className="border rounded-lg p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <div className="p-2 bg-green-100 rounded-full">
-              <Check className="h-4 w-4 text-green-600" />
+            <div 
+              className="p-2 rounded-full"
+              style={{ backgroundColor: 'color-mix(in srgb, var(--theme-accent-color, #22c55e) 20%, transparent)' }}
+            >
+              <Check className="h-4 w-4" style={{ color: 'var(--theme-accent-color, #22c55e)' }} />
             </div>
             <h3 className="font-semibold">Frete selecionado</h3>
           </div>
@@ -115,7 +118,14 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
             </div>
             <div className="text-right">
               {shipping.selected?.isFree ? (
-                <Badge variant="secondary" className="bg-green-100 text-green-700">
+                <Badge 
+                  variant="secondary" 
+                  className="sf-tag-success"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, var(--theme-accent-color, #22c55e) 15%, transparent)',
+                    color: 'var(--theme-accent-color, #22c55e)',
+                  }}
+                >
                   Grátis
                 </Badge>
               ) : (
@@ -210,7 +220,7 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
                 </div>
                 <div className="text-right">
                   {option.isFree ? (
-                    <span className="font-semibold text-green-600">Grátis</span>
+                    <span className="font-semibold" style={{ color: 'var(--theme-accent-color, #22c55e)' }}>Grátis</span>
                   ) : (
                     <span className="font-semibold">
                       R$ {formatPrice(option.price)}

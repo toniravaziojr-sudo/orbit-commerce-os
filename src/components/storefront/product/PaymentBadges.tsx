@@ -28,16 +28,25 @@ export function PaymentBadges({
 
   return (
     <div className={`space-y-2 ${className}`}>
-      {/* Pix com destaque - sempre primeiro */}
-      <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-lg">
-        <div className="flex-shrink-0 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+      {/* Pix com destaque - sempre primeiro - usa accent color do tema */}
+      <div 
+        className="flex items-center gap-2 p-2 rounded-lg border"
+        style={{
+          backgroundColor: 'color-mix(in srgb, var(--theme-accent-color, #22c55e) 10%, transparent)',
+          borderColor: 'color-mix(in srgb, var(--theme-accent-color, #22c55e) 30%, transparent)',
+        }}
+      >
+        <div 
+          className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
+          style={{ backgroundColor: 'var(--theme-accent-color, #22c55e)' }}
+        >
           <QrCode className="w-4 h-4 text-white" />
         </div>
         <div className="flex-1">
-          <p className="text-sm font-bold text-green-700">
+          <p className="text-sm font-bold" style={{ color: 'var(--theme-accent-color, #22c55e)' }}>
             R$ {pixPrice.toFixed(2).replace('.', ',')} no Pix
           </p>
-          <p className="text-xs text-green-600">
+          <p className="text-xs" style={{ color: 'var(--theme-accent-color, #22c55e)', opacity: 0.8 }}>
             {pixDiscountPercent}% de desconto
           </p>
         </div>

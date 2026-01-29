@@ -106,15 +106,27 @@ export function CouponInput({
   // Applied discount display
   if (appliedDiscount) {
     return (
-      <div className={cn("flex items-center justify-between gap-2 p-3 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-900", className)}>
+      <div 
+        className={cn("flex items-center justify-between gap-2 p-3 rounded-lg border", className)}
+        style={{
+          backgroundColor: 'color-mix(in srgb, var(--theme-accent-color, #22c55e) 10%, transparent)',
+          borderColor: 'color-mix(in srgb, var(--theme-accent-color, #22c55e) 30%, transparent)',
+        }}
+      >
         <div className="flex items-center gap-2">
-          <Check className="h-4 w-4 text-green-600" />
+          <Check className="h-4 w-4" style={{ color: 'var(--theme-accent-color, #22c55e)' }} />
           <div>
-            <span className="text-sm font-medium text-green-700 dark:text-green-400">
+            <span 
+              className="text-sm font-medium"
+              style={{ color: 'var(--theme-accent-color, #22c55e)' }}
+            >
               {appliedDiscount.discount_code}
             </span>
             {!compact && (
-              <p className="text-xs text-green-600 dark:text-green-500">
+              <p 
+                className="text-xs"
+                style={{ color: 'var(--theme-accent-color, #22c55e)', opacity: 0.85 }}
+              >
                 {appliedDiscount.free_shipping
                   ? "Frete grátis"
                   : appliedDiscount.discount_type === "order_percent"

@@ -111,7 +111,13 @@ export function MiniCartPreview({
       >
         {/* Disabled banner */}
         {config.cartActionType === 'none' && (
-          <div className="bg-orange-100 text-orange-700 text-xs px-4 py-2 text-center font-medium">
+          <div 
+            className="text-xs px-4 py-2 text-center font-medium"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--theme-warning-bg, #f97316) 15%, transparent)',
+              color: 'var(--theme-warning-bg, #f97316)',
+            }}
+          >
             ⚠️ Ação do carrinho desativada na loja
           </div>
         )}
@@ -136,18 +142,28 @@ export function MiniCartPreview({
           {config.showFreeShippingProgress && (
             <div className="p-3 rounded-lg border bg-muted/50 text-sm mb-4">
               <div className="flex items-center gap-2 mb-2">
-                <div className={cn(
-                  "p-1.5 rounded-full",
-                  hasFreeShipping ? "bg-green-100" : "bg-muted-foreground/20"
-                )}>
-                  <Truck className={cn(
-                    "h-3 w-3",
-                    hasFreeShipping ? "text-green-600" : "text-muted-foreground"
-                  )} />
+                <div 
+                  className="p-1.5 rounded-full"
+                  style={{
+                    backgroundColor: hasFreeShipping 
+                      ? 'color-mix(in srgb, var(--theme-accent-color, #22c55e) 20%, transparent)'
+                      : 'hsl(var(--muted-foreground) / 0.2)',
+                  }}
+                >
+                  <Truck 
+                    className="h-3 w-3"
+                    style={{
+                      color: hasFreeShipping 
+                        ? 'var(--theme-accent-color, #22c55e)' 
+                        : 'hsl(var(--muted-foreground))',
+                    }}
+                  />
                 </div>
                 <div className="flex-1 text-xs">
                   {hasFreeShipping ? (
-                    <p className="text-green-600 font-medium">🎉 Parabéns! Você tem frete grátis!</p>
+                    <p className="font-medium" style={{ color: 'var(--theme-accent-color, #22c55e)' }}>
+                      🎉 Parabéns! Você tem frete grátis!
+                    </p>
                   ) : (
                     <p>
                       Faltam <span className="font-semibold">R$ {remainingForFreeShipping.toFixed(2).replace('.', ',')}</span> para frete grátis
@@ -161,10 +177,16 @@ export function MiniCartPreview({
 
           {/* Stock Reservation Timer */}
           {config.showStockReservationTimer && (
-            <div className="p-3 rounded-lg border border-orange-200 bg-orange-50 text-sm mb-4">
+            <div 
+              className="p-3 rounded-lg border text-sm mb-4"
+              style={{
+                borderColor: 'color-mix(in srgb, var(--theme-warning-bg, #f97316) 40%, transparent)',
+                backgroundColor: 'color-mix(in srgb, var(--theme-warning-bg, #f97316) 10%, transparent)',
+              }}
+            >
               <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-orange-600" />
-                <span className="text-xs text-orange-700">
+                <Clock className="h-4 w-4" style={{ color: 'var(--theme-warning-bg, #f97316)' }} />
+                <span className="text-xs" style={{ color: 'var(--theme-warning-text, #f97316)' }}>
                   Reserva de estoque expira em <strong>{config.stockReservationMinutes}:00</strong>
                 </span>
               </div>
@@ -262,7 +284,7 @@ export function MiniCartPreview({
                 </Button>
               </div>
               <div className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1.5 flex items-center gap-1">
-                <Check className="h-3 w-3 text-green-600" />
+                <Check className="h-3 w-3" style={{ color: 'var(--theme-accent-color, #22c55e)' }} />
                 <span>PAC • 5 dia(s) • R$ 15,90</span>
               </div>
             </div>

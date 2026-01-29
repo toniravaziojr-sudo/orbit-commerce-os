@@ -141,7 +141,13 @@ export function ProductCard({
             <ProductCardBadges badges={badges} />
           )}
           {hasDiscount && (
-            <span className="absolute top-2 right-2 bg-destructive text-destructive-foreground text-xs font-medium px-2 py-1 rounded">
+            <span 
+              className="absolute top-2 right-2 text-xs font-medium px-2 py-1 rounded"
+              style={{
+                backgroundColor: 'var(--theme-danger-bg, #ef4444)',
+                color: 'var(--theme-danger-text, #ffffff)',
+              }}
+            >
               -{Math.round((1 - product.price / product.compare_at_price!) * 100)}%
             </span>
           )}

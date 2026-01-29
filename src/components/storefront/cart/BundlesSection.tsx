@@ -124,7 +124,13 @@ export function BundlesSection({ tenantId }: { tenantId: string }) {
                 R$ {bundlePrice.toFixed(2).replace('.', ',')}
               </span>
               {bundlesConfig.showSavings && (
-                <Badge variant="secondary" className="bg-green-100 text-green-700">
+                <Badge 
+                  variant="secondary" 
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, var(--theme-accent-color, #22c55e) 15%, transparent)',
+                    color: 'var(--theme-accent-color, #22c55e)',
+                  }}
+                >
                   Economia de R$ {savings.toFixed(2).replace('.', ',')}
                 </Badge>
               )}
