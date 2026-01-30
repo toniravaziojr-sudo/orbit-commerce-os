@@ -146,6 +146,10 @@ export function StorefrontHeaderContent({
   const featuredPromosDestination = String(props.featuredPromosTarget || props.featuredPromosDestination || '');
   const featuredPromosThumbnail = String(props.featuredPromosThumbnail || '');
   
+  // Menu visual style - 'classic', 'elegant', 'minimal'
+  const menuVisualStyle = String(props.menuVisualStyle || 'classic') as 'classic' | 'elegant' | 'minimal';
+  const menuShowParentTitle = props.menuShowParentTitle !== undefined ? Boolean(props.menuShowParentTitle) : true;
+  
   // Featured promo hover state
   const [featuredPromoHover, setFeaturedPromoHover] = useState(false);
   
@@ -916,19 +920,40 @@ export function StorefrontHeaderContent({
                     </LinkWrapper>
                     {openDropdown === item.id && (
                       <div 
-                        className="absolute top-full left-1/2 -translate-x-1/2 mt-3 bg-popover/95 backdrop-blur-md border border-border/60 rounded-xl shadow-xl py-2 min-w-[260px] z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200"
+                        className={cn(
+                          "absolute top-full left-1/2 -translate-x-1/2 mt-3 z-50",
+                          // Styles by menuVisualStyle
+                          menuVisualStyle === 'classic' && "bg-popover/95 backdrop-blur-md border border-border/60 rounded-xl shadow-xl py-2 min-w-[260px] animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200",
+                          menuVisualStyle === 'elegant' && "bg-popover border border-border/40 rounded-2xl shadow-2xl py-3 min-w-[280px] animate-in fade-in-0 slide-in-from-top-4 duration-300",
+                          menuVisualStyle === 'minimal' && "bg-popover shadow-lg py-2 min-w-[220px] animate-in fade-in-0 duration-150"
+                        )}
                         onMouseEnter={() => handleDropdownEnter(item.id)}
                         onMouseLeave={handleDropdownLeave}
                       >
-                        {/* Dropdown arrow - refined */}
-                        <div className="absolute -top-[6px] left-1/2 -translate-x-1/2 w-3 h-3 rotate-45 bg-popover/95 border-l border-t border-border/60" />
+                        {/* Dropdown arrow - only for classic and elegant */}
+                        {menuVisualStyle !== 'minimal' && (
+                          <div className={cn(
+                            "absolute -top-[6px] left-1/2 -translate-x-1/2 w-3 h-3 rotate-45",
+                            menuVisualStyle === 'classic' && "bg-popover/95 border-l border-t border-border/60",
+                            menuVisualStyle === 'elegant' && "bg-popover border-l border-t border-border/40"
+                          )} />
+                        )}
                         
-                        {/* Menu header */}
-                        <div className="px-4 py-2 border-b border-border/40 mb-1">
-                          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                            {item.label}
-                          </span>
-                        </div>
+                        {/* Menu header - only if menuShowParentTitle is true and not minimal */}
+                        {menuShowParentTitle && menuVisualStyle !== 'minimal' && (
+                          <div className={cn(
+                            "px-4 py-2 border-b mb-1",
+                            menuVisualStyle === 'classic' && "border-border/40",
+                            menuVisualStyle === 'elegant' && "border-border/30"
+                          )}>
+                            <span className={cn(
+                              "text-[10px] font-semibold uppercase tracking-wider text-muted-foreground",
+                              menuVisualStyle === 'elegant' && "text-[11px] tracking-widest"
+                            )}>
+                              {item.label}
+                            </span>
+                          </div>
+                        )}
                         
                         <div className="relative">
                           {item.children.map((child, index) => (
@@ -936,62 +961,103 @@ export function StorefrontHeaderContent({
                               <LinkWrapper
                                 to={getMenuItemUrl(child)}
                                 className={cn(
-                                  "flex items-center justify-between gap-3 px-4 py-2.5 text-sm text-popover-foreground transition-all duration-150",
-                                  "hover:bg-primary/8 hover:text-primary hover:pl-5",
-                                  "focus:bg-primary/8 focus:text-primary focus:outline-none",
-                                  "relative"
+                                  "flex items-center justify-between gap-3 text-sm text-popover-foreground transition-all",
+                                  // Styles by menuVisualStyle
+                                  menuVisualStyle === 'classic' && "px-4 py-2.5 hover:bg-primary/8 hover:text-primary hover:pl-5 duration-150 relative",
+                                  menuVisualStyle === 'elegant' && "px-5 py-3 hover:bg-muted/50 hover:text-primary duration-200 relative",
+                                  menuVisualStyle === 'minimal' && "px-4 py-2 hover:text-primary duration-100"
                                 )}
                               >
-                                {/* Left indicator on hover */}
-                                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-0 bg-primary rounded-r transition-all duration-200 group-hover/submenu:h-5" />
+                                {/* Left indicator on hover - only for classic */}
+                                {menuVisualStyle === 'classic' && (
+                                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-0 bg-primary rounded-r transition-all duration-200 group-hover/submenu:h-5" />
+                                )}
                                 
-                                <span className="font-medium">{child.label}</span>
+                                {/* Elegant style: subtle left border on hover */}
+                                {menuVisualStyle === 'elegant' && (
+                                  <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-primary scale-y-0 group-hover/submenu:scale-y-100 transition-transform duration-200 origin-center" />
+                                )}
+                                
+                                <span className={cn(
+                                  menuVisualStyle === 'classic' && "font-medium",
+                                  menuVisualStyle === 'elegant' && "font-normal",
+                                  menuVisualStyle === 'minimal' && "font-normal text-[13px]"
+                                )}>{child.label}</span>
                                 {child.children && child.children.length > 0 && (
-                                  <ChevronRight className="h-4 w-4 opacity-40 group-hover/submenu:opacity-100 group-hover/submenu:translate-x-0.5 transition-all duration-150" />
+                                  <ChevronRight className={cn(
+                                    "h-4 w-4 transition-all",
+                                    menuVisualStyle === 'classic' && "opacity-40 group-hover/submenu:opacity-100 group-hover/submenu:translate-x-0.5 duration-150",
+                                    menuVisualStyle === 'elegant' && "opacity-30 group-hover/submenu:opacity-70 duration-200",
+                                    menuVisualStyle === 'minimal' && "opacity-50 h-3 w-3"
+                                  )} />
                                 )}
                               </LinkWrapper>
                               
-                              {/* Sub-submenu (3rd level) - improved */}
+                              {/* Sub-submenu (3rd level) */}
                               {child.children && child.children.length > 0 && (
-                                <div className="absolute left-full top-0 ml-2 bg-popover/95 backdrop-blur-md border border-border/60 rounded-xl shadow-xl py-2 min-w-[200px] z-50 hidden group-hover/submenu:block animate-in fade-in-0 zoom-in-95 slide-in-from-left-2 duration-150">
-                                  {/* Submenu header */}
-                                  <div className="px-3 py-1.5 border-b border-border/40 mb-1">
-                                    <span className="text-[10px] font-medium text-muted-foreground">
-                                      {child.label}
-                                    </span>
-                                  </div>
+                                <div className={cn(
+                                  "absolute left-full top-0 ml-2 z-50 hidden group-hover/submenu:block",
+                                  menuVisualStyle === 'classic' && "bg-popover/95 backdrop-blur-md border border-border/60 rounded-xl shadow-xl py-2 min-w-[200px] animate-in fade-in-0 zoom-in-95 slide-in-from-left-2 duration-150",
+                                  menuVisualStyle === 'elegant' && "bg-popover border border-border/40 rounded-xl shadow-xl py-2 min-w-[200px] animate-in fade-in-0 slide-in-from-left-4 duration-200",
+                                  menuVisualStyle === 'minimal' && "bg-popover shadow-md py-1.5 min-w-[180px] animate-in fade-in-0 duration-100"
+                                )}>
+                                  {/* Submenu header - only for classic/elegant */}
+                                  {menuVisualStyle !== 'minimal' && (
+                                    <div className="px-3 py-1.5 border-b border-border/40 mb-1">
+                                      <span className="text-[10px] font-medium text-muted-foreground">
+                                        {child.label}
+                                      </span>
+                                    </div>
+                                  )}
                                   {child.children.map((grandchild) => (
                                     <LinkWrapper
                                       key={grandchild.id}
                                       to={getMenuItemUrl(grandchild)}
-                                      className="group/item flex items-center gap-2 px-3 py-2 text-sm text-popover-foreground hover:bg-primary/8 hover:text-primary transition-all duration-150 relative"
+                                      className={cn(
+                                        "group/item flex items-center gap-2 text-sm text-popover-foreground transition-all relative",
+                                        menuVisualStyle === 'classic' && "px-3 py-2 hover:bg-primary/8 hover:text-primary duration-150",
+                                        menuVisualStyle === 'elegant' && "px-4 py-2.5 hover:bg-muted/50 hover:text-primary duration-200",
+                                        menuVisualStyle === 'minimal' && "px-3 py-1.5 hover:text-primary duration-100 text-[13px]"
+                                      )}
                                     >
-                                      {/* Bullet point */}
-                                      <span className="w-1 h-1 rounded-full bg-muted-foreground/30 group-hover/item:bg-primary group-hover/item:scale-125 transition-all" />
+                                      {/* Bullet point - only for classic */}
+                                      {menuVisualStyle === 'classic' && (
+                                        <span className="w-1 h-1 rounded-full bg-muted-foreground/30 group-hover/item:bg-primary group-hover/item:scale-125 transition-all" />
+                                      )}
                                       <span>{grandchild.label}</span>
                                     </LinkWrapper>
                                   ))}
                                 </div>
                               )}
                               
-                              {/* Subtle separator between items */}
-                              {index < item.children.length - 1 && (
-                                <div className="mx-3 border-b border-border/20" />
+                              {/* Subtle separator between items - only for classic/elegant */}
+                              {menuVisualStyle !== 'minimal' && index < item.children.length - 1 && (
+                                <div className={cn(
+                                  "mx-3 border-b",
+                                  menuVisualStyle === 'classic' && "border-border/20",
+                                  menuVisualStyle === 'elegant' && "border-border/10"
+                                )} />
                               )}
                             </div>
                           ))}
                         </div>
                         
-                        {/* Optional footer with "Ver todos" */}
-                        <div className="px-4 pt-2 mt-1 border-t border-border/40">
-                          <LinkWrapper
-                            to={getMenuItemUrl(item)}
-                            className="text-xs text-primary hover:text-primary/80 font-medium transition-colors inline-flex items-center gap-1 group"
-                          >
-                            Ver todos
-                            <ChevronRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform" />
-                          </LinkWrapper>
-                        </div>
+                        {/* Optional footer with "Ver todos" - only for classic/elegant */}
+                        {menuVisualStyle !== 'minimal' && (
+                          <div className={cn(
+                            "px-4 pt-2 mt-1 border-t",
+                            menuVisualStyle === 'classic' && "border-border/40",
+                            menuVisualStyle === 'elegant' && "border-border/30"
+                          )}>
+                            <LinkWrapper
+                              to={getMenuItemUrl(item)}
+                              className="text-xs text-primary hover:text-primary/80 font-medium transition-colors inline-flex items-center gap-1 group"
+                            >
+                              Ver todos
+                              <ChevronRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform" />
+                            </LinkWrapper>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
