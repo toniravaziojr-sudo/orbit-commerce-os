@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { ProductRichTextEditor } from './ProductRichTextEditor';
 import { Switch } from '@/components/ui/switch';
 import {
   Form,
@@ -741,11 +742,11 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       <FormItem>
                         <FormLabel>Descrição Completa</FormLabel>
                         <FormControl>
-                          <Textarea
-                            {...field}
+                          <ProductRichTextEditor
                             value={field.value ?? ''}
+                            onChange={field.onChange}
                             placeholder="Descrição detalhada do produto..."
-                            rows={5}
+                            minHeight="250px"
                           />
                         </FormControl>
                         <FormMessage />
