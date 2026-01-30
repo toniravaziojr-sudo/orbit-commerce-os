@@ -341,6 +341,9 @@ export function StorefrontFooterContent({
   const footerTextColor = getString('footerTextColor', null);
   const footerTitlesColor = getString('footerTitlesColor', null) || footerTextColor;
   
+  // Menu visual style: classic, elegant, minimal
+  const menuVisualStyle = (configProps.menuVisualStyle as 'classic' | 'elegant' | 'minimal') || 'classic';
+  
   // Primary color: config > settings > theme default (neutral, not blue)
   const primaryColor = getString('primaryColor', storeSettings?.primary_color, '#1a1a1a') || '#1a1a1a';
   
@@ -462,6 +465,38 @@ export function StorefrontFooterContent({
   const footerStyle: React.CSSProperties = {
     ...(footerBgColor ? { backgroundColor: footerBgColor } : {}),
     ...(footerTextColor ? { color: footerTextColor } : {}),
+  };
+
+  // Helper: Get link class based on menuVisualStyle
+  // - classic: underline animation from left to right on hover
+  // - elegant: smooth color transition to primary color
+  // - minimal: simple opacity change
+  const getLinkClassName = () => {
+    const base = "text-sm transition-all duration-300";
+    switch (menuVisualStyle) {
+      case 'elegant':
+        return cn(
+          base,
+          "text-muted-foreground relative",
+          "hover:text-primary"
+        );
+      case 'minimal':
+        return cn(
+          base,
+          "text-muted-foreground/70",
+          "hover:text-muted-foreground hover:opacity-100"
+        );
+      case 'classic':
+      default:
+        return cn(
+          base,
+          "text-muted-foreground relative group/footerlink",
+          "hover:text-foreground",
+          // Underline animation
+          "after:absolute after:left-0 after:bottom-0 after:h-[1px] after:w-0 after:bg-current after:transition-all after:duration-300",
+          "hover:after:w-full"
+        );
+    }
   };
 
   // ============================================
@@ -825,8 +860,8 @@ export function StorefrontFooterContent({
                       <Link
                         key={item.id}
                         to={item.resolvedUrl}
-                        className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                        style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
+                        className={getLinkClassName()}
+                        style={footerTextColor ? { color: footerTextColor } : {}}
                       >
                         {item.label}
                       </Link>
@@ -872,8 +907,8 @@ export function StorefrontFooterContent({
                       <Link
                         key={item.id}
                         to={item.resolvedUrl}
-                        className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                        style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
+                        className={getLinkClassName()}
+                        style={footerTextColor ? { color: footerTextColor } : {}}
                       >
                         {item.label}
                       </Link>
@@ -1160,8 +1195,8 @@ export function StorefrontFooterContent({
                     <Link
                       key={item.id}
                       to={item.resolvedUrl}
-                      className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                      style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
+                      className={getLinkClassName()}
+                      style={footerTextColor ? { color: footerTextColor } : {}}
                     >
                       {item.label}
                     </Link>
@@ -1209,8 +1244,8 @@ export function StorefrontFooterContent({
                     <Link
                       key={item.id}
                       to={item.resolvedUrl}
-                      className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                      style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
+                      className={getLinkClassName()}
+                      style={footerTextColor ? { color: footerTextColor } : {}}
                     >
                       {item.label}
                     </Link>
