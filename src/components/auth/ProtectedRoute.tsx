@@ -46,18 +46,32 @@ export function ProtectedRoute({ children, requireTenant = true }: ProtectedRout
     }
   }, [isLoading, platformLoading, inviteLoading]);
 
-  // Give some time for user roles to load after auth is ready
+  // Give some time for user roles AND tenants to load after auth is ready
+  // CRITICAL FIX: Must wait for tenants to be populated, not just userRoles
   useEffect(() => {
-    if (!isLoading && user && userRoles.length === 0 && !hasPendingInvite) {
-      // Wait a bit for roles to load before deciding to redirect
-      const timer = setTimeout(() => {
-        setHasWaitedForData(true);
-      }, 1500);
-      return () => clearTimeout(timer);
-    } else {
+    if (!isLoading && user && !hasPendingInvite) {
+      // Case 1: User has no roles yet - wait with timeout
+      if (userRoles.length === 0) {
+        const timer = setTimeout(() => {
+          setHasWaitedForData(true);
+        }, 1500);
+        return () => clearTimeout(timer);
+      }
+      
+      // Case 2: User has roles but tenants not loaded yet - wait more
+      // This fixes the race condition where ProtectedRoute checks tenants.length
+      // before useAuth finishes fetching tenants from userRoles
+      if (userRoles.length > 0 && tenants.length === 0) {
+        const timer = setTimeout(() => {
+          setHasWaitedForData(true);
+        }, 1000);
+        return () => clearTimeout(timer);
+      }
+      
+      // Case 3: Everything loaded - good to go
       setHasWaitedForData(true);
     }
-  }, [isLoading, user, userRoles.length, hasPendingInvite]);
+  }, [isLoading, user, userRoles.length, tenants.length, hasPendingInvite]);
 
   // REGRA CRÍTICA: Durante carregamento (mesmo após latch), NÃO redirecionar para /auth
   // Isso previne flash de auth screen durante remontagens causadas por Google Tradutor
