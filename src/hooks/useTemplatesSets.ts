@@ -269,9 +269,18 @@ export function useTemplateSets() {
       return template;
     },
     onSuccess: () => {
+      // Invalidate admin queries
       queryClient.invalidateQueries({ queryKey: ['template-sets'] });
       queryClient.invalidateQueries({ queryKey: ['published-template-id'] });
       queryClient.invalidateQueries({ queryKey: ['store-settings'] });
+      
+      // CRITICAL: Invalidate PUBLIC storefront queries so visitors see updates immediately
+      queryClient.invalidateQueries({ queryKey: ['public-template'] });
+      queryClient.invalidateQueries({ queryKey: ['public-theme-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['public-page-template'] });
+      queryClient.invalidateQueries({ queryKey: ['category-settings-published'] });
+      queryClient.invalidateQueries({ queryKey: ['public-storefront'] });
+      
       toast({ title: 'Template publicado com sucesso!' });
     },
     onError: (error: Error) => {

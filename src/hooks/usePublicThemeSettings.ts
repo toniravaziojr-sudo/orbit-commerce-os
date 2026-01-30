@@ -142,8 +142,8 @@ export function usePublicThemeSettings(tenantSlug: string): PublicThemeSettingsR
       return publishedContent.themeSettings as ThemeSettings;
     },
     enabled: !!tenantSlug,
-    staleTime: 1000 * 60 * 15, // Cache for 15 minutes
-    gcTime: 1000 * 60 * 30, // Keep in cache for 30 minutes
+    staleTime: 1000 * 60 * 2, // Cache for 2 minutes - allows quick updates after publishing
+    gcTime: 1000 * 60 * 10, // Keep in cache for 10 minutes
   });
 
   return {
