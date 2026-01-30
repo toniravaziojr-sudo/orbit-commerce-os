@@ -98,6 +98,41 @@ Cada plataforma tem um adaptador que:
 | Loja Integrada | `src/lib/import/platforms/loja-integrada.ts` |
 | Wix | `src/lib/import/platforms/wix.ts` |
 
+### Mapeamento de Colunas Nuvemshop (Tiendanube)
+
+O CSV exportado pela Nuvemshop usa nomes de colunas em português. O adaptador mapeia automaticamente:
+
+| Coluna CSV (PT-BR) | Campo Interno | Observações |
+|-------------------|---------------|-------------|
+| `Nome do produto` | `name` | |
+| `Identificador URL` ou `URL` | `slug` | Ambos aceitos |
+| `Preço` | `price_cents` | Formato BR: "99,90" → 9990 |
+| `Preço promocional` | `compare_at_price_cents` | |
+| `Custo` | `cost_cents` | |
+| `SKU` | `sku` | |
+| `Código de barras` | `barcode` | |
+| `Estoque` | `stock` | |
+| `Peso (kg)` | `weight_kg` | Converte para gramas |
+| `Altura (cm)` | `height_cm` | |
+| `Largura (cm)` | `width_cm` | |
+| `Comprimento (cm)` | `depth_cm` | |
+| `Categorias` ou `Categoria` | `categories` | Separa por vírgula e hierarquia ("Cat > Sub") |
+| `Descrição` | `description` | HTML suportado |
+| `Exibir na loja` | `status` | "Sim" = active, "Não" = draft |
+| `URL da imagem X` | `images` | Até 10 imagens (URL da imagem 1-10) |
+| `Título para SEO` ou `Título SEO` | `seo_title` | |
+| `Descrição para SEO` ou `Descrição SEO` | `seo_description` | |
+| `Produto Físico` | `is_physical` | "Sim" = true |
+| `Tags` | `tags` | Separadas por vírgula |
+| `Marca` | `brand` | |
+| `Variação X` | `variants` | Até 3 variações (cor, tamanho, etc.) |
+
+**Observações importantes:**
+- Preços em formato brasileiro (vírgula decimal, ponto milhar) são convertidos automaticamente
+- Hierarquia de categorias com ">" (ex: "Roupas > Vestidos") cria subcategorias
+- Colunas de imagem numeradas de 1 a 10 são consolidadas em array
+- Variantes em múltiplas linhas são consolidadas no mesmo produto pelo `Identificador URL`
+
 ### Regra Fundamental
 
 > **A nossa estrutura NUNCA é alterada.**
