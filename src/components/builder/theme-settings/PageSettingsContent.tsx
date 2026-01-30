@@ -695,8 +695,9 @@ export function PageSettingsContent({
         queryClient.setQueryData(['product-settings-builder', tenantId, effectiveTemplateSetId], newSettings);
         console.log('[PageSettingsContent] Updated product settings cache:', { tenantId, effectiveTemplateSetId, newSettings });
       } else if (pageType === 'category') {
-        queryClient.invalidateQueries({ queryKey: ['category-settings', tenantId, effectiveTemplateSetId] });
-        queryClient.setQueryData(['category-settings', tenantId, effectiveTemplateSetId], newSettings);
+        // CRITICAL: Use the SAME query key as useCategorySettings hook
+        queryClient.invalidateQueries({ queryKey: ['category-settings-builder', tenantId, effectiveTemplateSetId] });
+        queryClient.setQueryData(['category-settings-builder', tenantId, effectiveTemplateSetId], newSettings);
         console.log('[PageSettingsContent] Updated category settings cache:', { tenantId, effectiveTemplateSetId, newSettings });
       } else if (pageType === 'cart') {
         queryClient.invalidateQueries({ queryKey: ['cart-settings-builder', tenantId, effectiveTemplateSetId] });

@@ -31,19 +31,60 @@ interface CategorySettingsPanelProps {
   tenantId: string;
   settings: CategorySettings;
   onChange: (settings: CategorySettings) => void;
+  templateSetId?: string; // Support for multi-template system
 }
 
 export function CategorySettingsPanel({
   tenantId,
   settings,
   onChange,
+  templateSetId,
 }: CategorySettingsPanelProps) {
   const queryClient = useQueryClient();
 
-  // Save mutation
+  // Save mutation - supports both template set and legacy systems
   const saveMutation = useMutation({
     mutationFn: async (newSettings: CategorySettings) => {
-      // Fetch current page_overrides
+      // If templateSetId is available, save to draft_content (new system)
+      if (templateSetId) {
+        const { data: templateSet, error: fetchError } = await supabase
+          .from('storefront_template_sets')
+          .select('draft_content')
+          .eq('id', templateSetId)
+          .eq('tenant_id', tenantId)
+          .single();
+        
+        if (fetchError) throw fetchError;
+        
+        const currentDraftContent = (templateSet.draft_content as Record<string, unknown>) || {};
+        const currentThemeSettings = (currentDraftContent.themeSettings as Record<string, unknown>) || {};
+        const currentPageSettings = (currentThemeSettings.pageSettings as Record<string, unknown>) || {};
+        
+        const updatedDraftContent = {
+          ...currentDraftContent,
+          themeSettings: {
+            ...currentThemeSettings,
+            pageSettings: {
+              ...currentPageSettings,
+              category: newSettings,
+            },
+          },
+        };
+        
+        const { error } = await supabase
+          .from('storefront_template_sets')
+          .update({ 
+            draft_content: updatedDraftContent as unknown as Json,
+            last_edited_at: new Date().toISOString(),
+          })
+          .eq('id', templateSetId)
+          .eq('tenant_id', tenantId);
+        
+        if (error) throw error;
+        return newSettings;
+      }
+      
+      // Fallback to legacy system
       const { data: template, error: fetchError } = await supabase
         .from('storefront_page_templates')
         .select('page_overrides')
@@ -70,9 +111,10 @@ export function CategorySettingsPanel({
       return newSettings;
     },
     onSuccess: (newSettings) => {
-      // Invalidate both queries to ensure sync
+      // Invalidate queries to ensure sync - use consistent key format
       queryClient.invalidateQueries({ queryKey: ['page-overrides', tenantId, 'category'] });
-      queryClient.invalidateQueries({ queryKey: ['category-settings', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['category-settings-builder', tenantId, templateSetId || 'legacy'] });
+      queryClient.setQueryData(['category-settings-builder', tenantId, templateSetId || 'legacy'], newSettings);
       // Toast removido para evitar spam durante edição contínua
     },
     onError: () => {
