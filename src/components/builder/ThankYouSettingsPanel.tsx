@@ -108,13 +108,12 @@ export function ThankYouSettingsPanel({
       if (error) throw error;
       return newSettings;
     },
-    onSuccess: () => {
-      // Invalidate all related queries
+    onSuccess: (newSettings) => {
+      // Invalidate all related queries with correct cache key format
+      const effectiveTemplateSetId = templateSetId || 'legacy';
       queryClient.invalidateQueries({ queryKey: ['page-overrides', tenantId, 'thank_you'] });
-      queryClient.invalidateQueries({ queryKey: ['thankYou-settings-builder', tenantId] });
-      if (templateSetId) {
-        queryClient.invalidateQueries({ queryKey: ['template-set-draft', templateSetId] });
-      }
+      queryClient.invalidateQueries({ queryKey: ['thankYou-settings-builder', tenantId, effectiveTemplateSetId] });
+      queryClient.setQueryData(['thankYou-settings-builder', tenantId, effectiveTemplateSetId], newSettings);
     },
     onError: () => {
       toast.error('Erro ao salvar configurações');
