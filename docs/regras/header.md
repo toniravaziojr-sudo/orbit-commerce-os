@@ -19,6 +19,8 @@
 | `featuredPromosTextColor` | string | Cor do texto de destaque |
 | `featuredPromosBgColor` | string | Cor de fundo do badge de destaque |
 | `featuredPromosThumbnail` | string | URL da miniatura exibida no hover (desktop) |
+| `menuVisualStyle` | `'classic'` \| `'elegant'` \| `'minimal'` | Estilo visual dos dropdowns do menu |
+| `menuShowParentTitle` | boolean | Exibe título da categoria pai no dropdown |
 
 > ⚠️ **ATENÇÃO:** O destino de promoções em destaque usa `featuredPromosTarget`, NÃO `featuredPromosDestination`.
 
@@ -127,17 +129,46 @@
 | **Mobile** | Accordion expansível |
 | **Tipos de item** | `category`, `page`, `external`, `landing_page` |
 
-### Estilo do Dropdown (Desktop)
+### Estilos Visuais de Menus
 
-| Característica | Implementação |
-|----------------|---------------|
-| **Container** | `bg-popover/95 backdrop-blur-md rounded-xl shadow-xl` |
-| **Animação** | `animate-in fade-in-0 zoom-in-95 slide-in-from-top-2` |
-| **Header** | Título uppercase com separador |
-| **Hover** | Indicador lateral animado (barra vertical primary) |
-| **Subitems** | Slide para direita com header próprio |
-| **Footer** | Link "Ver todos" para categoria pai |
-| **Arrow** | Seta rotacionada apontando para trigger |
+> Configurável em: **Configurações do tema** → **Cabeçalho** → **Visual Menus**
+
+| Estilo | Descrição | Características |
+|--------|-----------|-----------------|
+| **Classic** | Tradicional com indicadores | Seta no trigger, header com título, indicador lateral animado no hover, link "Ver todos" no footer |
+| **Elegant** | Suave com animações refinadas | Bordas arredondadas (2xl), animação slide-in-from-top-4, efeito scale+border no hover, transições suaves |
+| **Minimal** | Limpo e minimalista | Sem setas, sem headers de categoria, sem borders, apenas efeito de cor no hover |
+
+### Props de Visual Menus (Header)
+
+| Prop | Tipo | Default | Descrição |
+|------|------|---------|-----------|
+| `menuVisualStyle` | `'classic'` \| `'elegant'` \| `'minimal'` | `'classic'` | Estilo visual dos dropdowns |
+| `menuShowParentTitle` | boolean | true | Exibe título da categoria pai no dropdown (apenas Classic/Elegant) |
+
+### Detalhes de Implementação por Estilo
+
+**Classic:**
+- Container: `bg-popover/95 backdrop-blur-md rounded-xl shadow-xl`
+- Animação: `animate-in fade-in-0 zoom-in-95 slide-in-from-top-2`
+- Trigger: ChevronDown rotacionado em hover
+- Header: Título uppercase com separador
+- Hover: Indicador lateral animado (barra vertical primary)
+- Footer: Link "Ver todos" para categoria pai
+
+**Elegant:**
+- Container: `bg-popover/98 backdrop-blur-lg rounded-2xl shadow-2xl border border-border/50`
+- Animação: `animate-in fade-in-0 slide-in-from-top-4 duration-300`
+- Trigger: Sem seta
+- Header: Título com tipografia refinada (sem uppercase)
+- Hover: `scale-[1.02]` + border-left primary + transição suave
+
+**Minimal:**
+- Container: `bg-popover rounded-lg shadow-lg`
+- Animação: `animate-in fade-in-0 duration-200`
+- Trigger: Sem seta
+- Header: Não exibe
+- Hover: Apenas mudança de cor (primary)
 
 ### Menu Demo (Builder)
 
@@ -221,6 +252,9 @@ Quando `isEditing=true` e não há menu real:
 
 | Data | Alteração |
 |------|-----------|
+| 2025-01-30 | Adicionado `menuVisualStyle` com 3 estilos: Classic, Elegant, Minimal |
+| 2025-01-30 | Adicionado `menuShowParentTitle` para ocultar/exibir título da categoria pai |
+| 2025-01-30 | Nova seção "Visual Menus" em HeaderSettings.tsx |
 | 2025-01-19 | Adicionado `featuredPromosBgColor` para cor customizada do badge |
 | 2025-01-19 | Melhorado dropdown do menu com glassmorphism e indicadores visuais |
 | 2025-01-19 | Menu demo interativo com subitens e efeitos de hover |
