@@ -190,13 +190,13 @@ export function PropsEditor({
   }
 
   return (
-    <div className="h-full flex flex-col border-l">
+    <div className="h-full flex flex-col border-l overflow-hidden">
       {/* Header */}
-      <div className="p-2 border-b bg-muted/30">
-        <div className="flex items-center gap-1.5">
+      <div className="p-3 border-b bg-muted/30 flex-shrink-0">
+        <div className="flex items-center gap-2">
           <span className="text-base">{definition.icon}</span>
-          <div>
-            <h3 className="font-semibold text-xs">{definition.label}</h3>
+          <div className="min-w-0 flex-1">
+            <h3 className="font-semibold text-xs truncate">{definition.label}</h3>
             <p className="text-[10px] text-muted-foreground">Propriedades</p>
           </div>
         </div>
@@ -204,7 +204,7 @@ export function PropsEditor({
 
       {/* Props */}
       <ScrollArea className="flex-1">
-        <div className="p-2 space-y-2.5">
+        <div className="p-3 pr-4 space-y-2.5">
           {/* Header Notice Accordion - FIRST, collapsed by default */}
           {isHeaderBlock && noticePropsEntries.length > 0 && (
             <>
@@ -268,7 +268,7 @@ export function PropsEditor({
       </ScrollArea>
 
       {/* Actions */}
-      <div className="p-2 border-t bg-muted/30">
+      <div className="p-3 border-t bg-muted/30 flex-shrink-0">
         {/* Badge de estrutura obrigatória - conforme docs/REGRAS.md 16.7 */}
         {pageType && blockType && !canDelete && (
           <div className="mb-2">

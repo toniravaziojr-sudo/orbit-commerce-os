@@ -1544,7 +1544,8 @@ const blockDefinitions: BlockDefinition[] = [
       title: 'Produtos em Destaque',
       productIds: [],
       limit: 4,
-      columns: 4,
+      columnsDesktop: 4,
+      columnsMobile: 2,
       showPrice: true,
       showButton: true,
       buttonText: 'Ver produto',
@@ -1566,14 +1567,25 @@ const blockDefinitions: BlockDefinition[] = [
         min: 1,
         max: 12,
       },
-      columns: {
+      columnsDesktop: {
         type: 'select',
-        label: 'Colunas',
+        label: 'Colunas (Desktop)',
         defaultValue: '4',
         options: [
           { label: '2', value: '2' },
           { label: '3', value: '3' },
           { label: '4', value: '4' },
+          { label: '5', value: '5' },
+          { label: '6', value: '6' },
+        ],
+      },
+      columnsMobile: {
+        type: 'select',
+        label: 'Colunas (Mobile)',
+        defaultValue: '2',
+        options: [
+          { label: '1', value: '1' },
+          { label: '2', value: '2' },
         ],
       },
       showPrice: {

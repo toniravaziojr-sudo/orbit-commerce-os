@@ -20,7 +20,9 @@ interface FeaturedProductsBlockProps {
   title?: string;
   productIds?: string[] | string; // Array (new) or string (legacy)
   limit?: number;
-  columns?: number;
+  columns?: number; // Legacy support
+  columnsDesktop?: number;
+  columnsMobile?: number;
   showPrice?: boolean;
   showButton?: boolean;
   buttonText?: string;
@@ -32,14 +34,16 @@ export function FeaturedProductsBlock({
   title,
   productIds = [],
   limit = 4,
-  columns = 4,
+  columns, // Legacy
+  columnsDesktop = 4,
+  columnsMobile = 2,
   showPrice = true,
   showButton = true,
   buttonText = 'Ver produto',
   context,
   isEditing = false,
 }: FeaturedProductsBlockProps) {
-  const { tenantSlug } = context;
+  const { tenantSlug, viewport } = context;
 
   // Get categorySettings from context (passed from VisualBuilder)
   const categorySettings: Partial<CategorySettings> = (context as any)?.categorySettings || {};
@@ -118,13 +122,36 @@ export function FeaturedProductsBlock({
     window.location.href = checkoutUrl;
   }, [addToCart, tenantSlug, isEditing]);
 
-  const gridCols = {
-    2: 'grid-cols-1 sm:grid-cols-2',
-    3: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
-    4: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4',
-    5: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5',
-    6: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6',
-  }[columns] || 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4';
+  // Effective columns - use legacy "columns" prop if new props not set
+  const effectiveDesktopCols = columnsDesktop || columns || 4;
+  const effectiveMobileCols = columnsMobile || 2;
+  
+  // Determine if we're in mobile viewport (from builder context)
+  const isMobileViewport = viewport === 'mobile';
+  const isTabletViewport = viewport === 'tablet';
+  
+  // Build responsive grid classes
+  const getGridClass = () => {
+    // In builder with explicit viewport, use that
+    if (viewport) {
+      if (isMobileViewport) {
+        return `grid-cols-${Math.min(effectiveMobileCols, 2)}`;
+      }
+      if (isTabletViewport) {
+        return `grid-cols-${Math.min(effectiveDesktopCols, 3)}`;
+      }
+      return `grid-cols-${effectiveDesktopCols}`;
+    }
+    
+    // For storefront (no explicit viewport), use responsive classes
+    const mobileCols = Math.min(effectiveMobileCols, 2);
+    const tabletCols = Math.min(effectiveDesktopCols, 3);
+    const desktopCols = effectiveDesktopCols;
+    
+    return `grid-cols-${mobileCols} sm:grid-cols-${tabletCols} lg:grid-cols-${desktopCols}`;
+  };
+  
+  const gridCols = getGridClass();
 
   if (isLoading) {
     return (
