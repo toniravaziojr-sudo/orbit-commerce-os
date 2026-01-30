@@ -67,7 +67,98 @@ Para permitir que hovers e interações funcionem durante a edição, o `BlockRe
 
 ---
 
-## Arquitetura Builder vs Storefront Público
+## Sistema de Estrutura Padrão (Bloco Agrupado)
+
+> **Implementado em:** 2025-01-30
+
+O menu lateral do builder agrupa todos os blocos essenciais de cada página em um único item visual chamado **"Estrutura Padrão"** (ou nome específico da página, ex: "Estrutura do Produto").
+
+### Princípio Fundamental
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                  ESTRUTURA PADRÃO vs BLOCOS PERSONALIZADOS               │
+├─────────────────────────────────────────────────────────────────────────┤
+│  ESTRUTURA PADRÃO (agrupada):                                            │
+│  • Contém blocos essenciais da página (ProductDetails, ProductGrid, etc) │
+│  • Pode ser MOVIDA (reposicionada em relação a blocos personalizados)   │
+│  • NÃO abre painel de propriedades ao clicar                            │
+│  • NÃO pode ser excluída                                                │
+│  • Configurações em "Tema → Páginas"                                    │
+│                                                                          │
+│  BLOCOS PERSONALIZADOS:                                                  │
+│  • Adicionados via "+ Adicionar seção"                                  │
+│  • Podem ser movidos livremente                                         │
+│  • Podem ser editados (abre painel de propriedades)                     │
+│  • Podem ser excluídos                                                  │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Blocos Agrupados por Página
+
+| Página | Nome do Grupo | Blocos Incluídos |
+|--------|---------------|------------------|
+| Produto | Estrutura do Produto | `ProductDetails`, `CompreJuntoSlot` |
+| Categoria | Estrutura da Categoria | `CategoryBanner`, `ProductGrid`, `CategoryPageLayout` |
+| Carrinho | Estrutura do Carrinho | `Cart` |
+| Checkout | Estrutura do Checkout | `Checkout` |
+| Obrigado | Confirmação do Pedido | `ThankYou` |
+| Conta | Área do Cliente | `AccountHub` |
+| Pedidos | Meus Pedidos | `OrdersList` |
+| Detalhes Pedido | Detalhes do Pedido | `OrderDetail` |
+
+### Comportamento no BuilderSidebar
+
+```tsx
+// ❌ ANTES - Cada bloco aparecia individualmente (confuso para usuários)
+[ProductDetails]   ← não pode editar via painel
+[Banner Hero]      ← pode editar
+[Produtos Relacionados] ← não pode excluir
+
+// ✅ DEPOIS - Agrupamento visual claro
+[📦 Estrutura do Produto]  ← arraste para reposicionar, configurações em Tema > Páginas
+  └─ ProductDetails
+  └─ CompreJuntoSlot
+[Banner Hero]              ← pode editar, mover, excluir
+[Produtos Relacionados]    ← pode editar, mover
+```
+
+### Constantes de Configuração
+
+```tsx
+// Blocos de infraestrutura (nunca aparecem no menu)
+const INFRASTRUCTURE_BLOCKS = new Set(['Header', 'Footer', 'Page', 'Section']);
+
+// Blocos de sistema (agrupados em "Estrutura Padrão")
+const SYSTEM_BLOCKS = new Set([
+  'CategoryBanner', 'ProductGrid', 'CategoryPageLayout',
+  'ProductDetails', 'CompreJuntoSlot',
+  'Cart', 'Checkout', 'ThankYou',
+  'CrossSellSlot', 'UpsellSlot',
+  'AccountHub', 'OrdersList', 'OrderDetail',
+  'TrackingLookup', 'BlogListing',
+]);
+```
+
+### Regras Obrigatórias
+
+1. **NUNCA** permitir exclusão de blocos agrupados em "Estrutura Padrão"
+2. **NUNCA** abrir painel de propriedades ao clicar em "Estrutura Padrão" — configurações ficam em "Tema → Páginas"
+3. **SEMPRE** permitir arrastar "Estrutura Padrão" para reposicionar em relação a blocos personalizados
+4. **SEMPRE** exibir contagem de blocos no badge (ex: `[3]`)
+5. **SEMPRE** permitir expandir/colapsar para ver quais blocos estão incluídos
+
+### Arquivos Relacionados
+
+| Arquivo | Responsabilidade |
+|---------|------------------|
+| `src/components/builder/BuilderSidebar.tsx` | Menu lateral com "Estrutura Padrão" |
+| `src/components/builder/BlockTree.tsx` | Árvore hierárquica (alternativa) |
+| `src/lib/builder/essentialBlocks.ts` | Definição de blocos essenciais por página |
+| `src/lib/builder/pageContracts.ts` | Contratos de páginas (blocos obrigatórios) |
+
+---
+
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -833,13 +924,28 @@ O sistema de edição inline usa uma arquitetura **uncontrolled** para estabilid
 
 ---
 
-## Sistema de Real-time Preview e Salvamento Manual
+## Sistema de Real-time Preview e Salvamento Manual Unificado
 
-> **Implementado em:** 2025-01-29
+> **Implementado em:** 2025-01-29 | **Expandido em:** 2025-01-30
 
-O builder utiliza um sistema de **preview em tempo real** com **salvamento manual**, garantindo feedback visual instantâneo sem persistência automática.
+O builder utiliza um sistema de **preview em tempo real** com **salvamento manual unificado**, garantindo feedback visual instantâneo sem persistência automática para **TODAS** as configurações (tema + páginas).
 
-### Arquitetura
+### Princípio Fundamental
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                  SALVAMENTO UNIFICADO (REGRA PRINCIPAL)                  │
+├─────────────────────────────────────────────────────────────────────────┤
+│  • Todas as alterações ficam em estado LOCAL (draft) até clicar Salvar  │
+│  • Configurações do Tema (cores, tipografia, CSS) → useBuilderDraftTheme│
+│  • Configurações de Página (toggles, opções) → useBuilderDraftPageSettings│
+│  • NÃO existe auto-save/debounce em nenhum painel                       │
+│  • Ao sair sem salvar, TODAS as alterações são perdidas                 │
+│  • isDirty = store.isDirty || themeDraft.hasDraftChanges || pageDraft.hasDraftChanges│
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Arquitetura de Drafts
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -852,6 +958,23 @@ O builder utiliza um sistema de **preview em tempo real** com **salvamento manua
 │  • draftCustomCss: string | null                                         │
 │                                                                          │
 │  Quando NOT NULL: indica alterações não salvas                          │
+│  Quando NULL: usa valores do banco (saved)                              │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    +
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    DRAFT PAGE SETTINGS CONTEXT                           │
+│  Arquivo: src/hooks/useBuilderDraftPageSettings.tsx                     │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Estado Local (useState):                                                │
+│  • draftPageSettings: Record<PageSettingsKey, PageSettingsType | null>  │
+│    - home: HomeSettings | null                                           │
+│    - category: CategorySettings | null                                   │
+│    - product: ProductSettings | null                                     │
+│    - cart: CartSettings | null                                           │
+│    - checkout: CheckoutSettings | null                                   │
+│    - thank_you: ThankYouSettings | null                                  │
+│                                                                          │
+│  Quando NOT NULL: indica alterações não salvas para aquela página       │
 │  Quando NULL: usa valores do banco (saved)                              │
 └─────────────────────────────────────────────────────────────────────────┘
                                     ↓
@@ -869,32 +992,81 @@ O builder utiliza um sistema de **preview em tempo real** com **salvamento manua
 └─────────────────────────────────────────────────────────────────────────┘
                                     ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                    VISUAL BUILDER                                        │
+│                    VISUAL BUILDER (ORQUESTRADOR)                         │
 │  Arquivo: src/components/builder/VisualBuilder.tsx                      │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  BuilderDraftThemeProvider                                               │
-│    ├─ BuilderThemeInjectorInner ← DEVE estar DENTRO do Provider!        │
-│    ├─ DraftThemeRefSync                                                  │
-│    └─ Resto do builder...                                                │
+│  Providers hierárquicos:                                                 │
+│    BuilderDraftThemeProvider                                             │
+│      BuilderDraftPageSettingsProvider                                    │
+│        ├─ BuilderThemeInjectorInner                                      │
+│        ├─ DraftThemeRefSync                                              │
+│        └─ Resto do builder...                                            │
 │                                                                          │
-│  isDirty = store.isDirty || draftTheme.hasDraftChanges                  │
+│  isDirty = store.isDirty                                                 │
+│         || draftTheme.hasDraftChanges                                    │
+│         || draftPageSettings?.hasDraftChanges                            │
 │                                                                          │
 │  handleSave():                                                           │
-│    1. Merge draft changes into themeSettings                            │
-│    2. Save to storefront_template_sets.draft_content                    │
-│    3. Call draftTheme.clearDraft() após sucesso                         │
+│    1. Merge theme draft into themeSettings (colors, typography, css)    │
+│    2. Merge page settings draft into pageSettings por tipo de página    │
+│    3. Save to storefront_template_sets.draft_content                    │
+│    4. Call draftTheme.clearDraft() após sucesso                         │
+│    5. Call draftPageSettings.clearDraft() após sucesso                  │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Fluxo de Dados
+### Fluxo de Dados — Tema
 
 | Ação do Usuário | Componente de Origem | Destino | Persistência |
 |-----------------|---------------------|---------|--------------|
 | Muda cor | `ColorsSettings.tsx` | `draftTheme.setDraftColors()` | **NÃO** (local) |
 | Muda tipografia | `TypographySettings.tsx` | `draftTheme.setDraftTypography()` | **NÃO** (local) |
 | Muda CSS custom | `CustomCSSSettings.tsx` | `draftTheme.setDraftCustomCss()` | **NÃO** (local) |
-| Clica "Salvar" | `VisualBuilder.tsx` | Supabase + `clearDraft()` | **SIM** (banco) |
+
+### Fluxo de Dados — Páginas
+
+| Ação do Usuário | Componente de Origem | Destino | Persistência |
+|-----------------|---------------------|---------|--------------|
+| Toggle em Home | `PageSettingsContent.tsx` | `draftPageSettings.setDraftPageSettings('home', ...)` | **NÃO** (local) |
+| Toggle em Category | `CategorySettingsPanel.tsx` | `draftPageSettings.setDraftPageSettings('category', ...)` | **NÃO** (local) |
+| Toggle em Product | `ProductSettingsPanel.tsx` | `draftPageSettings.setDraftPageSettings('product', ...)` | **NÃO** (local) |
+| Toggle em Cart | `CartSettingsPanel.tsx` | `draftPageSettings.setDraftPageSettings('cart', ...)` | **NÃO** (local) |
+| Toggle em Checkout | `CheckoutSettingsPanel.tsx` | `draftPageSettings.setDraftPageSettings('checkout', ...)` | **NÃO** (local) |
+| Toggle em Thank You | `ThankYouSettingsPanel.tsx` | `draftPageSettings.setDraftPageSettings('thank_you', ...)` | **NÃO** (local) |
+
+### Fluxo de Dados — Salvamento
+
+| Ação do Usuário | Componente | Destino | Persistência |
+|-----------------|------------|---------|--------------|
+| Clica "Salvar" | `VisualBuilder.tsx` | Supabase + `clearDraft()` (ambos) | **SIM** (banco) |
 | Clica "Publicar" | `useTemplateSetSave.ts` | `published_content` | **SIM** (público) |
+
+### Implementação nos Painéis de Settings
+
+Cada painel de configuração de página segue este padrão:
+
+```tsx
+// ❌ ANTES (auto-save com mutation)
+const { updateCategorySettings } = usePageSettings(tenantId, templateSetId);
+
+const handleToggle = (key: string, value: boolean) => {
+  updateCategorySettings({ ...settings, [key]: value }); // Salva imediatamente!
+};
+
+// ✅ DEPOIS (draft local)
+const draftPageSettings = useBuilderDraftPageSettings();
+
+const handleToggle = (key: string, value: boolean) => {
+  const newSettings = { ...settings, [key]: value };
+  draftPageSettings?.setDraftPageSettings('category', newSettings); // Apenas local!
+};
+
+// Para exibir valores atuais (prioriza draft > saved)
+const effectiveSettings = draftPageSettings?.getEffectiveSettings<CategorySettings>(
+  'category',
+  savedSettings
+) || savedSettings;
+```
 
 ### Comportamento de Reset
 
@@ -902,27 +1074,36 @@ O builder utiliza um sistema de **preview em tempo real** com **salvamento manua
 |---------|---------------|
 | Muda de página sem salvar | Draft é resetado (useState desmontado) |
 | Fecha aba/navegador com alterações | Aviso via `beforeunload` |
-| Clica "Salvar" | Draft persistido + cleared |
+| Clica "Salvar" | Draft persistido + cleared (ambos contexts) |
 | Clica "Publicar" | `draft_content` → `published_content` |
 
 ### Regras Obrigatórias
 
-1. **NUNCA** usar auto-save/debounce em configurações de tema — apenas salvamento manual
-2. **SEMPRE** envolver o `useBuilderThemeInjector` dentro do `BuilderDraftThemeProvider`
-3. **SEMPRE** verificar `hasDraftChanges` para indicador visual de alterações pendentes
-4. **SEMPRE** chamar `clearDraft()` após persistência bem-sucedida
-5. **NUNCA** persistir diretamente do componente de settings — apenas via `handleSave` central
+1. **NUNCA** usar auto-save/debounce em configurações de tema ou página — apenas salvamento manual
+2. **NUNCA** chamar mutations de update diretamente dos painéis de settings
+3. **SEMPRE** envolver o builder em `BuilderDraftThemeProvider` + `BuilderDraftPageSettingsProvider`
+4. **SEMPRE** verificar `hasDraftChanges` de AMBOS os contexts para indicador de alterações pendentes
+5. **SEMPRE** chamar `clearDraft()` de AMBOS os contexts após persistência bem-sucedida
+6. **SEMPRE** usar `getEffectiveSettings()` para exibir valores (prioriza draft > saved)
+7. **NUNCA** persistir diretamente do componente de settings — apenas via `handleSave` central
 
 ### Arquivos Relacionados
 
 | Arquivo | Responsabilidade |
 |---------|------------------|
-| `src/hooks/useBuilderDraftTheme.tsx` | Context + state local de draft |
+| `src/hooks/useBuilderDraftTheme.tsx` | Context + state local de draft para tema |
+| `src/hooks/useBuilderDraftPageSettings.tsx` | Context + state local de draft para páginas |
 | `src/hooks/useBuilderThemeInjector.ts` | Injeção CSS com prioridade draft > saved |
-| `src/components/builder/VisualBuilder.tsx` | Orquestração + handleSave |
+| `src/components/builder/VisualBuilder.tsx` | Orquestração + handleSave unificado |
 | `src/components/builder/theme-settings/ColorsSettings.tsx` | Edição de cores → draft |
 | `src/components/builder/theme-settings/TypographySettings.tsx` | Edição de tipografia → draft |
 | `src/components/builder/theme-settings/CustomCSSSettings.tsx` | Edição de CSS → draft |
+| `src/components/builder/theme-settings/PageSettingsContent.tsx` | Toggles de página Home → draft |
+| `src/components/builder/CategorySettingsPanel.tsx` | Toggles de Category → draft |
+| `src/components/builder/ProductSettingsPanel.tsx` | Toggles de Product → draft |
+| `src/components/builder/CartSettingsPanel.tsx` | Toggles de Cart → draft |
+| `src/components/builder/CheckoutSettingsPanel.tsx` | Toggles de Checkout → draft |
+| `src/components/builder/ThankYouSettingsPanel.tsx` | Toggles de Thank You → draft |
 
 ---
 
