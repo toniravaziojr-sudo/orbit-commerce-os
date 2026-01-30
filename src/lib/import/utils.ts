@@ -67,23 +67,91 @@ export function slugify(text: string): string {
 }
 
 /**
- * Parse Brazilian price format (R$ 49,90 or 49.90)
+ * Normalize header for comparison - removes accents and special chars
+ * Used to match columns even when encoding is broken (Latin-1 -> UTF-8)
  */
-export function parseBrazilianPrice(price: string | number | null | undefined): number {
-  if (price === null || price === undefined) return 0;
-  if (typeof price === 'number') return price;
-  
-  // Remove currency symbol and spaces
-  const cleaned = price.replace(/[R$\s]/g, '');
-  
-  // Handle Brazilian format (1.234,56) vs American format (1,234.56)
-  // If has comma followed by 2 digits at end, it's Brazilian
-  if (/,\d{2}$/.test(cleaned)) {
-    return parseFloat(cleaned.replace(/\./g, '').replace(',', '.')) || 0;
+export function normalizeHeader(header: string): string {
+  if (!header) return '';
+  return header
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // remove accents
+    .replace(/[^a-z0-9\s()]/g, '') // keep only alphanumeric, spaces, parens
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Get value from row using flexible column matching
+ * Matches columns even with broken encoding or slight naming variations
+ */
+export function getColumnValue(row: Record<string, string>, ...columnNames: string[]): string | undefined {
+  // First try exact match
+  for (const name of columnNames) {
+    if (row[name] !== undefined && row[name] !== '') {
+      return row[name];
+    }
   }
   
-  // Otherwise assume standard format
-  return parseFloat(cleaned.replace(',', '')) || 0;
+  // Then try normalized match (handles encoding issues)
+  const normalizedNames = columnNames.map(normalizeHeader);
+  for (const [key, value] of Object.entries(row)) {
+    if (value === undefined || value === '') continue;
+    const normalizedKey = normalizeHeader(key);
+    if (normalizedNames.includes(normalizedKey)) {
+      return value;
+    }
+  }
+  
+  return undefined;
+}
+
+/**
+ * Parse price intelligently - handles multiple formats:
+ * - Brazilian: 1.234,56 or 1234,56
+ * - American/Export: 1,234.56 or 1234.56 or 823.50
+ * - Plain: 823
+ */
+export function parseBrazilianPrice(price: string | number | null | undefined): number {
+  if (price === null || price === undefined || price === '') return 0;
+  if (typeof price === 'number') return price;
+  
+  // Remove currency symbols and spaces
+  let cleaned = price.toString().replace(/[R$€\s]/g, '').trim();
+  
+  if (!cleaned) return 0;
+  
+  const lastDot = cleaned.lastIndexOf('.');
+  const lastComma = cleaned.lastIndexOf(',');
+  
+  // No decimal separators - parse as integer
+  if (lastDot === -1 && lastComma === -1) {
+    return parseFloat(cleaned) || 0;
+  }
+  
+  // Both separators present - determine which is decimal
+  if (lastDot !== -1 && lastComma !== -1) {
+    if (lastDot > lastComma) {
+      // Format: 1,234.56 (dot is decimal)
+      cleaned = cleaned.replace(/,/g, '');
+    } else {
+      // Format: 1.234,56 (comma is decimal)
+      cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+    }
+  } else if (lastComma !== -1) {
+    // Only comma - check if it's decimal separator
+    const afterComma = cleaned.substring(lastComma + 1);
+    if (afterComma.length <= 2 && /^\d+$/.test(afterComma)) {
+      // Format: 823,50 (comma is decimal)
+      cleaned = cleaned.replace(',', '.');
+    } else {
+      // Format: 1,234 (comma is thousand separator)
+      cleaned = cleaned.replace(',', '');
+    }
+  }
+  // Only dot - already in correct format (823.50)
+  
+  return parseFloat(cleaned) || 0;
 }
 
 /**
