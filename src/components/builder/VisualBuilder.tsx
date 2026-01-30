@@ -25,6 +25,7 @@ import { ThemeSettingsPanel } from './ThemeSettingsPanel';
 import { PropsEditor } from './PropsEditor';
 import { HeaderFooterPropsEditor } from './HeaderFooterPropsEditor';
 import { VersionHistoryDialog } from './VersionHistoryDialog';
+import { UnsavedChangesDialog } from './UnsavedChangesDialog';
 import { CategorySettingsPanel, useCategorySettings } from './CategorySettingsPanel';
 import { ProductSettingsPanel, useProductSettings } from './ProductSettingsPanel';
 import { useCartSettings } from './CartSettingsPanel';
@@ -92,13 +93,13 @@ function VisualIsolationUI({ mode, message }: { mode: string; message: string })
 }
 
 // Wrapper component to access draft theme context and combine with store isDirty
-function BuilderToolbarWithDraftCheck(props: Omit<React.ComponentProps<typeof BuilderToolbar>, 'isDirty'> & { storeIsDirty: boolean }) {
+function BuilderToolbarWithDraftCheck(props: Omit<React.ComponentProps<typeof BuilderToolbar>, 'isDirty'> & { storeIsDirty: boolean; onPageChangeCheck?: (targetUrl: string) => boolean }) {
   const draftTheme = useBuilderDraftTheme();
   const draftPageSettings = getGlobalDraftPageSettingsRef();
-  const { storeIsDirty, ...toolbarProps } = props;
+  const { storeIsDirty, onPageChangeCheck, ...toolbarProps } = props;
   // Combine store dirty state with draft theme changes AND draft page settings
   const isDirty = storeIsDirty || (draftTheme?.hasDraftChanges ?? false) || (draftPageSettings?.hasDraftChanges ?? false);
-  return <BuilderToolbar {...toolbarProps} isDirty={isDirty} />;
+  return <BuilderToolbar {...toolbarProps} isDirty={isDirty} onPageChangeCheck={onPageChangeCheck} />;
 }
 
 // Component that injects theme CSS - MUST be inside BuilderDraftThemeProvider
@@ -131,6 +132,11 @@ export function VisualBuilder({
   // Removed isInteractMode - builder is always interactive
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showAddBlockDrawer, setShowAddBlockDrawer] = useState(false);
+  
+  // Unsaved changes dialog state
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
+  const [isSavingBeforeLeave, setIsSavingBeforeLeave] = useState(false);
   
 // AJUSTE 2: Preserve theme settings panel state via URL param
   // This prevents the panel from closing when navigating between pages
@@ -289,6 +295,24 @@ export function VisualBuilder({
 
   // Builder store for state management
   const store = useBuilderStore(contentWithGlobalLayout);
+
+  // Browser beforeunload warning for unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const draftTheme = getGlobalDraftThemeRef();
+      const draftPageSettings = getGlobalDraftPageSettingsRef();
+      const hasUnsaved = store.isDirty || (draftTheme?.hasDraftChanges ?? false) || (draftPageSettings?.hasDraftChanges ?? false);
+      
+      if (hasUnsaved) {
+        e.preventDefault();
+        e.returnValue = 'Você tem alterações não salvas. Deseja sair?';
+        return e.returnValue;
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [store.isDirty]);
 
   // Data mutations - legacy system
   const { saveDraft, publish } = useBuilderData(tenantId);
@@ -851,15 +875,65 @@ export function VisualBuilder({
     }
   }, []);
 
-  // Go back
+  // Check if there are any unsaved changes (store + draft theme + draft page settings)
+  const hasAnyUnsavedChanges = useCallback(() => {
+    const draftTheme = getGlobalDraftThemeRef();
+    const draftPageSettings = getGlobalDraftPageSettingsRef();
+    return store.isDirty || (draftTheme?.hasDraftChanges ?? false) || (draftPageSettings?.hasDraftChanges ?? false);
+  }, [store.isDirty]);
+
+  // Go back with unsaved changes check
   const handleBack = useCallback(() => {
-    if (store.isDirty) {
-      if (!confirm('Você tem alterações não salvas. Deseja sair?')) {
-        return;
-      }
+    if (hasAnyUnsavedChanges()) {
+      setPendingNavigation('/storefront');
+      setShowUnsavedDialog(true);
+      return;
     }
     navigate('/storefront');
-  }, [navigate, store.isDirty]);
+  }, [navigate, hasAnyUnsavedChanges]);
+
+  // Handle page change from toolbar with unsaved changes check
+  const handlePageChangeWithCheck = useCallback((targetUrl: string) => {
+    if (hasAnyUnsavedChanges()) {
+      setPendingNavigation(targetUrl);
+      setShowUnsavedDialog(true);
+      return false; // Indicates navigation was blocked
+    }
+    return true; // Indicates navigation can proceed
+  }, [hasAnyUnsavedChanges]);
+
+  // Handle leaving without saving
+  const handleLeaveWithoutSaving = useCallback(() => {
+    // Clear draft states
+    const draftTheme = getGlobalDraftThemeRef();
+    const draftPageSettings = getGlobalDraftPageSettingsRef();
+    if (draftTheme) draftTheme.clearDraft();
+    if (draftPageSettings) draftPageSettings.clearDraft();
+    store.markClean();
+    
+    setShowUnsavedDialog(false);
+    if (pendingNavigation) {
+      navigate(pendingNavigation);
+      setPendingNavigation(null);
+    }
+  }, [navigate, pendingNavigation, store]);
+
+  // Handle save and leave
+  const handleSaveAndLeave = useCallback(async () => {
+    setIsSavingBeforeLeave(true);
+    try {
+      await handleSave();
+      setShowUnsavedDialog(false);
+      if (pendingNavigation) {
+        navigate(pendingNavigation);
+        setPendingNavigation(null);
+      }
+    } catch (error) {
+      toast.error('Erro ao salvar. Tente novamente.');
+    } finally {
+      setIsSavingBeforeLeave(false);
+    }
+  }, [handleSave, navigate, pendingNavigation]);
 
   const pageTypeLabels: Record<string, string> = {
     home: 'Página Inicial',
@@ -1055,6 +1129,7 @@ export function VisualBuilder({
         onReset={handleReset}
         onViewHistory={() => setShowVersionHistory(true)}
         onBack={handleBack}
+        onPageChangeCheck={handlePageChangeWithCheck}
         exampleProductId={exampleProductId}
         exampleCategoryId={exampleCategoryId}
         onExampleCategoryChange={setExampleCategoryId}
@@ -1217,6 +1292,15 @@ export function VisualBuilder({
         pageId={entityType === 'page' ? pageId : undefined}
         pageType={entityType === 'template' ? pageType as 'home' | 'category' | 'product' | 'cart' | 'checkout' : undefined}
         onRestore={(content) => store.setContent(content)}
+      />
+
+      {/* Unsaved Changes Dialog */}
+      <UnsavedChangesDialog
+        open={showUnsavedDialog}
+        onOpenChange={setShowUnsavedDialog}
+        onSaveAndLeave={handleSaveAndLeave}
+        onLeaveWithoutSaving={handleLeaveWithoutSaving}
+        isSaving={isSavingBeforeLeave}
       />
 
       {/* Drag Overlay */}
