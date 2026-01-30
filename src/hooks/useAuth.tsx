@@ -71,15 +71,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const fetchUserRoles = async (userId: string) => {
+    console.log('[useAuth] fetchUserRoles called for userId:', userId);
     const { data, error } = await supabase
       .from('user_roles')
       .select('id, user_id, tenant_id, role, user_type, permissions')
       .eq('user_id', userId);
 
     if (error) {
-      console.error('Error fetching user roles:', error);
+      console.error('[useAuth] Error fetching user roles:', error);
       return [];
     }
+    console.log('[useAuth] fetchUserRoles result:', data?.length, 'roles found', data);
     // Ensure permissions is always an object
     return (data || []).map(role => ({
       ...role,
@@ -88,18 +90,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const fetchTenants = async (roles: UserRole[]) => {
-    if (roles.length === 0) return [];
+    console.log('[useAuth] fetchTenants called with', roles.length, 'roles');
+    if (roles.length === 0) {
+      console.log('[useAuth] No roles, returning empty tenants');
+      return [];
+    }
     
     const tenantIds = [...new Set(roles.map(r => r.tenant_id))];
+    console.log('[useAuth] Fetching tenants for IDs:', tenantIds);
     const { data, error } = await supabase
       .from('tenants')
       .select('*')
       .in('id', tenantIds);
 
     if (error) {
-      console.error('Error fetching tenants:', error);
+      console.error('[useAuth] Error fetching tenants:', error);
       return [];
     }
+    console.log('[useAuth] fetchTenants result:', data?.length, 'tenants found');
     return data as Tenant[];
   };
 
