@@ -42,6 +42,7 @@ import {
   ExternalLink,
   ChevronRight,
   CreditCard,
+  Loader2,
 } from 'lucide-react';
 import { getPreviewUrlWithValidation } from '@/lib/publicUrls';
 import { useNavigate } from 'react-router-dom';
@@ -385,7 +386,11 @@ export function BuilderToolbar({
               disabled={isPublishing} 
               className="gap-1 h-7 px-2 text-xs"
             >
-              <Upload className="h-3.5 w-3.5" />
+              {isPublishing ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Upload className="h-3.5 w-3.5" />
+              )}
               <span className="hidden sm:inline">
                 {isPublishing ? 'Publicando...' : 'Publicar'}
               </span>
@@ -422,9 +427,16 @@ export function BuilderToolbar({
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={onPublish}>
-                    Sim, publicar agora
+                  <AlertDialogCancel disabled={isPublishing}>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={onPublish} disabled={isPublishing}>
+                    {isPublishing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Publicando...
+                      </>
+                    ) : (
+                      'Sim, publicar agora'
+                    )}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </>
