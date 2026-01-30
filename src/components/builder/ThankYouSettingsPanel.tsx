@@ -64,7 +64,8 @@ export function ThankYouSettingsPanel({
             ...currentThemeSettings,
             pageSettings: {
               ...currentPageSettings,
-              thankYou: newSettings,
+              // Use snake_case key to match PageSettingsContent.tsx and useThankYouSettings hook
+              thank_you: newSettings,
             },
           },
         };

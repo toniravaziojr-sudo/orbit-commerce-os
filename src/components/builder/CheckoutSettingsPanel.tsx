@@ -63,6 +63,7 @@ export function CheckoutSettingsPanel({
             ...currentThemeSettings,
             pageSettings: {
               ...currentPageSettings,
+              // Keep checkout key consistent with PageSettingsContent.tsx
               checkout: newSettings,
             },
           },

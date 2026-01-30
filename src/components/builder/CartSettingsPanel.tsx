@@ -63,6 +63,7 @@ export function CartSettingsPanel({
             ...currentThemeSettings,
             pageSettings: {
               ...currentPageSettings,
+              // Keep cart key consistent with PageSettingsContent.tsx
               cart: newSettings,
             },
           },

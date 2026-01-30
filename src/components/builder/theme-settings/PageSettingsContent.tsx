@@ -693,18 +693,14 @@ export function PageSettingsContent({
       if (pageType === 'product') {
         queryClient.invalidateQueries({ queryKey: ['product-settings-builder', tenantId, effectiveTemplateSetId] });
         queryClient.setQueryData(['product-settings-builder', tenantId, effectiveTemplateSetId], newSettings);
-        console.log('[PageSettingsContent] Updated product settings cache:', { tenantId, effectiveTemplateSetId, newSettings });
       } else if (pageType === 'category') {
-        // CRITICAL: Use the SAME query key as useCategorySettings hook
         queryClient.invalidateQueries({ queryKey: ['category-settings-builder', tenantId, effectiveTemplateSetId] });
         queryClient.setQueryData(['category-settings-builder', tenantId, effectiveTemplateSetId], newSettings);
-        console.log('[PageSettingsContent] Updated category settings cache:', { tenantId, effectiveTemplateSetId, newSettings });
       } else if (pageType === 'cart') {
         queryClient.invalidateQueries({ queryKey: ['cart-settings-builder', tenantId, effectiveTemplateSetId] });
         queryClient.setQueryData(['cart-settings-builder', tenantId, effectiveTemplateSetId], newSettings);
         
         // SYNC BANNER SETTINGS TO store_settings.cart_config for public storefront
-        // This ensures banner changes in builder are immediately visible in public cart
         const bannerKeys = ['bannerDesktopEnabled', 'bannerDesktopUrl', 'bannerMobileEnabled', 'bannerMobileUrl', 'bannerLink', 'bannerDisplay'];
         const hasBannerChange = bannerKeys.some(key => key in newSettings);
         
@@ -738,9 +734,7 @@ export function PageSettingsContent({
                 .insert({ tenant_id: tenantId, cart_config: updatedCartConfig as unknown as Json });
             }
             
-            // Invalidate storefront config to reflect changes immediately
             queryClient.invalidateQueries({ queryKey: ['storefront-config', tenantId] });
-            console.log('[PageSettingsContent] Synced banner settings to store_settings.cart_config');
           } catch (err) {
             console.error('[PageSettingsContent] Failed to sync banner settings:', err);
           }
