@@ -69,10 +69,31 @@ export function slugify(text: string): string {
 /**
  * Normalize header for comparison - removes accents and special chars
  * Used to match columns even when encoding is broken (Latin-1 -> UTF-8)
+ * CRITICAL: Also handles Mojibake (corrupted multi-byte chars like ç -> Ã§)
  */
 export function normalizeHeader(header: string): string {
   if (!header) return '';
-  return header
+  
+  // First, try to fix common Mojibake patterns (Latin-1 interpreted as UTF-8)
+  let fixed = header
+    // Common Mojibake for Portuguese characters
+    .replace(/Ã§/g, 'c')   // ç
+    .replace(/Ã£/g, 'a')   // ã
+    .replace(/Ã¡/g, 'a')   // á
+    .replace(/Ã /g, 'a')   // à
+    .replace(/Ã¢/g, 'a')   // â
+    .replace(/Ã©/g, 'e')   // é
+    .replace(/Ãª/g, 'e')   // ê
+    .replace(/Ã­/g, 'i')   // í
+    .replace(/Ã³/g, 'o')   // ó
+    .replace(/Ã´/g, 'o')   // ô
+    .replace(/Ãµ/g, 'o')   // õ
+    .replace(/Ãº/g, 'u')   // ú
+    .replace(/Ã¼/g, 'u')   // ü
+    // Remove any remaining corrupted multi-byte sequences
+    .replace(/[\x80-\xFF]/g, '');
+  
+  return fixed
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '') // remove accents
@@ -85,6 +106,12 @@ export function normalizeHeader(header: string): string {
  * Get value from row using flexible column matching
  * Matches columns even with broken encoding or slight naming variations
  * CRITICAL: Handles Latin-1 encoding issues from Nuvemshop exports
+ * 
+ * Enhanced algorithm:
+ * 1. Exact match
+ * 2. Normalized match (after fixing Mojibake)
+ * 3. Fuzzy match (first N chars match)
+ * 4. Contains match (key contains name or vice versa)
  */
 export function getColumnValue(row: Record<string, string>, ...columnNames: string[]): string | undefined {
   // First try exact match
@@ -94,25 +121,57 @@ export function getColumnValue(row: Record<string, string>, ...columnNames: stri
     }
   }
   
-  // Then try normalized match (handles encoding issues)
+  // Build normalized versions
   const normalizedNames = columnNames.map(normalizeHeader);
-  for (const [key, value] of Object.entries(row)) {
+  
+  // Pre-process all row keys
+  const rowEntries = Object.entries(row).map(([key, value]) => ({
+    key,
+    value,
+    normalizedKey: normalizeHeader(key),
+    keyCore: normalizeHeader(key).replace(/\s+/g, ''),
+  }));
+  
+  // PASS 2: Normalized exact match
+  for (const { value, normalizedKey } of rowEntries) {
     if (value === undefined || value === '') continue;
-    const normalizedKey = normalizeHeader(key);
     if (normalizedNames.includes(normalizedKey)) {
       return value;
     }
+  }
+  
+  // PASS 3: Fuzzy match - first 4 chars (handles "Preco" vs "Preço")
+  for (const { value, keyCore } of rowEntries) {
+    if (value === undefined || value === '') continue;
+    if (keyCore.length < 4) continue;
     
-    // CRITICAL: Also try partial match for broken encoding (e.g., "Preo" instead of "Preço")
-    // This handles cases where accents are completely stripped or corrupted
+    const keyPrefix = keyCore.slice(0, 4);
+    
     for (const name of normalizedNames) {
-      // Match if key contains the normalized name (minus small chars) or vice versa
-      const keyCore = normalizedKey.replace(/\s+/g, '').slice(0, 6);
-      const nameCore = name.replace(/\s+/g, '').slice(0, 6);
-      if (keyCore.length >= 4 && nameCore.length >= 4) {
-        if (keyCore.startsWith(nameCore.slice(0, 4)) || nameCore.startsWith(keyCore.slice(0, 4))) {
-          return value;
-        }
+      const nameCore = name.replace(/\s+/g, '');
+      if (nameCore.length < 4) continue;
+      
+      const namePrefix = nameCore.slice(0, 4);
+      
+      // Match if either starts with the other's prefix
+      if (keyPrefix === namePrefix) {
+        return value;
+      }
+    }
+  }
+  
+  // PASS 4: Contains match - for longer column names
+  for (const { value, keyCore } of rowEntries) {
+    if (value === undefined || value === '') continue;
+    if (keyCore.length < 5) continue;
+    
+    for (const name of normalizedNames) {
+      const nameCore = name.replace(/\s+/g, '');
+      if (nameCore.length < 5) continue;
+      
+      // Check if one contains the other (for compound names)
+      if (keyCore.includes(nameCore) || nameCore.includes(keyCore)) {
+        return value;
       }
     }
   }
@@ -122,48 +181,81 @@ export function getColumnValue(row: Record<string, string>, ...columnNames: stri
 
 /**
  * Parse price intelligently - handles multiple formats:
- * - Brazilian: 1.234,56 or 1234,56
+ * - Brazilian: 1.234,56 or 1234,56 or R$ 49,90
  * - American/Export: 1,234.56 or 1234.56 or 823.50
+ * - Nuvemshop Export: 49.90 (always dot as decimal, no thousands)
  * - Plain: 823
+ * 
+ * CRITICAL: Nuvemshop exports prices with dot as decimal (49.90)
+ * while display uses comma (R$ 49,90). This function handles both.
  */
 export function parseBrazilianPrice(price: string | number | null | undefined): number {
   if (price === null || price === undefined || price === '') return 0;
   if (typeof price === 'number') return price;
   
-  // Remove currency symbols and spaces
-  let cleaned = price.toString().replace(/[R$€\s]/g, '').trim();
+  // Convert to string and clean
+  let cleaned = price.toString()
+    .replace(/R\$\s*/gi, '')  // Remove R$
+    .replace(/[€$£¥]/g, '')   // Remove other currency symbols
+    .replace(/\s+/g, '')      // Remove all whitespace
+    .trim();
+  
+  if (!cleaned) return 0;
+  
+  // Remove any non-numeric chars except . and , 
+  cleaned = cleaned.replace(/[^\d.,\-]/g, '');
   
   if (!cleaned) return 0;
   
   const lastDot = cleaned.lastIndexOf('.');
   const lastComma = cleaned.lastIndexOf(',');
+  const dotCount = (cleaned.match(/\./g) || []).length;
+  const commaCount = (cleaned.match(/,/g) || []).length;
   
   // No decimal separators - parse as integer
   if (lastDot === -1 && lastComma === -1) {
     return parseFloat(cleaned) || 0;
   }
   
-  // Both separators present - determine which is decimal
-  if (lastDot !== -1 && lastComma !== -1) {
-    if (lastDot > lastComma) {
-      // Format: 1,234.56 (dot is decimal)
-      cleaned = cleaned.replace(/,/g, '');
+  // Only dots, no commas
+  if (lastComma === -1 && lastDot !== -1) {
+    if (dotCount === 1) {
+      // Single dot - check if it's decimal or thousand
+      const afterDot = cleaned.substring(lastDot + 1);
+      if (afterDot.length <= 2) {
+        // 823.50, 49.9 - dot is decimal (Nuvemshop export format)
+        return parseFloat(cleaned) || 0;
+      } else if (afterDot.length === 3) {
+        // 1.234 - likely thousand separator, not decimal
+        return parseFloat(cleaned.replace('.', '')) || 0;
+      }
     } else {
-      // Format: 1.234,56 (comma is decimal)
-      cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+      // Multiple dots: 1.234.567 - thousand separators
+      return parseFloat(cleaned.replace(/\./g, '')) || 0;
     }
-  } else if (lastComma !== -1) {
-    // Only comma - check if it's decimal separator
+    return parseFloat(cleaned) || 0;
+  }
+  
+  // Only commas, no dots
+  if (lastDot === -1 && lastComma !== -1) {
     const afterComma = cleaned.substring(lastComma + 1);
     if (afterComma.length <= 2 && /^\d+$/.test(afterComma)) {
-      // Format: 823,50 (comma is decimal)
-      cleaned = cleaned.replace(',', '.');
+      // 823,50 or 49,9 - comma is decimal (Brazilian display format)
+      return parseFloat(cleaned.replace(',', '.')) || 0;
     } else {
-      // Format: 1,234 (comma is thousand separator)
-      cleaned = cleaned.replace(',', '');
+      // 1,234 or 1,234,567 - comma is thousand separator
+      return parseFloat(cleaned.replace(/,/g, '')) || 0;
     }
   }
-  // Only dot - already in correct format (823.50)
+  
+  // Both separators present - determine which is decimal by position
+  if (lastDot > lastComma) {
+    // Format: 1,234.56 (dot is decimal) - English format
+    cleaned = cleaned.replace(/,/g, '');
+  } else {
+    // Format: 1.234,56 (comma is decimal) - Brazilian format
+    cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+  }
   
   return parseFloat(cleaned) || 0;
 }

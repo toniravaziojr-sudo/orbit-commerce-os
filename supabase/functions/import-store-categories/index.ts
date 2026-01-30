@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { NUVEMSHOP_PATTERNS } from '../_shared/platform-adapters/nuvemshop-adapter.ts';
 
-const VERSION = '2026-01-30.2130';
+const VERSION = '2026-01-30.2155'; // Enhanced Nuvemshop category detection
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -144,10 +144,14 @@ interface CategoryPageAnalysis {
 
 async function analyzeCategoryPage(
   categoryUrl: string,
-  firecrawlApiKey: string
+  firecrawlApiKey: string,
+  isNuvemshop: boolean = false
 ): Promise<CategoryPageAnalysis> {
   try {
-    console.log(`[Categories] Analyzing page: ${categoryUrl}`);
+    console.log(`[Categories] Analyzing page: ${categoryUrl} (Nuvemshop: ${isNuvemshop})`);
+    
+    // Nuvemshop needs more time for SPA rendering
+    const waitTime = isNuvemshop ? 5000 : 3000;
     
     const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
       method: 'POST',
@@ -159,7 +163,7 @@ async function analyzeCategoryPage(
         url: categoryUrl,
         formats: ['html'],
         onlyMainContent: false,
-        waitFor: 3000
+        waitFor: waitTime
       })
     });
 
@@ -196,6 +200,9 @@ async function analyzeCategoryPage(
       /<article[^>]*class="[^"]*(?:js-item-product|item-product|product-item)[^"]*"/gi,
       /<[^>]*data-product-id="[^"]+"/gi,
       /<[^>]*data-item-id="[^"]+"/gi,
+      // Nuvemshop product containers
+      /<div[^>]*class="[^"]*(?:js-product-container|product-container|product-block|item-block)[^"]*"/gi,
+      /<section[^>]*class="[^"]*(?:product-list|item-list|catalog)[^"]*"/gi,
       // Generic grid with product links
       /<a[^>]*href="[^"]*\/(?:product|produto|produtos|p)\/[^"]+"/gi,
     ];
@@ -206,10 +213,13 @@ async function analyzeCategoryPage(
       totalProductMatches += matches.length;
     }
     
-    // Count product links (more specific)
+    // Count product links (more specific) - EXPANDED for Nuvemshop
     const productLinkPatterns = [
       /<a[^>]*href="[^"]*\/(?:products?|produto|item|p)\/[^"]+"/gi,
       /<a[^>]*class="[^"]*product[^"]*"[^>]*href="[^"]+"/gi,
+      // Nuvemshop uses direct product links with slug
+      /<a[^>]*class="[^"]*(?:js-item-name|item-name|product-name|js-product-link)[^"]*"[^>]*href="[^"]+"/gi,
+      /<a[^>]*href="[^"]+(?:\/[a-z0-9-]+){1,2}"[^>]*class="[^"]*(?:item|product|card)[^"]*"/gi,
     ];
     
     let productLinkCount = 0;
@@ -221,7 +231,10 @@ async function analyzeCategoryPage(
     // Count add to cart buttons (strong indicator)
     const addToCartPatterns = [
       /(?:add.?to.?cart|adicionar.?(?:ao|no|à).?carrinho|comprar|buy)/gi,
-      /<button[^>]*(?:class="[^"]*(?:add-to-cart|buy-button|btn-buy)[^"]*"|data-action="add")[^>]*>/gi,
+      /<button[^>]*(?:class="[^"]*(?:add-to-cart|buy-button|btn-buy|js-addtocart|js-add-to-cart)[^"]*"|data-action="add")[^>]*>/gi,
+      // Nuvemshop buttons
+      /<button[^>]*class="[^"]*(?:js-prod-submit|prod-submit|btn-cart|btn-comprar)[^"]*"/gi,
+      /<form[^>]*class="[^"]*(?:js-product-form|product-form)[^"]*"/gi,
     ];
     
     let addToCartCount = 0;
@@ -230,11 +243,12 @@ async function analyzeCategoryPage(
       addToCartCount += matches.length;
     }
     
-    // Check for price indicators
+    // Check for price indicators - EXPANDED
     const pricePatterns = [
       /R\$\s*\d+[,.]?\d*/g,
-      /<[^>]*class="[^"]*(?:price|preco)[^"]*"[^>]*>/gi,
+      /<[^>]*class="[^"]*(?:price|preco|valor|item-price|product-price|js-price)[^"]*"[^>]*>/gi,
       /data-price="/gi,
+      /<span[^>]*class="[^"]*(?:js-price-display|price-display)[^"]*"/gi,
     ];
     
     let priceCount = 0;
@@ -242,16 +256,25 @@ async function analyzeCategoryPage(
       const matches = html.match(pattern) || [];
       priceCount += matches.length;
     }
+    
+    // Check for Nuvemshop-specific grid patterns
+    let nuvemshopGridFound = false;
+    for (const pattern of NUVEMSHOP_PATTERNS.productGridPatterns) {
+      if (pattern.test(html)) {
+        nuvemshopGridFound = true;
+        break;
+      }
+    }
 
     // Decision: Is this a category page?
     // Category pages have: product grid + multiple products + prices
-    const hasProductGrid = totalProductMatches >= 3 || productLinkCount >= 3;
-    const hasMultipleProducts = productLinkCount >= 2 || priceCount >= 3;
+    const hasProductGrid = totalProductMatches >= 3 || productLinkCount >= 3 || nuvemshopGridFound;
+    const hasMultipleProducts = productLinkCount >= 2 || priceCount >= 3 || addToCartCount >= 2;
     const isCategory = hasProductGrid && hasMultipleProducts;
     
-    const productCount = Math.max(productLinkCount, Math.floor(priceCount / 2));
+    const productCount = Math.max(productLinkCount, Math.floor(priceCount / 2), addToCartCount);
     
-    console.log(`[Categories] ${categoryUrl} - Grid: ${hasProductGrid}, Products: ${productCount}, IsCategory: ${isCategory}`);
+    console.log(`[Categories] ${categoryUrl} - Grid: ${hasProductGrid}, NuvemGrid: ${nuvemshopGridFound}, Products: ${productCount}, AddToCart: ${addToCartCount}, Prices: ${priceCount}, IsCategory: ${isCategory}`);
 
     if (!isCategory) {
       return { isCategory: false, hasProductGrid: false, productCount: 0 };
