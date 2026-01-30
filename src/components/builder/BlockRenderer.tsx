@@ -759,9 +759,10 @@ function ProductCardBlock({ productId, showPrice = true, showButton = true, isEd
   const { addItem: addToCart, items: cartItems } = useCart();
   const [addedProducts, setAddedProducts] = React.useState<Set<string>>(new Set());
   
-  const isProductInCart = React.useCallback((pid: string) => {
-    return cartItems.some(item => item.product_id === pid) || addedProducts.has(pid);
-  }, [cartItems, addedProducts]);
+  // Check if product was just added (temporary visual feedback only)
+  const isProductJustAdded = React.useCallback((pid: string) => {
+    return addedProducts.has(pid);
+  }, [addedProducts]);
   
   const handleAddToCart = React.useCallback((e: React.MouseEvent, p: any) => {
     e.preventDefault();
@@ -832,7 +833,7 @@ function ProductCardBlock({ productId, showPrice = true, showButton = true, isEd
       settings={categorySettings}
       rating={rating}
       badges={badges}
-      isAddedToCart={isProductInCart(product.id)}
+      isAddedToCart={isProductJustAdded(product.id)}
       onAddToCart={handleAddToCart}
       onQuickBuy={handleQuickBuy}
       variant="default"

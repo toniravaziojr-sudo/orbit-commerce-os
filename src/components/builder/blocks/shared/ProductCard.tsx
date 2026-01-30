@@ -194,7 +194,7 @@ export function ProductCard({
                   e.stopPropagation();
                   if (!isEditing) onAddToCart(e, product);
                 }}
-                disabled={isAddedToCart || isEditing}
+                disabled={isEditing}
               >
                 {isAddedToCart ? (
                   <>
@@ -322,7 +322,6 @@ export function ProductCard({
                   e.stopPropagation();
                   onAddToCart(e, product);
                 }}
-                disabled={isAddedToCart}
               >
                 {isAddedToCart ? (
                   <>
@@ -451,7 +450,6 @@ export function ProductCard({
                 e.stopPropagation();
                 onAddToCart(e, product);
               }}
-              disabled={isAddedToCart}
             >
               {isAddedToCart ? (
                 <>
