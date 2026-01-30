@@ -305,10 +305,10 @@ export function useCategorySettings(tenantId: string, templateSetId?: string) {
       return (overrides?.categorySettings as CategorySettings) || null;
     },
     enabled: !!tenantId,
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
-    refetchInterval: 500,
+    staleTime: 5000, // Cache for 5 seconds to avoid excessive polling
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
+    // Removed aggressive polling - use query invalidation instead
   });
 
   const settings: CategorySettings = {
