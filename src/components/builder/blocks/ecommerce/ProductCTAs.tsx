@@ -116,13 +116,13 @@ export function ProductCTAs({
       setAddedFeedback(true);
       toast.success('Produto adicionado ao carrinho!');
       
-      // Handle cart action based on cartActionType
+      // Handle cart action based on cartActionType (unified approach)
       if (cartActionType === 'goToCart') {
         // Redirect to cart page
         const cartUrl = getPublicCartUrl(tenantSlug, isPreview);
         navigate(cartUrl);
-      } else if (cartActionType === 'miniCart' && openMiniCartOnAdd && miniCartEnabled && onOpenMiniCart) {
-        // Open mini-cart drawer
+      } else if (cartActionType === 'miniCart' && onOpenMiniCart) {
+        // Open mini-cart drawer - cartActionType already indicates it's enabled
         onOpenMiniCart();
       }
       // If cartActionType === 'none', just show the toast (already done above)
@@ -131,7 +131,7 @@ export function ProductCTAs({
         setAddedFeedback(false);
       }, 2000);
     }, 150);
-  }, [productId, productName, productSku, productPrice, quantity, imageUrl, isOutOfStock, isAddingToCart, addItem, openMiniCartOnAdd, miniCartEnabled, onOpenMiniCart, trackAddToCart, requiresVariantSelection, cartActionType, tenantSlug, isPreview, navigate]);
+  }, [productId, productName, productSku, productPrice, quantity, imageUrl, isOutOfStock, isAddingToCart, addItem, onOpenMiniCart, trackAddToCart, requiresVariantSelection, cartActionType, tenantSlug, isPreview, navigate]);
   
   const handleBuyNow = React.useCallback(() => {
     if (!productId || isOutOfStock || isAddingToCart || requiresVariantSelection) return;

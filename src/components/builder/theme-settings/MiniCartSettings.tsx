@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, Gift, Truck, Percent, Clock } from 'lucide-react';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Loader2, Gift, Truck, Percent, Clock, ShoppingCart } from 'lucide-react';
 import { useThemeMiniCart, DEFAULT_THEME_MINI_CART, ThemeMiniCartConfig, CartActionType } from '@/hooks/useThemeSettings';
 
 interface MiniCartSettingsProps {
@@ -99,21 +100,63 @@ export function MiniCartSettings({
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
-        Configure as funcionalidades do carrinho suspenso (mini-cart).
+        Configure o comportamento do carrinho ao adicionar produtos.
       </p>
 
-      {/* Info about cart action configuration */}
-      {!isMiniCartMode && (
-        <div className="p-3 rounded-lg bg-amber-50 border border-amber-200">
-          <p className="text-xs text-amber-800">
-            ⚠️ O carrinho suspenso está desativado. Para ativá-lo, vá em <strong>Páginas → Página do Produto → Ação do Carrinho</strong> e selecione "Carrinho Suspenso".
-          </p>
+      {/* Cart action type toggle - MAIN control */}
+      <div className="space-y-3 p-3 rounded-lg bg-muted/50 border">
+        <div className="flex items-center justify-between">
+          <div>
+            <Label className="text-sm flex items-center gap-1.5 font-medium">
+              <ShoppingCart className="h-3.5 w-3.5" />
+              Ação do Carrinho
+            </Label>
+            <p className="text-xs text-muted-foreground">O que acontece ao adicionar produto</p>
+          </div>
+          <Switch
+            checked={localConfig.cartActionType !== 'none'}
+            onCheckedChange={(checked) => {
+              const newType: CartActionType = checked ? 'miniCart' : 'none';
+              handleChange('cartActionType', newType);
+            }}
+          />
         </div>
-      )}
+
+        {/* Radio buttons to choose cart action type */}
+        {localConfig.cartActionType !== 'none' && (
+          <RadioGroup
+            value={localConfig.cartActionType === 'goToCart' ? 'goToCart' : 'miniCart'}
+            onValueChange={(value: 'miniCart' | 'goToCart') => {
+              handleChange('cartActionType', value);
+            }}
+            className="grid grid-cols-2 gap-2"
+          >
+            <div className="flex items-center space-x-2 border rounded-md p-2 cursor-pointer hover:bg-muted/50 bg-background">
+              <RadioGroupItem value="miniCart" id="mini-cart-option" />
+              <Label htmlFor="mini-cart-option" className="text-xs cursor-pointer flex-1">
+                Carrinho suspenso
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2 border rounded-md p-2 cursor-pointer hover:bg-muted/50 bg-background">
+              <RadioGroupItem value="goToCart" id="go-to-cart-option" />
+              <Label htmlFor="go-to-cart-option" className="text-xs cursor-pointer flex-1">
+                Ir para carrinho
+              </Label>
+            </div>
+          </RadioGroup>
+        )}
+
+        {localConfig.cartActionType === 'none' && (
+          <p className="text-xs text-muted-foreground italic">
+            Desativado: o botão apenas mostrará "Adicionado" ao clicar.
+          </p>
+        )}
+      </div>
 
       {/* Mini-cart specific features - only when miniCart mode is selected */}
       {isMiniCartMode && (
         <>
+          <Separator />
           <h4 className="text-sm font-medium">Funcionalidades do Mini-Cart</h4>
 
           <div className="space-y-3">
