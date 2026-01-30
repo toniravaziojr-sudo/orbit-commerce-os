@@ -34,10 +34,11 @@ export interface NuvemshopProduct {
   variants?: NuvemshopVariant[];
   images?: NuvemshopImage[];
   categories?: NuvemshopProductCategory[];
-  // CSV fields (português)
+  // CSV fields (português) - nomes alternativos do export da Nuvemshop
   'Nome'?: string;
   'Descrição'?: string;
   'URL'?: string;
+  'Identificador URL'?: string; // Nome alternativo usado no export
   'Preço'?: string;
   'Preço promocional'?: string;
   'Custo'?: string;
@@ -47,15 +48,26 @@ export interface NuvemshopProduct {
   'Largura (cm)'?: string;
   'Altura (cm)'?: string;
   'Profundidade (cm)'?: string;
+  'Comprimento (cm)'?: string; // Nome alternativo usado no export
   'Estoque'?: string;
   'Ativo'?: string;
+  'Exibir na loja'?: string; // Nome alternativo usado no export
   'Destaque'?: string;
   'Imagem principal'?: string;
   'Imagens adicionais'?: string;
   'Categoria'?: string;
+  'Categorias'?: string; // Nome alternativo usado no export (plural)
   'Tags'?: string;
   'Título SEO'?: string;
+  'Título para SEO'?: string; // Nome alternativo usado no export
   'Descrição SEO'?: string;
+  'Descrição para SEO'?: string; // Nome alternativo usado no export
+  'Marca'?: string;
+  'Produto Físico'?: string;
+  'Frete gratis'?: string;
+  'MPN (Cód. Exclusivo Modelo Fabricante)'?: string;
+  'Sexo'?: string;
+  'Faixa etária'?: string;
 }
 
 export interface NuvemshopVariant {
@@ -223,25 +235,22 @@ export function normalizeNuvemshopProduct(raw: NuvemshopProduct): NormalizedProd
   const rawDescription = getText(raw.description) || raw['Descrição'] || null;
   const description = stripHtmlToText(rawDescription);
   
-  const handle = getText(raw.handle) || raw['URL'] || slugify(name);
+  // Handle/slug - aceita múltiplos nomes de coluna
+  const handle = getText(raw.handle) || raw['URL'] || raw['Identificador URL'] || slugify(name);
   
   const variant = raw.variants?.[0];
-  const price = parseFloat(
-    variant?.price?.toString() || 
-    variant?.promotional_price?.toString() || 
-    raw['Preço']?.replace(',', '.') || 
-    '0'
-  );
-  const compareAtPrice = parseFloat(
-    variant?.compare_at_price?.toString() || 
-    raw['Preço promocional']?.replace(',', '.') || 
-    '0'
-  ) || null;
-  const costPrice = parseFloat(
-    variant?.cost?.toString() || 
-    raw['Custo']?.replace(',', '.') || 
-    '0'
-  ) || null;
+  
+  // Parse price - handle Brazilian format (comma as decimal separator)
+  const parsePrice = (val: string | number | null | undefined): number => {
+    if (val == null) return 0;
+    if (typeof val === 'number') return val;
+    // Remove thousand separators and convert comma to dot
+    return parseFloat(val.replace(/\./g, '').replace(',', '.')) || 0;
+  };
+  
+  const price = parsePrice(variant?.price) || parsePrice(raw['Preço']) || 0;
+  const compareAtPrice = parsePrice(variant?.compare_at_price) || parsePrice(raw['Preço promocional']) || null;
+  const costPrice = parsePrice(variant?.cost) || parsePrice(raw['Custo']) || null;
   
   // SKU - clean special chars
   const rawSku = variant?.sku || raw['SKU'] || null;
@@ -251,14 +260,20 @@ export function normalizeNuvemshopProduct(raw: NuvemshopProduct): NormalizedProd
   const rawBarcode = variant?.barcode || raw['Código de barras'] || null;
   const barcode = extractNumericOnly(rawBarcode);
   
-  const weight = parseFloat(variant?.weight?.toString() || raw['Peso (kg)']?.replace(',', '.') || '0') || null;
-  const width = parseFloat(variant?.width?.toString() || raw['Largura (cm)']?.replace(',', '.') || '0') || null;
-  const height = parseFloat(variant?.height?.toString() || raw['Altura (cm)']?.replace(',', '.') || '0') || null;
-  const depth = parseFloat(variant?.depth?.toString() || raw['Profundidade (cm)']?.replace(',', '.') || '0') || null;
+  // Dimensions - aceita múltiplos nomes de coluna
+  const weight = parsePrice(variant?.weight) || parsePrice(raw['Peso (kg)']) || null;
+  const width = parsePrice(variant?.width) || parsePrice(raw['Largura (cm)']) || null;
+  const height = parsePrice(variant?.height) || parsePrice(raw['Altura (cm)']) || null;
+  const depth = parsePrice(variant?.depth) || parsePrice(raw['Profundidade (cm)']) || parsePrice(raw['Comprimento (cm)']) || null;
   const stockQuantity = parseInt(variant?.stock?.toString() || raw['Estoque'] || '0', 10);
   
-  const isActive = raw.published ?? raw['Ativo']?.toLowerCase() === 'sim';
+  // Status - aceita múltiplos nomes de coluna
+  const activeValue = raw['Ativo'] || raw['Exibir na loja'] || '';
+  const isActive = raw.published ?? (activeValue.toLowerCase() === 'sim');
   const isFeatured = raw['Destaque']?.toLowerCase() === 'sim';
+  
+  // Marca
+  const brand = raw['Marca'] || raw.brand || null;
   
   // Imagens
   const images: NormalizedProductImage[] = [];
@@ -316,17 +331,41 @@ export function normalizeNuvemshopProduct(raw: NuvemshopProduct): NormalizedProd
     });
   }
   
-  // Categorias
+  // Categorias - aceita múltiplos nomes de coluna (singular e plural)
   const categories: string[] = [];
   if (raw.categories && Array.isArray(raw.categories)) {
     raw.categories.forEach(cat => {
       const catHandle = getText(cat.handle) || slugify(getText(cat.name));
       if (catHandle) categories.push(catHandle);
     });
-  } else if (raw['Categoria']) {
-    const catSlugs = raw['Categoria'].split(',').map(c => slugify(c.trim()));
-    categories.push(...catSlugs);
+  } else {
+    // Aceita tanto "Categoria" quanto "Categorias"
+    const categoryString = raw['Categoria'] || raw['Categorias'] || '';
+    if (categoryString) {
+      // Categorias podem estar separadas por vírgula ou " > " (hierarquia Nuvemshop)
+      // Ex: "Todos Kits > Kit Banho Poderoso, Queda Leve a Moderada"
+      const categoryParts = categoryString.split(',').map(c => c.trim());
+      categoryParts.forEach(part => {
+        // Se tem hierarquia (">"), pega todas as partes
+        if (part.includes('>')) {
+          const hierarchy = part.split('>').map(h => h.trim());
+          hierarchy.forEach(h => {
+            if (h) categories.push(slugify(h));
+          });
+        } else {
+          if (part) categories.push(slugify(part));
+        }
+      });
+    }
   }
+  
+  // Tags
+  const tagsString = raw['Tags'] || '';
+  const tags = tagsString ? tagsString.split(',').map(t => t.trim()).filter(Boolean) : [];
+  
+  // SEO - aceita múltiplos nomes de coluna
+  const seoTitle = getText(raw.seo_title) || raw['Título SEO'] || raw['Título para SEO'] || null;
+  const seoDescription = getText(raw.seo_description) || raw['Descrição SEO'] || raw['Descrição para SEO'] || null;
   
   return {
     name,
@@ -345,11 +384,14 @@ export function normalizeNuvemshopProduct(raw: NuvemshopProduct): NormalizedProd
     stock_quantity: stockQuantity,
     is_featured: isFeatured,
     status: isActive ? 'active' : 'draft',
-    seo_title: getText(raw.seo_title) || raw['Título SEO'] || null,
-    seo_description: getText(raw.seo_description) || raw['Descrição SEO'] || null,
+    seo_title: seoTitle,
+    seo_description: seoDescription,
     images,
     variants,
     categories,
+    // Campos extras que podem ser úteis
+    brand: brand,
+    tags: tags,
   };
 }
 
@@ -524,11 +566,14 @@ function mapNuvemshopPaymentStatus(status: string): NormalizedOrder['payment_sta
 }
 
 // Mapeamento de campos (para referência e UI)
+// Inclui nomes alternativos usados pelo export da Nuvemshop
 export const NUVEMSHOP_FIELD_MAPPING = {
   products: {
+    // Campo: [Nome primário, ...nomes alternativos]
     'Nome': 'name',
     'Descrição': 'description',
     'URL': 'slug',
+    'Identificador URL': 'slug', // Alternativo
     'Preço': 'price',
     'Preço promocional': 'compare_at_price',
     'Custo': 'cost_price',
@@ -538,13 +583,26 @@ export const NUVEMSHOP_FIELD_MAPPING = {
     'Largura (cm)': 'width',
     'Altura (cm)': 'height',
     'Profundidade (cm)': 'depth',
+    'Comprimento (cm)': 'depth', // Alternativo para profundidade
     'Estoque': 'stock_quantity',
     'Ativo': 'status',
+    'Exibir na loja': 'status', // Alternativo
     'Destaque': 'is_featured',
     'Imagem principal': 'images',
+    'Imagens adicionais': 'images',
     'Categoria': 'categories',
+    'Categorias': 'categories', // Alternativo (plural)
+    'Tags': 'tags',
     'Título SEO': 'seo_title',
+    'Título para SEO': 'seo_title', // Alternativo
     'Descrição SEO': 'seo_description',
+    'Descrição para SEO': 'seo_description', // Alternativo
+    'Marca': 'brand',
+    'Produto Físico': 'requires_shipping',
+    'Frete gratis': 'free_shipping',
+    'MPN (Cód. Exclusivo Modelo Fabricante)': 'mpn',
+    'Sexo': 'gender',
+    'Faixa etária': 'age_range',
   },
   customers: {
     'Nome': 'full_name',
@@ -574,7 +632,19 @@ export const NUVEMSHOP_FIELD_MAPPING = {
     'Nome': 'name',
     'Descrição': 'description',
     'URL': 'slug',
+    'Identificador URL': 'slug', // Alternativo
     'Categoria pai': 'parent_slug',
     'Ativa': 'is_active',
+    'Exibir na loja': 'is_active', // Alternativo
   },
+};
+
+// Lista de nomes alternativos de colunas que o export da Nuvemshop pode usar
+export const NUVEMSHOP_COLUMN_ALIASES: Record<string, string> = {
+  'Identificador URL': 'URL',
+  'Comprimento (cm)': 'Profundidade (cm)',
+  'Exibir na loja': 'Ativo',
+  'Categorias': 'Categoria',
+  'Título para SEO': 'Título SEO',
+  'Descrição para SEO': 'Descrição SEO',
 };

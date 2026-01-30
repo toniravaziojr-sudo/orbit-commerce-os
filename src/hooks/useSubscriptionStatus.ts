@@ -26,6 +26,7 @@ export interface SubscriptionData {
  * Hook para verificar status da assinatura do tenant atual.
  * 
  * Regras de negócio:
+ * - Tenants especiais (is_special=true) ou plano unlimited: bypass total
  * - Plano básico: pode usar sistema, mas precisa de cartão para publicar loja
  * - Planos pagos: precisa ter pagamento confirmado
  * - Status 'pending_payment_method': bloqueado até inserir cartão
@@ -48,6 +49,33 @@ export function useSubscriptionStatus() {
           isBasicPlan: false,
           canPublishStore: false,
           canUseFullFeatures: false,
+        };
+      }
+
+      // Buscar dados do tenant com campos extras para bypass
+      const { data: tenantData } = await supabase
+        .from('tenants')
+        .select('is_special, plan, type')
+        .eq('id', currentTenant.id)
+        .maybeSingle();
+
+      // BYPASS: Tenants especiais ou com plano unlimited não precisam de cartão
+      const isSpecialTenant = tenantData?.is_special === true;
+      const isUnlimitedPlan = tenantData?.plan === 'unlimited';
+      const isPlatformType = tenantData?.type === 'platform';
+      
+      if (isSpecialTenant || isUnlimitedPlan || isPlatformType) {
+        return {
+          status: 'active',
+          planKey: tenantData?.plan || 'unlimited',
+          billingCycle: null,
+          hasPaymentMethod: true, // Simular que tem
+          cardLastFour: null,
+          cardBrand: null,
+          needsPaymentMethod: false, // NUNCA pedir cartão
+          isBasicPlan: false,
+          canPublishStore: true,
+          canUseFullFeatures: true,
         };
       }
 
