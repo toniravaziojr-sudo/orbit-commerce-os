@@ -1,10 +1,10 @@
 // =============================================
 // BUILDER SIDEBAR - Unified left menu (Yampi-style)
-// Shows only blocks from current page with drag/drop, visibility toggle, delete
-// Structural blocks (Header/Footer/Page) are hidden but insertion zones remain
+// Shows "Estrutura Padrão" grouping for essential blocks
+// plus user-customizable blocks with drag/drop, visibility toggle, delete
 // =============================================
 
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { 
   GripVertical, 
   Eye, 
@@ -13,8 +13,10 @@ import {
   Plus, 
   Settings, 
   ChevronRight,
+  ChevronDown,
   Lock,
   Layers,
+  Package,
 } from 'lucide-react';
 import { BlockNode } from '@/lib/builder/types';
 import { blockRegistry } from '@/lib/builder/registry';
@@ -47,6 +49,9 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { isBlockRequired, canDeleteBlock, getRequiredBlockInfo, getPageContract } from '@/lib/builder/pageContracts';
 
+// Virtual ID for the "Estrutura Padrão" group
+const STANDARD_STRUCTURE_ID = '__standard_structure__';
+
 interface BuilderSidebarProps {
   content: BlockNode;
   selectedBlockId: string | null;
@@ -60,25 +65,23 @@ interface BuilderSidebarProps {
   templateName?: string;
 }
 
-// Blocks that should be hidden from the sidebar
-// These are either infrastructure (Header/Footer/Page/Section) or SYSTEM FEATURES
-// System features are controlled via Theme Settings > Pages, not as editable blocks
-// The user can toggle them ON/OFF in settings, but not manually add/remove/reorder them
-const SIDEBAR_HIDDEN_BLOCKS = new Set([
-  // Infrastructure - always hidden
-  'Header', 'Footer', 'Page', 'Section',
+// SYSTEM BLOCKS - These are essential page structure elements
+// They are grouped under "Estrutura Padrão" and cannot be deleted
+// Their settings are controlled via Theme Settings > Pages
+const SYSTEM_BLOCKS = new Set([
+  // Infrastructure - always hidden entirely (not even in "Estrutura Padrão")
+  'Header', 'Footer', 'Page',
   
-  // System features - Category page (REGRAS.md: estrutura obrigatória)
+  // System features - Category page (grouped in Estrutura Padrão)
   'CategoryBanner', 'ProductGrid', 'CategoryPageLayout',
   
-  // System features - Product page
+  // System features - Product page (grouped in Estrutura Padrão)
   'ProductDetails', 'CompreJuntoSlot',
   
-  // System features - Cart/Checkout/Thank-you
+  // System features - Cart/Checkout/Thank-you (grouped in Estrutura Padrão)
   'Cart', 'Checkout', 'ThankYou',
   
-  // System features - Offer slots (controlled by offers module)
-  // OrderBumpSlot removed - handled internally by CheckoutContent
+  // System features - Offer slots
   'CrossSellSlot', 'UpsellSlot',
   
   // System features - Account pages
@@ -88,36 +91,71 @@ const SIDEBAR_HIDDEN_BLOCKS = new Set([
   'TrackingLookup', 'BlogListing',
 ]);
 
-// Get all content blocks for sidebar display
-// This flattens Section containers to show their children directly
-// ONLY shows blocks that are NOT in SIDEBAR_HIDDEN_BLOCKS (user-customizable blocks)
-function getMainSections(content: BlockNode, hideStructural: boolean = true): BlockNode[] {
-  if (!content.children) return [];
-  if (!hideStructural) return content.children;
+// Infrastructure blocks that should be completely hidden (not even in Estrutura Padrão)
+const INFRASTRUCTURE_BLOCKS = new Set(['Header', 'Footer', 'Page', 'Section']);
+
+// Get label for the "Estrutura Padrão" based on page type
+function getStructureLabel(pageType: string): string {
+  switch (pageType) {
+    case 'product':
+      return 'Estrutura do Produto';
+    case 'category':
+      return 'Estrutura da Categoria';
+    case 'cart':
+      return 'Estrutura do Carrinho';
+    case 'checkout':
+      return 'Estrutura do Checkout';
+    case 'thank_you':
+      return 'Confirmação do Pedido';
+    case 'account':
+      return 'Área do Cliente';
+    case 'account_orders':
+      return 'Meus Pedidos';
+    case 'account_order_detail':
+      return 'Detalhes do Pedido';
+    default:
+      return 'Estrutura Padrão';
+  }
+}
+
+// Analyze content to separate system blocks (for "Estrutura Padrão") vs custom blocks
+function analyzeBlocks(content: BlockNode): {
+  systemBlocks: BlockNode[];
+  customBlocks: BlockNode[];
+} {
+  const system: BlockNode[] = [];
+  const custom: BlockNode[] = [];
   
-  // Collect only user-customizable blocks, flattening Section containers
-  const result: BlockNode[] = [];
+  if (!content.children) return { systemBlocks: system, customBlocks: custom };
   
+  // Process all children, flattening Sections
   for (const block of content.children) {
-    // Skip all hidden blocks (infrastructure + system features)
-    if (SIDEBAR_HIDDEN_BLOCKS.has(block.type)) {
-      // For Section blocks, check if they have user-customizable children
-      if (block.type === 'Section' && block.children && block.children.length > 0) {
-        // Only add children that are NOT system blocks
+    // Skip infrastructure blocks entirely
+    if (INFRASTRUCTURE_BLOCKS.has(block.type)) {
+      // For Section blocks, process their children
+      if (block.type === 'Section' && block.children) {
         for (const child of block.children) {
-          if (!SIDEBAR_HIDDEN_BLOCKS.has(child.type)) {
-            result.push(child);
+          if (INFRASTRUCTURE_BLOCKS.has(child.type)) continue;
+          
+          if (SYSTEM_BLOCKS.has(child.type)) {
+            system.push(child);
+          } else {
+            custom.push(child);
           }
         }
       }
       continue;
     }
     
-    // Non-hidden blocks are shown directly
-    result.push(block);
+    // Categorize non-infrastructure blocks
+    if (SYSTEM_BLOCKS.has(block.type)) {
+      system.push(block);
+    } else {
+      custom.push(block);
+    }
   }
   
-  return result;
+  return { systemBlocks: system, customBlocks: custom };
 }
 
 // Find the parent of a block (for move operations)
@@ -133,7 +171,146 @@ function findBlockParent(content: BlockNode, blockId: string): BlockNode | null 
   return null;
 }
 
-// Sortable block item
+// =============================================
+// STANDARD STRUCTURE ITEM - The grouped "Estrutura Padrão"
+// =============================================
+
+interface StandardStructureItemProps {
+  systemBlocks: BlockNode[];
+  pageType: string;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+}
+
+function StandardStructureItem({
+  systemBlocks,
+  pageType,
+  isExpanded,
+  onToggleExpand,
+}: StandardStructureItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ 
+    id: STANDARD_STRUCTURE_ID,
+    disabled: false, // Can be dragged for reordering
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  const label = getStructureLabel(pageType);
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div
+              className={cn(
+                'group flex items-center gap-1 px-2 py-1.5 rounded-md transition-all',
+                'bg-muted/50 border border-dashed border-muted-foreground/30',
+                'hover:bg-muted/70 hover:border-muted-foreground/50',
+                isDragging && 'opacity-50 shadow-lg'
+              )}
+            >
+              {/* Drag handle */}
+              <div
+                {...attributes}
+                {...listeners}
+                className="cursor-grab active:cursor-grabbing p-0.5 rounded hover:bg-muted"
+              >
+                <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+
+              {/* Expand/Collapse */}
+              {systemBlocks.length > 0 ? (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleExpand();
+                  }}
+                  className="p-0.5 rounded hover:bg-muted"
+                >
+                  {isExpanded ? (
+                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                  )}
+                </button>
+              ) : (
+                <span className="w-4" />
+              )}
+
+              {/* Icon + Label */}
+              <div className="flex-1 flex items-center gap-1.5 min-w-0">
+                <Package className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                <span className="text-xs font-medium text-muted-foreground truncate">
+                  {label}
+                </span>
+              </div>
+              
+              {/* Count badge */}
+              <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                {systemBlocks.length}
+              </span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="right" className="text-xs max-w-[220px]">
+            <p>
+              Blocos essenciais da página. Arraste para reposicionar.
+              <br />
+              <span className="text-muted-foreground">
+                Configurações em "Tema → Páginas"
+              </span>
+            </p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+
+      {/* Expanded children (read-only display of system blocks) */}
+      {isExpanded && systemBlocks.length > 0 && (
+        <div className="ml-4 mt-0.5 space-y-0.5 border-l border-muted-foreground/20 pl-2">
+          {systemBlocks.map((block) => {
+            const definition = blockRegistry.get(block.type);
+            const displayName = definition?.label || block.type;
+            
+            return (
+              <div
+                key={block.id}
+                className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-muted-foreground"
+              >
+                <Lock className="h-3 w-3 opacity-50" />
+                <span className="truncate">{displayName}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =============================================
+// SORTABLE BLOCK ITEM - Custom blocks that can be edited/deleted
+// =============================================
+
+interface SortableBlockItemProps {
+  block: BlockNode;
+  isSelected: boolean;
+  isLocked: boolean;
+  lockReason?: string;
+  onSelect: () => void;
+  onToggleHidden: () => void;
+  onDelete: () => void;
+}
+
 function SortableBlockItem({
   block,
   isSelected,
@@ -142,17 +319,8 @@ function SortableBlockItem({
   onSelect,
   onToggleHidden,
   onDelete,
-}: {
-  block: BlockNode;
-  isSelected: boolean;
-  isLocked: boolean;
-  lockReason?: string;
-  onSelect: () => void;
-  onToggleHidden: () => void;
-  onDelete: () => void;
-}) {
+}: SortableBlockItemProps) {
   const definition = blockRegistry.get(block.type);
-  // Check both block.hidden (canonical) and props.hidden for backwards compatibility
   const isHidden = block.hidden === true || block.props?.hidden === true;
   
   const {
@@ -172,8 +340,6 @@ function SortableBlockItem({
     transition,
   };
 
-  // Get display name - use custom title from props, or block label (without icon prefix)
-  // Only show the label name, not the block type prefix
   const displayName = (block.props?.title as string) || 
                       (block.props?.heading as string) || 
                       definition?.label || 
@@ -217,7 +383,7 @@ function SortableBlockItem({
         )}
       </div>
 
-      {/* Block name only (no icon prefix) */}
+      {/* Block name */}
       <button
         onClick={onSelect}
         className="flex-1 flex items-center gap-1.5 text-left min-w-0"
@@ -226,7 +392,7 @@ function SortableBlockItem({
       </button>
 
       {/* Visibility toggle - show on hover */}
-      <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -249,10 +415,36 @@ function SortableBlockItem({
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
+        
+        {/* Delete button - only for non-locked blocks */}
+        {!isLocked && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete();
+                  }}
+                  className="p-1 rounded hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                Excluir
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
       </div>
     </div>
   );
 }
+
+// =============================================
+// MAIN COMPONENT
+// =============================================
 
 export function BuilderSidebar({
   content,
@@ -267,16 +459,35 @@ export function BuilderSidebar({
   templateName = 'Tema',
 }: BuilderSidebarProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [isStructureExpanded, setIsStructureExpanded] = useState(true);
   
   // Check if this is a system page (structure controlled by pageContracts)
-  // System pages do NOT show blocks in the sidebar - only "Configurações do tema"
   const pageContract = getPageContract(pageType);
   const isSystemPage = pageContract?.isSystemPage === true;
   
-  // Get visible sections (without structural blocks like Header/Footer)
-  // This now flattens Section containers to show their children
-  // For system pages, this will be empty (all blocks are hidden)
-  const sections = getMainSections(content, true);
+  // Analyze content to separate system vs custom blocks
+  const { systemBlocks, customBlocks } = useMemo(() => {
+    return analyzeBlocks(content);
+  }, [content]);
+  
+  // Build virtual items list for DnD
+  // Order: [Estrutura Padrão] -> [Custom Blocks]
+  // In future, we can track relative positions for more flexibility
+  const virtualItems = useMemo(() => {
+    const items: Array<{ id: string; type: 'standard' | 'custom'; block?: BlockNode }> = [];
+    
+    // Add "Estrutura Padrão" if there are system blocks
+    if (systemBlocks.length > 0) {
+      items.push({ id: STANDARD_STRUCTURE_ID, type: 'standard' });
+    }
+    
+    // Add custom blocks
+    for (const block of customBlocks) {
+      items.push({ id: block.id, type: 'custom', block });
+    }
+    
+    return items;
+  }, [systemBlocks, customBlocks]);
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -297,27 +508,38 @@ export function BuilderSidebar({
 
     if (!over || active.id === over.id) return;
 
-    // Use visible sections for drag logic
-    const activeIndex = sections.findIndex(s => s.id === active.id);
-    const overIndex = sections.findIndex(s => s.id === over.id);
+    const draggedId = active.id as string;
+    const targetId = over.id as string;
+
+    // For now, prevent reordering involving the standard structure
+    // TODO: Implement full reordering support for virtual node
+    if (draggedId === STANDARD_STRUCTURE_ID || targetId === STANDARD_STRUCTURE_ID) {
+      return;
+    }
+
+    // Find custom blocks for reordering
+    const activeIndex = customBlocks.findIndex(b => b.id === draggedId);
+    const overIndex = customBlocks.findIndex(b => b.id === targetId);
 
     if (activeIndex !== -1 && overIndex !== -1) {
-      // Find the parent of the block being moved and the target position
-      const activeBlock = sections[activeIndex];
+      const activeBlock = customBlocks[activeIndex];
       const parent = findBlockParent(content, activeBlock.id);
       if (parent) {
-        onMoveBlock(active.id as string, parent.id, overIndex);
+        onMoveBlock(draggedId, parent.id, overIndex);
       }
     }
   };
 
-  const getActiveBlockLabel = () => {
+  const getActiveLabel = useCallback(() => {
     if (!activeId) return '';
-    const block = sections.find(s => s.id === activeId);
+    if (activeId === STANDARD_STRUCTURE_ID) {
+      return getStructureLabel(pageType);
+    }
+    const block = customBlocks.find(b => b.id === activeId);
     if (!block) return '';
     const def = blockRegistry.get(block.type);
     return def?.label || block.type;
-  };
+  }, [activeId, customBlocks, pageType]);
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -329,7 +551,7 @@ export function BuilderSidebar({
         </div>
       </div>
 
-      {/* Sections list - shows only user-customizable blocks (system blocks are hidden) */}
+      {/* Blocks list */}
       <ScrollArea className="flex-1">
         <div className="p-2">
           <DndContext
@@ -339,28 +561,42 @@ export function BuilderSidebar({
             onDragEnd={handleDragEnd}
           >
             <SortableContext
-              items={sections.map(s => s.id)}
+              items={virtualItems.map(item => item.id)}
               strategy={verticalListSortingStrategy}
             >
               <div className="space-y-0.5">
-                {sections.map((block) => {
-                  const isRequired = isBlockRequired(pageType, block.type);
-                  const canDelete = canDeleteBlock(pageType, block.type);
-                  const requiredInfo = getRequiredBlockInfo(pageType, block.type);
-                  const isLocked = isRequired && !canDelete;
-                  
-                  return (
-                    <SortableBlockItem
-                      key={block.id}
-                      block={block}
-                      isSelected={selectedBlockId === block.id}
-                      isLocked={isLocked}
-                      lockReason={requiredInfo?.label ? `Estrutura obrigatória: ${requiredInfo.label}` : undefined}
-                      onSelect={() => onSelectBlock(block.id)}
-                      onToggleHidden={() => onToggleHidden(block.id)}
-                      onDelete={() => onDeleteBlock(block.id)}
-                    />
-                  );
+                {virtualItems.map((item) => {
+                  if (item.type === 'standard') {
+                    return (
+                      <StandardStructureItem
+                        key={STANDARD_STRUCTURE_ID}
+                        systemBlocks={systemBlocks}
+                        pageType={pageType}
+                        isExpanded={isStructureExpanded}
+                        onToggleExpand={() => setIsStructureExpanded(!isStructureExpanded)}
+                      />
+                    );
+                  } else if (item.block) {
+                    const block = item.block;
+                    const isRequired = isBlockRequired(pageType, block.type);
+                    const canDelete = canDeleteBlock(pageType, block.type);
+                    const requiredInfo = getRequiredBlockInfo(pageType, block.type);
+                    const isLocked = isRequired && !canDelete;
+                    
+                    return (
+                      <SortableBlockItem
+                        key={block.id}
+                        block={block}
+                        isSelected={selectedBlockId === block.id}
+                        isLocked={isLocked}
+                        lockReason={requiredInfo?.label ? `Estrutura obrigatória: ${requiredInfo.label}` : undefined}
+                        onSelect={() => onSelectBlock(block.id)}
+                        onToggleHidden={() => onToggleHidden(block.id)}
+                        onDelete={() => onDeleteBlock(block.id)}
+                      />
+                    );
+                  }
+                  return null;
                 })}
               </div>
             </SortableContext>
@@ -368,7 +604,7 @@ export function BuilderSidebar({
             <DragOverlay>
               {activeId ? (
                 <div className="bg-primary/10 border border-primary rounded-md px-3 py-2 text-sm font-medium shadow-lg">
-                  {getActiveBlockLabel()}
+                  {getActiveLabel()}
                 </div>
               ) : null}
             </DragOverlay>
