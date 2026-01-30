@@ -1,5 +1,6 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
+import { AdminToaster } from "@/components/ui/admin-sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
@@ -175,7 +176,8 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
-        <Sonner />
+        {/* Admin usa AdminToaster (azul), Storefront usa Sonner (tema do tenant) */}
+        {shouldUseTenantRootRoutes ? <Sonner /> : <AdminToaster />}
         <BrowserRouter>
           <AuthProvider>
             <CommandAssistantProvider>
