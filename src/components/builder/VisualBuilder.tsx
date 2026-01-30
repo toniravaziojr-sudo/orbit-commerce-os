@@ -46,7 +46,7 @@ import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensor
 import { CanvasEditorProvider } from './CanvasEditorContext';
 import { CanvasRichTextProvider } from './CanvasRichTextContext';
 import { BuilderDraftThemeProvider, useBuilderDraftTheme, getGlobalDraftThemeRef, DraftThemeRefSync } from '@/hooks/useBuilderDraftTheme';
-import { BuilderDraftPageSettingsProvider, getGlobalDraftPageSettingsRef, PageSettingsKey } from '@/hooks/useBuilderDraftPageSettings';
+import { BuilderDraftPageSettingsProvider, getGlobalDraftPageSettingsRef, PageSettingsKey, useDraftPageSettingsObserver } from '@/hooks/useBuilderDraftPageSettings';
 
 // Isolation modes for debugging React #300
 type IsolateMode = 'app' | 'visual' | 'canvas' | 'blocks' | 'blocks-real' | 'full';
@@ -126,6 +126,10 @@ export function VisualBuilder({
   // Safe Mode: ?safe=1 renders placeholders only (for debugging)
   const isSafeMode = searchParams.get('safe') === '1';
   const isDebugMode = searchParams.get('debug') === '1';
+  
+  // Observer for draft page settings changes - triggers re-render when drafts change
+  // This enables real-time preview of toggle changes in the builder canvas
+  const draftPageSettingsVersion = useDraftPageSettingsObserver();
   
   // All hooks must be called before any conditional returns
   // WYSIWYG Builder: Builder IS the preview - no separate modes
@@ -326,12 +330,17 @@ export function VisualBuilder({
   const categoryHeaderSlot = undefined;
 
   // Build context with example data - include proper category object for builder
+  // CRITICAL FIX: Merge draft page settings with saved settings for real-time preview
+  // The draft settings take priority over saved settings when user changes toggles
   const builderContext = useMemo<BlockRenderContext>(() => {
     const ctx: BlockRenderContext = { 
       ...context, 
       viewport: canvasViewport,
       pageType: pageType as BlockRenderContext['pageType'], // Pass pageType for essential block detection
     };
+    
+    // Get draft page settings from global ref (accessible outside provider)
+    const draftPageSettingsRef = getGlobalDraftPageSettingsRef();
     
     // CRITICAL: Inject miniCartConfig into themeSettings so BlockRenderer can read it
     // This ensures real-time sync between PageSettingsContent and ProductDetailsBlock
@@ -361,30 +370,40 @@ export function VisualBuilder({
     // REGRA: Blocos de produtos (ProductCarouselBlock, ProductGridBlock, etc.) podem ser usados
     // em QUALQUER página (home, landing pages, páginas personalizadas, etc.)
     // As configurações de exibição de produto são definidas em "Categorias" e devem refletir em todos os blocos
-    (ctx as any).categorySettings = categorySettings;
+    // MERGE: Draft takes priority over saved settings for real-time preview
+    const effectiveCategorySettings = draftPageSettingsRef?.getEffectiveSettings('category', categorySettings) || categorySettings;
+    (ctx as any).categorySettings = effectiveCategorySettings;
     
     // For Product template, add product settings to context
+    // MERGE: Draft takes priority over saved settings
     if (pageType === 'product') {
-      (ctx as any).productSettings = productSettings;
+      const effectiveProductSettings = draftPageSettingsRef?.getEffectiveSettings('product', productSettings) || productSettings;
+      (ctx as any).productSettings = effectiveProductSettings;
     }
     
     // For Cart template, add cart settings to context
+    // MERGE: Draft takes priority over saved settings for real-time preview
     if (pageType === 'cart') {
-      (ctx as any).cartSettings = cartSettings;
+      const effectiveCartSettings = draftPageSettingsRef?.getEffectiveSettings('cart', cartSettings) || cartSettings;
+      (ctx as any).cartSettings = effectiveCartSettings;
     }
     
     // For Checkout template, add checkout settings to context
+    // MERGE: Draft takes priority over saved settings
     if (pageType === 'checkout') {
-      (ctx as any).checkoutSettings = checkoutSettings;
+      const effectiveCheckoutSettings = draftPageSettingsRef?.getEffectiveSettings('checkout', checkoutSettings) || checkoutSettings;
+      (ctx as any).checkoutSettings = effectiveCheckoutSettings;
     }
     
     // For Thank You template, add thank you settings to context
+    // MERGE: Draft takes priority over saved settings
     if (pageType === 'thank_you') {
-      (ctx as any).thankYouSettings = thankYouSettings;
+      const effectiveThankYouSettings = draftPageSettingsRef?.getEffectiveSettings('thank_you', thankYouSettings) || thankYouSettings;
+      (ctx as any).thankYouSettings = effectiveThankYouSettings;
     }
     
     return ctx;
-  }, [context, pageType, selectedCategory, categoryHeaderSlot, canvasViewport, productSettings, categorySettings, cartSettings, checkoutSettings, thankYouSettings, miniCartConfig]);
+  }, [context, pageType, selectedCategory, categoryHeaderSlot, canvasViewport, productSettings, categorySettings, cartSettings, checkoutSettings, thankYouSettings, miniCartConfig, draftPageSettingsVersion]);
 
   // Debug log on mount
   useEffect(() => {

@@ -133,6 +133,57 @@ O CSV exportado pela Nuvemshop usa nomes de colunas em português. O adaptador m
 - Colunas de imagem numeradas de 1 a 10 são consolidadas em array
 - Variantes em múltiplas linhas são consolidadas no mesmo produto pelo `Identificador URL`
 
+### Tratamento de Encoding e Mojibake
+
+O sistema corrige automaticamente problemas de encoding comuns em CSVs exportados:
+
+#### Problema: Mojibake (Caracteres Corrompidos)
+
+CSVs salvos com encoding Latin-1 (ISO-8859-1) mas lidos como UTF-8 causam mojibake:
+- `ç` → `Ã§`
+- `ã` → `Ã£`
+- `é` → `Ã©`
+- `ô` → `Ã´`
+
+#### Correção Automática
+
+O `normalizeHeader()` em `src/lib/import/utils.ts` implementa:
+
+```typescript
+// Mapa de correção mojibake → caractere correto
+const mojibakeMap: Record<string, string> = {
+  'Ã§': 'c', 'Ã£': 'a', 'Ãµ': 'o', 'Ã¡': 'a',
+  'Ã©': 'e', 'Ãª': 'e', 'Ã­': 'i', 'Ã³': 'o',
+  'Ã´': 'o', 'Ãº': 'u', 'Ã': 'A', 'Ã‰': 'E',
+  'Ã"': 'O', 'Ãœ': 'U'
+};
+```
+
+#### Matching de 4 Camadas
+
+O `getColumnValue()` usa estratégia de 4 passes para encontrar colunas:
+
+1. **Match Exato** - Nome exato da coluna
+2. **Match Normalizado** - Sem acentos e lowercase
+3. **Match Fuzzy** - Primeiros 4 caracteres
+4. **Match Substring** - Contém termo chave
+
+Isso garante que colunas como `"Preço"` sejam encontradas mesmo se aparecem como `"Preo"` ou `"preco"` após corrupção de encoding.
+
+#### Preços: Formato Brasileiro vs. Nuvemshop
+
+O `parseBrazilianPrice()` detecta automaticamente:
+- **Nuvemshop export**: `49.90` (ponto decimal, estilo US)
+- **Display BR**: `49,90` ou `1.499,90` (vírgula decimal, ponto milhar)
+
+```typescript
+// Heurística: Se tem vírgula seguida de 2 dígitos no final, é formato BR
+if (/,\d{2}$/.test(normalized)) {
+  // Formato brasileiro: remove pontos, troca vírgula por ponto
+}
+```
+
+
 ### Regra Fundamental
 
 > **A nossa estrutura NUNCA é alterada.**

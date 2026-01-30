@@ -64,8 +64,36 @@ const BuilderDraftPageSettingsContext = createContext<BuilderDraftPageSettingsCo
 // Global ref for access outside React context (used by VisualBuilder.handleSave)
 let globalDraftPageSettingsRef: BuilderDraftPageSettingsContextValue | null = null;
 
+// Change counter for external observers (triggers re-render in VisualBuilder)
+let draftPageSettingsChangeCounter = 0;
+let draftPageSettingsListeners: Set<() => void> = new Set();
+
+function notifyDraftPageSettingsChange() {
+  draftPageSettingsChangeCounter++;
+  draftPageSettingsListeners.forEach(listener => listener());
+}
+
 export function getGlobalDraftPageSettingsRef() {
   return globalDraftPageSettingsRef;
+}
+
+export function getDraftPageSettingsChangeCounter() {
+  return draftPageSettingsChangeCounter;
+}
+
+// Hook to observe draft changes from outside the provider
+export function useDraftPageSettingsObserver(): number {
+  const [counter, setCounter] = useState(draftPageSettingsChangeCounter);
+  
+  useEffect(() => {
+    const listener = () => setCounter(draftPageSettingsChangeCounter);
+    draftPageSettingsListeners.add(listener);
+    return () => {
+      draftPageSettingsListeners.delete(listener);
+    };
+  }, []);
+  
+  return counter;
 }
 
 interface BuilderDraftPageSettingsProviderProps {
@@ -93,6 +121,8 @@ export function BuilderDraftPageSettingsProvider({ children }: BuilderDraftPageS
       ...prev,
       [pageType]: settings,
     }));
+    // Notify external observers (VisualBuilder) to trigger re-render
+    notifyDraftPageSettingsChange();
   }, []);
 
   const getDraftPageSettings = useCallback(<T extends PageSettingsType>(pageType: PageSettingsKey): T | null => {
