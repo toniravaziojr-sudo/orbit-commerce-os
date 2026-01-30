@@ -702,13 +702,15 @@ function CategoryListBlock({ title, source, columns = 3, limit = 6, layout = 'gr
   );
 }
 
-function FeaturedProductsBlock({ title, productIds, limit = 4, columns = 4, showPrice = true, showButton = true, buttonText = 'Ver produto', context, isEditing }: any) {
+function FeaturedProductsBlock({ title, productIds, limit = 4, columns, columnsDesktop = 4, columnsMobile = 2, showPrice = true, showButton = true, buttonText = 'Ver produto', context, isEditing }: any) {
   return (
     <FeaturedProductsBlockComponent
       title={title}
       productIds={productIds}
       limit={limit}
       columns={columns}
+      columnsDesktop={columnsDesktop}
+      columnsMobile={columnsMobile}
       showPrice={showPrice}
       showButton={showButton}
       buttonText={buttonText}
