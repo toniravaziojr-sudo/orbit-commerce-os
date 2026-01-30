@@ -276,16 +276,40 @@ O sistema injeta variáveis CSS e classes para botões diretamente no `<head>` d
 
 ### CSS Variables de Cores Injetadas
 
+O sistema organiza as cores em **5 grupos** para facilitar a configuração:
+
+#### 🔵 Botão Primário
 | Variável | Origem | Uso |
 |----------|--------|-----|
 | `--primary` | `colors.buttonPrimaryBg` (convertido para HSL) | **OVERRIDE** da variável Tailwind |
 | `--primary-foreground` | `colors.buttonPrimaryText` (convertido para HSL) | **OVERRIDE** da variável Tailwind |
 | `--theme-button-primary-bg` | `colors.buttonPrimaryBg` | Background de botões primários |
 | `--theme-button-primary-text` | `colors.buttonPrimaryText` | Texto de botões primários |
+
+#### ⚪ Botão Secundário
+| Variável | Origem | Uso |
+|----------|--------|-----|
 | `--theme-button-secondary-bg` | `colors.buttonSecondaryBg` | Background de botões secundários |
 | `--theme-button-secondary-text` | `colors.buttonSecondaryText` | Texto de botões secundários |
+
+#### 💬 Botão WhatsApp
+| Variável | Origem | Uso |
+|----------|--------|-----|
+| `--theme-whatsapp-color` | `colors.whatsappColor` | Cor do texto/borda do botão WhatsApp (padrão: `#25D366`) |
+| `--theme-whatsapp-hover` | `colors.whatsappHover` | Cor de fundo no hover do botão WhatsApp (padrão: `#128C7E`) |
+
+#### 📝 Texto e Destaque
+| Variável | Origem | Uso |
+|----------|--------|-----|
 | `--theme-text-primary` | `colors.textPrimary` | Cor de texto principal |
 | `--theme-text-secondary` | `colors.textSecondary` | Cor de texto secundário |
+| `--theme-accent-color` | `colors.accentColor` | Cor de destaque (preços PIX, selos, etc.) |
+
+#### 🏷️ Tags Especiais
+| Variável | Origem | Uso |
+|----------|--------|-----|
+| `--theme-promo-bg` | `colors.promoBg` | Background de tags promocionais |
+| `--theme-promo-text` | `colors.promoText` | Texto de tags promocionais |
 
 ### Classes CSS Injetadas (com !important)
 
