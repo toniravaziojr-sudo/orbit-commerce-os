@@ -24,7 +24,9 @@ interface ProductGridBlockProps {
   source?: 'all' | 'featured' | 'category';
   categoryId?: string;
   limit?: number;
-  columns?: number;
+  columns?: number; // Legacy support
+  columnsDesktop?: number;
+  columnsMobile?: number;
   showPrice?: boolean;
   showButton?: boolean;
   buttonText?: string;
@@ -46,7 +48,9 @@ export function ProductGridBlock({
   source = 'all',
   categoryId,
   limit = 8,
-  columns = 4,
+  columns, // Legacy
+  columnsDesktop = 4,
+  columnsMobile = 2,
   showPrice = true,
   showButton = true,
   buttonText = 'Ver produto',
@@ -212,23 +216,29 @@ export function ProductGridBlock({
     window.location.href = checkoutUrl;
   }, [addToCart, tenantSlug, isEditing]);
 
+  // Effective columns - use legacy "columns" prop if new props not set
+  const effectiveDesktopCols = columnsDesktop || columns || 4;
+  const effectiveMobileCols = columnsMobile || 2;
+
   // Compute grid columns based on viewport
   const gridCols = useMemo(() => {
     if (viewport) {
-      if (isMobileViewport) return 'grid-cols-2';
-      if (isTabletViewport) return columns <= 3 ? `grid-cols-${Math.min(columns, 3)}` : 'grid-cols-3';
-      const desktopCols = Math.min(columns, 4);
-      return `grid-cols-${desktopCols}`;
+      if (isMobileViewport) {
+        return `grid-cols-${Math.min(effectiveMobileCols, 2)}`;
+      }
+      if (isTabletViewport) {
+        return `grid-cols-${Math.min(effectiveDesktopCols, 3)}`;
+      }
+      return `grid-cols-${effectiveDesktopCols}`;
     }
-    return {
-      1: 'grid-cols-1',
-      2: 'grid-cols-2',
-      3: 'grid-cols-2 md:grid-cols-3',
-      4: 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
-      5: 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
-      6: 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
-    }[columns] || 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4';
-  }, [viewport, isMobileViewport, isTabletViewport, columns]);
+    
+    // For storefront (no explicit viewport), use responsive classes
+    const mobileCols = Math.min(effectiveMobileCols, 2);
+    const tabletCols = Math.min(effectiveDesktopCols, 3);
+    const desktopCols = effectiveDesktopCols;
+    
+    return `grid-cols-${mobileCols} sm:grid-cols-${tabletCols} lg:grid-cols-${desktopCols}`;
+  }, [viewport, isMobileViewport, isTabletViewport, effectiveDesktopCols, effectiveMobileCols]);
 
   if (isLoading) {
     return (
