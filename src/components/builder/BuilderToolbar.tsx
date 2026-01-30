@@ -74,6 +74,7 @@ interface BuilderToolbarProps {
   onSettings?: () => void;
   onBack: () => void;
   onPageChange?: (pageType: string) => void;
+  onPageChangeCheck?: (targetUrl: string) => boolean; // Returns true if navigation can proceed
   // Example selectors - product selector UI removed from toolbar (use right panel)
   exampleProductId?: string;
   exampleCategoryId?: string;
@@ -99,6 +100,7 @@ export function BuilderToolbar({
   onReset,
   onViewHistory,
   onBack,
+  onPageChangeCheck,
   exampleProductId,
   exampleCategoryId,
   onExampleCategoryChange,
@@ -233,21 +235,26 @@ export function BuilderToolbar({
   };
 
   const handlePageChange = (value: string) => {
-    if (isDirty) {
-      if (!confirm('Você tem alterações não salvas. Deseja trocar de página?')) {
-        return;
+    // Build the target URL first
+    let targetUrl: string;
+    if (value.startsWith('page:')) {
+      const pageId = value.replace('page:', '');
+      targetUrl = `/pages/${pageId}/builder`;
+    } else {
+      const templateParam = templateSetId ? `&templateId=${templateSetId}` : '';
+      targetUrl = `/storefront/builder?edit=${value}${templateParam}`;
+    }
+
+    // Use the parent's check function if available (shows proper dialog)
+    if (onPageChangeCheck) {
+      const canProceed = onPageChangeCheck(targetUrl);
+      if (!canProceed) {
+        return; // Navigation blocked, dialog will be shown by parent
       }
     }
     
-    // Check if it's a page ID (for institutional/landing pages)
-    if (value.startsWith('page:')) {
-      const pageId = value.replace('page:', '');
-      navigate(`/pages/${pageId}/builder`);
-    } else {
-      // Preserve templateSetId when switching pages in multi-template system
-      const templateParam = templateSetId ? `&templateId=${templateSetId}` : '';
-      navigate(`/storefront/builder?edit=${value}${templateParam}`);
-    }
+    // Navigate to the target
+    navigate(targetUrl);
   };
 
   // Separate institutional and landing pages
