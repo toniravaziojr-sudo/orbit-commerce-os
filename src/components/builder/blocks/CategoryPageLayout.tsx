@@ -573,7 +573,6 @@ export function CategoryPageLayout({
                                 }
                             }
                             onClick={(e) => handleAddToCart(e, product)}
-                            disabled={addedProducts.has(product.id)}
                           >
                             {addedProducts.has(product.id) ? (
                               <>

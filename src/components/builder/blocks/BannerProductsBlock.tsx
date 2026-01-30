@@ -90,9 +90,10 @@ export function BannerProductsBlock({
   const { addItem: addToCart, items: cartItems } = useCart();
   const [addedProducts, setAddedProducts] = useState<Set<string>>(new Set());
 
-  const isProductInCart = useCallback((productId: string) => {
-    return cartItems.some(item => item.product_id === productId) || addedProducts.has(productId);
-  }, [cartItems, addedProducts]);
+  // Check if product was just added (temporary visual feedback only)
+  const isProductJustAdded = useCallback((productId: string) => {
+    return addedProducts.has(productId);
+  }, [addedProducts]);
 
   const handleAddToCart = useCallback((e: React.MouseEvent, product: ProductCardProduct) => {
     e.preventDefault();
@@ -208,7 +209,7 @@ export function BannerProductsBlock({
                         settings={categorySettings}
                         rating={rating}
                         badges={badges}
-                        isAddedToCart={isProductInCart(product.id)}
+                        isAddedToCart={isProductJustAdded(product.id)}
                         onAddToCart={handleAddToCart}
                         onQuickBuy={handleQuickBuy}
                         variant="minimal"
