@@ -114,7 +114,11 @@ export function useBuilderStore(initialContent?: BlockNode) {
 
     console.log('[addBlock] Creating block:', { type, parentId, index, newBlockId: newBlock.id });
 
-    let result: { ok: boolean; blockId?: string; reason?: string } = { ok: false, reason: 'Erro desconhecido' };
+    // CRITICAL FIX: Use a synchronous approach to capture the result
+    // The setState callback runs synchronously when using the functional form,
+    // but we need to ensure the result is captured before returning.
+    // We use a ref-like pattern with an object that gets mutated inside setState.
+    const resultRef = { ok: false, blockId: undefined as string | undefined, reason: 'Erro desconhecido' };
 
     setState(prev => {
       // CRITICAL: Use structuredClone for full immutability (new reference)
@@ -160,7 +164,8 @@ export function useBuilderStore(initialContent?: BlockNode) {
         console.log('childrenCount before:', prev.content.children?.length);
         console.log('childrenCount after:', newContent.children?.length);
         console.groupEnd();
-        result = { ok: false, reason: `Não foi possível inserir no container "${targetParentId}"` };
+        resultRef.ok = false;
+        resultRef.reason = `Não foi possível inserir no container "${targetParentId}"`;
         return prev;
       }
       
@@ -174,7 +179,10 @@ export function useBuilderStore(initialContent?: BlockNode) {
       newHistory.push(cloneBlockNode(newContent));
       if (newHistory.length > MAX_HISTORY) newHistory.shift();
       
-      result = { ok: true, blockId: newBlock.id };
+      // CRITICAL: Mutate the resultRef object so it's captured synchronously
+      resultRef.ok = true;
+      resultRef.blockId = newBlock.id;
+      resultRef.reason = undefined;
       
       return {
         ...prev,
@@ -186,7 +194,8 @@ export function useBuilderStore(initialContent?: BlockNode) {
       };
     });
 
-    return result;
+    // Return the mutated result object
+    return { ok: resultRef.ok, blockId: resultRef.blockId, reason: resultRef.reason };
   }, []);
 
   // Remove a block - uses functional setState to avoid stale closure
