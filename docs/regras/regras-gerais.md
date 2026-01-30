@@ -198,6 +198,66 @@ Problema estrutural/multi-componente → prompt pede correção do **pipeline gl
 
 ---
 
+## 🔴 Separação Admin vs Storefront (REGRA CRÍTICA)
+
+> **NÃO NEGOCIÁVEL** — Alterações no sistema admin NUNCA devem afetar a loja pública dos tenants.
+
+### Princípio
+
+| Contexto | Domínio | Escopo |
+|----------|---------|--------|
+| **Admin (Comando Central)** | `app.comandocentral.com.br` | Sistema SaaS, UI fixa, tema azul marinho |
+| **Storefront (Loja Pública)** | `tenant.shops.comandocentral.com.br` ou domínio customizado | Loja do cliente, herda tema do tenant |
+
+### Componentes Separados
+
+| Componente | Admin | Storefront |
+|------------|-------|------------|
+| **Toaster (Sonner)** | `AdminToaster` (`src/components/ui/admin-sonner.tsx`) | `Toaster` (`src/components/ui/sonner.tsx`) |
+| **Tema/Cores** | Fixo (azul marinho #1e3a5f) | CSS Variables do tenant |
+| **Layout** | `AppShell.tsx` | `StorefrontLayout.tsx`, `TenantStorefrontLayout.tsx` |
+
+### Detecção de Contexto
+
+```typescript
+// Em App.tsx - shouldUseTenantRootRoutes
+// TRUE = Estamos em domínio de tenant (loja pública)
+// FALSE = Estamos em domínio admin (Comando Central)
+const shouldUseTenantRootRoutes = isOnTenantHost();
+
+// Renderização condicional
+{shouldUseTenantRootRoutes ? <Sonner /> : <AdminToaster />}
+```
+
+### Proibições
+
+| ❌ Proibido | ✅ Correto |
+|-------------|------------|
+| Alterar `sonner.tsx` para estilizar toasts do admin | Alterar `admin-sonner.tsx` |
+| Usar cores hardcoded em componentes compartilhados | Usar CSS variables ou criar versão específica |
+| Assumir que mudança em UI afeta só um contexto | Verificar se componente é compartilhado |
+| Editar componentes em `src/components/storefront/` para ajustes do admin | Criar componente específico em `src/components/layout/` ou `src/components/ui/` |
+
+### Arquivos de Referência
+
+| Arquivo | Contexto | Descrição |
+|---------|----------|-----------|
+| `src/components/ui/admin-sonner.tsx` | Admin | Toaster do Comando Central (azul marinho) |
+| `src/components/ui/sonner.tsx` | Storefront | Toaster da loja (herda tema do tenant) |
+| `src/components/layout/AppShell.tsx` | Admin | Shell do painel admin |
+| `src/components/storefront/TenantStorefrontLayout.tsx` | Storefront | Layout da loja pública |
+
+### Verificação Obrigatória
+
+Antes de QUALQUER alteração de UI/estilo, verificar:
+
+1. **Qual contexto será afetado?** (Admin, Storefront ou ambos)
+2. **O componente é compartilhado?** (Se sim, considerar criar versão específica)
+3. **A mudança usa CSS variables ou cores hardcoded?**
+4. **Testar em ambos os contextos** após a mudança
+
+---
+
 ## Importação — Wizard (Etapas Congeladas)
 
 | Etapa | Nome | Status |
