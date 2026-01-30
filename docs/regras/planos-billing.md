@@ -1,7 +1,7 @@
 # Planos e Billing — Regras e Especificações
 
-> **STATUS:** 🟢 Implementado (v2.2)  
-> **Última atualização:** 2025-01-28
+> **STATUS:** 🟢 Implementado (v2.3)  
+> **Última atualização:** 2025-01-30
 
 ---
 
@@ -19,8 +19,13 @@ Sistema de planos, assinaturas, créditos de IA e cobrança para tenants da plat
 | `src/hooks/usePlans.ts` | Hooks de planos e assinaturas |
 | `src/hooks/useCredits.ts` | Hooks de créditos de IA |
 | `src/hooks/useTenantAccess.ts` | Hook de acesso do tenant |
+| `src/hooks/useModuleAccess.ts` | Hook de acesso a módulos/features |
 | `src/hooks/useSubscriptionStatus.ts` | Hook de status da assinatura e cartão |
 | `src/components/billing/PaymentMethodGate.tsx` | Componente de bloqueio por cartão |
+| `src/components/layout/FeatureGate.tsx` | Componente de bloqueio por feature |
+| `src/components/layout/ModuleGate.tsx` | Componente de bloqueio por módulo |
+| `src/components/layout/FeatureGatedRoute.tsx` | Rota protegida por feature |
+| `src/components/layout/GatedRoute.tsx` | Rota protegida por módulo |
 | `src/pages/settings/AddPaymentMethod.tsx` | Página de cadastro de cartão |
 | `src/pages/platform/PlatformBilling.tsx` | Dashboard de billing (admin) |
 | `src/pages/AIPackages.tsx` | Página de créditos de IA |
@@ -580,41 +585,85 @@ interface NavItem {
 | Módulo `access_level = 'none'` | Grupo exibe 🔒 e badge "Upgrade" |
 | Feature bloqueada | Item exibe 🔒 com tooltip explicativo |
 | Plataforma Admin | Acesso total (bypass) |
+| Tenant especial (`is_special=true`) | Acesso total (bypass) |
+| Plano `unlimited` | Acesso total (bypass) |
 
-### Módulos Mapeados
+### Módulos Mapeados (17 módulos)
 
 | moduleKey | Grupo no Menu |
 |-----------|---------------|
-| `marketing_advanced` | Marketing Avançado (Campanhas, Email Marketing, etc.) |
-| `partnerships` | Parcerias (Afiliados, Influencers, Fornecedores) |
-| `crm` | CRM (Notificações, Suporte) |
-| `erp` | ERP (Fiscal, Financeiro, Compras) |
-| `integrations` | Integrações |
+| `central` | Central (Dashboard, Agenda, Analytics, Reports, Assistant) |
+| `ecommerce` | E-commerce (Pedidos, Produtos, Categorias, Clientes) |
+| `loja_online` | Loja Online (Templates, Páginas, Builder) |
+| `blog` | Blog (Posts, Campanhas IA) |
+| `marketing_basico` | Marketing Básico (Ofertas, Avaliações, Mídias) |
+| `marketing_avancado` | Marketing Avançado (Email Marketing, Quizzes) |
+| `crm` | CRM (Notificações, Suporte, Emails) |
+| `erp_fiscal` | ERP Fiscal (NF-e, Sped, Obrigações) |
+| `erp_financeiro` | ERP Financeiro (Contas, Fluxo de Caixa) |
+| `erp_compras` | ERP Compras (Fornecedores, Notas de Entrada) |
+| `erp_logistica` | ERP Logística (Remessas, Frete Personalizado) |
+| `parcerias` | Parcerias (Afiliados, Influencers, Fornecedores) |
+| `marketplaces` | Marketplaces (Mercado Livre, Shopee, Amazon) |
+| `sistema_usuarios` | Sistema Usuários (Gestão de Usuários, Permissões) |
+| `sistema_integracoes` | Sistema Integrações (PagSeguro, PIX, Meta, TikTok) |
+| `chatgpt` | ChatGPT (Auxiliar de Comando) |
 
-### Features Bloqueadas por Item
+### Features Bloqueadas por Item (Sidebar)
 
-| blockedFeature | Item | Condição |
-|----------------|------|----------|
-| `chatgpt` | ChatGPT | Planos básico/evolução |
-| `email_marketing` | Email Marketing | Planos básico/evolução |
-| `user_management` | Gestão de Usuários | Somente owners veem |
+| blockedFeature | Item | Módulo Pai |
+|----------------|------|------------|
+| `assistant` | Auxiliar de Comando | central |
+| `analytics` | Analytics | central |
+| `agenda` | Agenda | central |
+| `reports` | Relatórios | central |
+| `ai_campaigns` | Campanhas IA | blog |
+| `email_marketing` | Email Marketing | marketing_avancado |
+| `quizzes` | Quizzes | marketing_avancado |
+| `whatsapp_notifications` | Notificações WhatsApp | crm |
+| `support_chat` | Chat de Suporte | crm |
+| `remessas` | Remessas | erp_logistica |
+| `frete_personalizado` | Frete Personalizado | erp_logistica |
+| `influencers` | Influencers | parcerias |
+| `mercadolivre` | Mercado Livre | marketplaces |
+| `shopee` | Shopee | marketplaces |
+| `amazon` | Amazon | marketplaces |
+
+### Features Protegidas por FeatureGate (Inline)
+
+| Feature | Componente/Página | Descrição |
+|---------|-------------------|-----------|
+| `export_orders` | Orders.tsx | Botão de exportar pedidos |
+| `export_customers` | Customers.tsx | Botão de exportar clientes |
+
+### Rotas Protegidas por FeatureGatedRoute
+
+| Rota | featureKey | moduleKey |
+|------|------------|-----------|
+| `/blog/campaigns` | `ai_campaigns` | `blog` |
+| `/email-marketing/*` | `email_marketing` | `marketing_avancado` |
+| `/quizzes` | `quizzes` | `marketing_avancado` |
+| `/notifications` | `whatsapp_notifications` | `crm` |
+| `/shipping/shipments` | `remessas` | `erp_logistica` |
+| `/influencers` | `influencers` | `parcerias` |
+| `/marketplaces/shopee` | `shopee` | `marketplaces` |
 
 ### Hook Utilizado
 
 ```typescript
-import { useAllModuleAccess } from '@/hooks/useTenantAccess';
+import { useAllModuleAccess } from '@/hooks/useModuleAccess';
 
-const { 
-  isLoading,
-  isFeatureBlocked  // (moduleKey, feature?) => boolean
-} = useAllModuleAccess();
+const { data: moduleAccess, isLoading } = useAllModuleAccess();
+
+// Verificar se feature está bloqueada
+const isBlocked = moduleAccess?.[moduleKey]?.blockedFeatures?.includes(featureKey);
 ```
 
 ### Regras de Renderização
 
 ```typescript
-// Grupo bloqueado
-if (isModuleBlocked(group.moduleKey)) {
+// Grupo bloqueado (access_level = 'none')
+if (access?.accessLevel === 'none') {
   return (
     <SidebarGroup disabled>
       <Lock /> {group.label} <Badge>Upgrade</Badge>
@@ -622,8 +671,9 @@ if (isModuleBlocked(group.moduleKey)) {
   );
 }
 
-// Item bloqueado
-if (isFeatureBlocked(groupModuleKey, item.blockedFeature)) {
+// Item bloqueado (feature em blocked_features)
+if (access?.blockedFeatures?.includes(item.blockedFeature) || 
+    access?.blockedFeatures?.includes('*')) {
   return (
     <SidebarItem disabled>
       <Lock /> {item.label}
@@ -631,6 +681,63 @@ if (isFeatureBlocked(groupModuleKey, item.blockedFeature)) {
     </SidebarItem>
   );
 }
+```
+
+---
+
+## FeatureGate — Componente de Bloqueio Inline
+
+O componente `FeatureGate` permite bloquear funcionalidades específicas dentro de uma página.
+
+### Props
+
+| Prop | Tipo | Padrão | Descrição |
+|------|------|--------|-----------|
+| `feature` | `string` | - | Chave da feature a verificar |
+| `moduleKey` | `string?` | - | Módulo pai (opcional, auto-detectado) |
+| `children` | `ReactNode` | - | Conteúdo a renderizar se liberado |
+| `fallback` | `ReactNode?` | `null` | Conteúdo alternativo se bloqueado |
+| `showUpgradeCTA` | `boolean` | `false` | Mostrar CTA de upgrade |
+| `featureName` | `string?` | - | Nome da feature para o CTA |
+
+### Mapeamento Automático Feature → Módulo
+
+O `FeatureGate` mapeia automaticamente features para seus módulos:
+
+```typescript
+const featureModuleMap: Record<string, string> = {
+  'export_orders': 'ecommerce',
+  'export_customers': 'ecommerce',
+  'whatsapp_notifications': 'crm',
+  'support_chat': 'crm',
+  'ai_campaigns': 'blog',
+  'email_marketing': 'marketing_avancado',
+  'quizzes': 'marketing_avancado',
+  'remessas': 'erp_logistica',
+  'templates': 'loja_online',
+  'mercadolivre': 'marketplaces',
+  'shopee': 'marketplaces',
+  'influencers': 'parcerias',
+  'reports': 'central',
+  'analytics': 'central',
+  'agenda': 'central',
+  'assistant': 'central',
+  // ... mais mapeamentos
+};
+```
+
+### Uso
+
+```tsx
+// Inline com fallback
+<FeatureGate feature="export_orders" moduleKey="ecommerce">
+  <ExportButton />
+</FeatureGate>
+
+// Com CTA de upgrade
+<FeatureGate feature="whatsapp" showUpgradeCTA featureName="WhatsApp">
+  <WhatsAppIntegration />
+</FeatureGate>
 ```
 
 ---
