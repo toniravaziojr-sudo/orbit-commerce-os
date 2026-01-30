@@ -13,7 +13,7 @@ import type {
   NormalizedOrderItem,
 } from '../types';
 
-import { stripHtmlToText, cleanSku, extractNumericOnly } from '../utils';
+import { stripHtmlToText, cleanSku, extractNumericOnly, getColumnValue, parseBrazilianPrice, slugify } from '../utils';
 
 // Campos da Nuvemshop (como vêm da API/CSV)
 export interface NuvemshopProduct {
@@ -229,53 +229,60 @@ function getText(value: { pt?: string; es?: string; en?: string } | string | und
 
 // Funções de normalização
 export function normalizeNuvemshopProduct(raw: NuvemshopProduct): NormalizedProduct {
-  const name = getText(raw.name) || raw['Nome'] || 'Produto sem nome';
+  // Cast to Record for flexible column access
+  const row = raw as unknown as Record<string, string>;
+  
+  // Use getColumnValue for encoding-safe column matching
+  const name = getText(raw.name) || getColumnValue(row, 'Nome') || 'Produto sem nome';
   
   // Convert HTML to plain text
-  const rawDescription = getText(raw.description) || raw['Descrição'] || null;
+  const rawDescription = getText(raw.description) || getColumnValue(row, 'Descrição', 'Descricao') || null;
   const description = stripHtmlToText(rawDescription);
   
   // Handle/slug - aceita múltiplos nomes de coluna
-  const handle = getText(raw.handle) || raw['URL'] || raw['Identificador URL'] || slugify(name);
+  const handle = getText(raw.handle) || getColumnValue(row, 'URL', 'Identificador URL') || slugify(name);
   
   const variant = raw.variants?.[0];
   
-  // Parse price - handle Brazilian format (comma as decimal separator)
-  const parsePrice = (val: string | number | null | undefined): number => {
-    if (val == null) return 0;
-    if (typeof val === 'number') return val;
-    // Remove thousand separators and convert comma to dot
-    return parseFloat(val.replace(/\./g, '').replace(',', '.')) || 0;
-  };
+  // Parse prices using smart parser that handles both formats
+  const priceStr = getColumnValue(row, 'Preço', 'Preco', 'Price') || '';
+  const compareAtPriceStr = getColumnValue(row, 'Preço promocional', 'Preco promocional') || '';
+  const costStr = getColumnValue(row, 'Custo', 'Cost') || '';
   
-  const price = parsePrice(variant?.price) || parsePrice(raw['Preço']) || 0;
-  const compareAtPrice = parsePrice(variant?.compare_at_price) || parsePrice(raw['Preço promocional']) || null;
-  const costPrice = parsePrice(variant?.cost) || parsePrice(raw['Custo']) || null;
+  const price = parseBrazilianPrice(variant?.price) || parseBrazilianPrice(priceStr) || 0;
+  const compareAtPrice = parseBrazilianPrice(variant?.compare_at_price) || parseBrazilianPrice(compareAtPriceStr) || null;
+  const costPrice = parseBrazilianPrice(variant?.cost) || parseBrazilianPrice(costStr) || null;
   
   // SKU - clean special chars
-  const rawSku = variant?.sku || raw['SKU'] || null;
+  const rawSku = variant?.sku || getColumnValue(row, 'SKU') || null;
   const sku = cleanSku(rawSku);
   
   // Barcode - only numbers
-  const rawBarcode = variant?.barcode || raw['Código de barras'] || null;
+  const rawBarcode = variant?.barcode || getColumnValue(row, 'Código de barras', 'Codigo de barras') || null;
   const barcode = extractNumericOnly(rawBarcode);
   
-  // Dimensions - aceita múltiplos nomes de coluna
-  const weight = parsePrice(variant?.weight) || parsePrice(raw['Peso (kg)']) || null;
-  const width = parsePrice(variant?.width) || parsePrice(raw['Largura (cm)']) || null;
-  const height = parsePrice(variant?.height) || parsePrice(raw['Altura (cm)']) || null;
-  const depth = parsePrice(variant?.depth) || parsePrice(raw['Profundidade (cm)']) || parsePrice(raw['Comprimento (cm)']) || null;
-  const stockQuantity = parseInt(variant?.stock?.toString() || raw['Estoque'] || '0', 10);
+  // Dimensions - aceita múltiplos nomes de coluna (com e sem acento)
+  const weightStr = getColumnValue(row, 'Peso (kg)', 'Peso kg') || '';
+  const widthStr = getColumnValue(row, 'Largura (cm)', 'Largura cm') || '';
+  const heightStr = getColumnValue(row, 'Altura (cm)', 'Altura cm') || '';
+  const depthStr = getColumnValue(row, 'Profundidade (cm)', 'Comprimento (cm)', 'Comprimento cm') || '';
+  const stockStr = getColumnValue(row, 'Estoque', 'Stock') || '0';
+  
+  const weight = parseBrazilianPrice(variant?.weight) || parseBrazilianPrice(weightStr) || null;
+  const width = parseBrazilianPrice(variant?.width) || parseBrazilianPrice(widthStr) || null;
+  const height = parseBrazilianPrice(variant?.height) || parseBrazilianPrice(heightStr) || null;
+  const depth = parseBrazilianPrice(variant?.depth) || parseBrazilianPrice(depthStr) || null;
+  const stockQuantity = parseInt(variant?.stock?.toString() || stockStr, 10) || 0;
   
   // Status - aceita múltiplos nomes de coluna
-  const activeValue = raw['Ativo'] || raw['Exibir na loja'] || '';
+  const activeValue = getColumnValue(row, 'Ativo', 'Exibir na loja') || '';
   const isActive = raw.published ?? (activeValue.toLowerCase() === 'sim');
-  const isFeatured = raw['Destaque']?.toLowerCase() === 'sim';
+  const isFeatured = (getColumnValue(row, 'Destaque') || '').toLowerCase() === 'sim';
   
   // Marca
-  const brand = raw['Marca'] || raw.brand || null;
+  const brand = getColumnValue(row, 'Marca', 'Brand') || raw.brand || null;
   
-  // Imagens
+  // Imagens - extrair de múltiplas colunas URL da imagem X
   const images: NormalizedProductImage[] = [];
   if (raw.images && Array.isArray(raw.images)) {
     raw.images.forEach((img, idx) => {
@@ -287,22 +294,39 @@ export function normalizeNuvemshopProduct(raw: NuvemshopProduct): NormalizedProd
       });
     });
   } else {
-    if (raw['Imagem principal']) {
+    // Try CSV columns for images
+    const mainImage = getColumnValue(row, 'Imagem principal', 'Imagem 1', 'URL da imagem 1');
+    if (mainImage) {
       images.push({
-        url: raw['Imagem principal'],
+        url: mainImage,
         alt: null,
         is_primary: true,
         position: 0,
       });
     }
-    if (raw['Imagens adicionais']) {
-      const additionalUrls = raw['Imagens adicionais'].split(',').map(u => u.trim());
+    
+    // Check for multiple image columns (URL da imagem 2, 3, 4, etc.)
+    for (let i = 2; i <= 10; i++) {
+      const imgUrl = getColumnValue(row, `URL da imagem ${i}`, `Imagem ${i}`);
+      if (imgUrl) {
+        images.push({
+          url: imgUrl,
+          alt: null,
+          is_primary: false,
+          position: i - 1,
+        });
+      }
+    }
+    
+    const additionalImages = getColumnValue(row, 'Imagens adicionais');
+    if (additionalImages) {
+      const additionalUrls = additionalImages.split(',').map(u => u.trim()).filter(Boolean);
       additionalUrls.forEach((url, idx) => {
         images.push({
           url,
           alt: null,
           is_primary: false,
-          position: idx + 1,
+          position: images.length,
         });
       });
     }
@@ -323,8 +347,8 @@ export function normalizeNuvemshopProduct(raw: NuvemshopProduct): NormalizedProd
       variants.push({
         name: Object.values(options).join(' / ') || 'Padrão',
         sku: v.sku || null,
-        price: parseFloat(v.price?.toString() || '0'),
-        compare_at_price: v.compare_at_price ? parseFloat(v.compare_at_price.toString()) : null,
+        price: parseBrazilianPrice(v.price),
+        compare_at_price: v.compare_at_price ? parseBrazilianPrice(v.compare_at_price) : null,
         stock_quantity: v.stock || null,
         options,
       });
@@ -340,7 +364,7 @@ export function normalizeNuvemshopProduct(raw: NuvemshopProduct): NormalizedProd
     });
   } else {
     // Aceita tanto "Categoria" quanto "Categorias"
-    const categoryString = raw['Categoria'] || raw['Categorias'] || '';
+    const categoryString = getColumnValue(row, 'Categorias', 'Categoria') || '';
     if (categoryString) {
       // Categorias podem estar separadas por vírgula ou " > " (hierarquia Nuvemshop)
       // Ex: "Todos Kits > Kit Banho Poderoso, Queda Leve a Moderada"
@@ -360,12 +384,12 @@ export function normalizeNuvemshopProduct(raw: NuvemshopProduct): NormalizedProd
   }
   
   // Tags
-  const tagsString = raw['Tags'] || '';
+  const tagsString = getColumnValue(row, 'Tags') || '';
   const tags = tagsString ? tagsString.split(',').map(t => t.trim()).filter(Boolean) : [];
   
-  // SEO - aceita múltiplos nomes de coluna
-  const seoTitle = getText(raw.seo_title) || raw['Título SEO'] || raw['Título para SEO'] || null;
-  const seoDescription = getText(raw.seo_description) || raw['Descrição SEO'] || raw['Descrição para SEO'] || null;
+  // SEO - aceita múltiplos nomes de coluna (com e sem acento)
+  const seoTitle = getText(raw.seo_title) || getColumnValue(row, 'Título SEO', 'Titulo SEO', 'Título para SEO', 'Titulo para SEO') || null;
+  const seoDescription = getText(raw.seo_description) || getColumnValue(row, 'Descrição SEO', 'Descricao SEO', 'Descrição para SEO', 'Descricao para SEO') || null;
   
   return {
     name,
@@ -523,15 +547,7 @@ export function normalizeNuvemshopOrder(raw: NuvemshopOrder): NormalizedOrder {
   };
 }
 
-// Helpers
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-}
+// Helpers - using imported slugify from utils
 
 function normalizePhone(phone: string | null): string | null {
   if (!phone) return null;
