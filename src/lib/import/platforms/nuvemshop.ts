@@ -234,33 +234,60 @@ export function normalizeNuvemshopProduct(raw: NuvemshopProduct): NormalizedProd
   
   // DEBUG: Log all keys received to diagnose column mapping issues
   const rowKeys = Object.keys(row);
-  console.log(`[normalizeNuvemshopProduct] Row keys (first 20): ${rowKeys.slice(0, 20).join(', ')}`);
+  console.log(`[normalizeNuvemshopProduct] Row keys (first 30): ${rowKeys.slice(0, 30).join(', ')}`);
   
   // Use getColumnValue for encoding-safe column matching
-  // Add more aliases to handle Nuvemshop export variations
-  const name = getText(raw.name) || getColumnValue(row, 'Nome', 'Nome do produto', 'Nome produto', 'Product Name', 'name') || 'Produto sem nome';
+  // CRITICAL: Many aliases to handle Nuvemshop export variations + encoding corruption
+  const name = getText(raw.name) || getColumnValue(row, 
+    'Nome', 'Nome do produto', 'Nome produto', 'Product Name', 'name', 'Nombre', 'Title', 'Titulo'
+  ) || 'Produto sem nome';
   
   // DEBUG: Log what we're finding
   console.log(`[normalizeNuvemshopProduct] Name found: "${name}"`);
   
   // Convert HTML to plain text
-  const rawDescription = getText(raw.description) || getColumnValue(row, 'Descrição', 'Descricao', 'Description', 'description') || null;
+  // CRITICAL: Nuvemshop uses "Descrição" with many encoding variations
+  const rawDescription = getText(raw.description) || getColumnValue(row, 
+    'Descrição', 'Descricao', 'Descriçao', 'Description', 'description', 'Descrio', 
+    'Descripción', 'Descripcion', 'Body HTML', 'Body (HTML)', 'HTML Description'
+  ) || null;
   const description = stripHtmlToText(rawDescription);
   
   // Handle/slug - aceita múltiplos nomes de coluna
-  const handle = getText(raw.handle) || getColumnValue(row, 'URL', 'Identificador URL', 'Identificador', 'Handle', 'Slug', 'slug') || slugify(name);
+  const handle = getText(raw.handle) || getColumnValue(row, 
+    'URL', 'Identificador URL', 'Identificador', 'Handle', 'Slug', 'slug', 
+    'URL amigável', 'URL amigavel', 'Permalink', 'Link'
+  ) || slugify(name);
   
   const variant = raw.variants?.[0];
   
-  // Parse prices using smart parser that handles both formats
-  // CRITICAL: Add many more aliases for price columns - Nuvemshop uses various names
-  const priceStr = getColumnValue(row, 'Preço', 'Preco', 'Price', 'price', 'Valor', 'Preco original', 'Preço original') || '';
-  const compareAtPriceStr = getColumnValue(row, 'Preço promocional', 'Preco promocional', 'Preço original', 'Preco original', 'Compare at price', 'compare_at_price') || '';
-  const costStr = getColumnValue(row, 'Custo', 'Cost', 'cost', 'Custo do produto') || '';
+  // =====================================================
+  // CRITICAL: PRICE EXTRACTION - Multiple column aliases
+  // Nuvemshop exports with DOT as decimal (49.90)
+  // But may corrupt "Preço" to "Preo" or "Preco"
+  // =====================================================
+  const priceStr = getColumnValue(row, 
+    'Preço', 'Preco', 'Preço de venda', 'Preco de venda', 
+    'Price', 'price', 'Valor', 'Valor de venda',
+    'Preço original', 'Preco original', 'Variant Price',
+    'Precio', 'Preo'  // Corrupted encoding fallbacks
+  ) || '';
+  
+  const compareAtPriceStr = getColumnValue(row, 
+    'Preço promocional', 'Preco promocional', 'Preço comparativo', 'Preco comparativo',
+    'Compare at price', 'compare_at_price', 'Preço antigo', 'Preco antigo',
+    'Variant Compare At Price', 'Precio comparativo', 'Preo promocional'
+  ) || '';
+  
+  const costStr = getColumnValue(row, 
+    'Custo', 'Cost', 'cost', 'Custo do produto', 'Custo por item',
+    'Variant Cost', 'Costo', 'Preço de custo', 'Preco de custo'
+  ) || '';
   
   // DEBUG: Log price values found
   console.log(`[normalizeNuvemshopProduct] Price string found: "${priceStr}" | Compare: "${compareAtPriceStr}" | Cost: "${costStr}"`);
   
+  // Parse prices - variant takes priority, then CSV column
   const price = parseBrazilianPrice(variant?.price) || parseBrazilianPrice(priceStr) || 0;
   const compareAtPrice = parseBrazilianPrice(variant?.compare_at_price) || parseBrazilianPrice(compareAtPriceStr) || null;
   const costPrice = parseBrazilianPrice(variant?.cost) || parseBrazilianPrice(costStr) || null;
@@ -269,19 +296,37 @@ export function normalizeNuvemshopProduct(raw: NuvemshopProduct): NormalizedProd
   console.log(`[normalizeNuvemshopProduct] Parsed prices: price=${price}, compare=${compareAtPrice}, cost=${costPrice}`);
   
   // SKU - clean special chars - add more aliases
-  const rawSku = variant?.sku || getColumnValue(row, 'SKU', 'sku', 'Código', 'Codigo', 'Código SKU', 'Codigo SKU', 'Variant SKU') || null;
+  const rawSku = variant?.sku || getColumnValue(row, 
+    'SKU', 'sku', 'Código', 'Codigo', 'Código SKU', 'Codigo SKU', 
+    'Variant SKU', 'Código do produto', 'Codigo do produto', 'Referência', 'Referencia'
+  ) || null;
   const sku = cleanSku(rawSku);
   
   // Barcode - only numbers
-  const rawBarcode = variant?.barcode || getColumnValue(row, 'Código de barras', 'Codigo de barras', 'Barcode', 'barcode', 'EAN', 'GTIN') || null;
+  const rawBarcode = variant?.barcode || getColumnValue(row, 
+    'Código de barras', 'Codigo de barras', 'Barcode', 'barcode', 
+    'EAN', 'GTIN', 'UPC', 'ISBN', 'Variant Barcode', 'Cdigo de barras'
+  ) || null;
   const barcode = extractNumericOnly(rawBarcode);
   
   // Dimensions - aceita múltiplos nomes de coluna (com e sem acento)
-  const weightStr = getColumnValue(row, 'Peso (kg)', 'Peso kg', 'Peso', 'Weight', 'weight') || '';
-  const widthStr = getColumnValue(row, 'Largura (cm)', 'Largura cm', 'Largura', 'Width', 'width') || '';
-  const heightStr = getColumnValue(row, 'Altura (cm)', 'Altura cm', 'Altura', 'Height', 'height') || '';
-  const depthStr = getColumnValue(row, 'Profundidade (cm)', 'Comprimento (cm)', 'Comprimento cm', 'Comprimento', 'Profundidade', 'Depth', 'depth', 'Length', 'length') || '';
-  const stockStr = getColumnValue(row, 'Estoque', 'Stock', 'stock', 'Quantidade', 'Inventory', 'inventory', 'Qtd', 'Quantidade em estoque') || '0';
+  const weightStr = getColumnValue(row, 
+    'Peso (kg)', 'Peso kg', 'Peso', 'Weight', 'weight', 'Peso (g)', 'Variant Grams', 'Grams'
+  ) || '';
+  const widthStr = getColumnValue(row, 
+    'Largura (cm)', 'Largura cm', 'Largura', 'Width', 'width'
+  ) || '';
+  const heightStr = getColumnValue(row, 
+    'Altura (cm)', 'Altura cm', 'Altura', 'Height', 'height'
+  ) || '';
+  const depthStr = getColumnValue(row, 
+    'Profundidade (cm)', 'Comprimento (cm)', 'Comprimento cm', 'Comprimento', 
+    'Profundidade', 'Depth', 'depth', 'Length', 'length'
+  ) || '';
+  const stockStr = getColumnValue(row, 
+    'Estoque', 'Stock', 'stock', 'Quantidade', 'Inventory', 'inventory', 
+    'Qtd', 'Quantidade em estoque', 'Variant Inventory Qty', 'Qty'
+  ) || '0';
   
   const weight = parseBrazilianPrice(variant?.weight) || parseBrazilianPrice(weightStr) || null;
   const width = parseBrazilianPrice(variant?.width) || parseBrazilianPrice(widthStr) || null;
@@ -290,14 +335,26 @@ export function normalizeNuvemshopProduct(raw: NuvemshopProduct): NormalizedProd
   const stockQuantity = parseInt(variant?.stock?.toString() || stockStr, 10) || 0;
   
   // Status - aceita múltiplos nomes de coluna
-  const activeValue = getColumnValue(row, 'Ativo', 'Exibir na loja', 'Status', 'Published', 'published', 'Publicado', 'Visivel', 'Visível') || '';
-  const isActive = raw.published ?? (activeValue.toLowerCase() === 'sim' || activeValue.toLowerCase() === 'true' || activeValue.toLowerCase() === 'yes' || activeValue.toLowerCase() === 'ativo');
-  const isFeatured = (getColumnValue(row, 'Destaque', 'Featured', 'featured') || '').toLowerCase() === 'sim';
+  const activeValue = getColumnValue(row, 
+    'Ativo', 'Exibir na loja', 'Status', 'Published', 'published', 
+    'Publicado', 'Visivel', 'Visível', 'Visible', 'Active'
+  ) || '';
+  const isActive = raw.published ?? (
+    activeValue.toLowerCase() === 'sim' || 
+    activeValue.toLowerCase() === 'true' || 
+    activeValue.toLowerCase() === 'yes' || 
+    activeValue.toLowerCase() === 'ativo' ||
+    activeValue.toLowerCase() === 'activo' ||
+    activeValue === '1'
+  );
+  const isFeatured = (getColumnValue(row, 'Destaque', 'Featured', 'featured', 'Destacado') || '').toLowerCase() === 'sim';
   
   // Marca
-  const brand = getColumnValue(row, 'Marca', 'Brand') || raw.brand || null;
+  const brand = getColumnValue(row, 'Marca', 'Brand', 'Fabricante', 'Manufacturer') || raw.brand || null;
   
-  // Imagens - extrair de múltiplas colunas URL da imagem X
+  // =====================================================
+  // IMAGES - Extract from multiple possible columns
+  // =====================================================
   const images: NormalizedProductImage[] = [];
   if (raw.images && Array.isArray(raw.images)) {
     raw.images.forEach((img, idx) => {
@@ -309,9 +366,12 @@ export function normalizeNuvemshopProduct(raw: NuvemshopProduct): NormalizedProd
       });
     });
   } else {
-    // Try CSV columns for images
-    const mainImage = getColumnValue(row, 'Imagem principal', 'Imagem 1', 'URL da imagem 1');
-    if (mainImage) {
+    // Try CSV columns for images - Nuvemshop uses "URL da imagem 1", "URL da imagem 2", etc.
+    const mainImage = getColumnValue(row, 
+      'Imagem principal', 'Imagem 1', 'URL da imagem 1', 
+      'Image URL', 'Image Src', 'Main Image', 'Foto principal'
+    );
+    if (mainImage && mainImage.startsWith('http')) {
       images.push({
         url: mainImage,
         alt: null,
@@ -321,9 +381,9 @@ export function normalizeNuvemshopProduct(raw: NuvemshopProduct): NormalizedProd
     }
     
     // Check for multiple image columns (URL da imagem 2, 3, 4, etc.)
-    for (let i = 2; i <= 10; i++) {
-      const imgUrl = getColumnValue(row, `URL da imagem ${i}`, `Imagem ${i}`);
-      if (imgUrl) {
+    for (let i = 2; i <= 15; i++) {
+      const imgUrl = getColumnValue(row, `URL da imagem ${i}`, `Imagem ${i}`, `Image ${i}`);
+      if (imgUrl && imgUrl.startsWith('http')) {
         images.push({
           url: imgUrl,
           alt: null,
@@ -333,9 +393,10 @@ export function normalizeNuvemshopProduct(raw: NuvemshopProduct): NormalizedProd
       }
     }
     
-    const additionalImages = getColumnValue(row, 'Imagens adicionais');
+    // Also check "Imagens adicionais" (comma-separated URLs)
+    const additionalImages = getColumnValue(row, 'Imagens adicionais', 'Additional Images');
     if (additionalImages) {
-      const additionalUrls = additionalImages.split(',').map(u => u.trim()).filter(Boolean);
+      const additionalUrls = additionalImages.split(',').map(u => u.trim()).filter(u => u.startsWith('http'));
       additionalUrls.forEach((url, idx) => {
         images.push({
           url,
@@ -346,6 +407,8 @@ export function normalizeNuvemshopProduct(raw: NuvemshopProduct): NormalizedProd
       });
     }
   }
+  
+  console.log(`[normalizeNuvemshopProduct] Images found: ${images.length}`);
   
   // Variantes
   const variants: NormalizedProductVariant[] = [];
