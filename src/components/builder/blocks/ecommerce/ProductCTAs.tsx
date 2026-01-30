@@ -239,20 +239,21 @@ export function ProductCTAs({
         </Button>
       )}
       
-      {/* Comprar pelo WhatsApp - usa cor de sucesso do tema */}
+      {/* Comprar pelo WhatsApp - usa verde WhatsApp padrão, nunca herda de tema */}
       {showWhatsAppButton && (
-        <Button
-          variant="outline"
+        <button
+          type="button"
           onClick={handleWhatsApp}
-          className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm border-2"
+          className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm border-2 inline-flex items-center justify-center gap-2 transition-colors hover:opacity-90"
           style={{
-            borderColor: 'var(--theme-success-bg, #22c55e)',
-            color: 'var(--theme-success-bg, #22c55e)',
+            borderColor: '#25D366',
+            color: '#25D366',
+            backgroundColor: 'transparent',
           }}
         >
-          <MessageCircle className="w-5 h-5 mr-2" />
+          <MessageCircle className="w-5 h-5" />
           Comprar pelo WhatsApp
-        </Button>
+        </button>
       )}
       
       {/* Out of stock message */}
