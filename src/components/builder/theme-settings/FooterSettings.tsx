@@ -11,8 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Palette, ChevronDown, Settings, Type, Loader2, CreditCard, Store, Plus, Trash2, Mail } from 'lucide-react';
-import { useThemeFooter, DEFAULT_THEME_FOOTER, ThemeFooterConfig, FooterImageItem, FooterImageSectionData } from '@/hooks/useThemeSettings';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Palette, ChevronDown, Settings, Type, Loader2, CreditCard, Store, Plus, Trash2, Mail, Navigation } from 'lucide-react';
+import { useThemeFooter, DEFAULT_THEME_FOOTER, ThemeFooterConfig, FooterImageItem, FooterImageSectionData, MenuVisualStyle } from '@/hooks/useThemeSettings';
 import { ImageUploader } from '../ImageUploader';
 import type { SvgPresetCategory } from '@/lib/builder/svg-presets';
 import { PaymentIconsQuickSelect } from './PaymentIconsQuickSelect';
@@ -250,6 +251,7 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     colors: true,
     general: false,
+    visualMenus: false,
     texts: false,
     paymentMethods: false,
     officialStores: false,
@@ -417,6 +419,57 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
               checked={Boolean(localProps.showCopyright ?? true)}
               onCheckedChange={(v) => updatePropImmediate('showCopyright', v)}
             />
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+
+      <Separator />
+
+      {/* === VISUAL MENUS === */}
+      <Collapsible open={openSections.visualMenus} onOpenChange={() => toggleSection('visualMenus')}>
+        <CollapsibleTrigger asChild>
+          <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
+            <div className="flex items-center gap-1.5">
+              <Navigation className="h-3.5 w-3.5 text-primary" />
+              <span className="font-medium">Visual Menus</span>
+            </div>
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openSections.visualMenus ? 'rotate-180' : ''}`} />
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="px-2 pb-3 space-y-3">
+          <div className="space-y-1">
+            <Label className="text-[10px]">Estilo dos Links</Label>
+            <Select 
+              value={localProps.menuVisualStyle || 'classic'} 
+              onValueChange={(v) => updatePropImmediate('menuVisualStyle', v as MenuVisualStyle)}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Selecione o estilo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="classic" className="text-xs">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">Clássico</span>
+                    <span className="text-[10px] text-muted-foreground">Links simples com sublinhado no hover</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="elegant" className="text-xs">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">Elegante</span>
+                    <span className="text-[10px] text-muted-foreground">Transição suave com mudança de cor</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="minimal" className="text-xs">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">Minimalista</span>
+                    <span className="text-[10px] text-muted-foreground">Sem sublinhado, apenas opacidade</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-[10px] text-muted-foreground">
+              Define a aparência dos links de navegação no footer
+            </p>
           </div>
         </CollapsibleContent>
       </Collapsible>

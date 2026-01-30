@@ -14,8 +14,8 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Palette, ChevronDown, Settings, Bell, Loader2, Upload, X, Image as ImageIcon } from 'lucide-react';
-import { useThemeHeader, DEFAULT_THEME_HEADER, ThemeHeaderConfig } from '@/hooks/useThemeSettings';
+import { Palette, ChevronDown, Settings, Bell, Loader2, Upload, X, Image as ImageIcon, Navigation } from 'lucide-react';
+import { useThemeHeader, DEFAULT_THEME_HEADER, ThemeHeaderConfig, MenuVisualStyle } from '@/hooks/useThemeSettings';
 import { ImageUpload } from '@/components/settings/ImageUpload';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -73,6 +73,7 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
   const [localProps, setLocalProps] = useState<ThemeHeaderConfig>(DEFAULT_THEME_HEADER);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     colors: true,
+    visualMenus: false,
     general: false,
     notice: false,
   });
@@ -280,6 +281,68 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
               )}
             </>
           )}
+        </CollapsibleContent>
+      </Collapsible>
+
+      <Separator />
+
+      {/* === VISUAL MENUS === */}
+      <Collapsible open={openSections.visualMenus} onOpenChange={() => toggleSection('visualMenus')}>
+        <CollapsibleTrigger asChild>
+          <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
+            <div className="flex items-center gap-1.5">
+              <Navigation className="h-3.5 w-3.5 text-primary" />
+              <span className="font-medium">Visual Menus</span>
+            </div>
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openSections.visualMenus ? 'rotate-180' : ''}`} />
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="px-2 pb-3 space-y-3">
+          <div className="space-y-1">
+            <Label className="text-[10px]">Estilo do Dropdown</Label>
+            <Select 
+              value={localProps.menuVisualStyle || 'classic'} 
+              onValueChange={(v) => updatePropImmediate('menuVisualStyle', v as MenuVisualStyle)}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Selecione o estilo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="classic" className="text-xs">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">Clássico</span>
+                    <span className="text-[10px] text-muted-foreground">Dropdown tradicional com setas e cabeçalhos</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="elegant" className="text-xs">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">Elegante</span>
+                    <span className="text-[10px] text-muted-foreground">Animações suaves e efeito de fade</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="minimal" className="text-xs">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">Minimalista</span>
+                    <span className="text-[10px] text-muted-foreground">Limpo e simples, sem bordas extras</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-[10px] text-muted-foreground">
+              Define a aparência dos menus dropdown no header
+            </p>
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <div className="space-y-0">
+              <Label className="text-[11px]">Exibir Título da Categoria</Label>
+              <p className="text-[10px] text-muted-foreground">Mostra o nome da categoria no topo do dropdown</p>
+            </div>
+            <Switch className="scale-90"
+              checked={Boolean(localProps.menuShowParentTitle ?? true)}
+              onCheckedChange={(v) => updatePropImmediate('menuShowParentTitle', v)}
+            />
+          </div>
         </CollapsibleContent>
       </Collapsible>
 

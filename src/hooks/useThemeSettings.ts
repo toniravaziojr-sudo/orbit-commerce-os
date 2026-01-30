@@ -49,6 +49,9 @@ export interface ThemeTypography {
   baseFontSize: number;
 }
 
+// Menu visual style type
+export type MenuVisualStyle = 'classic' | 'elegant' | 'minimal';
+
 export interface ThemeHeaderConfig {
   menuId?: string;
   showSearch?: boolean;
@@ -73,6 +76,9 @@ export interface ThemeHeaderConfig {
   headerBgColor?: string;
   headerTextColor?: string;
   headerIconColor?: string;
+  // Visual menu style configuration
+  menuVisualStyle?: MenuVisualStyle;
+  menuShowParentTitle?: boolean; // Show parent category name as header in dropdown
 }
 
 // Footer image section item
@@ -114,6 +120,8 @@ export interface ThemeFooterConfig {
   newsletterButtonText?: string;
   newsletterSuccessMessage?: string;
   newsletterListId?: string;
+  // Visual menu style configuration
+  menuVisualStyle?: MenuVisualStyle;
 }
 
 // Cart action type: what happens when user clicks "Add to cart"
