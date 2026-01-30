@@ -92,7 +92,9 @@ export function ProductCard({
   const buyNowButtonText = settings.buyNowButtonText || 'Comprar agora';
   const customButtonEnabled = settings.customButtonEnabled ?? false;
   const customButtonText = settings.customButtonText || '';
-  const customButtonColor = settings.customButtonColor || '';
+  const customButtonBgColor = settings.customButtonBgColor || settings.customButtonColor || '';
+  const customButtonTextColor = settings.customButtonTextColor || '#ffffff';
+  const customButtonHoverColor = settings.customButtonHoverColor || '';
   const customButtonLink = settings.customButtonLink || '';
   
   const productUrl = getPublicProductUrl(tenantSlug, product.slug);
@@ -212,14 +214,27 @@ export function ProductCard({
             {customButtonEnabled && customButtonText && (
               <a
                 href={isEditing ? undefined : (customButtonLink || '#')}
-                className="w-full py-1.5 px-3 text-xs rounded-md text-center transition-colors"
-                style={{ 
-                  backgroundColor: customButtonColor || 'hsl(var(--primary))',
-                  color: '#ffffff'
-                }}
+                className={cn(
+                  "w-full py-1.5 px-3 text-xs rounded-md text-center transition-colors",
+                  !customButtonBgColor && "sf-btn-secondary"
+                )}
+                style={customButtonBgColor ? { 
+                  backgroundColor: customButtonBgColor,
+                  color: customButtonTextColor,
+                } : undefined}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (isEditing) e.preventDefault();
+                }}
+                onMouseEnter={(e) => {
+                  if (customButtonHoverColor) {
+                    (e.currentTarget as HTMLElement).style.backgroundColor = customButtonHoverColor;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (customButtonBgColor) {
+                    (e.currentTarget as HTMLElement).style.backgroundColor = customButtonBgColor;
+                  }
                 }}
               >
                 {customButtonText}
@@ -325,12 +340,25 @@ export function ProductCard({
             {customButtonEnabled && customButtonText && (
               <a
                 href={customButtonLink || '#'}
-                className="w-full py-1.5 px-3 text-xs rounded-md text-center transition-colors"
-                style={{ 
-                  backgroundColor: customButtonColor || 'hsl(var(--primary))',
-                  color: '#ffffff'
-                }}
+                className={cn(
+                  "w-full py-1.5 px-3 text-xs rounded-md text-center transition-colors",
+                  !customButtonBgColor && "sf-btn-secondary"
+                )}
+                style={customButtonBgColor ? { 
+                  backgroundColor: customButtonBgColor,
+                  color: customButtonTextColor,
+                } : undefined}
                 onClick={(e) => e.stopPropagation()}
+                onMouseEnter={(e) => {
+                  if (customButtonHoverColor) {
+                    (e.currentTarget as HTMLElement).style.backgroundColor = customButtonHoverColor;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (customButtonBgColor) {
+                    (e.currentTarget as HTMLElement).style.backgroundColor = customButtonBgColor;
+                  }
+                }}
               >
                 {customButtonText}
               </a>
@@ -439,12 +467,25 @@ export function ProductCard({
           {customButtonEnabled && customButtonText && (
             <a
               href={customButtonLink || '#'}
-              className="w-full py-1.5 px-3 text-xs rounded-md text-center transition-colors"
-              style={{ 
-                backgroundColor: customButtonColor || 'hsl(var(--primary))',
-                color: '#ffffff'
-              }}
+              className={cn(
+                "w-full py-1.5 px-3 text-xs rounded-md text-center transition-colors",
+                !customButtonBgColor && "sf-btn-secondary"
+              )}
+              style={customButtonBgColor ? { 
+                backgroundColor: customButtonBgColor,
+                color: customButtonTextColor,
+              } : undefined}
               onClick={(e) => e.stopPropagation()}
+              onMouseEnter={(e) => {
+                if (customButtonHoverColor) {
+                  (e.currentTarget as HTMLElement).style.backgroundColor = customButtonHoverColor;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (customButtonBgColor) {
+                  (e.currentTarget as HTMLElement).style.backgroundColor = customButtonBgColor;
+                }
+              }}
             >
               {customButtonText}
             </a>
