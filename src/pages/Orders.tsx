@@ -16,6 +16,7 @@ import { StatCard } from '@/components/ui/stat-card';
 import { OrderList } from '@/components/orders/OrderList';
 import { useOrders, type Order, type OrderStatus } from '@/hooks/useOrders';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
+import { FeatureGate } from '@/components/layout/FeatureGate';
 
 const PAGE_SIZE = 50;
 
@@ -104,10 +105,12 @@ export default function Orders() {
         description="Gestão de pedidos, pagamentos e envios"
         actions={
           <div className="flex gap-3">
-            <Button variant="outline" className="gap-2">
-              <Download className="h-4 w-4" />
-              Exportar
-            </Button>
+            <FeatureGate feature="export_orders">
+              <Button variant="outline" className="gap-2">
+                <Download className="h-4 w-4" />
+                Exportar
+              </Button>
+            </FeatureGate>
             <Button className="gap-2" onClick={() => navigate('/orders/new')}>
               <Plus className="h-4 w-4" />
               Novo Pedido
