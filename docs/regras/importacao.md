@@ -201,12 +201,33 @@ O sistema NÃO confia apenas em padrões de URL. Ele verifica se a página cont�
 Padrões de URL que indicam categoria (candidatos):
 ```
 /collections/{slug}     (Shopify)
-/categoria/{slug}       (Genérico BR)
+/categoria/{slug}       (Genérico BR, Nuvemshop)
+/categorias/{slug}      (Nuvemshop)
 /category/{slug}        (Inglês)
-/c/{slug}               (Abreviado)
-/departamento/{slug}    (Tray, VTEX)
+/c/{slug}               (Abreviado, Nuvemshop)
+/departamento/{slug}    (Tray, VTEX, Nuvemshop)
+/departamentos/{slug}   (Nuvemshop)
 /shop/{slug}            (WooCommerce)
 ```
+
+### Detecção de Grid de Produtos por Plataforma
+
+**Shopify:**
+```
+.product-grid, .collection-grid, .product-list
+```
+
+**Nuvemshop/Tiendanube (SPA):**
+```typescript
+// Classes com prefixo js- (renderizadas via JavaScript)
+- div.js-product-table, div.product-table, div.js-product-grid
+- div.js-item-product, div.item-product, div.product-item
+- article.js-item-product, article.item-product, article.product-item
+- [data-product-id="..."], [data-item-id="..."]
+- a[href*="/produtos/"], a[href*="/product/"]
+```
+
+> **IMPORTANTE**: Nuvemshop usa SPA pesado em JavaScript. O scraper aguarda 5000ms para renderização completa.
 
 ### Extração de Banners
 
@@ -214,6 +235,7 @@ O sistema extrai banners **desktop** e **mobile**:
 
 **Banner Desktop:**
 - Classes: `category-banner`, `collection-banner`, `hero`
+- Nuvemshop: `js-category-banner`, `banner-category`
 - Elemento `<picture>` com `media="(min-width...)"`
 - Primeiro `<img>` grande dentro do `<main>`
 
@@ -325,7 +347,7 @@ Isso garante que cada bloco apareça individualmente no sidebar do Builder e sej
 
 ### Detecção de Estrutura
 
-O sistema detecta menus com múltiplos níveis:
+O sistema detecta menus com múltiplos níveis usando adaptadores específicos por plataforma:
 
 **Shopify Mega-menus:**
 ```typescript
@@ -335,6 +357,22 @@ O sistema detecta menus com múltiplos níveis:
 - .menu-item com .has-submenu
 - Qualquer link com dropdown/submenu aninhado
 ```
+
+**Nuvemshop/Tiendanube (SPA):**
+```typescript
+// Classes específicas Nuvemshop (prefixo js-)
+- nav.js-nav, nav.js-navigation, .nav-primary, .main-nav
+- ul.js-nav-list, ul.nav-list, ul.nav-desktop, ul.main-menu
+- div.js-mobile-nav, div.mobile-nav, div.nav-drawer
+- div.js-mega-menu, div.mega-menu, div.dropdown-menu
+
+// Footer
+- div.footer-column, div.footer-col, div.js-footer-column
+- section.footer-links, section.footer-nav
+- ul.footer-list, ul.footer-menu, ul.footer-links
+```
+
+> **IMPORTANTE**: Nuvemshop usa SPA pesado em JavaScript. O scraper aguarda 5000ms para renderização.
 
 ### Estrutura Extraída
 
