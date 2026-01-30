@@ -149,7 +149,7 @@ const fullNavigation: NavGroup[] = [
     moduleKey: "crm",
     collapsible: true,
     items: [
-      { title: "Notificações", href: "/notifications", icon: Bell },
+      { title: "Notificações", href: "/notifications", icon: Bell, blockedFeature: "whatsapp_notifications" },
       { title: "Atendimento", href: "/support", icon: MessageSquare, blockedFeature: "support_chat" },
       { title: "Emails", href: "/emails", icon: Mail, blockedFeature: "emails" },
       { title: "Avaliações", href: "/reviews", icon: Star },
@@ -157,12 +157,13 @@ const fullNavigation: NavGroup[] = [
   },
   {
     label: "ERP",
+    moduleKey: "erp_logistica",
     collapsible: true,
     items: [
-      { title: "Fiscal", href: "/fiscal", icon: FileText }, // erp_fiscal - full access
+      { title: "Fiscal", href: "/fiscal", icon: FileText },
       { title: "Financeiro", href: "/finance", icon: DollarSign, blockedFeature: "erp_financeiro" },
       { title: "Compras", href: "/purchases", icon: ShoppingBag, blockedFeature: "erp_compras" },
-      { title: "Logística", href: "/shipping", icon: Truck }, // erp_logistica - partial
+      { title: "Logística", href: "/shipping", icon: Truck, blockedFeature: "remessas" },
     ],
   },
   {
@@ -170,7 +171,7 @@ const fullNavigation: NavGroup[] = [
     moduleKey: "parcerias",
     collapsible: true,
     items: [
-      { title: "Influencers", href: "/influencers", icon: UserCheck, locked: true },
+      { title: "Influencers", href: "/influencers", icon: UserCheck, blockedFeature: "influencers" },
       { title: "Afiliados", href: "/affiliates", icon: Handshake },
     ],
   },
@@ -186,9 +187,10 @@ const fullNavigation: NavGroup[] = [
   },
   {
     label: "Sistema",
+    moduleKey: "sistema_integracoes",
     collapsible: true,
     items: [
-      { title: "Integrações", href: "/integrations", icon: Plug }, // sistema_integracoes
+      { title: "Integrações", href: "/integrations", icon: Plug },
       { title: "Importar Dados", href: "/import", icon: Upload, blockedFeature: "sistema_importacao" },
       { title: "Usuários e Permissões", href: "/system/users", icon: UsersRound, ownerOnly: true, blockedFeature: "sistema_usuarios" },
     ],
@@ -200,6 +202,8 @@ const fullNavigation: NavGroup[] = [
     items: [
       { title: "Meu Drive", href: "/files", icon: FolderOpen },
       { title: "Relatórios", href: "/reports", icon: BarChart3, blockedFeature: "reports" },
+      { title: "Agenda", href: "/command-center?tab=agenda", icon: Activity, blockedFeature: "agenda" },
+      { title: "Analytics", href: "/command-center?tab=analytics", icon: BarChart3, blockedFeature: "analytics" },
     ],
   },
   {
@@ -305,21 +309,30 @@ export function AppSidebar() {
     // Check module-specific blocked features first
     if (moduleKey && moduleAccess) {
       const access = moduleAccess[moduleKey];
+      // If module has access_level 'none', all features are blocked
+      if (access?.accessLevel === 'none') {
+        return true;
+      }
+      // Check specific blocked features for this module
       if (access?.blockedFeatures?.includes(featureKey)) {
+        return true;
+      }
+      // Check wildcard - means all features are blocked
+      if (access?.blockedFeatures?.includes('*')) {
         return true;
       }
     }
     
-    // Check for ERP-specific modules that have their own access levels
-    if (featureKey === 'erp_financeiro' || featureKey === 'erp_compras') {
-      const access = moduleAccess?.[featureKey];
-      return access?.accessLevel === 'none';
-    }
-    
-    // Check sistema modules
-    if (featureKey === 'sistema_importacao' || featureKey === 'sistema_usuarios') {
-      const access = moduleAccess?.[featureKey];
-      return access?.accessLevel === 'none';
+    // Check if the featureKey itself is a module with its own access config
+    // This handles cases like 'erp_financeiro', 'sistema_importacao', etc.
+    const moduleAccessEntry = moduleAccess?.[featureKey];
+    if (moduleAccessEntry) {
+      if (moduleAccessEntry.accessLevel === 'none') {
+        return true;
+      }
+      if (moduleAccessEntry.blockedFeatures?.includes('*')) {
+        return true;
+      }
     }
     
     return false;

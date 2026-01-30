@@ -317,7 +317,7 @@ const App = () => {
                     </ProtectedRoute>
                   }
                 >
-                  {/* Redirect root to command-center */}
+                {/* Redirect root to command-center */}
                   <Route path="/" element={<Navigate to="/command-center" replace />} />
                   <Route path="/command-center" element={<CommandCenter />} />
                   <Route path="/chatgpt" element={<FeatureGatedRoute moduleKey="central" featureKey="assistant" featureName="ChatGPT" featureDescription="Assistente IA para atendimento e suporte"><ChatGPT /></FeatureGatedRoute>} />
@@ -330,7 +330,7 @@ const App = () => {
                   <Route path="/abandoned-checkouts" element={<AbandonedCheckouts />} />
                   {/* Shipping / Remessas Logísticas */}
                   <Route path="/shipping" element={<ShippingDashboard />} />
-                  <Route path="/shipping/shipments" element={<Shipments />} />
+                  <Route path="/shipping/shipments" element={<FeatureGatedRoute moduleKey="erp_logistica" featureKey="remessas" featureName="Remessas" featureDescription="Gestão de remessas e etiquetas"><Shipments /></FeatureGatedRoute>} />
                   <Route path="/shipping/settings" element={<ShippingSettings />} />
                   <Route path="/shipments" element={<Navigate to="/shipping/shipments" replace />} />
                   <Route path="/products" element={<Products />} />
@@ -344,7 +344,7 @@ const App = () => {
                   <Route path="/blog/campaigns/:campaignId" element={<FeatureGatedRoute moduleKey="blog" featureKey="ai_campaigns" featureName="Campanhas IA"><BlogCampaignDetail /></FeatureGatedRoute>} />
                   <Route path="/customers" element={<Customers />} />
                   <Route path="/customers/:id" element={<CustomerDetail />} />
-                  <Route path="/notifications" element={<Notifications />} />
+                  <Route path="/notifications" element={<FeatureGatedRoute moduleKey="crm" featureKey="whatsapp_notifications" featureName="Notificações WhatsApp" featureDescription="Envie notificações via WhatsApp"><Notifications /></FeatureGatedRoute>} />
                   <Route path="/support" element={<FeatureGatedRoute moduleKey="crm" featureKey="support_chat" featureName="Atendimento" featureDescription="Inbox unificado e chat com IA"><Support /></FeatureGatedRoute>} />
                   <Route path="/media" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado" moduleDescription="Gestor de Mídias IA para campanhas de conteúdo"><Media /></GatedRoute>} />
                   <Route path="/media/campaign/:campaignId" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado"><MediaCampaignDetail /></GatedRoute>} />
@@ -357,7 +357,7 @@ const App = () => {
                   <Route path="/integrations" element={<Integrations />} />
                   <Route path="/marketplaces" element={<Marketplaces />} />
                   <Route path="/marketplaces/mercadolivre" element={<FeatureGatedRoute moduleKey="marketplaces" featureKey="mercadolivre" featureName="Mercado Livre" featureDescription="Integração com Mercado Livre"><MercadoLivre /></FeatureGatedRoute>} />
-                  <Route path="/marketplaces/shopee" element={<Shopee />} />
+                  <Route path="/marketplaces/shopee" element={<FeatureGatedRoute moduleKey="marketplaces" featureKey="shopee" featureName="Shopee" featureDescription="Integração com Shopee"><Shopee /></FeatureGatedRoute>} />
                   <Route path="/marketplaces/olist" element={<Olist />} />
                   <Route path="/files" element={<Files />} />
                   <Route path="/reports" element={<FeatureGatedRoute moduleKey="central" featureKey="reports" featureName="Relatórios" featureDescription="Relatórios avançados"><Reports /></FeatureGatedRoute>} />
@@ -405,7 +405,7 @@ const App = () => {
                   <Route path="/platform/announcements" element={<PlatformAnnouncements />} />
                   <Route path="/platform/tutorials" element={<PlatformTutorials />} />
                   {/* System routes - Owner only */}
-                  <Route path="/system/users" element={<SystemUsers />} />
+                  <Route path="/system/users" element={<GatedRoute moduleKey="sistema_usuarios" moduleName="Usuários e Permissões" moduleDescription="Gerencie usuários e permissões da sua loja"><SystemUsers /></GatedRoute>} />
                   {/* Legacy redirects */}
                   <Route path="/health-monitor" element={<Navigate to="/platform/health-monitor" replace />} />
                   <Route path="/settings/emails" element={<Navigate to="/platform/integrations" replace />} />

@@ -17,6 +17,7 @@ import { CustomerList } from '@/components/customers/CustomerList';
 import { CustomerTagsManager } from '@/components/customers/CustomerTagsManager';
 import { CustomerImport } from '@/components/customers/CustomerImport';
 import { useCustomers, useCustomerTags, type Customer } from '@/hooks/useCustomers';
+import { FeatureGate } from '@/components/layout/FeatureGate';
 
 const PAGE_SIZE = 50;
 
@@ -86,10 +87,12 @@ export default function Customers() {
               <Upload className="h-4 w-4" />
               Importar
             </Button>
-            <Button variant="outline" className="gap-2">
-              <Download className="h-4 w-4" />
-              Exportar
-            </Button>
+            <FeatureGate feature="export_customers">
+              <Button variant="outline" className="gap-2">
+                <Download className="h-4 w-4" />
+                Exportar
+              </Button>
+            </FeatureGate>
             <Button className="gap-2" onClick={handleAddNew}>
               <Plus className="h-4 w-4" />
               Novo Cliente
