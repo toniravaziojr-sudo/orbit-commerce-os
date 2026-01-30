@@ -2,12 +2,13 @@
 // THANK YOU SETTINGS PANEL - Accordion for thank you page settings
 // Conforme docs/REGRAS.md - Pattern padrão para páginas do builder
 // =============================================
+//
 // NOTA: Interface e hook vindos de usePageSettings.ts (fonte única de verdade)
-// FIX: Agora salva em draft_content quando templateSetId está disponível
+//
+// MUDANÇA: Não faz mais auto-save. Usa draft local para preview
+// O salvamento só ocorre via VisualBuilder.handleSave
+// =============================================
 
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { Json } from '@/integrations/supabase/types';
 import {
   Accordion,
   AccordionContent,
@@ -17,19 +18,19 @@ import {
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { PartyPopper } from 'lucide-react';
-import { toast } from 'sonner';
 
 // Re-export from source of truth
 export type { ThankYouSettings } from '@/hooks/usePageSettings';
 export { useThankYouSettings } from '@/hooks/usePageSettings';
 
 import type { ThankYouSettings } from '@/hooks/usePageSettings';
+import { useBuilderDraftPageSettings } from '@/hooks/useBuilderDraftPageSettings';
 
 interface ThankYouSettingsPanelProps {
   tenantId: string;
   settings: ThankYouSettings;
   onChange: (settings: ThankYouSettings) => void;
-  templateSetId?: string; // NEW: Support for template sets
+  templateSetId?: string; // Support for template sets
 }
 
 export function ThankYouSettingsPanel({
@@ -38,93 +39,19 @@ export function ThankYouSettingsPanel({
   onChange,
   templateSetId,
 }: ThankYouSettingsPanelProps) {
-  const queryClient = useQueryClient();
+  // Draft page settings hook for real-time preview without auto-save
+  const draftPageSettings = useBuilderDraftPageSettings();
 
-  // Save mutation - follows ProductSettingsPanel pattern
-  const saveMutation = useMutation({
-    mutationFn: async (newSettings: ThankYouSettings) => {
-      // If templateSetId is available, save to draft_content (new system)
-      if (templateSetId) {
-        const { data: templateSet, error: fetchError } = await supabase
-          .from('storefront_template_sets')
-          .select('draft_content')
-          .eq('id', templateSetId)
-          .eq('tenant_id', tenantId)
-          .single();
-        
-        if (fetchError) throw fetchError;
-        
-        const currentDraftContent = (templateSet.draft_content as Record<string, unknown>) || {};
-        const currentThemeSettings = (currentDraftContent.themeSettings as Record<string, unknown>) || {};
-        const currentPageSettings = (currentThemeSettings.pageSettings as Record<string, unknown>) || {};
-        
-        const updatedDraftContent = {
-          ...currentDraftContent,
-          themeSettings: {
-            ...currentThemeSettings,
-            pageSettings: {
-              ...currentPageSettings,
-              // Use snake_case key to match PageSettingsContent.tsx and useThankYouSettings hook
-              thank_you: newSettings,
-            },
-          },
-        };
-        
-        const { error } = await supabase
-          .from('storefront_template_sets')
-          .update({ 
-            draft_content: updatedDraftContent as unknown as Json,
-            last_edited_at: new Date().toISOString(),
-          })
-          .eq('id', templateSetId)
-          .eq('tenant_id', tenantId);
-        
-        if (error) throw error;
-        return newSettings;
-      }
-      
-      // Fallback: save to legacy table (storefront_page_templates)
-      const { data: template, error: fetchError } = await supabase
-        .from('storefront_page_templates')
-        .select('page_overrides')
-        .eq('tenant_id', tenantId)
-        .eq('page_type', 'thank_you')
-        .maybeSingle();
-
-      if (fetchError) throw fetchError;
-
-      const currentOverrides = (template?.page_overrides as Record<string, unknown>) || {};
-      
-      const updatedOverrides = {
-        ...currentOverrides,
-        thankYouSettings: newSettings,
-      };
-
-      const { error } = await supabase
-        .from('storefront_page_templates')
-        .update({ page_overrides: updatedOverrides as unknown as Json })
-        .eq('tenant_id', tenantId)
-        .eq('page_type', 'thank_you');
-
-      if (error) throw error;
-      return newSettings;
-    },
-    onSuccess: (newSettings) => {
-      // Invalidate all related queries with correct cache key format
-      const effectiveTemplateSetId = templateSetId || 'legacy';
-      queryClient.invalidateQueries({ queryKey: ['page-overrides', tenantId, 'thank_you'] });
-      queryClient.invalidateQueries({ queryKey: ['thankYou-settings-builder', tenantId, effectiveTemplateSetId] });
-      queryClient.setQueryData(['thankYou-settings-builder', tenantId, effectiveTemplateSetId], newSettings);
-    },
-    onError: () => {
-      toast.error('Erro ao salvar configurações');
-    },
-  });
-
+  // handleChange agora atualiza o draft local ao invés de salvar no banco
+  // O salvamento só ocorre via VisualBuilder.handleSave
   const handleChange = (key: keyof ThankYouSettings, value: boolean) => {
     const newSettings = { ...settings, [key]: value };
     onChange(newSettings);
-    saveMutation.mutate(newSettings);
+    
+    // Atualizar o draft para preview em tempo real
+    if (draftPageSettings) {
+      draftPageSettings.setDraftPageSettings('thank_you', newSettings);
+    }
   };
 
   return (

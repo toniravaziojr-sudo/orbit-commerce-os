@@ -5,11 +5,13 @@
 //
 // NOTA: Interface e hook centralizados em @/hooks/usePageSettings
 // Este arquivo re-exporta para compatibilidade
+//
+// MUDANÇA: Não faz mais auto-save. Usa draft local para preview
+// O salvamento só ocorre via VisualBuilder.handleSave
 // =============================================
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Json } from '@/integrations/supabase/types';
 import {
   Accordion,
   AccordionContent,
@@ -20,11 +22,11 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Settings2 } from 'lucide-react';
-import { toast } from 'sonner';
 
 // Re-exportar interface da fonte única de verdade
 import type { CategorySettings } from '@/hooks/usePageSettings';
 import { DEFAULT_CATEGORY_SETTINGS } from '@/hooks/usePageSettings';
+import { useBuilderDraftPageSettings } from '@/hooks/useBuilderDraftPageSettings';
 export type { CategorySettings };
 
 interface CategorySettingsPanelProps {
@@ -40,92 +42,19 @@ export function CategorySettingsPanel({
   onChange,
   templateSetId,
 }: CategorySettingsPanelProps) {
-  const queryClient = useQueryClient();
+  // Draft page settings hook for real-time preview without auto-save
+  const draftPageSettings = useBuilderDraftPageSettings();
 
-  // Save mutation - supports both template set and legacy systems
-  const saveMutation = useMutation({
-    mutationFn: async (newSettings: CategorySettings) => {
-      // If templateSetId is available, save to draft_content (new system)
-      if (templateSetId) {
-        const { data: templateSet, error: fetchError } = await supabase
-          .from('storefront_template_sets')
-          .select('draft_content')
-          .eq('id', templateSetId)
-          .eq('tenant_id', tenantId)
-          .single();
-        
-        if (fetchError) throw fetchError;
-        
-        const currentDraftContent = (templateSet.draft_content as Record<string, unknown>) || {};
-        const currentThemeSettings = (currentDraftContent.themeSettings as Record<string, unknown>) || {};
-        const currentPageSettings = (currentThemeSettings.pageSettings as Record<string, unknown>) || {};
-        
-        const updatedDraftContent = {
-          ...currentDraftContent,
-          themeSettings: {
-            ...currentThemeSettings,
-            pageSettings: {
-              ...currentPageSettings,
-              category: newSettings,
-            },
-          },
-        };
-        
-        const { error } = await supabase
-          .from('storefront_template_sets')
-          .update({ 
-            draft_content: updatedDraftContent as unknown as Json,
-            last_edited_at: new Date().toISOString(),
-          })
-          .eq('id', templateSetId)
-          .eq('tenant_id', tenantId);
-        
-        if (error) throw error;
-        return newSettings;
-      }
-      
-      // Fallback to legacy system
-      const { data: template, error: fetchError } = await supabase
-        .from('storefront_page_templates')
-        .select('page_overrides')
-        .eq('tenant_id', tenantId)
-        .eq('page_type', 'category')
-        .maybeSingle();
-
-      if (fetchError) throw fetchError;
-
-      const currentOverrides = (template?.page_overrides as Record<string, unknown>) || {};
-      
-      const updatedOverrides = {
-        ...currentOverrides,
-        categorySettings: newSettings,
-      };
-
-      const { error } = await supabase
-        .from('storefront_page_templates')
-        .update({ page_overrides: updatedOverrides as unknown as Json })
-        .eq('tenant_id', tenantId)
-        .eq('page_type', 'category');
-
-      if (error) throw error;
-      return newSettings;
-    },
-    onSuccess: (newSettings) => {
-      // Invalidate queries to ensure sync - use consistent key format
-      queryClient.invalidateQueries({ queryKey: ['page-overrides', tenantId, 'category'] });
-      queryClient.invalidateQueries({ queryKey: ['category-settings-builder', tenantId, templateSetId || 'legacy'] });
-      queryClient.setQueryData(['category-settings-builder', tenantId, templateSetId || 'legacy'], newSettings);
-      // Toast removido para evitar spam durante edição contínua
-    },
-    onError: () => {
-      toast.error('Erro ao salvar configurações');
-    },
-  });
-
+  // handleChange agora atualiza o draft local ao invés de salvar no banco
+  // O salvamento só ocorre via VisualBuilder.handleSave
   const handleChange = (key: keyof CategorySettings, value: unknown) => {
     const newSettings = { ...settings, [key]: value };
     onChange(newSettings);
-    saveMutation.mutate(newSettings);
+    
+    // Atualizar o draft para preview em tempo real
+    if (draftPageSettings) {
+      draftPageSettings.setDraftPageSettings('category', newSettings);
+    }
   };
 
   return (

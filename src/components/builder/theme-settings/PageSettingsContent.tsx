@@ -59,6 +59,8 @@ import {
   DEFAULT_THANKYOU_SETTINGS,
 } from '@/hooks/usePageSettings';
 
+import { useBuilderDraftPageSettings, PageSettingsKey } from '@/hooks/useBuilderDraftPageSettings';
+
 import { GenerateSeoButton } from '@/components/seo/GenerateSeoButton';
 import { Textarea } from '@/components/ui/textarea';
 
@@ -486,6 +488,9 @@ export function PageSettingsContent({
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [userId, setUserId] = useState<string | undefined>();
   
+  // Draft page settings hook for real-time preview without auto-save
+  const draftPageSettings = useBuilderDraftPageSettings();
+  
   // Get current user ID for uploads
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -764,10 +769,18 @@ export function PageSettingsContent({
   });
 
   // handleChange agora aceita boolean, string, number ou string[]
+  // MUDANÇA: Ao invés de salvar imediatamente no banco, atualiza o draft local
+  // O salvamento só ocorre quando o usuário clica no botão "Salvar" do builder
   const handleChange = (key: string, value: boolean | string | number | string[]) => {
     const newSettings = { ...settings, [key]: value };
     setSettings(newSettings);
-    saveMutation.mutate(newSettings as Record<string, boolean | string | string[]>);
+    
+    // Atualizar o draft para preview em tempo real
+    // O salvamento no banco é feito pelo VisualBuilder.handleSave
+    const validPageTypes: PageSettingsKey[] = ['home', 'category', 'product', 'cart', 'checkout', 'thank_you'];
+    if (draftPageSettings && validPageTypes.includes(pageType as PageSettingsKey)) {
+      draftPageSettings.setDraftPageSettings(pageType as PageSettingsKey, newSettings);
+    }
   };
 
   const toggleSection = (sectionId: string) => {

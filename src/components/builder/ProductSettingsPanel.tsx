@@ -4,12 +4,14 @@
 //
 // NOTA: Interface e hook centralizados em @/hooks/usePageSettings
 // Este arquivo re-exporta para compatibilidade
+//
+// MUDANÇA: Não faz mais auto-save. Usa draft local para preview
+// O salvamento só ocorre via VisualBuilder.handleSave
 // =============================================
 
 import { useCallback } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Json } from '@/integrations/supabase/types';
 import {
   Accordion,
   AccordionContent,
@@ -20,11 +22,11 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Settings2, ShoppingCart } from 'lucide-react';
-import { toast } from 'sonner';
 
 // Re-exportar interface da fonte única de verdade
 import type { ProductSettings } from '@/hooks/usePageSettings';
 import { DEFAULT_PRODUCT_SETTINGS } from '@/hooks/usePageSettings';
+import { useBuilderDraftPageSettings } from '@/hooks/useBuilderDraftPageSettings';
 export type { ProductSettings };
 
 interface ProductSettingsPanelProps {
@@ -40,92 +42,20 @@ export function ProductSettingsPanel({
   onChange,
   templateSetId,
 }: ProductSettingsPanelProps) {
-  const queryClient = useQueryClient();
+  // Draft page settings hook for real-time preview without auto-save
+  const draftPageSettings = useBuilderDraftPageSettings();
 
-  // Save mutation - supports both template set and legacy systems
-  const saveMutation = useMutation({
-    mutationFn: async (newSettings: ProductSettings) => {
-      // If templateSetId is available, save to draft_content
-      if (templateSetId) {
-        const { data: templateSet, error: fetchError } = await supabase
-          .from('storefront_template_sets')
-          .select('draft_content')
-          .eq('id', templateSetId)
-          .eq('tenant_id', tenantId)
-          .single();
-        
-        if (fetchError) throw fetchError;
-        
-        const currentDraftContent = (templateSet.draft_content as Record<string, unknown>) || {};
-        const currentThemeSettings = (currentDraftContent.themeSettings as Record<string, unknown>) || {};
-        const currentPageSettings = (currentThemeSettings.pageSettings as Record<string, unknown>) || {};
-        
-        const updatedDraftContent = {
-          ...currentDraftContent,
-          themeSettings: {
-            ...currentThemeSettings,
-            pageSettings: {
-              ...currentPageSettings,
-              product: newSettings,
-            },
-          },
-        };
-        
-        const { error } = await supabase
-          .from('storefront_template_sets')
-          .update({ 
-            draft_content: updatedDraftContent as unknown as Json,
-            last_edited_at: new Date().toISOString(),
-          })
-          .eq('id', templateSetId)
-          .eq('tenant_id', tenantId);
-        
-        if (error) throw error;
-        return newSettings;
-      }
-      
-      // Fallback to legacy system
-      const { data: template, error: fetchError } = await supabase
-        .from('storefront_page_templates')
-        .select('page_overrides')
-        .eq('tenant_id', tenantId)
-        .eq('page_type', 'product')
-        .maybeSingle();
-
-      if (fetchError) throw fetchError;
-
-      const currentOverrides = (template?.page_overrides as Record<string, unknown>) || {};
-      
-      const updatedOverrides = {
-        ...currentOverrides,
-        productSettings: newSettings,
-      };
-
-      const { error } = await supabase
-        .from('storefront_page_templates')
-        .update({ page_overrides: updatedOverrides as unknown as Json })
-        .eq('tenant_id', tenantId)
-        .eq('page_type', 'product');
-
-      if (error) throw error;
-      return newSettings;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['page-overrides', tenantId, 'product'] });
-      queryClient.invalidateQueries({ queryKey: ['product-settings', tenantId] });
-      queryClient.invalidateQueries({ queryKey: ['product-settings-builder', tenantId, templateSetId || 'legacy'] });
-      toast.success('Configurações salvas');
-    },
-    onError: () => {
-      toast.error('Erro ao salvar configurações');
-    },
-  });
-
+  // handleChange agora atualiza o draft local ao invés de salvar no banco
+  // O salvamento só ocorre via VisualBuilder.handleSave
   const handleChange = useCallback((key: keyof ProductSettings, value: boolean | string) => {
     const newSettings = { ...settings, [key]: value };
     onChange(newSettings);
-    saveMutation.mutate(newSettings);
-  }, [settings, onChange, saveMutation]);
+    
+    // Atualizar o draft para preview em tempo real
+    if (draftPageSettings) {
+      draftPageSettings.setDraftPageSettings('product', newSettings);
+    }
+  }, [settings, onChange, draftPageSettings]);
 
   return (
     <div className="border-b bg-muted/30">
@@ -372,7 +302,6 @@ export function useProductSettings(tenantId: string, templateSetId?: string) {
     staleTime: 5000, // Cache for 5 seconds to avoid excessive polling
     refetchOnMount: true,
     refetchOnWindowFocus: false,
-    // Removed aggressive polling - use query invalidation instead
   });
 
   // Merge defaults with fetched data - data takes precedence
