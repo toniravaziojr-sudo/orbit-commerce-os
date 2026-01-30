@@ -2,11 +2,13 @@
 // CART SETTINGS PANEL - Accordion for cart page settings
 // Conforme docs/REGRAS.md - Pattern padrão para páginas do builder
 // =============================================
+//
 // NOTA: Interface e hook vindos de usePageSettings.ts (fonte única de verdade)
+//
+// MUDANÇA: Não faz mais auto-save. Usa draft local para preview
+// O salvamento só ocorre via VisualBuilder.handleSave
+// =============================================
 
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { Json } from '@/integrations/supabase/types';
 import {
   Accordion,
   AccordionContent,
@@ -16,13 +18,13 @@ import {
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { ShoppingCart } from 'lucide-react';
-import { toast } from 'sonner';
 
 // Re-export from source of truth
 export type { CartSettings } from '@/hooks/usePageSettings';
 export { useCartSettings } from '@/hooks/usePageSettings';
 
 import type { CartSettings } from '@/hooks/usePageSettings';
+import { useBuilderDraftPageSettings } from '@/hooks/useBuilderDraftPageSettings';
 
 interface CartSettingsPanelProps {
   tenantId: string;
@@ -37,92 +39,19 @@ export function CartSettingsPanel({
   onChange,
   templateSetId,
 }: CartSettingsPanelProps) {
-  const queryClient = useQueryClient();
+  // Draft page settings hook for real-time preview without auto-save
+  const draftPageSettings = useBuilderDraftPageSettings();
 
-  // Save mutation - supports both template set and legacy systems
-  const saveMutation = useMutation({
-    mutationFn: async (newSettings: CartSettings) => {
-      // If templateSetId is available, save to draft_content (new system)
-      if (templateSetId) {
-        const { data: templateSet, error: fetchError } = await supabase
-          .from('storefront_template_sets')
-          .select('draft_content')
-          .eq('id', templateSetId)
-          .eq('tenant_id', tenantId)
-          .single();
-        
-        if (fetchError) throw fetchError;
-        
-        const currentDraftContent = (templateSet.draft_content as Record<string, unknown>) || {};
-        const currentThemeSettings = (currentDraftContent.themeSettings as Record<string, unknown>) || {};
-        const currentPageSettings = (currentThemeSettings.pageSettings as Record<string, unknown>) || {};
-        
-        const updatedDraftContent = {
-          ...currentDraftContent,
-          themeSettings: {
-            ...currentThemeSettings,
-            pageSettings: {
-              ...currentPageSettings,
-              // Keep cart key consistent with PageSettingsContent.tsx
-              cart: newSettings,
-            },
-          },
-        };
-        
-        const { error } = await supabase
-          .from('storefront_template_sets')
-          .update({ 
-            draft_content: updatedDraftContent as unknown as Json,
-            last_edited_at: new Date().toISOString(),
-          })
-          .eq('id', templateSetId)
-          .eq('tenant_id', tenantId);
-        
-        if (error) throw error;
-        return newSettings;
-      }
-      
-      // Fallback to legacy system
-      const { data: template, error: fetchError } = await supabase
-        .from('storefront_page_templates')
-        .select('page_overrides')
-        .eq('tenant_id', tenantId)
-        .eq('page_type', 'cart')
-        .maybeSingle();
-
-      if (fetchError) throw fetchError;
-
-      const currentOverrides = (template?.page_overrides as Record<string, unknown>) || {};
-      
-      const updatedOverrides = {
-        ...currentOverrides,
-        cartSettings: newSettings,
-      };
-
-      const { error } = await supabase
-        .from('storefront_page_templates')
-        .update({ page_overrides: updatedOverrides as unknown as Json })
-        .eq('tenant_id', tenantId)
-        .eq('page_type', 'cart');
-
-      if (error) throw error;
-      return newSettings;
-    },
-    onSuccess: (newSettings) => {
-      const effectiveTemplateSetId = templateSetId || 'legacy';
-      queryClient.invalidateQueries({ queryKey: ['page-overrides', tenantId, 'cart'] });
-      queryClient.invalidateQueries({ queryKey: ['cart-settings-builder', tenantId, effectiveTemplateSetId] });
-      queryClient.setQueryData(['cart-settings-builder', tenantId, effectiveTemplateSetId], newSettings);
-    },
-    onError: () => {
-      toast.error('Erro ao salvar configurações');
-    },
-  });
-
+  // handleChange agora atualiza o draft local ao invés de salvar no banco
+  // O salvamento só ocorre via VisualBuilder.handleSave
   const handleChange = (key: keyof CartSettings, value: boolean) => {
     const newSettings = { ...settings, [key]: value };
     onChange(newSettings);
-    saveMutation.mutate(newSettings);
+    
+    // Atualizar o draft para preview em tempo real
+    if (draftPageSettings) {
+      draftPageSettings.setDraftPageSettings('cart', newSettings);
+    }
   };
 
   return (

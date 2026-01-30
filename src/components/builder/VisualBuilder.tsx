@@ -45,6 +45,7 @@ import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensor
 import { CanvasEditorProvider } from './CanvasEditorContext';
 import { CanvasRichTextProvider } from './CanvasRichTextContext';
 import { BuilderDraftThemeProvider, useBuilderDraftTheme, getGlobalDraftThemeRef, DraftThemeRefSync } from '@/hooks/useBuilderDraftTheme';
+import { BuilderDraftPageSettingsProvider, getGlobalDraftPageSettingsRef, PageSettingsKey } from '@/hooks/useBuilderDraftPageSettings';
 
 // Isolation modes for debugging React #300
 type IsolateMode = 'app' | 'visual' | 'canvas' | 'blocks' | 'blocks-real' | 'full';
@@ -93,9 +94,10 @@ function VisualIsolationUI({ mode, message }: { mode: string; message: string })
 // Wrapper component to access draft theme context and combine with store isDirty
 function BuilderToolbarWithDraftCheck(props: Omit<React.ComponentProps<typeof BuilderToolbar>, 'isDirty'> & { storeIsDirty: boolean }) {
   const draftTheme = useBuilderDraftTheme();
+  const draftPageSettings = getGlobalDraftPageSettingsRef();
   const { storeIsDirty, ...toolbarProps } = props;
-  // Combine store dirty state with draft theme changes
-  const isDirty = storeIsDirty || (draftTheme?.hasDraftChanges ?? false);
+  // Combine store dirty state with draft theme changes AND draft page settings
+  const isDirty = storeIsDirty || (draftTheme?.hasDraftChanges ?? false) || (draftPageSettings?.hasDraftChanges ?? false);
   return <BuilderToolbar {...toolbarProps} isDirty={isDirty} />;
 }
 
@@ -509,42 +511,65 @@ export function VisualBuilder({
   // Also saves any pending theme settings (colors, typography) from draft state
   const handleSave = useCallback(async () => {
     try {
-      // STEP 1: Save pending theme settings (colors, typography) if draft exists
+      // STEP 1: Save pending theme settings (colors, typography) AND page settings if draft exists
       // Access via global ref since we're outside the provider context
       const draftTheme = getGlobalDraftThemeRef();
-      if (draftTheme?.hasDraftChanges && templateSetId) {
-        const pendingChanges = draftTheme.getPendingChanges();
+      const draftPageSettings = getGlobalDraftPageSettingsRef();
+      
+      if (templateSetId && (draftTheme?.hasDraftChanges || draftPageSettings?.hasDraftChanges)) {
+        const { data: current } = await supabase
+          .from('storefront_template_sets')
+          .select('draft_content')
+          .eq('id', templateSetId)
+          .single();
         
-        if (pendingChanges) {
-          const { data: current } = await supabase
-            .from('storefront_template_sets')
-            .select('draft_content')
-            .eq('id', templateSetId)
-            .single();
-          
-          const draftContent = (current?.draft_content as Record<string, unknown>) || {};
-          const currentThemeSettings = (draftContent.themeSettings as Record<string, unknown>) || {};
-          
-          const updatedThemeSettings = {
-            ...currentThemeSettings,
-            ...pendingChanges,
-          };
-          
-          const updatedDraftContent = {
-            ...draftContent,
-            themeSettings: updatedThemeSettings,
-          };
-          
-          await supabase
-            .from('storefront_template_sets')
-            .update({ 
-              draft_content: updatedDraftContent as unknown as Json,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', templateSetId);
-          
-          // Clear draft state after successful save
+        const draftContent = (current?.draft_content as Record<string, unknown>) || {};
+        const currentThemeSettings = (draftContent.themeSettings as Record<string, unknown>) || {};
+        
+        let updatedThemeSettings = { ...currentThemeSettings };
+        
+        // Merge theme draft changes (colors, typography, customCss)
+        if (draftTheme?.hasDraftChanges) {
+          const pendingThemeChanges = draftTheme.getPendingChanges();
+          if (pendingThemeChanges) {
+            updatedThemeSettings = {
+              ...updatedThemeSettings,
+              ...pendingThemeChanges,
+            };
+          }
+        }
+        
+        // Merge page settings draft changes
+        if (draftPageSettings?.hasDraftChanges) {
+          const pendingPageSettingsChanges = draftPageSettings.getPendingChanges();
+          if (pendingPageSettingsChanges) {
+            const currentPageSettings = (currentThemeSettings.pageSettings as Record<string, unknown>) || {};
+            updatedThemeSettings.pageSettings = {
+              ...currentPageSettings,
+              ...pendingPageSettingsChanges,
+            };
+          }
+        }
+        
+        const updatedDraftContent = {
+          ...draftContent,
+          themeSettings: updatedThemeSettings,
+        };
+        
+        await supabase
+          .from('storefront_template_sets')
+          .update({ 
+            draft_content: updatedDraftContent as unknown as Json,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', templateSetId);
+        
+        // Clear draft states after successful save
+        if (draftTheme?.hasDraftChanges) {
           draftTheme.clearDraft();
+        }
+        if (draftPageSettings?.hasDraftChanges) {
+          draftPageSettings.clearDraft();
         }
       }
 
@@ -985,6 +1010,7 @@ export function VisualBuilder({
 
   return (
     <BuilderDraftThemeProvider>
+    <BuilderDraftPageSettingsProvider>
     <BuilderThemeInjectorInner tenantId={tenantId} templateSetId={templateSetId} />
     <DraftThemeRefSync />
     <CanvasRichTextProvider onBlockSelect={store.selectBlock}>
@@ -1206,6 +1232,7 @@ export function VisualBuilder({
     </>
     </CanvasEditorProvider>
     </CanvasRichTextProvider>
+    </BuilderDraftPageSettingsProvider>
     </BuilderDraftThemeProvider>
   );
 }
