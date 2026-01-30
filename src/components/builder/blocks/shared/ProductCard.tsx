@@ -241,23 +241,25 @@ export function ProductCard({
               </a>
             )}
             
-            {/* 3º Botão principal "Comprar agora" */}
-            {quickBuyEnabled && onQuickBuy ? (
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (!isEditing) onQuickBuy(e, product);
-                }}
-                disabled={isEditing}
-                className="w-full py-1.5 px-3 text-xs rounded-md hover:opacity-90 transition-colors text-center disabled:opacity-50 sf-btn-primary"
-              >
-                {buyNowButtonText}
-              </button>
-            ) : (
-              <span className="w-full py-1.5 px-3 text-xs rounded-md text-center sf-btn-primary">
-                {buyNowButtonText}
-              </span>
+            {/* 3º Botão principal "Comprar agora" - só exibe se quickBuyEnabled */}
+            {quickBuyEnabled && (
+              onQuickBuy ? (
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!isEditing) onQuickBuy(e, product);
+                  }}
+                  disabled={isEditing}
+                  className="w-full py-1.5 px-3 text-xs rounded-md hover:opacity-90 transition-colors text-center disabled:opacity-50 sf-btn-primary"
+                >
+                  {buyNowButtonText}
+                </button>
+              ) : (
+                <span className="w-full py-1.5 px-3 text-xs rounded-md text-center sf-btn-primary">
+                  {buyNowButtonText}
+                </span>
+              )
             )}
           </div>
         </div>
@@ -364,22 +366,24 @@ export function ProductCard({
               </a>
             )}
             
-            {/* 3º Botão principal "Comprar agora" */}
-            {quickBuyEnabled && onQuickBuy ? (
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onQuickBuy(e, product);
-                }}
-                className="w-full py-1.5 px-3 text-xs rounded-md hover:opacity-90 transition-colors text-center sf-btn-primary"
-              >
-                {buyNowButtonText}
-              </button>
-            ) : (
-              <span className="w-full py-1.5 px-3 text-xs rounded-md text-center sf-btn-primary">
-                {buyNowButtonText}
-              </span>
+            {/* 3º Botão principal "Comprar agora" - só exibe se quickBuyEnabled */}
+            {quickBuyEnabled && (
+              onQuickBuy ? (
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onQuickBuy(e, product);
+                  }}
+                  className="w-full py-1.5 px-3 text-xs rounded-md hover:opacity-90 transition-colors text-center sf-btn-primary"
+                >
+                  {buyNowButtonText}
+                </button>
+              ) : (
+                <span className="w-full py-1.5 px-3 text-xs rounded-md text-center sf-btn-primary">
+                  {buyNowButtonText}
+                </span>
+              )
             )}
           </div>
         </div>
@@ -491,22 +495,24 @@ export function ProductCard({
             </a>
           )}
           
-          {/* 3º Botão principal "Comprar agora" */}
-          {quickBuyEnabled && onQuickBuy ? (
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onQuickBuy(e, product);
-              }}
-              className="w-full py-1.5 px-3 text-xs rounded-md hover:opacity-90 transition-colors text-center sf-btn-primary"
-            >
-              {buyNowButtonText}
-            </button>
-          ) : (
-            <span className="w-full py-1.5 px-3 text-xs rounded-md text-center sf-btn-primary">
-              {buyNowButtonText}
-            </span>
+          {/* 3º Botão principal "Comprar agora" - só exibe se quickBuyEnabled */}
+          {quickBuyEnabled && (
+            onQuickBuy ? (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onQuickBuy(e, product);
+                }}
+                className="w-full py-1.5 px-3 text-xs rounded-md hover:opacity-90 transition-colors text-center sf-btn-primary"
+              >
+                {buyNowButtonText}
+              </button>
+            ) : (
+              <span className="w-full py-1.5 px-3 text-xs rounded-md text-center sf-btn-primary">
+                {buyNowButtonText}
+              </span>
+            )
           )}
         </div>
       </div>
