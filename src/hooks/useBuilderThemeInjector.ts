@@ -94,6 +94,9 @@ export function useBuilderThemeInjector(
     const buttonSecondaryBg = colors?.buttonSecondaryBg || DEFAULT_THEME_COLORS.buttonSecondaryBg;
     const buttonSecondaryText = colors?.buttonSecondaryText || DEFAULT_THEME_COLORS.buttonSecondaryText;
     const buttonSecondaryHover = colors?.buttonSecondaryHover || DEFAULT_THEME_COLORS.buttonSecondaryHover;
+    // WhatsApp button colors
+    const whatsappColor = colors?.whatsappColor || DEFAULT_THEME_COLORS.whatsappColor;
+    const whatsappHover = colors?.whatsappHover || DEFAULT_THEME_COLORS.whatsappHover;
     const textPrimary = colors?.textPrimary || DEFAULT_THEME_COLORS.textPrimary;
     const textSecondary = colors?.textSecondary || DEFAULT_THEME_COLORS.textSecondary;
     // Special tag colors
@@ -127,6 +130,9 @@ export function useBuilderThemeInjector(
         --theme-button-secondary-bg: ${buttonSecondaryBg};
         --theme-button-secondary-text: ${buttonSecondaryText};
         --theme-button-secondary-hover: ${buttonSecondaryHover};
+        /* WhatsApp button colors */
+        --theme-whatsapp-color: ${whatsappColor};
+        --theme-whatsapp-hover: ${whatsappHover};
         --theme-text-primary: ${textPrimary};
         --theme-text-secondary: ${textSecondary};
         /* Accent color for UI elements (checkmarks, sliders, icons) */
