@@ -66,19 +66,19 @@ export default function SupportCenter() {
 
       {/* Quick Actions Cards - Only for tenants */}
       {!isPlatformOperator && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
           <Card 
             className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
             onClick={() => setIsCreateDialogOpen(true)}
           >
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="rounded-lg bg-primary/10 p-3">
-                  <Plus className="h-6 w-6 text-primary" />
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="shrink-0 rounded-lg bg-primary/10 p-2.5">
+                  <Plus className="h-5 w-5 text-primary" />
                 </div>
-                <div>
-                  <h3 className="font-semibold">Abrir Chamado</h3>
-                  <p className="text-sm text-muted-foreground">
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-sm leading-tight">Abrir Chamado</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
                     Relate um problema ou dúvida
                   </p>
                 </div>
@@ -90,14 +90,14 @@ export default function SupportCenter() {
             className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
             onClick={() => { setActiveTab('tickets'); setTicketFilter('open'); }}
           >
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="rounded-lg bg-amber-500/10 p-3">
-                  <Ticket className="h-6 w-6 text-amber-500" />
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="shrink-0 rounded-lg bg-amber-500/10 p-2.5">
+                  <Ticket className="h-5 w-5 text-amber-500" />
                 </div>
-                <div>
-                  <h3 className="font-semibold">Meus Chamados</h3>
-                  <p className="text-sm text-muted-foreground">
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-sm leading-tight">Meus Chamados</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
                     {openCount} chamado{openCount !== 1 ? 's' : ''} em aberto
                   </p>
                 </div>
@@ -109,14 +109,14 @@ export default function SupportCenter() {
             className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
             onClick={() => setActiveTab('tutorials')}
           >
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="rounded-lg bg-violet-500/10 p-3">
-                  <PlayCircle className="h-6 w-6 text-violet-500" />
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="shrink-0 rounded-lg bg-violet-500/10 p-2.5">
+                  <PlayCircle className="h-5 w-5 text-violet-500" />
                 </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold">Tutoriais</h3>
-                  <p className="text-sm text-muted-foreground">
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-sm leading-tight">Tutoriais</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
                     Aprenda a usar a plataforma
                   </p>
                 </div>
@@ -128,14 +128,14 @@ export default function SupportCenter() {
             className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
             onClick={() => setActiveTab('suggestions')}
           >
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="rounded-lg bg-yellow-500/10 p-3">
-                  <Lightbulb className="h-6 w-6 text-yellow-500" />
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="shrink-0 rounded-lg bg-yellow-500/10 p-2.5">
+                  <Lightbulb className="h-5 w-5 text-yellow-500" />
                 </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold">Sugestões</h3>
-                  <p className="text-sm text-muted-foreground">
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-sm leading-tight">Sugestões</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
                     Envie ideias e melhorias
                   </p>
                 </div>
@@ -147,14 +147,14 @@ export default function SupportCenter() {
             className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
             onClick={() => setActiveTab('customization')}
           >
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="rounded-lg bg-blue-500/10 p-3">
-                  <Wrench className="h-6 w-6 text-blue-500" />
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="shrink-0 rounded-lg bg-blue-500/10 p-2.5">
+                  <Wrench className="h-5 w-5 text-blue-500" />
                 </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold">Customização</h3>
-                  <p className="text-sm text-muted-foreground">
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-sm leading-tight">Customização</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
                     Solicite recursos personalizados
                   </p>
                 </div>
@@ -166,17 +166,17 @@ export default function SupportCenter() {
             className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
             onClick={() => window.open('https://wa.me/5511999999999', '_blank')}
           >
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="rounded-lg bg-emerald-500/10 p-3">
-                  <MessageCircle className="h-6 w-6 text-emerald-500" />
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="shrink-0 rounded-lg bg-emerald-500/10 p-2.5">
+                  <MessageCircle className="h-5 w-5 text-emerald-500" />
                 </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold flex items-center gap-1">
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-sm leading-tight flex items-center gap-1">
                     Falar com Suporte
                     <ExternalLink className="h-3 w-3" />
                   </h3>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
                     WhatsApp / Email
                   </p>
                 </div>
