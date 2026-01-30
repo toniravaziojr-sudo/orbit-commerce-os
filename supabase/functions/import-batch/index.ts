@@ -4,7 +4,7 @@
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const DEPLOY_VERSION = '2026-01-12.0900'; // Fix tracking + batch performance for customers/orders
+const DEPLOY_VERSION = '2026-01-30.2115'; // Debug Nuvemshop column mapping
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -292,8 +292,8 @@ async function importProduct(supabase: any, tenantId: string, jobId: string, pro
   const effectiveStock = parseIntField(product.stock_quantity);
   const effectiveWeight = parseNumericField(product.weight);
   
-  // Debug logging to diagnose import issues
-  console.log(`[importProduct] Processing: "${productName}" | Price: ${product.price} -> ${effectivePrice} | SKU: ${product.sku} -> ${effectiveSku} | Stock: ${product.stock_quantity} -> ${effectiveStock} | Images: ${product.images?.length || 0}`);
+  // DEBUG logging to diagnose Nuvemshop import issues
+  console.log(`[importProduct] Processing: "${productName}" | Raw price: ${JSON.stringify(product.price)} -> Effective: ${effectivePrice} | SKU: ${product.sku} -> ${effectiveSku} | Stock: ${product.stock_quantity} -> ${effectiveStock} | Images: ${product.images?.length || 0}`);
 
   if (existing) {
     productId = existing.id;
