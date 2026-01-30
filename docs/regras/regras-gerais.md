@@ -324,6 +324,78 @@ Todas as alterações são registradas em `core_audit_log`.
 
 ---
 
+## 🔄 Loading States — Regra de Feedback Visual em Ações
+
+> **REGRA OBRIGATÓRIA** — Aplica-se a TODAS as ações que disparam operações assíncronas.
+
+### Padrão Obrigatório
+
+**Todo botão que executa uma ação assíncrona DEVE:**
+
+1. **Desabilitar durante a execução** — `disabled={isLoading}`
+2. **Mostrar spinner animado** — Usar `Loader2` do lucide-react com `animate-spin`
+3. **Alterar texto para gerúndio** — Ex: "Publicar" → "Publicando..."
+4. **Desabilitar botões relacionados** — Ex: botão "Cancelar" no mesmo modal
+
+### Implementação Padrão
+
+```tsx
+import { Loader2 } from 'lucide-react';
+
+// Em botões simples:
+<Button disabled={isLoading}>
+  {isLoading ? (
+    <>
+      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+      Salvando...
+    </>
+  ) : (
+    'Salvar'
+  )}
+</Button>
+
+// Em AlertDialog (confirmações):
+<AlertDialogFooter>
+  <AlertDialogCancel disabled={isLoading}>Cancelar</AlertDialogCancel>
+  <AlertDialogAction onClick={onAction} disabled={isLoading}>
+    {isLoading ? (
+      <>
+        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+        Processando...
+      </>
+    ) : (
+      'Confirmar'
+    )}
+  </AlertDialogAction>
+</AlertDialogFooter>
+```
+
+### Nomenclatura de Estados
+
+| Ação Original | Texto em Loading |
+|---------------|------------------|
+| Salvar | Salvando... |
+| Publicar | Publicando... |
+| Excluir | Excluindo... |
+| Enviar | Enviando... |
+| Processar | Processando... |
+| Confirmar | Confirmando... |
+| Importar | Importando... |
+| Exportar | Exportando... |
+| Conectar | Conectando... |
+| Sincronizar | Sincronizando... |
+
+### Proibições
+
+| ❌ Proibido | ✅ Correto |
+|-------------|------------|
+| Botão clicável durante loading | `disabled={isLoading}` |
+| Sem feedback visual | Spinner + texto de loading |
+| Múltiplos cliques permitidos | Desabilitar imediatamente |
+| Fechar modal durante ação | Desabilitar botão cancelar |
+
+---
+
 ## Regra de Imutabilidade
 
 | Regra | Descrição |

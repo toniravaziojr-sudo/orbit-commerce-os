@@ -156,8 +156,8 @@ export function ProductSettingsPanel({
   return (
     <div className="border-b bg-muted/30">
       {/* Template info notice */}
-      <div className="px-4 py-2 bg-blue-500/10 border-b border-blue-500/20">
-        <p className="text-xs text-blue-700 dark:text-blue-300">
+      <div className="px-4 py-2 bg-primary/10 border-b border-primary/20">
+        <p className="text-xs text-primary">
           <strong>Template de Produto:</strong> Este layout será usado por todos os produtos. O "Produto de Exemplo" serve apenas para visualizar dados.
         </p>
       </div>
@@ -357,9 +357,9 @@ export function ProductSettingsPanel({
                 )}
 
                 {showCartPreviewNotice === 'miniCart' && (
-                  <Alert className="bg-blue-500/10 border-blue-500/30">
-                    <Info className="h-4 w-4 text-blue-500" />
-                    <AlertDescription className="text-xs text-blue-700 dark:text-blue-300">
+                  <Alert className="bg-primary/10 border-primary/30">
+                    <Info className="h-4 w-4 text-primary" />
+                    <AlertDescription className="text-xs text-primary">
                       Prévia ativada. Configurações do carrinho suspenso em <strong>Configurações do tema</strong>.
                     </AlertDescription>
                   </Alert>

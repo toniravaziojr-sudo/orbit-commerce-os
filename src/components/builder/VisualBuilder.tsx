@@ -65,9 +65,9 @@ interface VisualBuilderProps {
 function VisualIsolationUI({ mode, message }: { mode: string; message: string }) {
   return (
     <div className="h-screen flex flex-col">
-      <div className="bg-blue-500/10 border-b border-blue-500/30 px-4 py-3">
-        <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
-          🔬 Isolamento: <code className="bg-blue-500/20 px-2 py-0.5 rounded">{mode}</code> — {message}
+      <div className="bg-primary/10 border-b border-primary/30 px-4 py-3">
+        <p className="text-sm font-medium text-primary">
+          🔬 Isolamento: <code className="bg-primary/20 px-2 py-0.5 rounded">{mode}</code> — {message}
         </p>
       </div>
       <div className="flex-1 flex items-center justify-center bg-muted/50">

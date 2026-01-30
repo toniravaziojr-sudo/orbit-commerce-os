@@ -29,9 +29,9 @@ function IsolationModeUI({ mode, reactStatus }: { mode: IsolateMode; reactStatus
   return (
     <div className="min-h-screen bg-background p-8">
       <div className="max-w-2xl mx-auto space-y-6">
-        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-6">
-          <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400 mb-2">
-            🔬 Modo de Isolamento: <code className="bg-blue-500/20 px-2 py-1 rounded">{mode}</code>
+        <div className="bg-primary/10 border border-primary/30 rounded-lg p-6">
+          <h1 className="text-xl font-bold text-primary mb-2">
+            🔬 Modo de Isolamento: <code className="bg-primary/20 px-2 py-1 rounded">{mode}</code>
           </h1>
           <p className="text-muted-foreground text-sm">
             Se você está vendo esta tela SEM erro, o problema está em uma camada posterior.

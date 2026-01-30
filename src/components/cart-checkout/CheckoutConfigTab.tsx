@@ -28,7 +28,7 @@ import {
 // Payment method labels
 const PAYMENT_METHOD_LABELS: Record<PaymentMethod, { label: string; icon: React.ReactNode }> = {
   pix: { label: 'PIX', icon: <Zap className="h-4 w-4 text-green-500" /> },
-  credit_card: { label: 'Cartão de Crédito', icon: <CreditCard className="h-4 w-4 text-blue-500" /> },
+  credit_card: { label: 'Cartão de Crédito', icon: <CreditCard className="h-4 w-4 text-primary" /> },
   boleto: { label: 'Boleto Bancário', icon: <CreditCard className="h-4 w-4 text-orange-500" /> },
 };
 
