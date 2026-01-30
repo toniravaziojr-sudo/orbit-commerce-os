@@ -23,53 +23,66 @@ interface ColorInput {
   id: keyof ThemeColors;
   label: string;
   description: string;
-  group: 'primary' | 'secondary' | 'text' | 'tags';
+  group: 'primary' | 'secondary' | 'whatsapp' | 'text' | 'tags';
 }
 
 const colorInputs: ColorInput[] = [
   // Primary button group
   { 
     id: 'buttonPrimaryBg', 
-    label: 'Fundo do Botão Primário', 
-    description: 'Aplicado em: botão "Comprar agora", "Adicionar ao carrinho", "Finalizar pedido"', 
+    label: 'Fundo', 
+    description: 'Botão "Comprar agora", "Adicionar ao carrinho", "Finalizar pedido"', 
     group: 'primary' 
   },
   { 
     id: 'buttonPrimaryText', 
-    label: 'Texto do Botão Primário', 
+    label: 'Texto', 
     description: 'Texto dentro dos botões primários. Use cor clara para fundos escuros', 
     group: 'primary' 
   },
   { 
     id: 'buttonPrimaryHover', 
-    label: 'Hover do Botão Primário', 
-    description: 'Cor de fundo ao passar o mouse sobre o botão primário', 
+    label: 'Hover', 
+    description: 'Cor de fundo ao passar o mouse', 
     group: 'primary' 
   },
   // Secondary button group
   { 
     id: 'buttonSecondaryBg', 
-    label: 'Fundo do Botão Secundário', 
+    label: 'Fundo', 
     description: 'Botões "Cancelar", "Voltar", "Ver detalhes" e ações secundárias', 
     group: 'secondary' 
   },
   { 
     id: 'buttonSecondaryText', 
-    label: 'Texto do Botão Secundário', 
+    label: 'Texto', 
     description: 'Texto dentro dos botões secundários', 
     group: 'secondary' 
   },
   { 
     id: 'buttonSecondaryHover', 
-    label: 'Hover do Botão Secundário', 
-    description: 'Cor de fundo ao passar o mouse sobre o botão secundário', 
+    label: 'Hover', 
+    description: 'Cor de fundo ao passar o mouse', 
     group: 'secondary' 
+  },
+  // WhatsApp button group
+  { 
+    id: 'whatsappColor', 
+    label: 'Cor Principal', 
+    description: 'Cor da borda e texto do botão "Comprar pelo WhatsApp"', 
+    group: 'whatsapp' 
+  },
+  { 
+    id: 'whatsappHover', 
+    label: 'Hover', 
+    description: 'Cor de fundo ao passar o mouse sobre o botão WhatsApp', 
+    group: 'whatsapp' 
   },
   // Accent color
   { 
     id: 'accentColor', 
     label: 'Cor de Destaque', 
-    description: 'Ícones de check, setas, indicadores de etapas, links, "Grátis" e detalhes da interface. Também afeta tags de sucesso se não configuradas.', 
+    description: 'Ícones de check, setas, indicadores de etapas, links, "Grátis" e detalhes da interface', 
     group: 'text' 
   },
   // Text colors
@@ -175,6 +188,7 @@ export function ColorsSettings({ tenantId, templateSetId }: ColorsSettingsProps)
 
   const primaryInputs = colorInputs.filter(c => c.group === 'primary');
   const secondaryInputs = colorInputs.filter(c => c.group === 'secondary');
+  const whatsappInputs = colorInputs.filter(c => c.group === 'whatsapp');
   const textInputs = colorInputs.filter(c => c.group === 'text');
   const tagsInputs = colorInputs.filter(c => c.group === 'tags');
 
@@ -230,22 +244,27 @@ export function ColorsSettings({ tenantId, templateSetId }: ColorsSettingsProps)
       </p>
 
       {/* Button Primary */}
-      {renderColorGroup(primaryInputs, 'Botão Primário')}
+      {renderColorGroup(primaryInputs, '🔵 Botão Primário')}
       
       <Separator />
       
       {/* Button Secondary */}
-      {renderColorGroup(secondaryInputs, 'Botão Secundário')}
+      {renderColorGroup(secondaryInputs, '⚪ Botão Secundário')}
+      
+      <Separator />
+      
+      {/* WhatsApp Button */}
+      {renderColorGroup(whatsappInputs, '💬 Botão WhatsApp')}
       
       <Separator />
       
       {/* Text Colors */}
-      {renderColorGroup(textInputs, 'Cores de Texto')}
+      {renderColorGroup(textInputs, '📝 Textos e Destaque')}
 
       <Separator />
       
       {/* Tags Colors */}
-      {renderColorGroup(tagsInputs, 'Cores das Tags Especiais')}
+      {renderColorGroup(tagsInputs, '🏷️ Tags Especiais')}
 
       <Separator />
 
@@ -278,6 +297,26 @@ export function ColorsSettings({ tenantId, templateSetId }: ColorsSettingsProps)
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = localColors.buttonSecondaryBg}
             >
               Cancelar
+            </button>
+            <button 
+              className="px-4 py-2 rounded text-sm font-medium transition-all border-2"
+              style={{ 
+                backgroundColor: 'transparent',
+                color: localColors.whatsappColor || '#25D366',
+                borderColor: localColors.whatsappColor || '#25D366',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = localColors.whatsappHover || '#128C7E';
+                e.currentTarget.style.color = '#ffffff';
+                e.currentTarget.style.borderColor = localColors.whatsappHover || '#128C7E';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.color = localColors.whatsappColor || '#25D366';
+                e.currentTarget.style.borderColor = localColors.whatsappColor || '#25D366';
+              }}
+            >
+              WhatsApp
             </button>
           </div>
         </div>

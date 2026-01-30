@@ -16,12 +16,18 @@ import type { BlockNode } from '@/lib/builder/types';
 // ============================================
 
 export interface ThemeColors {
+  // Primary button colors
   buttonPrimaryBg: string;
   buttonPrimaryText: string;
   buttonPrimaryHover: string;
+  // Secondary button colors
   buttonSecondaryBg: string;
   buttonSecondaryText: string;
   buttonSecondaryHover: string;
+  // WhatsApp button colors
+  whatsappColor: string;
+  whatsappHover: string;
+  // Text colors
   textPrimary: string;
   textSecondary: string;
   // Accent color for UI details (checkmarks, icons, links)
@@ -152,12 +158,18 @@ export interface ThemeSettings {
 // ============================================
 
 export const DEFAULT_THEME_COLORS: ThemeColors = {
+  // Primary button
   buttonPrimaryBg: '#1a1a1a',
   buttonPrimaryText: '#ffffff',
   buttonPrimaryHover: '#333333',
+  // Secondary button
   buttonSecondaryBg: '#f5f5f5',
   buttonSecondaryText: '#1a1a1a',
   buttonSecondaryHover: '#e5e5e5',
+  // WhatsApp button - uses official WhatsApp green by default
+  whatsappColor: '#25D366',
+  whatsappHover: '#128C7E',
+  // Text
   textPrimary: '#1a1a1a',
   textSecondary: '#666666',
   // Accent color for UI details (checkmarks, icons, links)

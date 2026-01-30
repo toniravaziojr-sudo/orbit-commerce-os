@@ -239,16 +239,26 @@ export function ProductCTAs({
         </Button>
       )}
       
-      {/* Comprar pelo WhatsApp - usa verde WhatsApp padrão, nunca herda de tema */}
+      {/* Comprar pelo WhatsApp - usa cores de tema ou fallback para verde WhatsApp */}
       {showWhatsAppButton && (
         <button
           type="button"
           onClick={handleWhatsApp}
-          className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm border-2 inline-flex items-center justify-center gap-2 transition-colors hover:opacity-90"
+          className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm border-2 inline-flex items-center justify-center gap-2 transition-all duration-200 sf-btn-whatsapp"
           style={{
-            borderColor: '#25D366',
-            color: '#25D366',
+            borderColor: 'var(--theme-whatsapp-color, #25D366)',
+            color: 'var(--theme-whatsapp-color, #25D366)',
             backgroundColor: 'transparent',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'var(--theme-whatsapp-hover, #128C7E)';
+            e.currentTarget.style.color = '#ffffff';
+            e.currentTarget.style.borderColor = 'var(--theme-whatsapp-hover, #128C7E)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+            e.currentTarget.style.color = 'var(--theme-whatsapp-color, #25D366)';
+            e.currentTarget.style.borderColor = 'var(--theme-whatsapp-color, #25D366)';
           }}
         >
           <MessageCircle className="w-5 h-5" />

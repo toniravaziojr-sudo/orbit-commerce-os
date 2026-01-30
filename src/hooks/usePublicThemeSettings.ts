@@ -241,7 +241,11 @@ export function getStorefrontThemeCss(themeSettings: ThemeSettings | null): stri
   if (colors?.textSecondary) {
     colorVars.push(`--theme-text-secondary: ${colors.textSecondary};`);
   }
-  // Accent color for UI details
+  // WhatsApp button colors
+  const whatsappColor = colors?.whatsappColor || '#25D366';
+  const whatsappHover = colors?.whatsappHover || '#128C7E';
+  colorVars.push(`--theme-whatsapp-color: ${whatsappColor};`);
+  colorVars.push(`--theme-whatsapp-hover: ${whatsappHover};`);
   // Accent color for UI details
   const accentColor = colors?.accentColor || '#22c55e';
   if (colors?.accentColor) {
