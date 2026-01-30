@@ -776,6 +776,25 @@ A configuração de ação do carrinho é centralizada em **Configurações do T
 | `'goToCart'` | Redireciona para página do carrinho |
 | `'none'` | Apenas toast de confirmação |
 
+### Blocos que Respeitam themeSettings.miniCart
+
+> **Atualizado em:** 2025-01-30
+
+Todos os blocos de produtos do builder respeitam a configuração `themeSettings.miniCart.cartActionType`:
+
+| Bloco | Arquivo | Suporte miniCart |
+|-------|---------|------------------|
+| `ProductGrid` | `ProductGridBlock.tsx` | ✅ |
+| `FeaturedProducts` | `FeaturedProductsBlock.tsx` | ✅ |
+| `ProductCarousel` | `ProductCarouselBlock.tsx` | ✅ |
+| `CategoryPageLayout` | `CategoryPageLayout.tsx` | ✅ |
+| `ProductDetails` | `ProductDetailsBlock.tsx` | ✅ |
+
+Cada bloco:
+1. Lê `themeSettings.miniCart.cartActionType` do contexto
+2. Renderiza `MiniCartDrawer` condicionalmente (quando `cartActionType === 'miniCart'`)
+3. Abre o drawer ao adicionar produto ao carrinho (via `setMiniCartOpen(true)`)
+
 ### Padrão de Handler
 
 ```typescript
@@ -783,6 +802,10 @@ A configuração de ação do carrinho é centralizada em **Configurações do T
 const themeSettings = context?.themeSettings || {};
 const miniCartConfig = themeSettings.miniCart || {};
 const cartActionType = miniCartConfig.cartActionType ?? 'miniCart';
+const miniCartEnabled = cartActionType === 'miniCart';
+
+// Estado para controlar o drawer
+const [miniCartOpen, setMiniCartOpen] = useState(false);
 
 const handleAddToCart = (product: Product, e: React.MouseEvent) => {
   e.preventDefault();
@@ -797,27 +820,36 @@ const handleAddToCart = (product: Product, e: React.MouseEvent) => {
     sku: product.sku || product.slug,
   };
   
-  addItem(cartItem, (addedItem) => {
-    toast.success('Produto adicionado ao carrinho!');
-    
-    if (cartActionType === 'miniCart') {
-      setMiniCartOpen(true);
-    } else if (cartActionType === 'goToCart') {
-      navigate(getPublicCartUrl(tenantSlug, isPreview));
-    }
-    // Se 'none', apenas o toast já foi exibido
-    
-    // Feedback visual no botão
-    setAddedProducts(prev => new Set(prev).add(product.id));
-    setTimeout(() => {
-      setAddedProducts(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(product.id);
-        return newSet;
-      });
-    }, 2000);
-  });
+  addItem(cartItem);
+  toast.success('Produto adicionado ao carrinho!');
+  
+  if (cartActionType === 'miniCart') {
+    setMiniCartOpen(true);
+  } else if (cartActionType === 'goToCart') {
+    navigate(getPublicCartUrl(tenantSlug, isPreview));
+  }
+  // Se 'none', apenas o toast já foi exibido
+  
+  // Feedback visual no botão
+  setAddedProducts(prev => new Set(prev).add(product.id));
+  setTimeout(() => {
+    setAddedProducts(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(product.id);
+      return newSet;
+    });
+  }, 2000);
 };
+
+// Renderizar MiniCartDrawer condicionalmente
+{miniCartEnabled && (
+  <MiniCartDrawer
+    open={miniCartOpen}
+    onOpenChange={setMiniCartOpen}
+    tenantSlug={tenantSlug}
+    isPreview={context?.isPreview}
+  />
+)}
 ```
 
 ---
