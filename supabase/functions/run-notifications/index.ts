@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.3.0"; // Unified timeline - WhatsApp notifications now appear in Atendimento
+const VERSION = "v1.3.1"; // Fix: external_id -> external_message_id
 // ===========================================================
 
 const corsHeaders = {
@@ -363,7 +363,7 @@ async function registerInAttendanceTimeline(
         is_ai_generated: false,
         is_internal: false,
         is_note: false,
-        external_id: providerMessageId,
+        external_message_id: providerMessageId, // Corrigido: era external_id
       });
     
     if (msgError) {
