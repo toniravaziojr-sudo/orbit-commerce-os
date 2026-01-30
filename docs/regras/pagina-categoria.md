@@ -78,8 +78,11 @@ Página de listagem de produtos filtrados por categoria.
 | `showBanner` | boolean | true | Banner da categoria |
 | `customButtonEnabled` | boolean | false | Botão custom |
 | `customButtonText` | string | "" | Texto do botão |
-| `customButtonColor` | string | "" | Cor do botão |
+| `customButtonColor` | string | "" | Cor do texto (deprecated, usar customButtonTextColor) |
 | `customButtonLink` | string | "" | Link do botão |
+| `customButtonBgColor` | string | "" | Cor de fundo do botão |
+| `customButtonTextColor` | string | "" | Cor do texto do botão |
+| `customButtonHoverColor` | string | "" | Cor de fundo no hover |
 
 ---
 
