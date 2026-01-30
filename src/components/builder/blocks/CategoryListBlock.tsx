@@ -15,7 +15,9 @@ interface CategoryListBlockProps {
   source?: 'auto' | 'parent' | 'custom' | 'all' | 'featured';
   layout?: 'grid' | 'list' | 'carousel';
   limit?: number;
-  columns?: number;
+  columns?: number; // Legacy support
+  columnsDesktop?: number;
+  columnsMobile?: number;
   showImage?: boolean;
   showDescription?: boolean;
   items?: CategoryItemConfig[];
@@ -40,14 +42,24 @@ export function CategoryListBlock({
   source = 'auto',
   layout = 'grid',
   limit = 12,
-  columns = 4,
+  columns, // Legacy
+  columnsDesktop = 4,
+  columnsMobile = 2,
   showImage = true,
   showDescription = false,
   items = [],
   context,
   isEditing = false,
 }: CategoryListBlockProps) {
-  const { tenantSlug } = context;
+  const { tenantSlug, viewport } = context;
+  
+  // Determine if mobile based on viewport context
+  const isMobileViewport = viewport === 'mobile';
+  const isTabletViewport = viewport === 'tablet';
+  
+  // Effective columns - use legacy "columns" prop if new props not set
+  const effectiveDesktopCols = columnsDesktop || columns || 4;
+  const effectiveMobileCols = columnsMobile || 2;
   
   // Try to get tenant_id directly from context.settings (more reliable)
   const tenantIdFromContext = (context as any)?.settings?.tenant_id;
@@ -126,13 +138,28 @@ export function CategoryListBlock({
   
   const isLoading = (!tenantIdFromContext && tenantLoading) || categoriesLoading;
 
-  const gridCols = {
-    2: 'grid-cols-1 sm:grid-cols-2',
-    3: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
-    4: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4',
-    5: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5',
-    6: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6',
-  }[columns] || 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4';
+  // Build responsive grid classes based on viewport
+  const getGridClass = () => {
+    // In builder with explicit viewport, use that
+    if (viewport) {
+      if (isMobileViewport) {
+        return `grid-cols-${Math.min(effectiveMobileCols, 2)}`;
+      }
+      if (isTabletViewport) {
+        return `grid-cols-${Math.min(effectiveDesktopCols, 3)}`;
+      }
+      return `grid-cols-${effectiveDesktopCols}`;
+    }
+    
+    // For storefront (no explicit viewport), use responsive classes
+    const mobileCols = Math.min(effectiveMobileCols, 2);
+    const tabletCols = Math.min(effectiveDesktopCols, 3);
+    const desktopCols = effectiveDesktopCols;
+    
+    return `grid-cols-${mobileCols} sm:grid-cols-${tabletCols} lg:grid-cols-${desktopCols}`;
+  };
+  
+  const gridCols = getGridClass();
 
   if (isLoading) {
     return (

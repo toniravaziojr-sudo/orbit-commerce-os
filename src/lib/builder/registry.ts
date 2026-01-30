@@ -1327,7 +1327,8 @@ const blockDefinitions: BlockDefinition[] = [
       title: 'Categorias',
       source: 'auto',
       layout: 'grid',
-      columns: 4,
+      columnsDesktop: 4,
+      columnsMobile: 2,
       showDescription: false,
       showImage: true,
       items: [],
@@ -1371,15 +1372,25 @@ const blockDefinitions: BlockDefinition[] = [
           { label: 'Carrossel', value: 'carousel' },
         ],
       },
-      columns: {
+      columnsDesktop: {
         type: 'select',
-        label: 'Colunas',
+        label: 'Colunas (Desktop)',
         defaultValue: '4',
         options: [
           { label: '2', value: '2' },
           { label: '3', value: '3' },
           { label: '4', value: '4' },
+          { label: '5', value: '5' },
           { label: '6', value: '6' },
+        ],
+      },
+      columnsMobile: {
+        type: 'select',
+        label: 'Colunas (Mobile)',
+        defaultValue: '2',
+        options: [
+          { label: '1', value: '1' },
+          { label: '2', value: '2' },
         ],
       },
       showImage: {
@@ -1404,7 +1415,8 @@ const blockDefinitions: BlockDefinition[] = [
       title: 'Produtos',
       source: 'featured',
       categoryId: '',
-      columns: 4,
+      columnsDesktop: 4,
+      columnsMobile: 2,
       limit: 8,
       showPrice: true,
     },
@@ -1430,14 +1442,25 @@ const blockDefinitions: BlockDefinition[] = [
         label: 'Categoria (se fonte = Categoria)',
         placeholder: 'Selecione uma categoria',
       },
-      columns: {
+      columnsDesktop: {
         type: 'select',
-        label: 'Colunas',
+        label: 'Colunas (Desktop)',
         defaultValue: '4',
         options: [
           { label: '2', value: '2' },
           { label: '3', value: '3' },
           { label: '4', value: '4' },
+          { label: '5', value: '5' },
+          { label: '6', value: '6' },
+        ],
+      },
+      columnsMobile: {
+        type: 'select',
+        label: 'Colunas (Mobile)',
+        defaultValue: '2',
+        options: [
+          { label: '1', value: '1' },
+          { label: '2', value: '2' },
         ],
       },
       limit: {
