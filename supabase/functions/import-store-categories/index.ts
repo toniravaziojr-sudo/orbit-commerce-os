@@ -1,4 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { NUVEMSHOP_PATTERNS } from '../_shared/platform-adapters/nuvemshop-adapter.ts';
+
+const VERSION = '2026-01-30.2130';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -62,7 +65,7 @@ const BLACKLIST_HARD = [
   'pages', 'pagina', 'paginas', 'institucional'
 ];
 
-// Category URL patterns (high confidence)
+// Category URL patterns (high confidence) - includes Nuvemshop-specific
 const CATEGORY_PATTERNS = [
   /\/(?:collections?|categoria|categorias|category|categories|c)\/([^/?#]+)/i,
   /\/(?:departamento|departamentos|department|departments|dept)\/([^/?#]+)/i,
@@ -174,6 +177,7 @@ async function analyzeCategoryPage(
 
     // =====================================================
     // DETECT PRODUCT GRID - This is the KEY characteristic
+    // Enhanced with Nuvemshop-specific patterns
     // =====================================================
     
     // Multiple patterns to detect product grids
@@ -186,10 +190,14 @@ async function analyzeCategoryPage(
       /<div[^>]*class="[^"]*(?:collection-products|product-grid)[^"]*"/gi,
       // WooCommerce
       /<ul[^>]*class="[^"]*products[^"]*"/gi,
-      // Nuvemshop/Tray
-      /<div[^>]*class="[^"]*(?:js-product-table|product-table)[^"]*"/gi,
+      // ===== NUVEMSHOP SPECIFIC (enhanced) =====
+      /<div[^>]*class="[^"]*(?:js-product-table|product-table|js-product-grid)[^"]*"/gi,
+      /<div[^>]*class="[^"]*(?:js-item-product|item-product|product-item)[^"]*"/gi,
+      /<article[^>]*class="[^"]*(?:js-item-product|item-product|product-item)[^"]*"/gi,
+      /<[^>]*data-product-id="[^"]+"/gi,
+      /<[^>]*data-item-id="[^"]+"/gi,
       // Generic grid with product links
-      /<a[^>]*href="[^"]*\/(?:product|produto|p)\/[^"]+"/gi,
+      /<a[^>]*href="[^"]*\/(?:product|produto|produtos|p)\/[^"]+"/gi,
     ];
     
     let totalProductMatches = 0;

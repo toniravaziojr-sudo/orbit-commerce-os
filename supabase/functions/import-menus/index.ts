@@ -1,4 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { NUVEMSHOP_PATTERNS } from '../_shared/platform-adapters/nuvemshop-adapter.ts';
+
+const VERSION = '2026-01-30.2130';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -62,16 +65,17 @@ function extractSlugFromPath(pathname: string, patterns: RegExp[]): string | nul
 }
 
 // ===========================================
-// MENU EXTRACTION - IMPROVED FOR SHOPIFY + HIERARCHICAL
+// MENU EXTRACTION - IMPROVED FOR SHOPIFY + NUVEMSHOP + HIERARCHICAL
 // ===========================================
 
 async function extractMenuStructure(
   storeUrl: string,
-  firecrawlApiKey: string
+  firecrawlApiKey: string,
+  platform?: string
 ): Promise<MenuStructure> {
   const origin = new URL(storeUrl.startsWith('http') ? storeUrl : `https://${storeUrl}`).origin;
   
-  console.log(`[Menus] Extracting from ${origin}`);
+  console.log(`[Menus] v${VERSION} Extracting from ${origin} (platform: ${platform || 'unknown'})`);
   
   const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
     method: 'POST',
@@ -83,7 +87,7 @@ async function extractMenuStructure(
       url: storeUrl,
       formats: ['html'],
       onlyMainContent: false,
-      waitFor: 3000
+      waitFor: platform === 'nuvemshop' ? 5000 : 3000 // More wait time for Nuvemshop SPA
     })
   });
 
@@ -99,23 +103,32 @@ async function extractMenuStructure(
     return { header: [], footer1: [], footer2: [] };
   }
 
+  // Detect if it's Nuvemshop from HTML patterns
+  const isNuvemshop = platform === 'nuvemshop' || 
+    /nuvemshop|tiendanube|js-product-table|js-item-product|data-store="nuvem"/i.test(html);
+  
+  if (isNuvemshop) {
+    console.log('[Menus] Detected Nuvemshop platform - using specific patterns');
+  }
+
   const menuStructure: MenuStructure = {
     header: [],
     footer1: [],
     footer2: []
   };
 
-  // Category URL patterns
+  // Category URL patterns - enhanced with Nuvemshop-specific
   const categoryPatterns = [
     /\/(?:collections?|categoria|categorias|category|categories|c)\/([^/?#"']+)/gi,
     /\/(?:departamento|departamentos|department|departments|dept)\/([^/?#"']+)/gi,
     /\/(?:shop|loja|store)\/([^/?#"']+)/gi,
   ];
 
-  // Page URL patterns
+  // Page URL patterns - enhanced with Nuvemshop-specific
   const pagePatterns = [
     /\/(?:pages?|pagina|paginas)\/([^/?#"']+)/gi,
     /\/(?:policies|politicas?|termos|terms|privacy|privacidade)\/([^/?#"']+)/gi,
+    /\/(?:institucional)\/([^/?#"']+)/gi, // Nuvemshop-specific
   ];
 
   // Blacklisted paths (skip these)
@@ -126,14 +139,23 @@ async function extractMenuStructure(
   ];
 
   // ===========================================
-  // EXTRACT HEADER MENU (with Shopify mega-menu detection)
+  // EXTRACT HEADER MENU 
+  // Try Nuvemshop-specific patterns if detected, then Shopify, then generic
   // ===========================================
   const headerMatch = html.match(/<header[^>]*>([\s\S]*?)<\/header>/i);
   if (headerMatch) {
     const headerHtml = headerMatch[1];
     
-    // Try Shopify mega-menu patterns first
-    menuStructure.header = extractShopifyMegaMenu(headerHtml, origin, categoryPatterns, pagePatterns, blacklist);
+    if (isNuvemshop) {
+      // Try Nuvemshop-specific nav patterns
+      menuStructure.header = extractNuvemshopMenu(headerHtml, origin, categoryPatterns, pagePatterns, blacklist);
+      console.log(`[Menus] Nuvemshop header extraction: ${menuStructure.header.length} items`);
+    }
+    
+    // Fallback to Shopify mega-menu patterns
+    if (menuStructure.header.length === 0) {
+      menuStructure.header = extractShopifyMegaMenu(headerHtml, origin, categoryPatterns, pagePatterns, blacklist);
+    }
     
     // Fallback to generic hierarchical extraction
     if (menuStructure.header.length === 0) {
@@ -185,6 +207,113 @@ async function extractMenuStructure(
   console.log(`[Menus] Extracted: header=${menuStructure.header.length}, footer1=${menuStructure.footer1.length}, footer2=${menuStructure.footer2.length}`);
   
   return menuStructure;
+}
+
+// ===========================================
+// NUVEMSHOP MENU EXTRACTION
+// Nuvemshop uses js-* prefixed classes and specific navigation patterns
+// ===========================================
+function extractNuvemshopMenu(
+  html: string,
+  origin: string,
+  categoryPatterns: RegExp[],
+  pagePatterns: RegExp[],
+  blacklist: string[]
+): MenuItem[] {
+  const items: MenuItem[] = [];
+  const seenUrls = new Set<string>();
+  
+  console.log('[Menus] Attempting Nuvemshop-specific menu extraction');
+  
+  // Nuvemshop navigation patterns
+  const nuvemshopNavPatterns = [
+    // Main navigation with js- prefix
+    /<nav[^>]*class="[^"]*(?:js-nav|js-navigation|nav-primary|main-nav|nav-desktop)[^"]*"[^>]*>([\s\S]*?)<\/nav>/gi,
+    /<ul[^>]*class="[^"]*(?:js-nav-list|nav-list|nav-desktop|main-menu|js-menu)[^"]*"[^>]*>([\s\S]*?)<\/ul>/gi,
+    // Mobile drawer (often has full menu)
+    /<div[^>]*class="[^"]*(?:js-mobile-nav|mobile-nav|nav-drawer|js-drawer)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+    // Desktop navigation container
+    /<div[^>]*class="[^"]*(?:js-nav-desktop|nav-desktop|desktop-nav)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+  ];
+  
+  for (const pattern of nuvemshopNavPatterns) {
+    if (items.length > 0) break; // Use first successful pattern
+    
+    pattern.lastIndex = 0;
+    const navMatch = pattern.exec(html);
+    
+    if (navMatch) {
+      const navContent = navMatch[1] || navMatch[0];
+      console.log(`[Menus] Found Nuvemshop nav with pattern: ${pattern.source.slice(0, 50)}...`);
+      
+      // Extract links from navigation
+      const linkPattern = /<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+      let linkMatch;
+      
+      while ((linkMatch = linkPattern.exec(navContent)) !== null) {
+        const [fullMatch, href, rawLabel] = linkMatch;
+        const label = rawLabel.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+        
+        if (!href || !label || seenUrls.has(href)) continue;
+        if (href === '#' || href === 'javascript:void(0)') continue;
+        if (blacklist.some(term => href.toLowerCase().includes(`/${term}`))) continue;
+        
+        seenUrls.add(href);
+        
+        const fullUrl = href.startsWith('/') ? `${origin}${href}` : href.startsWith('http') ? href : `${origin}/${href}`;
+        const item = classifyLink(fullUrl, label, categoryPatterns, pagePatterns);
+        
+        if (item) {
+          items.push(item);
+        }
+      }
+    }
+  }
+  
+  // If main patterns failed, try to find links in any nav or header area
+  if (items.length === 0) {
+    console.log('[Menus] Falling back to generic nav extraction for Nuvemshop');
+    
+    const fallbackPatterns = [
+      /<nav[^>]*>([\s\S]*?)<\/nav>/gi,
+      /<ul[^>]*class="[^"]*(?:menu|nav)[^"]*"[^>]*>([\s\S]*?)<\/ul>/gi,
+    ];
+    
+    for (const pattern of fallbackPatterns) {
+      if (items.length > 0) break;
+      
+      pattern.lastIndex = 0;
+      const matches = [...html.matchAll(pattern)];
+      
+      for (const match of matches) {
+        if (items.length > 0) break;
+        
+        const navContent = match[1] || match[0];
+        const linkPattern = /<a[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/gi;
+        let linkMatch;
+        
+        while ((linkMatch = linkPattern.exec(navContent)) !== null) {
+          const [, href, label] = linkMatch;
+          
+          if (!href || !label.trim() || seenUrls.has(href)) continue;
+          if (href === '#' || href === 'javascript:void(0)') continue;
+          if (blacklist.some(term => href.toLowerCase().includes(`/${term}`))) continue;
+          
+          seenUrls.add(href);
+          
+          const fullUrl = href.startsWith('/') ? `${origin}${href}` : href.startsWith('http') ? href : `${origin}/${href}`;
+          const item = classifyLink(fullUrl, label.trim(), categoryPatterns, pagePatterns);
+          
+          if (item) {
+            items.push(item);
+          }
+        }
+      }
+    }
+  }
+  
+  console.log(`[Menus] Nuvemshop extraction found ${items.length} items`);
+  return items;
 }
 
 // ===========================================
