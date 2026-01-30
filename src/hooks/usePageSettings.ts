@@ -347,10 +347,9 @@ export function useCartSettings(tenantId: string, templateSetId?: string) {
       return (overrides?.cartSettings as CartSettings) || null;
     },
     enabled: !!tenantId,
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
-    refetchInterval: 500,
+    staleTime: 5000,
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
   });
 
   const settings: CartSettings = {
@@ -425,10 +424,9 @@ export function useCheckoutSettings(tenantId: string, templateSetId?: string) {
       };
     },
     enabled: !!tenantId,
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
-    refetchInterval: 500,
+    staleTime: 5000,
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
   });
 
   const settings: CheckoutSettings = {
@@ -486,10 +484,9 @@ export function useThankYouSettings(tenantId: string, templateSetId?: string) {
       return (overrides?.thankYouSettings as ThankYouSettings) || null;
     },
     enabled: !!tenantId,
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
-    refetchInterval: 500,
+    staleTime: 5000,
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
   });
 
   const settings: ThankYouSettings = {

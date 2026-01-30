@@ -372,7 +372,11 @@ export function BuilderToolbar({
           disabled={!isDirty || isSaving}
           className="gap-1 h-7 px-2 text-xs"
         >
-          <Save className="h-3.5 w-3.5" />
+          {isSaving ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Save className="h-3.5 w-3.5" />
+          )}
           <span className="hidden sm:inline">
             {isSaving ? 'Salvando...' : 'Salvar'}
           </span>

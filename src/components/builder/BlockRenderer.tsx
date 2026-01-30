@@ -846,13 +846,7 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing }: any) {
   const miniCartConfig = themeSettings.miniCart || {};
   const cartActionType = miniCartConfig.cartActionType ?? 'miniCart';
   
-  // Debug log for settings sync
-  React.useEffect(() => {
-    if (isEditing) {
-      console.log('[ProductDetailsBlock] productSettings updated:', productSettings);
-      console.log('[ProductDetailsBlock] miniCartConfig:', miniCartConfig);
-    }
-  }, [productSettings, miniCartConfig, isEditing]);
+  // Debug logging removed - was causing console spam
   
   // Toggles conforme REGRAS.md (apenas os 12 listados)
   // IMPORTANTE: Usar DEFAULT_PRODUCT_SETTINGS para valores não definidos
