@@ -1020,8 +1020,8 @@ export function VisualBuilder({
         storeIsDirty={store.isDirty}
         canUndo={store.canUndo}
         canRedo={store.canRedo}
-        isSaving={saveDraft.isPending}
-        isPublishing={publish.isPending}
+        isSaving={saveDraft.isPending || saveTemplateSetDraft.isPending}
+        isPublishing={publish.isPending || publishTemplateSet.isPending}
         onUndo={store.undo}
         onRedo={store.redo}
         onSave={handleSave}
