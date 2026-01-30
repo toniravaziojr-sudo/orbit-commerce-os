@@ -15,7 +15,6 @@ import { toast } from "sonner";
 import { PlatformAlerts } from "./PlatformAlerts";
 import { ModuleTutorialLink } from "./ModuleTutorialLink";
 import { AdminModeToggle } from "./AdminModeToggle";
-import { TranslateButton } from "./TranslateButton";
 
 export function AppHeader() {
   const navigate = useNavigate();
@@ -67,11 +66,8 @@ export function AppHeader() {
         </div>
       </div>
 
-      {/* Right side: Translate + User Menu */}
+      {/* Right side: User Menu */}
       <div className="flex items-center gap-3">
-        {/* Translate Button - Temporário para vídeo Meta */}
-        <TranslateButton />
-        
         {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
