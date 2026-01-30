@@ -962,18 +962,52 @@ export function PageSettingsContent({
                           />
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-xs">Cor (hex)</Label>
+                          <Label className="text-xs">Cor de fundo</Label>
                           <div className="flex gap-2">
                             <Input
                               type="color"
-                              value={String(settings.customButtonColor || '#1a1a1a')}
-                              onChange={(e) => handleChange('customButtonColor', e.target.value)}
+                              value={String(settings.customButtonBgColor || settings.customButtonColor || '#1a1a1a')}
+                              onChange={(e) => handleChange('customButtonBgColor', e.target.value)}
                               className="h-8 w-12 p-1"
                             />
                             <Input
-                              value={String(settings.customButtonColor || '')}
-                              onChange={(e) => handleChange('customButtonColor', e.target.value)}
+                              value={String(settings.customButtonBgColor || settings.customButtonColor || '')}
+                              onChange={(e) => handleChange('customButtonBgColor', e.target.value)}
                               placeholder="#1a1a1a"
+                              className="h-8 text-sm flex-1"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Cor do texto</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              type="color"
+                              value={String(settings.customButtonTextColor || '#ffffff')}
+                              onChange={(e) => handleChange('customButtonTextColor', e.target.value)}
+                              className="h-8 w-12 p-1"
+                            />
+                            <Input
+                              value={String(settings.customButtonTextColor || '')}
+                              onChange={(e) => handleChange('customButtonTextColor', e.target.value)}
+                              placeholder="#ffffff"
+                              className="h-8 text-sm flex-1"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Cor de hover</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              type="color"
+                              value={String(settings.customButtonHoverColor || '#333333')}
+                              onChange={(e) => handleChange('customButtonHoverColor', e.target.value)}
+                              className="h-8 w-12 p-1"
+                            />
+                            <Input
+                              value={String(settings.customButtonHoverColor || '')}
+                              onChange={(e) => handleChange('customButtonHoverColor', e.target.value)}
+                              placeholder="#333333"
                               className="h-8 text-sm flex-1"
                             />
                           </div>

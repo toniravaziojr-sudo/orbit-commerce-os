@@ -32,7 +32,10 @@ export interface CategorySettings {
   // Botão personalizado
   customButtonEnabled?: boolean;
   customButtonText?: string;
-  customButtonColor?: string;
+  customButtonColor?: string;       // Legado - mantido para compatibilidade
+  customButtonBgColor?: string;     // Cor de fundo do botão
+  customButtonTextColor?: string;   // Cor do texto do botão
+  customButtonHoverColor?: string;  // Cor de hover do botão
   customButtonLink?: string;
 }
 

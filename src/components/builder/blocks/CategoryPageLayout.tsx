@@ -67,7 +67,10 @@ interface CategorySettingsFromContext {
   buyNowButtonText?: string;
   customButtonEnabled?: boolean;
   customButtonText?: string;
-  customButtonColor?: string;
+  customButtonColor?: string;       // Legado
+  customButtonBgColor?: string;     // Cor de fundo
+  customButtonTextColor?: string;   // Cor do texto
+  customButtonHoverColor?: string;  // Cor de hover
   customButtonLink?: string;
 }
 
@@ -94,7 +97,9 @@ export function CategoryPageLayout({
   const buyNowButtonText = categorySettings.buyNowButtonText || 'Comprar agora';
   const customButtonEnabled = categorySettings.customButtonEnabled ?? false;
   const customButtonText = categorySettings.customButtonText || '';
-  const customButtonColor = categorySettings.customButtonColor || '';
+  const customButtonBgColor = categorySettings.customButtonBgColor || categorySettings.customButtonColor || '';
+  const customButtonTextColor = categorySettings.customButtonTextColor || '#ffffff';
+  const customButtonHoverColor = categorySettings.customButtonHoverColor || '';
   const customButtonLink = categorySettings.customButtonLink || '';
 
   // Theme settings for mini-cart (unified cartActionType from themeSettings.miniCart)
@@ -460,11 +465,25 @@ export function CategoryPageLayout({
                       {/* 2º Botão personalizado (se ativo) */}
                       {customButtonEnabled && customButtonText && (
                         <button
-                          className="w-full py-1.5 px-3 text-xs rounded-md text-center transition-colors sf-btn-secondary"
-                          style={customButtonColor ? { 
-                            backgroundColor: customButtonColor,
-                            color: '#ffffff'
-                          } : undefined}
+                          className={cn(
+                            "w-full py-1.5 px-3 text-xs rounded-md text-center transition-colors",
+                            !customButtonBgColor && "sf-btn-secondary"
+                          )}
+                          style={customButtonBgColor ? { 
+                            backgroundColor: customButtonBgColor,
+                            color: customButtonTextColor,
+                            '--hover-bg': customButtonHoverColor || customButtonBgColor,
+                          } as React.CSSProperties : undefined}
+                          onMouseEnter={(e) => {
+                            if (customButtonHoverColor) {
+                              (e.currentTarget as HTMLElement).style.backgroundColor = customButtonHoverColor;
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (customButtonBgColor) {
+                              (e.currentTarget as HTMLElement).style.backgroundColor = customButtonBgColor;
+                            }
+                          }}
                         >
                           {customButtonText}
                         </button>
@@ -574,12 +593,25 @@ export function CategoryPageLayout({
                         {customButtonEnabled && customButtonText && (
                           <a
                             href={customButtonLink || '#'}
-                            className="w-full py-1.5 px-3 text-xs rounded-md text-center transition-colors sf-btn-secondary"
-                            style={customButtonColor ? { 
-                              backgroundColor: customButtonColor,
-                              color: '#ffffff'
+                            className={cn(
+                              "w-full py-1.5 px-3 text-xs rounded-md text-center transition-colors",
+                              !customButtonBgColor && "sf-btn-secondary"
+                            )}
+                            style={customButtonBgColor ? { 
+                              backgroundColor: customButtonBgColor,
+                              color: customButtonTextColor,
                             } : undefined}
                             onClick={(e) => e.stopPropagation()}
+                            onMouseEnter={(e) => {
+                              if (customButtonHoverColor) {
+                                (e.currentTarget as HTMLElement).style.backgroundColor = customButtonHoverColor;
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (customButtonBgColor) {
+                                (e.currentTarget as HTMLElement).style.backgroundColor = customButtonBgColor;
+                              }
+                            }}
                           >
                             {customButtonText}
                           </a>
