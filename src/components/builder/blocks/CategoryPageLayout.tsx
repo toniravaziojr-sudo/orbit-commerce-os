@@ -97,10 +97,11 @@ export function CategoryPageLayout({
   const customButtonColor = categorySettings.customButtonColor || '';
   const customButtonLink = categorySettings.customButtonLink || '';
 
-  // Theme settings for mini-cart (from theme, not page settings)
+  // Theme settings for mini-cart (unified cartActionType from themeSettings.miniCart)
   const themeSettings = (context as any)?.themeSettings || {};
-  const miniCartEnabled = themeSettings.miniCartEnabled !== false;
-  const openMiniCartOnAdd = themeSettings.openMiniCartOnAdd !== false;
+  const miniCartConfig = themeSettings.miniCart || {};
+  const cartActionType = miniCartConfig.cartActionType ?? 'miniCart';
+  const miniCartEnabled = cartActionType === 'miniCart';
 
   // Cart integration for add to cart functionality
   const { addItem } = useCart();
@@ -299,8 +300,8 @@ export function CategoryPageLayout({
     setAddedProducts(prev => new Set(prev).add(product.id));
     toast.success('Produto adicionado ao carrinho!');
     
-    // Se miniCart está habilitado e deve abrir ao adicionar, abre o drawer
-    if (miniCartEnabled && openMiniCartOnAdd) {
+    // Se cartActionType é 'miniCart', abre o drawer
+    if (cartActionType === 'miniCart') {
       setMiniCartOpen(true);
     }
     
@@ -312,7 +313,7 @@ export function CategoryPageLayout({
         return next;
       });
     }, 2000);
-  }, [addItem, miniCartEnabled, openMiniCartOnAdd]);
+  }, [addItem, cartActionType]);
 
   // Use container query class for responsive grid
   const getGridCols = () => {

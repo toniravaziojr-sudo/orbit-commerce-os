@@ -670,13 +670,29 @@ onSuccess: () => {
 ### Regras Obrigatórias
 
 1. **SEMPRE** usar `useCart()` do `@/contexts/CartContext` para operações de carrinho
-2. **SEMPRE** renderizar `MiniCartDrawer` quando `miniCartEnabled !== false`
-3. **SEMPRE** implementar feedback visual "Adicionado" quando mini-cart está desabilitado
+2. **SEMPRE** renderizar `MiniCartDrawer` quando `cartActionType === 'miniCart'`
+3. **SEMPRE** implementar feedback visual "Adicionado" quando `cartActionType === 'none'`
 4. **SEMPRE** usar `getPublicCheckoutUrl(tenantSlug)` para compra rápida
+5. **NUNCA** usar `miniCartEnabled` ou `openMiniCartOnAdd` diretamente - usar `cartActionType` de `themeSettings.miniCart`
+
+### Configuração Unificada (cartActionType)
+
+A configuração de ação do carrinho é centralizada em **Configurações do Tema → Carrinho Suspenso** (`MiniCartSettings.tsx`).
+
+| Valor | Comportamento |
+|-------|---------------|
+| `'miniCart'` | Abre drawer lateral ao adicionar |
+| `'goToCart'` | Redireciona para página do carrinho |
+| `'none'` | Apenas toast de confirmação |
 
 ### Padrão de Handler
 
 ```typescript
+// Ler do themeSettings.miniCart
+const themeSettings = context?.themeSettings || {};
+const miniCartConfig = themeSettings.miniCart || {};
+const cartActionType = miniCartConfig.cartActionType ?? 'miniCart';
+
 const handleAddToCart = (product: Product, e: React.MouseEvent) => {
   e.preventDefault();
   e.stopPropagation();
@@ -691,19 +707,24 @@ const handleAddToCart = (product: Product, e: React.MouseEvent) => {
   };
   
   addItem(cartItem, (addedItem) => {
-    if (miniCartEnabled && openMiniCartOnAdd) {
+    toast.success('Produto adicionado ao carrinho!');
+    
+    if (cartActionType === 'miniCart') {
       setMiniCartOpen(true);
-    } else {
-      setAddedProducts(prev => new Set(prev).add(product.id));
-      toast.success('Produto adicionado ao carrinho');
-      setTimeout(() => {
-        setAddedProducts(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(product.id);
-          return newSet;
-        });
-      }, 2000);
+    } else if (cartActionType === 'goToCart') {
+      navigate(getPublicCartUrl(tenantSlug, isPreview));
     }
+    // Se 'none', apenas o toast já foi exibido
+    
+    // Feedback visual no botão
+    setAddedProducts(prev => new Set(prev).add(product.id));
+    setTimeout(() => {
+      setAddedProducts(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(product.id);
+        return newSet;
+      });
+    }, 2000);
   });
 };
 ```

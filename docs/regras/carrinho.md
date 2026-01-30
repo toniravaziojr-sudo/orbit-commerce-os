@@ -74,12 +74,20 @@ Sistema de carrinho de compras com mini-cart, página completa e ofertas de cros
 | `MiniCartItem` | `src/components/storefront/MiniCartItem.tsx` | Item individual |
 | `MiniCartSummary` | `src/components/storefront/MiniCartSummary.tsx` | Resumo e CTAs |
 
-### Configurações
+### Configurações (via ThemeMiniCartConfig)
 
 | Setting | Tipo | Default | Descrição |
 |---------|------|---------|-----------|
-| `miniCartEnabled` | boolean | true | Habilita mini-cart |
-| `openMiniCartOnAdd` | boolean | true | Abre ao adicionar item |
+| `cartActionType` | `'miniCart' \| 'goToCart' \| 'none'` | `'miniCart'` | Ação ao adicionar produto |
+| `showAddToCartButton` | boolean | true | Mostrar botão de adicionar |
+| `showCrossSell` | boolean | true | Mostrar cross-sell no mini-cart |
+| `showCoupon` | boolean | true | Campo de cupom no mini-cart |
+| `showShippingCalculator` | boolean | true | Calculadora de frete no mini-cart |
+| `showFreeShippingProgress` | boolean | true | Barra de progresso para frete grátis |
+| `showStockReservationTimer` | boolean | false | Timer de reserva de estoque |
+| `stockReservationMinutes` | number | 15 | Minutos de reserva |
+
+**NOTA:** Configuração centralizada em **Configurações do Tema → Carrinho Suspenso** (`MiniCartSettings.tsx`).
 
 ---
 
