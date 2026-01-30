@@ -127,11 +127,20 @@ export function useTemplateSetSave() {
       return { success: true };
     },
     onSuccess: (_, variables) => {
+      // Invalidate admin queries
       queryClient.invalidateQueries({ queryKey: ['template-set-content', variables.templateSetId] });
       queryClient.invalidateQueries({ queryKey: ['template-sets'] });
       queryClient.invalidateQueries({ queryKey: ['store-settings'] });
-      // Invalidate storefront testimonials so public sees newly published ones
       queryClient.invalidateQueries({ queryKey: ['storefront-testimonials', currentTenant?.id] });
+      
+      // CRITICAL: Invalidate PUBLIC storefront queries so visitors see updates immediately
+      // This ensures the published content is fetched fresh after publishing
+      queryClient.invalidateQueries({ queryKey: ['public-template'] });
+      queryClient.invalidateQueries({ queryKey: ['public-theme-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['public-page-template'] });
+      queryClient.invalidateQueries({ queryKey: ['category-settings-published'] });
+      queryClient.invalidateQueries({ queryKey: ['public-storefront'] });
+      
       toast.success('Template publicado com sucesso!');
     },
     onError: (error: Error) => {
