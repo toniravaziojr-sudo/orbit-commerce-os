@@ -503,6 +503,68 @@ className="bg-blue-500"
 
 ---
 
+## ⚠️ CRÍTICO: Invalidação de Cache após Publicação
+
+Ao publicar um template, **AMBOS** os hooks de publicação **DEVEM** invalidar as queries públicas para que visitantes vejam as atualizações imediatamente.
+
+### Queries que DEVEM ser Invalidadas
+
+| Query Key | Responsabilidade |
+|-----------|------------------|
+| `public-template` | Conteúdo do template publicado (home, category, product, etc) |
+| `public-theme-settings` | Cores, tipografia, configurações visuais |
+| `public-page-template` | Páginas institucionais publicadas |
+| `category-settings-published` | Settings de categoria (badges, botões, etc) |
+| `public-storefront` | Header/Footer menus, store settings |
+| `storefront-testimonials` | Depoimentos do checkout |
+
+### Arquivos que Implementam Invalidação
+
+| Arquivo | Função | Queries Invalidadas |
+|---------|--------|---------------------|
+| `useTemplateSetSave.ts` | `publishTemplateSet` | TODAS acima ✅ |
+| `useTemplatesSets.ts` | `publishMutation` | TODAS acima ✅ |
+
+### Implementação Obrigatória
+
+```typescript
+// Em QUALQUER mutation de publicação de template:
+onSuccess: () => {
+  // 1. Invalidar queries ADMIN
+  queryClient.invalidateQueries({ queryKey: ['template-set-content', templateSetId] });
+  queryClient.invalidateQueries({ queryKey: ['template-sets'] });
+  queryClient.invalidateQueries({ queryKey: ['store-settings'] });
+  queryClient.invalidateQueries({ queryKey: ['storefront-testimonials', tenantId] });
+  
+  // 2. CRÍTICO: Invalidar queries PÚBLICAS
+  queryClient.invalidateQueries({ queryKey: ['public-template'] });
+  queryClient.invalidateQueries({ queryKey: ['public-theme-settings'] });
+  queryClient.invalidateQueries({ queryKey: ['public-page-template'] });
+  queryClient.invalidateQueries({ queryKey: ['category-settings-published'] });
+  queryClient.invalidateQueries({ queryKey: ['public-storefront'] });
+}
+```
+
+### ❌ Proibições
+
+| Proibido | Consequência |
+|----------|--------------|
+| Publicar sem invalidar `public-template` | Visitantes continuam vendo versão antiga |
+| Usar `staleTime` > 5 minutos em queries públicas | Delay excessivo para ver atualizações |
+| Invalidar apenas queries admin | Storefront público não atualiza |
+
+### Cache Timing Recomendado
+
+| Query | staleTime | gcTime | Motivo |
+|-------|-----------|--------|--------|
+| `public-template` | 2 min | 10 min | Permite atualizações rápidas após publicação |
+| `public-theme-settings` | 2 min | 10 min | Permite atualizações rápidas após publicação |
+| `public-page-template` | 2 min | 10 min | Permite atualizações rápidas após publicação |
+
+> **Nota (2025-01-30):** staleTime reduzido de 15min→2min para garantir que visitantes vejam atualizações rapidamente após publicação.
+
+---
+
 ## Settings por Página
 
 ### Categoria (CategorySettings)
