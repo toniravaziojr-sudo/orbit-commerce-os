@@ -240,10 +240,22 @@ export function ChatWindow({
 
             if (isSystem) {
               return (
-                <div key={msg.id} className="flex justify-center">
-                  <span className="text-xs text-muted-foreground bg-muted px-3 py-1 rounded-full">
-                    {msg.content}
-                  </span>
+                <div key={msg.id} className="flex justify-end gap-2">
+                  <div className="max-w-[70%] rounded-lg px-4 py-2 bg-emerald-600 text-white">
+                    <div className="flex items-center gap-1 text-xs opacity-70 mb-1">
+                      <Bot className="h-3 w-3" />
+                      <span>Sistema</span>
+                    </div>
+                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    <div className="flex items-center gap-2 text-xs mt-1 opacity-70">
+                      <span>{format(new Date(msg.created_at), 'HH:mm', { locale: ptBR })}</span>
+                    </div>
+                  </div>
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="bg-emerald-700 text-white">
+                      <Bot className="h-4 w-4" />
+                    </AvatarFallback>
+                  </Avatar>
                 </div>
               );
             }
