@@ -232,41 +232,56 @@ export function normalizeNuvemshopProduct(raw: NuvemshopProduct): NormalizedProd
   // Cast to Record for flexible column access
   const row = raw as unknown as Record<string, string>;
   
+  // DEBUG: Log all keys received to diagnose column mapping issues
+  const rowKeys = Object.keys(row);
+  console.log(`[normalizeNuvemshopProduct] Row keys (first 20): ${rowKeys.slice(0, 20).join(', ')}`);
+  
   // Use getColumnValue for encoding-safe column matching
-  const name = getText(raw.name) || getColumnValue(row, 'Nome') || 'Produto sem nome';
+  // Add more aliases to handle Nuvemshop export variations
+  const name = getText(raw.name) || getColumnValue(row, 'Nome', 'Nome do produto', 'Nome produto', 'Product Name', 'name') || 'Produto sem nome';
+  
+  // DEBUG: Log what we're finding
+  console.log(`[normalizeNuvemshopProduct] Name found: "${name}"`);
   
   // Convert HTML to plain text
-  const rawDescription = getText(raw.description) || getColumnValue(row, 'Descrição', 'Descricao') || null;
+  const rawDescription = getText(raw.description) || getColumnValue(row, 'Descrição', 'Descricao', 'Description', 'description') || null;
   const description = stripHtmlToText(rawDescription);
   
   // Handle/slug - aceita múltiplos nomes de coluna
-  const handle = getText(raw.handle) || getColumnValue(row, 'URL', 'Identificador URL') || slugify(name);
+  const handle = getText(raw.handle) || getColumnValue(row, 'URL', 'Identificador URL', 'Identificador', 'Handle', 'Slug', 'slug') || slugify(name);
   
   const variant = raw.variants?.[0];
   
   // Parse prices using smart parser that handles both formats
-  const priceStr = getColumnValue(row, 'Preço', 'Preco', 'Price') || '';
-  const compareAtPriceStr = getColumnValue(row, 'Preço promocional', 'Preco promocional') || '';
-  const costStr = getColumnValue(row, 'Custo', 'Cost') || '';
+  // CRITICAL: Add many more aliases for price columns - Nuvemshop uses various names
+  const priceStr = getColumnValue(row, 'Preço', 'Preco', 'Price', 'price', 'Valor', 'Preco original', 'Preço original') || '';
+  const compareAtPriceStr = getColumnValue(row, 'Preço promocional', 'Preco promocional', 'Preço original', 'Preco original', 'Compare at price', 'compare_at_price') || '';
+  const costStr = getColumnValue(row, 'Custo', 'Cost', 'cost', 'Custo do produto') || '';
+  
+  // DEBUG: Log price values found
+  console.log(`[normalizeNuvemshopProduct] Price string found: "${priceStr}" | Compare: "${compareAtPriceStr}" | Cost: "${costStr}"`);
   
   const price = parseBrazilianPrice(variant?.price) || parseBrazilianPrice(priceStr) || 0;
   const compareAtPrice = parseBrazilianPrice(variant?.compare_at_price) || parseBrazilianPrice(compareAtPriceStr) || null;
   const costPrice = parseBrazilianPrice(variant?.cost) || parseBrazilianPrice(costStr) || null;
   
-  // SKU - clean special chars
-  const rawSku = variant?.sku || getColumnValue(row, 'SKU') || null;
+  // DEBUG: Log parsed prices
+  console.log(`[normalizeNuvemshopProduct] Parsed prices: price=${price}, compare=${compareAtPrice}, cost=${costPrice}`);
+  
+  // SKU - clean special chars - add more aliases
+  const rawSku = variant?.sku || getColumnValue(row, 'SKU', 'sku', 'Código', 'Codigo', 'Código SKU', 'Codigo SKU', 'Variant SKU') || null;
   const sku = cleanSku(rawSku);
   
   // Barcode - only numbers
-  const rawBarcode = variant?.barcode || getColumnValue(row, 'Código de barras', 'Codigo de barras') || null;
+  const rawBarcode = variant?.barcode || getColumnValue(row, 'Código de barras', 'Codigo de barras', 'Barcode', 'barcode', 'EAN', 'GTIN') || null;
   const barcode = extractNumericOnly(rawBarcode);
   
   // Dimensions - aceita múltiplos nomes de coluna (com e sem acento)
-  const weightStr = getColumnValue(row, 'Peso (kg)', 'Peso kg') || '';
-  const widthStr = getColumnValue(row, 'Largura (cm)', 'Largura cm') || '';
-  const heightStr = getColumnValue(row, 'Altura (cm)', 'Altura cm') || '';
-  const depthStr = getColumnValue(row, 'Profundidade (cm)', 'Comprimento (cm)', 'Comprimento cm') || '';
-  const stockStr = getColumnValue(row, 'Estoque', 'Stock') || '0';
+  const weightStr = getColumnValue(row, 'Peso (kg)', 'Peso kg', 'Peso', 'Weight', 'weight') || '';
+  const widthStr = getColumnValue(row, 'Largura (cm)', 'Largura cm', 'Largura', 'Width', 'width') || '';
+  const heightStr = getColumnValue(row, 'Altura (cm)', 'Altura cm', 'Altura', 'Height', 'height') || '';
+  const depthStr = getColumnValue(row, 'Profundidade (cm)', 'Comprimento (cm)', 'Comprimento cm', 'Comprimento', 'Profundidade', 'Depth', 'depth', 'Length', 'length') || '';
+  const stockStr = getColumnValue(row, 'Estoque', 'Stock', 'stock', 'Quantidade', 'Inventory', 'inventory', 'Qtd', 'Quantidade em estoque') || '0';
   
   const weight = parseBrazilianPrice(variant?.weight) || parseBrazilianPrice(weightStr) || null;
   const width = parseBrazilianPrice(variant?.width) || parseBrazilianPrice(widthStr) || null;
@@ -275,9 +290,9 @@ export function normalizeNuvemshopProduct(raw: NuvemshopProduct): NormalizedProd
   const stockQuantity = parseInt(variant?.stock?.toString() || stockStr, 10) || 0;
   
   // Status - aceita múltiplos nomes de coluna
-  const activeValue = getColumnValue(row, 'Ativo', 'Exibir na loja') || '';
-  const isActive = raw.published ?? (activeValue.toLowerCase() === 'sim');
-  const isFeatured = (getColumnValue(row, 'Destaque') || '').toLowerCase() === 'sim';
+  const activeValue = getColumnValue(row, 'Ativo', 'Exibir na loja', 'Status', 'Published', 'published', 'Publicado', 'Visivel', 'Visível') || '';
+  const isActive = raw.published ?? (activeValue.toLowerCase() === 'sim' || activeValue.toLowerCase() === 'true' || activeValue.toLowerCase() === 'yes' || activeValue.toLowerCase() === 'ativo');
+  const isFeatured = (getColumnValue(row, 'Destaque', 'Featured', 'featured') || '').toLowerCase() === 'sim';
   
   // Marca
   const brand = getColumnValue(row, 'Marca', 'Brand') || raw.brand || null;

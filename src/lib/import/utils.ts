@@ -84,6 +84,7 @@ export function normalizeHeader(header: string): string {
 /**
  * Get value from row using flexible column matching
  * Matches columns even with broken encoding or slight naming variations
+ * CRITICAL: Handles Latin-1 encoding issues from Nuvemshop exports
  */
 export function getColumnValue(row: Record<string, string>, ...columnNames: string[]): string | undefined {
   // First try exact match
@@ -100,6 +101,19 @@ export function getColumnValue(row: Record<string, string>, ...columnNames: stri
     const normalizedKey = normalizeHeader(key);
     if (normalizedNames.includes(normalizedKey)) {
       return value;
+    }
+    
+    // CRITICAL: Also try partial match for broken encoding (e.g., "Preo" instead of "Preço")
+    // This handles cases where accents are completely stripped or corrupted
+    for (const name of normalizedNames) {
+      // Match if key contains the normalized name (minus small chars) or vice versa
+      const keyCore = normalizedKey.replace(/\s+/g, '').slice(0, 6);
+      const nameCore = name.replace(/\s+/g, '').slice(0, 6);
+      if (keyCore.length >= 4 && nameCore.length >= 4) {
+        if (keyCore.startsWith(nameCore.slice(0, 4)) || nameCore.startsWith(keyCore.slice(0, 4))) {
+          return value;
+        }
+      }
     }
   }
   
