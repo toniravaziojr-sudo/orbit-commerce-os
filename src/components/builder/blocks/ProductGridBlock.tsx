@@ -4,6 +4,7 @@
 // NÃO contém lógica de página de Categoria (que fica em CategoryPageLayout)
 // REGRAS.md linha 88: não duplicar lógica
 // USA ProductCard compartilhado para respeitar categorySettings do tema
+// Suporta themeSettings.miniCart para comportamento unificado do carrinho
 // =============================================
 
 import { useMemo, useState, useCallback } from 'react';
@@ -18,6 +19,7 @@ import { useProductBadgesForProducts } from '@/hooks/useProductBadges';
 import { useCart } from '@/contexts/CartContext';
 import { getPublicCheckoutUrl } from '@/lib/publicUrls';
 import { toast } from 'sonner';
+import { MiniCartDrawer } from '@/components/storefront/MiniCartDrawer';
 import type { CategorySettings } from '@/hooks/usePageSettings';
 
 interface ProductGridBlockProps {
@@ -61,6 +63,12 @@ export function ProductGridBlock({
   
   // Get categorySettings from context (passed from VisualBuilder)
   const categorySettings: Partial<CategorySettings> = (context as any)?.categorySettings || {};
+
+  // Theme settings for mini-cart (unified cartActionType from themeSettings.miniCart)
+  const themeSettings = (context as any)?.themeSettings || {};
+  const miniCartConfig = themeSettings.miniCart || {};
+  const cartActionType = miniCartConfig.cartActionType ?? 'miniCart';
+  const miniCartEnabled = cartActionType === 'miniCart';
   
   // Determine if mobile based on viewport context
   const isMobileViewport = viewport === 'mobile';
@@ -166,13 +174,14 @@ export function ProductGridBlock({
   // Cart functionality
   const { addItem: addToCart, items: cartItems } = useCart();
   const [addedProducts, setAddedProducts] = useState<Set<string>>(new Set());
+  const [miniCartOpen, setMiniCartOpen] = useState(false);
 
   // Check if product is in cart
   const isProductInCart = useCallback((productId: string) => {
     return cartItems.some(item => item.product_id === productId) || addedProducts.has(productId);
   }, [cartItems, addedProducts]);
 
-  // Handle add to cart
+  // Handle add to cart - respects themeSettings.miniCart.cartActionType
   const handleAddToCart = useCallback((e: React.MouseEvent, product: ProductCardProduct) => {
     e.preventDefault();
     e.stopPropagation();
@@ -192,7 +201,21 @@ export function ProductGridBlock({
     
     setAddedProducts(prev => new Set(prev).add(product.id));
     toast.success('Produto adicionado ao carrinho!');
-  }, [addToCart, isEditing]);
+    
+    // If cartActionType is 'miniCart', open the drawer
+    if (cartActionType === 'miniCart') {
+      setMiniCartOpen(true);
+    }
+    
+    // Remove feedback after 2 seconds
+    setTimeout(() => {
+      setAddedProducts(prev => {
+        const next = new Set(prev);
+        next.delete(product.id);
+        return next;
+      });
+    }, 2000);
+  }, [addToCart, isEditing, cartActionType]);
 
   // Handle quick buy
   const handleQuickBuy = useCallback((e: React.MouseEvent, product: ProductCardProduct) => {
@@ -335,6 +358,16 @@ export function ProductGridBlock({
           );
         })}
       </div>
+      
+      {/* Mini Cart Drawer - only render if miniCartEnabled */}
+      {miniCartEnabled && (
+        <MiniCartDrawer
+          open={miniCartOpen}
+          onOpenChange={setMiniCartOpen}
+          tenantSlug={tenantSlug}
+          isPreview={context?.isPreview}
+        />
+      )}
     </div>
   );
 }

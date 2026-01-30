@@ -1,6 +1,7 @@
 // =============================================
 // PRODUCT CAROUSEL BLOCK - Real products with embla-carousel
 // USA ProductCard compartilhado para respeitar categorySettings do tema
+// Suporta themeSettings.miniCart para comportamento unificado do carrinho
 // =============================================
 
 import { useMemo, useState, useCallback } from 'react';
@@ -15,6 +16,7 @@ import type { CategorySettings } from '@/hooks/usePageSettings';
 import { useCart } from '@/contexts/CartContext';
 import { getPublicCheckoutUrl } from '@/lib/publicUrls';
 import { toast } from 'sonner';
+import { MiniCartDrawer } from '@/components/storefront/MiniCartDrawer';
 import {
   Carousel,
   CarouselContent,
@@ -51,6 +53,12 @@ export function ProductCarouselBlock({
   // Get categorySettings from context (passed from VisualBuilder)
   const categorySettings: Partial<CategorySettings> = (context as any)?.categorySettings || {};
 
+  // Theme settings for mini-cart (unified cartActionType from themeSettings.miniCart)
+  const themeSettings = (context as any)?.themeSettings || {};
+  const miniCartConfig = themeSettings.miniCart || {};
+  const cartActionType = miniCartConfig.cartActionType ?? 'miniCart';
+  const miniCartEnabled = cartActionType === 'miniCart';
+
   // Resolve category ID from context if needed
   const effectiveCategoryId =
     source === 'category'
@@ -72,13 +80,14 @@ export function ProductCarouselBlock({
   // Cart functionality
   const { addItem: addToCart, items: cartItems } = useCart();
   const [addedProducts, setAddedProducts] = useState<Set<string>>(new Set());
+  const [miniCartOpen, setMiniCartOpen] = useState(false);
 
   // Check if product is in cart
   const isProductInCart = useCallback((productId: string) => {
     return cartItems.some(item => item.product_id === productId) || addedProducts.has(productId);
   }, [cartItems, addedProducts]);
 
-  // Handle add to cart
+  // Handle add to cart - respects themeSettings.miniCart.cartActionType
   const handleAddToCart = useCallback((e: React.MouseEvent, product: ProductCardProduct) => {
     e.preventDefault();
     e.stopPropagation();
@@ -98,7 +107,21 @@ export function ProductCarouselBlock({
     
     setAddedProducts(prev => new Set(prev).add(product.id));
     toast.success('Produto adicionado ao carrinho!');
-  }, [addToCart, isEditing]);
+    
+    // If cartActionType is 'miniCart', open the drawer
+    if (cartActionType === 'miniCart') {
+      setMiniCartOpen(true);
+    }
+    
+    // Remove feedback after 2 seconds
+    setTimeout(() => {
+      setAddedProducts(prev => {
+        const next = new Set(prev);
+        next.delete(product.id);
+        return next;
+      });
+    }, 2000);
+  }, [addToCart, isEditing, cartActionType]);
 
   // Handle quick buy (redirect to checkout)
   const handleQuickBuy = useCallback((e: React.MouseEvent, product: ProductCardProduct) => {
@@ -247,6 +270,16 @@ export function ProductCarouselBlock({
         <CarouselPrevious className="hidden sm:flex -left-4" />
         <CarouselNext className="hidden sm:flex -right-4" />
       </Carousel>
+      
+      {/* Mini Cart Drawer - only render if miniCartEnabled */}
+      {miniCartEnabled && (
+        <MiniCartDrawer
+          open={miniCartOpen}
+          onOpenChange={setMiniCartOpen}
+          tenantSlug={tenantSlug}
+          isPreview={context?.isPreview}
+        />
+      )}
     </div>
   );
 }
