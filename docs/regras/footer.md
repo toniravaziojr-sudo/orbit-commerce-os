@@ -21,6 +21,7 @@
 | `footer1Title` | string | "Institucional" | Título do menu 1 |
 | `footer2Title` | string | "Políticas" | Título do menu 2 |
 | `copyrightText` | string | "" | Texto customizado de copyright |
+| `menuVisualStyle` | `'classic'` \| `'elegant'` \| `'minimal'` | `'classic'` | Estilo visual dos links do menu |
 
 ---
 
@@ -155,6 +156,24 @@ O componente `PaymentIconsQuickSelect` permite adicionar ícones de pagamento pr
 - Botão "Adicionar Todas" adiciona todas de uma vez
 - Botão "Adicionar (N)" adiciona apenas selecionadas
 - Ícones são SVGs inline (data URI), não dependem de CDN
+
+---
+
+## Estilos Visuais de Menus (Footer)
+
+> Configurável em: **Configurações do tema** → **Rodapé** → **Visual Menus**
+
+| Estilo | Descrição | Efeito Hover |
+|--------|-----------|--------------|
+| **Classic** | Tradicional com underline | Sublinhado animado da esquerda para direita |
+| **Elegant** | Suave com transição de cor | Cor primária com transição suave (300ms) |
+| **Minimal** | Limpo e discreto | Apenas mudança de opacidade (0.7 → 1) |
+
+### Prop de Visual Menus (Footer)
+
+| Prop | Tipo | Default | Descrição |
+|------|------|---------|-----------|
+| `menuVisualStyle` | `'classic'` \| `'elegant'` \| `'minimal'` | `'classic'` | Estilo visual dos links de menu |
 
 ---
 
@@ -303,6 +322,8 @@ const hiddenCount = configuredItems.length - validItems.length;
 
 | Data | Alteração |
 |------|-----------|
+| 2025-01-30 | Adicionado `menuVisualStyle` com 3 estilos: Classic, Elegant, Minimal |
+| 2025-01-30 | Nova seção "Visual Menus" em FooterSettings.tsx |
 | 2025-01-25 | Aviso de páginas não publicadas adicionado na página de Menus (admin) |
 | 2025-01-25 | Aviso de itens ocultos exibido no Builder quando há páginas não publicadas |
 | 2025-01-25 | Removido `.limit(5)` da query de categorias para corrigir validação de links |
