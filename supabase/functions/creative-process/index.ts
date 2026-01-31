@@ -15,7 +15,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 
-const VERSION = '2.0.2'; // Fix Fal.ai status polling - use GET method
+const VERSION = '2.0.3'; // Fix Fal.ai polling - use base model_id without subpath
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -514,9 +514,18 @@ async function callFalModel(
     throw new Error(`Unknown model: ${modelId}`);
   }
 
-  console.log(`[creative-process] Calling Fal model ${modelId}:`, JSON.stringify(payload).substring(0, 500));
+  // Extract base model_id for polling (remove subpath per Fal.ai docs)
+  // e.g., "fal-ai/kling-video/v2.6/pro/image-to-video" -> "fal-ai/kling-video"
+  // The subpath is used for submit, but NOT for status/result polling
+  const endpointParts = endpoint.split('/');
+  const baseModelId = endpointParts.slice(0, 2).join('/'); // "fal-ai/model-name"
+  
+  console.log(`[creative-process] Calling Fal model ${modelId}:`);
+  console.log(`[creative-process] Submit endpoint: ${endpoint}`);
+  console.log(`[creative-process] Polling base: ${baseModelId}`);
+  console.log(`[creative-process] Payload preview: ${JSON.stringify(payload).substring(0, 300)}`);
 
-  // Submeter para fal.ai (usando queue para async)
+  // Submeter para fal.ai (usando queue para async com endpoint COMPLETO)
   const submitResponse = await fetch(`https://queue.fal.run/${endpoint}`, {
     method: 'POST',
     headers: {
@@ -546,6 +555,8 @@ async function callFalModel(
   if (!requestId) {
     throw new Error('No request_id from fal.ai');
   }
+  
+  console.log(`[creative-process] Got request_id: ${requestId}, will poll using base: ${baseModelId}`);
 
   // Poll for result (com timeout de 5 minutos)
   const maxAttempts = 60;
@@ -554,13 +565,15 @@ async function callFalModel(
   while (attempts < maxAttempts) {
     await new Promise(r => setTimeout(r, 5000));
 
-    const statusResponse = await fetch(
-      `https://queue.fal.run/${endpoint}/requests/${requestId}/status`,
-      { 
-        method: 'GET',
-        headers: { 'Authorization': `Key ${falApiKey}` } 
-      }
-    );
+    // Use BASE model_id for polling (NOT the full endpoint with subpath)
+    // Per Fal.ai docs: subpath is used for submit, NOT for status/result
+    const statusUrl = `https://queue.fal.run/${baseModelId}/requests/${requestId}/status`;
+    console.log(`[creative-process] Polling status: ${statusUrl} (attempt ${attempts + 1}/${maxAttempts})`);
+    
+    const statusResponse = await fetch(statusUrl, { 
+      method: 'GET',
+      headers: { 'Authorization': `Key ${falApiKey}` } 
+    });
 
     // Parse status safely
     const statusText = await statusResponse.text();
@@ -573,15 +586,18 @@ async function callFalModel(
       attempts++;
       continue;
     }
+    
+    console.log(`[creative-process] Status response: ${statusData.status}`);
 
     if (statusData.status === 'COMPLETED') {
-      const resultResponse = await fetch(
-        `https://queue.fal.run/${endpoint}/requests/${requestId}`,
-        { 
-          method: 'GET',
-          headers: { 'Authorization': `Key ${falApiKey}` } 
-        }
-      );
+      // Use BASE model_id for result too
+      const resultUrl = `https://queue.fal.run/${baseModelId}/requests/${requestId}`;
+      console.log(`[creative-process] Fetching result from: ${resultUrl}`);
+      
+      const resultResponse = await fetch(resultUrl, { 
+        method: 'GET',
+        headers: { 'Authorization': `Key ${falApiKey}` } 
+      });
       
       // Parse result safely
       const resultText = await resultResponse.text();
@@ -593,6 +609,7 @@ async function callFalModel(
         throw new Error(`Invalid JSON from Fal result: ${resultText.substring(0, 100)}`);
       }
       
+      console.log(`[creative-process] Got result, extracting output URL...`);
       return extractOutputUrl(result, modelId);
     } else if (statusData.status === 'FAILED') {
       throw new Error(`Fal job failed: ${statusData.error || 'Unknown error'}`);
@@ -601,7 +618,7 @@ async function callFalModel(
     attempts++;
   }
 
-  throw new Error('Fal job timeout');
+  throw new Error('Fal job timeout after 5 minutes');
 }
 
 async function generateWithGPTImage(
