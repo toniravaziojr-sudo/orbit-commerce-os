@@ -521,7 +521,7 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
                   <Label className="text-[10px] font-medium">Miniatura (Desktop)</Label>
                 </div>
                 <p className="text-[9px] text-muted-foreground leading-tight">
-                  Exibida ao passar o mouse. 200x150px recomendado.
+                  Exibida ao passar o mouse. 240x96px recomendado.
                 </p>
                 {localProps.featuredPromosThumbnail ? (
                   <div className="relative group w-full mt-2">
