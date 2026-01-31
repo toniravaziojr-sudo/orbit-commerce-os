@@ -276,11 +276,23 @@ async function processProductImage(
       throw new Error(`Lovable AI error: ${response.status} - ${errorText}`);
     }
 
-    const data = await response.json();
+    // Ler resposta como texto primeiro para evitar erros de parsing
+    const responseText = await response.text();
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('[processProductImage] JSON parse error. Response preview:', responseText.substring(0, 200));
+      throw new Error(`Invalid JSON response from image API`);
+    }
+    
     const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
     
     if (imageUrl) {
       urls.push(imageUrl);
+    } else {
+      console.error('[processProductImage] No image URL in response:', JSON.stringify(data).substring(0, 500));
+      throw new Error('No image URL in API response');
     }
   }
 
@@ -563,69 +575,105 @@ async function generateWithGPTImage(
   lovableApiKey: string,
   options: { inputFidelity?: string } = {}
 ): Promise<string | null> {
-  const messages = [
-    {
-      role: "user",
-      content: [
-        { type: "text", text: prompt },
-        { type: "image_url", image_url: { url: referenceImageUrl } }
-      ]
+  try {
+    const messages = [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: prompt },
+          { type: "image_url", image_url: { url: referenceImageUrl } }
+        ]
+      }
+    ];
+
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${lovableApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-image",
+        messages,
+        modalities: ["image", "text"],
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[generateWithGPTImage] HTTP error:', response.status, errorText);
+      throw new Error(`Image generation failed: ${response.status}`);
     }
-  ];
 
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${lovableApiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash-image",
-      messages,
-      modalities: ["image", "text"],
-    }),
-  });
+    // Ler resposta como texto primeiro para evitar erros de parsing
+    const responseText = await response.text();
+    
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('[generateWithGPTImage] JSON parse error. Response preview:', responseText.substring(0, 200));
+      throw new Error(`Invalid JSON response from image API`);
+    }
 
-  if (!response.ok) {
-    console.error('GPT Image error:', await response.text());
-    return null;
+    const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    
+    if (!imageUrl) {
+      console.error('[generateWithGPTImage] No image URL in response:', JSON.stringify(data).substring(0, 500));
+      throw new Error('No image URL in response');
+    }
+    
+    return imageUrl;
+  } catch (error) {
+    console.error('[generateWithGPTImage] Error:', error);
+    throw error; // Re-throw para que o job falhe com mensagem clara
   }
-
-  const data = await response.json();
-  return data.choices?.[0]?.message?.images?.[0]?.image_url?.url || null;
 }
 
 async function generateBackgroundImage(
   prompt: string,
   lovableApiKey: string
 ): Promise<string | null> {
-  const messages = [
-    {
-      role: "user",
-      content: prompt
+  try {
+    const messages = [
+      {
+        role: "user",
+        content: prompt
+      }
+    ];
+
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${lovableApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-image",
+        messages,
+        modalities: ["image", "text"],
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('[generateBackgroundImage] HTTP error:', response.status);
+      return null;
     }
-  ];
 
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${lovableApiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash-image",
-      messages,
-      modalities: ["image", "text"],
-    }),
-  });
+    const responseText = await response.text();
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('[generateBackgroundImage] JSON parse error. Response preview:', responseText.substring(0, 200));
+      return null;
+    }
 
-  if (!response.ok) {
-    console.error('GPT Image (bg) error:', await response.text());
+    return data.choices?.[0]?.message?.images?.[0]?.image_url?.url || null;
+  } catch (error) {
+    console.error('[generateBackgroundImage] Error:', error);
     return null;
   }
-
-  const data = await response.json();
-  return data.choices?.[0]?.message?.images?.[0]?.image_url?.url || null;
 }
 
 function buildImagePrompt(
