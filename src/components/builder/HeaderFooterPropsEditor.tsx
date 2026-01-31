@@ -1402,7 +1402,9 @@ export function HeaderFooterPropsEditor({
                         <SelectContent>
                           <SelectItem value="none">Nenhuma</SelectItem>
                           <SelectItem value="fade">Fade</SelectItem>
-                          <SelectItem value="slide">Slide</SelectItem>
+                          <SelectItem value="slide-vertical">Slide Vertical</SelectItem>
+                          <SelectItem value="slide-horizontal">Slide Horizontal</SelectItem>
+                          <SelectItem value="marquee">Marquee (rolagem)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

@@ -63,9 +63,10 @@ export interface ThemeHeaderConfig {
   stickyOnMobile?: boolean;
   noticeEnabled?: boolean;
   noticeText?: string;
+  noticeTexts?: string[]; // Multiple phrases for slide/fade rotation
   noticeBgColor?: string;
   noticeTextColor?: string;
-  noticeAnimation?: 'none' | 'fade' | 'slide' | 'marquee'; // Animation effect for notice bar
+  noticeAnimation?: 'none' | 'fade' | 'slide-vertical' | 'slide-horizontal' | 'marquee'; // Animation effect for notice bar
   noticeLinkEnabled?: boolean;
   noticeLinkLabel?: string;
   noticeLinkUrl?: string;
