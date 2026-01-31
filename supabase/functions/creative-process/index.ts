@@ -15,7 +15,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 
-const VERSION = '2.4.0'; // Add: Keyframe generation for UGC AI Video
+const VERSION = '2.5.0'; // Add: Skip LipSync for product videos (no face)
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -167,15 +167,21 @@ async function pollJobInBackground(
   console.log(`[creative-process] Background polling started for job ${jobId}, request ${requestId}`);
   
   try {
-    // Buscar job para verificar se tem áudio TTS gerado
+    // Buscar job para verificar se tem áudio TTS gerado e o tipo de vídeo
     const { data: jobData } = await supabase
       .from('creative_jobs')
-      .select('settings, reference_audio_url')
+      .select('settings, reference_audio_url, type')
       .eq('id', jobId)
       .single();
     
     const generatedAudioUrl = jobData?.settings?.generated_audio_url || jobData?.reference_audio_url;
     const audioMode = jobData?.settings?.audio_mode;
+    const jobType = jobData?.type;
+    
+    // Detectar se é vídeo de produto (sem rosto) vs talking head
+    // product_video = vídeos de produto SEM pessoa (rotação, efeitos)
+    // ugc_ai_video / ugc_client_video / avatar_mascot = COM pessoa/rosto
+    const isProductVideoWithoutFace = jobType === 'product_video';
     
     while (attempts < maxAttempts) {
       await new Promise(r => setTimeout(r, 5000));
@@ -239,40 +245,53 @@ async function pollJobInBackground(
         
         if (audioMode === 'tts_ptbr' && generatedAudioUrl) {
           console.log(`[creative-process] TTS PT-BR mode: attempting audio mux...`);
+          console.log(`[creative-process] Job type: ${jobType}, isProductVideoWithoutFace: ${isProductVideoWithoutFace}`);
           
-          // NOTA TÉCNICA: Deno Edge Functions não têm ffmpeg nativo.
-          // Opções para mux de áudio+vídeo:
-          // 1. Usar serviço externo (Creatomate, Shotstack, etc.)
-          // 2. Entregar ambos URLs e deixar o frontend/usuário combinar
-          // 3. Usar um worker com ffmpeg (AWS Lambda, Cloud Run, etc.)
+          // ======== DECISÃO DE MUX BASEADA NO TIPO DE VÍDEO ========
+          // 
+          // Para vídeos COM ROSTO (ugc_ai_video, ugc_client_video, avatar_mascot):
+          //   -> Usar sync-lipsync para sincronizar lábios + muxar áudio
+          //
+          // Para vídeos SEM ROSTO (product_video):
+          //   -> NÃO usar sync-lipsync (vai falhar ou distorcer)
+          //   -> Entregar URLs separados (vídeo + áudio)
+          //   -> O frontend pode usar um player que combina os dois
+          //   -> Para mux real seria necessário ffmpeg externo (Cloud Run, Lambda, etc.)
           
-          // Por agora: tentar usar sync-lipsync como "mux" alternativo
-          // sync-lipsync pode combinar áudio com vídeo (mesmo sem lipsync de rosto)
-          try {
-            const muxPayload = {
-              video_url: videoUrl,
-              audio_url: generatedAudioUrl,
-              sync_mode: 'cut_off', // Corta o que sobrar (áudio ou vídeo)
-            };
-            
-            console.log('[creative-process] Calling sync-lipsync for audio mux:', JSON.stringify(muxPayload));
-            
-            const muxUrl = await callFalModelWithPolling(
-              'fal-ai/sync-lipsync/v2/pro',
-              muxPayload,
-              falApiKey
-            );
-            
-            if (muxUrl) {
-              finalOutputUrl = muxUrl;
-              outputUrls = [muxUrl, videoUrl]; // Muxado + original
-              additionalCost = 40; // sync-lipsync cost
-              console.log(`[creative-process] Audio mux successful: ${muxUrl}`);
-            }
-          } catch (muxError) {
-            // Mux falhou - salvar ambos URLs separados
-            console.warn('[creative-process] Audio mux failed, saving separate URLs:', muxError);
+          if (isProductVideoWithoutFace) {
+            // Vídeo de produto SEM pessoa: entregar separado (sem tentar LipSync)
+            console.log('[creative-process] Product video detected: skipping LipSync, delivering separate URLs');
             outputUrls = [videoUrl, generatedAudioUrl];
+            // Custo menor (não usa sync-lipsync)
+            additionalCost = 0;
+          } else {
+            // Vídeo COM pessoa: tentar sync-lipsync para sincronizar lábios
+            try {
+              const muxPayload = {
+                video_url: videoUrl,
+                audio_url: generatedAudioUrl,
+                sync_mode: 'cut_off', // Corta o que sobrar (áudio ou vídeo)
+              };
+              
+              console.log('[creative-process] Calling sync-lipsync for audio+lipsync:', JSON.stringify(muxPayload));
+              
+              const muxUrl = await callFalModelWithPolling(
+                'fal-ai/sync-lipsync/v2/pro',
+                muxPayload,
+                falApiKey
+              );
+              
+              if (muxUrl) {
+                finalOutputUrl = muxUrl;
+                outputUrls = [muxUrl, videoUrl]; // Muxado + original
+                additionalCost = 40; // sync-lipsync cost
+                console.log(`[creative-process] LipSync mux successful: ${muxUrl}`);
+              }
+            } catch (muxError) {
+              // Mux falhou - salvar ambos URLs separados
+              console.warn('[creative-process] LipSync mux failed, saving separate URLs:', muxError);
+              outputUrls = [videoUrl, generatedAudioUrl];
+            }
           }
         }
         

@@ -6,3 +6,5 @@ export { ProductImageTab } from './ProductImageTab';
 export { AvatarMascotTab } from './AvatarMascotTab';
 export { CreativeJobsList } from './CreativeJobsList';
 export { CreativeGallery } from './CreativeGallery';
+export { VoiceSelector } from './VoiceSelector';
+export { VoicePresetManager } from './VoicePresetManager';
