@@ -15,7 +15,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 
-const VERSION = '2.2.2'; // Add: generate_audio toggle from settings
+const VERSION = '2.3.0'; // Add: F5-TTS PT-BR audio pipeline
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -167,6 +167,16 @@ async function pollJobInBackground(
   console.log(`[creative-process] Background polling started for job ${jobId}, request ${requestId}`);
   
   try {
+    // Buscar job para verificar se tem áudio TTS gerado
+    const { data: jobData } = await supabase
+      .from('creative_jobs')
+      .select('settings, reference_audio_url')
+      .eq('id', jobId)
+      .single();
+    
+    const generatedAudioUrl = jobData?.settings?.generated_audio_url || jobData?.reference_audio_url;
+    const audioMode = jobData?.settings?.audio_mode;
+    
     while (attempts < maxAttempts) {
       await new Promise(r => setTimeout(r, 5000));
       attempts++;
@@ -215,11 +225,55 @@ async function pollJobInBackground(
           throw new Error(`Invalid JSON from result: ${resultText.substring(0, 100)}`);
         }
         
-        // Extract output URL
-        const outputUrl = result.video?.url || result.output?.url || result.url || null;
+        // Extract video output URL
+        let videoUrl = result.video?.url || result.output?.url || result.url || null;
         
-        if (!outputUrl) {
+        if (!videoUrl) {
           throw new Error('No output URL in result');
+        }
+        
+        // ======== PASSO 2: Mux de áudio (se audio_mode === 'tts_ptbr') ========
+        let finalOutputUrl = videoUrl;
+        let outputUrls = [videoUrl];
+        let additionalCost = 0;
+        
+        if (audioMode === 'tts_ptbr' && generatedAudioUrl) {
+          console.log(`[creative-process] TTS PT-BR mode: attempting audio mux...`);
+          
+          // NOTA TÉCNICA: Deno Edge Functions não têm ffmpeg nativo.
+          // Opções para mux de áudio+vídeo:
+          // 1. Usar serviço externo (Creatomate, Shotstack, etc.)
+          // 2. Entregar ambos URLs e deixar o frontend/usuário combinar
+          // 3. Usar um worker com ffmpeg (AWS Lambda, Cloud Run, etc.)
+          
+          // Por agora: tentar usar sync-lipsync como "mux" alternativo
+          // sync-lipsync pode combinar áudio com vídeo (mesmo sem lipsync de rosto)
+          try {
+            const muxPayload = {
+              video_url: videoUrl,
+              audio_url: generatedAudioUrl,
+              sync_mode: 'cut_off', // Corta o que sobrar (áudio ou vídeo)
+            };
+            
+            console.log('[creative-process] Calling sync-lipsync for audio mux:', JSON.stringify(muxPayload));
+            
+            const muxUrl = await callFalModelWithPolling(
+              'fal-ai/sync-lipsync/v2/pro',
+              muxPayload,
+              falApiKey
+            );
+            
+            if (muxUrl) {
+              finalOutputUrl = muxUrl;
+              outputUrls = [muxUrl, videoUrl]; // Muxado + original
+              additionalCost = 40; // sync-lipsync cost
+              console.log(`[creative-process] Audio mux successful: ${muxUrl}`);
+            }
+          } catch (muxError) {
+            // Mux falhou - salvar ambos URLs separados
+            console.warn('[creative-process] Audio mux failed, saving separate URLs:', muxError);
+            outputUrls = [videoUrl, generatedAudioUrl];
+          }
         }
         
         // Buscar custo real via Usage API
@@ -235,12 +289,18 @@ async function pollJobInBackground(
           console.log(`[creative-process] Using estimated cost: ${finalCostCents} centavos BRL`);
         }
         
+        // Adicionar custo do TTS (~$0.02) + mux se aplicável
+        if (audioMode === 'tts_ptbr') {
+          finalCostCents += 10; // F5-TTS cost
+          finalCostCents += additionalCost;
+        }
+        
         // Mark as succeeded with real cost
         await supabase
           .from('creative_jobs')
           .update({
             status: 'succeeded',
-            output_urls: [outputUrl],
+            output_urls: outputUrls,
             cost_cents: finalCostCents,
             processing_time_ms: Date.now() - startTime,
             completed_at: new Date().toISOString(),
@@ -273,6 +333,89 @@ async function pollJobInBackground(
   }
 }
 
+/**
+ * Chama modelo Fal.ai com polling síncrono (para steps intermediários como mux)
+ */
+async function callFalModelWithPolling(
+  endpoint: string,
+  payload: Record<string, unknown>,
+  falApiKey: string,
+  maxAttempts = 60
+): Promise<string | null> {
+  // Extract base model_id for polling
+  const endpointParts = endpoint.split('/');
+  const baseModelId = endpointParts.slice(0, 2).join('/');
+  
+  console.log(`[creative-process] Submitting to Fal (sync poll): ${endpoint}`);
+  
+  const submitResponse = await fetch(`https://queue.fal.run/${endpoint}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Key ${falApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!submitResponse.ok) {
+    const errorText = await submitResponse.text();
+    throw new Error(`Fal submit error: ${submitResponse.status} - ${errorText}`);
+  }
+
+  const submitText = await submitResponse.text();
+  let submitData;
+  try {
+    submitData = JSON.parse(submitText);
+  } catch {
+    throw new Error(`Invalid JSON from Fal: ${submitText.substring(0, 100)}`);
+  }
+  
+  const requestId = submitData.request_id;
+  if (!requestId) throw new Error('No request_id from Fal.ai');
+  
+  // Poll for result
+  let attempts = 0;
+  while (attempts < maxAttempts) {
+    await new Promise(r => setTimeout(r, 5000));
+    attempts++;
+    
+    const statusUrl = `https://queue.fal.run/${baseModelId}/requests/${requestId}/status`;
+    const statusResponse = await fetch(statusUrl, { 
+      method: 'GET',
+      headers: { 'Authorization': `Key ${falApiKey}` } 
+    });
+    
+    const statusText = await statusResponse.text();
+    let statusData;
+    try {
+      statusData = JSON.parse(statusText);
+    } catch {
+      continue; // Retry on parse error
+    }
+    
+    if (statusData.status === 'COMPLETED') {
+      const resultUrl = `https://queue.fal.run/${baseModelId}/requests/${requestId}`;
+      const resultResponse = await fetch(resultUrl, { 
+        method: 'GET',
+        headers: { 'Authorization': `Key ${falApiKey}` } 
+      });
+      
+      const resultText = await resultResponse.text();
+      let result;
+      try {
+        result = JSON.parse(resultText);
+      } catch {
+        throw new Error(`Invalid JSON from result`);
+      }
+      
+      return result.video?.url || result.output?.url || result.url || null;
+    } else if (statusData.status === 'FAILED') {
+      throw new Error(`Fal job failed: ${statusData.error || 'Unknown error'}`);
+    }
+  }
+  
+  throw new Error('Fal job timeout');
+}
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -401,7 +544,7 @@ serve(async (req) => {
         
         if (needsAsyncPolling && falApiKey) {
           // ASYNC PATH: Submit and poll in background
-          const submitResult = await submitFalJob(job, falApiKey, lovableApiKey!);
+          const submitResult = await submitFalJob(job, falApiKey, lovableApiKey!, supabase);
           
           if (submitResult.requestId && submitResult.baseModelId) {
             // Save external IDs for polling
@@ -506,11 +649,81 @@ serve(async (req) => {
 async function submitFalJob(
   job: any,
   falApiKey: string,
-  lovableApiKey: string
-): Promise<{ requestId: string | null; baseModelId: string | null }> {
+  lovableApiKey: string,
+  supabase: any
+): Promise<{ requestId: string | null; baseModelId: string | null; audioUrl?: string }> {
   const settings = job.settings || {};
   
-  // Determine endpoint based on job type
+  // ======== PASSO 0: Gerar áudio TTS se audio_mode === 'tts_ptbr' ========
+  let generatedAudioUrl: string | undefined;
+  
+  if (settings.audio_mode === 'tts_ptbr' && settings.voice_script) {
+    console.log('[creative-process] Generating PT-BR audio via F5-TTS...');
+    
+    // Buscar preset de voz do banco
+    const { data: voicePreset } = await supabase
+      .from('voice_presets')
+      .select('ref_audio_url, ref_text')
+      .eq('id', settings.voice_preset_id)
+      .single();
+    
+    if (!voicePreset?.ref_audio_url) {
+      throw new Error('Preset de voz não tem áudio de referência configurado. Configure em Configurações → Vozes.');
+    }
+    
+    // Chamar F5-TTS
+    const ttsPayload = {
+      gen_text: settings.voice_script,
+      ref_audio_url: voicePreset.ref_audio_url,
+      ref_text: voicePreset.ref_text || '',
+      remove_silence: true,
+    };
+    
+    console.log('[creative-process] F5-TTS payload:', JSON.stringify(ttsPayload).substring(0, 300));
+    
+    const ttsEndpoint = 'fal-ai/f5-tts';
+    const ttsResponse = await fetch(`https://fal.run/${ttsEndpoint}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Key ${falApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(ttsPayload),
+    });
+    
+    if (!ttsResponse.ok) {
+      const errorText = await ttsResponse.text();
+      throw new Error(`F5-TTS error: ${ttsResponse.status} - ${errorText}`);
+    }
+    
+    const ttsText = await ttsResponse.text();
+    let ttsResult;
+    try {
+      ttsResult = JSON.parse(ttsText);
+    } catch {
+      throw new Error(`Invalid JSON from F5-TTS: ${ttsText.substring(0, 100)}`);
+    }
+    
+    // F5-TTS retorna audio_url.url
+    generatedAudioUrl = ttsResult.audio_url?.url || ttsResult.audio?.url;
+    
+    if (!generatedAudioUrl) {
+      throw new Error('F5-TTS não retornou URL de áudio');
+    }
+    
+    console.log(`[creative-process] F5-TTS audio generated: ${generatedAudioUrl}`);
+    
+    // Salvar URL do áudio no job para uso posterior (mux)
+    await supabase
+      .from('creative_jobs')
+      .update({ 
+        reference_audio_url: generatedAudioUrl,
+        settings: { ...settings, generated_audio_url: generatedAudioUrl }
+      })
+      .eq('id', job.id);
+  }
+  
+  // ======== PASSO 1: Submeter vídeo ao Kling I2V ========
   let endpoint: string;
   let payload: Record<string, unknown>;
   
@@ -527,8 +740,9 @@ async function submitFalJob(
       image_url: job.product_image_url,
       duration: settings.duration || '5',
       aspect_ratio: settings.aspect_ratio || '16:9',
-      // Audio toggle from user settings (default: false)
-      generate_audio: settings.generate_audio === true,
+      // Gerar áudio nativo APENAS se audio_mode === 'native'
+      // Se for tts_ptbr, o áudio virá do F5-TTS (não do modelo)
+      generate_audio: settings.audio_mode === 'native',
     };
   } else if (job.type === 'ugc_ai_video') {
     endpoint = FAL_ENDPOINTS['kling-i2v-pro'];
@@ -586,7 +800,7 @@ async function submitFalJob(
   
   console.log(`[creative-process] Got request_id: ${requestId}`);
   
-  return { requestId, baseModelId };
+  return { requestId, baseModelId, audioUrl: generatedAudioUrl };
 }
 
 // ================== PROCESSADORES POR TIPO ==================
