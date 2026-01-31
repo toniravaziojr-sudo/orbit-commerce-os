@@ -247,12 +247,12 @@ export function BlockQuickActions({
     );
   }
 
-  // Desktop/Tablet: Barra lateral direita
+  // Desktop/Tablet: Barra no canto superior direito do bloco (dentro do container)
   return (
     <div 
       className={cn(
-        "absolute -right-1 top-1/2 -translate-y-1/2 translate-x-full",
-        "flex flex-col gap-1 p-1 bg-background border rounded-lg shadow-lg z-20",
+        "absolute right-2 top-2 z-20",
+        "flex flex-row gap-0.5 p-1 bg-background/95 backdrop-blur-sm border rounded-lg shadow-lg",
         "opacity-100 transition-opacity"
       )}
       onClick={(e) => e.stopPropagation()}

@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, FolderTree, Package, Pencil, Trash2, ExternalLink } from 'lucide-react';
+import { Plus, FolderTree, Package, Pencil, Trash2, ExternalLink, Save } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CategoryForm } from '@/components/categories/CategoryForm';
 import { CategoryProductsManager } from '@/components/categories/CategoryProductsManager';
@@ -217,47 +217,73 @@ export default function Categories() {
         {/* Category Form / Products Manager */}
         <div className="lg:col-span-2">
           {showForm ? (
-            editingCategory ? (
-              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'details' | 'products')}>
-                <TabsList className="mb-4">
-                  <TabsTrigger value="details" className="flex items-center gap-2">
-                    <FolderTree className="h-4 w-4" />
-                    Detalhes
-                  </TabsTrigger>
-                  <TabsTrigger value="products" className="flex items-center gap-2">
-                    <Package className="h-4 w-4" />
-                    Produtos
-                  </TabsTrigger>
-                </TabsList>
-                <TabsContent value="details">
-                  <CategoryForm
-                    formData={formData}
-                    onChange={setFormData}
-                    onSubmit={handleSubmit}
-                    onClose={resetForm}
-                    isEditing={!!editingCategory}
-                    editingCategoryId={editingCategory?.id}
-                    isLoading={createCategory.isPending || updateCategory.isPending}
-                  />
-                </TabsContent>
-                <TabsContent value="products">
-                  <CategoryProductsManager
-                    categoryId={editingCategory.id}
-                    categoryName={editingCategory.name}
-                  />
-                </TabsContent>
-              </Tabs>
-            ) : (
-              <CategoryForm
-                formData={formData}
-                onChange={setFormData}
-                onSubmit={handleSubmit}
-                onClose={resetForm}
-                isEditing={false}
-                editingCategoryId={undefined}
-                isLoading={createCategory.isPending}
-              />
-            )
+            <div className="space-y-4">
+              {/* Global action buttons - always visible */}
+              <div className="flex items-center justify-between gap-4 p-4 bg-muted/50 border rounded-lg sticky top-0 z-10">
+                <div className="flex items-center gap-2">
+                  <FolderTree className="h-5 w-5 text-muted-foreground" />
+                  <span className="font-medium">
+                    {editingCategory ? editingCategory.name : 'Nova Categoria'}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={resetForm}>
+                    Cancelar
+                  </Button>
+                  <Button 
+                    onClick={handleSubmit} 
+                    disabled={!formData.name || createCategory.isPending || updateCategory.isPending}
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    {editingCategory ? 'Salvar' : 'Criar'}
+                  </Button>
+                </div>
+              </div>
+
+              {editingCategory ? (
+                <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'details' | 'products')}>
+                  <TabsList className="mb-4">
+                    <TabsTrigger value="details" className="flex items-center gap-2">
+                      <FolderTree className="h-4 w-4" />
+                      Detalhes
+                    </TabsTrigger>
+                    <TabsTrigger value="products" className="flex items-center gap-2">
+                      <Package className="h-4 w-4" />
+                      Produtos
+                    </TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="details">
+                    <CategoryForm
+                      formData={formData}
+                      onChange={setFormData}
+                      onSubmit={handleSubmit}
+                      onClose={resetForm}
+                      isEditing={!!editingCategory}
+                      editingCategoryId={editingCategory?.id}
+                      isLoading={createCategory.isPending || updateCategory.isPending}
+                      hideActions
+                    />
+                  </TabsContent>
+                  <TabsContent value="products">
+                    <CategoryProductsManager
+                      categoryId={editingCategory.id}
+                      categoryName={editingCategory.name}
+                    />
+                  </TabsContent>
+                </Tabs>
+              ) : (
+                <CategoryForm
+                  formData={formData}
+                  onChange={setFormData}
+                  onSubmit={handleSubmit}
+                  onClose={resetForm}
+                  isEditing={false}
+                  editingCategoryId={undefined}
+                  isLoading={createCategory.isPending}
+                  hideActions
+                />
+              )}
+            </div>
           ) : (
             <div className="flex items-center justify-center h-64 border-2 border-dashed rounded-lg">
               <div className="text-center">
