@@ -148,13 +148,84 @@ O YouTube utiliza o sistema de **Pacotes IA** (créditos) para gerenciar a quota
 
 ---
 
+## Sistema de Upload Universal
+
+O sistema permite aos usuários escolher entre 3 fontes para uploads:
+
+| Fonte | Descrição |
+|-------|-----------|
+| **Upload (PC)** | Upload direto do computador usando `useSystemUpload` |
+| **Meu Drive** | Seleção de arquivos já existentes no drive do tenant |
+| **URL** | Colar URL de imagem externa (opcional) |
+
+### Componentes Universais
+
+| Componente | Uso |
+|------------|-----|
+| `src/components/ui/UniversalImageUploader.tsx` | Uploader unificado com abas (Upload, Meu Drive, URL) |
+| `src/components/ui/DriveFilePicker.tsx` | Modal de navegação completa do Meu Drive |
+| `src/hooks/useDriveFiles.ts` | Hook para listar/navegar arquivos do drive |
+
+### Props do UniversalImageUploader
+
+```typescript
+interface UniversalImageUploaderProps {
+  value: string;              // URL atual da imagem
+  onChange: (url: string) => void;  // Callback ao selecionar
+  source: string;             // Identificador do módulo (ex: 'product_image')
+  subPath?: string;           // Subpasta no storage (ex: 'products')
+  placeholder?: string;       // Texto do placeholder
+  aspectRatio?: 'square' | 'video' | 'banner';  // Proporção do preview
+  showUrlTab?: boolean;       // Mostrar aba URL (default: true)
+  accept?: 'image' | 'video' | 'document' | 'all';  // Tipo de arquivo
+  maxSize?: number;           // Tamanho máximo em MB (default: 5)
+  disabled?: boolean;         // Desabilitar uploader
+}
+```
+
+### Exemplo de Uso
+
+```tsx
+import { UniversalImageUploader } from '@/components/ui/UniversalImageUploader';
+
+<UniversalImageUploader
+  value={imageUrl}
+  onChange={setImageUrl}
+  source="product_main_image"
+  subPath="products"
+  aspectRatio="square"
+  placeholder="Selecione a imagem do produto"
+/>
+```
+
+### DriveFilePicker (Modal Standalone)
+
+Para casos onde precisa apenas do seletor do Drive:
+
+```tsx
+import { DriveFilePicker } from '@/components/ui/DriveFilePicker';
+
+<DriveFilePicker
+  open={showPicker}
+  onOpenChange={setShowPicker}
+  onSelect={(url) => handleSelect(url)}
+  accept="image"
+  title="Selecionar Imagem"
+/>
+```
+
+---
+
 ## Arquivos Relacionados
 
 | Se for editar... | Leia este doc primeiro |
 |------------------|------------------------|
 | `src/hooks/useSystemUpload.ts` | Este documento |
+| `src/hooks/useDriveFiles.ts` | Este documento |
 | `src/lib/uploadAndRegisterToSystemDrive.ts` | Este documento |
 | `src/lib/registerFileToDrive.ts` | Este documento |
+| `src/components/ui/UniversalImageUploader.tsx` | Este documento |
+| `src/components/ui/DriveFilePicker.tsx` | Este documento |
 | Qualquer componente com upload de imagem | Este documento |
 | `src/hooks/useYouTubeConnection.ts` | Este documento |
 | `src/pages/Media.tsx` | Este documento |
