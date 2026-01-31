@@ -1281,7 +1281,7 @@ export function StorefrontFooterContent({
 
         {/* Image Sections: Payment, Security, Shipping, Official Stores */}
         {hasImageSections && (
-          <div className="border-t mt-6 md:mt-8 pt-6 md:pt-8 space-y-6 px-6 md:px-0 md:container md:mx-auto">
+          <div className="border-t mt-6 md:mt-8 pt-6 md:pt-8 px-6 md:px-0 md:container md:mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
             {/* Payment Methods - respects showPaymentMethods toggle */}
             {showPaymentMethods && paymentMethods.items.length > 0 && (
               <div className="text-center">

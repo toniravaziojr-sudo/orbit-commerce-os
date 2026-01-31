@@ -12,7 +12,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Palette, ChevronDown, Settings, Type, Loader2, CreditCard, Store, Plus, Trash2, Mail, Navigation, ShieldCheck } from 'lucide-react';
+import { Palette, ChevronDown, Settings, Type, Loader2, CreditCard, Store, Plus, Trash2, Mail, Navigation, ShieldCheck, Truck } from 'lucide-react';
 import { useThemeFooter, DEFAULT_THEME_FOOTER, ThemeFooterConfig, FooterImageItem, FooterImageSectionData, MenuVisualStyle } from '@/hooks/useThemeSettings';
 import { ImageUploader } from '../ImageUploader';
 import type { SvgPresetCategory } from '@/lib/builder/svg-presets';
@@ -505,7 +505,19 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
 
       <Separator />
 
-      {/* === LOJAS OFICIAIS === */}
+      {/* === FORMAS DE ENVIO === */}
+      <FooterImageSection
+        title="Formas de Envio"
+        icon={<Truck className="h-3.5 w-3.5 text-primary" />}
+        sectionKey="shippingMethods"
+        localProps={localProps}
+        updateSection={updateImageSection}
+        openSections={openSections}
+        toggleSection={toggleSection}
+        svgPresetCategory="shipping"
+      />
+
+      <Separator />
       <FooterImageSection
         title="Lojas Oficiais"
         icon={<Store className="h-3.5 w-3.5 text-primary" />}
