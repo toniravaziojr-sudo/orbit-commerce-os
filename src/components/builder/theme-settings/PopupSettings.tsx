@@ -14,11 +14,10 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Loader2, ChevronRight, Mail, Eye, Palette, Settings2, Image as ImageIcon, Bell, Play, Trash2 } from 'lucide-react';
+import { Loader2, ChevronRight, Mail, Eye, Palette, Settings2, Image as ImageIcon, Bell, Trash2 } from 'lucide-react';
 import { ImageUploaderWithLibrary } from '@/components/builder/ImageUploaderWithLibrary';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { PopupPreview } from './PopupPreview';
 
 interface PopupSettingsProps {
   tenantId: string;
@@ -111,7 +110,6 @@ export function PopupSettings({ tenantId, templateSetId }: PopupSettingsProps) {
     trigger: false,
     fields: false,
   });
-  const [showPreview, setShowPreview] = useState(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const initialLoadDone = useRef(false);
 
@@ -148,14 +146,16 @@ export function PopupSettings({ tenantId, templateSetId }: PopupSettingsProps) {
 
   // Initialize local state
   useEffect(() => {
-    if (popupConfig && !initialLoadDone.current) {
+    // Sempre sincronizar com o valor do banco quando disponível
+    if (popupConfig) {
       setLocalConfig(popupConfig);
       initialLoadDone.current = true;
-    } else if (!popupConfig && !initialLoadDone.current) {
+    } else if (!isLoading && !initialLoadDone.current) {
+      // Só aplicar defaults se não estiver carregando e não há config
       setLocalConfig(defaultConfig);
       initialLoadDone.current = true;
     }
-  }, [popupConfig]);
+  }, [popupConfig, isLoading]);
 
   // Upsert mutation
   const upsertMutation = useMutation({
@@ -297,14 +297,6 @@ export function PopupSettings({ tenantId, templateSetId }: PopupSettingsProps) {
   return (
     <div className="space-y-4">
       {/* Preview Button */}
-      <Button
-        variant="outline"
-        className="w-full gap-2"
-        onClick={() => setShowPreview(true)}
-      >
-        <Play className="h-4 w-4" />
-        Visualizar Popup
-      </Button>
 
       {/* Active Toggle - Prominent */}
       <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border">
@@ -321,12 +313,6 @@ export function PopupSettings({ tenantId, templateSetId }: PopupSettingsProps) {
         />
       </div>
 
-      {/* Popup Preview Modal */}
-      <PopupPreview
-        config={localConfig}
-        isOpen={showPreview}
-        onClose={() => setShowPreview(false)}
-      />
 
       {/* General Section */}
       <Collapsible open={openSections.general} onOpenChange={() => toggleSection('general')}>
@@ -501,27 +487,11 @@ export function PopupSettings({ tenantId, templateSetId }: PopupSettingsProps) {
             </div>
           </div>
 
-          {/* Image URL - with upload support */}
-          <div className="space-y-2">
-            <Label className="text-sm flex items-center gap-2">
-              <ImageIcon className="h-4 w-4" />
-              Imagem Lateral
-            </Label>
-            <ImageUploaderWithLibrary
-              value={localConfig.image_url || ''}
-              onChange={(url) => updateProp('image_url', url)}
-              variant="desktop"
-              aspectRatio="square"
-              placeholder="Envie ou selecione uma imagem"
-            />
-            <p className="text-xs text-muted-foreground">Usado no layout "Com Imagem Lateral"</p>
-          </div>
-
           {/* Mini Banner no Topo */}
           <div className="space-y-2">
             <Label className="text-sm flex items-center gap-2">
               <ImageIcon className="h-4 w-4" />
-              Mini Banner (Topo do Popup)
+              Banner (Topo do Popup)
             </Label>
             <ImageUploaderWithLibrary
               value={localConfig.icon_image_url || ''}
@@ -531,10 +501,7 @@ export function PopupSettings({ tenantId, templateSetId }: PopupSettingsProps) {
               placeholder="Envie ou selecione uma imagem"
             />
             <p className="text-xs text-muted-foreground">
-              <strong>Dimensões recomendadas:</strong> 450×80px (largura total do popup)
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Ocupa toda a parte superior do popup, substituindo o badge de incentivo.
+              <strong>Dimensões recomendadas:</strong> 450×90px (largura total do popup)
             </p>
           </div>
         </CollapsibleContent>

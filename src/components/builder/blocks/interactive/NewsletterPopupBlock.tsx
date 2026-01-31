@@ -279,12 +279,12 @@ export function NewsletterPopupBlock({
                     src={bannerImageUrl} 
                     alt="" 
                     className="w-full h-auto object-cover rounded-t-lg"
-                    style={{ maxHeight: '80px' }}
+                    style={{ maxHeight: '90px' }}
                   />
                 </div>
               )}
-              <h4 className="font-semibold">{title}</h4>
-              {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
+              <h4 className="font-semibold text-center">{title}</h4>
+              {subtitle && <p className="text-sm text-muted-foreground text-center">{subtitle}</p>}
             </div>
             
             <form onSubmit={handleSubmit} className="space-y-2">
@@ -363,22 +363,22 @@ export function NewsletterPopupBlock({
 
     return (
       <>
-        {/* Mini Banner no topo */}
+        {/* Banner no topo */}
         {showBanner && bannerImageUrl && (
           <div className="w-full -mt-6 -mx-6 mb-4" style={{ width: 'calc(100% + 48px)' }}>
             <img 
               src={bannerImageUrl} 
               alt="" 
               className="w-full h-auto object-cover"
-              style={{ maxHeight: '80px' }}
+              style={{ maxHeight: '90px' }}
             />
           </div>
         )}
         
         <DialogHeader className="text-center">
-          <DialogTitle className="text-2xl">{title}</DialogTitle>
+          <DialogTitle className="text-2xl text-center">{title}</DialogTitle>
           {subtitle && (
-            <p className="text-muted-foreground mt-2">{subtitle}</p>
+            <p className="text-muted-foreground mt-2 text-center">{subtitle}</p>
           )}
         </DialogHeader>
 
