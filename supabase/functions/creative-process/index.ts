@@ -15,7 +15,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 
-const VERSION = '2.1.0'; // Async pattern with background polling + EdgeRuntime.waitUntil
+const VERSION = '2.2.0'; // Real cost from Fal.ai Usage API + 50% markup
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -42,6 +42,115 @@ const FAL_ENDPOINTS: Record<string, string> = {
   // GPT Image (para gerar fundo)
   'gpt-image-bg': 'gpt-image-1.5/edit',
 };
+
+// Constantes de preço e markup
+const CREDIT_MARKUP = 1.5; // 50% markup sobre custo base
+const USD_TO_BRL = 5.80;   // Taxa de conversão aproximada
+
+/**
+ * Busca o custo real de uma requisição via Usage API da Fal.ai
+ * Retorna o custo em centavos BRL já com markup de 50%
+ */
+async function fetchRealCostFromFalai(
+  requestId: string,
+  falApiKey: string,
+  endpointId: string
+): Promise<{ costUsd: number; costCentsBrl: number; rawResponse?: any }> {
+  try {
+    console.log(`[creative-process] Fetching real cost for request ${requestId}`);
+    
+    // Tentar buscar via Platform API - requests by endpoint
+    const requestsUrl = `https://api.fal.ai/v1/serverless/requests/by-endpoint?endpoint_id=${encodeURIComponent(endpointId)}&request_id=${requestId}&limit=1`;
+    
+    const response = await fetch(requestsUrl, {
+      method: 'GET',
+      headers: { 'Authorization': `Key ${falApiKey}` },
+    });
+    
+    if (!response.ok) {
+      console.warn(`[creative-process] Failed to fetch usage: ${response.status}`);
+      return { costUsd: 0, costCentsBrl: 0 };
+    }
+    
+    const data = await response.json();
+    console.log(`[creative-process] Usage API response:`, JSON.stringify(data).substring(0, 500));
+    
+    // Encontrar o request específico
+    if (data.items && data.items.length > 0) {
+      const item = data.items[0];
+      const duration = item.duration || 0; // segundos
+      
+      // Buscar preço unitário do modelo via Pricing API
+      const pricingUrl = `https://api.fal.ai/v1/models/pricing?endpoint_ids=${encodeURIComponent(endpointId)}`;
+      const pricingResponse = await fetch(pricingUrl, {
+        method: 'GET',
+        headers: { 'Authorization': `Key ${falApiKey}` },
+      });
+      
+      if (pricingResponse.ok) {
+        const pricingData = await pricingResponse.json();
+        console.log(`[creative-process] Pricing API response:`, JSON.stringify(pricingData).substring(0, 500));
+        
+        if (pricingData.prices && pricingData.prices.length > 0) {
+          const pricing = pricingData.prices[0];
+          const unitPrice = pricing.unit_price || 0; // USD
+          const unit = pricing.unit || 'second';
+          
+          // Calcular custo baseado na unidade
+          let costUsd = 0;
+          if (unit === 'second') {
+            costUsd = duration * unitPrice;
+          } else {
+            // Para imagens/vídeos completos
+            costUsd = unitPrice;
+          }
+          
+          // Aplicar markup de 50%
+          const costWithMarkup = costUsd * CREDIT_MARKUP;
+          
+          // Converter para centavos BRL
+          const costCentsBrl = Math.ceil(costWithMarkup * USD_TO_BRL * 100);
+          
+          console.log(`[creative-process] Cost calculation: ${costUsd.toFixed(4)} USD * ${CREDIT_MARKUP} markup * ${USD_TO_BRL} = ${costCentsBrl} centavos BRL`);
+          
+          return { costUsd, costCentsBrl, rawResponse: { item, pricing } };
+        }
+      }
+    }
+    
+    // Fallback: tentar Usage API diretamente
+    const usageUrl = `https://api.fal.ai/v1/models/usage?endpoint_ids=${encodeURIComponent(endpointId)}&granularity=hour&limit=1`;
+    const usageResponse = await fetch(usageUrl, {
+      method: 'GET',
+      headers: { 'Authorization': `Key ${falApiKey}` },
+    });
+    
+    if (usageResponse.ok) {
+      const usageData = await usageResponse.json();
+      console.log(`[creative-process] Usage API fallback:`, JSON.stringify(usageData).substring(0, 500));
+      
+      if (usageData.time_series && usageData.time_series.length > 0) {
+        const bucket = usageData.time_series[0];
+        if (bucket.results && bucket.results.length > 0) {
+          const result = bucket.results[0];
+          const costUsd = result.cost || 0;
+          const costWithMarkup = costUsd * CREDIT_MARKUP;
+          const costCentsBrl = Math.ceil(costWithMarkup * USD_TO_BRL * 100);
+          
+          console.log(`[creative-process] Usage API cost: ${costUsd} USD -> ${costCentsBrl} centavos BRL`);
+          return { costUsd, costCentsBrl, rawResponse: result };
+        }
+      }
+    }
+    
+    console.warn('[creative-process] Could not determine real cost, returning 0');
+    return { costUsd: 0, costCentsBrl: 0 };
+    
+  } catch (error) {
+    console.error('[creative-process] Error fetching real cost:', error);
+    return { costUsd: 0, costCentsBrl: 0 };
+  }
+}
 
 // Background polling function - runs after response is sent
 async function pollJobInBackground(
@@ -113,19 +222,32 @@ async function pollJobInBackground(
           throw new Error('No output URL in result');
         }
         
-        // Mark as succeeded
+        // Buscar custo real via Usage API
+        const endpointId = `fal-ai/${baseModelId}`;
+        const { costCentsBrl, costUsd } = await fetchRealCostFromFalai(requestId, falApiKey, endpointId);
+        
+        // Fallback: se não conseguiu buscar, usar estimativa baseada no modelo
+        let finalCostCents = costCentsBrl;
+        if (finalCostCents === 0) {
+          // Estimativa padrão para Kling I2V Pro: ~$0.35/5s video
+          const estimatedCostUsd = 0.35;
+          finalCostCents = Math.ceil(estimatedCostUsd * CREDIT_MARKUP * USD_TO_BRL * 100);
+          console.log(`[creative-process] Using estimated cost: ${finalCostCents} centavos BRL`);
+        }
+        
+        // Mark as succeeded with real cost
         await supabase
           .from('creative_jobs')
           .update({
             status: 'succeeded',
             output_urls: [outputUrl],
-            cost_cents: 60, // Estimated
+            cost_cents: finalCostCents,
             processing_time_ms: Date.now() - startTime,
             completed_at: new Date().toISOString(),
           })
           .eq('id', jobId);
         
-        console.log(`[creative-process] Job ${jobId} SUCCEEDED! Output: ${outputUrl}`);
+        console.log(`[creative-process] Job ${jobId} SUCCEEDED! Cost: ${finalCostCents} centavos BRL (${costUsd.toFixed(4)} USD)`);
         return;
       } else if (statusData.status === 'FAILED') {
         throw new Error(`Fal job failed: ${statusData.error || 'Unknown error'}`);
