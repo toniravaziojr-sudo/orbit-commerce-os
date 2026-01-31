@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Palette, ChevronDown, Settings, Bell, Loader2, Upload, X, Image as ImageIcon, Navigation } from 'lucide-react';
-import { useThemeHeader, DEFAULT_THEME_HEADER, ThemeHeaderConfig, MenuVisualStyle } from '@/hooks/useThemeSettings';
+import { useThemeHeader, DEFAULT_THEME_HEADER, ThemeHeaderConfig, MenuVisualStyle, LogoSizeType } from '@/hooks/useThemeSettings';
 import { ImageUpload } from '@/components/settings/ImageUpload';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -360,6 +360,41 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
           </Button>
         </CollapsibleTrigger>
         <CollapsibleContent className="px-2 pb-3 space-y-2.5">
+          {/* Logo Size */}
+          <div className="space-y-1">
+            <Label className="text-[10px]">Tamanho da Logo</Label>
+            <Select 
+              value={localProps.logoSize || 'medium'} 
+              onValueChange={(v) => updatePropImmediate('logoSize', v as LogoSizeType)}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Selecione o tamanho" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="small" className="text-xs">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">Pequeno</span>
+                    <span className="text-[10px] text-muted-foreground">Logo mais compacta (32px)</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="medium" className="text-xs">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">Médio</span>
+                    <span className="text-[10px] text-muted-foreground">Tamanho padrão (40px)</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="large" className="text-xs">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">Grande</span>
+                    <span className="text-[10px] text-muted-foreground">Logo maior e destacada (56px)</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <Separator className="my-2" />
+          
           <div className="flex items-center justify-between">
             <Label className="text-[11px]">Fixar ao rolar (Mobile)</Label>
             <Switch className="scale-90"
