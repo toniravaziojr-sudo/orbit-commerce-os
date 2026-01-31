@@ -400,7 +400,7 @@ export function StorefrontHeaderContent({
           }}
         >
           {noticeAnimation === 'marquee' ? (
-            <div className="animate-marquee inline-block">
+            <div className="animate-marquee inline-block whitespace-nowrap" style={{ minWidth: '200%' }}>
               <span className="mx-8">{noticeText}</span>
               {isActionValid && (
                 <a
@@ -414,7 +414,7 @@ export function StorefrontHeaderContent({
                   {noticeActionLabel}
                 </a>
               )}
-              <span className="mx-8">{noticeText}</span>
+              <span className="mx-8" aria-hidden="true">{noticeText}</span>
               {isActionValid && (
                 <a
                   href={noticeActionUrl}
@@ -423,6 +423,7 @@ export function StorefrontHeaderContent({
                   className="mx-2 underline text-xs font-medium hover:opacity-80 transition-opacity"
                   style={{ color: noticeActionTextColor || noticeTextColor }}
                   onClick={handleLinkClick}
+                  aria-hidden="true"
                 >
                   {noticeActionLabel}
                 </a>
