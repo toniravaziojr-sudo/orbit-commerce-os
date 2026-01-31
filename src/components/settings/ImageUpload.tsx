@@ -108,31 +108,57 @@ export function ImageUpload({
         onDragLeave={disabled ? undefined : handleDragLeave}
       >
         {value ? (
-          <div className="flex items-center gap-4">
-            <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-muted flex items-center justify-center">
-              <img
-                src={`${value}${value.includes('?') ? '&' : '?'}v=${Date.now()}`}
-                alt={label}
-                className="w-full h-full object-contain"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-4">
+              <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-muted flex items-center justify-center">
+                <img
+                  src={`${value}${value.includes('?') ? '&' : '?'}v=${Date.now()}`}
+                  alt={label}
+                  className="w-full h-full object-contain"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{label}</p>
+                <p className="text-xs text-muted-foreground truncate max-w-[200px]">Imagem carregada</p>
+              </div>
+              {!disabled && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleRemove}
+                  className="shrink-0"
+                  title="Remover imagem"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{label}</p>
-              <p className="text-xs text-muted-foreground truncate max-w-[200px]">Imagem carregada</p>
-            </div>
+            {/* Botões de substituição quando há imagem */}
             {!disabled && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={handleRemove}
-                className="shrink-0"
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => inputRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Substituir
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDrivePickerOpen(true)}
+                >
+                  <FolderOpen className="h-4 w-4 mr-2" />
+                  Meu Drive
+                </Button>
+              </div>
             )}
           </div>
         ) : (
