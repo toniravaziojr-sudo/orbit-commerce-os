@@ -92,14 +92,34 @@
 
 | Campo | Tipo | Default | Descrição |
 |-------|------|---------|-----------|
-| `noticeText` | string | "" | Texto do aviso |
+| `noticeText` | string | "" | Texto do aviso (legado, usar noticeTexts) |
+| `noticeTexts` | string[] | [] | Array de textos para rotação automática |
 | `noticeBgColor` | string | "" | Cor de fundo |
 | `noticeTextColor` | string | "" | Cor do texto |
-| `noticeAnimation` | `'fade'` \| `'slide'` \| `'none'` | 'none' | Animação do texto |
+| `noticeAnimation` | `'fade'` \| `'slide-vertical'` \| `'slide-horizontal'` \| `'marquee'` \| `'none'` | 'none' | Animação do texto |
 | `noticeActionEnabled` | boolean | false | Exibe botão de ação |
 | `noticeActionLabel` | string | "Saiba mais" | Texto do botão |
 | `noticeActionUrl` | string | "" | URL do botão |
 | `noticeActionTarget` | `'_self'` \| `'_blank'` | '_self' | Target do link |
+
+### Sistema de Rotação de Textos
+
+Quando `noticeTexts` contém múltiplos textos:
+- Rotação automática a cada 4 segundos
+- Transição suave entre textos usando o efeito selecionado em `noticeAnimation`
+- Compatível com todos os efeitos exceto `marquee` (que usa texto contínuo)
+
+### Efeitos de Animação
+
+| Efeito | Descrição |
+|--------|-----------|
+| `none` | Texto estático, sem animação |
+| `fade` | Transição com fade in/out |
+| `slide-vertical` | Texto desliza de baixo para cima |
+| `slide-horizontal` | Texto desliza da direita para esquerda |
+| `marquee` | Rolagem horizontal contínua (texto único, loop infinito) |
+
+> **Nota:** O valor legado `slide` é automaticamente convertido para `slide-vertical`.
 
 ---
 
@@ -253,6 +273,9 @@ Quando `isEditing=true` e não há menu real:
 
 | Data | Alteração |
 |------|-----------|
+| 2025-01-31 | Sistema de rotação de textos (noticeTexts) com múltiplas frases |
+| 2025-01-31 | Novos efeitos de animação: slide-vertical, slide-horizontal (separados) |
+| 2025-01-31 | Efeito marquee otimizado para evitar duplicação de texto |
 | 2025-01-31 | Adicionado `logoSize` com 3 tamanhos: small (32px), medium (40px), large (56px) |
 | 2025-01-31 | Corrigido URL de promoções em destaque de `/category/` para `/c/` |
 | 2025-01-31 | Ajustadas dimensões da miniatura de promoção de 192x144 para 208x112 (mais larga) |
