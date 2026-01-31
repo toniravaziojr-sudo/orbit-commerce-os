@@ -228,7 +228,7 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
                 <Label className="text-[10px]">Efeito de Animação</Label>
                 <Select
                   value={localProps.noticeAnimation || 'fade'}
-                  onValueChange={(v) => updatePropImmediate('noticeAnimation', v as 'none' | 'fade' | 'slide' | 'marquee')}
+                  onValueChange={(v) => updatePropImmediate('noticeAnimation', v as 'none' | 'fade' | 'slide-vertical' | 'slide-horizontal' | 'marquee')}
                 >
                   <SelectTrigger className="w-full h-7 text-xs">
                     <SelectValue />
@@ -236,20 +236,83 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
                   <SelectContent>
                     <SelectItem value="none">Nenhuma (estático)</SelectItem>
                     <SelectItem value="fade">Fade (suave)</SelectItem>
-                    <SelectItem value="slide">Slide (desliza vertical)</SelectItem>
-                    <SelectItem value="marquee">Marquee (desliza horizontal)</SelectItem>
+                    <SelectItem value="slide-vertical">Slide Vertical</SelectItem>
+                    <SelectItem value="slide-horizontal">Slide Horizontal</SelectItem>
+                    <SelectItem value="marquee">Marquee (rolagem contínua)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1">
-                <Label className="text-[10px]">Texto do Aviso</Label>
-                <Input
-                  value={localProps.noticeText || ''}
-                  onChange={(e) => updateProp('noticeText', e.target.value)}
-                  placeholder="Ex: Frete grátis em compras acima de R$199!"
-                  className="h-7 text-xs"
-                />
-              </div>
+              
+              {/* Single text for marquee, multiple texts for slide/fade */}
+              {localProps.noticeAnimation === 'marquee' ? (
+                <div className="space-y-1">
+                  <Label className="text-[10px]">Texto do Aviso</Label>
+                  <Input
+                    value={localProps.noticeText || ''}
+                    onChange={(e) => updateProp('noticeText', e.target.value)}
+                    placeholder="Ex: Frete grátis em compras acima de R$199!"
+                    className="h-7 text-xs"
+                  />
+                </div>
+              ) : (localProps.noticeAnimation === 'fade' || localProps.noticeAnimation === 'slide-vertical' || localProps.noticeAnimation === 'slide-horizontal') ? (
+                <div className="space-y-2">
+                  <Label className="text-[10px]">Frases (uma por linha, alternam automaticamente)</Label>
+                  {(localProps.noticeTexts?.length ? localProps.noticeTexts : [localProps.noticeText || '']).map((text, idx) => (
+                    <div key={idx} className="flex gap-1">
+                      <Input
+                        value={text}
+                        onChange={(e) => {
+                          const newTexts = [...(localProps.noticeTexts?.length ? localProps.noticeTexts : [localProps.noticeText || ''])];
+                          newTexts[idx] = e.target.value;
+                          updateProp('noticeTexts', newTexts.filter(t => t.trim() !== '' || idx === newTexts.length - 1));
+                          // Keep noticeText in sync with first item
+                          if (idx === 0) updateProp('noticeText', e.target.value);
+                        }}
+                        placeholder={`Frase ${idx + 1}`}
+                        className="h-7 text-xs flex-1"
+                      />
+                      {(localProps.noticeTexts?.length || 1) > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 shrink-0"
+                          onClick={() => {
+                            const newTexts = [...(localProps.noticeTexts || [])];
+                            newTexts.splice(idx, 1);
+                            updateProp('noticeTexts', newTexts);
+                            if (newTexts.length > 0 && idx === 0) updateProp('noticeText', newTexts[0]);
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs w-full"
+                    onClick={() => {
+                      const currentTexts = localProps.noticeTexts?.length ? localProps.noticeTexts : [localProps.noticeText || ''];
+                      updateProp('noticeTexts', [...currentTexts, '']);
+                    }}
+                  >
+                    + Adicionar Frase
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <Label className="text-[10px]">Texto do Aviso</Label>
+                  <Input
+                    value={localProps.noticeText || ''}
+                    onChange={(e) => updateProp('noticeText', e.target.value)}
+                    placeholder="Ex: Frete grátis em compras acima de R$199!"
+                    className="h-7 text-xs"
+                  />
+                </div>
+              )}
               <ColorInput
                 label="Cor de Fundo"
                 value={localProps.noticeBgColor || ''}

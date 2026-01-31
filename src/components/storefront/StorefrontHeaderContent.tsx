@@ -103,10 +103,15 @@ export function StorefrontHeaderContent({
   // Notice bar props
   const noticeEnabled = Boolean(props.noticeEnabled);
   const noticeText = String(props.noticeText || '');
+  const noticeTexts: string[] = Array.isArray(props.noticeTexts) && props.noticeTexts.length > 0 
+    ? props.noticeTexts.filter((t: any) => typeof t === 'string' && t.trim())
+    : noticeText ? [noticeText] : [];
   // Empty noticeBgColor = inherit from theme primary (--theme-button-primary-bg or fallback #1a1a1a)
   const noticeBgColor = String(props.noticeBgColor || '');
   const noticeTextColor = String(props.noticeTextColor || '#ffffff');
-  const noticeAnimation = String(props.noticeAnimation || 'fade');
+  // Backward compatibility: map old 'slide' to 'slide-vertical'
+  const rawNoticeAnimation = String(props.noticeAnimation || 'fade');
+  const noticeAnimation = (rawNoticeAnimation === 'slide' ? 'slide-vertical' : rawNoticeAnimation) as 'none' | 'fade' | 'slide-vertical' | 'slide-horizontal' | 'marquee';
   const noticeActionEnabled = Boolean(props.noticeActionEnabled);
   const noticeActionLabel = String(props.noticeActionLabel || '');
   const noticeActionUrl = String(props.noticeActionUrl || '');
@@ -185,17 +190,24 @@ export function StorefrontHeaderContent({
   // Featured promo hover state
   const [featuredPromoHover, setFeaturedPromoHover] = useState(false);
   
+  // State for rotating through multiple notice texts
+  const [currentNoticeIndex, setCurrentNoticeIndex] = useState(0);
+  const [noticeTransitionState, setNoticeTransitionState] = useState<'visible' | 'exiting' | 'entering'>('visible');
+  
   // Social media - from store_settings
   const socialFacebook = storeSettings?.social_facebook || null;
   const socialInstagram = storeSettings?.social_instagram || null;
 
-  // Animation effect for notice bar
+  // Get current notice text based on rotation
+  const currentNoticeText = noticeTexts.length > 0 ? noticeTexts[currentNoticeIndex % noticeTexts.length] : '';
+
+  // Animation effect for notice bar - initial fade in
   useEffect(() => {
     if (!noticeEnabled) {
       setAnimationState('initial');
       return;
     }
-    if (noticeAnimation === 'none') {
+    if (noticeAnimation === 'none' || noticeAnimation === 'marquee') {
       setAnimationState('done');
       return;
     }
@@ -212,6 +224,29 @@ export function StorefrontHeaderContent({
     startAnimation();
     return () => { if (frameId) cancelAnimationFrame(frameId); };
   }, [noticeEnabled, noticeAnimation]);
+
+  // Rotation effect for multiple notice texts (fade/slide only)
+  useEffect(() => {
+    if (!noticeEnabled || noticeTexts.length <= 1) return;
+    if (noticeAnimation === 'none' || noticeAnimation === 'marquee') return;
+
+    const rotationInterval = setInterval(() => {
+      // Start exit animation
+      setNoticeTransitionState('exiting');
+      
+      setTimeout(() => {
+        // Change to next text
+        setCurrentNoticeIndex(prev => (prev + 1) % noticeTexts.length);
+        setNoticeTransitionState('entering');
+        
+        setTimeout(() => {
+          setNoticeTransitionState('visible');
+        }, 300);
+      }, 300);
+    }, 4000); // Rotate every 4 seconds
+
+    return () => clearInterval(rotationInterval);
+  }, [noticeEnabled, noticeAnimation, noticeTexts.length]);
 
   // Use centralized URL builder
   const baseUrl = getStoreBaseUrl(tenantSlug || '');
@@ -323,14 +358,47 @@ export function StorefrontHeaderContent({
   // Check if any contact info is available for the dropdown
   const hasContactInfo = isWhatsAppValid || isPhoneValidFlag || isEmailValid || storeAddress || businessHours;
   
-  // Get animation styles
+  // Get animation styles for notice bar (considering rotation transitions)
   const getNoticeAnimationStyles = (): React.CSSProperties => {
     if (noticeAnimation === 'none') return { opacity: 1, transform: 'translateY(0)' };
     if (noticeAnimation === 'marquee') return { opacity: 1 }; // Marquee handled via CSS animation class
+    
+    // For multiple texts with rotation
+    if (noticeTexts.length > 1 && animationState === 'done') {
+      const isVisible = noticeTransitionState === 'visible';
+      const isExiting = noticeTransitionState === 'exiting';
+      const isEntering = noticeTransitionState === 'entering';
+      
+      if (noticeAnimation === 'fade') {
+        return {
+          opacity: isVisible ? 1 : isEntering ? 1 : 0,
+          transition: 'opacity 300ms ease-out',
+        };
+      }
+      if (noticeAnimation === 'slide-vertical') {
+        return {
+          opacity: isExiting ? 0 : 1,
+          transform: isExiting ? 'translateY(-100%)' : isEntering ? 'translateY(0)' : 'translateY(0)',
+          transition: 'opacity 300ms ease-out, transform 300ms ease-out',
+        };
+      }
+      if (noticeAnimation === 'slide-horizontal') {
+        return {
+          opacity: isExiting ? 0 : 1,
+          transform: isExiting ? 'translateX(-100%)' : isEntering ? 'translateX(0)' : 'translateX(0)',
+          transition: 'opacity 300ms ease-out, transform 300ms ease-out',
+        };
+      }
+    }
+    
+    // Initial animation (first load)
     const isAnimated = animationState === 'animating' || animationState === 'done';
     const transition = animationState === 'animating' ? 'opacity 250ms ease-out, transform 250ms ease-out' : 'none';
+    
     if (noticeAnimation === 'fade') return { opacity: isAnimated ? 1 : 0, transition };
-    if (noticeAnimation === 'slide') return { opacity: isAnimated ? 1 : 0, transform: isAnimated ? 'translateY(0)' : 'translateY(-100%)', transition };
+    if (noticeAnimation === 'slide-vertical') return { opacity: isAnimated ? 1 : 0, transform: isAnimated ? 'translateY(0)' : 'translateY(-100%)', transition };
+    if (noticeAnimation === 'slide-horizontal') return { opacity: isAnimated ? 1 : 0, transform: isAnimated ? 'translateX(0)' : 'translateX(-100%)', transition };
+    
     return { opacity: 1 };
   };
   
@@ -401,42 +469,43 @@ export function StorefrontHeaderContent({
       style={{ ...headerStyles, backgroundColor: headerBgColor || 'white' }}
     >
       {/* Notice Bar */}
-      {noticeEnabled && noticeText && (
+      {noticeEnabled && (noticeTexts.length > 0 || noticeText) && (
         <div
           ref={noticeRef}
           className={cn(
-            "px-4 py-2 text-center text-sm",
-            noticeAnimation === 'marquee' && "overflow-hidden whitespace-nowrap"
+            "px-4 py-2 text-center text-sm overflow-hidden",
+            noticeAnimation === 'marquee' && "whitespace-nowrap"
           )}
           style={{
             // Use theme primary color when noticeBgColor is empty
             backgroundColor: noticeBgColor || 'var(--theme-button-primary-bg, #1a1a1a)',
             color: noticeTextColor,
-            ...getNoticeAnimationStyles(),
+            ...(noticeAnimation !== 'marquee' ? getNoticeAnimationStyles() : {}),
           }}
         >
           {noticeAnimation === 'marquee' ? (
-            <div className="animate-marquee inline-block whitespace-nowrap" style={{ minWidth: '200%' }}>
-              <span className="mx-8">{noticeText}</span>
+            <div className="animate-marquee inline-flex whitespace-nowrap">
+              <span className="px-8">{noticeText || noticeTexts[0]}</span>
               {isActionValid && (
                 <a
                   href={noticeActionUrl}
                   target={noticeActionTarget}
                   rel={noticeActionTarget === '_blank' ? 'noopener noreferrer' : undefined}
-                  className="mx-2 underline text-xs font-medium hover:opacity-80 transition-opacity"
+                  className="px-2 underline text-xs font-medium hover:opacity-80 transition-opacity"
                   style={{ color: noticeActionTextColor || noticeTextColor }}
                   onClick={handleLinkClick}
                 >
                   {noticeActionLabel}
                 </a>
               )}
-              <span className="mx-8" aria-hidden="true">{noticeText}</span>
+              {/* Duplicate for seamless loop - text moves from 0 to -50%, then second copy appears */}
+              <span className="px-8" aria-hidden="true">{noticeText || noticeTexts[0]}</span>
               {isActionValid && (
                 <a
                   href={noticeActionUrl}
                   target={noticeActionTarget}
                   rel={noticeActionTarget === '_blank' ? 'noopener noreferrer' : undefined}
-                  className="mx-2 underline text-xs font-medium hover:opacity-80 transition-opacity"
+                  className="px-2 underline text-xs font-medium hover:opacity-80 transition-opacity"
                   style={{ color: noticeActionTextColor || noticeTextColor }}
                   onClick={handleLinkClick}
                   aria-hidden="true"
@@ -446,8 +515,8 @@ export function StorefrontHeaderContent({
               )}
             </div>
           ) : (
-            <>
-              <span>{noticeText}</span>
+            <div style={getNoticeAnimationStyles()}>
+              <span>{currentNoticeText || noticeText}</span>
               {isActionValid && (
                 <a
                   href={noticeActionUrl}
@@ -460,7 +529,7 @@ export function StorefrontHeaderContent({
                   {noticeActionLabel}
                 </a>
               )}
-            </>
+            </div>
           )}
         </div>
       )}

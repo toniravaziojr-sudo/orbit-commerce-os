@@ -483,7 +483,9 @@ const blockDefinitions: BlockDefinition[] = [
         options: [
           { label: 'Nenhuma', value: 'none' },
           { label: 'Fade', value: 'fade' },
-          { label: 'Slide', value: 'slide' },
+          { label: 'Slide Vertical', value: 'slide-vertical' },
+          { label: 'Slide Horizontal', value: 'slide-horizontal' },
+          { label: 'Marquee (rolagem)', value: 'marquee' },
         ],
       },
       // Barra Superior - ação
