@@ -409,6 +409,39 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
               </SelectContent>
             </Select>
           </div>
+
+          {/* Nav Bar Height (Extension) */}
+          <div className="space-y-1">
+            <Label className="text-[10px]">Altura da Extensão (Navegação)</Label>
+            <Select 
+              value={localProps.navBarHeight || 'medium'} 
+              onValueChange={(v) => updatePropImmediate('navBarHeight', v as 'small' | 'medium' | 'large')}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Selecione a altura" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="small" className="text-xs">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">Pequeno</span>
+                    <span className="text-[10px] text-muted-foreground">Barra mais compacta (32px)</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="medium" className="text-xs">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">Médio</span>
+                    <span className="text-[10px] text-muted-foreground">Tamanho padrão (40px)</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="large" className="text-xs">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">Grande</span>
+                    <span className="text-[10px] text-muted-foreground">Barra maior e espaçosa (52px)</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           
           <Separator className="my-2" />
           
