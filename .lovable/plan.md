@@ -1,150 +1,232 @@
 
+# Plano: Sistema de Upload Universal com Integração ao Meu Drive
 
-# Plano de Correção Definitiva: Tela Cinza Durante OAuth
+## Visão Geral
 
-## Problema Identificado
+Implementar um sistema de upload universal que permita aos usuários escolher entre fazer upload direto do computador OU selecionar arquivos já existentes no "Meu Drive" completo (todas as pastas, não apenas "Uploads do sistema").
 
-### Causa Raiz
-A tela cinza ocorre porque o **ProtectedRoute.tsx** possui **3 pontos de bloqueio** (loaders de tela cheia) que podem ser ativados durante operações de refetch ou quando o Google Tradutor modifica o DOM:
+---
 
-1. **Linha 53-59**: Loader durante `isLoading || platformLoading || inviteLoading`
-2. **Linha 77-83**: Loader quando `!hasWaitedForData && userRoles.length === 0`  
-3. **Linha 101-107**: Loader quando `!currentTenant && tenants.length > 0`
-
-### Por que o Google Tradutor piora o problema
-- O Google Tradutor **modifica o DOM agressivamente**
-- Isso pode causar **remontagem de componentes React**
-- Estados como `initialLoadComplete` e `hasWaitedForData` podem ser **resetados**
-- A comunicação `window.opener` e `postMessage` são **bloqueadas ou corrompidas**
-
-### Fluxo atual problemático
+## Arquitetura da Solução
 
 ```text
-1. Usuário está em /integrations
-2. Clica em "Conectar Meta"
-3. Popup abre para OAuth do Facebook
-4. Enquanto popup está aberto, TanStack Query pode fazer refetch de background
-5. isLoading, platformLoading ou inviteLoading ficam true momentaneamente
-6. Google Tradutor pode causar remontagem do React
-7. initialLoadComplete é resetado para false
-8. Loader de tela cheia aparece (TELA CINZA)
-9. Popup termina OAuth, tenta fechar
-10. Janela pai está "travada" com loader
+┌─────────────────────────────────────────────────────────────────────┐
+│                    UniversalImageUploader                           │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                 │
+│  │   Upload    │  │  Meu Drive  │  │     URL     │                 │
+│  │    (PC)     │  │  (Seletor)  │  │  (Externa)  │                 │
+│  └─────────────┘  └─────────────┘  └─────────────┘                 │
+│         │                │                │                         │
+│         ▼                ▼                ▼                         │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │                    onChange(url)                             │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+                   ┌─────────────────────┐
+                   │  DriveFilePicker    │
+                   │  (Modal Completo)   │
+                   ├─────────────────────┤
+                   │ • Navegar pastas    │
+                   │ • Buscar arquivos   │
+                   │ • Preview imagem    │
+                   │ • Breadcrumb        │
+                   └─────────────────────┘
 ```
 
 ---
 
-## Solução Proposta
+## Componentes a Criar
 
-### Estratégia: "Latch Pattern" Persistente
+### 1. DriveFilePicker (Novo)
+Modal de seleção de arquivos do Meu Drive completo com navegação por pastas.
 
-Implementar um padrão de "trava" (`latch`) que **NUNCA** seja resetado após a primeira carga. Utilizaremos **refs estáticas** e **sessionStorage** para garantir persistência mesmo com remontagens do React.
+**Localização:** `src/components/ui/DriveFilePicker.tsx`
 
-### Mudanças Específicas
+**Funcionalidades:**
+- Navegação hierárquica por todas as pastas do tenant
+- Breadcrumb para navegação
+- Busca por nome de arquivo
+- Preview de imagem ao selecionar
+- Filtro por tipo (imagem, vídeo, documento, todos)
+- Compatível com o hook `useFiles` existente
 
-#### 1. **ProtectedRoute.tsx** - Correção Principal
-
-Aplicar o mesmo padrão `initialLoadComplete` em **TODOS os 3 loaders**, e persistir o estado em `sessionStorage` para sobreviver a remontagens:
-
+**Props:**
 ```typescript
-// Usar ref + sessionStorage para persistência absoluta
-const initialLoadCompleteRef = useRef(
-  sessionStorage.getItem('auth_initial_load_complete') === 'true'
-);
-const [initialLoadComplete, setInitialLoadComplete] = useState(
-  initialLoadCompleteRef.current
-);
-
-// Marcar carga inicial como completa (irreversível nesta sessão)
-useEffect(() => {
-  if (!isLoading && !platformLoading && !inviteLoading && !initialLoadCompleteRef.current) {
-    initialLoadCompleteRef.current = true;
-    sessionStorage.setItem('auth_initial_load_complete', 'true');
-    setInitialLoadComplete(true);
-  }
-}, [isLoading, platformLoading, inviteLoading]);
-```
-
-E proteger **TODOS** os loaders:
-
-```typescript
-// Loader 1: Loading inicial (JÁ PROTEGIDO, mas reforçar)
-if ((isLoading || platformLoading || inviteLoading) && !initialLoadComplete) {
-  return <Loader />;
-}
-
-// Loader 2: Aguardando roles (ADICIONAR proteção)
-if (!hasWaitedForData && userRoles.length === 0 && !hasPendingInvite && !initialLoadComplete) {
-  return <Loader />;
-}
-
-// Loader 3: Aguardando tenant (ADICIONAR proteção)
-if (requireTenant && !currentTenant && tenants.length > 0 && !initialLoadComplete) {
-  return <Loader />;
+interface DriveFilePickerProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSelect: (url: string, fileId?: string) => void;
+  accept?: 'image' | 'video' | 'document' | 'all';
+  title?: string;
 }
 ```
 
-#### 2. **MetaOAuthCallback.tsx** - Reforçar Resiliência
+### 2. UniversalImageUploader (Novo)
+Componente unificado que substitui os diversos uploaders existentes.
 
-Adicionar flag em `sessionStorage` para indicar que OAuth está em progresso, permitindo que a janela pai saiba que deve ignorar loaders:
+**Localização:** `src/components/ui/UniversalImageUploader.tsx`
 
+**Funcionalidades:**
+- Aba "Upload" - upload direto do PC (usa `useSystemUpload`)
+- Aba "Meu Drive" - abre `DriveFilePicker`
+- Aba "URL" - colar URL externa (opcional)
+- Preview da imagem selecionada
+- Suporte a diferentes aspect ratios
+
+**Props:**
 ```typescript
-// Antes de redirecionar, limpar a flag
-sessionStorage.removeItem('oauth_in_progress');
-
-// E no redirect, usar tanto navigation quanto href:
-const redirectUrl = success
-  ? `${baseUrl}/integrations?meta_connected=true&t=${Date.now()}`
-  : `${baseUrl}/integrations?meta_error=${encodeURIComponent(error || 'Erro')}&t=${Date.now()}`;
-```
-
-#### 3. **useMetaConnection.ts** - Marcar OAuth em Progresso
-
-Antes de abrir o popup, marcar que OAuth está ativo:
-
-```typescript
-onSuccess: (data) => {
-  // Marcar que OAuth está em progresso (protege contra loaders)
-  sessionStorage.setItem('oauth_in_progress', 'true');
-  
-  // Abrir popup...
+interface UniversalImageUploaderProps {
+  value: string;
+  onChange: (url: string) => void;
+  source: string;           // Para registro no drive
+  subPath?: string;         // Subpasta do storage
+  placeholder?: string;
+  aspectRatio?: 'square' | 'video' | 'banner';
+  showUrlTab?: boolean;     // Mostrar aba URL (default: true)
+  accept?: string;          // MIME types aceitos
+  maxSize?: number;         // Tamanho máximo em MB
+  label?: string;           // Label opcional
+  description?: string;     // Descrição/ajuda
 }
 ```
 
 ---
 
-## Resumo de Arquivos a Modificar
+## Componentes a Refatorar
 
-| Arquivo | Mudança |
-|---------|---------|
-| `src/components/auth/ProtectedRoute.tsx` | Persistir `initialLoadComplete` em sessionStorage; Proteger TODOS os loaders com a mesma condição |
-| `src/hooks/useMetaConnection.ts` | Adicionar flag `oauth_in_progress` no sessionStorage antes de abrir popup |
-| `src/pages/MetaOAuthCallback.tsx` | Limpar flag `oauth_in_progress` antes de redirecionar |
+### 1. ImageUpload (Settings)
+**Arquivo:** `src/components/settings/ImageUpload.tsx`
+
+**Mudança:** Adicionar botão "Escolher do Meu Drive" que abre `DriveFilePicker`.
+
+### 2. ProductImageUploader
+**Arquivo:** `src/components/products/ProductImageUploader.tsx`
+
+**Mudança:** Adicionar terceiro botão "Meu Drive" ao lado de "Upload" e "URL".
+
+### 3. ProductImageManager
+**Arquivo:** `src/components/products/ProductImageManager.tsx`
+
+**Mudança:** Mesma lógica do ProductImageUploader.
+
+### 4. ImageUploader (Builder)
+**Arquivo:** `src/components/builder/ImageUploader.tsx`
+
+**Mudança:** Substituir por `UniversalImageUploader` ou adicionar aba "Meu Drive".
+
+### 5. ImageUploaderWithLibrary (Builder)
+**Arquivo:** `src/components/builder/ImageUploaderWithLibrary.tsx`
+
+**Mudança:** Substituir `MediaLibraryPicker` por `DriveFilePicker` para permitir navegação em todas as pastas.
+
+### 6. HeaderSettings (Featured Promo)
+**Arquivo:** `src/components/builder/theme-settings/HeaderSettings.tsx`
+
+**Mudança:** Substituir input inline por `UniversalImageUploader`.
+
+### 7. ProductVariantPicker (Imagens de Variantes)
+**Arquivo:** `src/components/products/ProductVariantPicker.tsx`
+
+**Mudança:** Adicionar opção de selecionar do Drive.
 
 ---
 
-## Resultado Esperado
+## Hooks Necessários
 
-1. **Primeira carga** da aplicação mostra loader (normal)
-2. **Após carga inicial**, loaders de tela cheia **NUNCA** mais aparecem
-3. Durante OAuth, a tela de integrações permanece **100% visível**
-4. Se Google Tradutor causar remontagem, o `sessionStorage` preserva o estado
-5. Callback OAuth funciona independentemente de `window.opener`
+### 1. useDriveFiles (Novo)
+Hook para listar arquivos do drive com suporte a navegação e filtros.
+
+**Localização:** `src/hooks/useDriveFiles.ts`
+
+```typescript
+interface UseDriveFilesOptions {
+  folderId?: string | null;
+  fileType?: 'image' | 'video' | 'document' | 'all';
+  search?: string;
+}
+
+interface UseDriveFilesResult {
+  files: FileItem[];
+  folders: FolderItem[];
+  currentPath: PathItem[];
+  isLoading: boolean;
+  navigateTo: (folderId: string | null) => void;
+  getFileUrl: (file: FileItem) => string;
+}
+```
+
+---
+
+## Ordem de Implementação
+
+| Fase | Tarefa | Arquivos |
+|------|--------|----------|
+| 1 | Criar hook `useDriveFiles` | `src/hooks/useDriveFiles.ts` |
+| 2 | Criar `DriveFilePicker` | `src/components/ui/DriveFilePicker.tsx` |
+| 3 | Criar `UniversalImageUploader` | `src/components/ui/UniversalImageUploader.tsx` |
+| 4 | Refatorar `ImageUploaderWithLibrary` | Substituir `MediaLibraryPicker` por `DriveFilePicker` |
+| 5 | Refatorar `ProductImageUploader` | Adicionar botão "Meu Drive" |
+| 6 | Refatorar `ImageUpload` (settings) | Adicionar seletor do Drive |
+| 7 | Refatorar `ProductVariantPicker` | Adicionar opção do Drive |
+| 8 | Atualizar `HeaderSettings` | Usar `UniversalImageUploader` |
+| 9 | Testes end-to-end | Validar todos os fluxos |
+
+---
+
+## UI do DriveFilePicker
+
+```text
+┌────────────────────────────────────────────────────────────────┐
+│  📁 Selecionar do Meu Drive                              [X]  │
+├────────────────────────────────────────────────────────────────┤
+│  🏠 Raiz > 📁 Marketing > 📁 Banners                          │
+│                                                                │
+│  🔍 [Buscar arquivos...                               ]       │
+├────────────────────────────────────────────────────────────────┤
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐       │
+│  │ 📁       │  │ 🖼️       │  │ 🖼️       │  │ 🖼️       │       │
+│  │ Pastas   │  │ img1.jpg │  │ img2.png │  │ img3.jpg │       │
+│  │ Sistema  │  │          │  │   ✓      │  │          │       │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘       │
+│                                                                │
+│  ┌──────────────────────────────────────────────────────────┐ │
+│  │  Preview: img2.png                                       │ │
+│  │  [================IMAGEM PREVIEW================]        │ │
+│  │  Tamanho: 256KB • Tipo: image/png                        │ │
+│  └──────────────────────────────────────────────────────────┘ │
+├────────────────────────────────────────────────────────────────┤
+│                          [Cancelar]  [Selecionar]             │
+└────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
 ## Detalhes Técnicos
 
-### Por que sessionStorage ao invés de apenas ref?
+### Obtenção de URL do Arquivo
+Ao selecionar um arquivo do Drive, usar a lógica existente em `useFiles.getFileUrl()`:
+1. Verificar `metadata.url` primeiro
+2. Construir URL pública via `supabase.storage.getPublicUrl()`
+3. Fallback para signed URL se necessário
 
-- **Refs** são resetadas quando o componente é completamente desmontado e remontado
-- **sessionStorage** persiste durante toda a sessão do navegador
-- O Google Tradutor pode causar remontagem completa da árvore React
-- Com sessionStorage, mesmo uma remontagem total preserva o estado
+### Registro de Uploads
+Quando upload for feito do PC, continuar usando `uploadAndRegisterToSystemDrive()` para:
+1. Fazer upload para storage
+2. Registrar em `public.files` na pasta "Uploads do sistema"
+3. Retornar URL pública
 
-### Por que não localStorage?
+### Compatibilidade
+- Manter props existentes dos componentes refatorados
+- Adicionar novas props como opcionais para não quebrar usos existentes
+- O `UniversalImageUploader` pode ser usado gradualmente substituindo os antigos
 
-- **sessionStorage** é limpo quando o navegador fecha (comportamento desejado)
-- Queremos que uma nova sessão comece "fresh"
-- Evita estados "travados" de sessões antigas
+---
 
+## Atualização de Documentação
+
+Após implementação, atualizar:
+- `docs/regras/midias-uploads.md` - Adicionar seção sobre upload universal
+- Documentar props do `UniversalImageUploader`
+- Documentar uso do `DriveFilePicker`
