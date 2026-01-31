@@ -35,9 +35,9 @@ import {
 } from 'lucide-react';
 import { useCreativeJobs, useCreateCreativeJob } from '@/hooks/useCreatives';
 import { useProductsWithImages } from '@/hooks/useProducts';
-import { useAvailableVoicePresets } from '@/hooks/useVoicePresets';
 import { CREATIVE_MODELS } from '@/types/creatives';
 import { CreativeJobsList } from './CreativeJobsList';
+import { VoiceSelector } from './VoiceSelector';
 
 type AudioMode = 'none' | 'native' | 'tts_ptbr';
 
@@ -53,6 +53,7 @@ export function UGCAITab() {
   const [audioMode, setAudioMode] = useState<AudioMode>('none');
   const [ttsScript, setTtsScript] = useState('');
   const [voicePresetId, setVoicePresetId] = useState<string>('');
+  const [customAudioUrl, setCustomAudioUrl] = useState<string | null>(null);
   
   // Configurações
   const [duration, setDuration] = useState<string>('10');
@@ -63,7 +64,6 @@ export function UGCAITab() {
   
   // Hooks
   const { products, isLoading: productsLoading } = useProductsWithImages();
-  const { data: voicePresets, isLoading: presetsLoading } = useAvailableVoicePresets();
   const { data: jobs, isLoading, refetch } = useCreativeJobs('ugc_ai_video');
   const createJob = useCreateCreativeJob();
 
@@ -77,10 +77,11 @@ export function UGCAITab() {
                           (selectedProduct as any)?.images?.[0] || 
                           (selectedProduct as any)?.thumbnail;
 
-  // Validação
+  // Validação - aceita voicePresetId OU customAudioUrl
+  const hasVoice = voicePresetId || customAudioUrl;
   const isValid = selectedProductId && 
                   script.trim().length > 0 &&
-                  (audioMode !== 'tts_ptbr' || (ttsScript.trim().length > 0 && voicePresetId));
+                  (audioMode !== 'tts_ptbr' || (ttsScript.trim().length > 0 && hasVoice));
 
   const handleGenerate = async () => {
     if (!isValid) return;
@@ -102,7 +103,8 @@ export function UGCAITab() {
         generate_audio: audioMode === 'native',
         ...(audioMode === 'tts_ptbr' ? {
           tts_script: ttsScript,
-          voice_preset_id: voicePresetId,
+          voice_preset_id: voicePresetId || undefined,
+          custom_voice_url: customAudioUrl || undefined,
         } : {}),
       },
     }, {
@@ -305,39 +307,12 @@ Exemplo:
               
               <div className="space-y-2">
                 <Label>Voz *</Label>
-                <Select value={voicePresetId} onValueChange={setVoicePresetId}>
-                  <SelectTrigger className={audioMode === 'tts_ptbr' && !voicePresetId ? 'border-destructive' : ''}>
-                    <SelectValue placeholder="Selecione uma voz..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {presetsLoading ? (
-                      <div className="p-4 text-center text-muted-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin mx-auto mb-1" />
-                        Carregando vozes...
-                      </div>
-                    ) : voicePresets?.length === 0 ? (
-                      <div className="p-4 text-center text-muted-foreground text-sm">
-                        Nenhuma voz configurada
-                      </div>
-                    ) : (
-                      voicePresets?.map(preset => (
-                        <SelectItem key={preset.id} value={preset.id}>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="text-[10px]">
-                              {preset.category === 'female' ? '♀' : preset.category === 'male' ? '♂' : '◎'}
-                            </Badge>
-                            <span>{preset.name}</span>
-                          </div>
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-                {voicePresets?.length === 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    Configure vozes em Configurações → Vozes (com ref_audio_url)
-                  </p>
-                )}
+                <VoiceSelector
+                  value={voicePresetId}
+                  onChange={(presetId) => setVoicePresetId(presetId || '')}
+                  customAudioUrl={customAudioUrl || undefined}
+                  onCustomAudioChange={setCustomAudioUrl}
+                />
               </div>
             </div>
           )}
