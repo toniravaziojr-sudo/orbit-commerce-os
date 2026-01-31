@@ -253,3 +253,54 @@ Criativos gerados pelo módulo **Gestor de Criativos** (`/creatives`) são autom
 | Qualquer componente com upload de imagem | Este documento |
 | `src/hooks/useYouTubeConnection.ts` | Este documento |
 | `src/pages/Media.tsx` | Este documento |
+| `src/components/settings/ImageUpload.tsx` | Este documento |
+
+---
+
+## Componente ImageUpload (Configurações da Loja)
+
+O componente `ImageUpload` é usado para upload de logo e favicon nas configurações da loja.
+
+### Props
+
+| Prop | Tipo | Descrição |
+|------|------|-----------|
+| `label` | string | Título do campo (ex: "Logo") |
+| `description` | string | Texto de ajuda (ex: "Recomendado: PNG, 200x60px") |
+| `value` | string \| null | URL atual da imagem |
+| `onChange` | (url: string \| null) => void | Callback ao alterar |
+| `onUpload` | (file: File) => Promise<string \| null> | Handler de upload |
+| `accept` | string | MIME types aceitos |
+| `disabled` | boolean | Desabilitar edição |
+
+### Fluxo de Substituição
+
+```
+1. Usuário clica em "Substituir" ou "Meu Drive"
+2. Arquivo é selecionado (local ou do Drive)
+3. onUpload() é chamado → retorna URL pública
+4. onChange(url) é chamado para atualizar UI imediatamente
+5. Estado local e banco são atualizados
+```
+
+### Recomendações de Tamanho
+
+| Asset | Dimensão Recomendada | Formato |
+|-------|---------------------|---------|
+| Logo | 200x60px | PNG, SVG (transparente) |
+| Favicon | 32x32px ou 64x64px | PNG, ICO |
+
+### Validações
+
+- Tamanho máximo: 2MB
+- Tipos aceitos: Definidos via prop `accept`
+
+---
+
+## Histórico de Alterações
+
+| Data | Alteração |
+|------|-----------|
+| 2025-01-31 | Corrigido fluxo de substituição de logo/favicon para chamar onChange() após upload |
+| 2025-01-31 | Adicionada recomendação de tamanho (200x60px) na descrição do campo logo |
+| 2025-01-31 | Reset do input file após upload para permitir reenvio do mesmo arquivo |
