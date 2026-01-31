@@ -310,6 +310,7 @@ export function StorefrontHeaderContent({
   // Get animation styles
   const getNoticeAnimationStyles = (): React.CSSProperties => {
     if (noticeAnimation === 'none') return { opacity: 1, transform: 'translateY(0)' };
+    if (noticeAnimation === 'marquee') return { opacity: 1 }; // Marquee handled via CSS animation class
     const isAnimated = animationState === 'animating' || animationState === 'done';
     const transition = animationState === 'animating' ? 'opacity 250ms ease-out, transform 250ms ease-out' : 'none';
     if (noticeAnimation === 'fade') return { opacity: isAnimated ? 1 : 0, transition };
@@ -387,7 +388,10 @@ export function StorefrontHeaderContent({
       {noticeEnabled && noticeText && (
         <div
           ref={noticeRef}
-          className="px-4 py-2 text-center text-sm"
+          className={cn(
+            "px-4 py-2 text-center text-sm",
+            noticeAnimation === 'marquee' && "overflow-hidden whitespace-nowrap"
+          )}
           style={{
             // Use theme primary color when noticeBgColor is empty
             backgroundColor: noticeBgColor || 'var(--theme-button-primary-bg, #1a1a1a)',
@@ -395,18 +399,51 @@ export function StorefrontHeaderContent({
             ...getNoticeAnimationStyles(),
           }}
         >
-          <span>{noticeText}</span>
-          {isActionValid && (
-            <a
-              href={noticeActionUrl}
-              target={noticeActionTarget}
-              rel={noticeActionTarget === '_blank' ? 'noopener noreferrer' : undefined}
-              className="ml-2 underline text-xs font-medium hover:opacity-80 transition-opacity"
-              style={{ color: noticeActionTextColor || noticeTextColor }}
-              onClick={handleLinkClick}
-            >
-              {noticeActionLabel}
-            </a>
+          {noticeAnimation === 'marquee' ? (
+            <div className="animate-marquee inline-block">
+              <span className="mx-8">{noticeText}</span>
+              {isActionValid && (
+                <a
+                  href={noticeActionUrl}
+                  target={noticeActionTarget}
+                  rel={noticeActionTarget === '_blank' ? 'noopener noreferrer' : undefined}
+                  className="mx-2 underline text-xs font-medium hover:opacity-80 transition-opacity"
+                  style={{ color: noticeActionTextColor || noticeTextColor }}
+                  onClick={handleLinkClick}
+                >
+                  {noticeActionLabel}
+                </a>
+              )}
+              <span className="mx-8">{noticeText}</span>
+              {isActionValid && (
+                <a
+                  href={noticeActionUrl}
+                  target={noticeActionTarget}
+                  rel={noticeActionTarget === '_blank' ? 'noopener noreferrer' : undefined}
+                  className="mx-2 underline text-xs font-medium hover:opacity-80 transition-opacity"
+                  style={{ color: noticeActionTextColor || noticeTextColor }}
+                  onClick={handleLinkClick}
+                >
+                  {noticeActionLabel}
+                </a>
+              )}
+            </div>
+          ) : (
+            <>
+              <span>{noticeText}</span>
+              {isActionValid && (
+                <a
+                  href={noticeActionUrl}
+                  target={noticeActionTarget}
+                  rel={noticeActionTarget === '_blank' ? 'noopener noreferrer' : undefined}
+                  className="ml-2 underline text-xs font-medium hover:opacity-80 transition-opacity"
+                  style={{ color: noticeActionTextColor || noticeTextColor }}
+                  onClick={handleLinkClick}
+                >
+                  {noticeActionLabel}
+                </a>
+              )}
+            </>
           )}
         </div>
       )}

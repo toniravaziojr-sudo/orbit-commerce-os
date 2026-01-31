@@ -118,6 +118,10 @@ export default {
           from: { transform: "translateY(10px)", opacity: "0" },
           to: { transform: "translateY(0)", opacity: "1" },
         },
+        "marquee": {
+          from: { transform: "translateX(0)" },
+          to: { transform: "translateX(-50%)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -126,6 +130,7 @@ export default {
         "slide-in-left": "slide-in-from-left 0.3s ease-out",
         "slide-in-right": "slide-in-from-right 0.3s ease-out",
         "slide-in-bottom": "slide-in-from-bottom 0.3s ease-out",
+        "marquee": "marquee 15s linear infinite",
       },
     },
   },

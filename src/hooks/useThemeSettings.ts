@@ -65,6 +65,7 @@ export interface ThemeHeaderConfig {
   noticeText?: string;
   noticeBgColor?: string;
   noticeTextColor?: string;
+  noticeAnimation?: 'none' | 'fade' | 'slide' | 'marquee'; // Animation effect for notice bar
   noticeLinkEnabled?: boolean;
   noticeLinkLabel?: string;
   noticeLinkUrl?: string;
