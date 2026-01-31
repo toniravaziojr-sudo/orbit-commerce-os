@@ -4,7 +4,7 @@
 // =============================================
 
 import React, { useState, useEffect } from 'react';
-import { X, Mail, Send, Loader2, CheckCircle, Gift, User, Phone, Calendar } from 'lucide-react';
+import { X, Mail, Send, Loader2, CheckCircle, User, Phone, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -44,10 +44,11 @@ export interface NewsletterPopupBlockProps {
   // Page visibility (which page types to show on)
   showOnPages?: string[];
   
-  // Visual
-  showIncentive?: boolean;
-  incentiveText?: string;
-  iconImageUrl?: string; // Mini image to replace emoji icon
+  // Visual - Mini Banner
+  showBanner?: boolean;
+  bannerImageUrl?: string; // Mini banner que cobre o topo inteiro (450x80px recomendado)
+  
+  // Colors
   backgroundColor?: string;
   textColor?: string;
   buttonBgColor?: string;
@@ -84,9 +85,8 @@ export function NewsletterPopupBlock({
   triggerDelaySeconds = 5,
   triggerScrollPercent = 50,
   showOnPages = ['home', 'category', 'product'],
-  showIncentive = true,
-  incentiveText = '🎁 Ganhe 10% OFF!',
-  iconImageUrl,
+  showBanner = false,
+  bannerImageUrl,
   backgroundColor,
   textColor,
   buttonBgColor,
@@ -272,14 +272,16 @@ export function NewsletterPopupBlock({
           </div>
         ) : (
           <>
-            <div className="mb-3">
-              {showIncentive && (iconImageUrl || incentiveText) && (
-                <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-primary/10 text-primary text-xs font-medium rounded-full mb-2">
-                  {iconImageUrl ? (
-                    <img src={iconImageUrl} alt="" className="w-5 h-5 object-contain" />
-                  ) : null}
-                  {incentiveText}
-                </span>
+            <div className="mb-3 text-center">
+              {showBanner && bannerImageUrl && (
+                <div className="w-full mb-3 -mx-2 -mt-2">
+                  <img 
+                    src={bannerImageUrl} 
+                    alt="" 
+                    className="w-full h-auto object-cover rounded-t-lg"
+                    style={{ maxHeight: '80px' }}
+                  />
+                </div>
               )}
               <h4 className="font-semibold">{title}</h4>
               {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
@@ -361,19 +363,19 @@ export function NewsletterPopupBlock({
 
     return (
       <>
+        {/* Mini Banner no topo */}
+        {showBanner && bannerImageUrl && (
+          <div className="w-full -mt-6 -mx-6 mb-4" style={{ width: 'calc(100% + 48px)' }}>
+            <img 
+              src={bannerImageUrl} 
+              alt="" 
+              className="w-full h-auto object-cover"
+              style={{ maxHeight: '80px' }}
+            />
+          </div>
+        )}
+        
         <DialogHeader className="text-center">
-          {showIncentive && (iconImageUrl || incentiveText) && (
-            <div className="flex justify-center mb-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-primary/10 text-primary text-sm font-medium rounded-full">
-                {iconImageUrl ? (
-                  <img src={iconImageUrl} alt="" className="w-6 h-6 object-contain" />
-                ) : (
-                  <Gift className="w-4 h-4" />
-                )}
-                {incentiveText}
-              </span>
-            </div>
-          )}
           <DialogTitle className="text-2xl">{title}</DialogTitle>
           {subtitle && (
             <p className="text-muted-foreground mt-2">{subtitle}</p>

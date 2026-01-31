@@ -517,21 +517,24 @@ export function PopupSettings({ tenantId, templateSetId }: PopupSettingsProps) {
             <p className="text-xs text-muted-foreground">Usado no layout "Com Imagem Lateral"</p>
           </div>
 
-          {/* Icon Image URL - with upload support */}
+          {/* Mini Banner no Topo */}
           <div className="space-y-2">
             <Label className="text-sm flex items-center gap-2">
               <ImageIcon className="h-4 w-4" />
-              Ícone do Incentivo (Mini Imagem)
+              Mini Banner (Topo do Popup)
             </Label>
             <ImageUploaderWithLibrary
               value={localConfig.icon_image_url || ''}
               onChange={(url) => updateProp('icon_image_url', url)}
               variant="desktop"
-              aspectRatio="square"
-              placeholder="Envie ou selecione (opcional)"
+              aspectRatio="banner"
+              placeholder="Envie ou selecione uma imagem"
             />
             <p className="text-xs text-muted-foreground">
-              Substitui o emoji 🎁 por uma mini imagem (24x24px) no badge de incentivo
+              <strong>Dimensões recomendadas:</strong> 450×80px (largura total do popup)
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Ocupa toda a parte superior do popup, substituindo o badge de incentivo.
             </p>
           </div>
         </CollapsibleContent>

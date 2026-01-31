@@ -128,7 +128,8 @@ export function NewsletterPopupLoader({ tenantId }: NewsletterPopupLoaderProps) 
       birthDateRequired={config.birth_date_required}
       layout={layout}
       imageUrl={config.image_url || undefined}
-      iconImageUrl={config.icon_image_url || undefined}
+      showBanner={!!config.icon_image_url}
+      bannerImageUrl={config.icon_image_url || undefined}
       triggerType={triggerType}
       triggerDelaySeconds={config.trigger_delay_seconds}
       triggerScrollPercent={config.trigger_scroll_percent}

@@ -22,6 +22,7 @@ import {
   LayoutList,
   ExternalLink,
   MoreHorizontal,
+  Trash2,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -38,7 +39,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useCreativeJobs, getStatusColor, getStatusLabel } from '@/hooks/useCreatives';
+import { useCreativeJobs, useDeleteCreativeJob, getStatusColor, getStatusLabel } from '@/hooks/useCreatives';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import type { CreativeJob, CreativeType } from '@/types/creatives';
 
 const TYPE_LABELS: Record<CreativeType, string> = {
@@ -68,8 +70,10 @@ export function CreativeGallery({ filterType, showFilters = true }: CreativeGall
   const [statusFilter, setStatusFilter] = useState<'all' | 'succeeded' | 'processing'>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedJob, setSelectedJob] = useState<CreativeJob | null>(null);
+  const [jobToDelete, setJobToDelete] = useState<string | null>(null);
   
   const { data: jobs, isLoading } = useCreativeJobs(filterType);
+  const deleteJob = useDeleteCreativeJob();
 
   // Filtrar jobs
   const filteredJobs = (jobs || []).filter(job => {
@@ -234,6 +238,7 @@ export function CreativeGallery({ filterType, showFilters = true }: CreativeGall
               job={job} 
               onView={() => setSelectedJob(job)}
               onDownload={handleDownload}
+              onDelete={() => setJobToDelete(job.id)}
             />
           ))}
         </div>
@@ -245,6 +250,7 @@ export function CreativeGallery({ filterType, showFilters = true }: CreativeGall
               job={job} 
               onView={() => setSelectedJob(job)}
               onDownload={handleDownload}
+              onDelete={() => setJobToDelete(job.id)}
             />
           ))}
         </div>
@@ -363,6 +369,35 @@ export function CreativeGallery({ filterType, showFilters = true }: CreativeGall
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!jobToDelete} onOpenChange={(open) => !open && setJobToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir criativo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. O criativo será removido permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (jobToDelete) {
+                  deleteJob.mutate(jobToDelete);
+                  setJobToDelete(null);
+                  if (selectedJob?.id === jobToDelete) {
+                    setSelectedJob(null);
+                  }
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteJob.isPending ? 'Excluindo...' : 'Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -371,11 +406,13 @@ export function CreativeGallery({ filterType, showFilters = true }: CreativeGall
 function GalleryCard({ 
   job, 
   onView, 
-  onDownload 
+  onDownload,
+  onDelete,
 }: { 
   job: CreativeJob; 
   onView: () => void; 
   onDownload: (url: string, filename?: string) => void;
+  onDelete: () => void;
 }) {
   const isImage = job.type === 'product_image';
   const thumbnailUrl = job.output_urls?.[0];
@@ -458,6 +495,17 @@ function GalleryCard({
           >
             <Expand className="h-3.5 w-3.5" />
           </Button>
+          <Button
+            size="icon"
+            variant="secondary"
+            className="h-7 w-7 bg-background/80 backdrop-blur-sm hover:bg-destructive hover:text-destructive-foreground"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
         </div>
       </div>
 
@@ -477,11 +525,13 @@ function GalleryCard({
 function GalleryListItem({ 
   job, 
   onView, 
-  onDownload 
+  onDownload,
+  onDelete,
 }: { 
   job: CreativeJob; 
   onView: () => void; 
   onDownload: (url: string, filename?: string) => void;
+  onDelete: () => void;
 }) {
   const isImage = job.type === 'product_image';
   const thumbnailUrl = job.output_urls?.[0];
@@ -556,6 +606,14 @@ function GalleryListItem({
               <DropdownMenuItem onClick={onView}>
                 <Expand className="h-4 w-4 mr-2" />
                 Ver Detalhes
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                onClick={onDelete}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Excluir
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { CustomPipelineInfo } from './AIPipelineInfo';
 import { Switch } from '@/components/ui/switch';
 import { 
   Video, 
@@ -232,21 +233,18 @@ export function ProductVideoTab() {
             />
           </div>
 
-          {/* Pipeline Info */}
-          <div className="space-y-2">
-            <Label className="text-muted-foreground text-xs">Pipeline:</Label>
-            <div className="flex flex-wrap gap-1">
-              {generatePremiumScene && (
-                <Badge variant="outline" className="text-xs">GPT Image (Cenário)</Badge>
-              )}
-              <Badge variant="default" className="text-xs bg-primary/90">
-                Kling I2V v2.6 Pro
-              </Badge>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Modelo: {models.find(m => m.isDefault)?.name} • Custo estimado: ~R$ {((models.find(m => m.isDefault)?.costEstimate || 60) / 100).toFixed(2)}
-            </p>
-          </div>
+          {/* Pipeline Info - Apenas para tenants especiais */}
+          <CustomPipelineInfo 
+            label="Pipeline:" 
+            description={`Modelo: ${models.find(m => m.isDefault)?.name} • Custo estimado: ~R$ ${((models.find(m => m.isDefault)?.costEstimate || 60) / 100).toFixed(2)}`}
+          >
+            {generatePremiumScene && (
+              <Badge variant="outline" className="text-xs">GPT Image (Cenário)</Badge>
+            )}
+            <Badge variant="default" className="text-xs bg-primary/90">
+              Kling I2V v2.6 Pro
+            </Badge>
+          </CustomPipelineInfo>
 
           {/* Submit */}
           <Button 
