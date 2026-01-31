@@ -126,11 +126,36 @@ export function CreativeJobsList({ jobs, isLoading, type, highlightNew }: Creati
             <div className="mt-3 flex items-center gap-2">
               {job.status === 'succeeded' && job.output_urls && job.output_urls.length > 0 && (
                 <>
-                  <Button variant="outline" size="sm" className="h-7 text-xs">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-7 text-xs"
+                    onClick={() => window.open(job.output_urls![0], '_blank')}
+                  >
                     <Eye className="h-3 w-3 mr-1" />
                     Ver
                   </Button>
-                  <Button variant="outline" size="sm" className="h-7 text-xs">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-7 text-xs"
+                    onClick={async () => {
+                      try {
+                        const url = job.output_urls![0];
+                        const response = await fetch(url);
+                        const blob = await response.blob();
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(blob);
+                        const ext = url.includes('.mp4') ? 'mp4' : 'png';
+                        link.download = `criativo-${job.id.slice(0, 8)}.${ext}`;
+                        link.click();
+                        URL.revokeObjectURL(link.href);
+                      } catch (error) {
+                        console.error('Download failed:', error);
+                        window.open(job.output_urls![0], '_blank');
+                      }
+                    }}
+                  >
                     <Download className="h-3 w-3 mr-1" />
                     Baixar
                   </Button>
