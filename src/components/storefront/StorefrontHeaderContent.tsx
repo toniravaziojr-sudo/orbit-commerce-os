@@ -900,7 +900,7 @@ export function StorefrontHeaderContent({
                         <img 
                           src={featuredPromosThumbnail} 
                           alt={featuredPromosLabel}
-                          className="w-52 h-28 object-cover"
+                          className="w-60 h-24 object-cover"
                         />
                         <div className="p-2 text-center" style={{ backgroundColor: featuredPromosBgColor || undefined }}>
                           <span className="text-xs font-medium text-popover-foreground">{featuredPromosLabel}</span>
@@ -1254,7 +1254,7 @@ export function StorefrontHeaderContent({
                         <img 
                           src={featuredPromosThumbnail} 
                           alt={featuredPromosLabel}
-                          className="w-48 h-36 object-cover"
+                          className="w-60 h-24 object-cover"
                         />
                         <div className="p-2 text-center" style={{ backgroundColor: featuredPromosBgColor || undefined }}>
                           <span className="text-xs font-medium text-popover-foreground">{featuredPromosLabel}</span>
