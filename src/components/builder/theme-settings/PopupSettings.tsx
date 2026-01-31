@@ -364,24 +364,6 @@ export function PopupSettings({ tenantId, templateSetId }: PopupSettingsProps) {
             </Select>
           </div>
 
-          {/* Side Image - Only for side-image layout */}
-          {localConfig.layout === 'side-image' && (
-            <div className="space-y-2">
-              <Label className="text-sm flex items-center gap-2">
-                <ImageIcon className="h-4 w-4" />
-                Imagem Lateral
-              </Label>
-              <ImageUploaderWithLibrary
-                value={localConfig.image_url || ''}
-                onChange={(url) => updateProp('image_url', url)}
-                variant="desktop"
-                placeholder="Envie ou selecione uma imagem"
-              />
-              <p className="text-xs text-muted-foreground">
-                <strong>Dimensões recomendadas:</strong> 400×600px (proporção 2:3, vertical)
-              </p>
-            </div>
-          )}
 
           {/* Title */}
           <div className="space-y-2">
@@ -506,23 +488,44 @@ export function PopupSettings({ tenantId, templateSetId }: PopupSettingsProps) {
             </div>
           </div>
 
-          {/* Mini Banner no Topo */}
-          <div className="space-y-2">
-            <Label className="text-sm flex items-center gap-2">
-              <ImageIcon className="h-4 w-4" />
-              Banner (Topo do Popup)
-            </Label>
-            <ImageUploaderWithLibrary
-              value={localConfig.icon_image_url || ''}
-              onChange={(url) => updateProp('icon_image_url', url)}
-              variant="desktop"
-              aspectRatio="banner"
-              placeholder="Envie ou selecione uma imagem"
-            />
-            <p className="text-xs text-muted-foreground">
-              <strong>Dimensões recomendadas:</strong> 450×105px (largura total do popup)
-            </p>
-          </div>
+          {/* Mini Banner no Topo - Only for non-side-image layouts */}
+          {localConfig.layout !== 'side-image' && (
+            <div className="space-y-2">
+              <Label className="text-sm flex items-center gap-2">
+                <ImageIcon className="h-4 w-4" />
+                Banner (Topo do Popup)
+              </Label>
+              <ImageUploaderWithLibrary
+                value={localConfig.icon_image_url || ''}
+                onChange={(url) => updateProp('icon_image_url', url)}
+                variant="desktop"
+                aspectRatio="banner"
+                placeholder="Envie ou selecione uma imagem"
+              />
+              <p className="text-xs text-muted-foreground">
+                <strong>Dimensões recomendadas:</strong> 450×105px (largura total do popup)
+              </p>
+            </div>
+          )}
+
+          {/* Imagem Lateral - Only for side-image layout (within Appearance section) */}
+          {localConfig.layout === 'side-image' && (
+            <div className="space-y-2">
+              <Label className="text-sm flex items-center gap-2">
+                <ImageIcon className="h-4 w-4" />
+                Imagem Lateral
+              </Label>
+              <ImageUploaderWithLibrary
+                value={localConfig.image_url || ''}
+                onChange={(url) => updateProp('image_url', url)}
+                variant="desktop"
+                placeholder="Envie ou selecione uma imagem"
+              />
+              <p className="text-xs text-muted-foreground">
+                <strong>Dimensões recomendadas:</strong> 400×600px (proporção 2:3, vertical)
+              </p>
+            </div>
+          )}
         </CollapsibleContent>
       </Collapsible>
 
