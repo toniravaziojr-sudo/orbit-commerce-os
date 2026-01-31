@@ -15,7 +15,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 
-const VERSION = '2.2.1'; // Fix: generate_audio: false (correct Fal.ai param)
+const VERSION = '2.2.2'; // Add: generate_audio toggle from settings
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -527,8 +527,8 @@ async function submitFalJob(
       image_url: job.product_image_url,
       duration: settings.duration || '5',
       aspect_ratio: settings.aspect_ratio || '16:9',
-      // Disable audio generation (parameter name per Fal.ai docs)
-      generate_audio: false,
+      // Audio toggle from user settings (default: false)
+      generate_audio: settings.generate_audio === true,
     };
   } else if (job.type === 'ugc_ai_video') {
     endpoint = FAL_ENDPOINTS['kling-i2v-pro'];
@@ -542,8 +542,8 @@ async function submitFalJob(
       image_url: job.product_image_url,
       duration: settings.duration || '5',
       aspect_ratio: settings.aspect_ratio || '9:16',
-      // Disable audio generation (parameter name per Fal.ai docs)
-      generate_audio: false,
+      // Audio toggle from user settings (default: false)
+      generate_audio: settings.generate_audio === true,
     };
   } else {
     throw new Error(`Unknown async job type: ${job.type}`);
