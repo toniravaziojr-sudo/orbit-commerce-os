@@ -279,7 +279,7 @@ export function NewsletterPopupBlock({
                     src={bannerImageUrl} 
                     alt="" 
                     className="w-full h-auto object-cover rounded-t-lg"
-                    style={{ maxHeight: '90px' }}
+                    style={{ maxHeight: '105px' }}
                   />
                 </div>
               )}
@@ -370,7 +370,7 @@ export function NewsletterPopupBlock({
               src={bannerImageUrl} 
               alt="" 
               className="w-full h-auto object-cover"
-              style={{ maxHeight: '90px' }}
+              style={{ maxHeight: '105px' }}
             />
           </div>
         )}
