@@ -83,8 +83,9 @@ export interface ThemeHeaderConfig {
   // Visual menu style configuration
   menuVisualStyle?: MenuVisualStyle;
   menuShowParentTitle?: boolean; // Show parent category name as header in dropdown
-  // Logo size configuration
   logoSize?: LogoSizeType; // small, medium, large - controls logo height in header
+  // Navigation bar height configuration
+  navBarHeight?: 'small' | 'medium' | 'large'; // small (32px), medium (40px), large (52px) - controls secondary nav height
 }
 
 // Footer image section item

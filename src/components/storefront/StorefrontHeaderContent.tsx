@@ -153,6 +153,22 @@ export function StorefrontHeaderContent({
   // Logo size - 'small', 'medium', 'large'
   const logoSize = String(props.logoSize || 'medium') as 'small' | 'medium' | 'large';
   
+  // Nav bar height - 'small', 'medium', 'large'
+  const navBarHeight = String(props.navBarHeight || 'medium') as 'small' | 'medium' | 'large';
+  
+  // Get nav bar height in pixels based on navBarHeight prop
+  const getNavBarHeight = (): string => {
+    switch (navBarHeight) {
+      case 'small':
+        return '32px';
+      case 'large':
+        return '52px';
+      case 'medium':
+      default:
+        return '40px';
+    }
+  };
+  
   // Get logo size classes based on logoSize prop
   const getLogoSizeClasses = (): string => {
     switch (logoSize) {
@@ -904,7 +920,7 @@ export function StorefrontHeaderContent({
           )}
           style={{ 
             backgroundColor: headerBgColor ? `${headerBgColor}` : undefined,
-            minHeight: '36px'
+            minHeight: getNavBarHeight()
           }}
           >
             {/* Featured Promos - LEFT side with thumbnail on hover */}
