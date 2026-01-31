@@ -697,11 +697,12 @@ async function submitFalJob(
       throw new Error('Nenhuma referência de voz disponível. Selecione um preset ou faça upload de uma amostra de áudio.');
     }
     
-    // Chamar F5-TTS
+    // Chamar F5-TTS - v2.3.3: Adicionar model_type obrigatório
     const ttsPayload = {
       gen_text: ttsScript,
       ref_audio_url: refAudioUrl,
       ref_text: refText,
+      model_type: 'F5-TTS', // Campo obrigatório pela API
       remove_silence: true,
     };
     
