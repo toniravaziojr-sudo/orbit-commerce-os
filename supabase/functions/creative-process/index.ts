@@ -15,7 +15,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 
-const VERSION = '2.3.0'; // Add: F5-TTS PT-BR audio pipeline
+const VERSION = '2.4.0'; // Add: Keyframe generation for UGC AI Video
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -779,17 +779,56 @@ async function submitFalJob(
   } else if (job.type === 'ugc_ai_video') {
     endpoint = FAL_ENDPOINTS['kling-i2v-pro'];
     
+    const mode = settings.mode || 'scene_with_product';
+    let startImageUrl = job.product_image_url;
+    
+    // v2.4.0: Se mode === 'scene_with_product', gerar keyframe com pessoa primeiro
+    if (mode === 'scene_with_product' && lovableApiKey) {
+      console.log('[creative-process] UGC AI: Generating keyframe with person and product...');
+      
+      // Extrair descrição do personagem do prompt do usuário
+      const userPrompt = job.prompt || '';
+      
+      // Construir prompt de keyframe baseado no prompt do usuário
+      const keyframePrompt = `Create a hyper-realistic photograph based on this description: "${userPrompt}". 
+The person is holding or using the product shown in the reference image. 
+CRITICAL: The product label, packaging, colors and design must be EXACTLY preserved from the reference image.
+Natural pose, authentic expression, professional lighting, 8K quality.
+The person should be looking at the camera with a natural, friendly expression.`;
+      
+      console.log('[creative-process] Keyframe prompt:', keyframePrompt.substring(0, 200));
+      
+      try {
+        const keyframeUrl = await generateWithGPTImage(
+          keyframePrompt,
+          job.product_image_url,
+          lovableApiKey,
+          { inputFidelity: settings.input_fidelity || 'high' }
+        );
+        
+        if (keyframeUrl) {
+          console.log('[creative-process] Keyframe generated successfully:', keyframeUrl.substring(0, 80));
+          startImageUrl = keyframeUrl;
+        } else {
+          console.warn('[creative-process] Keyframe generation returned null, using product image');
+        }
+      } catch (keyframeError) {
+        console.error('[creative-process] Keyframe generation failed:', keyframeError);
+        // Continua com a imagem do produto como fallback
+      }
+    }
+    
     const basePrompt = job.prompt || 'Natural product demonstration video';
     const fidelityInstructions = 'CRITICAL: Preserve exact product appearance - do not distort or modify the product shape, colors, label, or design.';
-    const enhancedPrompt = `${basePrompt}. ${fidelityInstructions}`;
+    const enhancedPrompt = `${basePrompt}. Natural movement, subtle gestures, authentic expression. ${fidelityInstructions}`;
     
     payload = {
       prompt: enhancedPrompt,
-      image_url: job.product_image_url,
+      image_url: startImageUrl,
       duration: settings.duration || '5',
       aspect_ratio: settings.aspect_ratio || '9:16',
-      // Audio toggle from user settings (default: false)
-      generate_audio: settings.generate_audio === true,
+      // Não gerar áudio nativo aqui - será mixado com TTS depois se necessário
+      generate_audio: false,
     };
   } else {
     throw new Error(`Unknown async job type: ${job.type}`);
