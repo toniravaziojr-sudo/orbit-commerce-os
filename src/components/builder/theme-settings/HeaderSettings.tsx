@@ -224,6 +224,23 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
           
           {localProps.noticeEnabled && (
             <>
+              <div className="space-y-1.5">
+                <Label className="text-[10px]">Efeito de Animação</Label>
+                <Select
+                  value={localProps.noticeAnimation || 'fade'}
+                  onValueChange={(v) => updatePropImmediate('noticeAnimation', v as 'none' | 'fade' | 'slide' | 'marquee')}
+                >
+                  <SelectTrigger className="w-full h-7 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhuma (estático)</SelectItem>
+                    <SelectItem value="fade">Fade (suave)</SelectItem>
+                    <SelectItem value="slide">Slide (desliza vertical)</SelectItem>
+                    <SelectItem value="marquee">Marquee (desliza horizontal)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-1">
                 <Label className="text-[10px]">Texto do Aviso</Label>
                 <Input
