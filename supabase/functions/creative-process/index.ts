@@ -394,19 +394,34 @@ async function submitFalJob(
   
   if (job.type === 'product_video') {
     endpoint = FAL_ENDPOINTS['kling-i2v-pro'];
+    
+    // Build enhanced prompt with fidelity preservation
+    const basePrompt = job.prompt || 'Smooth cinematic product video with gentle elegant motion';
+    const fidelityInstructions = 'CRITICAL: Preserve exact product appearance - do not distort, stretch, or modify the product shape, colors, label, or design. Maintain perfect visual fidelity to the original product.';
+    const enhancedPrompt = `${basePrompt}. ${fidelityInstructions}`;
+    
     payload = {
-      prompt: job.prompt || 'Smooth product video with gentle motion',
+      prompt: enhancedPrompt,
       image_url: job.product_image_url,
       duration: settings.duration || '5',
       aspect_ratio: settings.aspect_ratio || '16:9',
+      // Disable audio generation to avoid English audio
+      audio: false,
     };
   } else if (job.type === 'ugc_ai_video') {
     endpoint = FAL_ENDPOINTS['kling-i2v-pro'];
+    
+    const basePrompt = job.prompt || 'Natural product demonstration video';
+    const fidelityInstructions = 'CRITICAL: Preserve exact product appearance - do not distort or modify the product shape, colors, label, or design.';
+    const enhancedPrompt = `${basePrompt}. ${fidelityInstructions}`;
+    
     payload = {
-      prompt: job.prompt || 'Natural product demonstration',
+      prompt: enhancedPrompt,
       image_url: job.product_image_url,
       duration: settings.duration || '5',
       aspect_ratio: settings.aspect_ratio || '9:16',
+      // Disable audio generation to avoid English audio
+      audio: false,
     };
   } else {
     throw new Error(`Unknown async job type: ${job.type}`);
