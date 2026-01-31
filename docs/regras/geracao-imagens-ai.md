@@ -194,6 +194,53 @@ const falApiKey = await getCredential(
 | **Botão "Gerar vídeo"** | Gera vídeo com duração selecionada |
 | **Preview de vídeo** | Hover para play automático, ícone de play sobreposto |
 | **Aprovação** | Mesmo fluxo de imagens — aprovar publica o vídeo |
+| **Excluir criativo** | Botão de lixeira com confirmação via AlertDialog |
+
+### Visibilidade de Modelos IA
+
+| Regra | Descrição |
+|-------|-----------|
+| **Tenants normais** | NÃO exibir badges de modelos/pipeline IA |
+| **Tenants especiais** | Exibir badges completos (respeiteohomem, admin) |
+| **Componente** | `src/components/creatives/AIPipelineInfo.tsx` |
+
+O componente `AIPipelineInfo` verifica automaticamente se o tenant é especial antes de renderizar:
+
+```tsx
+import { AIPipelineInfo, CustomPipelineInfo } from './AIPipelineInfo';
+
+// Uso com lista de modelos (só aparece para tenants especiais)
+<AIPipelineInfo models={models} />
+
+// Uso com badges customizados
+<CustomPipelineInfo label="Pipeline:">
+  <Badge>GPT Image</Badge>
+  <Badge>Kling I2V</Badge>
+</CustomPipelineInfo>
+```
+
+### Exclusão de Criativos
+
+O hook `useDeleteCreativeJob` permite excluir criativos da galeria:
+
+```tsx
+import { useDeleteCreativeJob } from '@/hooks/useCreatives';
+
+const deleteJob = useDeleteCreativeJob();
+deleteJob.mutate(jobId); // Exclui do banco + arquivos do storage
+```
+
+---
+
+## Armazenamento de Criativos
+
+Criativos gerados são automaticamente salvos na pasta **"Criativos com IA"** do Meu Drive:
+
+| Item | Valor |
+|------|-------|
+| **Pasta** | `Criativos com IA` (criada automaticamente) |
+| **Bucket** | `media-assets` |
+| **Registro** | `public.files` com `source: 'creative_job'` |
 
 ---
 
