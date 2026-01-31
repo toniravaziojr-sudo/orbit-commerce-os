@@ -8,6 +8,7 @@ import { X, Save, AlertCircle } from 'lucide-react';
 import { validateSlugFormat, generateSlug as generateSlugUtil } from '@/lib/slugPolicy';
 import { ImageUploaderWithLibrary } from '@/components/builder/ImageUploaderWithLibrary';
 import { GenerateSeoButton } from '@/components/seo/GenerateSeoButton';
+
 interface CategoryFormProps {
   formData: {
     name: string;
@@ -27,6 +28,7 @@ interface CategoryFormProps {
   isEditing: boolean;
   editingCategoryId?: string;
   isLoading?: boolean;
+  hideActions?: boolean;
 }
 
 
@@ -38,6 +40,7 @@ export function CategoryForm({
   isEditing,
   editingCategoryId,
   isLoading,
+  hideActions = false,
 }: CategoryFormProps) {
   // Use centralized slug generation utility
   const handleGenerateSlug = (name: string) => generateSlugUtil(name);
@@ -54,9 +57,11 @@ export function CategoryForm({
           <CardTitle className="text-lg">
             {isEditing ? 'Editar Categoria' : 'Nova Categoria'}
           </CardTitle>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
+          {!hideActions && (
+            <Button variant="ghost" size="icon" onClick={onClose}>
+              <X className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -210,15 +215,18 @@ export function CategoryForm({
           </div>
         </div>
 
-        <div className="flex gap-2 pt-4">
-          <Button variant="outline" onClick={onClose} className="flex-1">
-            Cancelar
-          </Button>
-          <Button onClick={onSubmit} disabled={!formData.name || !isSlugValid || isLoading} className="flex-1">
-            <Save className="h-4 w-4 mr-2" />
-            {isEditing ? 'Salvar' : 'Criar'}
-          </Button>
-        </div>
+        {/* Action buttons - only show if not hidden */}
+        {!hideActions && (
+          <div className="flex gap-2 pt-4">
+            <Button variant="outline" onClick={onClose} className="flex-1">
+              Cancelar
+            </Button>
+            <Button onClick={onSubmit} disabled={!formData.name || !isSlugValid || isLoading} className="flex-1">
+              <Save className="h-4 w-4 mr-2" />
+              {isEditing ? 'Salvar' : 'Criar'}
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
