@@ -1,6 +1,6 @@
 // =============================================
-// IMAGE UPLOADER WITH LIBRARY - Upload or select from media library
-// Agora usa `files` (Uploads do sistema) via useSystemUpload
+// IMAGE UPLOADER WITH LIBRARY - Upload or select from Meu Drive
+// Refactored to use DriveFilePicker instead of MediaLibraryPicker
 // =============================================
 
 import { useState, useRef } from 'react';
@@ -8,10 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Upload, Link, Loader2, X, Check, FolderOpen } from 'lucide-react';
-import { useMediaLibrary, MediaVariant } from '@/hooks/useMediaLibrary';
 import { useSystemUpload } from '@/hooks/useSystemUpload';
-import { MediaLibraryPicker } from './MediaLibraryPicker';
+import { DriveFilePicker } from '@/components/ui/DriveFilePicker';
 import { cn } from '@/lib/utils';
+import type { MediaVariant } from '@/hooks/useMediaLibrary';
 
 interface ImageUploaderWithLibraryProps {
   value: string;
@@ -35,7 +35,7 @@ export function ImageUploaderWithLibrary({
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [urlInput, setUrlInput] = useState(value || '');
-  const [showLibrary, setShowLibrary] = useState(false);
+  const [showDrivePicker, setShowDrivePicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const aspectRatioClass = {
@@ -101,9 +101,10 @@ export function ImageUploaderWithLibrary({
     setUrlInput('');
   };
 
-  const handleLibrarySelect = (url: string) => {
+  const handleDriveSelect = (url: string) => {
     onChange(url);
     setUrlInput(url);
+    setShowDrivePicker(false);
   };
 
   return (
@@ -114,9 +115,9 @@ export function ImageUploaderWithLibrary({
             <Upload className="h-3 w-3" />
             Upload
           </TabsTrigger>
-          <TabsTrigger value="library" className="text-xs gap-1">
+          <TabsTrigger value="drive" className="text-xs gap-1">
             <FolderOpen className="h-3 w-3" />
-            Banco
+            Meu Drive
           </TabsTrigger>
           <TabsTrigger value="url" className="text-xs gap-1">
             <Link className="h-3 w-3" />
@@ -165,15 +166,15 @@ export function ImageUploaderWithLibrary({
           </div>
         </TabsContent>
 
-        <TabsContent value="library" className="mt-2">
+        <TabsContent value="drive" className="mt-2">
           <Button
             variant="outline"
             className="w-full h-20 flex-col gap-2"
-            onClick={() => setShowLibrary(true)}
+            onClick={() => setShowDrivePicker(true)}
           >
             <FolderOpen className="h-6 w-6 text-muted-foreground" />
             <span className="text-sm">
-              Escolher do banco ({variantLabel})
+              Escolher do Meu Drive ({variantLabel})
             </span>
           </Button>
         </TabsContent>
@@ -226,12 +227,13 @@ export function ImageUploaderWithLibrary({
         </div>
       )}
 
-      {/* Media Library Picker Modal */}
-      <MediaLibraryPicker
-        open={showLibrary}
-        onOpenChange={setShowLibrary}
-        variant={variant}
-        onSelect={handleLibrarySelect}
+      {/* Drive File Picker Modal */}
+      <DriveFilePicker
+        open={showDrivePicker}
+        onOpenChange={setShowDrivePicker}
+        accept="image"
+        onSelect={handleDriveSelect}
+        title={`Selecionar Imagem (${variantLabel})`}
       />
     </div>
   );

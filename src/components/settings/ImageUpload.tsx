@@ -2,8 +2,9 @@ import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Upload, X, Image as ImageIcon } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { DriveFilePicker } from '@/components/ui/DriveFilePicker';
 
 interface ImageUploadProps {
   label: string;
@@ -28,6 +29,7 @@ export function ImageUpload({
 }: ImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [drivePickerOpen, setDrivePickerOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = async (file: File) => {
@@ -80,6 +82,11 @@ export function ImageUpload({
     if (inputRef.current) {
       inputRef.current.value = '';
     }
+  };
+
+  const handleDriveSelect = (url: string) => {
+    onChange(url);
+    setDrivePickerOpen(false);
   };
 
   return (
@@ -141,15 +148,26 @@ export function ImageUpload({
                   {disabled ? 'Clique em "Editar configurações" para alterar' : 'Arraste uma imagem ou clique para selecionar'}
                 </p>
                 {!disabled && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => inputRef.current?.click()}
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Selecionar arquivo
-                  </Button>
+                  <div className="flex gap-2 flex-wrap justify-center">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => inputRef.current?.click()}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setDrivePickerOpen(true)}
+                    >
+                      <FolderOpen className="h-4 w-4 mr-2" />
+                      Meu Drive
+                    </Button>
+                  </div>
                 )}
               </>
             )}
@@ -163,6 +181,15 @@ export function ImageUpload({
         accept={accept}
         onChange={handleInputChange}
         className="hidden"
+      />
+
+      {/* Drive File Picker */}
+      <DriveFilePicker
+        open={drivePickerOpen}
+        onOpenChange={setDrivePickerOpen}
+        onSelect={handleDriveSelect}
+        accept="image"
+        title="Selecionar Imagem do Meu Drive"
       />
     </div>
   );
