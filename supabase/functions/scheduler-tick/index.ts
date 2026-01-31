@@ -270,6 +270,11 @@ interface ScheduledEmailsStats {
   skipped: number;
 }
 
+interface CreativePollStats {
+  resumed: number;
+  errors: number;
+}
+
 interface TickStats {
   tick_at: string;
   pass: number;
@@ -290,6 +295,7 @@ interface TickStats {
   reconcile_payments: ReconcilePaymentsStats;
   tracking_poll: TrackingPollStats;
   scheduled_emails: ScheduledEmailsStats;
+  creative_poll: CreativePollStats;
 }
 
 interface AggregatedStats {
@@ -403,6 +409,10 @@ serve(async (req) => {
           sent: 0,
           failed: 0,
           skipped: 0,
+        },
+        creative_poll: {
+          resumed: 0,
+          errors: 0,
         },
       };
 
@@ -580,6 +590,34 @@ serve(async (req) => {
           }
         } catch (error) {
           console.error(`[scheduler-tick] process-scheduled-emails exception:`, error);
+        }
+      }
+
+      // --- Step 7: Resume creative polling (only on first pass) ---
+      if (pass === 1) {
+        try {
+          console.log(`[scheduler-tick] Calling creative-process (poll_running)...`);
+          const creativeResponse = await fetch(`${supabaseUrl}/functions/v1/creative-process`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+            },
+            body: JSON.stringify({ poll_running: true }),
+          });
+
+          if (creativeResponse.ok) {
+            const creativeResult = await creativeResponse.json();
+            console.log(`[scheduler-tick] creative-process result:`, creativeResult);
+            passStats.creative_poll.resumed = creativeResult.jobs?.length ?? 0;
+          } else {
+            const errorText = await creativeResponse.text();
+            console.error(`[scheduler-tick] creative-process error: ${creativeResponse.status} - ${errorText}`);
+            passStats.creative_poll.errors = 1;
+          }
+        } catch (error) {
+          console.error(`[scheduler-tick] creative-process exception:`, error);
+          passStats.creative_poll.errors = 1;
         }
       }
 

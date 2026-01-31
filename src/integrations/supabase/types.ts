@@ -2314,11 +2314,15 @@ export type Database = {
           created_by: string
           current_step: number | null
           error_message: string | null
+          external_model_id: string | null
+          external_request_id: string | null
           has_authorization: boolean | null
           id: string
+          last_poll_at: string | null
           output_folder_id: string | null
           output_urls: string[] | null
           pipeline_steps: Json | null
+          poll_attempts: number | null
           processing_time_ms: number | null
           product_id: string | null
           product_image_url: string | null
@@ -2342,11 +2346,15 @@ export type Database = {
           created_by: string
           current_step?: number | null
           error_message?: string | null
+          external_model_id?: string | null
+          external_request_id?: string | null
           has_authorization?: boolean | null
           id?: string
+          last_poll_at?: string | null
           output_folder_id?: string | null
           output_urls?: string[] | null
           pipeline_steps?: Json | null
+          poll_attempts?: number | null
           processing_time_ms?: number | null
           product_id?: string | null
           product_image_url?: string | null
@@ -2370,11 +2378,15 @@ export type Database = {
           created_by?: string
           current_step?: number | null
           error_message?: string | null
+          external_model_id?: string | null
+          external_request_id?: string | null
           has_authorization?: boolean | null
           id?: string
+          last_poll_at?: string | null
           output_folder_id?: string | null
           output_urls?: string[] | null
           pipeline_steps?: Json | null
+          poll_attempts?: number | null
           processing_time_ms?: number | null
           product_id?: string | null
           product_image_url?: string | null

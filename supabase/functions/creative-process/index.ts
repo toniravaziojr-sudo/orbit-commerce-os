@@ -15,7 +15,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 
-const VERSION = '2.0.3'; // Fix Fal.ai polling - use base model_id without subpath
+const VERSION = '2.1.0'; // Async pattern with background polling + EdgeRuntime.waitUntil
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -43,6 +43,114 @@ const FAL_ENDPOINTS: Record<string, string> = {
   'gpt-image-bg': 'gpt-image-1.5/edit',
 };
 
+// Background polling function - runs after response is sent
+async function pollJobInBackground(
+  supabase: any,
+  jobId: string,
+  requestId: string,
+  baseModelId: string,
+  falApiKey: string,
+  startTime: number
+) {
+  const maxAttempts = 120; // 10 minutes (5s * 120)
+  let attempts = 0;
+  
+  console.log(`[creative-process] Background polling started for job ${jobId}, request ${requestId}`);
+  
+  try {
+    while (attempts < maxAttempts) {
+      await new Promise(r => setTimeout(r, 5000));
+      attempts++;
+      
+      // Update poll tracking
+      await supabase
+        .from('creative_jobs')
+        .update({ 
+          poll_attempts: attempts,
+          last_poll_at: new Date().toISOString()
+        })
+        .eq('id', jobId);
+      
+      const statusUrl = `https://queue.fal.run/${baseModelId}/requests/${requestId}/status`;
+      console.log(`[creative-process] Polling: ${statusUrl} (attempt ${attempts}/${maxAttempts})`);
+      
+      const statusResponse = await fetch(statusUrl, { 
+        method: 'GET',
+        headers: { 'Authorization': `Key ${falApiKey}` } 
+      });
+      
+      const statusText = await statusResponse.text();
+      let statusData;
+      try {
+        statusData = JSON.parse(statusText);
+      } catch {
+        console.error('[creative-process] Status JSON parse error:', statusText.substring(0, 200));
+        continue;
+      }
+      
+      console.log(`[creative-process] Status: ${statusData.status}`);
+      
+      if (statusData.status === 'COMPLETED') {
+        // Fetch result
+        const resultUrl = `https://queue.fal.run/${baseModelId}/requests/${requestId}`;
+        const resultResponse = await fetch(resultUrl, { 
+          method: 'GET',
+          headers: { 'Authorization': `Key ${falApiKey}` } 
+        });
+        
+        const resultText = await resultResponse.text();
+        let result;
+        try {
+          result = JSON.parse(resultText);
+        } catch {
+          throw new Error(`Invalid JSON from result: ${resultText.substring(0, 100)}`);
+        }
+        
+        // Extract output URL
+        const outputUrl = result.video?.url || result.output?.url || result.url || null;
+        
+        if (!outputUrl) {
+          throw new Error('No output URL in result');
+        }
+        
+        // Mark as succeeded
+        await supabase
+          .from('creative_jobs')
+          .update({
+            status: 'succeeded',
+            output_urls: [outputUrl],
+            cost_cents: 60, // Estimated
+            processing_time_ms: Date.now() - startTime,
+            completed_at: new Date().toISOString(),
+          })
+          .eq('id', jobId);
+        
+        console.log(`[creative-process] Job ${jobId} SUCCEEDED! Output: ${outputUrl}`);
+        return;
+      } else if (statusData.status === 'FAILED') {
+        throw new Error(`Fal job failed: ${statusData.error || 'Unknown error'}`);
+      }
+      // IN_PROGRESS or IN_QUEUE - continue polling
+    }
+    
+    throw new Error('Job timeout after 10 minutes');
+    
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`[creative-process] Job ${jobId} FAILED:`, errorMessage);
+    
+    await supabase
+      .from('creative_jobs')
+      .update({
+        status: 'failed',
+        error_message: errorMessage,
+        processing_time_ms: Date.now() - startTime,
+        completed_at: new Date().toISOString(),
+      })
+      .eq('id', jobId);
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -58,17 +166,60 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
-    // Buscar FAL_API_KEY do banco (platform_credentials) ou env var
     const falApiKey = await getCredential(supabaseUrl, supabaseServiceKey, 'FAL_API_KEY');
 
-    // Parse body
     const body = await req.json().catch(() => ({}));
-    const { job_id, limit = 5 } = body;
+    const { job_id, limit = 5, poll_running = false } = body;
 
+    // === MODE 1: Poll running jobs (continue interrupted polling) ===
+    if (poll_running) {
+      const { data: runningJobs } = await supabase
+        .from('creative_jobs')
+        .select('*')
+        .eq('status', 'running')
+        .not('external_request_id', 'is', null)
+        .lt('last_poll_at', new Date(Date.now() - 30000).toISOString()) // >30s since last poll
+        .order('last_poll_at', { ascending: true, nullsFirst: true })
+        .limit(3);
+      
+      if (!runningJobs?.length) {
+        return new Response(
+          JSON.stringify({ success: true, message: 'No running jobs to poll', version: VERSION }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      console.log(`[creative-process] Resuming polling for ${runningJobs.length} running jobs`);
+      
+      for (const job of runningJobs) {
+        // @ts-ignore - EdgeRuntime is available in Supabase Edge Functions
+        EdgeRuntime.waitUntil(
+          pollJobInBackground(
+            supabase,
+            job.id,
+            job.external_request_id,
+            job.external_model_id,
+            falApiKey!,
+            startTime
+          )
+        );
+      }
+      
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: `Resumed polling for ${runningJobs.length} jobs`,
+          jobs: runningJobs.map(j => j.id),
+          version: VERSION,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // === MODE 2: Process queued jobs ===
     let jobs: any[] = [];
 
     if (job_id) {
-      // Processar job específico
       const { data } = await supabase
         .from('creative_jobs')
         .select('*')
@@ -78,7 +229,6 @@ serve(async (req) => {
       
       if (data) jobs = [data];
     } else {
-      // Buscar jobs na fila (FIFO)
       const { data } = await supabase
         .from('creative_jobs')
         .select('*')
@@ -101,18 +251,19 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[creative-process] Processing ${jobs.length} jobs`);
+    console.log(`[creative-process] Processing ${jobs.length} queued jobs`);
 
     const results = {
       processed: 0,
-      succeeded: 0,
+      submitted: 0,
+      succeeded_sync: 0,
       failed: 0,
       errors: [] as string[],
     };
 
     for (const job of jobs) {
       try {
-        // Marcar como running
+        // Mark as running
         await supabase
           .from('creative_jobs')
           .update({ 
@@ -123,65 +274,71 @@ serve(async (req) => {
 
         console.log(`[creative-process] Processing job ${job.id}, type: ${job.type}`);
 
-        // Processar baseado no tipo
-        let outputUrls: string[] = [];
-        let totalCost = 0;
-
-        if (job.type === 'product_image') {
-          // Usar Lovable AI Gateway para GPT Image
-          const result = await processProductImage(job, lovableApiKey!);
-          outputUrls = result.urls;
-          totalCost = result.cost;
-        } else if (job.type === 'product_video') {
-          // NOVO: Vídeos de produto sem pessoas (Kling I2V)
-          if (!falApiKey) {
-            throw new Error('FAL_API_KEY não configurada');
+        // Check if it's a Fal.ai video job that needs async processing
+        const needsAsyncPolling = ['product_video', 'ugc_ai_video'].includes(job.type);
+        
+        if (needsAsyncPolling && falApiKey) {
+          // ASYNC PATH: Submit and poll in background
+          const submitResult = await submitFalJob(job, falApiKey, lovableApiKey!);
+          
+          if (submitResult.requestId && submitResult.baseModelId) {
+            // Save external IDs for polling
+            await supabase
+              .from('creative_jobs')
+              .update({ 
+                external_request_id: submitResult.requestId,
+                external_model_id: submitResult.baseModelId,
+                poll_attempts: 0,
+                last_poll_at: new Date().toISOString(),
+              })
+              .eq('id', job.id);
+            
+            console.log(`[creative-process] Job ${job.id} submitted to Fal.ai, starting background polling`);
+            
+            // Start background polling (continues after response)
+            // @ts-ignore - EdgeRuntime is available in Supabase Edge Functions
+            EdgeRuntime.waitUntil(
+              pollJobInBackground(
+                supabase,
+                job.id,
+                submitResult.requestId,
+                submitResult.baseModelId,
+                falApiKey,
+                startTime
+              )
+            );
+            
+            results.submitted++;
+          } else {
+            throw new Error('Failed to get request_id from Fal.ai');
           }
-          const result = await processProductVideo(job, falApiKey, lovableApiKey!);
-          outputUrls = result.urls;
-          totalCost = result.cost;
-        } else if (job.type === 'ugc_ai_video') {
-          // UGC 100% IA com produto
-          if (!falApiKey) {
-            throw new Error('FAL_API_KEY não configurada');
-          }
-          const result = await processUGCAI(job, falApiKey, lovableApiKey!);
-          outputUrls = result.urls;
-          totalCost = result.cost;
         } else {
-          // Usar fal.ai para outros vídeos
-          if (!falApiKey) {
-            throw new Error('FAL_API_KEY não configurada');
+          // SYNC PATH: Process immediately (images, etc.)
+          let outputUrls: string[] = [];
+          let totalCost = 0;
+
+          if (job.type === 'product_image') {
+            const result = await processProductImage(job, lovableApiKey!);
+            outputUrls = result.urls;
+            totalCost = result.cost;
+          } else {
+            throw new Error(`Unsupported sync job type: ${job.type}`);
           }
-          const result = await processFalPipeline(job, falApiKey, lovableApiKey);
-          outputUrls = result.urls;
-          totalCost = result.cost;
+
+          await supabase
+            .from('creative_jobs')
+            .update({
+              status: 'succeeded',
+              output_urls: outputUrls,
+              cost_cents: totalCost,
+              processing_time_ms: Date.now() - startTime,
+              completed_at: new Date().toISOString(),
+            })
+            .eq('id', job.id);
+
+          results.succeeded_sync++;
+          console.log(`[creative-process] Job ${job.id} succeeded synchronously`);
         }
-
-        // Marcar como succeeded
-        await supabase
-          .from('creative_jobs')
-          .update({
-            status: 'succeeded',
-            output_urls: outputUrls,
-            cost_cents: totalCost,
-            processing_time_ms: Date.now() - startTime,
-            completed_at: new Date().toISOString(),
-          })
-          .eq('id', job.id);
-
-        // Registrar uso de IA
-        try {
-          await supabase.rpc('increment_creative_usage', {
-            p_tenant_id: job.tenant_id,
-            p_cost_cents: totalCost,
-          });
-        } catch {
-          // Ignorar se RPC não existir
-        }
-
-        results.succeeded++;
-        console.log(`[creative-process] Job ${job.id} succeeded with ${outputUrls.length} outputs`);
 
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -222,6 +379,78 @@ serve(async (req) => {
     );
   }
 });
+
+// Submit job to Fal.ai and return request_id (no polling here)
+async function submitFalJob(
+  job: any,
+  falApiKey: string,
+  lovableApiKey: string
+): Promise<{ requestId: string | null; baseModelId: string | null }> {
+  const settings = job.settings || {};
+  
+  // Determine endpoint based on job type
+  let endpoint: string;
+  let payload: Record<string, unknown>;
+  
+  if (job.type === 'product_video') {
+    endpoint = FAL_ENDPOINTS['kling-i2v-pro'];
+    payload = {
+      prompt: job.prompt || 'Smooth product video with gentle motion',
+      image_url: job.product_image_url,
+      duration: settings.duration || '5',
+      aspect_ratio: settings.aspect_ratio || '16:9',
+    };
+  } else if (job.type === 'ugc_ai_video') {
+    endpoint = FAL_ENDPOINTS['kling-i2v-pro'];
+    payload = {
+      prompt: job.prompt || 'Natural product demonstration',
+      image_url: job.product_image_url,
+      duration: settings.duration || '5',
+      aspect_ratio: settings.aspect_ratio || '9:16',
+    };
+  } else {
+    throw new Error(`Unknown async job type: ${job.type}`);
+  }
+  
+  // Extract base model_id for polling
+  const endpointParts = endpoint.split('/');
+  const baseModelId = endpointParts.slice(0, 2).join('/');
+  
+  console.log(`[creative-process] Submitting to Fal.ai: ${endpoint}`);
+  console.log(`[creative-process] Base model for polling: ${baseModelId}`);
+  
+  const submitResponse = await fetch(`https://queue.fal.run/${endpoint}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Key ${falApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!submitResponse.ok) {
+    const errorText = await submitResponse.text();
+    throw new Error(`Fal submit error: ${submitResponse.status} - ${errorText}`);
+  }
+
+  const submitText = await submitResponse.text();
+  let submitData;
+  try {
+    submitData = JSON.parse(submitText);
+  } catch {
+    throw new Error(`Invalid JSON from Fal: ${submitText.substring(0, 100)}`);
+  }
+  
+  const requestId = submitData.request_id;
+  
+  if (!requestId) {
+    throw new Error('No request_id from Fal.ai');
+  }
+  
+  console.log(`[creative-process] Got request_id: ${requestId}`);
+  
+  return { requestId, baseModelId };
+}
 
 // ================== PROCESSADORES POR TIPO ==================
 
