@@ -49,16 +49,9 @@ export function UGCAITab() {
   const [script, setScript] = useState('');
   const [cta, setCta] = useState('');
   
-  // Personagem/cenário
-  const [personGender, setPersonGender] = useState<string>('female');
-  const [personAge, setPersonAge] = useState<string>('young');
-  const [personStyle, setPersonStyle] = useState<string>('casual');
-  const [scenarioPreset, setScenarioPreset] = useState<string>('bathroom');
-  
   // Configurações
   const [duration, setDuration] = useState<string>('10');
   const [aspectRatio, setAspectRatio] = useState<string>('9:16');
-  const [voice, setVoice] = useState<string>('female-young');
   
   // Estado
   const [justCreated, setJustCreated] = useState(false);
@@ -92,13 +85,8 @@ export function UGCAITab() {
       product_image_url: productImageUrl,
       settings: {
         mode,
-        person_gender: personGender,
-        person_age: personAge,
-        person_style: personStyle,
-        scenario_preset: scenarioPreset,
         duration: parseInt(duration),
         aspect_ratio: aspectRatio,
-        voice,
         cta: cta || undefined,
         // Pipeline específico por modo
         ...(mode === 'scene_with_product' ? {
@@ -274,70 +262,6 @@ Exemplo:
             />
           </div>
 
-          {/* Personagem (para modo scene_with_product) */}
-          {mode === 'scene_with_product' && (
-            <div className="space-y-4 p-4 rounded-lg bg-muted/50">
-              <Label className="text-sm font-medium">Personagem</Label>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Gênero</Label>
-                  <Select value={personGender} onValueChange={setPersonGender}>
-                    <SelectTrigger className="h-8">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="female">Feminino</SelectItem>
-                      <SelectItem value="male">Masculino</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Idade</Label>
-                  <Select value={personAge} onValueChange={setPersonAge}>
-                    <SelectTrigger className="h-8">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="young">Jovem (20-35)</SelectItem>
-                      <SelectItem value="middle">Meia Idade (35-50)</SelectItem>
-                      <SelectItem value="mature">Maduro (50+)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Estilo</Label>
-                  <Select value={personStyle} onValueChange={setPersonStyle}>
-                    <SelectTrigger className="h-8">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="casual">Casual</SelectItem>
-                      <SelectItem value="professional">Profissional</SelectItem>
-                      <SelectItem value="sporty">Esportivo</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Cenário</Label>
-                <Select value={scenarioPreset} onValueChange={setScenarioPreset}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="bathroom">Banheiro Moderno</SelectItem>
-                    <SelectItem value="bedroom">Quarto Aconchegante</SelectItem>
-                    <SelectItem value="kitchen">Cozinha Clean</SelectItem>
-                    <SelectItem value="gym">Academia</SelectItem>
-                    <SelectItem value="outdoor">Ar Livre</SelectItem>
-                    <SelectItem value="office">Escritório</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-
           {/* Avatar Reference (para talking_head) */}
           {mode === 'talking_head' && (
             <div className="space-y-2">
@@ -350,22 +274,6 @@ Exemplo:
               </div>
             </div>
           )}
-
-          {/* Voice Preset */}
-          <div className="space-y-2">
-            <Label>Voz</Label>
-            <Select value={voice} onValueChange={setVoice}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="female-young">Feminina Jovem (Entusiasta)</SelectItem>
-                <SelectItem value="female-mature">Feminina Madura (Confiante)</SelectItem>
-                <SelectItem value="male-young">Masculina Jovem (Casual)</SelectItem>
-                <SelectItem value="male-mature">Masculina Madura (Profissional)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
 
           {/* Duration & Aspect Ratio */}
           <div className="grid grid-cols-2 gap-4">

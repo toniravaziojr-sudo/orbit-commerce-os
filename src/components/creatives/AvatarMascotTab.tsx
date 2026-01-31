@@ -35,23 +35,6 @@ import { CREATIVE_MODELS } from '@/types/creatives';
 import { CreativeJobsList } from './CreativeJobsList';
 
 type VoiceSource = 'tts' | 'upload' | 'reference';
-type AvatarStyle = 'cartoon' | '3d' | 'realistic' | 'anime';
-type Tone = 'corporate' | 'friendly' | 'expert' | 'casual' | 'energetic';
-
-const TONE_LABELS: Record<Tone, string> = {
-  corporate: 'Corporativo (formal)',
-  friendly: 'Amigável (próximo)',
-  expert: 'Especialista (educativo)',
-  casual: 'Casual (descontraído)',
-  energetic: 'Enérgico (empolgado)',
-};
-
-const AVATAR_STYLE_LABELS: Record<AvatarStyle, string> = {
-  cartoon: 'Cartoon 2D',
-  '3d': '3D Renderizado',
-  realistic: 'Realista',
-  anime: 'Anime/Mangá',
-};
 
 const VOICE_PRESETS = [
   { id: 'female-young-br', label: 'Feminina Jovem (BR)', lang: 'pt-BR' },
@@ -66,12 +49,10 @@ export function AvatarMascotTab() {
   // Form state
   const [avatarImage, setAvatarImage] = useState<File | null>(null);
   const [avatarImagePreview, setAvatarImagePreview] = useState<string | null>(null);
-  const [avatarStyle, setAvatarStyle] = useState<AvatarStyle>('3d');
   const [script, setScript] = useState('');
   const [voiceSource, setVoiceSource] = useState<VoiceSource>('tts');
   const [voiceAudio, setVoiceAudio] = useState<File | null>(null);
   const [voicePreset, setVoicePreset] = useState('female-young-br');
-  const [tone, setTone] = useState<Tone>('friendly');
   const [aspectRatio, setAspectRatio] = useState<string>('9:16');
   const [duration, setDuration] = useState<string>('15');
   const [applyLipsyncPost, setApplyLipsyncPost] = useState(false);
@@ -122,12 +103,10 @@ export function AvatarMascotTab() {
     // TODO: Upload files and create job
     console.log('Creating avatar mascot job...', {
       avatarImage,
-      avatarStyle,
       script,
       voiceSource,
       voiceAudio,
       voicePreset,
-      tone,
       aspectRatio,
       duration,
       applyLipsyncPost,
@@ -198,23 +177,6 @@ export function AvatarMascotTab() {
             )}
           </div>
 
-          {/* Avatar Style */}
-          <div className="space-y-2">
-            <Label>Estilo do Avatar</Label>
-            <Select value={avatarStyle} onValueChange={(v) => setAvatarStyle(v as AvatarStyle)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(AVATAR_STYLE_LABELS).map(([key, label]) => (
-                  <SelectItem key={key} value={key}>{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Ajuda a IA a entender melhor como animar seu personagem
-            </p>
-          </div>
 
           {/* Script */}
           <div className="space-y-2">
@@ -340,20 +302,6 @@ Exemplo:
             </div>
           )}
 
-          {/* Tone */}
-          <div className="space-y-2">
-            <Label>Tom da Apresentação</Label>
-            <Select value={tone} onValueChange={(v) => setTone(v as Tone)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(TONE_LABELS).map(([key, label]) => (
-                  <SelectItem key={key} value={key}>{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
 
           {/* Duration & Aspect Ratio */}
           <div className="grid grid-cols-2 gap-4">
