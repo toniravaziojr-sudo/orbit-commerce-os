@@ -148,7 +148,7 @@ export function FeaturedCategoriesBlock({
             )}>
               {demoCategories.map((cat) => (
                 <div key={cat.id} className="group flex flex-col items-center cursor-pointer">
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full bg-muted/30 overflow-hidden mb-2 ring-2 ring-transparent group-hover:ring-primary transition-all flex items-center justify-center">
+                  <div className="w-20 h-20 rounded-full bg-muted/30 overflow-hidden mb-2 ring-2 ring-transparent group-hover:ring-primary transition-all flex items-center justify-center">
                     <ImageIcon className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground/30" />
                   </div>
                   {showName && (
@@ -178,7 +178,7 @@ export function FeaturedCategoriesBlock({
 
     const cardContent = (
       <>
-        <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full bg-muted/30 overflow-hidden mb-2 ring-2 ring-transparent group-hover:ring-primary transition-all">
+        <div className="w-20 h-20 rounded-full bg-muted/30 overflow-hidden mb-2 ring-2 ring-transparent group-hover:ring-primary transition-all">
           {imageUrl ? (
             <img
               src={imageUrl}
