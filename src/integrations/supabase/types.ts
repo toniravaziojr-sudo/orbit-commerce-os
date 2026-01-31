@@ -12402,6 +12402,48 @@ export type Database = {
           },
         ]
       }
+      voice_presets: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          language: string | null
+          name: string
+          ref_audio_url: string | null
+          ref_text: string | null
+          slug: string
+          updated_at: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          language?: string | null
+          name: string
+          ref_audio_url?: string | null
+          ref_text?: string | null
+          slug: string
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          language?: string | null
+          name?: string
+          ref_audio_url?: string | null
+          ref_text?: string | null
+          slug?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       webhook_secrets: {
         Row: {
           created_at: string
