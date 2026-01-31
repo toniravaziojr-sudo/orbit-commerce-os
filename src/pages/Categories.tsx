@@ -217,9 +217,9 @@ export default function Categories() {
         {/* Category Form / Products Manager */}
         <div className="lg:col-span-2">
           {showForm ? (
-            <div className="space-y-4">
-              {/* Global action buttons - always visible */}
-              <div className="flex items-center justify-between gap-4 p-4 bg-muted/50 border rounded-lg sticky top-0 z-10">
+            <Card>
+              {/* Global action header - fixed at top of card */}
+              <CardHeader className="flex flex-row items-center justify-between gap-4 pb-4 border-b">
                 <div className="flex items-center gap-2">
                   <FolderTree className="h-5 w-5 text-muted-foreground" />
                   <span className="font-medium">
@@ -227,10 +227,11 @@ export default function Categories() {
                   </span>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={resetForm}>
+                  <Button variant="outline" size="sm" onClick={resetForm}>
                     Cancelar
                   </Button>
                   <Button 
+                    size="sm"
                     onClick={handleSubmit} 
                     disabled={!formData.name || createCategory.isPending || updateCategory.isPending}
                   >
@@ -238,7 +239,8 @@ export default function Categories() {
                     {editingCategory ? 'Salvar' : 'Criar'}
                   </Button>
                 </div>
-              </div>
+              </CardHeader>
+              <CardContent className="pt-4">
 
               {editingCategory ? (
                 <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'details' | 'products')}>
@@ -283,7 +285,8 @@ export default function Categories() {
                   hideActions
                 />
               )}
-            </div>
+              </CardContent>
+            </Card>
           ) : (
             <div className="flex items-center justify-center h-64 border-2 border-dashed rounded-lg">
               <div className="text-center">
