@@ -552,3 +552,6 @@ verify_jwt = false
 
 [functions.chatgpt-chat]
 verify_jwt = false
+
+[functions.voice-preset-audio]
+verify_jwt = false
