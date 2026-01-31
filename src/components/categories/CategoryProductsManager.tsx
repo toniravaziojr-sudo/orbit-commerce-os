@@ -31,10 +31,10 @@ import {
   GripVertical, 
   Package, 
   CheckSquare,
-  Square,
   X,
   ChevronLeft,
   ChevronRight,
+  Check,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -43,7 +43,7 @@ interface CategoryProductsManagerProps {
   categoryName: string;
 }
 
-// Sortable product row for linked products
+// Sortable product row for linked products - Compact design
 function SortableProductRow({
   item,
   isSelected,
@@ -72,26 +72,36 @@ function SortableProductRow({
   const primaryImage = item.product.product_images?.find(img => img.is_primary)?.url 
     || item.product.product_images?.[0]?.url;
 
+  const isActive = item.product.status === 'active';
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       className={cn(
-        'flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors group',
-        isDragging && 'opacity-50 shadow-lg',
-        isSelected && 'ring-2 ring-primary'
+        'flex items-center gap-2 p-2 rounded-lg border bg-card hover:bg-accent/50 transition-colors group',
+        isDragging && 'opacity-50 shadow-lg z-50',
+        isSelected && 'ring-2 ring-primary bg-primary/5'
       )}
       {...attributes}
     >
+      {/* Drag handle */}
       <button
         {...listeners}
-        className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded touch-none"
+        className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded touch-none flex-shrink-0"
+        aria-label="Arrastar para reordenar"
       >
         <GripVertical className="h-4 w-4 text-muted-foreground" />
       </button>
 
-      <Checkbox checked={isSelected} onCheckedChange={onToggleSelect} />
+      {/* Checkbox */}
+      <Checkbox 
+        checked={isSelected} 
+        onCheckedChange={onToggleSelect}
+        className="flex-shrink-0"
+      />
 
+      {/* Image */}
       <div className="h-10 w-10 rounded border overflow-hidden bg-muted flex-shrink-0">
         {primaryImage ? (
           <img src={primaryImage} alt="" className="h-full w-full object-cover" />
@@ -102,32 +112,43 @@ function SortableProductRow({
         )}
       </div>
 
-      <div className="flex-1 min-w-0">
-        <p className="font-medium truncate">{item.product.name}</p>
-        <p className="text-xs text-muted-foreground">{item.product.sku}</p>
+      {/* Name and SKU - main content area */}
+      <div className="flex-1 min-w-0 overflow-hidden">
+        <p className="font-medium text-sm truncate" title={item.product.name}>
+          {item.product.name}
+        </p>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="truncate">{item.product.sku || 'Sem SKU'}</span>
+          <span className="hidden sm:inline">•</span>
+          <span className="hidden sm:inline font-medium text-foreground">
+            R$ {item.product.price.toFixed(2).replace('.', ',')}
+          </span>
+        </div>
       </div>
 
-      <div className="text-sm font-medium">
-        R$ {item.product.price.toFixed(2)}
-      </div>
-
-      <Badge variant={item.product.status === 'active' ? 'default' : 'secondary'} className="flex-shrink-0">
-        {item.product.status === 'active' ? 'Ativo' : 'Inativo'}
+      {/* Status badge - compact */}
+      <Badge 
+        variant={isActive ? 'default' : 'secondary'} 
+        className="flex-shrink-0 h-6 text-xs px-2"
+      >
+        {isActive ? 'Ativo' : 'Inativo'}
       </Badge>
 
+      {/* Remove button - always visible on mobile, hover on desktop */}
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 opacity-0 group-hover:opacity-100"
+        className="h-8 w-8 flex-shrink-0 sm:opacity-0 sm:group-hover:opacity-100 text-destructive hover:text-destructive hover:bg-destructive/10"
         onClick={onRemove}
+        aria-label="Remover produto"
       >
-        <Trash2 className="h-4 w-4 text-destructive" />
+        <Trash2 className="h-4 w-4" />
       </Button>
     </div>
   );
 }
 
-// Product row for available products (to add)
+// Product row for available products (to add) - Compact design
 function AvailableProductRow({
   product,
   isSelected,
@@ -140,17 +161,27 @@ function AvailableProductRow({
   const primaryImage = product.product_images?.find(img => img.is_primary)?.url 
     || product.product_images?.[0]?.url;
 
+  const isLinked = product.isLinked;
+
   return (
     <div
       className={cn(
-        'flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors cursor-pointer',
-        isSelected && 'ring-2 ring-primary bg-primary/5',
-        product.isLinked && 'opacity-50'
+        'flex items-center gap-2 p-2 rounded-lg border bg-card transition-colors',
+        isLinked 
+          ? 'opacity-50 cursor-not-allowed' 
+          : 'hover:bg-accent/50 cursor-pointer',
+        isSelected && !isLinked && 'ring-2 ring-primary bg-primary/5'
       )}
-      onClick={onToggleSelect}
+      onClick={() => !isLinked && onToggleSelect()}
     >
-      <Checkbox checked={isSelected} disabled={product.isLinked} />
+      {/* Checkbox */}
+      <Checkbox 
+        checked={isSelected || isLinked} 
+        disabled={isLinked}
+        className="flex-shrink-0"
+      />
 
+      {/* Image */}
       <div className="h-10 w-10 rounded border overflow-hidden bg-muted flex-shrink-0">
         {primaryImage ? (
           <img src={primaryImage} alt="" className="h-full w-full object-cover" />
@@ -161,18 +192,25 @@ function AvailableProductRow({
         )}
       </div>
 
-      <div className="flex-1 min-w-0">
-        <p className="font-medium truncate">{product.name}</p>
-        <p className="text-xs text-muted-foreground">{product.sku}</p>
+      {/* Name and SKU */}
+      <div className="flex-1 min-w-0 overflow-hidden">
+        <p className="font-medium text-sm truncate" title={product.name}>
+          {product.name}
+        </p>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="truncate">{product.sku || 'Sem SKU'}</span>
+          <span className="hidden sm:inline">•</span>
+          <span className="hidden sm:inline font-medium text-foreground">
+            R$ {product.price.toFixed(2).replace('.', ',')}
+          </span>
+        </div>
       </div>
 
-      <div className="text-sm font-medium">
-        R$ {product.price.toFixed(2)}
-      </div>
-
-      {product.isLinked && (
-        <Badge variant="outline" className="flex-shrink-0">
-          Já adicionado
+      {/* Status indicator */}
+      {isLinked && (
+        <Badge variant="outline" className="flex-shrink-0 h-6 text-xs px-2 gap-1">
+          <Check className="h-3 w-3" />
+          <span className="hidden sm:inline">Vinculado</span>
         </Badge>
       )}
     </div>
@@ -282,66 +320,74 @@ export function CategoryProductsManager({ categoryId, categoryName }: CategoryPr
   const totalPages = Math.ceil(availableTotal / pageSize);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
       {/* Linked Products */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Package className="h-5 w-5" />
-              Produtos na categoria
-              <Badge variant="secondary">{linkedProducts.length}</Badge>
+      <Card className="flex flex-col">
+        <CardHeader className="pb-3 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Package className="h-4 w-4" />
+              <span className="truncate">Produtos na categoria</span>
+              <Badge variant="secondary" className="ml-1">{linkedProducts.length}</Badge>
             </CardTitle>
           </div>
-          <div className="flex gap-2 mt-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar produtos vinculados..."
-                value={linkedSearch}
-                onChange={e => setLinkedSearch(e.target.value)}
-                className="pl-9"
-              />
-            </div>
+          
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar produtos vinculados..."
+              value={linkedSearch}
+              onChange={e => setLinkedSearch(e.target.value)}
+              className="pl-9 h-9"
+            />
           </div>
+          
+          {/* Bulk actions bar */}
           {selectedLinked.size > 0 && (
-            <div className="flex items-center gap-2 mt-2 p-2 bg-muted rounded-lg">
-              <span className="text-sm font-medium">{selectedLinked.size} selecionado(s)</span>
-              <Button size="sm" variant="ghost" onClick={selectAllLinked}>
-                <CheckSquare className="h-4 w-4 mr-1" />
-                Todos
-              </Button>
-              <Button size="sm" variant="ghost" onClick={clearLinkedSelection}>
-                <X className="h-4 w-4 mr-1" />
-                Limpar
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={handleRemoveSelected}
-                disabled={removeProducts.isPending}
-              >
-                <Trash2 className="h-4 w-4 mr-1" />
-                Remover
-              </Button>
+            <div className="flex flex-wrap items-center gap-2 p-2 bg-muted rounded-lg">
+              <span className="text-sm font-medium whitespace-nowrap">
+                {selectedLinked.size} selecionado(s)
+              </span>
+              <div className="flex items-center gap-1 ml-auto">
+                <Button size="sm" variant="ghost" onClick={selectAllLinked} className="h-7 px-2">
+                  <CheckSquare className="h-3.5 w-3.5 mr-1" />
+                  <span className="hidden sm:inline">Todos</span>
+                </Button>
+                <Button size="sm" variant="ghost" onClick={clearLinkedSelection} className="h-7 px-2">
+                  <X className="h-3.5 w-3.5 mr-1" />
+                  <span className="hidden sm:inline">Limpar</span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={handleRemoveSelected}
+                  disabled={removeProducts.isPending}
+                  className="h-7 px-2"
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1" />
+                  Remover
+                </Button>
+              </div>
             </div>
           )}
         </CardHeader>
-        <CardContent>
+        
+        <CardContent className="flex-1 min-h-0">
           {isLoadingLinked ? (
             <div className="space-y-2">
               {[1, 2, 3].map(i => (
-                <Skeleton key={i} className="h-16 w-full" />
+                <Skeleton key={i} className="h-14 w-full" />
               ))}
             </div>
           ) : filteredLinked.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              <Package className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p>Nenhum produto vinculado</p>
-              <p className="text-sm">Adicione produtos usando a seção ao lado</p>
+              <Package className="h-10 w-10 mx-auto mb-2 opacity-50" />
+              <p className="font-medium">Nenhum produto vinculado</p>
+              <p className="text-sm">Adicione produtos usando a lista ao lado</p>
             </div>
           ) : (
-            <ScrollArea className="h-[400px] pr-4">
+            <ScrollArea className="h-[350px]">
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
@@ -351,7 +397,7 @@ export function CategoryProductsManager({ categoryId, categoryName }: CategoryPr
                   items={filteredLinked.map(p => p.product_id)}
                   strategy={verticalListSortingStrategy}
                 >
-                  <div className="space-y-2">
+                  <div className="space-y-1.5 pr-3">
                     {filteredLinked.map(item => (
                       <SortableProductRow
                         key={item.product_id}
@@ -370,66 +416,78 @@ export function CategoryProductsManager({ categoryId, categoryName }: CategoryPr
       </Card>
 
       {/* Available Products */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Plus className="h-5 w-5" />
-              Adicionar produtos
+      <Card className="flex flex-col">
+        <CardHeader className="pb-3 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              <span className="truncate">Adicionar produtos</span>
             </CardTitle>
           </div>
-          <div className="flex gap-2 mt-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar produtos para adicionar..."
-                value={availableSearch}
-                onChange={e => {
-                  setAvailableSearch(e.target.value);
-                  setPage(1);
-                }}
-                className="pl-9"
-              />
-            </div>
+          
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar produtos para adicionar..."
+              value={availableSearch}
+              onChange={e => {
+                setAvailableSearch(e.target.value);
+                setPage(1);
+              }}
+              className="pl-9 h-9"
+            />
           </div>
+          
+          {/* Bulk actions bar */}
           {selectedAvailable.size > 0 && (
-            <div className="flex items-center gap-2 mt-2 p-2 bg-muted rounded-lg">
-              <span className="text-sm font-medium">{selectedAvailable.size} selecionado(s)</span>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setSelectedAvailable(new Set())}
-              >
-                <X className="h-4 w-4 mr-1" />
-                Limpar
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleAddSelected}
-                disabled={addProducts.isPending}
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                Adicionar
-              </Button>
+            <div className="flex flex-wrap items-center gap-2 p-2 bg-primary/10 border border-primary/20 rounded-lg">
+              <span className="text-sm font-medium whitespace-nowrap">
+                {selectedAvailable.size} selecionado(s)
+              </span>
+              <div className="flex items-center gap-1 ml-auto">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setSelectedAvailable(new Set())}
+                  className="h-7 px-2"
+                >
+                  <X className="h-3.5 w-3.5 mr-1" />
+                  <span className="hidden sm:inline">Limpar</span>
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleAddSelected}
+                  disabled={addProducts.isPending}
+                  className="h-7 px-2"
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Adicionar
+                </Button>
+              </div>
             </div>
           )}
         </CardHeader>
-        <CardContent>
+        
+        <CardContent className="flex-1 min-h-0 flex flex-col">
           {isLoadingAvailable ? (
             <div className="space-y-2">
               {[1, 2, 3].map(i => (
-                <Skeleton key={i} className="h-16 w-full" />
+                <Skeleton key={i} className="h-14 w-full" />
               ))}
             </div>
           ) : availableProducts.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              <Package className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p>Nenhum produto encontrado</p>
+              <Package className="h-10 w-10 mx-auto mb-2 opacity-50" />
+              <p className="font-medium">Nenhum produto encontrado</p>
+              {availableSearch && (
+                <p className="text-sm">Tente buscar por outro termo</p>
+              )}
             </div>
           ) : (
             <>
-              <ScrollArea className="h-[350px] pr-4">
-                <div className="space-y-2">
+              <ScrollArea className="flex-1 min-h-[280px] max-h-[350px]">
+                <div className="space-y-1.5 pr-3">
                   {availableProducts.map(product => (
                     <AvailableProductRow
                       key={product.id}
@@ -440,18 +498,20 @@ export function CategoryProductsManager({ categoryId, categoryName }: CategoryPr
                   ))}
                 </div>
               </ScrollArea>
-              {/* Pagination */}
+              
+              {/* Pagination - improved visibility */}
               {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                  <span className="text-sm text-muted-foreground">
-                    Página {page} de {totalPages} ({availableTotal} produtos)
+                <div className="flex items-center justify-between mt-3 pt-3 border-t gap-2">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    Pág. {page}/{totalPages} • {availableTotal} produtos
                   </span>
-                  <div className="flex gap-2">
+                  <div className="flex gap-1">
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => setPage(p => Math.max(1, p - 1))}
                       disabled={page === 1}
+                      className="h-7 w-7 p-0"
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
@@ -460,6 +520,7 @@ export function CategoryProductsManager({ categoryId, categoryName }: CategoryPr
                       variant="outline"
                       onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                       disabled={page === totalPages}
+                      className="h-7 w-7 p-0"
                     >
                       <ChevronRight className="h-4 w-4" />
                     </Button>
