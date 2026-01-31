@@ -1,5 +1,6 @@
 // =============================================
 // PRODUCT IMAGE UPLOADER - Works with local state for new products
+// Now with "Meu Drive" integration
 // =============================================
 
 import { useState, useCallback } from 'react';
@@ -35,7 +36,9 @@ import {
   GripVertical,
   Loader2,
   ImagePlus,
+  FolderOpen,
 } from 'lucide-react';
+import { DriveFilePicker } from '@/components/ui/DriveFilePicker';
 
 import {
   DndContext,
@@ -159,10 +162,10 @@ export function ProductImageUploader({ images, onImagesChange }: ProductImageUpl
   const { toast } = useToast();
   const [isUploading, setIsUploading] = useState(false);
   const [urlDialogOpen, setUrlDialogOpen] = useState(false);
+  const [drivePickerOpen, setDrivePickerOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
   const [altText, setAltText] = useState('');
   const [deleteImageId, setDeleteImageId] = useState<string | null>(null);
-
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -291,6 +294,26 @@ export function ProductImageUploader({ images, onImagesChange }: ProductImageUpl
     setUrlDialogOpen(false);
   };
 
+  const handleDriveSelect = (url: string) => {
+    const id = `pending-drive-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    const newImage: PendingImage = {
+      id,
+      type: 'url',
+      url: url,
+      previewUrl: url,
+      alt_text: null,
+      is_primary: images.length === 0,
+      sort_order: images.length,
+    };
+
+    onImagesChange([...images, newImage]);
+    toast({
+      title: 'Imagem adicionada',
+      description: 'Imagem do Meu Drive adicionada',
+    });
+    setDrivePickerOpen(false);
+  };
+
   const handleSetPrimary = (imageId: string) => {
     const updated = images.map(img => ({
       ...img,
@@ -334,9 +357,14 @@ export function ProductImageUploader({ images, onImagesChange }: ProductImageUpl
             ) : (
               <Upload className="h-4 w-4 mr-2" />
             )}
-            Upload de Imagens
+            Upload
           </Button>
         </div>
+
+        <Button type="button" variant="outline" onClick={() => setDrivePickerOpen(true)}>
+          <FolderOpen className="h-4 w-4 mr-2" />
+          Meu Drive
+        </Button>
 
         <Dialog open={urlDialogOpen} onOpenChange={setUrlDialogOpen}>
           <DialogTrigger asChild>
@@ -430,6 +458,15 @@ export function ProductImageUploader({ images, onImagesChange }: ProductImageUpl
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Drive File Picker */}
+      <DriveFilePicker
+        open={drivePickerOpen}
+        onOpenChange={setDrivePickerOpen}
+        onSelect={handleDriveSelect}
+        accept="image"
+        title="Selecionar Imagem do Meu Drive"
+      />
     </div>
   );
 }
