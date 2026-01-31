@@ -15,7 +15,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 
-const VERSION = '2.0.1'; // Fix JSON parsing - safe text-first parsing
+const VERSION = '2.0.2'; // Fix Fal.ai status polling - use GET method
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -556,7 +556,10 @@ async function callFalModel(
 
     const statusResponse = await fetch(
       `https://queue.fal.run/${endpoint}/requests/${requestId}/status`,
-      { headers: { 'Authorization': `Key ${falApiKey}` } }
+      { 
+        method: 'GET',
+        headers: { 'Authorization': `Key ${falApiKey}` } 
+      }
     );
 
     // Parse status safely
@@ -574,7 +577,10 @@ async function callFalModel(
     if (statusData.status === 'COMPLETED') {
       const resultResponse = await fetch(
         `https://queue.fal.run/${endpoint}/requests/${requestId}`,
-        { headers: { 'Authorization': `Key ${falApiKey}` } }
+        { 
+          method: 'GET',
+          headers: { 'Authorization': `Key ${falApiKey}` } 
+        }
       );
       
       // Parse result safely

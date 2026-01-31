@@ -78,24 +78,24 @@ export function CreativeJobsList({ jobs, isLoading, type, highlightNew }: Creati
                   : 'bg-card hover:bg-accent/50'
               } ${isFirst && highlightNew ? 'ring-2 ring-primary ring-offset-1 animate-pulse' : ''}`}
             >
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">
-                  {job.prompt || job.product_name || 'Criativo sem título'}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
+            <div className="space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <Badge variant="outline" className={`${getStatusColor(job.status)} shrink-0`}>
+                  <span className="flex items-center gap-1">
+                    {getStatusIcon(job.status)}
+                    {getStatusLabel(job.status)}
+                  </span>
+                </Badge>
+                <p className="text-xs text-muted-foreground shrink-0">
                   {formatDistanceToNow(new Date(job.created_at), { 
                     addSuffix: true, 
                     locale: ptBR 
                   })}
                 </p>
               </div>
-              <Badge variant="outline" className={getStatusColor(job.status)}>
-                <span className="flex items-center gap-1">
-                  {getStatusIcon(job.status)}
-                  {getStatusLabel(job.status)}
-                </span>
-              </Badge>
+              <p className="text-sm font-medium break-words line-clamp-2">
+                {job.prompt || job.product_name || 'Criativo sem título'}
+              </p>
             </div>
 
             {/* Progress for running jobs */}
