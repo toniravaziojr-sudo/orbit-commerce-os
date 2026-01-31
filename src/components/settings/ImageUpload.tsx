@@ -49,10 +49,17 @@ export function ImageUpload({
     setIsUploading(true);
     try {
       const url = await onUpload(file);
-      // Don't call onChange here - the upload handler already saves to DB
-      // and the component will receive the new value via props
+      // IMPORTANT: Call onChange with the new URL to update UI immediately
+      // The upload handler saves to DB, but we need to update local state too
+      if (url) {
+        onChange(url);
+      }
     } finally {
       setIsUploading(false);
+      // Reset input to allow re-uploading same file
+      if (inputRef.current) {
+        inputRef.current.value = '';
+      }
     }
   };
 

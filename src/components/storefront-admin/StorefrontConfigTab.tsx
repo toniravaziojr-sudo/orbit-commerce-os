@@ -273,7 +273,7 @@ export function StorefrontConfigTab() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <ImageUpload
               label="Logo"
-              description="Recomendado: PNG ou SVG transparente, max 2MB"
+              description="Recomendado: PNG ou SVG transparente, 200x60px, max 2MB"
               value={formData.logo_url}
               onChange={(url) => handleChange('logo_url', url || '')}
               onUpload={handleLogoUpload}
@@ -283,7 +283,7 @@ export function StorefrontConfigTab() {
             
             <ImageUpload
               label="Favicon"
-              description="Ícone da aba do navegador, 32x32px ou 64x64px"
+              description="Ícone da aba do navegador, 32x32px ou 64x64px, max 2MB"
               value={formData.favicon_url}
               onChange={(url) => handleChange('favicon_url', url || '')}
               onUpload={handleFaviconUpload}
