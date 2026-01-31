@@ -657,29 +657,55 @@ async function submitFalJob(
   // ======== PASSO 0: Gerar áudio TTS se audio_mode === 'tts_ptbr' ========
   let generatedAudioUrl: string | undefined;
   
-  if (settings.audio_mode === 'tts_ptbr' && settings.voice_script) {
+  // CORREÇÃO v2.3.2: Frontend envia 'tts_script', não 'voice_script'
+  const ttsScript = settings.tts_script || settings.voice_script;
+  
+  if (settings.audio_mode === 'tts_ptbr' && ttsScript) {
     console.log('[creative-process] Generating PT-BR audio via F5-TTS...');
+    console.log(`[creative-process] TTS Script (${ttsScript.length} chars): "${ttsScript.substring(0, 100)}..."`);
     
-    // Buscar preset de voz do banco
-    const { data: voicePreset } = await supabase
-      .from('voice_presets')
-      .select('ref_audio_url, ref_text')
-      .eq('id', settings.voice_preset_id)
-      .single();
+    // Determinar fonte de referência de áudio: custom_voice_url ou preset
+    let refAudioUrl: string | null = null;
+    let refText: string = '';
     
-    if (!voicePreset?.ref_audio_url) {
-      throw new Error('Preset de voz não tem áudio de referência configurado. Configure em Configurações → Vozes.');
+    if (settings.custom_voice_url) {
+      // Usar áudio customizado enviado pelo usuário
+      console.log('[creative-process] Using custom voice URL:', settings.custom_voice_url);
+      refAudioUrl = settings.custom_voice_url;
+      refText = ''; // F5-TTS não precisa de transcrição para custom voice
+    } else if (settings.voice_preset_id) {
+      // Buscar preset de voz do banco
+      console.log('[creative-process] Fetching voice preset:', settings.voice_preset_id);
+      const { data: voicePreset, error: presetError } = await supabase
+        .from('voice_presets')
+        .select('ref_audio_url, ref_text')
+        .eq('id', settings.voice_preset_id)
+        .single();
+      
+      if (presetError) {
+        console.error('[creative-process] Error fetching voice preset:', presetError);
+      }
+      
+      if (voicePreset?.ref_audio_url) {
+        refAudioUrl = voicePreset.ref_audio_url;
+        refText = voicePreset.ref_text || '';
+        console.log('[creative-process] Voice preset found:', { refAudioUrl, refText: refText.substring(0, 50) });
+      }
+    }
+    
+    if (!refAudioUrl) {
+      throw new Error('Nenhuma referência de voz disponível. Selecione um preset ou faça upload de uma amostra de áudio.');
     }
     
     // Chamar F5-TTS
     const ttsPayload = {
-      gen_text: settings.voice_script,
-      ref_audio_url: voicePreset.ref_audio_url,
-      ref_text: voicePreset.ref_text || '',
+      gen_text: ttsScript,
+      ref_audio_url: refAudioUrl,
+      ref_text: refText,
       remove_silence: true,
     };
     
-    console.log('[creative-process] F5-TTS payload:', JSON.stringify(ttsPayload).substring(0, 300));
+    console.log('[creative-process] F5-TTS payload:', JSON.stringify(ttsPayload).substring(0, 500));
     
     const ttsEndpoint = 'fal-ai/f5-tts';
     const ttsResponse = await fetch(`https://fal.run/${ttsEndpoint}`, {
@@ -721,6 +747,11 @@ async function submitFalJob(
         settings: { ...settings, generated_audio_url: generatedAudioUrl }
       })
       .eq('id', job.id);
+  } else if (settings.audio_mode === 'tts_ptbr') {
+    console.warn('[creative-process] TTS mode enabled but no script provided!', { 
+      tts_script: settings.tts_script,
+      voice_script: settings.voice_script 
+    });
   }
   
   // ======== PASSO 1: Submeter vídeo ao Kling I2V ========
