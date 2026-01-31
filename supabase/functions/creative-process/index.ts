@@ -15,7 +15,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 
-const VERSION = '2.0.0'; // Plano v2 - schemas corrigidos
+const VERSION = '2.0.1'; // Fix JSON parsing - safe text-first parsing
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -531,7 +531,16 @@ async function callFalModel(
     throw new Error(`Fal submit error: ${submitResponse.status} - ${errorText}`);
   }
 
-  const submitData = await submitResponse.json();
+  // Parse response safely
+  const submitText = await submitResponse.text();
+  let submitData;
+  try {
+    submitData = JSON.parse(submitText);
+  } catch (parseError) {
+    console.error('[callFalModel] Submit JSON parse error. Response preview:', submitText.substring(0, 300));
+    throw new Error(`Invalid JSON from Fal submit: ${submitText.substring(0, 100)}`);
+  }
+  
   const requestId = submitData.request_id;
 
   if (!requestId) {
@@ -550,14 +559,34 @@ async function callFalModel(
       { headers: { 'Authorization': `Key ${falApiKey}` } }
     );
 
-    const statusData = await statusResponse.json();
+    // Parse status safely
+    const statusText = await statusResponse.text();
+    let statusData;
+    try {
+      statusData = JSON.parse(statusText);
+    } catch (parseError) {
+      console.error('[callFalModel] Status JSON parse error. Response preview:', statusText.substring(0, 300));
+      // Retry on parse error (might be transient)
+      attempts++;
+      continue;
+    }
 
     if (statusData.status === 'COMPLETED') {
       const resultResponse = await fetch(
         `https://queue.fal.run/${endpoint}/requests/${requestId}`,
         { headers: { 'Authorization': `Key ${falApiKey}` } }
       );
-      const result = await resultResponse.json();
+      
+      // Parse result safely
+      const resultText = await resultResponse.text();
+      let result;
+      try {
+        result = JSON.parse(resultText);
+      } catch (parseError) {
+        console.error('[callFalModel] Result JSON parse error. Response preview:', resultText.substring(0, 300));
+        throw new Error(`Invalid JSON from Fal result: ${resultText.substring(0, 100)}`);
+      }
+      
       return extractOutputUrl(result, modelId);
     } else if (statusData.status === 'FAILED') {
       throw new Error(`Fal job failed: ${statusData.error || 'Unknown error'}`);
