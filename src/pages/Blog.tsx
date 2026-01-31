@@ -305,19 +305,22 @@ export default function Blog() {
               </DialogTrigger>
             <DialogContent className="max-w-lg">
               <DialogHeader>
-                <DialogTitle>{editingPost ? 'Editar Post' : 'Novo Post'}</DialogTitle>
+                <DialogTitle>{editingPost ? 'Editar Post do Blog' : 'Criar Novo Post'}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-4">
-                <div>
-                  <Label>Título *</Label>
+                {/* Título */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Título *</Label>
                   <Input 
                     value={formData.title} 
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })} 
-                    placeholder="Título do post"
+                    placeholder="Ex: Como escolher o produto ideal"
                   />
                 </div>
-                <div>
-                  <Label>Slug *</Label>
+                
+                {/* Slug */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Slug (URL)</Label>
                   <Input 
                     value={formData.slug} 
                     onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })} 
@@ -325,45 +328,47 @@ export default function Blog() {
                     className={!validateSlug(formData.slug).isValid && formData.slug ? 'border-destructive' : ''}
                   />
                   {!validateSlug(formData.slug).isValid && formData.slug ? (
-                    <p className="text-xs text-destructive flex items-center gap-1 mt-1">
+                    <p className="text-xs text-destructive flex items-center gap-1">
                       <AlertCircle className="h-3 w-3" />
                       {validateSlug(formData.slug).error}
                     </p>
                   ) : (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      URL: /blog/{formData.slug || generateSlug(formData.title) || 'slug'}
+                    <p className="text-xs text-muted-foreground">
+                      URL final: /blog/{formData.slug || generateSlug(formData.title) || 'slug'}
                     </p>
                   )}
                 </div>
-                <div>
-                  <Label>Resumo</Label>
+                
+                {/* Resumo */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Resumo</Label>
                   <Textarea 
                     value={formData.excerpt} 
                     onChange={(e) => setFormData({ ...formData, excerpt: e.target.value })} 
-                    placeholder="Breve descrição do post"
-                    className="min-h-[80px]"
+                    placeholder="Uma breve descrição que aparecerá na listagem de posts"
+                    className="min-h-[80px] resize-none"
                   />
                 </div>
                 
                 {/* Tags Field - only show when editing */}
                 {editingPost && (
-                  <div>
-                    <Label>Tags</Label>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Tags</Label>
                     <Input 
                       value={formData.tags} 
                       onChange={(e) => setFormData({ ...formData, tags: e.target.value })} 
-                      placeholder="tag1, tag2, tag3"
+                      placeholder="dicas, tutoriais, novidades"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">
+                    <p className="text-xs text-muted-foreground">
                       Separe as tags por vírgula
                     </p>
                   </div>
                 )}
                 
                 {/* SEO Fields */}
-                <div className="border-t pt-4 mt-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-sm font-medium">SEO</p>
+                <div className="border-t pt-4 mt-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium">Configurações SEO</h4>
                     <GenerateSeoButton
                       input={{
                         type: 'blog',
@@ -382,41 +387,61 @@ export default function Blog() {
                     />
                   </div>
                   <div className="space-y-3">
-                    <div>
-                      <Label>Título SEO</Label>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Título SEO</Label>
                       <Input 
                         value={formData.seo_title} 
                         onChange={(e) => setFormData({ ...formData, seo_title: e.target.value })} 
                         placeholder={formData.title || 'Título para mecanismos de busca'}
                         maxLength={60}
                       />
-                      <p className="text-xs text-muted-foreground mt-1">
+                      <p className="text-xs text-muted-foreground">
                         {formData.seo_title.length}/60 caracteres
                       </p>
                     </div>
-                    <div>
-                      <Label>Descrição SEO</Label>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Descrição SEO</Label>
                       <Textarea 
                         value={formData.seo_description} 
                         onChange={(e) => setFormData({ ...formData, seo_description: e.target.value })} 
                         placeholder="Descrição para mecanismos de busca"
-                        className="min-h-[60px]"
+                        className="min-h-[60px] resize-none"
                         maxLength={160}
                       />
-                      <p className="text-xs text-muted-foreground mt-1">
+                      <p className="text-xs text-muted-foreground">
                         {formData.seo_description.length}/160 caracteres
                       </p>
                     </div>
                   </div>
                 </div>
                 
-                <Button
-                  onClick={handleSubmit} 
-                  disabled={!formData.title || createPost.isPending || updatePost.isPending} 
-                  className="w-full"
-                >
-                  {editingPost ? 'Salvar' : 'Criar e Abrir Editor'}
-                </Button>
+                {/* Info para novo post */}
+                {!editingPost && (
+                  <div className="bg-muted/50 p-3 rounded-md border border-dashed">
+                    <p className="text-sm text-muted-foreground">
+                      💡 Após criar, você será redirecionado ao editor para escrever o conteúdo do post.
+                    </p>
+                  </div>
+                )}
+                
+                {/* Botões de ação */}
+                <div className="flex gap-2 pt-2">
+                  <Button 
+                    variant="outline"
+                    onClick={() => { setIsDialogOpen(false); resetForm(); }}
+                    className="flex-1"
+                    type="button"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={handleSubmit} 
+                    disabled={!formData.title || createPost.isPending || updatePost.isPending} 
+                    className="flex-1"
+                  >
+                    {createPost.isPending || updatePost.isPending ? 'Salvando...' : editingPost ? 'Salvar Alterações' : 'Criar Post'}
+                  </Button>
+                </div>
               </div>
             </DialogContent>
           </Dialog>

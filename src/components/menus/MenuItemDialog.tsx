@@ -114,18 +114,21 @@ export default function MenuItemDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{editingItem ? 'Editar Item' : 'Adicionar Item'}</DialogTitle>
+          <DialogTitle>{editingItem ? 'Editar Item do Menu' : 'Adicionar Item ao Menu'}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-4">
-          <div>
-            <Label>Tipo</Label>
+          {/* Tipo de item */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Tipo de Link</Label>
             <Select
               value={form.item_type}
               onValueChange={(v: 'category' | 'page' | 'external') =>
                 setForm({ ...form, item_type: v, ref_id: '', url: '' })
               }
             >
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o tipo" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="category">Categoria</SelectItem>
                 <SelectItem value="page">Página Institucional</SelectItem>
@@ -134,23 +137,28 @@ export default function MenuItemDialog({
             </Select>
           </div>
 
-          <div>
-            <Label>Rótulo</Label>
+          {/* Rótulo */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Rótulo *</Label>
             <Input
               value={form.label}
               onChange={(e) => setForm({ ...form, label: e.target.value })}
               placeholder="Texto exibido no menu"
             />
+            <p className="text-xs text-muted-foreground">Este texto aparecerá no menu de navegação</p>
           </div>
 
+          {/* Item pai (opcional) */}
           {parentOptions.length > 0 && (
-            <div>
-              <Label>Item Pai (opcional)</Label>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Item Pai (opcional)</Label>
               <Select
                 value={form.parent_id || '_none'}
                 onValueChange={(v) => setForm({ ...form, parent_id: v === '_none' ? null : v })}
               >
-                <SelectTrigger><SelectValue placeholder="Nenhum (item raiz)" /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder="Nenhum (item raiz)" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="_none">Nenhum (item raiz)</SelectItem>
                   {parentOptions.map(p => (
@@ -158,15 +166,16 @@ export default function MenuItemDialog({
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-xs text-muted-foreground">
                 Ou arraste o item para dentro de outro após criar
               </p>
             </div>
           )}
 
+          {/* Seletor de categoria */}
           {form.item_type === 'category' && (
-            <div>
-              <Label>Categoria</Label>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Categoria *</Label>
               <Select
                 value={form.ref_id}
                 onValueChange={(v) => {
@@ -178,19 +187,28 @@ export default function MenuItemDialog({
                   });
                 }}
               >
-                <SelectTrigger><SelectValue placeholder="Selecione uma categoria" /></SelectTrigger>
+                <SelectTrigger className={!form.ref_id ? 'text-muted-foreground' : ''}>
+                  <SelectValue placeholder="Selecione uma categoria" />
+                </SelectTrigger>
                 <SelectContent>
-                  {categories.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
+                  {categories.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground text-center">
+                      Nenhuma categoria disponível
+                    </div>
+                  ) : (
+                    categories.map(c => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
           )}
 
+          {/* Seletor de página */}
           {form.item_type === 'page' && (
-            <div>
-              <Label>Página</Label>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Página *</Label>
               <Select
                 value={form.ref_id}
                 onValueChange={(v) => {
@@ -202,41 +220,65 @@ export default function MenuItemDialog({
                   });
                 }}
               >
-                <SelectTrigger><SelectValue placeholder="Selecione uma página" /></SelectTrigger>
+                <SelectTrigger className={!form.ref_id ? 'text-muted-foreground' : ''}>
+                  <SelectValue placeholder="Selecione uma página" />
+                </SelectTrigger>
                 <SelectContent>
-                  {pages.filter(p => p.is_published !== false).map(p => (
-                    <SelectItem key={p.id} value={p.id}>
-                      <div className="flex items-center gap-2">
-                        <span>{p.menu_label || p.title}</span>
-                        {p.show_in_menu && (
-                          <span className="text-xs text-green-600">✓</span>
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))}
+                  {pages.filter(p => p.is_published !== false).length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground text-center">
+                      Nenhuma página publicada
+                    </div>
+                  ) : (
+                    pages.filter(p => p.is_published !== false).map(p => (
+                      <SelectItem key={p.id} value={p.id}>
+                        <div className="flex items-center gap-2">
+                          <span>{p.menu_label || p.title}</span>
+                          {p.show_in_menu && (
+                            <span className="text-xs text-green-600">✓</span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
           )}
 
+          {/* URL para link externo */}
           {form.item_type === 'external' && (
-            <div>
-              <Label>URL</Label>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">URL *</Label>
               <Input
                 value={form.url}
                 onChange={(e) => setForm({ ...form, url: e.target.value })}
-                placeholder="https://..."
+                placeholder="https://exemplo.com"
+                type="url"
               />
+              <p className="text-xs text-muted-foreground">
+                Use URLs completas começando com https://
+              </p>
             </div>
           )}
 
-          <Button
-            onClick={handleSubmit}
-            disabled={!isValid || isSubmitting}
-            className="w-full"
-          >
-            {isSubmitting ? 'Salvando...' : editingItem ? 'Salvar' : 'Adicionar'}
-          </Button>
+          {/* Botões de ação */}
+          <div className="flex gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              className="flex-1"
+              type="button"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={!isValid || isSubmitting}
+              className="flex-1"
+            >
+              {isSubmitting ? 'Salvando...' : editingItem ? 'Salvar Alterações' : 'Adicionar Item'}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

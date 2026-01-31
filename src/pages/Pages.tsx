@@ -175,19 +175,22 @@ export default function Pages() {
               </DialogTrigger>
               <DialogContent className="max-w-md">
                 <DialogHeader>
-                  <DialogTitle>{editingPage ? 'Editar Página' : 'Nova Página'}</DialogTitle>
+                  <DialogTitle>{editingPage ? 'Editar Página' : 'Criar Nova Página'}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
-                  <div>
-                    <Label>Título *</Label>
+                  {/* Título */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Título *</Label>
                     <Input 
                       value={formData.title} 
                       onChange={(e) => setFormData({ ...formData, title: e.target.value })} 
-                      placeholder="Ex: Sobre Nós"
+                      placeholder="Ex: Sobre Nós, Política de Privacidade"
                     />
                   </div>
-                  <div>
-                    <Label>Slug</Label>
+                  
+                  {/* Slug */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Slug (URL)</Label>
                     <Input 
                       value={formData.slug} 
                       onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })} 
@@ -195,22 +198,22 @@ export default function Pages() {
                       className={!validateSlug(formData.slug).isValid && formData.slug ? 'border-destructive' : ''}
                     />
                     {!validateSlug(formData.slug).isValid && formData.slug ? (
-                      <p className="text-xs text-destructive flex items-center gap-1 mt-1">
+                      <p className="text-xs text-destructive flex items-center gap-1">
                         <AlertCircle className="h-3 w-3" />
                         {validateSlug(formData.slug).error}
                       </p>
                     ) : (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Usado na URL: /page/{formData.slug || 'slug'}
+                      <p className="text-xs text-muted-foreground">
+                        URL final: /page/{formData.slug || formData.title.toLowerCase().replace(/\s+/g, '-') || 'slug'}
                       </p>
                     )}
                   </div>
 
                   {/* SEO Fields - only show when editing */}
                   {editingPage && (
-                    <div className="border-t pt-4 mt-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-medium">SEO</p>
+                    <div className="border-t pt-4 mt-4 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-medium">Configurações SEO</h4>
                         <GenerateSeoButton
                           input={{
                             type: 'page',
@@ -227,28 +230,28 @@ export default function Pages() {
                         />
                       </div>
                       <div className="space-y-3">
-                        <div>
-                          <Label>Título SEO</Label>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Título SEO</Label>
                           <Input 
                             value={formData.seo_title} 
                             onChange={(e) => setFormData({ ...formData, seo_title: e.target.value })} 
                             placeholder={formData.title || 'Título para mecanismos de busca'}
                             maxLength={60}
                           />
-                          <p className="text-xs text-muted-foreground mt-1">
+                          <p className="text-xs text-muted-foreground">
                             {formData.seo_title.length}/60 caracteres
                           </p>
                         </div>
-                        <div>
-                          <Label>Descrição SEO</Label>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Descrição SEO</Label>
                           <Textarea 
                             value={formData.seo_description} 
                             onChange={(e) => setFormData({ ...formData, seo_description: e.target.value })} 
                             placeholder="Descrição para mecanismos de busca"
-                            className="min-h-[60px]"
+                            className="min-h-[60px] resize-none"
                             maxLength={160}
                           />
-                          <p className="text-xs text-muted-foreground mt-1">
+                          <p className="text-xs text-muted-foreground">
                             {formData.seo_description.length}/160 caracteres
                           </p>
                         </div>
@@ -256,19 +259,33 @@ export default function Pages() {
                     </div>
                   )}
 
+                  {/* Info para nova página */}
                   {!editingPage && (
-                    <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
-                      Após criar a página, você será redirecionado ao editor visual para construir o conteúdo.
-                    </p>
+                    <div className="bg-muted/50 p-3 rounded-md border border-dashed">
+                      <p className="text-sm text-muted-foreground">
+                        💡 Após criar, você será redirecionado ao editor visual para construir o conteúdo da página.
+                      </p>
+                    </div>
                   )}
 
-                  <Button 
-                    onClick={handleSubmit} 
-                    disabled={!formData.title || isCreating} 
-                    className="w-full"
-                  >
-                    {isCreating ? 'Criando...' : editingPage ? 'Salvar' : 'Criar e Abrir Editor'}
-                  </Button>
+                  {/* Botões de ação */}
+                  <div className="flex gap-2 pt-2">
+                    <Button 
+                      variant="outline"
+                      onClick={() => { setIsDialogOpen(false); resetForm(); }}
+                      className="flex-1"
+                      type="button"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button 
+                      onClick={handleSubmit} 
+                      disabled={!formData.title || isCreating} 
+                      className="flex-1"
+                    >
+                      {isCreating ? 'Criando...' : editingPage ? 'Salvar Alterações' : 'Criar Página'}
+                    </Button>
+                  </div>
                 </div>
               </DialogContent>
             </Dialog>
