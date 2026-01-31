@@ -15,7 +15,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 
-const VERSION = '2.5.0'; // Add: Skip LipSync for product videos (no face)
+const VERSION = '2.5.1'; // Fix: Use signed URLs for private voice preset bucket
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -706,9 +706,27 @@ async function submitFalJob(
       }
       
       if (voicePreset?.ref_audio_url) {
-        refAudioUrl = voicePreset.ref_audio_url;
+        // Gerar URL assinada para bucket privado (válida por 1 hora)
+        const urlParts = voicePreset.ref_audio_url.split('/system-voice-presets/');
+        if (urlParts.length >= 2) {
+          const filePath = urlParts[1];
+          console.log('[creative-process] Generating signed URL for preset audio:', filePath);
+          const { data: signedData, error: signError } = await supabase.storage
+            .from('system-voice-presets')
+            .createSignedUrl(filePath, 3600); // 1 hora
+          
+          if (signError || !signedData?.signedUrl) {
+            console.error('[creative-process] Error creating signed URL:', signError);
+            refAudioUrl = voicePreset.ref_audio_url; // Fallback para URL pública (pode falhar)
+          } else {
+            refAudioUrl = signedData.signedUrl;
+            console.log('[creative-process] Signed URL generated successfully');
+          }
+        } else {
+          refAudioUrl = voicePreset.ref_audio_url;
+        }
         refText = voicePreset.ref_text || '';
-        console.log('[creative-process] Voice preset found:', { refAudioUrl, refText: refText.substring(0, 50) });
+        console.log('[creative-process] Voice preset found:', { refAudioUrl: refAudioUrl?.substring(0, 100), refText: refText.substring(0, 50) });
       }
     }
     

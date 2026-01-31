@@ -4,14 +4,15 @@
  * Duas opções:
  * 1. Vozes públicas (system-owned com ref_audio_url)
  * 2. Upload de áudio próprio (clonagem de voz)
+ * 
+ * Os áudios de presets estão em bucket privado para impedir download.
+ * O preview usa URLs assinadas geradas pela edge function voice-preset-audio.
  */
 
 import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Mic, 
@@ -27,6 +28,7 @@ import {
 } from 'lucide-react';
 import { useAvailableVoicePresets, type VoicePreset } from '@/hooks/useVoicePresets';
 import { useSystemUpload } from '@/hooks/useSystemUpload';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 type VoiceMode = 'preset' | 'custom';
@@ -106,7 +108,7 @@ export function VoiceSelector({
     }
   };
 
-  const handlePlayPreview = (audioUrl: string, id: string) => {
+  const handlePlayPreview = async (audioUrlOrPresetId: string, id: string, isPreset = false) => {
     if (isPlaying === id) {
       audioRef.current?.pause();
       setIsPlaying(null);
@@ -115,6 +117,32 @@ export function VoiceSelector({
 
     if (audioRef.current) {
       audioRef.current.pause();
+    }
+
+    let audioUrl = audioUrlOrPresetId;
+
+    // Para presets, buscar URL assinada via edge function
+    if (isPreset) {
+      try {
+        setIsPlaying(id); // Mostrar loading
+        const { data, error } = await supabase.functions.invoke('voice-preset-audio', {
+          body: { preset_id: id }
+        });
+
+        if (error || !data?.success) {
+          console.error('[VoiceSelector] Error getting signed URL:', error || data?.error);
+          toast.error('Erro ao carregar áudio');
+          setIsPlaying(null);
+          return;
+        }
+
+        audioUrl = data.signed_url;
+      } catch (err) {
+        console.error('[VoiceSelector] Error:', err);
+        toast.error('Erro ao carregar áudio');
+        setIsPlaying(null);
+        return;
+      }
     }
 
     const audio = new Audio(audioUrl);
@@ -168,7 +196,7 @@ export function VoiceSelector({
           className="h-8 w-8 shrink-0"
           onClick={(e) => {
             e.stopPropagation();
-            handlePlayPreview(preset.ref_audio_url!, preset.id);
+            handlePlayPreview(preset.id, preset.id, true);
           }}
         >
           {isPlaying === preset.id ? (
