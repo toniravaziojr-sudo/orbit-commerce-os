@@ -6,6 +6,7 @@
 
 - `src/pages/Creatives.tsx` — Página principal
 - `src/components/creatives/*` — Componentes de cada aba
+- `src/components/creatives/VoiceSelector.tsx` — Seletor de voz (preset ou custom)
 - `src/hooks/useCreatives.ts` — Hook de dados
 - `src/hooks/useVoicePresets.ts` — Hook de presets de voz
 - `src/types/creatives.ts` — Tipos TypeScript
@@ -73,9 +74,47 @@ F5-TTS (gera áudio PT-BR) → Sync LipSync (mux/sincroniza)
 | Campo | Obrigatório | Descrição |
 |-------|-------------|-----------|
 | `tts_script` | ✅ | Texto em português para narração |
-| `voice_preset_id` | ✅ | ID do preset de voz |
+| `voice_preset_id` | ✅* | ID do preset de voz (obrigatório se não usar custom) |
+| `custom_voice_url` | ✅* | URL de áudio customizado (obrigatório se não usar preset) |
 
-### Voice Presets
+\* Pelo menos um dos dois deve ser fornecido.
+
+---
+
+## Componente VoiceSelector
+
+### Arquivo
+`src/components/creatives/VoiceSelector.tsx`
+
+### Modos de Seleção
+
+| Modo | Tab | Descrição |
+|------|-----|-----------|
+| `preset` | Vozes Prontas | Seleciona preset pré-configurado do banco |
+| `custom` | Minha Voz | Upload de amostra de áudio (10-30s) |
+
+### Props
+
+```typescript
+interface VoiceSelectorProps {
+  value: string | null;              // voice_preset_id selecionado
+  onValueChange: (id: string | null) => void;
+  customAudioUrl: string | null;     // URL do áudio customizado
+  onCustomAudioChange: (url: string | null) => void;
+  disabled?: boolean;
+}
+```
+
+### Comportamento
+
+1. **Vozes Prontas**: Lista presets com `ref_audio_url` válido
+2. **Minha Voz**: Upload via `useSystemUpload` → salva em Drive
+3. **Preview**: Player de áudio inline para ambos os modos
+4. **Exclusividade**: Selecionar preset limpa custom e vice-versa
+
+---
+
+## Voice Presets
 
 Presets são armazenados em `voice_presets` e **DEVEM** ter:
 
