@@ -1,8 +1,7 @@
 // Gestão de Criativos — Exports
 export { UGCClientTab } from './UGCClientTab';
 export { UGCAITab } from './UGCAITab';
-export { ShortVideoTab } from './ShortVideoTab';
-export { TechProductTab } from './TechProductTab';
+export { ProductVideoTab } from './ProductVideoTab';
 export { ProductImageTab } from './ProductImageTab';
 export { AvatarMascotTab } from './AvatarMascotTab';
 export { CreativeJobsList } from './CreativeJobsList';
