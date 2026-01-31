@@ -17,6 +17,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import { CustomPipelineInfo } from './AIPipelineInfo';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Sparkles,
@@ -403,27 +404,24 @@ Exemplo:
             />
           </div>
 
-          {/* Pipeline Info */}
-          <div className="space-y-2">
-            <Label className="text-muted-foreground text-xs">Pipeline de modelos:</Label>
-            <div className="flex flex-wrap gap-1">
-              {voiceSource === 'tts' && (
-                <Badge variant="outline" className="text-xs">F5 TTS</Badge>
-              )}
-              {voiceSource === 'reference' && (
-                <Badge variant="outline" className="text-xs">ChatterboxHD</Badge>
-              )}
-              <Badge variant="outline" className="text-xs bg-primary/5">
-                {primaryModel?.name}
-              </Badge>
-              {applyLipsyncPost && (
-                <Badge variant="outline" className="text-xs">Sync LipSync</Badge>
-              )}
-            </div>
-            <p className="text-[10px] text-muted-foreground">
-              Fallback automático: {fallbackModel?.name}
-            </p>
-          </div>
+          {/* Pipeline Info - Apenas para tenants especiais */}
+          <CustomPipelineInfo 
+            label="Pipeline de modelos:" 
+            description={`Fallback automático: ${fallbackModel?.name}`}
+          >
+            {voiceSource === 'tts' && (
+              <Badge variant="outline" className="text-xs">F5 TTS</Badge>
+            )}
+            {voiceSource === 'reference' && (
+              <Badge variant="outline" className="text-xs">ChatterboxHD</Badge>
+            )}
+            <Badge variant="outline" className="text-xs bg-primary/5">
+              {primaryModel?.name}
+            </Badge>
+            {applyLipsyncPost && (
+              <Badge variant="outline" className="text-xs">Sync LipSync</Badge>
+            )}
+          </CustomPipelineInfo>
 
           {/* Submit */}
           <Button 

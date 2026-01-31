@@ -204,6 +204,69 @@ export function useCreateCreativeJob() {
   });
 }
 
+// === Hook: Delete Creative Job ===
+export function useDeleteCreativeJob() {
+  const { currentTenant } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (jobId: string) => {
+      if (!currentTenant?.id) {
+        throw new Error('Usuário não autenticado');
+      }
+
+      // First, get the job to check for output files
+      const { data: job, error: fetchError } = await supabase
+        .from('creative_jobs')
+        .select('output_urls')
+        .eq('id', jobId)
+        .eq('tenant_id', currentTenant.id)
+        .single();
+
+      if (fetchError) {
+        throw new Error('Job não encontrado');
+      }
+
+      // Delete from database
+      const { error } = await supabase
+        .from('creative_jobs')
+        .delete()
+        .eq('id', jobId)
+        .eq('tenant_id', currentTenant.id);
+
+      if (error) {
+        throw new Error(error.message || 'Erro ao excluir');
+      }
+
+      // Optionally delete files from storage (best effort)
+      if (job?.output_urls?.length) {
+        for (const url of job.output_urls) {
+          try {
+            // Extract storage path from URL if it's a Supabase storage URL
+            const match = url.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.+)$/);
+            if (match) {
+              const [, bucket, path] = match;
+              await supabase.storage.from(bucket).remove([path]);
+            }
+          } catch (e) {
+            console.warn('Could not delete file from storage:', e);
+          }
+        }
+      }
+
+      return { success: true };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['creative-jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['creative-stats'] });
+      toast.success('Criativo excluído com sucesso');
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao excluir: ${error.message}`);
+    },
+  });
+}
+
 // === Hook: Retry Job ===
 export function useRetryCreativeJob() {
   const queryClient = useQueryClient();

@@ -17,6 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { CustomPipelineInfo } from './AIPipelineInfo';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Bot, 
@@ -396,25 +397,22 @@ Exemplo:
             </div>
           </div>
 
-          {/* Modelos */}
-          <div className="space-y-2">
-            <Label className="text-muted-foreground text-xs">Pipeline recomendado:</Label>
-            <div className="flex flex-wrap gap-1">
-              {mode === 'scene_with_product' ? (
-                <>
-                  <Badge variant="outline" className="text-xs">GPT Image 1.5 Edit</Badge>
-                  <Badge variant="outline" className="text-xs">→</Badge>
-                  <Badge variant="outline" className="text-xs">Kling I2V v2.6</Badge>
-                  <Badge variant="outline" className="text-xs">+ F5-TTS</Badge>
-                </>
-              ) : (
-                <>
-                  <Badge variant="outline" className="text-xs">Kling Avatar v2</Badge>
-                  <Badge variant="outline" className="text-xs">+ F5-TTS</Badge>
-                </>
-              )}
-            </div>
-          </div>
+          {/* Modelos - Apenas para tenants especiais */}
+          <CustomPipelineInfo label="Pipeline recomendado:">
+            {mode === 'scene_with_product' ? (
+              <>
+                <Badge variant="outline" className="text-xs">GPT Image 1.5 Edit</Badge>
+                <Badge variant="outline" className="text-xs">→</Badge>
+                <Badge variant="outline" className="text-xs">Kling I2V v2.6</Badge>
+                <Badge variant="outline" className="text-xs">+ F5-TTS</Badge>
+              </>
+            ) : (
+              <>
+                <Badge variant="outline" className="text-xs">Kling Avatar v2</Badge>
+                <Badge variant="outline" className="text-xs">+ F5-TTS</Badge>
+              </>
+            )}
+          </CustomPipelineInfo>
 
           {/* Submit */}
           <Button 

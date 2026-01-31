@@ -17,6 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
+import { AIPipelineInfo } from './AIPipelineInfo';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Image as ImageIcon, 
@@ -354,20 +355,13 @@ export function ProductImageTab() {
             />
           </div>
 
-          {/* Modelo */}
-          <div className="space-y-2">
-            <Label className="text-muted-foreground text-xs">Modelo utilizado:</Label>
-            <div className="flex flex-wrap gap-1">
-              {models.map(m => (
-                <Badge key={m.id} variant="default" className="text-xs">
-                  {m.name}
-                </Badge>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Mantém fidelidade máxima ao rótulo e cores do produto original
-            </p>
-          </div>
+          {/* Modelo - Apenas para tenants especiais */}
+          <AIPipelineInfo 
+            label="Modelo utilizado:" 
+            models={models} 
+            variant="default"
+            description="Mantém fidelidade máxima ao rótulo e cores do produto original"
+          />
 
           {/* Submit */}
           <Button 

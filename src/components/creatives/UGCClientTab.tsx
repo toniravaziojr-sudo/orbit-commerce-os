@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { AIPipelineInfo } from './AIPipelineInfo';
 import { 
   Upload, 
   Video, 
@@ -365,17 +366,8 @@ export function UGCClientTab() {
             </Alert>
           )}
 
-          {/* Modelos Utilizados */}
-          <div className="space-y-2">
-            <Label className="text-muted-foreground text-xs">Modelos IA utilizados neste pipeline:</Label>
-            <div className="flex flex-wrap gap-1">
-              {models.map(m => (
-                <Badge key={m.id} variant="outline" className="text-xs">
-                  {m.name}
-                </Badge>
-              ))}
-            </div>
-          </div>
+          {/* Modelos Utilizados - Apenas para tenants especiais */}
+          <AIPipelineInfo models={models} />
 
           {/* Submit */}
           <Button 
