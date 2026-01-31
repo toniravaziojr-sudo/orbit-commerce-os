@@ -206,14 +206,41 @@ graph TD
 | Drag handle | Arraste para reordenar |
 | Ações | Editar, Ver no site, Excluir |
 
-### 6.3 Aba de Produtos
+### 6.3 Aba de Produtos (CategoryProductsManager)
+
+Layout de duas colunas (`xl:grid-cols-2`) que empilham em telas menores.
+
+#### Coluna Esquerda: Produtos Vinculados
 
 | Elemento | Comportamento |
 |----------|---------------|
-| Lista "Produtos da Categoria" | Produtos vinculados com ordem |
-| Lista "Adicionar Produtos" | Busca e seleciona produtos disponíveis |
-| Drag-and-drop | Reordena produtos na categoria |
-| Checkbox | Seleciona múltiplos para ação em lote |
+| Drag handle (⠿) | Arraste para reordenar |
+| Checkbox | Seleciona para ação em lote |
+| Imagem | Miniatura 40x40px do produto |
+| Nome | Texto truncado com tooltip no hover |
+| SKU + Preço | Linha secundária condensada |
+| Badge status | Compacto (h-6) - "Ativo" ou "Inativo" |
+| Botão remover | Sempre visível em mobile, hover em desktop |
+
+#### Coluna Direita: Adicionar Produtos
+
+| Elemento | Comportamento |
+|----------|---------------|
+| Busca | Filtra produtos disponíveis |
+| Checkbox | Seleciona para adicionar em lote |
+| Badge "Vinculado" | Indica produtos já na categoria (desabilitado) |
+| Paginação | "Pág. X/Y • N produtos" com navegação |
+
+#### Ações em Lote
+
+| Ação | Descrição |
+|------|-----------|
+| Todos | Seleciona todos os produtos filtrados |
+| Limpar | Remove seleção |
+| Remover | Remove produtos selecionados da categoria |
+| Adicionar | Vincula produtos selecionados à categoria |
+
+> **UI/UX**: Botões de ação em lote usam `h-7` para compacidade e `flex-wrap` para responsividade.
 
 ---
 
