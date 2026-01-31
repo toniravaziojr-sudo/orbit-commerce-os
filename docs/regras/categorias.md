@@ -26,9 +26,22 @@ O módulo de Categorias organiza o catálogo de produtos em grupos hierárquicos
 | Arquivo | Responsabilidade |
 |---------|------------------|
 | `src/components/categories/CategoryTree.tsx` | Árvore hierárquica com drag-and-drop |
-| `src/components/categories/CategoryForm.tsx` | Formulário de criação/edição |
+| `src/components/categories/CategoryForm.tsx` | Formulário de criação/edição (aceita `hideActions` para ocultar botões internos) |
 | `src/components/categories/CategoryProductsManager.tsx` | Vincular/desvincular produtos |
 | `src/components/categories/CategoryTreeItem.tsx` | Item individual da árvore |
+
+### 2.3 Props do CategoryForm
+
+| Prop | Tipo | Descrição |
+|------|------|-----------|
+| `formData` | object | Dados do formulário |
+| `onChange` | function | Callback de alteração |
+| `onSubmit` | function | Callback de submit |
+| `onClose` | function | Callback de cancelamento |
+| `isEditing` | boolean | Se está editando (vs criando) |
+| `editingCategoryId` | string? | ID da categoria em edição |
+| `isLoading` | boolean? | Estado de loading |
+| `hideActions` | boolean? | **Oculta botões Salvar/Cancelar internos** (usado quando a página pai gerencia os botões globalmente) |
 
 ### 2.3 Hooks
 
@@ -163,13 +176,15 @@ graph TD
 ├─────────────────────────────────────────────────────────────┤
 │                                                               │
 │ ┌─────────────────────┐  ┌─────────────────────────────────┐ │
-│ │ Lista de Categorias │  │ Detalhes / Formulário           │ │
-│ │                     │  │                                  │ │
-│ │ ├── Roupas          │  │ [Detalhes] [Produtos]            │ │
+│ │ Lista de Categorias │  │ ┌─────────────────────────────┐ │ │
+│ │                     │  │ │ 📁 Nome Categoria  [Cancelar] [Salvar] │ │
+│ │ ├── Roupas          │  │ └─────────────────────────────┘ │ │
 │ │ │   ├── Camisetas   │  │                                  │ │
-│ │ │   └── Calças      │  │ Nome: [__________]               │ │
-│ │ ├── Acessórios      │  │ Slug: [__________]               │ │
-│ │ └── Promoções       │  │ Descrição: [___________]         │ │
+│ │ │   └── Calças      │  │ [Detalhes] [Produtos]            │ │
+│ │ ├── Acessórios      │  │                                  │ │
+│ │ └── Promoções       │  │ Nome: [__________]               │ │
+│ │                     │  │ Slug: [__________]               │ │
+│ │                     │  │ Descrição: [___________]         │ │
 │ │                     │  │ Banner Desktop: [Upload]         │ │
 │ │                     │  │ Banner Mobile: [Upload]          │ │
 │ │                     │  │ Ativo: [Toggle]                  │ │
@@ -178,6 +193,8 @@ graph TD
 │ └─────────────────────┘  └─────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+> **IMPORTANTE**: Os botões **Salvar** e **Cancelar** ficam em uma barra global sticky no topo do formulário, visíveis em **qualquer aba** (Detalhes ou Produtos). Isso permite que o usuário salve a categoria sem precisar voltar para a aba "Detalhes".
 
 ### 6.2 Árvore de Categorias
 
