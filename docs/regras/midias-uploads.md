@@ -216,16 +216,40 @@ import { DriveFilePicker } from '@/components/ui/DriveFilePicker';
 
 ---
 
+## Criativos com IA — Armazenamento Automático
+
+Criativos gerados pelo módulo **Gestor de Criativos** (`/creatives`) são automaticamente armazenados no Meu Drive:
+
+| Item | Valor |
+|------|-------|
+| **Pasta** | `Criativos com IA` |
+| **Bucket** | `media-assets` |
+| **Registro** | `public.files` com `source: 'creative_job'` e `system_managed: true` |
+| **Exclusão** | Via hook `useDeleteCreativeJob` — remove do banco E do storage |
+
+### Fluxo
+
+```
+1. Job de criativo finaliza com sucesso
+2. Arquivo salvo em storage/media-assets/{tenant_id}/creatives/...
+3. Registro criado em public.files com folder_id = pasta "Criativos com IA"
+4. URL disponível em creative_jobs.output_urls
+```
+
+---
+
 ## Arquivos Relacionados
 
 | Se for editar... | Leia este doc primeiro |
 |------------------|------------------------|
 | `src/hooks/useSystemUpload.ts` | Este documento |
 | `src/hooks/useDriveFiles.ts` | Este documento |
+| `src/hooks/useCreatives.ts` | Este documento + docs/regras/geracao-imagens-ai.md |
 | `src/lib/uploadAndRegisterToSystemDrive.ts` | Este documento |
 | `src/lib/registerFileToDrive.ts` | Este documento |
 | `src/components/ui/UniversalImageUploader.tsx` | Este documento |
 | `src/components/ui/DriveFilePicker.tsx` | Este documento |
+| `src/components/creatives/AIPipelineInfo.tsx` | docs/regras/geracao-imagens-ai.md |
 | Qualquer componente com upload de imagem | Este documento |
 | `src/hooks/useYouTubeConnection.ts` | Este documento |
 | `src/pages/Media.tsx` | Este documento |
