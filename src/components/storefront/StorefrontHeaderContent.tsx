@@ -150,6 +150,22 @@ export function StorefrontHeaderContent({
   const menuVisualStyle = String(props.menuVisualStyle || 'classic') as 'classic' | 'elegant' | 'minimal';
   const menuShowParentTitle = props.menuShowParentTitle !== undefined ? Boolean(props.menuShowParentTitle) : true;
   
+  // Logo size - 'small', 'medium', 'large'
+  const logoSize = String(props.logoSize || 'medium') as 'small' | 'medium' | 'large';
+  
+  // Get logo size classes based on logoSize prop
+  const getLogoSizeClasses = (): string => {
+    switch (logoSize) {
+      case 'small':
+        return 'h-8 max-w-[100px] md:max-w-[120px]';
+      case 'large':
+        return 'h-14 max-w-[180px] md:max-w-[220px]';
+      case 'medium':
+      default:
+        return 'h-10 max-w-[140px] md:max-w-[160px]';
+    }
+  };
+  
   // Featured promo hover state
   const [featuredPromoHover, setFeaturedPromoHover] = useState(false);
   
@@ -190,7 +206,7 @@ export function StorefrontHeaderContent({
     
     if (featuredPromosDestination.startsWith('category:')) {
       const categorySlug = featuredPromosDestination.replace('category:', '');
-      return `${baseUrl}/category/${categorySlug}`;
+      return `${baseUrl}/c/${categorySlug}`;
     }
     if (featuredPromosDestination.startsWith('page:')) {
       const pageSlug = featuredPromosDestination.replace('page:', '');
@@ -689,7 +705,7 @@ export function StorefrontHeaderContent({
               <img
                 src={storeSettings.logo_url}
                 alt={storeSettings?.store_name || 'Loja'}
-                className="h-10 max-w-[140px] md:max-w-[160px] object-contain"
+                className={cn(getLogoSizeClasses(), "object-contain")}
               />
             ) : (
               <span
@@ -884,7 +900,7 @@ export function StorefrontHeaderContent({
                         <img 
                           src={featuredPromosThumbnail} 
                           alt={featuredPromosLabel}
-                          className="w-48 h-36 object-cover"
+                          className="w-52 h-28 object-cover"
                         />
                         <div className="p-2 text-center" style={{ backgroundColor: featuredPromosBgColor || undefined }}>
                           <span className="text-xs font-medium text-popover-foreground">{featuredPromosLabel}</span>

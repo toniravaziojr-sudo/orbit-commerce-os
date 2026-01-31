@@ -21,6 +21,7 @@
 | `featuredPromosThumbnail` | string | URL da miniatura exibida no hover (desktop) |
 | `menuVisualStyle` | `'classic'` \| `'elegant'` \| `'minimal'` | Estilo visual dos dropdowns do menu |
 | `menuShowParentTitle` | boolean | Exibe título da categoria pai no dropdown |
+| `logoSize` | `'small'` \| `'medium'` \| `'large'` | Tamanho da logo no header |
 
 > ⚠️ **ATENÇÃO:** O destino de promoções em destaque usa `featuredPromosTarget`, NÃO `featuredPromosDestination`.
 
@@ -252,6 +253,9 @@ Quando `isEditing=true` e não há menu real:
 
 | Data | Alteração |
 |------|-----------|
+| 2025-01-31 | Adicionado `logoSize` com 3 tamanhos: small (32px), medium (40px), large (56px) |
+| 2025-01-31 | Corrigido URL de promoções em destaque de `/category/` para `/c/` |
+| 2025-01-31 | Ajustadas dimensões da miniatura de promoção de 192x144 para 208x112 (mais larga) |
 | 2025-01-30 | Adicionado `menuVisualStyle` com 3 estilos: Classic, Elegant, Minimal |
 | 2025-01-30 | Adicionado `menuShowParentTitle` para ocultar/exibir título da categoria pai |
 | 2025-01-30 | Nova seção "Visual Menus" em HeaderSettings.tsx |

@@ -52,6 +52,9 @@ export interface ThemeTypography {
 // Menu visual style type
 export type MenuVisualStyle = 'classic' | 'elegant' | 'minimal';
 
+// Logo size type
+export type LogoSizeType = 'small' | 'medium' | 'large';
+
 export interface ThemeHeaderConfig {
   menuId?: string;
   showSearch?: boolean;
@@ -79,6 +82,8 @@ export interface ThemeHeaderConfig {
   // Visual menu style configuration
   menuVisualStyle?: MenuVisualStyle;
   menuShowParentTitle?: boolean; // Show parent category name as header in dropdown
+  // Logo size configuration
+  logoSize?: LogoSizeType; // small, medium, large - controls logo height in header
 }
 
 // Footer image section item
