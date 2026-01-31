@@ -53,6 +53,7 @@ export function ProductVideoTab() {
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('16:9');
   const [promptAdditions, setPromptAdditions] = useState('');
   const [generatePremiumScene, setGeneratePremiumScene] = useState(false);
+  const [generateAudio, setGenerateAudio] = useState(false);
   
   // Start/End frames (opcional)
   const [useFrameControl, setUseFrameControl] = useState(false);
@@ -87,6 +88,7 @@ export function ProductVideoTab() {
         duration,
         aspect_ratio: aspectRatio,
         generate_premium_scene: generatePremiumScene,
+        generate_audio: generateAudio,
         // Kling I2V usa start_image_url (será mapeado no backend)
         start_frame: selectedProductImage,
       },
@@ -176,21 +178,41 @@ export function ProductVideoTab() {
             </div>
           </div>
 
-          {/* Gerar Cenário Premium (opcional) */}
-          <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-            <div className="space-y-0.5">
-              <Label htmlFor="premium-scene" className="cursor-pointer">
-                Gerar Cenário Premium
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Usa IA para criar cenário sofisticado antes de animar
-              </p>
+          {/* Opções avançadas */}
+          <div className="space-y-3">
+            {/* Gerar Cenário Premium (opcional) */}
+            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+              <div className="space-y-0.5">
+                <Label htmlFor="premium-scene" className="cursor-pointer">
+                  Gerar Cenário Premium
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Usa IA para criar cenário sofisticado antes de animar
+                </p>
+              </div>
+              <Switch
+                id="premium-scene"
+                checked={generatePremiumScene}
+                onCheckedChange={setGeneratePremiumScene}
+              />
             </div>
-            <Switch
-              id="premium-scene"
-              checked={generatePremiumScene}
-              onCheckedChange={setGeneratePremiumScene}
-            />
+            
+            {/* Gerar Áudio (opcional) */}
+            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+              <div className="space-y-0.5">
+                <Label htmlFor="generate-audio" className="cursor-pointer">
+                  Gerar Áudio Automático
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Áudio nativo gerado pela IA (inglês/chinês apenas)
+                </p>
+              </div>
+              <Switch
+                id="generate-audio"
+                checked={generateAudio}
+                onCheckedChange={setGenerateAudio}
+              />
+            </div>
           </div>
 
           {/* Duration & Aspect Ratio */}
