@@ -111,17 +111,17 @@ export function ImageUploaderWithLibrary({
     <div className="space-y-3">
       <Tabs defaultValue="upload" className="w-full">
         <TabsList className="grid w-full grid-cols-3 h-8">
-          <TabsTrigger value="upload" className="text-xs gap-1">
-            <Upload className="h-3 w-3" />
-            Upload
+          <TabsTrigger value="upload" className="text-xs gap-1 px-1.5" title="Upload do computador">
+            <Upload className="h-3 w-3 shrink-0" />
+            <span className="hidden sm:inline truncate">Upload</span>
           </TabsTrigger>
-          <TabsTrigger value="drive" className="text-xs gap-1">
-            <FolderOpen className="h-3 w-3" />
-            Meu Drive
+          <TabsTrigger value="drive" className="text-xs gap-1 px-1.5" title="Meu Drive">
+            <FolderOpen className="h-3 w-3 shrink-0" />
+            <span className="hidden sm:inline truncate">Drive</span>
           </TabsTrigger>
-          <TabsTrigger value="url" className="text-xs gap-1">
-            <Link className="h-3 w-3" />
-            URL
+          <TabsTrigger value="url" className="text-xs gap-1 px-1.5" title="Inserir URL">
+            <Link className="h-3 w-3 shrink-0" />
+            <span className="hidden sm:inline truncate">URL</span>
           </TabsTrigger>
         </TabsList>
 
