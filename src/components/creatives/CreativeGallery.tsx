@@ -42,10 +42,9 @@ import { useCreativeJobs, getStatusColor, getStatusLabel } from '@/hooks/useCrea
 import type { CreativeJob, CreativeType } from '@/types/creatives';
 
 const TYPE_LABELS: Record<CreativeType, string> = {
-  ugc_client_video: 'UGC Cliente',
+  ugc_client_video: 'UGC Real',
   ugc_ai_video: 'UGC 100% IA',
-  short_video: 'Vídeo Curto',
-  tech_product_video: 'Vídeo Tech',
+  product_video: 'Vídeo Produto',
   product_image: 'Imagem',
   avatar_mascot: 'Avatar Mascote',
 };
@@ -53,8 +52,7 @@ const TYPE_LABELS: Record<CreativeType, string> = {
 const TYPE_ICONS: Record<CreativeType, React.ReactNode> = {
   ugc_client_video: <Video className="h-4 w-4" />,
   ugc_ai_video: <Video className="h-4 w-4" />,
-  short_video: <Video className="h-4 w-4" />,
-  tech_product_video: <Video className="h-4 w-4" />,
+  product_video: <Video className="h-4 w-4" />,
   product_image: <Image className="h-4 w-4" />,
   avatar_mascot: <Video className="h-4 w-4" />,
 };

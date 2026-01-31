@@ -255,8 +255,7 @@ export function useCreativeStats() {
       const byType: Record<CreativeType, number> = {
         ugc_client_video: 0,
         ugc_ai_video: 0,
-        short_video: 0,
-        tech_product_video: 0,
+        product_video: 0,
         product_image: 0,
         avatar_mascot: 0,
       };

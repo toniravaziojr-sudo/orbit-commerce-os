@@ -2,7 +2,7 @@
  * Gestão de Criativos — Página Principal
  * 
  * Módulo para geração de criativos com IA (vídeos e imagens)
- * 6 abas: UGC Cliente, UGC 100% IA, Vídeos Curtos, Vídeos Tech, Imagens Produto, Galeria
+ * 5 abas: UGC Real, UGC 100% IA, Vídeos de Produto, Imagens Produto, Avatar Mascote, Galeria
  */
 
 import { useState } from 'react';
@@ -10,27 +10,23 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Video, 
   Image, 
-  Sparkles, 
   Bot, 
-  Mic, 
-  Cpu, 
   User,
   FolderOpen,
   Info,
   Loader2,
   LayoutGrid,
   Wand2,
+  Package,
 } from 'lucide-react';
 import { useCreativeStats, useCreativesFolder } from '@/hooks/useCreatives';
 import { UGCClientTab } from '@/components/creatives/UGCClientTab';
 import { UGCAITab } from '@/components/creatives/UGCAITab';
-import { ShortVideoTab } from '@/components/creatives/ShortVideoTab';
-import { TechProductTab } from '@/components/creatives/TechProductTab';
+import { ProductVideoTab } from '@/components/creatives/ProductVideoTab';
 import { ProductImageTab } from '@/components/creatives/ProductImageTab';
 import { AvatarMascotTab } from '@/components/creatives/AvatarMascotTab';
 import { CreativeGallery } from '@/components/creatives/CreativeGallery';
@@ -41,39 +37,33 @@ type TabId = CreativeType | 'gallery';
 const TABS: { id: TabId; label: string; icon: React.ElementType; description: string }[] = [
   {
     id: 'ugc_client_video',
-    label: 'UGC: Cliente Gravou',
+    label: 'UGC Real',
     icon: User,
-    description: 'Transformar pessoa/rosto, fundo e voz de vídeo existente',
+    description: 'Transformar vídeo gravado (rosto, fundo, voz opcionais)',
   },
   {
     id: 'ugc_ai_video',
     label: 'UGC 100% IA',
     icon: Bot,
-    description: 'Avatar/ator IA falando como se fosse uma pessoa real',
+    description: 'Avatar IA com produto do catálogo',
   },
   {
-    id: 'short_video',
-    label: 'Vídeos Curtos',
-    icon: Mic,
-    description: 'Pessoa falando sobre um assunto (review, explicativo)',
-  },
-  {
-    id: 'tech_product_video',
-    label: 'Vídeos Tech',
-    icon: Cpu,
-    description: 'Vídeos cinematográficos de produtos (sem pessoas)',
+    id: 'product_video',
+    label: 'Vídeos Produto',
+    icon: Package,
+    description: 'Vídeos SEM pessoas (rotação, efeitos, close-ups)',
   },
   {
     id: 'product_image',
-    label: 'Imagens Produto',
+    label: 'Imagens',
     icon: Image,
-    description: 'Pessoas reais segurando o produto',
+    description: 'Pessoas + cenário + produto do catálogo',
   },
   {
     id: 'avatar_mascot',
-    label: 'Avatar Mascote',
+    label: 'Mascote',
     icon: Wand2,
-    description: 'Mascote/personagem animado falando (tipo Lu da Magalu)',
+    description: 'Mascote animado falando (tipo Lu Magalu)',
   },
   {
     id: 'gallery',
@@ -158,7 +148,7 @@ export default function Creatives() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabId)} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-7 h-auto">
+        <TabsList className="grid w-full grid-cols-6 h-auto">
           {TABS.map((tab) => {
             const Icon = tab.icon;
             const count = tab.id === 'gallery' 
@@ -217,12 +207,8 @@ export default function Creatives() {
           <UGCAITab />
         </TabsContent>
 
-        <TabsContent value="short_video" className="mt-6">
-          <ShortVideoTab />
-        </TabsContent>
-
-        <TabsContent value="tech_product_video" className="mt-6">
-          <TechProductTab />
+        <TabsContent value="product_video" className="mt-6">
+          <ProductVideoTab />
         </TabsContent>
 
         <TabsContent value="product_image" className="mt-6">
