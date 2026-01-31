@@ -501,7 +501,7 @@ export function PopupSettings({ tenantId, templateSetId }: PopupSettingsProps) {
               placeholder="Envie ou selecione uma imagem"
             />
             <p className="text-xs text-muted-foreground">
-              <strong>Dimensões recomendadas:</strong> 450×90px (largura total do popup)
+              <strong>Dimensões recomendadas:</strong> 450×105px (largura total do popup)
             </p>
           </div>
         </CollapsibleContent>
