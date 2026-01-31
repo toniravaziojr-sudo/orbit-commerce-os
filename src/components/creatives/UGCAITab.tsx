@@ -1,11 +1,11 @@
 /**
- * UGC AI Tab — Avatar/Ator 100% IA com Produto do Catálogo
+ * UGC AI Tab — Pessoa 100% IA segurando/usando Produto
  * 
- * Pipeline:
- * - Talking Head: Kling Avatar v2 (imagem + áudio)
- * - Em Cena com Produto: GPT Image Edit (keyframe) + Kling I2V (animar)
+ * Pipeline: GPT Image Edit (keyframe) + Kling I2V (animar)
+ * Áudio: Sem | Nativo (EN/ZH) | TTS PT-BR (F5-TTS + Sync)
  * 
  * PRODUTO DO CATÁLOGO É OBRIGATÓRIO
+ * Foco: Pessoa com produto na mão / interagindo fisicamente
  */
 
 import { useState, useEffect } from 'react';
@@ -21,33 +21,38 @@ import { CustomPipelineInfo } from './AIPipelineInfo';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Bot, 
-  User, 
   Video,
   Sparkles,
-  Upload,
   Loader2,
   Zap,
   Package,
   ShoppingBag,
   AlertCircle,
+  Volume2,
+  VolumeX,
+  Languages,
+  Mic,
 } from 'lucide-react';
 import { useCreativeJobs, useCreateCreativeJob } from '@/hooks/useCreatives';
 import { useProductsWithImages } from '@/hooks/useProducts';
+import { useAvailableVoicePresets } from '@/hooks/useVoicePresets';
 import { CREATIVE_MODELS } from '@/types/creatives';
 import { CreativeJobsList } from './CreativeJobsList';
 
-type GenerationMode = 'talking_head' | 'scene_with_product';
+type AudioMode = 'none' | 'native' | 'tts_ptbr';
 
 export function UGCAITab() {
   // Produto OBRIGATÓRIO
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   
-  // Modo de geração
-  const [mode, setMode] = useState<GenerationMode>('scene_with_product');
-  
   // Conteúdo
   const [script, setScript] = useState('');
   const [cta, setCta] = useState('');
+  
+  // Áudio
+  const [audioMode, setAudioMode] = useState<AudioMode>('none');
+  const [ttsScript, setTtsScript] = useState('');
+  const [voicePresetId, setVoicePresetId] = useState<string>('');
   
   // Configurações
   const [duration, setDuration] = useState<string>('10');
@@ -58,6 +63,7 @@ export function UGCAITab() {
   
   // Hooks
   const { products, isLoading: productsLoading } = useProductsWithImages();
+  const { data: voicePresets, isLoading: presetsLoading } = useAvailableVoicePresets();
   const { data: jobs, isLoading, refetch } = useCreativeJobs('ugc_ai_video');
   const createJob = useCreateCreativeJob();
 
@@ -72,7 +78,9 @@ export function UGCAITab() {
                           (selectedProduct as any)?.thumbnail;
 
   // Validação
-  const isValid = selectedProductId && script.trim().length > 0;
+  const isValid = selectedProductId && 
+                  script.trim().length > 0 &&
+                  (audioMode !== 'tts_ptbr' || (ttsScript.trim().length > 0 && voicePresetId));
 
   const handleGenerate = async () => {
     if (!isValid) return;
@@ -84,19 +92,24 @@ export function UGCAITab() {
       product_name: selectedProduct?.name,
       product_image_url: productImageUrl,
       settings: {
-        mode,
+        mode: 'scene_with_product', // Único modo agora
         duration: parseInt(duration),
         aspect_ratio: aspectRatio,
         cta: cta || undefined,
-        // Pipeline específico por modo
-        ...(mode === 'scene_with_product' ? {
-          input_fidelity: 'high', // Preservar rótulo do produto
+        input_fidelity: 'high', // Preservar rótulo do produto
+        // Áudio
+        audio_mode: audioMode,
+        generate_audio: audioMode === 'native',
+        ...(audioMode === 'tts_ptbr' ? {
+          tts_script: ttsScript,
+          voice_preset_id: voicePresetId,
         } : {}),
       },
     }, {
       onSuccess: () => {
         setScript('');
         setCta('');
+        setTtsScript('');
         setJustCreated(true);
         setTimeout(() => refetch(), 500);
         setTimeout(() => setJustCreated(false), 5000);
@@ -121,7 +134,7 @@ export function UGCAITab() {
             Novo UGC 100% IA
           </CardTitle>
           <CardDescription>
-            Crie vídeos com IA mostrando seu produto — selecione do catálogo
+            Pessoa segurando/usando o produto — gerada por IA
           </CardDescription>
         </CardHeader>
         
@@ -188,7 +201,7 @@ export function UGCAITab() {
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm truncate">{selectedProduct.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    Imagem será usada como referência (input_fidelity: high)
+                    Imagem será usada como referência
                   </p>
                 </div>
               </div>
@@ -204,53 +217,130 @@ export function UGCAITab() {
             )}
           </div>
 
-          {/* Modo de Geração */}
+          {/* Prompt/Descrição da Cena */}
+          <div className="space-y-2">
+            <Label>Descrição da Cena *</Label>
+            <Textarea 
+              value={script}
+              onChange={(e) => setScript(e.target.value)}
+              placeholder="Descreva a pessoa e a cena com o produto...
+
+Exemplo:
+'Uma mulher jovem, cabelos castanhos, segurando o produto nas mãos e mostrando para a câmera com expressão de surpresa positiva. Fundo de sala de estar moderna.'"
+              rows={4}
+            />
+            <p className="text-xs text-muted-foreground">
+              {script.length} caracteres • Descreva aparência, ação e cenário
+            </p>
+          </div>
+
+          {/* ÁUDIO DO VÍDEO */}
           <div className="space-y-3">
-            <Label>Modo de Geração</Label>
-            <RadioGroup value={mode} onValueChange={(v) => setMode(v as GenerationMode)}>
+            <Label className="flex items-center gap-2">
+              <Volume2 className="h-4 w-4" />
+              Áudio do Vídeo
+            </Label>
+            <RadioGroup value={audioMode} onValueChange={(v) => setAudioMode(v as AudioMode)}>
               <div className="flex items-start gap-3 p-3 rounded-lg border">
-                <RadioGroupItem value="scene_with_product" id="mode-scene" className="mt-1" />
+                <RadioGroupItem value="none" id="audio-none" className="mt-0.5" />
                 <div>
-                  <Label htmlFor="mode-scene" className="flex items-center gap-2 cursor-pointer">
-                    <Video className="h-4 w-4" />
-                    Em Cena com Produto (Recomendado)
+                  <Label htmlFor="audio-none" className="flex items-center gap-2 cursor-pointer">
+                    <VolumeX className="h-4 w-4" />
+                    Sem Áudio
                   </Label>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Pessoa segurando/usando o produto — GPT Image (keyframe) + Kling I2V
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Vídeo mudo — ideal para adicionar música depois
                   </p>
                 </div>
               </div>
               <div className="flex items-start gap-3 p-3 rounded-lg border">
-                <RadioGroupItem value="talking_head" id="mode-avatar" className="mt-1" />
+                <RadioGroupItem value="native" id="audio-native" className="mt-0.5" />
                 <div>
-                  <Label htmlFor="mode-avatar" className="flex items-center gap-2 cursor-pointer">
-                    <User className="h-4 w-4" />
-                    Talking Head (Avatar Falando)
+                  <Label htmlFor="audio-native" className="flex items-center gap-2 cursor-pointer">
+                    <Languages className="h-4 w-4" />
+                    Áudio Nativo (EN/ZH)
                   </Label>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Avatar olhando para câmera + produto como cutaway — Kling Avatar v2
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Gerado pelo modelo — apenas Inglês ou Chinês
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-3 rounded-lg border border-primary/30 bg-primary/5">
+                <RadioGroupItem value="tts_ptbr" id="audio-tts" className="mt-0.5" />
+                <div className="flex-1">
+                  <Label htmlFor="audio-tts" className="flex items-center gap-2 cursor-pointer">
+                    <Mic className="h-4 w-4" />
+                    Português (TTS)
+                    <Badge variant="secondary" className="text-[10px]">Recomendado</Badge>
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Narração em PT-BR via F5-TTS + sincronização
                   </p>
                 </div>
               </div>
             </RadioGroup>
           </div>
 
-          {/* Script */}
-          <div className="space-y-2">
-            <Label>Script/Roteiro *</Label>
-            <Textarea 
-              value={script}
-              onChange={(e) => setScript(e.target.value)}
-              placeholder="Digite o texto que será falado/narrado...
+          {/* Campos TTS PT-BR */}
+          {audioMode === 'tts_ptbr' && (
+            <div className="space-y-4 p-4 rounded-lg border border-primary/20 bg-primary/5">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  Script da Narração *
+                  <Badge variant="outline" className="text-[10px]">PT-BR</Badge>
+                </Label>
+                <Textarea
+                  value={ttsScript}
+                  onChange={(e) => setTtsScript(e.target.value)}
+                  placeholder="Digite o texto que será narrado em português...
 
 Exemplo:
-'Gente, vocês precisam conhecer esse produto! Eu estava com problema X e depois que comecei a usar, minha vida mudou completamente. Super recomendo!'"
-              rows={5}
-            />
-            <p className="text-xs text-muted-foreground">
-              {script.length} caracteres • Recomendado: 100-300 caracteres
-            </p>
-          </div>
+'Gente, vocês precisam conhecer esse produto! Eu estava com problema X e depois que comecei a usar, minha vida mudou!'"
+                  rows={3}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {ttsScript.length} caracteres • Texto que será convertido em áudio
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Voz *</Label>
+                <Select value={voicePresetId} onValueChange={setVoicePresetId}>
+                  <SelectTrigger className={audioMode === 'tts_ptbr' && !voicePresetId ? 'border-destructive' : ''}>
+                    <SelectValue placeholder="Selecione uma voz..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {presetsLoading ? (
+                      <div className="p-4 text-center text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin mx-auto mb-1" />
+                        Carregando vozes...
+                      </div>
+                    ) : voicePresets?.length === 0 ? (
+                      <div className="p-4 text-center text-muted-foreground text-sm">
+                        Nenhuma voz configurada
+                      </div>
+                    ) : (
+                      voicePresets?.map(preset => (
+                        <SelectItem key={preset.id} value={preset.id}>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-[10px]">
+                              {preset.category === 'female' ? '♀' : preset.category === 'male' ? '♂' : '◎'}
+                            </Badge>
+                            <span>{preset.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                {voicePresets?.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Configure vozes em Configurações → Vozes (com ref_audio_url)
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* CTA Opcional */}
           <div className="space-y-2">
@@ -261,19 +351,6 @@ Exemplo:
               placeholder="Ex: Compre agora com 20% de desconto!" 
             />
           </div>
-
-          {/* Avatar Reference (para talking_head) */}
-          {mode === 'talking_head' && (
-            <div className="space-y-2">
-              <Label>Referência do Avatar (opcional)</Label>
-              <div className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer">
-                <Upload className="h-6 w-6 mx-auto mb-1 text-muted-foreground" />
-                <p className="text-xs text-muted-foreground">
-                  Upload de foto para consistência visual (opcional)
-                </p>
-              </div>
-            </div>
-          )}
 
           {/* Duration & Aspect Ratio */}
           <div className="grid grid-cols-2 gap-4">
@@ -288,7 +365,6 @@ Exemplo:
                   <SelectItem value="10">10 segundos</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">Kling I2V suporta 5s ou 10s</p>
             </div>
             <div className="space-y-2">
               <Label>Proporção</Label>
@@ -305,19 +381,17 @@ Exemplo:
             </div>
           </div>
 
-          {/* Modelos - Apenas para tenants especiais */}
-          <CustomPipelineInfo label="Pipeline recomendado:">
-            {mode === 'scene_with_product' ? (
+          {/* Pipeline Info */}
+          <CustomPipelineInfo label="Pipeline:">
+            <Badge variant="outline" className="text-xs">GPT Image Edit</Badge>
+            <Badge variant="outline" className="text-xs">→</Badge>
+            <Badge variant="outline" className="text-xs">Kling I2V</Badge>
+            {audioMode === 'tts_ptbr' && (
               <>
-                <Badge variant="outline" className="text-xs">GPT Image 1.5 Edit</Badge>
                 <Badge variant="outline" className="text-xs">→</Badge>
-                <Badge variant="outline" className="text-xs">Kling I2V v2.6</Badge>
-                <Badge variant="outline" className="text-xs">+ F5-TTS</Badge>
-              </>
-            ) : (
-              <>
-                <Badge variant="outline" className="text-xs">Kling Avatar v2</Badge>
-                <Badge variant="outline" className="text-xs">+ F5-TTS</Badge>
+                <Badge variant="outline" className="text-xs">F5-TTS</Badge>
+                <Badge variant="outline" className="text-xs">→</Badge>
+                <Badge variant="outline" className="text-xs">Sync</Badge>
               </>
             )}
           </CustomPipelineInfo>
