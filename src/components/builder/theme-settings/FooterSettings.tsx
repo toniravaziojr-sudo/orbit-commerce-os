@@ -271,12 +271,20 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
     newsletter: false,
   });
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const localPropsRef = useRef<ThemeFooterConfig>(DEFAULT_THEME_FOOTER);
+  const isInitializedRef = useRef(false);
 
-  // CRITICAL FIX: Always sync localProps with savedFooter to prevent stale state
-  // This ensures optimistic updates from the hook are reflected in the UI
+  // Keep ref in sync with state for callbacks
   useEffect(() => {
-    if (savedFooter) {
+    localPropsRef.current = localProps;
+  }, [localProps]);
+
+  // Initialize ONCE from saved data, then only sync if not initialized
+  useEffect(() => {
+    if (savedFooter && !isInitializedRef.current) {
       setLocalProps(savedFooter);
+      localPropsRef.current = savedFooter;
+      isInitializedRef.current = true;
     }
   }, [savedFooter]);
 
@@ -311,13 +319,19 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
     });
   }, [updateFooter]);
 
-  // Update image section - ONLY call updateFooter, let optimistic update handle UI sync
-  // The useEffect will receive the updated savedFooter and sync to localProps
+  // Update image section - Update local state FIRST, then save to DB
+  // This ensures UI is immediately updated and stays stable
   const updateImageSection = useCallback((key: string, value: FooterImageSectionData) => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
-    // Call updateFooter which does optimistic cache update
+    // Update local state IMMEDIATELY - this is the source of truth for UI
+    setLocalProps(prev => {
+      const updated = { ...prev, [key]: value };
+      localPropsRef.current = updated;
+      return updated;
+    });
+    // Then save to DB (optimistic update in cache is now secondary)
     updateFooter({ [key]: value } as Partial<ThemeFooterConfig>);
   }, [updateFooter]);
 

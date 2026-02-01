@@ -454,13 +454,11 @@ export function useThemeSettings(tenantId: string | undefined, templateSetId: st
         );
       }
     },
-    onSettled: () => {
-      // Refetch after mutation settles to ensure consistency
+    onSuccess: () => {
+      // Only invalidate global layout for preview - NOT theme settings
+      // Theme settings are already updated via optimistic update
+      // Invalidating here would cause race condition (stale DB data overwrites optimistic update)
       if (tenantId && templateSetId) {
-        queryClient.invalidateQueries({ 
-          queryKey: THEME_SETTINGS_KEYS.all(tenantId, templateSetId) 
-        });
-        // Also invalidate the global layout cache for immediate preview update
         queryClient.invalidateQueries({ 
           queryKey: ['global-layout-editor', tenantId] 
         });
