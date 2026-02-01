@@ -344,6 +344,31 @@ export function StorefrontFooterContent({
   // Menu visual style: classic, elegant, minimal
   const menuVisualStyle = (configProps.menuVisualStyle as 'classic' | 'elegant' | 'minimal') || 'classic';
   
+  // Badge size for footer seals/icons: small, medium, large
+  const badgeSize = (configProps.badgeSize as 'small' | 'medium' | 'large') || 'medium';
+  
+  // Badge size classes mapping
+  const badgeSizeClasses = {
+    // Payment & Shipping: smaller icons
+    standard: {
+      small: 'h-4 md:h-6',
+      medium: 'h-6 md:h-8',
+      large: 'h-8 md:h-10',
+    },
+    // Security Seals: larger icons
+    security: {
+      small: 'h-6 md:h-8',
+      medium: 'h-10 md:h-12',
+      large: 'h-12 md:h-14',
+    },
+    // Official Stores: medium icons
+    stores: {
+      small: 'h-6 md:h-8',
+      medium: 'h-8 md:h-10',
+      large: 'h-10 md:h-12',
+    },
+  };
+  
   // Primary color: config > settings > theme default (neutral, not blue)
   const primaryColor = getString('primaryColor', storeSettings?.primary_color, '#1a1a1a') || '#1a1a1a';
   
@@ -1297,7 +1322,7 @@ export function StorefrontFooterContent({
                       key={index}
                       src={item.imageUrl}
                       alt={`Pagamento ${index + 1}`}
-                      className="h-6 md:h-8 w-auto object-contain"
+                      className={`${badgeSizeClasses.standard[badgeSize]} w-auto object-contain`}
                     />
                   ))}
                 </div>
@@ -1326,7 +1351,7 @@ export function StorefrontFooterContent({
                         <img
                           src={item.imageUrl}
                           alt={`Selo ${index + 1}`}
-                          className="h-10 md:h-12 w-auto object-contain"
+                          className={`${badgeSizeClasses.security[badgeSize]} w-auto object-contain`}
                         />
                       </a>
                     ) : (
@@ -1334,7 +1359,7 @@ export function StorefrontFooterContent({
                         key={index}
                         src={item.imageUrl}
                         alt={`Selo ${index + 1}`}
-                        className="h-10 md:h-12 w-auto object-contain"
+                        className={`${badgeSizeClasses.security[badgeSize]} w-auto object-contain`}
                       />
                     )
                   )}
@@ -1357,7 +1382,7 @@ export function StorefrontFooterContent({
                       key={index}
                       src={item.imageUrl}
                       alt={`Envio ${index + 1}`}
-                      className="h-6 md:h-8 w-auto object-contain"
+                      className={`${badgeSizeClasses.standard[badgeSize]} w-auto object-contain`}
                     />
                   ))}
                 </div>
@@ -1385,7 +1410,7 @@ export function StorefrontFooterContent({
                       <img
                         src={item.imageUrl}
                         alt={`Loja ${index + 1}`}
-                        className="h-8 md:h-10 w-auto object-contain hover:opacity-80 transition-opacity"
+                        className={`${badgeSizeClasses.stores[badgeSize]} w-auto object-contain hover:opacity-80 transition-opacity`}
                       />
                     </a>
                   ))}

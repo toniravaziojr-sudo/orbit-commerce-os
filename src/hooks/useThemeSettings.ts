@@ -55,6 +55,9 @@ export type MenuVisualStyle = 'classic' | 'elegant' | 'minimal';
 // Logo size type
 export type LogoSizeType = 'small' | 'medium' | 'large';
 
+// Badge size type for footer seals/icons
+export type BadgeSizeType = 'small' | 'medium' | 'large';
+
 export interface ThemeHeaderConfig {
   menuId?: string;
   showSearch?: boolean;
@@ -130,6 +133,8 @@ export interface ThemeFooterConfig {
   newsletterListId?: string;
   // Visual menu style configuration
   menuVisualStyle?: MenuVisualStyle;
+  // Badge size for footer seals/icons (small, medium, large)
+  badgeSize?: BadgeSizeType;
 }
 
 // Cart action type: what happens when user clicks "Add to cart"
