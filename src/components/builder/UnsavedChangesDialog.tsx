@@ -48,17 +48,18 @@ export function UnsavedChangesDialog({
               Continuar editando
             </Button>
           </AlertDialogCancel>
-          <AlertDialogAction asChild>
-            <Button
-              variant="outline"
-              onClick={onLeaveWithoutSaving}
-              disabled={isSaving}
-              className="gap-2 border-destructive/50 text-destructive hover:bg-destructive/10"
-            >
-              <LogOut className="h-4 w-4" />
-              Sair sem salvar
-            </Button>
-          </AlertDialogAction>
+          <Button
+            variant="outline"
+            onClick={(e) => {
+              e.preventDefault();
+              onLeaveWithoutSaving();
+            }}
+            disabled={isSaving}
+            className="gap-2 border-destructive/50 text-destructive hover:bg-destructive/10"
+          >
+            <LogOut className="h-4 w-4" />
+            Sair sem salvar
+          </Button>
           <AlertDialogAction asChild>
             <Button
               onClick={onSaveAndLeave}
