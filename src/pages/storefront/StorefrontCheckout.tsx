@@ -46,7 +46,8 @@ export default function StorefrontCheckout() {
     // Only inherit visual props that are NOT explicitly set in checkout
     const visualPropsToInherit = [
       'headerBgColor', 'headerTextColor', 'headerIconColor',
-      'logoUrl', 'mobileLogoUrl', 'logoWidth', 'logoHeight'
+      'logoUrl', 'mobileLogoUrl', 'logoWidth', 'logoHeight',
+      'logoSize' // Logo size setting
     ];
     
     const mergedProps: Record<string, unknown> = {};
@@ -101,7 +102,9 @@ export default function StorefrontCheckout() {
       // Inherit image sections (payment methods, security seals) if not set
       'paymentMethods', 'securitySeals', 'shippingMethods', 'officialStores',
       // Also inherit copyright text if not set
-      'copyrightText'
+      'copyrightText',
+      // Visual menu settings
+      'menuVisualStyle', 'badgeSize'
     ];
     
     const mergedProps: Record<string, unknown> = {};

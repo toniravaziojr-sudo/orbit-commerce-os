@@ -156,7 +156,8 @@ export function applyGlobalLayout(
     // Visual props to inherit from global when empty in checkout
     const headerVisualPropsToInherit = [
       'headerBgColor', 'headerTextColor', 'headerIconColor',
-      'logoUrl', 'mobileLogoUrl', 'logoWidth', 'logoHeight'
+      'logoUrl', 'mobileLogoUrl', 'logoWidth', 'logoHeight',
+      'logoSize' // Logo size setting
     ];
     
     const mergedHeaderProps: Record<string, unknown> = {};
@@ -203,7 +204,9 @@ export function applyGlobalLayout(
     const footerPropsToInherit = [
       'footerBgColor', 'footerTextColor', 'footerTitlesColor', 'logoUrl',
       'paymentMethods', 'securitySeals', 'shippingMethods', 'officialStores',
-      'copyrightText'
+      'copyrightText',
+      // Visual menu settings
+      'menuVisualStyle', 'badgeSize'
     ];
     
     const mergedFooterProps: Record<string, unknown> = {};

@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Globe, Settings, Info, RotateCcw, ShoppingBag, AlertCircle, Palette, Smartphone, Bell, ChevronDown, Phone, MessageCircle, User, Tag, CreditCard, ShieldCheck, Truck, Store, Plus, Trash2, Type } from 'lucide-react';
+import { Globe, Settings, Info, RotateCcw, ShoppingBag, AlertCircle, Palette, Smartphone, Bell, ChevronDown, Phone, MessageCircle, User, Tag, CreditCard, ShieldCheck, Truck, Store, Plus, Trash2, Type, Navigation, Maximize2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -836,6 +836,40 @@ export function HeaderFooterPropsEditor({
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px]">Tamanho do Logo</Label>
+                    <Select
+                      value={(props.logoSize as string) || 'medium'}
+                      onValueChange={(v) => updateProp('logoSize', v)}
+                    >
+                      <SelectTrigger className="w-full h-8 text-xs">
+                        <SelectValue placeholder="Selecione o tamanho" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="small" className="text-xs">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-medium">Pequeno</span>
+                            <span className="text-[10px] text-muted-foreground">32px de altura</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="medium" className="text-xs">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-medium">Médio</span>
+                            <span className="text-[10px] text-muted-foreground">40px de altura (padrão)</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="large" className="text-xs">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-medium">Grande</span>
+                            <span className="text-[10px] text-muted-foreground">56px de altura</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[10px] text-muted-foreground">
+                      Altura máxima da logo no header
+                    </p>
+                  </div>
                 </CollapsibleContent>
               </Collapsible>
 
@@ -1006,6 +1040,92 @@ export function HeaderFooterPropsEditor({
                     onChange={(v) => updateProp('footerTitlesColor', v)}
                     placeholder="Herdar do global"
                   />
+                </CollapsibleContent>
+              </Collapsible>
+
+              <Separator />
+
+              {/* === VISUAL MENUS DO CHECKOUT === */}
+              <Collapsible open={openSections.visualMenus} onOpenChange={() => toggleSection('visualMenus')}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <Navigation className="h-3.5 w-3.5 text-amber-600" />
+                      <span className="font-medium">Visual Menus</span>
+                    </div>
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openSections.visualMenus ? 'rotate-180' : ''}`} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="px-2 pb-3 space-y-3">
+                  <div className="space-y-1">
+                    <Label className="text-[10px]">Estilo dos Links</Label>
+                    <Select 
+                      value={(props.menuVisualStyle as string) || 'classic'} 
+                      onValueChange={(v) => updateProp('menuVisualStyle', v)}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Selecione o estilo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="classic" className="text-xs">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-medium">Clássico</span>
+                            <span className="text-[10px] text-muted-foreground">Underline animado no hover</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="elegant" className="text-xs">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-medium">Elegante</span>
+                            <span className="text-[10px] text-muted-foreground">Transição de cor suave</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="minimal" className="text-xs">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-medium">Minimalista</span>
+                            <span className="text-[10px] text-muted-foreground">Apenas mudança de opacidade</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[10px] text-muted-foreground">
+                      Define a aparência dos links de menu no rodapé
+                    </p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[10px]">Tamanho dos Selos</Label>
+                    <Select 
+                      value={(props.badgeSize as string) || 'medium'} 
+                      onValueChange={(v) => updateProp('badgeSize', v)}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Selecione o tamanho" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="small" className="text-xs">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-medium">Pequeno</span>
+                            <span className="text-[10px] text-muted-foreground">Selos compactos</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="medium" className="text-xs">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-medium">Médio</span>
+                            <span className="text-[10px] text-muted-foreground">Tamanho padrão</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="large" className="text-xs">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-medium">Grande</span>
+                            <span className="text-[10px] text-muted-foreground">Selos maiores</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[10px] text-muted-foreground">
+                      Ajusta o tamanho das formas de pagamento e selos de segurança
+                    </p>
+                  </div>
                 </CollapsibleContent>
               </Collapsible>
 
