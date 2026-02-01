@@ -10696,11 +10696,19 @@ export type Database = {
           checkout_footer_config: Json
           checkout_header_config: Json
           created_at: string
+          draft_checkout_footer_config: Json | null
+          draft_checkout_header_config: Json | null
+          draft_footer_config: Json | null
+          draft_header_config: Json | null
           footer_config: Json
           footer_enabled: boolean
           header_config: Json
           header_enabled: boolean
           id: string
+          published_checkout_footer_config: Json | null
+          published_checkout_header_config: Json | null
+          published_footer_config: Json | null
+          published_header_config: Json | null
           show_footer_1: boolean
           show_footer_2: boolean
           tenant_id: string
@@ -10710,11 +10718,19 @@ export type Database = {
           checkout_footer_config?: Json
           checkout_header_config?: Json
           created_at?: string
+          draft_checkout_footer_config?: Json | null
+          draft_checkout_header_config?: Json | null
+          draft_footer_config?: Json | null
+          draft_header_config?: Json | null
           footer_config?: Json
           footer_enabled?: boolean
           header_config?: Json
           header_enabled?: boolean
           id?: string
+          published_checkout_footer_config?: Json | null
+          published_checkout_header_config?: Json | null
+          published_footer_config?: Json | null
+          published_header_config?: Json | null
           show_footer_1?: boolean
           show_footer_2?: boolean
           tenant_id: string
@@ -10724,11 +10740,19 @@ export type Database = {
           checkout_footer_config?: Json
           checkout_header_config?: Json
           created_at?: string
+          draft_checkout_footer_config?: Json | null
+          draft_checkout_header_config?: Json | null
+          draft_footer_config?: Json | null
+          draft_header_config?: Json | null
           footer_config?: Json
           footer_enabled?: boolean
           header_config?: Json
           header_enabled?: boolean
           id?: string
+          published_checkout_footer_config?: Json | null
+          published_checkout_header_config?: Json | null
+          published_footer_config?: Json | null
+          published_header_config?: Json | null
           show_footer_1?: boolean
           show_footer_2?: boolean
           tenant_id?: string

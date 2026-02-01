@@ -124,6 +124,32 @@ export function useTemplateSetSave() {
         // Non-blocking: don't fail the entire publish if testimonials fail
       }
 
+      // CRITICAL: Publish Global Layout (Header/Footer)
+      // Copy draft_* columns to published_* columns
+      const { data: globalLayout } = await supabase
+        .from('storefront_global_layout')
+        .select('draft_header_config, draft_footer_config, draft_checkout_header_config, draft_checkout_footer_config')
+        .eq('tenant_id', currentTenant.id)
+        .maybeSingle();
+
+      if (globalLayout) {
+        const { error: globalLayoutError } = await supabase
+          .from('storefront_global_layout')
+          .update({
+            published_header_config: globalLayout.draft_header_config,
+            published_footer_config: globalLayout.draft_footer_config,
+            published_checkout_header_config: globalLayout.draft_checkout_header_config,
+            published_checkout_footer_config: globalLayout.draft_checkout_footer_config,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('tenant_id', currentTenant.id);
+
+        if (globalLayoutError) {
+          console.error('Error publishing global layout:', globalLayoutError);
+          // Non-blocking: don't fail the entire publish if global layout fails
+        }
+      }
+
       return { success: true };
     },
     onSuccess: (_, variables) => {
@@ -132,6 +158,10 @@ export function useTemplateSetSave() {
       queryClient.invalidateQueries({ queryKey: ['template-sets'] });
       queryClient.invalidateQueries({ queryKey: ['store-settings'] });
       queryClient.invalidateQueries({ queryKey: ['storefront-testimonials', currentTenant?.id] });
+      
+      // CRITICAL: Invalidate Global Layout queries
+      queryClient.invalidateQueries({ queryKey: ['global-layout-editor'] });
+      queryClient.invalidateQueries({ queryKey: ['public-global-layout'] });
       
       // CRITICAL: Invalidate PUBLIC storefront queries so visitors see updates immediately
       // This ensures the published content is fetched fresh after publishing

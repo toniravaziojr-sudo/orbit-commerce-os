@@ -376,10 +376,11 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
   };
 
   // Fetch global layout - NEVER throws
+  // BUILDER reads from DRAFT columns (draft_header_config, etc.)
   const { data: globalLayout, isLoading, error, isFetched } = useQuery({
     queryKey: ['global-layout-editor', tenantId],
     queryFn: async () => {
-      console.log('[useGlobalLayoutForEditor] Fetching for tenant:', tenantId);
+      console.log('[useGlobalLayoutForEditor] Fetching DRAFT for tenant:', tenantId);
       
       if (!tenantId) {
         console.warn('[useGlobalLayoutForEditor] No tenantId, returning defaults');
@@ -400,14 +401,16 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
 
         console.log('[useGlobalLayoutForEditor] Data fetched:', data ? 'found' : 'not found');
 
+        // Use DRAFT columns for builder (with fallback to legacy columns for migration)
         const isEmpty = !data || 
-          (!data.header_config && !data.footer_config);
+          (!data.draft_header_config && !data.header_config && !data.draft_footer_config && !data.footer_config);
 
         return {
-          header_config: (data?.header_config as unknown as BlockNode) || defaultHeaderConfig,
-          footer_config: (data?.footer_config as unknown as BlockNode) || defaultFooterConfig,
-          checkout_header_config: (data?.checkout_header_config as unknown as BlockNode) || defaultCheckoutHeaderConfig,
-          checkout_footer_config: (data?.checkout_footer_config as unknown as BlockNode) || defaultCheckoutFooterConfig,
+          // DRAFT columns have priority, fallback to legacy for backward compatibility
+          header_config: (data?.draft_header_config as unknown as BlockNode) || (data?.header_config as unknown as BlockNode) || defaultHeaderConfig,
+          footer_config: (data?.draft_footer_config as unknown as BlockNode) || (data?.footer_config as unknown as BlockNode) || defaultFooterConfig,
+          checkout_header_config: (data?.draft_checkout_header_config as unknown as BlockNode) || (data?.checkout_header_config as unknown as BlockNode) || defaultCheckoutHeaderConfig,
+          checkout_footer_config: (data?.draft_checkout_footer_config as unknown as BlockNode) || (data?.checkout_footer_config as unknown as BlockNode) || defaultCheckoutFooterConfig,
           header_enabled: data?.header_enabled ?? true,
           footer_enabled: data?.footer_enabled ?? true,
           show_footer_1: data?.show_footer_1 ?? true,
@@ -437,7 +440,7 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
     });
   }, [tenantId, isLoading, isFetched, globalLayout, error]);
 
-  // Update global layout (header or footer)
+  // Update global layout (header or footer) - SAVES TO DRAFT COLUMNS
   const updateGlobalHeader = useMutation({
     mutationFn: async (headerConfig: BlockNode) => {
       if (!tenantId) throw new Error('No tenant');
@@ -448,7 +451,8 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
         .eq('tenant_id', tenantId)
         .maybeSingle();
 
-      const updateData = { header_config: headerConfig as unknown as Json };
+      // Save to DRAFT column only - public won't see until publish
+      const updateData = { draft_header_config: headerConfig as unknown as Json };
 
       if (existing) {
         await supabase
@@ -461,15 +465,15 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
           .insert({
             tenant_id: tenantId,
             ...updateData,
-            footer_config: defaultFooterConfig as unknown as Json,
-            checkout_header_config: defaultCheckoutHeaderConfig as unknown as Json,
-            checkout_footer_config: defaultCheckoutFooterConfig as unknown as Json,
+            draft_footer_config: defaultFooterConfig as unknown as Json,
+            draft_checkout_header_config: defaultCheckoutHeaderConfig as unknown as Json,
+            draft_checkout_footer_config: defaultCheckoutFooterConfig as unknown as Json,
           });
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['global-layout-editor'] });
-      queryClient.invalidateQueries({ queryKey: ['public-global-layout'] });
+      // NOTE: Do NOT invalidate public-global-layout - changes only go live after publish
     },
   });
 
@@ -483,7 +487,8 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
         .eq('tenant_id', tenantId)
         .maybeSingle();
 
-      const updateData = { footer_config: footerConfig as unknown as Json };
+      // Save to DRAFT column only
+      const updateData = { draft_footer_config: footerConfig as unknown as Json };
 
       if (existing) {
         await supabase
@@ -495,20 +500,20 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
           .from('storefront_global_layout')
           .insert({
             tenant_id: tenantId,
-            header_config: defaultHeaderConfig as unknown as Json,
+            draft_header_config: defaultHeaderConfig as unknown as Json,
             ...updateData,
-            checkout_header_config: defaultCheckoutHeaderConfig as unknown as Json,
-            checkout_footer_config: defaultCheckoutFooterConfig as unknown as Json,
+            draft_checkout_header_config: defaultCheckoutHeaderConfig as unknown as Json,
+            draft_checkout_footer_config: defaultCheckoutFooterConfig as unknown as Json,
           });
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['global-layout-editor'] });
-      queryClient.invalidateQueries({ queryKey: ['public-global-layout'] });
+      // NOTE: Do NOT invalidate public-global-layout - changes only go live after publish
     },
   });
 
-  // Update checkout-specific layout
+  // Update checkout-specific layout - SAVES TO DRAFT COLUMNS
   const updateCheckoutHeader = useMutation({
     mutationFn: async (headerConfig: BlockNode) => {
       if (!tenantId) throw new Error('No tenant');
@@ -519,7 +524,8 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
         .eq('tenant_id', tenantId)
         .maybeSingle();
 
-      const updateData = { checkout_header_config: headerConfig as unknown as Json };
+      // Save to DRAFT column only
+      const updateData = { draft_checkout_header_config: headerConfig as unknown as Json };
 
       if (existing) {
         await supabase
@@ -531,10 +537,10 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
           .from('storefront_global_layout')
           .insert({
             tenant_id: tenantId,
-            header_config: defaultHeaderConfig as unknown as Json,
-            footer_config: defaultFooterConfig as unknown as Json,
+            draft_header_config: defaultHeaderConfig as unknown as Json,
+            draft_footer_config: defaultFooterConfig as unknown as Json,
             ...updateData,
-            checkout_footer_config: defaultCheckoutFooterConfig as unknown as Json,
+            draft_checkout_footer_config: defaultCheckoutFooterConfig as unknown as Json,
           });
       }
     },
@@ -553,7 +559,8 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
         .eq('tenant_id', tenantId)
         .maybeSingle();
 
-      const updateData = { checkout_footer_config: footerConfig as unknown as Json };
+      // Save to DRAFT column only
+      const updateData = { draft_checkout_footer_config: footerConfig as unknown as Json };
 
       if (existing) {
         await supabase
@@ -565,9 +572,9 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
           .from('storefront_global_layout')
           .insert({
             tenant_id: tenantId,
-            header_config: defaultHeaderConfig as unknown as Json,
-            footer_config: defaultFooterConfig as unknown as Json,
-            checkout_header_config: defaultCheckoutHeaderConfig as unknown as Json,
+            draft_header_config: defaultHeaderConfig as unknown as Json,
+            draft_footer_config: defaultFooterConfig as unknown as Json,
+            draft_checkout_header_config: defaultCheckoutHeaderConfig as unknown as Json,
             ...updateData,
           });
       }
@@ -585,12 +592,13 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
       // Check if already has data
       const { data: existing } = await supabase
         .from('storefront_global_layout')
-        .select('header_config, footer_config')
+        .select('draft_header_config, draft_footer_config, header_config, footer_config')
         .eq('tenant_id', tenantId)
         .maybeSingle();
 
-      // Only migrate if empty
-      if (existing?.header_config || existing?.footer_config) {
+      // Only migrate if empty (check both draft and legacy columns)
+      if (existing?.draft_header_config || existing?.draft_footer_config || 
+          existing?.header_config || existing?.footer_config) {
         return { migrated: false };
       }
 
@@ -633,15 +641,21 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
         if (foundFooter) footerConfig = { ...foundFooter, id: 'global-footer' };
       }
 
-      // Upsert the global layout
+      // Upsert the global layout - save to BOTH draft AND published for migration
       await supabase
         .from('storefront_global_layout')
         .upsert({
           tenant_id: tenantId,
-          header_config: headerConfig as unknown as Json,
-          footer_config: footerConfig as unknown as Json,
-          checkout_header_config: defaultCheckoutHeaderConfig as unknown as Json,
-          checkout_footer_config: defaultCheckoutFooterConfig as unknown as Json,
+          // Draft columns
+          draft_header_config: headerConfig as unknown as Json,
+          draft_footer_config: footerConfig as unknown as Json,
+          draft_checkout_header_config: defaultCheckoutHeaderConfig as unknown as Json,
+          draft_checkout_footer_config: defaultCheckoutFooterConfig as unknown as Json,
+          // Published columns (for existing live sites)
+          published_header_config: headerConfig as unknown as Json,
+          published_footer_config: footerConfig as unknown as Json,
+          published_checkout_header_config: defaultCheckoutHeaderConfig as unknown as Json,
+          published_checkout_footer_config: defaultCheckoutFooterConfig as unknown as Json,
         }, { onConflict: 'tenant_id' });
 
       return { migrated: true, headerConfig, footerConfig };
@@ -652,7 +666,8 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
     },
   });
 
-  // Update visibility toggles
+  // Update visibility toggles - These apply immediately (not part of draft/published flow)
+  // because they're structural visibility, not content
   const updateVisibilityToggles = useMutation({
     mutationFn: async (toggles: {
       header_enabled?: boolean;
@@ -678,16 +693,17 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
           .from('storefront_global_layout')
           .insert({
             tenant_id: tenantId,
-            header_config: defaultHeaderConfig as unknown as Json,
-            footer_config: defaultFooterConfig as unknown as Json,
-            checkout_header_config: defaultCheckoutHeaderConfig as unknown as Json,
-            checkout_footer_config: defaultCheckoutFooterConfig as unknown as Json,
+            draft_header_config: defaultHeaderConfig as unknown as Json,
+            draft_footer_config: defaultFooterConfig as unknown as Json,
+            draft_checkout_header_config: defaultCheckoutHeaderConfig as unknown as Json,
+            draft_checkout_footer_config: defaultCheckoutFooterConfig as unknown as Json,
             ...toggles,
           });
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['global-layout-editor'] });
+      // Visibility toggles apply immediately for now
       queryClient.invalidateQueries({ queryKey: ['public-global-layout'] });
     },
   });
@@ -706,6 +722,7 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
 
 /**
  * Hook for public storefront to get global layout by tenant slug.
+ * PUBLIC reads from PUBLISHED columns (published_header_config, etc.)
  */
 export function usePublicGlobalLayout(tenantSlug: string) {
   return useQuery({
@@ -754,11 +771,12 @@ export function usePublicGlobalLayout(tenantSlug: string) {
         } as GlobalLayoutData;
       }
 
+      // PUBLIC: Read from PUBLISHED columns (with fallback to legacy columns for migration)
       return {
-        header_config: (data.header_config as unknown as BlockNode) || defaultHeaderConfig,
-        footer_config: (data.footer_config as unknown as BlockNode) || defaultFooterConfig,
-        checkout_header_config: (data.checkout_header_config as unknown as BlockNode) || defaultCheckoutHeaderConfig,
-        checkout_footer_config: (data.checkout_footer_config as unknown as BlockNode) || defaultCheckoutFooterConfig,
+        header_config: (data.published_header_config as unknown as BlockNode) || (data.header_config as unknown as BlockNode) || defaultHeaderConfig,
+        footer_config: (data.published_footer_config as unknown as BlockNode) || (data.footer_config as unknown as BlockNode) || defaultFooterConfig,
+        checkout_header_config: (data.published_checkout_header_config as unknown as BlockNode) || (data.checkout_header_config as unknown as BlockNode) || defaultCheckoutHeaderConfig,
+        checkout_footer_config: (data.published_checkout_footer_config as unknown as BlockNode) || (data.checkout_footer_config as unknown as BlockNode) || defaultCheckoutFooterConfig,
         header_enabled: data.header_enabled ?? true,
         footer_enabled: data.footer_enabled ?? true,
         show_footer_1: data.show_footer_1 ?? true,
