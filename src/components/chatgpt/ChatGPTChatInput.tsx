@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, KeyboardEvent, ChangeEvent } from "react";
-import { Send, Paperclip, X, Loader2, Image as ImageIcon, FileText, Mic, StopCircle, Square } from "lucide-react";
+import { Send, Paperclip, X, Loader2, Image as ImageIcon, FileText, Mic, StopCircle, Square, MessageSquare, Brain, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { uploadAndRegisterToSystemDrive } from "@/lib/uploadAndRegisterToSystemDrive";
 import { toast } from "sonner";
+
+export type ChatMode = "chat" | "thinking" | "search";
 
 export interface ChatGPTAttachment {
   url: string;
@@ -27,11 +29,35 @@ interface AttachedFile {
 }
 
 interface ChatGPTChatInputProps {
-  onSend: (message: string, attachments?: ChatGPTAttachment[]) => void;
+  onSend: (message: string, attachments?: ChatGPTAttachment[], mode?: ChatMode) => void;
   isStreaming: boolean;
   onCancel: () => void;
   disabled?: boolean;
 }
+
+const MODE_CONFIG = {
+  chat: {
+    icon: MessageSquare,
+    label: "Chat",
+    description: "Conversa padrão com GPT-5",
+    color: "bg-blue-500/10 text-blue-600 border-blue-500/30 hover:bg-blue-500/20",
+    activeColor: "bg-blue-500 text-white border-blue-500",
+  },
+  thinking: {
+    icon: Brain,
+    label: "Thinking",
+    description: "Raciocínio avançado com o3-mini",
+    color: "bg-purple-500/10 text-purple-600 border-purple-500/30 hover:bg-purple-500/20",
+    activeColor: "bg-purple-500 text-white border-purple-500",
+  },
+  search: {
+    icon: Search,
+    label: "Busca",
+    description: "Pesquisa na internet em tempo real",
+    color: "bg-green-500/10 text-green-600 border-green-500/30 hover:bg-green-500/20",
+    activeColor: "bg-green-500 text-white border-green-500",
+  },
+} as const;
 
 const ACCEPTED_FILE_TYPES = "image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv";
 const ACCEPTED_AUDIO_TYPE = "audio/webm";
@@ -42,6 +68,7 @@ export function ChatGPTChatInput({ onSend, isStreaming, onCancel, disabled }: Ch
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const [selectedMode, setSelectedMode] = useState<ChatMode>("chat");
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -244,7 +271,7 @@ export function ChatGPTChatInput({ onSend, isStreaming, onCancel, disabled }: Ch
         mimeType: f.file.type,
       }));
 
-    onSend(trimmed, attachments.length > 0 ? attachments : undefined);
+    onSend(trimmed, attachments.length > 0 ? attachments : undefined, selectedMode);
     setMessage("");
 
     // Clear attachments and revoke previews
@@ -283,6 +310,39 @@ export function ChatGPTChatInput({ onSend, isStreaming, onCancel, disabled }: Ch
   return (
     <div className="border-t p-4 flex-shrink-0">
       <div className="max-w-3xl mx-auto">
+        {/* Mode selector chips */}
+        <div className="flex items-center gap-2 mb-3">
+          <TooltipProvider>
+            {(Object.keys(MODE_CONFIG) as ChatMode[]).map((mode) => {
+              const config = MODE_CONFIG[mode];
+              const Icon = config.icon;
+              const isActive = selectedMode === mode;
+              
+              return (
+                <Tooltip key={mode}>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => setSelectedMode(mode)}
+                      disabled={isStreaming || isRecording}
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium transition-all",
+                        isActive ? config.activeColor : config.color,
+                        (isStreaming || isRecording) && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      <span>{config.label}</span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{config.description}</p>
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </TooltipProvider>
+        </div>
+
         {/* Attached files preview */}
         {hasAttachments && (
           <div className="flex flex-wrap gap-2 mb-3">

@@ -85,7 +85,33 @@ O módulo ChatGPT possui restrições de acesso baseadas no plano do tenant:
 
 ## 4. Funcionalidades
 
-### 4.1 Chat Conversacional
+### 4.1 Modos de Operação
+
+O ChatGPT possui 3 modos de operação selecionáveis via chips no input:
+
+| Modo | Ícone | Modelo | Descrição |
+|------|-------|--------|-----------|
+| **Chat** | `MessageSquare` | `openai/gpt-5` | Conversa padrão (default) |
+| **Thinking** | `Brain` | `o3-mini` | Raciocínio avançado via OpenAI direta |
+| **Busca** | `Search` | Firecrawl + `gemini-2.5-flash` | Pesquisa na internet em tempo real |
+
+**Seleção de modo:**
+- Chips coloridos acima do input
+- Azul = Chat, Roxo = Thinking, Verde = Busca
+- Modo é salvo no metadata da mensagem
+
+**Roteamento na Edge Function:**
+```typescript
+if (mode === "search") {
+  return await handleSearchMode(messages);
+} else if (mode === "thinking") {
+  return await handleThinkingMode(messages);
+} else {
+  return await handleChatMode(messages, hasAttachments);
+}
+```
+
+### 4.2 Chat Conversacional
 
 - **Streaming de respostas** - Respostas aparecem em tempo real
 - **Histórico independente** - Separado do Auxiliar de Comando
@@ -94,7 +120,25 @@ O módulo ChatGPT possui restrições de acesso baseadas no plano do tenant:
   - `openai/gpt-5` - Padrão para texto
   - `google/gemini-2.5-pro` - Ativado automaticamente quando há imagens
 
-### 4.2 Suporte Multimodal
+### 4.3 Modo Thinking (Raciocínio)
+
+- **Modelo:** `o3-mini` (OpenAI direta)
+- **Uso:** Problemas complexos, matemática, lógica
+- **Características:**
+  - Raciocínio em cadeia (chain-of-thought)
+  - Decomposição de problemas
+  - Verificação lógica
+
+### 4.4 Modo Busca na Internet
+
+- **Integração:** Firecrawl API
+- **Fluxo:**
+  1. Extrai query da última mensagem do usuário
+  2. Busca 5 resultados via Firecrawl Search
+  3. Sintetiza resposta usando Gemini
+  4. Inclui citações das fontes
+
+### 4.5 Suporte Multimodal
 
 | Tipo | Suporte | Detalhes |
 |------|---------|----------|
@@ -103,29 +147,18 @@ O módulo ChatGPT possui restrições de acesso baseadas no plano do tenant:
 | **Arquivos** | ✅ | PDF, DOC, DOCX, TXT, CSV, XLS, XLSX |
 
 **Componentes:**
-- `ChatGPTChatInput.tsx` - Input unificado com gravação de áudio e upload
+- `ChatGPTChatInput.tsx` - Input unificado com gravação de áudio, upload e seleção de modo
 - Limite de arquivos: 5 por mensagem
 - Tamanho máximo: 10MB por arquivo
 
-**Fluxo de áudio:**
-1. Usuário clica no ícone de microfone
-2. Gravação inicia com indicador visual de tempo
-3. Ao parar, áudio é enviado como anexo
-4. IA recebe referência e processa conteúdo
-
-**Fluxo de arquivos/imagens:**
-1. Usuário clica no ícone de anexo ou arrasta arquivo
-2. Preview é exibido antes do envio
-3. Arquivos são salvos no Drive do sistema
-4. URL é enviada para a IA com o tipo MIME
-
-### 4.2 Interface
+### 4.6 Interface
 
 - **Sidebar colapsável** - Lista de conversas com busca
 - **Área principal** - Chat com input fixo no rodapé
+- **Chips de modo** - Seletor visual acima do input
+- **Indicador de modo** - Badge na resposta indicando modo usado
 - **Nova conversa** - Botão para iniciar nova sessão
 - **Responsivo** - Adapta para mobile e desktop
-- **Indicador de uso** - Mostra consumo vs limite do plano
 
 ---
 

@@ -5,17 +5,23 @@
 // =============================================
 
 import { useState, useRef, useEffect } from "react";
-import { Plus, Sparkles, Loader2, MessageSquare, Mic, FileText } from "lucide-react";
+import { Plus, Sparkles, Loader2, MessageSquare, Mic, FileText, Brain, Search } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { useChatGPT, ChatGPTMessage } from "@/hooks/useChatGPT";
+import { useChatGPT, ChatGPTMessage, ChatMode } from "@/hooks/useChatGPT";
 import { useAuth } from "@/hooks/useAuth";
 import { ChatGPTChatInput, ChatGPTAttachment } from "@/components/chatgpt";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+
+const MODE_INDICATORS = {
+  chat: { icon: MessageSquare, label: "Chat", className: "text-blue-500" },
+  thinking: { icon: Brain, label: "Thinking", className: "text-purple-500" },
+  search: { icon: Search, label: "Busca", className: "text-green-500" },
+} as const;
 
 export default function ChatGPT() {
   const { user } = useAuth();
@@ -50,8 +56,24 @@ export default function ChatGPT() {
     }
   };
 
-  const handleSend = async (message: string, attachments?: ChatGPTAttachment[]) => {
-    await sendMessage(message, attachments);
+  const handleSend = async (message: string, attachments?: ChatGPTAttachment[], mode?: ChatMode) => {
+    await sendMessage(message, attachments, mode);
+  };
+
+  // Helper to render mode indicator
+  const renderModeIndicator = (message: ChatGPTMessage) => {
+    const mode = message.metadata?.mode as ChatMode | undefined;
+    if (!mode || mode === "chat") return null;
+    
+    const indicator = MODE_INDICATORS[mode];
+    const Icon = indicator.icon;
+    
+    return (
+      <div className={cn("flex items-center gap-1 text-xs mb-1", indicator.className)}>
+        <Icon className="h-3 w-3" />
+        <span>{indicator.label}</span>
+      </div>
+    );
   };
 
   // Helper to render message attachments
@@ -205,9 +227,12 @@ export default function ChatGPT() {
                           )}
                         >
                           {message.role === "assistant" ? (
-                            <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:mt-4 prose-headings:mb-2 prose-headings:font-semibold prose-p:my-2 prose-ul:my-2 prose-ul:list-disc prose-ul:pl-4 prose-ol:my-2 prose-ol:list-decimal prose-ol:pl-4 prose-li:my-1 prose-strong:font-semibold prose-strong:text-foreground [&_br]:block [&_br]:my-1">
-                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content || ""}</ReactMarkdown>
-                            </div>
+                            <>
+                              {renderModeIndicator(message)}
+                              <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:mt-4 prose-headings:mb-2 prose-headings:font-semibold prose-p:my-2 prose-ul:my-2 prose-ul:list-disc prose-ul:pl-4 prose-ol:my-2 prose-ol:list-decimal prose-ol:pl-4 prose-li:my-1 prose-strong:font-semibold prose-strong:text-foreground [&_br]:block [&_br]:my-1">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content || ""}</ReactMarkdown>
+                              </div>
+                            </>
                           ) : (
                             <>
                               {message.content && !message.content.startsWith("[") && (
