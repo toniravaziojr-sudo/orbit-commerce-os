@@ -12,14 +12,28 @@ serve(async (req) => {
   }
 
   try {
-    const { messages } = await req.json();
+    const { messages, hasAttachments } = await req.json();
     
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    console.log("ChatGPT chat request - messages count:", messages?.length);
+    console.log("ChatGPT chat request - messages count:", messages?.length, "hasAttachments:", hasAttachments);
+
+    // Use a model that supports vision if there are image attachments
+    // Check if any message has image content
+    const hasImageContent = messages?.some((m: any) => {
+      if (Array.isArray(m.content)) {
+        return m.content.some((c: any) => c.type === "image_url");
+      }
+      return false;
+    });
+
+    // Use gemini-2.5-pro for vision capabilities when images are present
+    const model = hasImageContent ? "google/gemini-2.5-pro" : "openai/gpt-5";
+    
+    console.log("Using model:", model, "hasImageContent:", hasImageContent);
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -28,7 +42,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-5",
+        model,
         messages: [
           {
             role: "system",
@@ -42,6 +56,8 @@ Suas capacidades incluem:
 - Fornecer explicações claras e detalhadas
 - Ajudar com programação e código
 - Traduzir textos entre idiomas
+- Analisar imagens quando enviadas
+- Processar e entender áudios transcritos
 
 REGRAS DE FORMATAÇÃO (OBRIGATÓRIO):
 - SEMPRE use formatação Markdown nas suas respostas
@@ -58,7 +74,9 @@ Diretrizes:
 - Seja conciso mas completo nas respostas
 - Se não souber algo, diga honestamente
 - Mantenha um tom profissional mas amigável
-- Responda sempre no idioma da pergunta do usuário`,
+- Responda sempre no idioma da pergunta do usuário
+- Quando receber imagens, descreva e analise o conteúdo
+- Quando receber referência a áudio, indique que está processando`,
           },
           ...messages,
         ],

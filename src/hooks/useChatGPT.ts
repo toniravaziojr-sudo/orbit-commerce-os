@@ -126,7 +126,10 @@ export function useChatGPT() {
   });
 
   // Send message with streaming
-  const sendMessage = useCallback(async (message: string) => {
+  const sendMessage = useCallback(async (
+    message: string, 
+    attachments?: { url: string; filename: string; mimeType: string }[]
+  ) => {
     if (!currentTenant?.id || !user?.id) {
       toast.error("Usuário ou tenant não identificado");
       return;
@@ -136,8 +139,15 @@ export function useChatGPT() {
 
     // Create conversation if needed
     if (!conversationId) {
-      const newConv = await createConversationMutation.mutateAsync(message.slice(0, 50));
+      const title = message ? message.slice(0, 50) : (attachments?.[0]?.filename || "Nova conversa");
+      const newConv = await createConversationMutation.mutateAsync(title);
       conversationId = newConv.id;
+    }
+
+    // Build metadata with attachments
+    const metadata: Record<string, any> = {};
+    if (attachments && attachments.length > 0) {
+      metadata.attachments = attachments;
     }
 
     // Optimistically add user message
@@ -147,8 +157,8 @@ export function useChatGPT() {
       tenant_id: currentTenant.id,
       user_id: user.id,
       role: "user",
-      content: message,
-      metadata: {},
+      content: message || (attachments ? `[${attachments.length} anexo(s)]` : ""),
+      metadata,
       created_at: new Date().toISOString(),
     };
 
@@ -163,8 +173,8 @@ export function useChatGPT() {
       tenant_id: currentTenant.id,
       user_id: user.id,
       role: "user",
-      content: message,
-      metadata: {},
+      content: message || (attachments ? `[${attachments.length} anexo(s)]` : ""),
+      metadata,
     });
 
     setIsStreaming(true);
@@ -174,9 +184,44 @@ export function useChatGPT() {
     try {
       // Build messages array for API (include history)
       const currentMessages = queryClient.getQueryData<ChatGPTMessage[]>(["chatgpt-messages", conversationId]) || [];
+      
+      // Build API messages with multimodal content support
       const apiMessages = currentMessages
         .filter(m => m.role !== "system")
-        .map(m => ({ role: m.role, content: m.content || "" }));
+        .map(m => {
+          const msgAttachments = m.metadata?.attachments as { url: string; mimeType: string }[] | undefined;
+          
+          // If message has image attachments, use multimodal format
+          if (msgAttachments && msgAttachments.some(a => a.mimeType.startsWith("image/"))) {
+            const content: any[] = [];
+            
+            // Add text content if present
+            if (m.content && !m.content.startsWith("[")) {
+              content.push({ type: "text", text: m.content });
+            }
+            
+            // Add image attachments
+            for (const att of msgAttachments) {
+              if (att.mimeType.startsWith("image/")) {
+                content.push({
+                  type: "image_url",
+                  image_url: { url: att.url }
+                });
+              } else if (att.mimeType.startsWith("audio/")) {
+                // Add audio description for context
+                content.push({
+                  type: "text",
+                  text: `[Áudio anexado: ${att.url}]`
+                });
+              }
+            }
+            
+            return { role: m.role, content };
+          }
+          
+          // Regular text message
+          return { role: m.role, content: m.content || "" };
+        });
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chatgpt-chat`,
@@ -186,7 +231,10 @@ export function useChatGPT() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
           },
-          body: JSON.stringify({ messages: apiMessages }),
+          body: JSON.stringify({ 
+            messages: apiMessages,
+            hasAttachments: !!attachments && attachments.length > 0,
+          }),
           signal: abortControllerRef.current.signal,
         }
       );
