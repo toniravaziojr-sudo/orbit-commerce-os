@@ -32,19 +32,23 @@ export function UnsavedChangesDialog({
 }: UnsavedChangesDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="max-w-md">
+      <AlertDialogContent className="max-w-md !bg-white !text-slate-900 !border-slate-200">
         <AlertDialogHeader>
-          <AlertDialogTitle className="flex items-center gap-2">
+          <AlertDialogTitle className="flex items-center gap-2 !text-slate-900">
             <AlertTriangle className="h-5 w-5 text-amber-500" />
             Alterações não salvas
           </AlertDialogTitle>
-          <AlertDialogDescription className="text-left">
+          <AlertDialogDescription className="text-left !text-slate-600">
             Você tem alterações que ainda não foram salvas. O que deseja fazer?
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter className="flex-col gap-2 sm:flex-row sm:gap-2">
           <AlertDialogCancel asChild>
-            <Button variant="outline" disabled={isSaving}>
+            <Button 
+              variant="outline" 
+              disabled={isSaving}
+              className="!bg-white !text-slate-900 !border-slate-300 hover:!bg-slate-100"
+            >
               Continuar editando
             </Button>
           </AlertDialogCancel>
@@ -55,7 +59,7 @@ export function UnsavedChangesDialog({
               onLeaveWithoutSaving();
             }}
             disabled={isSaving}
-            className="gap-2 border-destructive/50 text-destructive hover:bg-destructive/10"
+            className="gap-2 !bg-white !text-red-600 !border-red-300 hover:!bg-red-50"
           >
             <LogOut className="h-4 w-4" />
             Sair sem salvar
@@ -64,7 +68,7 @@ export function UnsavedChangesDialog({
             <Button
               onClick={onSaveAndLeave}
               disabled={isSaving}
-              className="gap-2"
+              className="gap-2 !bg-blue-600 !text-white hover:!bg-blue-700"
             >
               <Save className="h-4 w-4" />
               {isSaving ? 'Salvando...' : 'Salvar e sair'}
