@@ -3,6 +3,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import type { ChatMode } from "@/components/chatgpt";
+
+export type { ChatMode };
 
 export interface ChatGPTMessage {
   id: string;
@@ -128,7 +131,8 @@ export function useChatGPT() {
   // Send message with streaming
   const sendMessage = useCallback(async (
     message: string, 
-    attachments?: { url: string; filename: string; mimeType: string }[]
+    attachments?: { url: string; filename: string; mimeType: string }[],
+    mode: ChatMode = "chat"
   ) => {
     if (!currentTenant?.id || !user?.id) {
       toast.error("Usuário ou tenant não identificado");
@@ -144,8 +148,8 @@ export function useChatGPT() {
       conversationId = newConv.id;
     }
 
-    // Build metadata with attachments
-    const metadata: Record<string, any> = {};
+    // Build metadata with attachments and mode
+    const metadata: Record<string, any> = { mode };
     if (attachments && attachments.length > 0) {
       metadata.attachments = attachments;
     }
@@ -234,6 +238,7 @@ export function useChatGPT() {
           body: JSON.stringify({ 
             messages: apiMessages,
             hasAttachments: !!attachments && attachments.length > 0,
+            mode,
           }),
           signal: abortControllerRef.current.signal,
         }
