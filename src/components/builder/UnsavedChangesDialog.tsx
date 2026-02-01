@@ -42,27 +42,33 @@ export function UnsavedChangesDialog({
             Você tem alterações que ainda não foram salvas. O que deseja fazer?
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-          <AlertDialogCancel disabled={isSaving}>
-            Continuar editando
+        <AlertDialogFooter className="flex-col gap-2 sm:flex-row sm:gap-2">
+          <AlertDialogCancel asChild>
+            <Button variant="outline" disabled={isSaving}>
+              Continuar editando
+            </Button>
           </AlertDialogCancel>
-          <Button
-            variant="outline"
-            onClick={onLeaveWithoutSaving}
-            disabled={isSaving}
-            className="gap-2"
-          >
-            <LogOut className="h-4 w-4" />
-            Sair sem salvar
-          </Button>
-          <Button
-            onClick={onSaveAndLeave}
-            disabled={isSaving}
-            className="gap-2"
-          >
-            <Save className="h-4 w-4" />
-            {isSaving ? 'Salvando...' : 'Salvar e sair'}
-          </Button>
+          <AlertDialogAction asChild>
+            <Button
+              variant="outline"
+              onClick={onLeaveWithoutSaving}
+              disabled={isSaving}
+              className="gap-2 border-destructive/50 text-destructive hover:bg-destructive/10"
+            >
+              <LogOut className="h-4 w-4" />
+              Sair sem salvar
+            </Button>
+          </AlertDialogAction>
+          <AlertDialogAction asChild>
+            <Button
+              onClick={onSaveAndLeave}
+              disabled={isSaving}
+              className="gap-2"
+            >
+              <Save className="h-4 w-4" />
+              {isSaving ? 'Salvando...' : 'Salvar e sair'}
+            </Button>
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
