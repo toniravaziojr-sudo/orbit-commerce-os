@@ -239,6 +239,7 @@ export function useChatGPT() {
             messages: apiMessages,
             hasAttachments: !!attachments && attachments.length > 0,
             mode,
+            attachments: attachments || [],
           }),
           signal: abortControllerRef.current.signal,
         }

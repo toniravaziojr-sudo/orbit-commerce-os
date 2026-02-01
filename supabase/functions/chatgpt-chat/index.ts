@@ -1,7 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const VERSION = "2.0.0"; // Multi-mode support
+const VERSION = "3.0.0"; // URL reading, document processing, audio transcription
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,24 +9,56 @@ const corsHeaders = {
 
 type ChatMode = "chat" | "thinking" | "search";
 
+interface Attachment {
+  url: string;
+  filename: string;
+  mimeType: string;
+}
+
+interface ProcessedAttachment extends Attachment {
+  extractedText?: string;
+  transcription?: string;
+}
+
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { messages, hasAttachments, mode = "chat" } = await req.json();
+    const { messages, hasAttachments, mode = "chat", attachments = [] } = await req.json();
     
-    console.log(`[v${VERSION}] ChatGPT request - mode: ${mode}, messages: ${messages?.length}, hasAttachments: ${hasAttachments}`);
+    console.log(`[v${VERSION}] ChatGPT request - mode: ${mode}, messages: ${messages?.length}, attachments: ${attachments?.length || 0}`);
+
+    // Pre-process: Extract URLs from the last user message for chat mode
+    let urlContext = "";
+    if (mode === "chat") {
+      const lastUserMessage = messages.filter((m: any) => m.role === "user").pop();
+      const messageText = extractTextFromMessage(lastUserMessage);
+      const urls = extractUrls(messageText);
+      
+      if (urls.length > 0) {
+        console.log("Detected URLs to scrape:", urls);
+        urlContext = await scrapeUrls(urls);
+      }
+    }
+
+    // Pre-process attachments (documents and audio)
+    let processedAttachments: ProcessedAttachment[] = [];
+    if (attachments && attachments.length > 0) {
+      processedAttachments = await processAttachments(attachments);
+    }
+
+    // Build enhanced messages with processed content
+    const enhancedMessages = enhanceMessagesWithContext(messages, urlContext, processedAttachments);
 
     // Route based on mode
     if (mode === "search") {
-      return await handleSearchMode(messages);
+      return await handleSearchMode(enhancedMessages);
     } else if (mode === "thinking") {
-      return await handleThinkingMode(messages);
+      return await handleThinkingMode(enhancedMessages);
     } else {
-      return await handleChatMode(messages, hasAttachments);
+      return await handleChatMode(enhancedMessages, hasAttachments, urlContext, processedAttachments);
     }
   } catch (error) {
     console.error("ChatGPT chat error:", error);
@@ -41,14 +72,322 @@ serve(async (req) => {
   }
 });
 
-// Standard chat mode using Lovable AI Gateway
-async function handleChatMode(messages: any[], hasAttachments?: boolean) {
+// =============================================
+// URL EXTRACTION AND SCRAPING
+// =============================================
+
+function extractTextFromMessage(message: any): string {
+  if (!message) return "";
+  if (typeof message.content === "string") return message.content;
+  if (Array.isArray(message.content)) {
+    return message.content
+      .filter((c: any) => c.type === "text")
+      .map((c: any) => c.text)
+      .join(" ");
+  }
+  return "";
+}
+
+function extractUrls(text: string): string[] {
+  // Match URLs but exclude common file extensions that are attachments
+  const urlRegex = /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi;
+  const matches = text.match(urlRegex) || [];
+  
+  // Filter out image/media URLs that are likely attachments
+  const mediaExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.mp3', '.wav', '.ogg', '.m4a'];
+  
+  return matches.filter(url => {
+    const lowerUrl = url.toLowerCase();
+    return !mediaExtensions.some(ext => lowerUrl.includes(ext));
+  }).slice(0, 3); // Limit to 3 URLs max
+}
+
+async function scrapeUrls(urls: string[]): Promise<string> {
+  const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
+  if (!FIRECRAWL_API_KEY) {
+    console.warn("FIRECRAWL_API_KEY not configured, skipping URL scraping");
+    return "";
+  }
+
+  const results: string[] = [];
+
+  for (const url of urls) {
+    try {
+      console.log(`Scraping URL: ${url}`);
+      
+      const response = await fetch("https://api.firecrawl.dev/v1/scrape", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          url,
+          formats: ["markdown"],
+          onlyMainContent: true,
+          timeout: 15000,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const content = data.data?.markdown || data.markdown || "";
+        const title = data.data?.metadata?.title || data.metadata?.title || url;
+        
+        if (content) {
+          // Limit content to ~4000 chars to avoid token limits
+          const truncatedContent = content.length > 4000 
+            ? content.substring(0, 4000) + "\n\n[...conteúdo truncado...]"
+            : content;
+            
+          results.push(`## 📄 Conteúdo de: ${title}\n**URL:** ${url}\n\n${truncatedContent}`);
+        }
+      } else {
+        console.error(`Failed to scrape ${url}: ${response.status}`);
+      }
+    } catch (error) {
+      console.error(`Error scraping ${url}:`, error);
+    }
+  }
+
+  if (results.length > 0) {
+    return `\n\n---\n\n# 🔗 Conteúdo Extraído das URLs\n\n${results.join("\n\n---\n\n")}`;
+  }
+
+  return "";
+}
+
+// =============================================
+// ATTACHMENT PROCESSING (Documents & Audio)
+// =============================================
+
+async function processAttachments(attachments: Attachment[]): Promise<ProcessedAttachment[]> {
+  const processed: ProcessedAttachment[] = [];
+
+  for (const att of attachments) {
+    const result: ProcessedAttachment = { ...att };
+
+    // Process documents (PDF, DOC, etc.)
+    if (isDocumentFile(att.mimeType, att.filename)) {
+      console.log(`Processing document: ${att.filename}`);
+      result.extractedText = await extractDocumentText(att);
+    }
+    
+    // Process audio files
+    if (att.mimeType.startsWith("audio/")) {
+      console.log(`Processing audio: ${att.filename}`);
+      result.transcription = await transcribeAudio(att);
+    }
+
+    processed.push(result);
+  }
+
+  return processed;
+}
+
+function isDocumentFile(mimeType: string, filename: string): boolean {
+  const docMimeTypes = [
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "text/plain",
+    "text/csv",
+  ];
+  
+  const docExtensions = [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".txt", ".csv"];
+  
+  return docMimeTypes.includes(mimeType) || 
+    docExtensions.some(ext => filename.toLowerCase().endsWith(ext));
+}
+
+async function extractDocumentText(attachment: Attachment): Promise<string> {
+  const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
+  
+  // For text files, fetch directly
+  if (attachment.mimeType === "text/plain" || attachment.mimeType === "text/csv") {
+    try {
+      const response = await fetch(attachment.url);
+      if (response.ok) {
+        const text = await response.text();
+        return text.length > 8000 
+          ? text.substring(0, 8000) + "\n\n[...conteúdo truncado...]"
+          : text;
+      }
+    } catch (error) {
+      console.error("Error fetching text file:", error);
+    }
+    return "";
+  }
+
+  // For PDFs and other documents, use Firecrawl if available
+  if (FIRECRAWL_API_KEY && attachment.mimeType === "application/pdf") {
+    try {
+      const response = await fetch("https://api.firecrawl.dev/v1/scrape", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          url: attachment.url,
+          formats: ["markdown"],
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const content = data.data?.markdown || data.markdown || "";
+        return content.length > 8000 
+          ? content.substring(0, 8000) + "\n\n[...conteúdo truncado...]"
+          : content;
+      }
+    } catch (error) {
+      console.error("Error extracting PDF text:", error);
+    }
+  }
+
+  // Fallback: indicate document was attached but not processed
+  return `[Documento anexado: ${attachment.filename} - formato ${attachment.mimeType}]`;
+}
+
+async function transcribeAudio(attachment: Attachment): Promise<string> {
+  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+  if (!OPENAI_API_KEY) {
+    console.warn("OPENAI_API_KEY not configured, skipping audio transcription");
+    return "[Áudio anexado - transcrição não disponível]";
+  }
+
+  try {
+    // Download audio file
+    const audioResponse = await fetch(attachment.url);
+    if (!audioResponse.ok) {
+      console.error(`Failed to download audio: ${audioResponse.status}`);
+      return "[Erro ao baixar áudio]";
+    }
+
+    const audioBuffer = await audioResponse.arrayBuffer();
+    
+    // Determine file extension
+    let extension = "ogg";
+    if (attachment.mimeType.includes("mpeg") || attachment.filename.endsWith(".mp3")) {
+      extension = "mp3";
+    } else if (attachment.mimeType.includes("wav") || attachment.filename.endsWith(".wav")) {
+      extension = "wav";
+    } else if (attachment.mimeType.includes("m4a") || attachment.filename.endsWith(".m4a")) {
+      extension = "m4a";
+    } else if (attachment.mimeType.includes("webm") || attachment.filename.endsWith(".webm")) {
+      extension = "webm";
+    }
+
+    // Call OpenAI Whisper
+    const formData = new FormData();
+    formData.append("file", new Blob([audioBuffer]), `audio.${extension}`);
+    formData.append("model", "whisper-1");
+    formData.append("language", "pt");
+    formData.append("response_format", "json");
+
+    const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: formData,
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log(`Audio transcribed: ${data.text?.substring(0, 100)}...`);
+      return data.text || "[Áudio vazio]";
+    } else {
+      const errorText = await response.text();
+      console.error("Whisper API error:", response.status, errorText);
+      return "[Erro na transcrição]";
+    }
+  } catch (error) {
+    console.error("Error transcribing audio:", error);
+    return "[Erro na transcrição]";
+  }
+}
+
+// =============================================
+// MESSAGE ENHANCEMENT
+// =============================================
+
+function enhanceMessagesWithContext(
+  messages: any[],
+  urlContext: string,
+  processedAttachments: ProcessedAttachment[]
+): any[] {
+  if (!urlContext && processedAttachments.length === 0) {
+    return messages;
+  }
+
+  // Build additional context
+  let additionalContext = "";
+
+  // Add URL content
+  if (urlContext) {
+    additionalContext += urlContext;
+  }
+
+  // Add document extracts
+  const documentsWithText = processedAttachments.filter(a => a.extractedText);
+  if (documentsWithText.length > 0) {
+    additionalContext += "\n\n---\n\n# 📑 Conteúdo dos Documentos Anexados\n\n";
+    for (const doc of documentsWithText) {
+      additionalContext += `## ${doc.filename}\n\n${doc.extractedText}\n\n---\n\n`;
+    }
+  }
+
+  // Add audio transcriptions
+  const audiosWithTranscription = processedAttachments.filter(a => a.transcription);
+  if (audiosWithTranscription.length > 0) {
+    additionalContext += "\n\n---\n\n# 🎤 Transcrições de Áudio\n\n";
+    for (const audio of audiosWithTranscription) {
+      additionalContext += `## ${audio.filename}\n\n> "${audio.transcription}"\n\n---\n\n`;
+    }
+  }
+
+  // Append context to the last user message
+  return messages.map((msg, idx) => {
+    if (idx === messages.length - 1 && msg.role === "user" && additionalContext) {
+      if (typeof msg.content === "string") {
+        return {
+          ...msg,
+          content: msg.content + additionalContext,
+        };
+      } else if (Array.isArray(msg.content)) {
+        // Find text content and append
+        const newContent = msg.content.map((c: any) => {
+          if (c.type === "text") {
+            return { ...c, text: c.text + additionalContext };
+          }
+          return c;
+        });
+        return { ...msg, content: newContent };
+      }
+    }
+    return msg;
+  });
+}
+
+// =============================================
+// CHAT MODES
+// =============================================
+
+async function handleChatMode(
+  messages: any[], 
+  hasAttachments?: boolean,
+  urlContext?: string,
+  processedAttachments?: ProcessedAttachment[]
+) {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) {
     throw new Error("LOVABLE_API_KEY is not configured");
   }
 
-  // Check if any message has image content
   const hasImageContent = messages?.some((m: any) => {
     if (Array.isArray(m.content)) {
       return m.content.some((c: any) => c.type === "image_url");
@@ -56,10 +395,21 @@ async function handleChatMode(messages: any[], hasAttachments?: boolean) {
     return false;
   });
 
-  // Use gemini-2.5-pro for vision capabilities when images are present
-  const model = hasImageContent ? "google/gemini-2.5-pro" : "openai/gpt-5";
+  const model = hasImageContent ? "google/gemini-2.5-pro" : "google/gemini-3-flash-preview";
   
-  console.log("Chat mode - Using model:", model, "hasImageContent:", hasImageContent);
+  // Build enhanced system prompt based on what was processed
+  let systemAdditions = "";
+  if (urlContext) {
+    systemAdditions += "\n- Você tem acesso ao conteúdo de URLs que o usuário compartilhou. Analise esse conteúdo para responder.";
+  }
+  if (processedAttachments?.some(a => a.extractedText)) {
+    systemAdditions += "\n- Você recebeu o conteúdo extraído de documentos anexados. Use essas informações para responder.";
+  }
+  if (processedAttachments?.some(a => a.transcription)) {
+    systemAdditions += "\n- Você recebeu transcrições de áudios anexados. Considere essas transcrições na sua resposta.";
+  }
+  
+  console.log(`Chat mode - Model: ${model}, hasImages: ${hasImageContent}, hasUrlContext: ${!!urlContext}, processedDocs: ${processedAttachments?.filter(a => a.extractedText).length || 0}, processedAudios: ${processedAttachments?.filter(a => a.transcription).length || 0}`);
 
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
@@ -83,7 +433,9 @@ Suas capacidades incluem:
 - Ajudar com programação e código
 - Traduzir textos entre idiomas
 - Analisar imagens quando enviadas
-- Processar e entender áudios transcritos
+- Ler e analisar conteúdo de URLs/links compartilhados
+- Processar e analisar documentos (PDF, DOC, TXT, etc.)
+- Transcrever e entender áudios${systemAdditions}
 
 REGRAS DE FORMATAÇÃO (OBRIGATÓRIO):
 - SEMPRE use formatação Markdown nas suas respostas
@@ -94,15 +446,12 @@ REGRAS DE FORMATAÇÃO (OBRIGATÓRIO):
 - Use \`código\` para termos técnicos inline
 - Use blocos de código com \`\`\` para exemplos de código
 - Organize a resposta de forma hierárquica e visualmente clara
-- NÃO envie respostas como blocos de texto contínuo sem formatação
 
 Diretrizes:
 - Seja conciso mas completo nas respostas
 - Se não souber algo, diga honestamente
 - Mantenha um tom profissional mas amigável
-- Responda sempre no idioma da pergunta do usuário
-- Quando receber imagens, descreva e analise o conteúdo
-- Quando receber referência a áudio, indique que está processando`,
+- Responda sempre no idioma da pergunta do usuário`,
         },
         ...messages,
       ],
@@ -114,7 +463,6 @@ Diretrizes:
     return handleAIError(response);
   }
 
-  // Return streaming response
   return new Response(response.body, {
     headers: {
       ...corsHeaders,
@@ -123,7 +471,6 @@ Diretrizes:
   });
 }
 
-// Thinking mode using OpenAI o3-mini directly
 async function handleThinkingMode(messages: any[]) {
   const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
   if (!OPENAI_API_KEY) {
@@ -198,7 +545,6 @@ Diretrizes:
   });
 }
 
-// Search mode using Firecrawl + AI synthesis
 async function handleSearchMode(messages: any[]) {
   const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -210,15 +556,12 @@ async function handleSearchMode(messages: any[]) {
     throw new Error("LOVABLE_API_KEY is not configured");
   }
 
-  // Get the last user message as search query
   const lastUserMessage = messages.filter((m: any) => m.role === "user").pop();
-  const query = typeof lastUserMessage?.content === "string" 
-    ? lastUserMessage.content 
-    : lastUserMessage?.content?.[0]?.text || "";
+  const query = extractTextFromMessage(lastUserMessage);
 
   console.log("Search mode - Query:", query);
 
-  // Step 1: Search the web using Firecrawl
+  // Search the web
   const searchResponse = await fetch("https://api.firecrawl.dev/v1/search", {
     method: "POST",
     headers: {
@@ -243,7 +586,6 @@ async function handleSearchMode(messages: any[]) {
   const searchResults = await searchResponse.json();
   console.log("Search results count:", searchResults.data?.length || 0);
 
-  // Step 2: Build context from search results
   const searchContext = searchResults.data?.map((result: any, idx: number) => {
     return `## Fonte ${idx + 1}: ${result.title || "Sem título"}
 URL: ${result.url}
@@ -253,7 +595,6 @@ ${result.markdown || result.description || "Sem conteúdo disponível"}
 ---`;
   }).join("\n\n") || "Nenhum resultado encontrado.";
 
-  // Step 3: Use AI to synthesize the response
   const synthesisResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -333,7 +674,6 @@ ${searchContext}
   });
 }
 
-// Helper to handle AI errors
 async function handleAIError(response: Response) {
   console.error("AI gateway error:", response.status, await response.text());
   
