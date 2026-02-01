@@ -182,11 +182,12 @@ O componente `PaymentIconsQuickSelect` permite adicionar ícones de pagamento pr
 
 | Tamanho | Pagamento/Frete | Segurança | Lojas Oficiais |
 |---------|-----------------|-----------|----------------|
-| **Pequeno** | h-4 / h-6 | h-6 / h-8 | h-6 / h-8 |
-| **Médio** (padrão) | h-6 / h-8 | h-10 / h-12 | h-8 / h-10 |
-| **Grande** | h-8 / h-10 | h-12 / h-14 | h-10 / h-12 |
+| **Pequeno** | h-3 / h-4 | h-6 / h-8 | h-6 / h-8 |
+| **Médio** (padrão) | h-4 / h-5 | h-10 / h-12 | h-8 / h-10 |
+| **Grande** | h-5 / h-7 | h-12 / h-14 | h-10 / h-12 |
 
 *Formato: mobile / desktop*
+*Nota: Badges de Pagamento/Frete foram reduzidos em ~30% em 2026-02-01*
 
 | Prop | Tipo | Default | Descrição |
 |------|------|---------|-----------|
@@ -339,6 +340,8 @@ const hiddenCount = configuredItems.length - validItems.length;
 
 | Data | Alteração |
 |------|-----------|
+| 2026-02-01 | Corrigido bug de stale closures em FooterImageSection que impedia adicionar/remover/substituir selos |
+| 2026-02-01 | Badges de Pagamento/Frete reduzidos em 30% (medium: h-4/h-5 era h-6/h-8) |
 | 2026-02-01 | Adicionado `badgeSize` com 3 tamanhos: Pequeno, Médio, Grande para selos do rodapé |
 | 2026-02-01 | Configurável em "Configurações do tema" → "Rodapé" → "Visual Menus" |
 | 2025-01-30 | Adicionado `menuVisualStyle` com 3 estilos: Classic, Elegant, Minimal |
