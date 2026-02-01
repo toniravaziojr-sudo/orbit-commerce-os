@@ -436,9 +436,14 @@ export function BlockRenderer({
         >
           {definition.label}
           {node.hidden && <span className="text-xs">(oculto)</span>}
-          {['Header', 'Footer'].includes(node.type) && (
+          {['Header', 'Footer'].includes(node.type) && pageType !== 'checkout' && (
             <span className="ml-2 text-primary-foreground/80">
               → Configurações do tema
+            </span>
+          )}
+          {['Header', 'Footer'].includes(node.type) && pageType === 'checkout' && (
+            <span className="ml-2 text-primary-foreground/80">
+              (clique para editar)
             </span>
           )}
         </div>
