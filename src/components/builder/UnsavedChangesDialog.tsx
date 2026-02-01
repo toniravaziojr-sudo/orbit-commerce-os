@@ -32,7 +32,7 @@ export function UnsavedChangesDialog({
 }: UnsavedChangesDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="max-w-md !bg-white !text-slate-900 !border-slate-200">
+      <AlertDialogContent className="!max-w-lg !bg-white !text-slate-900 !border-slate-200">
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2 !text-slate-900">
             <AlertTriangle className="h-5 w-5 text-amber-500" />
@@ -42,7 +42,7 @@ export function UnsavedChangesDialog({
             Você tem alterações que ainda não foram salvas. O que deseja fazer?
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter className="!flex !flex-col !gap-2 sm:!flex-row sm:!justify-end">
+        <AlertDialogFooter className="!flex !flex-col !gap-2 sm:!flex-row sm:!justify-end sm:!flex-wrap">
           <AlertDialogCancel asChild>
             <Button 
               variant="outline" 
