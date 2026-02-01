@@ -5,15 +5,15 @@
 // =============================================
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Plus, Sparkles, Loader2, StopCircle, MessageSquare } from "lucide-react";
+import { Plus, Sparkles, Loader2, MessageSquare, Mic, FileText } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { useChatGPT } from "@/hooks/useChatGPT";
+import { useChatGPT, ChatGPTMessage } from "@/hooks/useChatGPT";
 import { useAuth } from "@/hooks/useAuth";
+import { ChatGPTChatInput, ChatGPTAttachment } from "@/components/chatgpt";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -33,9 +33,7 @@ export default function ChatGPT() {
     cancelStreaming,
   } = useChatGPT();
 
-  const [inputValue, setInputValue] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isCreating, setIsCreating] = useState(false);
 
   // Auto-scroll to bottom
@@ -52,18 +50,63 @@ export default function ChatGPT() {
     }
   };
 
-  const handleSend = async () => {
-    if (!inputValue.trim() || isStreaming) return;
-    const messageText = inputValue.trim();
-    setInputValue("");
-    await sendMessage(messageText);
+  const handleSend = async (message: string, attachments?: ChatGPTAttachment[]) => {
+    await sendMessage(message, attachments);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+  // Helper to render message attachments
+  const renderAttachments = (message: ChatGPTMessage) => {
+    const attachments = message.metadata?.attachments as ChatGPTAttachment[] | undefined;
+    if (!attachments || attachments.length === 0) return null;
+
+    return (
+      <div className="flex flex-wrap gap-2 mt-2">
+        {attachments.map((att, idx) => {
+          if (att.mimeType.startsWith("image/")) {
+            return (
+              <a 
+                key={idx} 
+                href={att.url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="block"
+              >
+                <img
+                  src={att.url}
+                  alt={att.filename}
+                  className="max-h-48 max-w-full rounded-lg border object-cover hover:opacity-90 transition-opacity"
+                />
+              </a>
+            );
+          }
+          
+          if (att.mimeType.startsWith("audio/")) {
+            return (
+              <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-muted/50 rounded-lg border">
+                <Mic className="h-4 w-4 text-muted-foreground" />
+                <audio controls className="h-8 max-w-[200px]">
+                  <source src={att.url} type={att.mimeType} />
+                </audio>
+              </div>
+            );
+          }
+
+          // Other files
+          return (
+            <a
+              key={idx}
+              href={att.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-3 py-2 bg-muted/50 rounded-lg border hover:bg-muted transition-colors"
+            >
+              <FileText className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs truncate max-w-[150px]">{att.filename}</span>
+            </a>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
@@ -166,7 +209,12 @@ export default function ChatGPT() {
                               <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content || ""}</ReactMarkdown>
                             </div>
                           ) : (
-                            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                            <>
+                              {message.content && !message.content.startsWith("[") && (
+                                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                              )}
+                              {renderAttachments(message)}
+                            </>
                           )}
                         </div>
                       </div>
@@ -206,44 +254,11 @@ export default function ChatGPT() {
                 </ScrollArea>
 
                 {/* Input Area */}
-                <div className="border-t p-4 flex-shrink-0">
-                  <div className="max-w-3xl mx-auto">
-                    <div className="relative flex items-end gap-2 rounded-2xl border bg-background p-2 shadow-sm">
-                      <Textarea
-                        ref={textareaRef}
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        placeholder="Pergunte alguma coisa..."
-                        className="min-h-[44px] max-h-[200px] resize-none border-0 bg-transparent shadow-none focus-visible:ring-0 px-2"
-                        rows={1}
-                        disabled={isStreaming}
-                      />
-                      {isStreaming ? (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={cancelStreaming}
-                          className="h-9 w-9 flex-shrink-0"
-                        >
-                          <StopCircle className="h-5 w-5" />
-                        </Button>
-                      ) : (
-                        <Button
-                          size="icon"
-                          onClick={handleSend}
-                          disabled={!inputValue.trim()}
-                          className="h-9 w-9 flex-shrink-0 rounded-full"
-                        >
-                          <Send className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground text-center mt-2">
-                      ChatGPT pode cometer erros. Verifique informações importantes.
-                    </p>
-                  </div>
-                </div>
+                <ChatGPTChatInput
+                  onSend={handleSend}
+                  isStreaming={isStreaming}
+                  onCancel={cancelStreaming}
+                />
               </>
             ) : (
               /* Welcome Screen */

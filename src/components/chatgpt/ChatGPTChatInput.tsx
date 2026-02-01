@@ -1,0 +1,443 @@
+import { useState, useRef, useCallback, KeyboardEvent, ChangeEvent } from "react";
+import { Send, Paperclip, X, Loader2, Image as ImageIcon, FileText, Mic, StopCircle, Square } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
+import { uploadAndRegisterToSystemDrive } from "@/lib/uploadAndRegisterToSystemDrive";
+import { toast } from "sonner";
+
+export interface ChatGPTAttachment {
+  url: string;
+  filename: string;
+  mimeType: string;
+}
+
+interface AttachedFile {
+  file: File;
+  preview?: string;
+  publicUrl?: string;
+  isUploading: boolean;
+}
+
+interface ChatGPTChatInputProps {
+  onSend: (message: string, attachments?: ChatGPTAttachment[]) => void;
+  isStreaming: boolean;
+  onCancel: () => void;
+  disabled?: boolean;
+}
+
+const ACCEPTED_FILE_TYPES = "image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv";
+const ACCEPTED_AUDIO_TYPE = "audio/webm";
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+export function ChatGPTChatInput({ onSend, isStreaming, onCancel, disabled }: ChatGPTChatInputProps) {
+  const [message, setMessage] = useState("");
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  const { user, currentTenant } = useAuth();
+
+  const hasAttachments = attachedFiles.length > 0;
+  const isUploadingAny = attachedFiles.some(f => f.isUploading);
+
+  const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    if (!currentTenant?.id || !user?.id) {
+      toast.error("Usuário ou tenant não identificado");
+      return;
+    }
+
+    for (const file of Array.from(files)) {
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(`Arquivo ${file.name} excede o limite de 10MB`);
+        continue;
+      }
+
+      // Create preview for images
+      let preview: string | undefined;
+      if (file.type.startsWith("image/")) {
+        preview = URL.createObjectURL(file);
+      }
+
+      // Add to state as uploading
+      const newFile: AttachedFile = { file, preview, isUploading: true };
+      setAttachedFiles(prev => [...prev, newFile]);
+
+      try {
+        const result = await uploadAndRegisterToSystemDrive({
+          tenantId: currentTenant.id,
+          userId: user.id,
+          file,
+          source: "chatgpt",
+          subPath: "chatgpt",
+        });
+
+        if (result) {
+          setAttachedFiles(prev =>
+            prev.map(f =>
+              f.file === file
+                ? { ...f, publicUrl: result.publicUrl, isUploading: false }
+                : f
+            )
+          );
+        } else {
+          toast.error(`Erro ao enviar ${file.name}`);
+          setAttachedFiles(prev => prev.filter(f => f.file !== file));
+        }
+      } catch (err) {
+        console.error("Upload error:", err);
+        toast.error(`Erro ao enviar ${file.name}`);
+        setAttachedFiles(prev => prev.filter(f => f.file !== file));
+      }
+    }
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const removeFile = (file: File) => {
+    setAttachedFiles(prev => {
+      const toRemove = prev.find(f => f.file === file);
+      if (toRemove?.preview) {
+        URL.revokeObjectURL(toRemove.preview);
+      }
+      return prev.filter(f => f.file !== file);
+    });
+  };
+
+  // Audio recording
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        } 
+      });
+      
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: ACCEPTED_AUDIO_TYPE });
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: ACCEPTED_AUDIO_TYPE });
+        stream.getTracks().forEach(track => track.stop());
+        
+        // Upload audio
+        if (currentTenant?.id && user?.id) {
+          const audioFile = new File([audioBlob], `audio-${Date.now()}.webm`, { type: ACCEPTED_AUDIO_TYPE });
+          
+          const newFile: AttachedFile = { 
+            file: audioFile, 
+            isUploading: true 
+          };
+          setAttachedFiles(prev => [...prev, newFile]);
+          
+          try {
+            const result = await uploadAndRegisterToSystemDrive({
+              tenantId: currentTenant.id,
+              userId: user.id,
+              file: audioFile,
+              source: "chatgpt_audio",
+              subPath: "chatgpt/audio",
+            });
+
+            if (result) {
+              setAttachedFiles(prev =>
+                prev.map(f =>
+                  f.file === audioFile
+                    ? { ...f, publicUrl: result.publicUrl, isUploading: false }
+                    : f
+                )
+              );
+              toast.success("Áudio gravado com sucesso!");
+            } else {
+              toast.error("Erro ao enviar áudio");
+              setAttachedFiles(prev => prev.filter(f => f.file !== audioFile));
+            }
+          } catch (err) {
+            console.error("Audio upload error:", err);
+            toast.error("Erro ao enviar áudio");
+            setAttachedFiles(prev => prev.filter(f => f.file !== audioFile));
+          }
+        }
+        
+        setRecordingDuration(0);
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingDuration(0);
+      
+      // Start timer
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+      
+      toast.success("Gravando áudio...");
+    } catch (error) {
+      console.error("Error starting recording:", error);
+      toast.error("Não foi possível acessar o microfone");
+    }
+  };
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+    }
+  }, [isRecording]);
+
+  const handleMicClick = () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  };
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleSend = () => {
+    const trimmed = message.trim();
+    if ((!trimmed && !hasAttachments) || isStreaming || isUploadingAny) return;
+
+    // Prepare attachments
+    const attachments = attachedFiles
+      .filter(f => f.publicUrl)
+      .map(f => ({
+        url: f.publicUrl!,
+        filename: f.file.name,
+        mimeType: f.file.type,
+      }));
+
+    onSend(trimmed, attachments.length > 0 ? attachments : undefined);
+    setMessage("");
+
+    // Clear attachments and revoke previews
+    attachedFiles.forEach(f => {
+      if (f.preview) URL.revokeObjectURL(f.preview);
+    });
+    setAttachedFiles([]);
+
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  // Auto-resize textarea
+  const handleInput = () => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
+    }
+  };
+
+  const getFileIcon = (mimeType: string) => {
+    if (mimeType.startsWith("image/")) return ImageIcon;
+    if (mimeType.startsWith("audio/")) return Mic;
+    return FileText;
+  };
+
+  return (
+    <div className="border-t p-4 flex-shrink-0">
+      <div className="max-w-3xl mx-auto">
+        {/* Attached files preview */}
+        {hasAttachments && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {attachedFiles.map((af, idx) => {
+              const FileIcon = getFileIcon(af.file.type);
+              return (
+                <div
+                  key={idx}
+                  className="relative group flex items-center gap-2 px-2 py-1.5 bg-muted rounded-md border"
+                >
+                  {af.preview ? (
+                    <img
+                      src={af.preview}
+                      alt={af.file.name}
+                      className="h-8 w-8 object-cover rounded"
+                    />
+                  ) : (
+                    <FileIcon className="h-5 w-5 text-muted-foreground" />
+                  )}
+                  <span className="text-xs max-w-[100px] truncate">
+                    {af.file.name}
+                  </span>
+                  {af.isUploading ? (
+                    <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                  ) : (
+                    <button
+                      onClick={() => removeFile(af.file)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-destructive/20 rounded"
+                    >
+                      <X className="h-3 w-3 text-destructive" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Recording indicator */}
+        {isRecording && (
+          <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-red-500/10 rounded-lg border border-red-500/20">
+            <div className="h-3 w-3 rounded-full bg-red-500 animate-pulse" />
+            <span className="text-sm text-red-500 font-medium">
+              Gravando... {formatDuration(recordingDuration)}
+            </span>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={stopRecording}
+              className="ml-auto h-7"
+            >
+              <Square className="h-3 w-3 mr-1" />
+              Parar
+            </Button>
+          </div>
+        )}
+
+        <div className="relative flex items-end gap-2 rounded-2xl border bg-background p-2 shadow-sm">
+          <TooltipProvider>
+            {/* Attachment button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="flex-shrink-0 h-9 w-9"
+                  disabled={isStreaming || isRecording}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Paperclip className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Anexar arquivo ou imagem</p>
+              </TooltipContent>
+            </Tooltip>
+
+            {/* Microphone button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={isRecording ? "destructive" : "ghost"}
+                  size="icon"
+                  className="flex-shrink-0 h-9 w-9"
+                  disabled={isStreaming || disabled}
+                  onClick={handleMicClick}
+                >
+                  {isRecording ? (
+                    <StopCircle className="h-4 w-4" />
+                  ) : (
+                    <Mic className="h-4 w-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{isRecording ? "Parar gravação" : "Gravar áudio"}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept={ACCEPTED_FILE_TYPES}
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+
+          {/* Message input */}
+          <Textarea
+            ref={textareaRef}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onInput={handleInput}
+            placeholder="Pergunte alguma coisa..."
+            className={cn(
+              "min-h-[44px] max-h-[200px] resize-none border-0 bg-transparent shadow-none focus-visible:ring-0 px-2"
+            )}
+            rows={1}
+            disabled={isStreaming || isRecording}
+          />
+
+          {/* Send/Cancel button */}
+          {isStreaming ? (
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={onCancel}
+              className="h-9 w-9 flex-shrink-0"
+            >
+              <StopCircle className="h-5 w-5" />
+            </Button>
+          ) : (
+            <Button
+              size="icon"
+              onClick={handleSend}
+              disabled={(!message.trim() && !hasAttachments) || isUploadingAny || isRecording}
+              className="h-9 w-9 flex-shrink-0 rounded-full"
+            >
+              {isUploadingAny ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </Button>
+          )}
+        </div>
+
+        <p className="text-xs text-muted-foreground text-center mt-2">
+          ChatGPT pode cometer erros. Verifique informações importantes.
+        </p>
+      </div>
+    </div>
+  );
+}
