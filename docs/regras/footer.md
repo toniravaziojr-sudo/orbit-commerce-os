@@ -340,6 +340,9 @@ const hiddenCount = configuredItems.length - validItems.length;
 
 | Data | Alteração |
 |------|-----------|
+| 2026-02-01 | **CRITICAL FIX**: Corrigido bug de persistência de selos usando optimistic updates no useThemeSettings e sincronização unidirecional de estado |
+| 2026-02-01 | Removido `initialLoadDone` que bloqueava sincronização de state após primeira carga |
+| 2026-02-01 | `updateImageSection` agora usa apenas `updateFooter` sem duplicar estado local |
 | 2026-02-01 | Corrigido bug de stale closures em FooterImageSection que impedia adicionar/remover/substituir selos |
 | 2026-02-01 | Badges de Pagamento/Frete reduzidos em 30% (medium: h-4/h-5 era h-6/h-8) |
 | 2026-02-01 | Adicionado `badgeSize` com 3 tamanhos: Pequeno, Médio, Grande para selos do rodapé |
