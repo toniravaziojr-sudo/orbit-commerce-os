@@ -182,11 +182,12 @@ export default function StorefrontCheckout() {
       
       <div className="storefront-container min-h-screen flex flex-col">
         {/* Checkout header - uses checkout_header_config */}
-      <StorefrontHeaderContent
-        tenantSlug={tenantSlug || ''}
-        headerConfig={checkoutHeaderConfig}
-        isEditing={false}
-      />
+        <StorefrontHeaderContent
+          tenantSlug={tenantSlug || ''}
+          headerConfig={checkoutHeaderConfig}
+          storeSettings={storeSettings}
+          isEditing={false}
+        />
 
       {/* Main checkout content */}
       <main className="flex-1 bg-muted/30">
