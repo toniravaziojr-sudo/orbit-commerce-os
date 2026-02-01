@@ -158,6 +158,12 @@ export function StorefrontHeaderContent({
   // Logo size - 'small', 'medium', 'large'
   const logoSize = String(props.logoSize || 'medium') as 'small' | 'medium' | 'large';
   
+  // Logo URL - props.logoUrl has PRIORITY over storeSettings.logo_url
+  // This allows checkout to have a different logo or inherit from global layout
+  const effectiveLogoUrl = props.logoUrl && String(props.logoUrl).trim() !== '' 
+    ? String(props.logoUrl) 
+    : storeSettings?.logo_url || '';
+  
   // Nav bar height - 'small', 'medium', 'large'
   const navBarHeight = String(props.navBarHeight || 'medium') as 'small' | 'medium' | 'large';
   
@@ -824,9 +830,9 @@ export function StorefrontHeaderContent({
               "absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0"
             )}
           >
-            {storeSettings?.logo_url ? (
+            {effectiveLogoUrl ? (
               <img
-                src={storeSettings.logo_url}
+                src={effectiveLogoUrl}
                 alt={storeSettings?.store_name || 'Loja'}
                 className={cn(getLogoSizeClasses(), "object-contain")}
               />
