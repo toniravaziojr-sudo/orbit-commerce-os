@@ -12,8 +12,8 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Palette, ChevronDown, Settings, Type, Loader2, CreditCard, Store, Plus, Trash2, Mail, Navigation, ShieldCheck, Truck } from 'lucide-react';
-import { useThemeFooter, DEFAULT_THEME_FOOTER, ThemeFooterConfig, FooterImageItem, FooterImageSectionData, MenuVisualStyle } from '@/hooks/useThemeSettings';
+import { Palette, ChevronDown, Settings, Type, Loader2, CreditCard, Store, Plus, Trash2, Mail, Navigation, ShieldCheck, Truck, Maximize2 } from 'lucide-react';
+import { useThemeFooter, DEFAULT_THEME_FOOTER, ThemeFooterConfig, FooterImageItem, FooterImageSectionData, MenuVisualStyle, BadgeSizeType } from '@/hooks/useThemeSettings';
 import { ImageUploader } from '../ImageUploader';
 import type { SvgPresetCategory } from '@/lib/builder/svg-presets';
 import { PaymentIconsQuickSelect } from './PaymentIconsQuickSelect';
@@ -469,6 +469,42 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
             </Select>
             <p className="text-[10px] text-muted-foreground">
               Define a aparência dos links de navegação no footer
+            </p>
+          </div>
+          
+          {/* Badge Size Control */}
+          <div className="space-y-1 pt-2 border-t">
+            <Label className="text-[10px]">Tamanho dos Selos</Label>
+            <Select 
+              value={localProps.badgeSize || 'medium'} 
+              onValueChange={(v) => updatePropImmediate('badgeSize', v as BadgeSizeType)}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Selecione o tamanho" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="small" className="text-xs">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">Pequeno</span>
+                    <span className="text-[10px] text-muted-foreground">Ícones compactos (h-4 / h-6)</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="medium" className="text-xs">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">Médio</span>
+                    <span className="text-[10px] text-muted-foreground">Tamanho padrão (h-6 / h-8)</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="large" className="text-xs">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">Grande</span>
+                    <span className="text-[10px] text-muted-foreground">Ícones maiores (h-8 / h-10)</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-[10px] text-muted-foreground">
+              Tamanho de pagamento, segurança, frete e lojas oficiais
             </p>
           </div>
         </CollapsibleContent>

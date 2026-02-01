@@ -22,6 +22,7 @@
 | `footer2Title` | string | "Políticas" | Título do menu 2 |
 | `copyrightText` | string | "" | Texto customizado de copyright |
 | `menuVisualStyle` | `'classic'` \| `'elegant'` \| `'minimal'` | `'classic'` | Estilo visual dos links do menu |
+| `badgeSize` | `'small'` \| `'medium'` \| `'large'` | `'medium'` | Tamanho dos selos (pagamento, segurança, frete, lojas) |
 
 ---
 
@@ -175,6 +176,22 @@ O componente `PaymentIconsQuickSelect` permite adicionar ícones de pagamento pr
 |------|------|---------|-----------|
 | `menuVisualStyle` | `'classic'` \| `'elegant'` \| `'minimal'` | `'classic'` | Estilo visual dos links de menu |
 
+### Tamanho dos Selos (Badge Size)
+
+> Configurável em: **Configurações do tema** → **Rodapé** → **Visual Menus** → **Tamanho dos Selos**
+
+| Tamanho | Pagamento/Frete | Segurança | Lojas Oficiais |
+|---------|-----------------|-----------|----------------|
+| **Pequeno** | h-4 / h-6 | h-6 / h-8 | h-6 / h-8 |
+| **Médio** (padrão) | h-6 / h-8 | h-10 / h-12 | h-8 / h-10 |
+| **Grande** | h-8 / h-10 | h-12 / h-14 | h-10 / h-12 |
+
+*Formato: mobile / desktop*
+
+| Prop | Tipo | Default | Descrição |
+|------|------|---------|-----------|
+| `badgeSize` | `'small'` \| `'medium'` \| `'large'` | `'medium'` | Tamanho dos selos no rodapé |
+
 ---
 
 ## Responsividade — Container Queries
@@ -322,6 +339,8 @@ const hiddenCount = configuredItems.length - validItems.length;
 
 | Data | Alteração |
 |------|-----------|
+| 2026-02-01 | Adicionado `badgeSize` com 3 tamanhos: Pequeno, Médio, Grande para selos do rodapé |
+| 2026-02-01 | Configurável em "Configurações do tema" → "Rodapé" → "Visual Menus" |
 | 2025-01-30 | Adicionado `menuVisualStyle` com 3 estilos: Classic, Elegant, Minimal |
 | 2025-01-30 | Nova seção "Visual Menus" em FooterSettings.tsx |
 | 2025-01-25 | Aviso de páginas não publicadas adicionado na página de Menus (admin) |
