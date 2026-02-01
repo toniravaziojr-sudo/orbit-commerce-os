@@ -627,12 +627,23 @@ export function useThemeHeader(tenantId: string | undefined, templateSetId: stri
 
 export function useThemeFooter(tenantId: string | undefined, templateSetId: string | undefined) {
   const queryClient = useQueryClient();
-  const { themeSettings, saveThemeSettings, isLoading, isSaving } = 
+  const { themeSettings, saveThemeSettings, saveThemeSettingsAsync, isLoading, isSaving } = 
     useThemeSettings(tenantId, templateSetId);
 
-  const footer = {
+  // Track pending saves to prevent stale data from overwriting local state
+  const pendingUpdatesRef = useRef<Partial<ThemeFooterConfig>>({});
+  const savingRef = useRef(false);
+
+  // Base footer from server
+  const serverFooter = {
     ...DEFAULT_THEME_FOOTER,
     ...themeSettings?.footer,
+  };
+
+  // Merge server footer with any pending updates to get effective footer
+  const footer = {
+    ...serverFooter,
+    ...pendingUpdatesRef.current,
   };
 
   // Use ref to always have the latest footer value in the callback
@@ -643,6 +654,10 @@ export function useThemeFooter(tenantId: string | undefined, templateSetId: stri
     // Use ref to get latest footer value
     const currentFooter = footerRef.current;
     const updatedFooter = { ...currentFooter, ...newFooter };
+    
+    // Track pending updates - these will be preserved until save confirms
+    pendingUpdatesRef.current = { ...pendingUpdatesRef.current, ...newFooter };
+    savingRef.current = true;
     
     // Build footer block for global layout
     const footerBlock: BlockNode = {
@@ -659,13 +674,12 @@ export function useThemeFooter(tenantId: string | undefined, templateSetId: stri
       });
     }
     
-    // Save to template set (themeSettings)
-    saveThemeSettings({ footer: updatedFooter });
-    
-    // Also persist to storefront_global_layout for real-time sync
-    // This ensures the VisualBuilder sees the changes immediately after cache update
-    if (tenantId) {
-      try {
+    try {
+      // Save to template set (themeSettings) - await to ensure completion
+      await saveThemeSettingsAsync({ footer: updatedFooter });
+      
+      // Also persist to storefront_global_layout for real-time sync
+      if (tenantId) {
         const { data: existing } = await supabase
           .from('storefront_global_layout')
           .select('id')
@@ -687,17 +701,25 @@ export function useThemeFooter(tenantId: string | undefined, templateSetId: stri
             });
           if (error) console.error('[useThemeFooter] Insert error:', error);
         }
-      } catch (err) {
-        console.error('[useThemeFooter] Error syncing to global layout:', err);
       }
+      
+      // Save succeeded - clear pending updates for saved keys only
+      Object.keys(newFooter).forEach(key => {
+        delete (pendingUpdatesRef.current as Record<string, unknown>)[key];
+      });
+    } catch (err) {
+      console.error('[useThemeFooter] Error syncing to global layout:', err);
+      // Keep pending updates on error so UI stays consistent
+    } finally {
+      savingRef.current = false;
     }
-  }, [tenantId, queryClient, saveThemeSettings]);
+  }, [tenantId, queryClient, saveThemeSettingsAsync]);
 
   return {
     footer,
     updateFooter,
     isLoading,
-    isSaving,
+    isSaving: isSaving || savingRef.current,
   };
 }
 
