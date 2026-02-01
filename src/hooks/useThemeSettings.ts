@@ -5,7 +5,7 @@
 // =============================================
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useRef } from 'react';
+import { useCallback, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { Json } from '@/integrations/supabase/types';
@@ -627,37 +627,39 @@ export function useThemeHeader(tenantId: string | undefined, templateSetId: stri
 
 export function useThemeFooter(tenantId: string | undefined, templateSetId: string | undefined) {
   const queryClient = useQueryClient();
-  const { themeSettings, saveThemeSettings, saveThemeSettingsAsync, isLoading, isSaving } = 
+  const { themeSettings, isLoading, isSaving } = 
     useThemeSettings(tenantId, templateSetId);
 
-  // Track pending saves to prevent stale data from overwriting local state
-  const pendingUpdatesRef = useRef<Partial<ThemeFooterConfig>>({});
-  const savingRef = useRef(false);
+  // Track pending saves with useState to trigger re-renders
+  // This is critical - useRef does NOT trigger re-renders, causing stale UI
+  const [pendingUpdates, setPendingUpdates] = useState<Partial<ThemeFooterConfig>>({});
+  const [localSaving, setLocalSaving] = useState(false);
 
-  // Base footer from server
+  // Base footer from server (React Query cache - includes optimistic updates)
   const serverFooter = {
     ...DEFAULT_THEME_FOOTER,
     ...themeSettings?.footer,
   };
 
   // Merge server footer with any pending updates to get effective footer
+  // This ensures UI is always consistent with what user sees
   const footer = {
     ...serverFooter,
-    ...pendingUpdatesRef.current,
+    ...pendingUpdates,
   };
 
-  // Use ref to always have the latest footer value in the callback
-  const footerRef = useRef(footer);
-  footerRef.current = footer;
-
   const updateFooter = useCallback(async (newFooter: Partial<ThemeFooterConfig>) => {
-    // Use ref to get latest footer value
-    const currentFooter = footerRef.current;
-    const updatedFooter = { ...currentFooter, ...newFooter };
+    // Immediately update pending state - this will trigger re-render
+    setPendingUpdates(prev => ({ ...prev, ...newFooter }));
+    setLocalSaving(true);
     
-    // Track pending updates - these will be preserved until save confirms
-    pendingUpdatesRef.current = { ...pendingUpdatesRef.current, ...newFooter };
-    savingRef.current = true;
+    // Compute complete footer for saving
+    const updatedFooter = { 
+      ...DEFAULT_THEME_FOOTER,
+      ...themeSettings?.footer,
+      ...pendingUpdates,
+      ...newFooter,
+    };
     
     // Build footer block for global layout
     const footerBlock: BlockNode = {
@@ -666,7 +668,7 @@ export function useThemeFooter(tenantId: string | undefined, templateSetId: stri
       props: updatedFooter,
     };
     
-    // Update cache immediately for instant preview
+    // Update global layout cache immediately for instant preview
     if (tenantId) {
       queryClient.setQueryData(['global-layout-editor', tenantId], (old: unknown) => {
         if (!old || typeof old !== 'object') return old;
@@ -674,9 +676,51 @@ export function useThemeFooter(tenantId: string | undefined, templateSetId: stri
       });
     }
     
+    // CRITICAL: Update themeSettings cache IMMEDIATELY (optimistic update)
+    // This prevents stale data from overwriting our changes
+    if (tenantId && templateSetId) {
+      queryClient.setQueryData(
+        THEME_SETTINGS_KEYS.all(tenantId, templateSetId),
+        (old: ThemeSettings | undefined) => ({
+          ...old,
+          footer: updatedFooter,
+        })
+      );
+    }
+    
     try {
-      // Save to template set (themeSettings) - await to ensure completion
-      await saveThemeSettingsAsync({ footer: updatedFooter });
+      // Save to storefront_template_sets.draft_content.themeSettings
+      if (templateSetId) {
+        // Fetch current draft content to merge
+        const { data: current } = await supabase
+          .from('storefront_template_sets')
+          .select('draft_content')
+          .eq('id', templateSetId)
+          .single();
+
+        const draftContent = (current?.draft_content as Record<string, unknown>) || {};
+        const currentThemeSettings = (draftContent.themeSettings as ThemeSettings) || {};
+
+        const updatedThemeSettings: ThemeSettings = {
+          ...currentThemeSettings,
+          footer: updatedFooter,
+        };
+
+        const updatedDraftContent = {
+          ...draftContent,
+          themeSettings: updatedThemeSettings,
+        };
+
+        const { error: updateError } = await supabase
+          .from('storefront_template_sets')
+          .update({ 
+            draft_content: updatedDraftContent as unknown as Json,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', templateSetId);
+
+        if (updateError) throw updateError;
+      }
       
       // Also persist to storefront_global_layout for real-time sync
       if (tenantId) {
@@ -704,22 +748,26 @@ export function useThemeFooter(tenantId: string | undefined, templateSetId: stri
       }
       
       // Save succeeded - clear pending updates for saved keys only
-      Object.keys(newFooter).forEach(key => {
-        delete (pendingUpdatesRef.current as Record<string, unknown>)[key];
+      setPendingUpdates(prev => {
+        const updated = { ...prev };
+        Object.keys(newFooter).forEach(key => {
+          delete (updated as Record<string, unknown>)[key];
+        });
+        return updated;
       });
     } catch (err) {
-      console.error('[useThemeFooter] Error syncing to global layout:', err);
+      console.error('[useThemeFooter] Error saving footer:', err);
       // Keep pending updates on error so UI stays consistent
     } finally {
-      savingRef.current = false;
+      setLocalSaving(false);
     }
-  }, [tenantId, queryClient, saveThemeSettingsAsync]);
+  }, [tenantId, templateSetId, queryClient, themeSettings?.footer, pendingUpdates]);
 
   return {
     footer,
     updateFooter,
     isLoading,
-    isSaving: isSaving || savingRef.current,
+    isSaving: isSaving || localSaving,
   };
 }
 
