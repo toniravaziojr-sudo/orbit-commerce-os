@@ -58,10 +58,13 @@ Minimizar distrações durante a finalização da compra (sem menus de navegaç�
 | Prop | Tipo | Descrição |
 |------|------|-----------|
 | `logoPosition` | `'left' \| 'center' \| 'right'` | Posição do logo no header do checkout |
+| `logoSize` | `'small' \| 'medium' \| 'large'` | Tamanho do logo (herda do global se vazio) |
 | `showSac` | boolean | Exibe dropdown de atendimento (SAC) no header |
 | `paymentMethods` | ImageSectionData | Bandeiras de pagamento (herda do global se vazio) |
 | `securitySeals` | ImageSectionData | Selos de segurança (herda do global se vazio) |
 | `copyrightText` | string | Texto customizado do copyright |
+| `menuVisualStyle` | `'classic' \| 'elegant' \| 'minimal'` | Estilo visual dos links (herda do global se vazio) |
+| `badgeSize` | `'small' \| 'medium' \| 'large'` | Tamanho dos selos (herda do global se vazio) |
 
 ### Configuração no Builder
 
@@ -97,7 +100,8 @@ A lógica de herança DEVE ser idêntica em ambos os contextos para garantir par
 ```typescript
 const headerVisualPropsToInherit = [
   'headerBgColor', 'headerTextColor', 'headerIconColor',
-  'logoUrl', 'mobileLogoUrl', 'logoWidth', 'logoHeight'
+  'logoUrl', 'mobileLogoUrl', 'logoWidth', 'logoHeight',
+  'logoSize' // Tamanho do logo (small/medium/large)
 ];
 ```
 
@@ -125,7 +129,8 @@ const effectiveLogoUrl = props.logoUrl && String(props.logoUrl).trim() !== ''
 const footerPropsToInherit = [
   'footerBgColor', 'footerTextColor', 'footerTitlesColor', 'logoUrl',
   'paymentMethods', 'securitySeals', 'shippingMethods', 'officialStores',
-  'copyrightText'
+  'copyrightText',
+  'menuVisualStyle', 'badgeSize' // Estilo visual dos menus e tamanho dos selos
 ];
 ```
 
