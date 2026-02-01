@@ -143,33 +143,106 @@ export function applyGlobalLayout(
 ): BlockNode {
   if (!content || !globalLayout) return content;
 
-  // For checkout pages: use checkout-specific configs INDEPENDENTLY
-  // The merge with global is ONLY done at initial load to get visual defaults
-  // After that, checkout configs are fully independent and editable
+  // For checkout pages: apply same inheritance logic as StorefrontCheckout.tsx
+  // This ensures visual consistency between builder preview and public storefront
   let headerConfig: BlockNode;
   let footerConfig: BlockNode;
 
   if (isCheckout) {
-    // CHECKOUT INDEPENDENCE: Use checkout configs directly WITHOUT merging global
-    // Visual properties (colors) are only inherited at initial creation
-    // All subsequent edits are stored and read from checkout_*_config exclusively
+    // SYNCHRONIZED with StorefrontCheckout.tsx logic for builder-public parity
+    const globalHeaderProps = globalLayout.header_config?.props || {};
+    const checkoutHeaderProps = globalLayout.checkout_header_config?.props || {};
+    
+    // Visual props to inherit from global when empty in checkout
+    const headerVisualPropsToInherit = [
+      'headerBgColor', 'headerTextColor', 'headerIconColor',
+      'logoUrl', 'mobileLogoUrl', 'logoWidth', 'logoHeight'
+    ];
+    
+    const mergedHeaderProps: Record<string, unknown> = {};
+    
+    // Step 1: Inherit visual props from global ONLY if checkout doesn't have them
+    for (const key of headerVisualPropsToInherit) {
+      const checkoutValue = checkoutHeaderProps[key];
+      if (checkoutValue === undefined || checkoutValue === '') {
+        if (globalHeaderProps[key] !== undefined && globalHeaderProps[key] !== '') {
+          mergedHeaderProps[key] = globalHeaderProps[key];
+        }
+      }
+    }
+    
+    // Step 2: Apply ALL checkout-specific props (ABSOLUTE PRIORITY)
+    for (const [key, value] of Object.entries(checkoutHeaderProps)) {
+      if (value !== undefined) {
+        mergedHeaderProps[key] = value;
+      }
+    }
+    
     headerConfig = {
       ...globalLayout.checkout_header_config,
       id: 'checkout-header',
-      props: {
-        // Use checkout config props directly - NO MERGE with global
-        // This ensures changes made in checkout editor are preserved
-        ...globalLayout.checkout_header_config.props,
-      },
+      props: mergedHeaderProps,
     };
+    
+    // FOOTER: Same inheritance logic
+    const globalFooterProps = globalLayout.footer_config?.props || {};
+    const checkoutFooterProps = globalLayout.checkout_footer_config?.props || {};
+    
+    // Helper to check if a value is "empty"
+    const isEmpty = (value: unknown): boolean => {
+      if (value === undefined || value === null || value === '') return true;
+      if (Array.isArray(value) && value.length === 0) return true;
+      if (typeof value === 'object' && value !== null && 'items' in value) {
+        const obj = value as { items?: unknown[] };
+        if (Array.isArray(obj.items) && obj.items.length === 0) return true;
+      }
+      return false;
+    };
+    
+    // Props that should be inherited from global when empty in checkout
+    const footerPropsToInherit = [
+      'footerBgColor', 'footerTextColor', 'footerTitlesColor', 'logoUrl',
+      'paymentMethods', 'securitySeals', 'shippingMethods', 'officialStores',
+      'copyrightText'
+    ];
+    
+    const mergedFooterProps: Record<string, unknown> = {};
+    
+    // Step 1: Start with checkout props that have values
+    for (const [key, value] of Object.entries(checkoutFooterProps)) {
+      if (footerPropsToInherit.includes(key)) {
+        if (!isEmpty(value)) {
+          mergedFooterProps[key] = value;
+        }
+      } else {
+        if (value !== undefined) {
+          mergedFooterProps[key] = value;
+        }
+      }
+    }
+    
+    // Step 2: Fill in missing inheritable props from global
+    for (const key of footerPropsToInherit) {
+      if (isEmpty(mergedFooterProps[key])) {
+        const globalValue = globalFooterProps[key];
+        if (!isEmpty(globalValue)) {
+          mergedFooterProps[key] = globalValue;
+        }
+      }
+    }
+    
+    // Step 3: Set default visibility toggles to TRUE when there's data
+    if (mergedFooterProps.showPaymentMethods === undefined && !isEmpty(mergedFooterProps.paymentMethods)) {
+      mergedFooterProps.showPaymentMethods = true;
+    }
+    if (mergedFooterProps.showSecuritySeals === undefined && !isEmpty(mergedFooterProps.securitySeals)) {
+      mergedFooterProps.showSecuritySeals = true;
+    }
+    
     footerConfig = {
       ...globalLayout.checkout_footer_config,
       id: 'checkout-footer',
-      props: {
-        // Use checkout config props directly - NO MERGE with global
-        // This ensures changes made in checkout editor are preserved
-        ...globalLayout.checkout_footer_config.props,
-      },
+      props: mergedFooterProps,
     };
   } else {
     headerConfig = globalLayout.header_config;
