@@ -3,7 +3,7 @@
 // Uses centralized useThemeSettings hook (template-wide)
 // =============================================
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Palette, ChevronDown, Settings, Type, Loader2, CreditCard, Store, Plus, Trash2, Mail, Navigation, ShieldCheck, Truck, Maximize2 } from 'lucide-react';
-import { useThemeFooter, DEFAULT_THEME_FOOTER, ThemeFooterConfig, FooterImageItem, FooterImageSectionData, MenuVisualStyle, BadgeSizeType } from '@/hooks/useThemeSettings';
+import { useThemeFooter, ThemeFooterConfig, FooterImageItem, FooterImageSectionData, MenuVisualStyle, BadgeSizeType } from '@/hooks/useThemeSettings';
 import { ImageUploader } from '../ImageUploader';
 import type { SvgPresetCategory } from '@/lib/builder/svg-presets';
 import { PaymentIconsQuickSelect } from './PaymentIconsQuickSelect';
@@ -259,8 +259,12 @@ function FooterImageSection({
 }
 
 export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps) {
-  const { footer: savedFooter, updateFooter, isLoading, isSaving } = useThemeFooter(tenantId, templateSetId);
-  const [localProps, setLocalProps] = useState<ThemeFooterConfig>(DEFAULT_THEME_FOOTER);
+  // SIMPLIFIED: Hook now handles pending updates internally - no more local state needed for image sections
+  // The hook's `footer` already includes pending updates merged with server data
+  const { footer, updateFooter, isLoading, isSaving } = useThemeFooter(tenantId, templateSetId);
+  
+  // Local state only for text inputs (debounced saves)
+  const [localTextProps, setLocalTextProps] = useState<Partial<ThemeFooterConfig>>({});
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     colors: true,
     general: false,
@@ -271,29 +275,9 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
     newsletter: false,
   });
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  // Track which sections are currently being edited to prevent sync overwrites
-  const pendingSaveKeysRef = useRef<Set<string>>(new Set());
 
-  // Sync with savedFooter ONLY for keys NOT currently pending save
-  // This allows optimistic updates to persist while still syncing non-edited data
-  useEffect(() => {
-    if (savedFooter) {
-      setLocalProps(prev => {
-        // If no pending saves, just use savedFooter
-        if (pendingSaveKeysRef.current.size === 0) {
-          return savedFooter;
-        }
-        // Otherwise, preserve pending keys from local state
-        const merged = { ...savedFooter };
-        pendingSaveKeysRef.current.forEach(key => {
-          if (key in prev) {
-            (merged as Record<string, unknown>)[key] = (prev as Record<string, unknown>)[key];
-          }
-        });
-        return merged as ThemeFooterConfig;
-      });
-    }
-  }, [savedFooter]);
+  // Effective props: merge hook's footer with local text changes
+  const localProps = { ...footer, ...localTextProps };
 
   // Debounced save for text inputs
   const debouncedSave = useCallback((updates: Partial<ThemeFooterConfig>) => {
@@ -302,49 +286,35 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
     }
     saveTimeoutRef.current = setTimeout(() => {
       updateFooter(updates);
+      // Clear local text props after save
+      setLocalTextProps(prev => {
+        const newProps = { ...prev };
+        Object.keys(updates).forEach(key => delete newProps[key as keyof ThemeFooterConfig]);
+        return newProps;
+      });
     }, 400);
   }, [updateFooter]);
 
-  // Update a single prop - immediate UI, debounced save
+  // Update a single prop - immediate UI, debounced save (for text inputs)
   const updateProp = useCallback((key: keyof ThemeFooterConfig, value: unknown) => {
-    setLocalProps(prev => {
-      const updated = { ...prev, [key]: value };
-      debouncedSave({ [key]: value });
-      return updated;
-    });
+    setLocalTextProps(prev => ({ ...prev, [key]: value }));
+    debouncedSave({ [key]: value });
   }, [debouncedSave]);
 
   // Update prop immediately (for switches)
   const updatePropImmediate = useCallback((key: keyof ThemeFooterConfig, value: unknown) => {
-    setLocalProps(prev => {
-      const updated = { ...prev, [key]: value };
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-      updateFooter({ [key]: value });
-      return updated;
-    });
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    updateFooter({ [key]: value });
   }, [updateFooter]);
 
-  // Update image section - Track pending save, update local, then persist
+  // Update image section - Direct call to hook (hook handles pending state internally)
   const updateImageSection = useCallback((key: string, value: FooterImageSectionData) => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
-    
-    // Mark this key as pending to prevent sync from overwriting
-    pendingSaveKeysRef.current.add(key);
-    
-    // Update local state immediately
-    setLocalProps(prev => ({ ...prev, [key]: value }));
-    
-    // Save to DB
     updateFooter({ [key]: value } as Partial<ThemeFooterConfig>);
-    
-    // Clear pending flag after a delay to allow cache to settle
-    setTimeout(() => {
-      pendingSaveKeysRef.current.delete(key);
-    }, 2000);
   }, [updateFooter]);
 
   const toggleSection = (key: string) => {

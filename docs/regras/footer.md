@@ -340,6 +340,9 @@ const hiddenCount = configuredItems.length - validItems.length;
 
 | Data | Alteração |
 |------|-----------|
+| 2026-02-01 | **FIX v5**: Movido gerenciamento de `pendingUpdatesRef` para o hook `useThemeFooter` — hook agora retorna `footer` já mesclado com atualizações pendentes |
+| 2026-02-01 | `FooterSettings.tsx` simplificado — não precisa mais de estado local para seções de imagem (paymentMethods, etc.) |
+| 2026-02-01 | Correção usa `saveThemeSettingsAsync` para aguardar persistência antes de limpar flags |
 | 2026-02-01 | **FIX v4**: Novo sistema de `pendingSaveKeysRef` para rastrear chaves em salvamento e evitar sobrescrita por sync |
 | 2026-02-01 | Removido `isInitializedRef` que bloqueava re-sincronização; sync agora preserva chaves pendentes |
 | 2026-02-01 | **FIX v3**: Estado local é fonte única de verdade; removida invalidação de query no `onSettled` |
