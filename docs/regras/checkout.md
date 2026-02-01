@@ -83,6 +83,52 @@ Minimizar distrações durante a finalização da compra (sem menus de navegaç�
 2. **Toggles de visibilidade**: Valor do checkout tem prioridade absoluta
 3. **Formas de pagamento/selos**: Se não definidas no checkout, herdam do footer global
 
+### Sincronização Builder ↔ Público (REGRA CRÍTICA)
+
+A lógica de herança DEVE ser idêntica em ambos os contextos para garantir paridade visual:
+
+| Contexto | Arquivo | Responsabilidade |
+|----------|---------|------------------|
+| **Builder Preview** | `useGlobalLayoutIntegration.ts` → `applyGlobalLayout()` | Merge de props com herança |
+| **Checkout Público** | `StorefrontCheckout.tsx` → `checkoutHeaderConfig` / `checkoutFooterConfig` useMemo | Merge de props com herança |
+
+#### Props Visuais Herdadas (Header)
+
+```typescript
+const headerVisualPropsToInherit = [
+  'headerBgColor', 'headerTextColor', 'headerIconColor',
+  'logoUrl', 'mobileLogoUrl', 'logoWidth', 'logoHeight'
+];
+```
+
+#### Props Visuais Herdadas (Footer)
+
+```typescript
+const footerPropsToInherit = [
+  'footerBgColor', 'footerTextColor', 'footerTitlesColor', 'logoUrl',
+  'paymentMethods', 'securitySeals', 'shippingMethods', 'officialStores',
+  'copyrightText'
+];
+```
+
+#### Algoritmo de Merge (IDÊNTICO em ambos)
+
+```
+1. Iterar sobre props visuais do checkout
+2. Se vazia (undefined, '', [], { items: [] }) → herdar do global
+3. Se preenchida → usar valor do checkout (prioridade absoluta)
+4. Para toggles de visibilidade → SEMPRE usar valor do checkout
+5. Defaults automáticos: showPaymentMethods=true e showSecuritySeals=true quando há dados
+```
+
+#### Proibições
+
+| Proibido | Motivo |
+|----------|--------|
+| Lógica de merge diferente entre Builder e Público | Causa discrepância visual |
+| Alterar apenas um dos arquivos | Quebra paridade |
+| Usar props hardcoded no checkout público | Ignora configurações do Builder |
+
 ---
 
 ## Componentes de UI
@@ -242,11 +288,22 @@ Carrinho & Checkout → aba Checkout (no Builder)
 | Se for editar... | Leia este doc primeiro |
 |------------------|------------------------|
 | `src/components/storefront/checkout/*` | Este documento |
+| `src/pages/storefront/StorefrontCheckout.tsx` | Este documento (lógica de herança header/footer) |
+| `src/hooks/useGlobalLayoutIntegration.ts` | Este documento (lógica de herança no Builder) |
 | `src/hooks/useCheckoutPayment.ts` | Este documento |
 | `src/hooks/useCheckoutTestimonials.ts` | Este documento |
 | `supabase/functions/checkout-create-order/*` | Este documento + `edge-functions.md` |
 | `supabase/functions/pagarme-create-charge/*` | Este documento + `edge-functions.md` |
 | `supabase/functions/get-order/*` | Este documento + `edge-functions.md` |
+
+### Arquivos de Sincronização (CRÍTICOS)
+
+| Arquivo | Função |
+|---------|--------|
+| `StorefrontCheckout.tsx` | Lógica de merge para checkout PÚBLICO |
+| `useGlobalLayoutIntegration.ts` | Lógica de merge para checkout no BUILDER |
+
+> ⚠️ **REGRA OBRIGATÓRIA**: Ao alterar a lógica de herança em qualquer um destes arquivos, o outro DEVE ser atualizado para manter paridade visual.
 
 ---
 

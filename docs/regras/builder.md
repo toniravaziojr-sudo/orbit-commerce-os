@@ -37,6 +37,27 @@ Para permitir que hovers e interações funcionem durante a edição, o `BlockRe
 </div>
 ```
 
+### Seleção de Blocos Aninhados (REGRA CRÍTICA)
+
+Para garantir que blocos aninhados (como Header/Footer dentro de Page) sejam selecionados corretamente, o `handleMouseDown` DEVE incluir `stopPropagation()`:
+
+```tsx
+const handleMouseDown = (e: React.MouseEvent) => {
+  if (!isEditing || !onSelect) return;
+  
+  // CRITICAL: Stop propagation to prevent parent blocks from stealing selection
+  // Sem isso, clicar no Header do Checkout seleciona o bloco Page (pai)
+  e.stopPropagation();
+  
+  // ... resto da lógica
+};
+```
+
+| Sem stopPropagation | Com stopPropagation |
+|---------------------|---------------------|
+| Clique no Header → seleciona Page (pai) | Clique no Header → seleciona Header ✓ |
+| Painel de props fica vazio | Painel de props exibe configurações do Header ✓ |
+
 ### Regras de Interatividade
 
 | Componente | Comportamento no Builder |
