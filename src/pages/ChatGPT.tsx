@@ -6,10 +6,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Plus, Sparkles, Loader2, MessageSquare, Mic, FileText, Brain, Search } from "lucide-react";
-import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useChatGPT, ChatGPTMessage, ChatMode } from "@/hooks/useChatGPT";
 import { useAuth } from "@/hooks/useAuth";
@@ -132,200 +130,188 @@ export default function ChatGPT() {
   };
 
   return (
-    <div className="h-[calc(100vh-120px)] flex flex-col animate-fade-in">
-      <PageHeader
-        title="ChatGPT"
-        description="Assistente de IA para pesquisas, consultas e muito mais"
-      />
+    <div className="h-[calc(100vh-64px)] flex gap-3 animate-fade-in -mt-2">
+      {/* Sidebar - Conversations (Compacta) */}
+      <div className="w-64 flex-shrink-0 flex flex-col bg-card border rounded-lg overflow-hidden">
+        <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
+          <span className="text-sm font-medium">Conversas</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={handleNewConversation}
+            disabled={isCreating}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+        <ScrollArea className="flex-1">
+          <div className="p-2 space-y-0.5">
+            {conversations.map((conv) => (
+              <button
+                key={conv.id}
+                onClick={() => setCurrentConversationId(conv.id)}
+                className={cn(
+                  "w-full text-left rounded-md px-2.5 py-1.5 text-sm transition-colors",
+                  currentConversationId === conv.id
+                    ? "bg-primary/10 text-primary"
+                    : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="h-3.5 w-3.5 flex-shrink-0" />
+                  <p className="truncate text-xs font-medium">{conv.title || "Nova conversa"}</p>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-0.5 pl-5">
+                  {new Date(conv.updated_at).toLocaleDateString("pt-BR")}
+                </p>
+              </button>
+            ))}
+            {conversations.length === 0 && !isLoadingConversations && (
+              <p className="text-xs text-muted-foreground text-center py-4">
+                Nenhuma conversa
+              </p>
+            )}
+          </div>
+        </ScrollArea>
+      </div>
 
-      <div className="flex-1 grid gap-4 lg:grid-cols-[280px_1fr] mt-6 min-h-0">
-        {/* Sidebar - Conversations */}
-        <Card className="flex flex-col overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between pb-3 flex-shrink-0">
-            <CardTitle className="text-sm font-medium">Conversas</CardTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={handleNewConversation}
-              disabled={isCreating}
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </CardHeader>
-          <CardContent className="flex-1 overflow-hidden p-0">
-            <ScrollArea className="h-full px-3 pb-3">
-              <div className="space-y-1">
-                {conversations.map((conv) => (
-                  <button
-                    key={conv.id}
-                    onClick={() => setCurrentConversationId(conv.id)}
+      {/* Main Chat Area (Maximizado) */}
+      <div className="flex-1 flex flex-col bg-card border rounded-lg overflow-hidden min-w-0">
+        {currentConversationId ? (
+          <>
+            {/* Messages */}
+            <ScrollArea className="flex-1 p-4">
+              <div className="space-y-4 max-w-4xl mx-auto">
+                {messages.map((message) => (
+                  <div
+                    key={message.id}
                     className={cn(
-                      "w-full text-left rounded-lg px-3 py-2 text-sm transition-colors",
-                      currentConversationId === conv.id
-                        ? "bg-primary/10 text-primary"
-                        : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                      "flex gap-3",
+                      message.role === "user" && "flex-row-reverse"
                     )}
                   >
-                    <div className="flex items-center gap-2">
-                      <MessageSquare className="h-4 w-4 flex-shrink-0" />
-                      <p className="truncate font-medium">{conv.title || "Nova conversa"}</p>
+                    <div
+                      className={cn(
+                        "flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full",
+                        message.role === "user"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-emerald-500/10 text-emerald-500"
+                      )}
+                    >
+                      {message.role === "user" ? (
+                        <span className="text-xs font-medium">
+                          {user?.email?.charAt(0).toUpperCase() || "U"}
+                        </span>
+                      ) : (
+                        <Sparkles className="h-3.5 w-3.5" />
+                      )}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {new Date(conv.updated_at).toLocaleDateString("pt-BR")}
-                    </p>
-                  </button>
-                ))}
-                {conversations.length === 0 && !isLoadingConversations && (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    Nenhuma conversa ainda
-                  </p>
-                )}
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-
-        {/* Main Chat Area */}
-        <Card className="flex flex-col overflow-hidden">
-          <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
-            {currentConversationId ? (
-              <>
-                {/* Messages */}
-                <ScrollArea className="flex-1 p-4">
-                  <div className="space-y-4 max-w-3xl mx-auto">
-                    {messages.map((message) => (
-                      <div
-                        key={message.id}
-                        className={cn(
-                          "flex gap-3",
-                          message.role === "user" && "flex-row-reverse"
-                        )}
-                      >
-                        <div
-                          className={cn(
-                            "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full",
-                            message.role === "user"
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-emerald-500/10 text-emerald-500"
-                          )}
-                        >
-                          {message.role === "user" ? (
-                            <span className="text-sm font-medium">
-                              {user?.email?.charAt(0).toUpperCase() || "U"}
-                            </span>
-                          ) : (
-                            <Sparkles className="h-4 w-4" />
-                          )}
-                        </div>
-                        <div
-                          className={cn(
-                            "flex-1 rounded-2xl px-4 py-3 max-w-[80%]",
-                            message.role === "user"
-                              ? "bg-primary text-primary-foreground ml-auto"
-                              : "bg-muted"
-                          )}
-                        >
-                          {message.role === "assistant" ? (
-                            <>
-                              {renderModeIndicator(message)}
-                              <div className="prose prose-sm dark:prose-invert max-w-none 
-                                prose-headings:mt-6 prose-headings:mb-3 prose-headings:font-bold 
-                                prose-h2:text-base prose-h3:text-sm
-                                prose-p:my-3 prose-p:leading-relaxed
-                                prose-ul:my-3 prose-ul:list-disc prose-ul:pl-5 prose-ul:space-y-2
-                                prose-ol:my-3 prose-ol:list-decimal prose-ol:pl-5 prose-ol:space-y-2
-                                prose-li:my-1.5 prose-li:leading-relaxed
-                                prose-strong:font-semibold prose-strong:text-foreground
-                                prose-a:text-primary prose-a:underline prose-a:underline-offset-2 hover:prose-a:text-primary/80
-                                [&_hr]:my-4 [&_hr]:border-border
-                                [&>*:first-child]:mt-0
-                              ">
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content || ""}</ReactMarkdown>
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              {message.content && !message.content.startsWith("[") && (
-                                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                              )}
-                              {renderAttachments(message)}
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-
-                    {/* Streaming message */}
-                    {isStreaming && streamingContent && (
-                      <div className="flex gap-3">
-                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
-                          <Sparkles className="h-4 w-4" />
-                        </div>
-                        <div className="flex-1 rounded-2xl bg-muted px-4 py-3 max-w-[80%]">
+                    <div
+                      className={cn(
+                        "flex-1 rounded-xl px-3 py-2.5 max-w-[85%]",
+                        message.role === "user"
+                          ? "bg-primary text-primary-foreground ml-auto"
+                          : "bg-muted/60"
+                      )}
+                    >
+                      {message.role === "assistant" ? (
+                        <>
+                          {renderModeIndicator(message)}
                           <div className="prose prose-sm dark:prose-invert max-w-none 
-                            prose-headings:mt-6 prose-headings:mb-3 prose-headings:font-bold 
-                            prose-h2:text-base prose-h3:text-sm
-                            prose-p:my-3 prose-p:leading-relaxed
-                            prose-ul:my-3 prose-ul:list-disc prose-ul:pl-5 prose-ul:space-y-2
-                            prose-ol:my-3 prose-ol:list-decimal prose-ol:pl-5 prose-ol:space-y-2
-                            prose-li:my-1.5 prose-li:leading-relaxed
+                            prose-headings:mt-4 prose-headings:mb-2 prose-headings:font-bold 
+                            prose-h2:text-sm prose-h3:text-xs
+                            prose-p:my-2 prose-p:leading-relaxed prose-p:text-sm
+                            prose-ul:my-2 prose-ul:list-disc prose-ul:pl-4 prose-ul:space-y-1
+                            prose-ol:my-2 prose-ol:list-decimal prose-ol:pl-4 prose-ol:space-y-1
+                            prose-li:my-1 prose-li:leading-relaxed prose-li:text-sm
                             prose-strong:font-semibold prose-strong:text-foreground
                             prose-a:text-primary prose-a:underline prose-a:underline-offset-2 hover:prose-a:text-primary/80
-                            [&_hr]:my-4 [&_hr]:border-border
+                            [&_hr]:my-3 [&_hr]:border-border
                             [&>*:first-child]:mt-0
                           ">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingContent}</ReactMarkdown>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content || ""}</ReactMarkdown>
                           </div>
-                          <span className="inline-block h-4 w-0.5 animate-pulse bg-primary ml-0.5" />
-                        </div>
-                      </div>
-                    )}
-
-                    {isStreaming && !streamingContent && (
-                      <div className="flex gap-3">
-                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
-                          <Sparkles className="h-4 w-4" />
-                        </div>
-                        <div className="flex-1 rounded-2xl bg-muted px-4 py-3 max-w-[80%]">
-                          <div className="flex items-center gap-2">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            <span className="text-sm text-muted-foreground">Pensando...</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    <div ref={messagesEndRef} />
+                        </>
+                      ) : (
+                        <>
+                          {message.content && !message.content.startsWith("[") && (
+                            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                          )}
+                          {renderAttachments(message)}
+                        </>
+                      )}
+                    </div>
                   </div>
-                </ScrollArea>
+                ))}
 
-                {/* Input Area */}
-                <ChatGPTChatInput
-                  onSend={handleSend}
-                  isStreaming={isStreaming}
-                  onCancel={cancelStreaming}
-                />
-              </>
-            ) : (
-              /* Welcome Screen */
-              <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-                <div className="h-16 w-16 rounded-full bg-emerald-500/10 flex items-center justify-center mb-4">
-                  <Sparkles className="h-8 w-8 text-emerald-500" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">Como posso ajudar?</h3>
-                <p className="text-sm text-muted-foreground mb-4 max-w-md">
-                  Use o ChatGPT para pesquisas, tirar dúvidas, gerar conteúdo e muito mais. 
-                  Comece uma nova conversa ou selecione uma existente.
-                </p>
-                <Button onClick={handleNewConversation} disabled={isCreating}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nova conversa
-                </Button>
+                {/* Streaming message */}
+                {isStreaming && streamingContent && (
+                  <div className="flex gap-3">
+                    <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
+                      <Sparkles className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="flex-1 rounded-xl bg-muted/60 px-3 py-2.5 max-w-[85%]">
+                      <div className="prose prose-sm dark:prose-invert max-w-none 
+                        prose-headings:mt-4 prose-headings:mb-2 prose-headings:font-bold 
+                        prose-h2:text-sm prose-h3:text-xs
+                        prose-p:my-2 prose-p:leading-relaxed prose-p:text-sm
+                        prose-ul:my-2 prose-ul:list-disc prose-ul:pl-4 prose-ul:space-y-1
+                        prose-ol:my-2 prose-ol:list-decimal prose-ol:pl-4 prose-ol:space-y-1
+                        prose-li:my-1 prose-li:leading-relaxed prose-li:text-sm
+                        prose-strong:font-semibold prose-strong:text-foreground
+                        prose-a:text-primary prose-a:underline prose-a:underline-offset-2 hover:prose-a:text-primary/80
+                        [&_hr]:my-3 [&_hr]:border-border
+                        [&>*:first-child]:mt-0
+                      ">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingContent}</ReactMarkdown>
+                      </div>
+                      <span className="inline-block h-3 w-0.5 animate-pulse bg-primary ml-0.5" />
+                    </div>
+                  </div>
+                )}
+
+                {isStreaming && !streamingContent && (
+                  <div className="flex gap-3">
+                    <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
+                      <Sparkles className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="flex-1 rounded-xl bg-muted/60 px-3 py-2.5 max-w-[85%]">
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span className="text-sm text-muted-foreground">Pensando...</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div ref={messagesEndRef} />
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </ScrollArea>
+
+            {/* Input Area */}
+            <ChatGPTChatInput
+              onSend={handleSend}
+              isStreaming={isStreaming}
+              onCancel={cancelStreaming}
+            />
+          </>
+        ) : (
+          /* Welcome Screen */
+          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+            <div className="h-14 w-14 rounded-full bg-emerald-500/10 flex items-center justify-center mb-3">
+              <Sparkles className="h-7 w-7 text-emerald-500" />
+            </div>
+            <h3 className="text-base font-semibold mb-1.5">Como posso ajudar?</h3>
+            <p className="text-sm text-muted-foreground mb-3 max-w-md">
+              Use para pesquisas, tirar dúvidas, gerar conteúdo e muito mais.
+            </p>
+            <Button size="sm" onClick={handleNewConversation} disabled={isCreating}>
+              <Plus className="h-4 w-4 mr-1.5" />
+              Nova conversa
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
