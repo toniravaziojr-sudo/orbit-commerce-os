@@ -152,6 +152,7 @@ export function ImageUpload({
                   variant="outline"
                   size="sm"
                   onClick={() => inputRef.current?.click()}
+                  className="hover:bg-primary hover:text-primary-foreground hover:border-primary"
                 >
                   <Upload className="h-4 w-4 mr-2" />
                   Substituir
@@ -187,6 +188,7 @@ export function ImageUpload({
                       variant="outline"
                       size="sm"
                       onClick={() => inputRef.current?.click()}
+                      className="hover:bg-primary hover:text-primary-foreground hover:border-primary"
                     >
                       <Upload className="h-4 w-4 mr-2" />
                       Upload

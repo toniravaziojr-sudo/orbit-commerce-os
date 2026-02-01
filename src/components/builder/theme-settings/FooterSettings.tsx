@@ -271,20 +271,27 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
     newsletter: false,
   });
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const localPropsRef = useRef<ThemeFooterConfig>(DEFAULT_THEME_FOOTER);
-  const isInitializedRef = useRef(false);
+  // Track which sections are currently being edited to prevent sync overwrites
+  const pendingSaveKeysRef = useRef<Set<string>>(new Set());
 
-  // Keep ref in sync with state for callbacks
+  // Sync with savedFooter ONLY for keys NOT currently pending save
+  // This allows optimistic updates to persist while still syncing non-edited data
   useEffect(() => {
-    localPropsRef.current = localProps;
-  }, [localProps]);
-
-  // Initialize ONCE from saved data, then only sync if not initialized
-  useEffect(() => {
-    if (savedFooter && !isInitializedRef.current) {
-      setLocalProps(savedFooter);
-      localPropsRef.current = savedFooter;
-      isInitializedRef.current = true;
+    if (savedFooter) {
+      setLocalProps(prev => {
+        // If no pending saves, just use savedFooter
+        if (pendingSaveKeysRef.current.size === 0) {
+          return savedFooter;
+        }
+        // Otherwise, preserve pending keys from local state
+        const merged = { ...savedFooter };
+        pendingSaveKeysRef.current.forEach(key => {
+          if (key in prev) {
+            (merged as Record<string, unknown>)[key] = (prev as Record<string, unknown>)[key];
+          }
+        });
+        return merged as ThemeFooterConfig;
+      });
     }
   }, [savedFooter]);
 
@@ -319,20 +326,25 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
     });
   }, [updateFooter]);
 
-  // Update image section - Update local state FIRST, then save to DB
-  // This ensures UI is immediately updated and stays stable
+  // Update image section - Track pending save, update local, then persist
   const updateImageSection = useCallback((key: string, value: FooterImageSectionData) => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
-    // Update local state IMMEDIATELY - this is the source of truth for UI
-    setLocalProps(prev => {
-      const updated = { ...prev, [key]: value };
-      localPropsRef.current = updated;
-      return updated;
-    });
-    // Then save to DB (optimistic update in cache is now secondary)
+    
+    // Mark this key as pending to prevent sync from overwriting
+    pendingSaveKeysRef.current.add(key);
+    
+    // Update local state immediately
+    setLocalProps(prev => ({ ...prev, [key]: value }));
+    
+    // Save to DB
     updateFooter({ [key]: value } as Partial<ThemeFooterConfig>);
+    
+    // Clear pending flag after a delay to allow cache to settle
+    setTimeout(() => {
+      pendingSaveKeysRef.current.delete(key);
+    }, 2000);
   }, [updateFooter]);
 
   const toggleSection = (key: string) => {

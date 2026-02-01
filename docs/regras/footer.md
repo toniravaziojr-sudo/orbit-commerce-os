@@ -340,9 +340,9 @@ const hiddenCount = configuredItems.length - validItems.length;
 
 | Data | Alteração |
 |------|-----------|
-| 2026-02-01 | **FIX v3**: Estado local é agora fonte única de verdade; removida invalidação de query no `onSettled` que causava race condition |
-| 2026-02-01 | Adicionado `localPropsRef` e `isInitializedRef` para controle preciso de sincronização |
-| 2026-02-01 | `updateImageSection` atualiza estado local ANTES de salvar no banco |
+| 2026-02-01 | **FIX v4**: Novo sistema de `pendingSaveKeysRef` para rastrear chaves em salvamento e evitar sobrescrita por sync |
+| 2026-02-01 | Removido `isInitializedRef` que bloqueava re-sincronização; sync agora preserva chaves pendentes |
+| 2026-02-01 | **FIX v3**: Estado local é fonte única de verdade; removida invalidação de query no `onSettled` |
 | 2026-02-01 | **CRITICAL FIX**: Corrigido bug de persistência de selos usando optimistic updates no useThemeSettings |
 | 2026-02-01 | Corrigido bug de stale closures em FooterImageSection que impedia adicionar/remover/substituir selos |
 | 2026-02-01 | Badges de Pagamento/Frete reduzidos em 30% (medium: h-4/h-5 era h-6/h-8) |

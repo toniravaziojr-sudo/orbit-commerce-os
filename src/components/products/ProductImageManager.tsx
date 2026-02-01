@@ -467,7 +467,12 @@ export function ProductImageManager({ productId, images, onImagesChange }: Produ
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
             disabled={isUploading}
           />
-          <Button type="button" variant="outline" disabled={isUploading}>
+          <Button 
+            type="button" 
+            variant="outline" 
+            disabled={isUploading}
+            className="hover:bg-primary hover:text-primary-foreground hover:border-primary"
+          >
             {isUploading ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : (
