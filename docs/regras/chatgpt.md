@@ -68,6 +68,7 @@ O módulo ChatGPT possui restrições de acesso baseadas no plano do tenant:
 | Componente | Caminho | Descrição |
 |------------|---------|-----------|
 | Página Principal | `src/pages/ChatGPT.tsx` | Interface completa do chat |
+| Input Multimodal | `src/components/chatgpt/ChatGPTChatInput.tsx` | Input com áudio e anexos |
 | Hook de Estado | `src/hooks/useChatGPT.ts` | Gerenciamento de conversas e mensagens |
 | Edge Function | `supabase/functions/chatgpt-chat/index.ts` | Proxy para AI Gateway |
 
@@ -89,7 +90,34 @@ O módulo ChatGPT possui restrições de acesso baseadas no plano do tenant:
 - **Streaming de respostas** - Respostas aparecem em tempo real
 - **Histórico independente** - Separado do Auxiliar de Comando
 - **Markdown rendering** - Suporte completo a formatação com `prose` classes
-- **Modelo utilizado** - `openai/gpt-5` via Lovable AI Gateway
+- **Modelos utilizados:**
+  - `openai/gpt-5` - Padrão para texto
+  - `google/gemini-2.5-pro` - Ativado automaticamente quando há imagens
+
+### 4.2 Suporte Multimodal
+
+| Tipo | Suporte | Detalhes |
+|------|---------|----------|
+| **Imagens** | ✅ | Upload de JPG, PNG, GIF, WebP. Análise via Vision API |
+| **Áudio** | ✅ | Gravação direta no navegador. Transcrição automática |
+| **Arquivos** | ✅ | PDF, DOC, DOCX, TXT, CSV, XLS, XLSX |
+
+**Componentes:**
+- `ChatGPTChatInput.tsx` - Input unificado com gravação de áudio e upload
+- Limite de arquivos: 5 por mensagem
+- Tamanho máximo: 10MB por arquivo
+
+**Fluxo de áudio:**
+1. Usuário clica no ícone de microfone
+2. Gravação inicia com indicador visual de tempo
+3. Ao parar, áudio é enviado como anexo
+4. IA recebe referência e processa conteúdo
+
+**Fluxo de arquivos/imagens:**
+1. Usuário clica no ícone de anexo ou arrasta arquivo
+2. Preview é exibido antes do envio
+3. Arquivos são salvos no Drive do sistema
+4. URL é enviada para a IA com o tipo MIME
 
 ### 4.2 Interface
 
@@ -122,13 +150,25 @@ POST /functions/v1/chatgpt-chat
 {
   messages: Array<{
     role: 'user' | 'assistant';
-    content: string;
+    content: string | Array<{
+      type: 'text' | 'image_url';
+      text?: string;
+      image_url?: { url: string };
+    }>;
   }>;
-  tenant_id: string; // Para registro de uso
+  tenant_id: string;
+  hasAttachments?: boolean; // Indica presença de mídia
 }
 ```
 
-### 5.4 Response
+### 5.4 Seleção Automática de Modelo
+
+| Condição | Modelo Utilizado |
+|----------|------------------|
+| Apenas texto | `openai/gpt-5` |
+| Contém imagens | `google/gemini-2.5-pro` |
+
+### 5.5 Response
 
 - **Content-Type:** `text/event-stream`
 - **Formato:** Server-Sent Events (SSE)
