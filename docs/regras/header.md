@@ -42,10 +42,29 @@
 
 | Prioridade | Fonte | Descrição |
 |------------|-------|-----------|
-| 1 | `header_config` | JSON em `storefront_global_layout` |
-| 2 | `store_settings` | Dados do tenant (logo, nome, contato) |
-| 3 | `menus` (location='header') | Menu de navegação do header |
-| 4 | Dados Demo | Fallback quando `isEditing=true` e sem dados reais |
+| 1 | `props.logoUrl` (BlockNode) | Logo definida na configuração do header/checkout |
+| 2 | `header_config` | JSON em `storefront_global_layout` |
+| 3 | `store_settings` | Dados do tenant (logo, nome, contato) |
+| 4 | `menus` (location='header') | Menu de navegação do header |
+| 5 | Dados Demo | Fallback quando `isEditing=true` e sem dados reais |
+
+### Herança de Logo (REGRA CRÍTICA)
+
+A logo segue uma cadeia de prioridade implementada em `StorefrontHeaderContent.tsx`:
+
+```typescript
+// Logo URL - props.logoUrl tem PRIORIDADE sobre storeSettings.logo_url
+const effectiveLogoUrl = props.logoUrl && String(props.logoUrl).trim() !== '' 
+  ? String(props.logoUrl) 
+  : storeSettings?.logo_url || '';
+```
+
+| Prioridade | Fonte | Quando Usa |
+|------------|-------|------------|
+| 1 | `props.logoUrl` | Se definida e não vazia no header_config ou checkout_header_config |
+| 2 | `storeSettings.logo_url` | Fallback se props.logoUrl não está definida |
+
+> ⚠️ **PROIBIDO**: Ignorar `props.logoUrl` e usar diretamente `storeSettings.logo_url`. Isso quebra a herança entre checkout e global.
 
 ---
 
