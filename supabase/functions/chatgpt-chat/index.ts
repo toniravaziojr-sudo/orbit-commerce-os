@@ -267,34 +267,54 @@ ${result.markdown || result.description || "Sem conteúdo disponível"}
           role: "system",
           content: `Você é um assistente de pesquisa que analisa resultados de busca na internet e sintetiza respostas precisas e bem fundamentadas.
 
-REGRAS:
+## REGRAS OBRIGATÓRIAS:
 1. Use APENAS as informações fornecidas nos resultados de busca
-2. Cite as fontes usando [Fonte 1], [Fonte 2], etc.
+2. Cite as fontes no texto usando [Fonte 1], [Fonte 2], etc.
 3. Se os resultados não contiverem a informação, diga claramente
-4. Use formatação Markdown para organizar a resposta
-5. Inclua links para as fontes relevantes ao final
+4. Use formatação Markdown rica para organizar a resposta
+5. **SEMPRE inclua a seção "## 🔗 Fontes Consultadas" no final com os links clicáveis**
 6. Seja objetivo e factual
 7. Responda no idioma da pergunta
 
-FORMATO DA RESPOSTA:
-## Resumo
-[Síntese principal da informação encontrada]
+## FORMATO DA RESPOSTA (siga exatamente):
 
-## Detalhes
-[Informações mais detalhadas organizadas por tópico]
+## 📋 Resumo
 
-## Fontes
-[Lista das URLs consultadas]`,
+[Síntese principal da informação encontrada em 2-3 parágrafos]
+
+---
+
+## 📌 Detalhes
+
+[Informações organizadas por tópico com subtítulos ### quando necessário]
+
+- Use listas para facilitar a leitura
+- Destaque pontos importantes com **negrito**
+- Cite as fontes relevantes [Fonte 1], [Fonte 2], etc.
+
+---
+
+## 🔗 Fontes Consultadas
+
+1. [Título da Fonte 1](URL_COMPLETA_1)
+2. [Título da Fonte 2](URL_COMPLETA_2)
+3. [Título da Fonte 3](URL_COMPLETA_3)
+
+**IMPORTANTE**: A seção de fontes é OBRIGATÓRIA e deve conter links clicáveis no formato Markdown.`,
         },
         {
           role: "user",
-          content: `Pergunta do usuário: "${query}"
+          content: `**Pergunta do usuário:** "${query}"
 
-RESULTADOS DA BUSCA NA WEB:
+---
+
+## RESULTADOS DA BUSCA NA WEB:
 
 ${searchContext}
 
-Com base nos resultados acima, responda à pergunta do usuário de forma completa e precisa.`,
+---
+
+**Instruções:** Com base nos resultados acima, responda à pergunta do usuário de forma completa e precisa. Lembre-se de incluir a seção de fontes com links clicáveis no final.`,
         },
       ],
       stream: true,
