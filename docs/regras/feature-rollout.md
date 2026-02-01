@@ -1,46 +1,41 @@
 # Feature Rollout — Regras Obrigatórias
 
 > **Status:** 🟩 Ativo  
-> **Última atualização:** 2026-01-28
+> **Última atualização:** 2026-02-01
 
 ---
 
-## Regra Principal (NÃO NEGOCIÁVEL)
+## Regra Principal (PADRÃO)
 
-**TODA** nova funcionalidade, ajuste, correção ou mudança no sistema referente aos módulos de usuário/cliente **DEVE**:
+**TODA** nova funcionalidade, ajuste, correção ou mudança no sistema **DEVE**:
 
-1. Ser implementada e testada **EXCLUSIVAMENTE** na conta do admin (`toniravaziojr@gmail.com`) primeiro
-2. Permanecer restrita ao admin até aprovação explícita do usuário
-3. Só então ser disponibilizada para outros usuários
+1. Ser implementada para **TODOS os tenants** (incluindo especiais e admin)
+2. Não há necessidade de rollout gradual por padrão
+3. Todas as lojas recebem a mesma funcionalidade simultaneamente
 
 ---
 
-## Fluxo Obrigatório
+## Exceção: Rollout Específico
+
+Quando o usuário **ESPECIFICAR EXPLICITAMENTE** que uma feature deve ser implementada apenas para um tenant específico:
 
 ```
-1. Usuário solicita feature/ajuste
-   ↓
-2. Lovable implementa APENAS no tenant admin
-   ↓
-3. Usuário testa e valida
-   ↓
-4. Se OK: Usuário pede "disponibilizar para outros usuários"
-   ↓
-5. Lovable remove restrição e libera globalmente
+Exemplo de comando do usuário:
+"Implementar X apenas no tenant [nome/id]"
+"Essa feature é só para a loja respeiteohomem"
+"Testar isso apenas no admin"
 ```
 
----
-
-## Implementação Técnica
+Nesse caso, usar uma das abordagens abaixo:
 
 ### Opção 1: Verificação de Operador de Plataforma
 
 ```typescript
-// Para features que devem aparecer APENAS para o admin testando
-import { useIsSpecialTenant } from "@/hooks/useIsSpecialTenant";
+// Para features apenas para o admin testando
+import { usePlatformOperator } from "@/hooks/usePlatformOperator";
 import { useAdminMode } from "@/contexts/AdminModeContext";
 
-const { isPlatformOperator } = useIsSpecialTenant();
+const { isPlatformOperator } = usePlatformOperator();
 const { isStoreMode } = useAdminMode();
 
 // Exibe apenas para operador da plataforma em modo loja
@@ -53,14 +48,14 @@ if (isPlatformOperator && isStoreMode) {
 
 ```sql
 -- Tabela tenant_features ou similar
-INSERT INTO tenant_features (tenant_id, feature_key, is_enabled)
-VALUES ('admin-tenant-id', 'new_feature', true);
+INSERT INTO tenant_feature_overrides (tenant_id, feature_key, is_enabled)
+VALUES ('tenant-id-especifico', 'new_feature', true);
 ```
 
 ### Opção 3: Lista de Tenants Permitidos
 
 ```typescript
-const BETA_TENANTS = ['admin-tenant-id'];
+const BETA_TENANTS = ['tenant-id-especifico'];
 
 const isBetaTenant = BETA_TENANTS.includes(currentTenant?.id);
 if (isBetaTenant) {
@@ -70,46 +65,25 @@ if (isBetaTenant) {
 
 ---
 
-## Identificação do Admin
-
-| Campo | Valor |
-|-------|-------|
-| Email | `toniravaziojr@gmail.com` |
-| Verificação | `isPlatformOperator === true` |
-| Modo | `isStoreMode === true` (Minha Loja) |
-
----
-
-## Proibições
-
-| ❌ Proibido | ✅ Correto |
-|-------------|------------|
-| Implementar feature diretamente para todos | Implementar apenas para admin primeiro |
-| Assumir que feature está OK sem teste | Esperar validação explícita do usuário |
-| Liberar para todos sem comando explícito | Aguardar "disponibilizar para outros" |
-| Modificar lógica que afeta outros tenants | Isolar mudanças no tenant admin |
-
----
-
 ## Comandos do Usuário
 
 | Comando | Ação |
 |---------|------|
-| "Implementar X" | Implementar apenas no admin |
-| "Testar X" | Executar testes no admin |
+| "Implementar X" | Implementar para **TODOS** os tenants |
+| "Ajustar X" | Ajustar para **TODOS** os tenants |
+| "Implementar X apenas no tenant Y" | Restringir ao tenant especificado |
+| "Testar X apenas no admin" | Restringir ao admin |
 | "Disponibilizar para outros" | Remover restrição e liberar globalmente |
-| "Ajustar X" | Ajustar apenas no admin até nova validação |
 
 ---
 
-## Exceções
+## Exceções Técnicas
 
-Features que **NÃO** precisam seguir este fluxo:
+Features que podem ter comportamento diferente por natureza:
 
-- Correções de bugs críticos que afetam todos
-- Atualizações de segurança
-- Mudanças em infraestrutura/backend que não afetam UI
-- Documentação
+- Funcionalidades de **Platform Admin** (Health Monitor, etc.) — sempre restritas via `PlatformAdminGate`
+- Funcionalidades por **Plano** — controladas via `useTenantAccess` e `FEATURE_CONFIG`
+- Funcionalidades **Especiais** — controladas via `is_special` na tabela tenants
 
 ---
 
@@ -117,7 +91,7 @@ Features que **NÃO** precisam seguir este fluxo:
 
 Esta regra existe para:
 
-1. **Evitar bugs** em produção para clientes reais
-2. **Permitir testes** antes de rollout global
-3. **Garantir qualidade** das implementações
-4. **Dar controle** ao usuário sobre o que é liberado
+1. **Simplificar o desenvolvimento** — menos condicionais, menos código
+2. **Garantir paridade** — todos os clientes têm a mesma experiência
+3. **Acelerar entregas** — sem necessidade de rollout gradual
+4. **Manter flexibilidade** — rollout específico quando explicitamente solicitado
