@@ -101,6 +101,24 @@ const headerVisualPropsToInherit = [
 ];
 ```
 
+> ⚠️ **IMPORTANTE**: A prop `logoUrl` é herdada do global para o checkout APENAS se não estiver definida no `checkout_header_config`. Quando definida, tem prioridade absoluta.
+
+#### Renderização da Logo (StorefrontHeaderContent)
+
+A lógica de renderização em `StorefrontHeaderContent.tsx` respeita a herança:
+
+```typescript
+// Logo URL - props.logoUrl tem PRIORIDADE sobre storeSettings.logo_url
+const effectiveLogoUrl = props.logoUrl && String(props.logoUrl).trim() !== '' 
+  ? String(props.logoUrl) 
+  : storeSettings?.logo_url || '';
+```
+
+**Fluxo completo de herança da logo:**
+1. `checkout_header_config.props.logoUrl` — se definida no checkout, usa esta
+2. `header_config.props.logoUrl` — se herança do global está ativa e global tem logo
+3. `storeSettings.logo_url` — fallback final do tenant
+
 #### Props Visuais Herdadas (Footer)
 
 ```typescript
