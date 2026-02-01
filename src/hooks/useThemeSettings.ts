@@ -421,9 +421,42 @@ export function useThemeSettings(tenantId: string | undefined, templateSetId: st
 
       return updatedThemeSettings;
     },
-    onSuccess: () => {
+    onMutate: async (updates: Partial<ThemeSettings>) => {
+      // OPTIMISTIC UPDATE: Cancel outgoing refetches to prevent race conditions
+      await queryClient.cancelQueries({ 
+        queryKey: THEME_SETTINGS_KEYS.all(tenantId!, templateSetId!) 
+      });
+      
+      // Snapshot current value
+      const previousSettings = queryClient.getQueryData(
+        THEME_SETTINGS_KEYS.all(tenantId!, templateSetId!)
+      );
+      
+      // Optimistically update cache with merged settings
+      queryClient.setQueryData(
+        THEME_SETTINGS_KEYS.all(tenantId!, templateSetId!),
+        (old: ThemeSettings | undefined) => ({
+          ...old,
+          ...updates,
+        })
+      );
+      
+      return { previousSettings };
+    },
+    onError: (error, _updates, context) => {
+      console.error('[useThemeSettings] Save error:', error);
+      toast.error('Erro ao salvar configurações do tema');
+      // Rollback on error
+      if (context?.previousSettings) {
+        queryClient.setQueryData(
+          THEME_SETTINGS_KEYS.all(tenantId!, templateSetId!),
+          context.previousSettings
+        );
+      }
+    },
+    onSettled: () => {
+      // Refetch after mutation settles to ensure consistency
       if (tenantId && templateSetId) {
-        // Invalidate all theme settings queries for this template
         queryClient.invalidateQueries({ 
           queryKey: THEME_SETTINGS_KEYS.all(tenantId, templateSetId) 
         });
@@ -432,10 +465,6 @@ export function useThemeSettings(tenantId: string | undefined, templateSetId: st
           queryKey: ['global-layout-editor', tenantId] 
         });
       }
-    },
-    onError: (error) => {
-      console.error('[useThemeSettings] Save error:', error);
-      toast.error('Erro ao salvar configurações do tema');
     },
   });
 

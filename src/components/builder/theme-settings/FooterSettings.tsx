@@ -271,13 +271,12 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
     newsletter: false,
   });
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const initialLoadDone = useRef(false);
 
-  // Initialize local state from hook data
+  // CRITICAL FIX: Always sync localProps with savedFooter to prevent stale state
+  // This ensures optimistic updates from the hook are reflected in the UI
   useEffect(() => {
-    if (savedFooter && !initialLoadDone.current) {
+    if (savedFooter) {
       setLocalProps(savedFooter);
-      initialLoadDone.current = true;
     }
   }, [savedFooter]);
 
@@ -312,16 +311,14 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
     });
   }, [updateFooter]);
 
-  // Update image section
+  // Update image section - ONLY call updateFooter, let optimistic update handle UI sync
+  // The useEffect will receive the updated savedFooter and sync to localProps
   const updateImageSection = useCallback((key: string, value: FooterImageSectionData) => {
-    setLocalProps(prev => {
-      const updated = { ...prev, [key]: value };
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-      updateFooter({ [key]: value } as Partial<ThemeFooterConfig>);
-      return updated;
-    });
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    // Call updateFooter which does optimistic cache update
+    updateFooter({ [key]: value } as Partial<ThemeFooterConfig>);
   }, [updateFooter]);
 
   const toggleSection = (key: string) => {
