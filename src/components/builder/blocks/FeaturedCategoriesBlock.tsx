@@ -64,11 +64,13 @@ export function FeaturedCategoriesBlock({
     ? items 
     : categoryIds.map(id => ({ categoryId: id }));
 
-  // Fetch categories
+  // Fetch categories with error boundary protection
   useEffect(() => {
+    let isMounted = true;
+    
     const fetchCategories = async () => {
       try {
-        setIsLoading(true);
+        if (isMounted) setIsLoading(true);
         
         const categoryIdsToFetch = normalizedItems.map(item => item.categoryId).filter(Boolean);
         
@@ -85,7 +87,13 @@ export function FeaturedCategoriesBlock({
 
         const { data, error } = await query.order('sort_order', { ascending: true });
 
-        if (error) throw error;
+        if (!isMounted) return;
+        
+        if (error) {
+          console.error('Error fetching categories:', error);
+          setCategories([]);
+          return;
+        }
         
         // Merge category data with config (mini images)
         const mergedData = (data || []).map(cat => {
@@ -105,13 +113,17 @@ export function FeaturedCategoriesBlock({
         setCategories(mergedData);
       } catch (error) {
         console.error('Error fetching categories:', error);
-        setCategories([]);
+        if (isMounted) setCategories([]);
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     };
 
     fetchCategories();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [JSON.stringify(normalizedItems)]);
 
   if (isLoading) {
