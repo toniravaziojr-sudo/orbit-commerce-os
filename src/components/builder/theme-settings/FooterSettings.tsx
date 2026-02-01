@@ -91,6 +91,7 @@ function FooterImageSection({
   svgPresetCategory?: SvgPresetCategory;
   showQuickSelect?: boolean;
 }) {
+  // Always derive fresh data from localProps to ensure sync
   const sectionData = (localProps[sectionKey] as FooterImageSectionData) || { title, items: [] };
   const items = sectionData.items || [];
   const [openItems, setOpenItems] = useState<Record<number, boolean>>({});
@@ -99,34 +100,46 @@ function FooterImageSection({
     setOpenItems(prev => ({ ...prev, [index]: !prev[index] }));
   };
 
-  const handleUpdateSection = (newData: Partial<FooterImageSectionData>) => {
-    updateSection(sectionKey, { ...sectionData, ...newData });
-  };
+  // FIXED: Always read fresh sectionData from localProps to avoid stale closures
+  const handleUpdateSection = useCallback((newData: Partial<FooterImageSectionData>) => {
+    const currentData = (localProps[sectionKey] as FooterImageSectionData) || { title, items: [] };
+    updateSection(sectionKey, { ...currentData, ...newData });
+  }, [localProps, sectionKey, title, updateSection]);
 
-  const addItem = () => {
-    const newIndex = items.length;
-    handleUpdateSection({ items: [...items, { imageUrl: '', linkUrl: '' }] });
+  const addItem = useCallback(() => {
+    const currentData = (localProps[sectionKey] as FooterImageSectionData) || { title, items: [] };
+    const currentItems = currentData.items || [];
+    const newIndex = currentItems.length;
+    updateSection(sectionKey, { ...currentData, items: [...currentItems, { imageUrl: '', linkUrl: '' }] });
     setOpenItems(prev => ({ ...prev, [newIndex]: true }));
-  };
+  }, [localProps, sectionKey, title, updateSection]);
 
-  const addMultipleItems = (newItems: { imageUrl: string; linkUrl: string }[]) => {
-    handleUpdateSection({ items: [...items, ...newItems] });
-  };
+  const addMultipleItems = useCallback((newItems: { imageUrl: string; linkUrl: string }[]) => {
+    const currentData = (localProps[sectionKey] as FooterImageSectionData) || { title, items: [] };
+    const currentItems = currentData.items || [];
+    updateSection(sectionKey, { ...currentData, items: [...currentItems, ...newItems] });
+  }, [localProps, sectionKey, title, updateSection]);
 
-  const removeItem = (index: number) => {
-    const newItems = items.filter((_, i) => i !== index);
-    handleUpdateSection({ items: newItems });
-    const newOpenItems = { ...openItems };
-    delete newOpenItems[index];
-    setOpenItems(newOpenItems);
-  };
+  const removeItem = useCallback((index: number) => {
+    const currentData = (localProps[sectionKey] as FooterImageSectionData) || { title, items: [] };
+    const currentItems = currentData.items || [];
+    const newItems = currentItems.filter((_, i) => i !== index);
+    updateSection(sectionKey, { ...currentData, items: newItems });
+    setOpenItems(prev => {
+      const newOpenItems = { ...prev };
+      delete newOpenItems[index];
+      return newOpenItems;
+    });
+  }, [localProps, sectionKey, title, updateSection]);
 
-  const updateItem = (index: number, field: keyof FooterImageItem, value: string) => {
-    const newItems = items.map((item, i) => 
+  const updateItem = useCallback((index: number, field: keyof FooterImageItem, value: string) => {
+    const currentData = (localProps[sectionKey] as FooterImageSectionData) || { title, items: [] };
+    const currentItems = currentData.items || [];
+    const newItems = currentItems.map((item, i) => 
       i === index ? { ...item, [field]: value } : item
     );
-    handleUpdateSection({ items: newItems });
-  };
+    updateSection(sectionKey, { ...currentData, items: newItems });
+  }, [localProps, sectionKey, title, updateSection]);
 
   const getItemPreview = (item: FooterImageItem) => {
     if (item.imageUrl) {

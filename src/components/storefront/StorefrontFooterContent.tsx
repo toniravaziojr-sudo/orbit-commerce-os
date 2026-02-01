@@ -348,20 +348,23 @@ export function StorefrontFooterContent({
   const badgeSize = (configProps.badgeSize as 'small' | 'medium' | 'large') || 'medium';
   
   // Badge size classes mapping
+  // UPDATED 2026-02-01: Payment badges reduced by ~30% per user request
+  // Original medium was h-6/h-8, now h-4/h-5
+  // Proportionally adjusted small and large
   const badgeSizeClasses = {
-    // Payment & Shipping: smaller icons
+    // Payment & Shipping: reduced icons (30% smaller than before)
     standard: {
-      small: 'h-4 md:h-6',
-      medium: 'h-6 md:h-8',
-      large: 'h-8 md:h-10',
+      small: 'h-3 md:h-4',       // was h-4 md:h-6
+      medium: 'h-4 md:h-5',      // was h-6 md:h-8
+      large: 'h-5 md:h-7',       // was h-8 md:h-10
     },
-    // Security Seals: larger icons
+    // Security Seals: larger icons (unchanged)
     security: {
       small: 'h-6 md:h-8',
       medium: 'h-10 md:h-12',
       large: 'h-12 md:h-14',
     },
-    // Official Stores: medium icons
+    // Official Stores: medium icons (unchanged)
     stores: {
       small: 'h-6 md:h-8',
       medium: 'h-8 md:h-10',
