@@ -42,12 +42,12 @@ export function UnsavedChangesDialog({
             Você tem alterações que ainda não foram salvas. O que deseja fazer?
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter className="flex-col gap-2 sm:flex-row sm:gap-2">
+        <AlertDialogFooter className="!flex !flex-col !gap-2 sm:!flex-row sm:!justify-end">
           <AlertDialogCancel asChild>
             <Button 
               variant="outline" 
               disabled={isSaving}
-              className="!bg-white !text-slate-900 !border-slate-300 hover:!bg-slate-100"
+              className="!bg-white !text-slate-900 !border-slate-300 hover:!bg-slate-100 !w-full sm:!w-auto"
             >
               Continuar editando
             </Button>
@@ -59,7 +59,7 @@ export function UnsavedChangesDialog({
               onLeaveWithoutSaving();
             }}
             disabled={isSaving}
-            className="gap-2 !bg-white !text-red-600 !border-red-300 hover:!bg-red-50"
+            className="!gap-2 !bg-white !text-red-600 !border-red-300 hover:!bg-red-50 !w-full sm:!w-auto"
           >
             <LogOut className="h-4 w-4" />
             Sair sem salvar
@@ -68,7 +68,7 @@ export function UnsavedChangesDialog({
             <Button
               onClick={onSaveAndLeave}
               disabled={isSaving}
-              className="gap-2 !bg-blue-600 !text-white hover:!bg-blue-700"
+              className="!gap-2 !bg-blue-600 !text-white hover:!bg-blue-700 !w-full sm:!w-auto"
             >
               <Save className="h-4 w-4" />
               {isSaving ? 'Salvando...' : 'Salvar e sair'}
