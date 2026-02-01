@@ -229,7 +229,18 @@ export default function ChatGPT() {
                           {message.role === "assistant" ? (
                             <>
                               {renderModeIndicator(message)}
-                              <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:mt-4 prose-headings:mb-2 prose-headings:font-semibold prose-p:my-2 prose-ul:my-2 prose-ul:list-disc prose-ul:pl-4 prose-ol:my-2 prose-ol:list-decimal prose-ol:pl-4 prose-li:my-1 prose-strong:font-semibold prose-strong:text-foreground [&_br]:block [&_br]:my-1">
+                              <div className="prose prose-sm dark:prose-invert max-w-none 
+                                prose-headings:mt-6 prose-headings:mb-3 prose-headings:font-bold 
+                                prose-h2:text-base prose-h3:text-sm
+                                prose-p:my-3 prose-p:leading-relaxed
+                                prose-ul:my-3 prose-ul:list-disc prose-ul:pl-5 prose-ul:space-y-2
+                                prose-ol:my-3 prose-ol:list-decimal prose-ol:pl-5 prose-ol:space-y-2
+                                prose-li:my-1.5 prose-li:leading-relaxed
+                                prose-strong:font-semibold prose-strong:text-foreground
+                                prose-a:text-primary prose-a:underline prose-a:underline-offset-2 hover:prose-a:text-primary/80
+                                [&_hr]:my-4 [&_hr]:border-border
+                                [&>*:first-child]:mt-0
+                              ">
                                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content || ""}</ReactMarkdown>
                               </div>
                             </>
@@ -252,7 +263,18 @@ export default function ChatGPT() {
                           <Sparkles className="h-4 w-4" />
                         </div>
                         <div className="flex-1 rounded-2xl bg-muted px-4 py-3 max-w-[80%]">
-                          <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:mt-4 prose-headings:mb-2 prose-headings:font-semibold prose-p:my-2 prose-ul:my-2 prose-ul:list-disc prose-ul:pl-4 prose-ol:my-2 prose-ol:list-decimal prose-ol:pl-4 prose-li:my-1 prose-strong:font-semibold prose-strong:text-foreground [&_br]:block [&_br]:my-1">
+                          <div className="prose prose-sm dark:prose-invert max-w-none 
+                            prose-headings:mt-6 prose-headings:mb-3 prose-headings:font-bold 
+                            prose-h2:text-base prose-h3:text-sm
+                            prose-p:my-3 prose-p:leading-relaxed
+                            prose-ul:my-3 prose-ul:list-disc prose-ul:pl-5 prose-ul:space-y-2
+                            prose-ol:my-3 prose-ol:list-decimal prose-ol:pl-5 prose-ol:space-y-2
+                            prose-li:my-1.5 prose-li:leading-relaxed
+                            prose-strong:font-semibold prose-strong:text-foreground
+                            prose-a:text-primary prose-a:underline prose-a:underline-offset-2 hover:prose-a:text-primary/80
+                            [&_hr]:my-4 [&_hr]:border-border
+                            [&>*:first-child]:mt-0
+                          ">
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingContent}</ReactMarkdown>
                           </div>
                           <span className="inline-block h-4 w-0.5 animate-pulse bg-primary ml-0.5" />
