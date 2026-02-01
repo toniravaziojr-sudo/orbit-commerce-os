@@ -397,6 +397,10 @@ export function BlockRenderer({
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!isEditing || !onSelect) return;
     
+    // CRITICAL: Stop propagation to prevent parent blocks from stealing selection
+    // This ensures the clicked block (e.g., Header/Footer) is selected, not the parent Page
+    e.stopPropagation();
+    
     const target = e.target as HTMLElement;
     
     // For interactive elements (buttons, links), DON'T prevent default
