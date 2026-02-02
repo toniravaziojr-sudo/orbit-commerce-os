@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
 import { useBuilderStore } from '@/hooks/useBuilderStore';
@@ -122,6 +122,7 @@ export function VisualBuilder({
 }: VisualBuilderProps) {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   
   // Safe Mode: ?safe=1 renders placeholders only (for debugging)
   const isSafeMode = searchParams.get('safe') === '1';
@@ -614,6 +615,27 @@ export function VisualBuilder({
         if (draftPageSettings?.hasDraftChanges) {
           draftPageSettings.clearDraft();
         }
+        
+        // CRITICAL: Invalidate React Query cache to force UI refresh
+        // Without this, PageSettingsContent shows stale data after save
+        const effectiveTemplateSetId = templateSetId || 'legacy';
+        queryClient.invalidateQueries({ queryKey: ['template-set-content', templateSetId] });
+        queryClient.invalidateQueries({ queryKey: ['page-settings', tenantId] });
+        
+        // Invalidate page-specific settings cache
+        if (pageType === 'cart') {
+          queryClient.invalidateQueries({ queryKey: ['cart-settings-builder', tenantId, effectiveTemplateSetId] });
+        } else if (pageType === 'checkout') {
+          queryClient.invalidateQueries({ queryKey: ['checkout-settings-builder', tenantId, effectiveTemplateSetId] });
+        } else if (pageType === 'product') {
+          queryClient.invalidateQueries({ queryKey: ['product-settings-builder', tenantId, effectiveTemplateSetId] });
+        } else if (pageType === 'category') {
+          queryClient.invalidateQueries({ queryKey: ['category-settings-builder', tenantId, effectiveTemplateSetId] });
+        } else if (pageType === 'thank_you') {
+          queryClient.invalidateQueries({ queryKey: ['thankYou-settings-builder', tenantId, effectiveTemplateSetId] });
+        } else if (pageType === 'home') {
+          queryClient.invalidateQueries({ queryKey: ['home-settings-builder', tenantId, effectiveTemplateSetId] });
+        }
       }
 
       // STEP 2: Extract Header/Footer from current content
@@ -677,7 +699,7 @@ export function VisualBuilder({
     } catch (error) {
       toast.error('Erro ao salvar rascunho');
     }
-  }, [saveDraft, saveTemplateSetDraft, entityType, pageType, pageId, store, isHomePage, isCheckoutPage, updateGlobalHeader, updateGlobalFooter, updateCheckoutHeader, updateCheckoutFooter, templateSetId]);
+  }, [saveDraft, saveTemplateSetDraft, entityType, pageType, pageId, store, isHomePage, isCheckoutPage, updateGlobalHeader, updateGlobalFooter, updateCheckoutHeader, updateCheckoutFooter, templateSetId, queryClient, tenantId]);
 
   // Handle publishing - same governance as save
   const handlePublish = useCallback(async () => {
