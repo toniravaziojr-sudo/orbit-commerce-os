@@ -155,13 +155,14 @@ export interface ThemeMiniCartConfig {
 }
 
 export interface ThemePageSettings {
-  category?: Record<string, boolean>;
-  product?: Record<string, boolean>;
-  cart?: Record<string, boolean>;
-  checkout?: Record<string, boolean>;
-  thank_you?: Record<string, boolean>;
-  tracking?: Record<string, boolean>;
-  blog?: Record<string, boolean>;
+  category?: Record<string, boolean | string | number | string[]>;
+  product?: Record<string, boolean | string | number | string[]>;
+  cart?: Record<string, boolean | string | number | string[]>;
+  checkout?: Record<string, boolean | string | number | string[]>;
+  thank_you?: Record<string, boolean | string | number | string[]>;
+  tracking?: Record<string, boolean | string | number | string[]>;
+  blog?: Record<string, boolean | string | number | string[]>;
+  home?: Record<string, boolean | string | number | string[]>;
 }
 
 export interface ThemeSettings {

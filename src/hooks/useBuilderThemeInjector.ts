@@ -11,6 +11,7 @@ import { getFontFamily } from './usePublicThemeSettings';
 import { useBuilderDraftTheme } from './useBuilderDraftTheme';
 import { useBuilderDraftPageSettings, PageSettingsKey } from './useBuilderDraftPageSettings';
 import { getPageColorsCss, PageColors } from './usePageColors';
+import type { CartSettings, CheckoutSettings } from './usePageSettings';
 
 const BUILDER_STYLE_ID = 'builder-theme-styles';
 const BUILDER_PAGE_COLORS_STYLE_ID = 'builder-page-colors-styles';
@@ -318,6 +319,7 @@ export function useBuilderThemeInjector(
   ]);
 
   // Second effect: Inject page-specific color overrides for cart/checkout
+  // PRIORITY: Draft > Saved > (none)
   useEffect(() => {
     // Remove existing page colors style element if present
     const existingStyle = document.getElementById(BUILDER_PAGE_COLORS_STYLE_ID);
@@ -331,10 +333,16 @@ export function useBuilderThemeInjector(
     const pageKey = currentPageType as PageSettingsKey;
     const draftSettings = draftPageSettings?.getDraftPageSettings(pageKey);
     
-    if (!draftSettings) return;
+    // Get saved page settings from themeSettings.pageSettings
+    const savedPageSettings = themeSettings?.pageSettings?.[pageKey] as (CartSettings | CheckoutSettings) | undefined;
+    
+    // PRIORITY: Draft takes precedence over saved
+    const effectiveSettings = draftSettings || savedPageSettings;
+    
+    if (!effectiveSettings) return;
 
-    // Extract color fields from draft settings - use type assertion since we checked pageType
-    const settings = draftSettings as Record<string, unknown>;
+    // Extract color fields - use type assertion since we checked pageType
+    const settings = effectiveSettings as Record<string, unknown>;
     const pageColors: PageColors = {
       buttonPrimaryBg: settings.buttonPrimaryBg as string | undefined,
       buttonPrimaryText: settings.buttonPrimaryText as string | undefined,
@@ -362,5 +370,6 @@ export function useBuilderThemeInjector(
   }, [
     currentPageType,
     draftPageSettings?.draftPageSettings,
+    themeSettings?.pageSettings,
   ]);
 }

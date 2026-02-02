@@ -82,37 +82,82 @@ export function usePageColors(tenantSlug: string, pageType: 'cart' | 'checkout')
 
 /**
  * Generates CSS string for page-specific color overrides
+ * IMPORTANT: Uses high-specificity selectors with !important to override global theme
  */
 export function getPageColorsCss(colors: PageColors | null | undefined): string {
   if (!colors) return '';
 
-  const vars: string[] = [];
+  const hasAnyColor = 
+    colors.buttonPrimaryBg || 
+    colors.buttonPrimaryText || 
+    colors.buttonPrimaryHover ||
+    colors.buttonSecondaryBg || 
+    colors.buttonSecondaryText ||
+    colors.buttonSecondaryHover;
 
-  if (colors.buttonPrimaryBg) {
-    vars.push(`--theme-button-primary-bg: ${colors.buttonPrimaryBg};`);
+  if (!hasAnyColor) return '';
+
+  // Build CSS with high-specificity button rules (not just variables)
+  // These rules use !important to override the global theme injector
+  let css = `/* Page-specific color overrides - high specificity */\n`;
+
+  // Primary button overrides
+  if (colors.buttonPrimaryBg || colors.buttonPrimaryText) {
+    css += `
+    .storefront-container button[class*="sf-btn-primary"]:not([class*="sf-btn-outline"]),
+    .storefront-container a[class*="sf-btn-primary"]:not([class*="sf-btn-outline"]),
+    .storefront-container span[class*="sf-btn-primary"]:not([class*="sf-btn-outline"]) {
+      ${colors.buttonPrimaryBg ? `background-color: ${colors.buttonPrimaryBg} !important;` : ''}
+      ${colors.buttonPrimaryText ? `color: ${colors.buttonPrimaryText} !important;` : ''}
+    }`;
   }
-  if (colors.buttonPrimaryText) {
-    vars.push(`--theme-button-primary-text: ${colors.buttonPrimaryText};`);
-  }
+
+  // Primary button hover override
   if (colors.buttonPrimaryHover) {
-    vars.push(`--theme-button-primary-hover: ${colors.buttonPrimaryHover};`);
+    css += `
+    .storefront-container button[class*="sf-btn-primary"]:not([class*="sf-btn-outline"]):hover:not(:disabled),
+    .storefront-container a[class*="sf-btn-primary"]:not([class*="sf-btn-outline"]):hover,
+    .storefront-container span[class*="sf-btn-primary"]:not([class*="sf-btn-outline"]):hover {
+      background-color: ${colors.buttonPrimaryHover} !important;
+    }`;
   }
-  if (colors.buttonSecondaryBg) {
-    vars.push(`--theme-button-secondary-bg: ${colors.buttonSecondaryBg};`);
+
+  // Secondary button overrides
+  if (colors.buttonSecondaryBg || colors.buttonSecondaryText) {
+    css += `
+    .storefront-container button[class*="sf-btn-secondary"]:not([class*="sf-btn-outline"]),
+    .storefront-container a[class*="sf-btn-secondary"]:not([class*="sf-btn-outline"]),
+    .storefront-container span[class*="sf-btn-secondary"]:not([class*="sf-btn-outline"]) {
+      ${colors.buttonSecondaryBg ? `background-color: ${colors.buttonSecondaryBg} !important;` : ''}
+      ${colors.buttonSecondaryText ? `color: ${colors.buttonSecondaryText} !important;` : ''}
+    }`;
   }
-  if (colors.buttonSecondaryText) {
-    vars.push(`--theme-button-secondary-text: ${colors.buttonSecondaryText};`);
-  }
+
+  // Secondary button hover override
   if (colors.buttonSecondaryHover) {
-    vars.push(`--theme-button-secondary-hover: ${colors.buttonSecondaryHover};`);
+    css += `
+    .storefront-container button[class*="sf-btn-secondary"]:not([class*="sf-btn-outline"]):hover:not(:disabled),
+    .storefront-container a[class*="sf-btn-secondary"]:not([class*="sf-btn-outline"]):hover,
+    .storefront-container span[class*="sf-btn-secondary"]:not([class*="sf-btn-outline"]):hover {
+      background-color: ${colors.buttonSecondaryHover} !important;
+    }`;
   }
 
-  if (vars.length === 0) return '';
+  // Also set CSS variables for any other components that might use them
+  const vars: string[] = [];
+  if (colors.buttonPrimaryBg) vars.push(`--theme-button-primary-bg: ${colors.buttonPrimaryBg};`);
+  if (colors.buttonPrimaryText) vars.push(`--theme-button-primary-text: ${colors.buttonPrimaryText};`);
+  if (colors.buttonPrimaryHover) vars.push(`--theme-button-primary-hover: ${colors.buttonPrimaryHover};`);
+  if (colors.buttonSecondaryBg) vars.push(`--theme-button-secondary-bg: ${colors.buttonSecondaryBg};`);
+  if (colors.buttonSecondaryText) vars.push(`--theme-button-secondary-text: ${colors.buttonSecondaryText};`);
+  if (colors.buttonSecondaryHover) vars.push(`--theme-button-secondary-hover: ${colors.buttonSecondaryHover};`);
 
-  return `
-    /* Page-specific color overrides */
+  if (vars.length > 0) {
+    css += `
     .storefront-container {
       ${vars.join('\n      ')}
-    }
-  `;
+    }`;
+  }
+
+  return css;
 }
