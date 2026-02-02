@@ -459,6 +459,149 @@ export type Database = {
           },
         ]
       }
+      ai_landing_page_versions: {
+        Row: {
+          created_at: string
+          created_by: string
+          css_content: string | null
+          generation_metadata: Json | null
+          html_content: string
+          id: string
+          landing_page_id: string
+          preview_url: string | null
+          prompt: string
+          prompt_type: string
+          tenant_id: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          css_content?: string | null
+          generation_metadata?: Json | null
+          html_content: string
+          id?: string
+          landing_page_id: string
+          preview_url?: string | null
+          prompt: string
+          prompt_type?: string
+          tenant_id: string
+          version: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          css_content?: string | null
+          generation_metadata?: Json | null
+          html_content?: string
+          id?: string
+          landing_page_id?: string
+          preview_url?: string | null
+          prompt?: string
+          prompt_type?: string
+          tenant_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_landing_page_versions_landing_page_id_fkey"
+            columns: ["landing_page_id"]
+            isOneToOne: false
+            referencedRelation: "ai_landing_pages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_landing_page_versions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_landing_pages: {
+        Row: {
+          created_at: string
+          created_by: string
+          current_version: number | null
+          generated_css: string | null
+          generated_html: string | null
+          id: string
+          initial_prompt: string | null
+          is_published: boolean | null
+          metadata: Json | null
+          name: string
+          preview_url: string | null
+          product_ids: string[] | null
+          published_at: string | null
+          reference_screenshot_url: string | null
+          reference_url: string | null
+          seo_description: string | null
+          seo_image_url: string | null
+          seo_title: string | null
+          slug: string
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          current_version?: number | null
+          generated_css?: string | null
+          generated_html?: string | null
+          id?: string
+          initial_prompt?: string | null
+          is_published?: boolean | null
+          metadata?: Json | null
+          name: string
+          preview_url?: string | null
+          product_ids?: string[] | null
+          published_at?: string | null
+          reference_screenshot_url?: string | null
+          reference_url?: string | null
+          seo_description?: string | null
+          seo_image_url?: string | null
+          seo_title?: string | null
+          slug: string
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          current_version?: number | null
+          generated_css?: string | null
+          generated_html?: string | null
+          id?: string
+          initial_prompt?: string | null
+          is_published?: boolean | null
+          metadata?: Json | null
+          name?: string
+          preview_url?: string | null
+          product_ids?: string[] | null
+          published_at?: string | null
+          reference_screenshot_url?: string | null
+          reference_url?: string | null
+          seo_description?: string | null
+          seo_image_url?: string | null
+          seo_title?: string | null
+          slug?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_landing_pages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_media_queue: {
         Row: {
           attachment_id: string
