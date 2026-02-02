@@ -202,6 +202,23 @@ const footerPropsToInherit = [
 
 ---
 
+## Cores Personalizadas (Builder)
+
+| Setting | Tipo | Default | Descrição |
+|---------|------|---------|-----------|
+| `buttonPrimaryBg` | string | '' | Cor de fundo do botão primário (herda do tema se vazio) |
+| `buttonPrimaryText` | string | '' | Cor do texto do botão primário (herda do tema se vazio) |
+| `buttonSecondaryBg` | string | '' | Cor de fundo do botão secundário (herda do tema se vazio) |
+| `buttonSecondaryText` | string | '' | Cor do texto do botão secundário (herda do tema se vazio) |
+
+### Regra de Herança
+
+1. Se a cor estiver **vazia** (`''`), o botão usa as cores do **tema global**
+2. Se a cor estiver **preenchida**, ela **sobrescreve** o tema
+3. Configuração em: **Configurações do Tema > Páginas > Checkout > Cores Personalizadas**
+
+---
+
 ## Regras de Testimonials (Prova Social)
 
 | Contexto | Comportamento |
