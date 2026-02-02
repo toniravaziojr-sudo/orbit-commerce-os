@@ -101,7 +101,7 @@ export function PaymentResultDisplay({ result, method, onContinue }: PaymentResu
         </p>
 
         <Button
-          variant="ghost"
+          variant="unstyled"
           onClick={() => window.open(result.boletoUrl, '_blank')}
           className="w-full sf-btn-primary"
         >
