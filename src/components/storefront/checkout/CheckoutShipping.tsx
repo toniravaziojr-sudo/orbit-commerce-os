@@ -120,10 +120,10 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
               {shipping.selected?.isFree ? (
                 <Badge 
                   variant="secondary" 
-                  className="sf-tag-success"
+                  className="sf-checkout-flag"
                   style={{
-                    backgroundColor: 'color-mix(in srgb, var(--theme-accent-color, #22c55e) 15%, transparent)',
-                    color: 'var(--theme-accent-color, #22c55e)',
+                    backgroundColor: 'color-mix(in srgb, var(--theme-flags-color, var(--theme-accent-color, #22c55e)) 15%, transparent)',
+                    color: 'var(--theme-flags-color, var(--theme-accent-color, #22c55e))',
                   }}
                 >
                   Grátis
@@ -220,7 +220,7 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
                 </div>
                 <div className="text-right">
                   {option.isFree ? (
-                    <span className="font-semibold" style={{ color: 'var(--theme-accent-color, #22c55e)' }}>Grátis</span>
+                    <span className="sf-flag-text font-semibold" style={{ color: 'var(--theme-flags-color, var(--theme-accent-color, #22c55e))' }}>Grátis</span>
                   ) : (
                     <span className="font-semibold">
                       R$ {formatPrice(option.price)}

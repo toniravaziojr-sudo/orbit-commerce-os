@@ -1253,7 +1253,7 @@ function Step3Shipping({
                 </div>
                 <div className="text-right">
                   {option.isFree ? (
-                    <span className="sf-accent-icon font-semibold">Grátis</span>
+                    <span className="sf-flag-text font-semibold" style={{ color: 'var(--theme-flags-color, var(--theme-accent-color, #22c55e))' }}>Grátis</span>
                   ) : (
                     <span className="font-semibold">{formatCurrency(option.price)}</span>
                   )}
@@ -1363,7 +1363,7 @@ function OrderSummarySidebar({
           <span>Frete</span>
           <span>
             {!shipping ? 'A calcular' : freeShipping ? (
-              <span className="text-green-600 font-medium">Grátis</span>
+              <span className="sf-flag-text font-medium" style={{ color: 'var(--theme-flags-color, var(--theme-accent-color, #22c55e))' }}>Grátis</span>
             ) : (
               formatCurrency(totals.shippingTotal)
             )}

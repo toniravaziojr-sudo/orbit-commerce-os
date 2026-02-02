@@ -209,15 +209,22 @@ const footerPropsToInherit = [
 | `buttonPrimaryBg` | string | '' | Cor de fundo do botão primário (herda do tema se vazio) |
 | `buttonPrimaryText` | string | '' | Cor do texto do botão primário (herda do tema se vazio) |
 | `buttonPrimaryHover` | string | '' | Cor de hover do botão primário (herda do tema se vazio) |
-| `buttonSecondaryBg` | string | '' | Cor de fundo do botão secundário (herda do tema se vazio) |
-| `buttonSecondaryText` | string | '' | Cor do texto do botão secundário (herda do tema se vazio) |
-| `buttonSecondaryHover` | string | '' | Cor de hover do botão secundário (herda do tema se vazio) |
+| `flagsColor` | string | '' | Cor das flags/tags (ex: "Grátis", "Frete Grátis", badges de desconto). Herda do tema se vazio |
+
+> **NOTA:** O checkout NÃO possui opção de "Botão Secundário". Essa opção está disponível apenas no Carrinho. Os botões "Alterar" no checkout seguem a cor primária.
 
 ### Regra de Herança
 
-1. Se a cor estiver **vazia** (`''`), o botão usa as cores do **tema global**
+1. Se a cor estiver **vazia** (`''`), o elemento usa as cores do **tema global**
 2. Se a cor estiver **preenchida**, ela **sobrescreve** o tema
 3. Configuração em: **Configurações do Tema > Páginas > Checkout > Cores Personalizadas**
+
+### Classes CSS para Flags
+
+| Classe | Uso |
+|--------|-----|
+| `sf-checkout-flag` | Badge/tag que usa `--theme-flags-color` (ex: "Grátis" no frete) |
+| `sf-flag-text` | Texto que usa `--theme-flags-color` (ex: "Grátis" inline) |
 
 ### Arquitetura de Injeção
 
