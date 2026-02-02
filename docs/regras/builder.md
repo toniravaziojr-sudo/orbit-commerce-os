@@ -1337,3 +1337,126 @@ Ao criar ou modificar mutations no builder, verificar:
 - [ ] `onSuccess` usa `setQueryData` (não `invalidateQueries`)?
 - [ ] Se há estados de draft, o `clearDraft()` ocorre APÓS o delay de sincronização?
 - [ ] Query keys incluem `tenantId` para isolamento multi-tenant?
+
+---
+
+## Template Padrão ("Standard Preset")
+
+> **Implementado em:** 2025-02-02
+
+O sistema oferece um **Template Padrão** pré-configurado baseado no design "Respeite o Homem", disponível para todos os tenants como ponto de partida profissional.
+
+### Arquitetura
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    STANDARD PRESET STRUCTURE                             │
+│  Arquivo: src/lib/builder/standardPreset.ts                             │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Exports:                                                                │
+│  • standardHomeTemplate          ← Template da página inicial           │
+│  • standardCategoryTemplate      ← Template de categorias               │
+│  • standardProductTemplate       ← Template de produto                  │
+│  • standardCartTemplate          ← Template do carrinho                 │
+│  • standardCheckoutTemplate      ← Template do checkout (header escuro) │
+│  • standardThankYouTemplate      ← Template de obrigado                 │
+│  • standardAccountTemplate       ← Template da área do cliente          │
+│  • standardAccountOrdersTemplate ← Template de pedidos                  │
+│  • standardAccountOrderDetailTemplate ← Template de detalhes do pedido  │
+│  • standardThemeSettings         ← Cores e footer pré-configurados      │
+│  • getStandardTemplate()         ← Busca template por pageType          │
+│  • getAllStandardTemplates()     ← Retorna todos os templates           │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Fluxo de Criação
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│  1. Usuário clica em "Padrão" na tela de templates                      │
+│  2. Abre CreateTemplateDialog com preset='standard'                     │
+│  3. Usuário insere nome do template                                     │
+│  4. useTemplatesSets.createTemplate() detecta basePreset='standard'     │
+│  5. getAllStandardTemplates() retorna array com todos os templates      │
+│  6. Templates são salvos no banco com themeSettings pré-configurados    │
+│  7. Novo template set é criado com estrutura profissional completa      │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### Características do Template Padrão
+
+#### Páginas Incluídas
+
+| Página | Conteúdo |
+|--------|----------|
+| **Home** | HeroBanner genérico, CategoriesGrid, FeaturedProducts |
+| **Categoria** | CategoryBanner, ProductGrid |
+| **Produto** | ProductDetails, CompreJuntoSlot |
+| **Carrinho** | Cart, RecommendedProducts |
+| **Checkout** | Header escuro customizado, Checkout, Footer escuro, badges de pagamento |
+| **Obrigado** | ThankYou |
+| **Conta** | AccountHub |
+| **Pedidos** | OrdersList |
+| **Detalhe Pedido** | OrderDetail |
+
+#### Theme Settings Padrão
+
+```typescript
+standardThemeSettings = {
+  colors: {
+    primary: '30 50% 15%',      // Verde escuro premium
+    secondary: '40 20% 90%',    // Bege suave
+    accent: '35 80% 45%',       // Dourado/âmbar
+    background: '40 30% 96%',   // Off-white quente
+    foreground: '30 30% 15%',   // Texto escuro
+    muted: '40 15% 92%',        // Cinza quente
+    mutedForeground: '30 15% 45%',
+    card: '0 0% 100%',          // Cards brancos
+    cardForeground: '30 30% 15%',
+    border: '40 20% 88%',
+    ring: '35 80% 45%',         // Focus ring dourado
+  },
+  typography: {
+    headingFont: 'playfair',    // Fonte elegante
+    bodyFont: 'inter',          // Fonte legível
+    baseFontSize: 16,
+  },
+  footerElements: [
+    { type: 'social', enabled: true, title: 'Redes Sociais' },
+    { type: 'links', enabled: true, title: 'Links Úteis', links: [...] },
+    { type: 'contact', enabled: true, title: 'Contato' },
+    { type: 'newsletter', enabled: true, title: 'Newsletter' },
+    { type: 'payments', enabled: true, title: 'Formas de Pagamento' },
+  ],
+}
+```
+
+### Proibições
+
+| Proibido | Motivo |
+|----------|--------|
+| Modificar `standardPreset.ts` com dados específicos de tenant | Template deve ser genérico |
+| Usar URLs de imagens reais do tenant "Respeite o Homem" | Template usa placeholders |
+| Remover badges de pagamento do checkout padrão | Elemento de confiança obrigatório |
+| Alterar estrutura de cores sem consultar design system | Cores são harmonizadas |
+
+### Arquivos Relacionados
+
+| Arquivo | Responsabilidade |
+|---------|------------------|
+| `src/lib/builder/standardPreset.ts` | Definição dos templates e theme settings |
+| `src/lib/builder/index.ts` | Export do standardPreset |
+| `src/hooks/useTemplatesSets.ts` | Lógica de criação com preset |
+| `src/components/storefront-admin/StorefrontTemplatesTab.tsx` | UI de seleção de preset |
+| `src/components/storefront-admin/CreateTemplateDialog.tsx` | Dialog de criação |
+
+### Extensibilidade
+
+Para adicionar novos presets no futuro:
+
+1. Criar arquivo `src/lib/builder/[nomePreset]Preset.ts`
+2. Exportar em `src/lib/builder/index.ts`
+3. Adicionar tipo ao `CreateTemplateParams.basePreset`
+4. Adicionar lógica no `createTemplate` mutation
+5. Adicionar UI no `StorefrontTemplatesTab.tsx`
+6. Documentar neste arquivo
