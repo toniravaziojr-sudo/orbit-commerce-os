@@ -120,7 +120,7 @@ export function CartDemoBlock({
   const total = subtotal - discount + shipping;
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="storefront-container container mx-auto px-4 py-8">
       {/* Promo Banner - exibe imagem real se configurada */}
       {showPromoBanner && (bannerDesktopUrl || bannerMobileUrl) && (
         <div className="mb-6">
@@ -355,11 +355,11 @@ export function CartDemoBlock({
                 ou 12x de R$ {(total / 12).toFixed(2)} sem juros
               </p>
 
-              <Button className="w-full" size="lg">
+              <Button variant="unstyled" className="w-full sf-btn-primary" size="lg">
                 {checkoutButtonText}
               </Button>
 
-              <Button variant="outline" className="w-full">
+              <Button variant="unstyled" className="w-full sf-btn-secondary border">
                 {continueShoppingText}
               </Button>
 
