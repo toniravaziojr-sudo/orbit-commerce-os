@@ -492,25 +492,25 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
                 <SelectItem value="small" className="text-xs">
                   <div className="flex flex-col gap-0.5">
                     <span className="font-medium">Pequeno</span>
-                    <span className="text-[10px] text-muted-foreground">Ícones compactos (h-4 / h-6)</span>
+                    <span className="text-[10px] text-muted-foreground">24px altura (mobile) / 32px (desktop)</span>
                   </div>
                 </SelectItem>
                 <SelectItem value="medium" className="text-xs">
                   <div className="flex flex-col gap-0.5">
                     <span className="font-medium">Médio</span>
-                    <span className="text-[10px] text-muted-foreground">Tamanho padrão (h-6 / h-8)</span>
+                    <span className="text-[10px] text-muted-foreground">32px altura (mobile) / 40px (desktop)</span>
                   </div>
                 </SelectItem>
                 <SelectItem value="large" className="text-xs">
                   <div className="flex flex-col gap-0.5">
                     <span className="font-medium">Grande</span>
-                    <span className="text-[10px] text-muted-foreground">Ícones maiores (h-8 / h-10)</span>
+                    <span className="text-[10px] text-muted-foreground">40px altura (mobile) / 48px (desktop)</span>
                   </div>
                 </SelectItem>
               </SelectContent>
             </Select>
             <p className="text-[10px] text-muted-foreground">
-              Tamanho de pagamento, segurança, frete e lojas oficiais
+              Dimensões padronizadas para todos os selos (pagamento, segurança, frete, lojas)
             </p>
           </div>
         </CollapsibleContent>

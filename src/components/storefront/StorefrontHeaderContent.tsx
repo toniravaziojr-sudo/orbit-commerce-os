@@ -106,9 +106,16 @@ export function StorefrontHeaderContent({
   const noticeTexts: string[] = Array.isArray(props.noticeTexts) && props.noticeTexts.length > 0 
     ? props.noticeTexts.filter((t: any) => typeof t === 'string' && t.trim())
     : noticeText ? [noticeText] : [];
-  // Empty noticeBgColor = inherit from theme primary (--theme-button-primary-bg or fallback #1a1a1a)
-  const noticeBgColor = String(props.noticeBgColor || '');
-  const noticeTextColor = String(props.noticeTextColor || '#ffffff');
+  // RULE: Custom colors from builder OVERRIDE theme colors when set
+  // Empty string or null means "inherit from theme"
+  const rawNoticeBgColor = props.noticeBgColor;
+  const noticeBgColor = rawNoticeBgColor && String(rawNoticeBgColor).trim() !== '' 
+    ? String(rawNoticeBgColor) 
+    : ''; // Empty = will use theme fallback in style
+  const rawNoticeTextColor = props.noticeTextColor;
+  const noticeTextColor = rawNoticeTextColor && String(rawNoticeTextColor).trim() !== '' 
+    ? String(rawNoticeTextColor) 
+    : ''; // Empty = will use theme fallback in style
   // Backward compatibility: map old 'slide' to 'slide-vertical'
   const rawNoticeAnimation = String(props.noticeAnimation || 'fade');
   const noticeAnimation = (rawNoticeAnimation === 'slide' ? 'slide-vertical' : rawNoticeAnimation) as 'none' | 'fade' | 'slide-vertical' | 'slide-horizontal' | 'marquee';
@@ -483,9 +490,10 @@ export function StorefrontHeaderContent({
             noticeAnimation === 'marquee' && "whitespace-nowrap"
           )}
           style={{
-            // Use theme primary color when noticeBgColor is empty
+            // RULE: Custom colors OVERRIDE theme colors when set (non-empty)
+            // Empty = inherit from theme (--theme-button-primary-bg)
             backgroundColor: noticeBgColor || 'var(--theme-button-primary-bg, #1a1a1a)',
-            color: noticeTextColor,
+            color: noticeTextColor || 'var(--theme-button-primary-text, #ffffff)',
             ...(noticeAnimation !== 'marquee' ? getNoticeAnimationStyles() : {}),
           }}
         >

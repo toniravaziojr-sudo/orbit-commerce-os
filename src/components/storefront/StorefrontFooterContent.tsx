@@ -347,29 +347,16 @@ export function StorefrontFooterContent({
   // Badge size for footer seals/icons: small, medium, large
   const badgeSize = (configProps.badgeSize as 'small' | 'medium' | 'large') || 'medium';
   
-  // Badge size classes mapping
-  // UPDATED 2026-02-01: Payment badges reduced by ~30% per user request
-  // Original medium was h-6/h-8, now h-4/h-5
-  // Proportionally adjusted small and large
+  // Badge size classes mapping - UNIFIED across all badge types
+  // UPDATED 2026-02-02: Standardized all badge sections to same dimensions
+  // Reference dimensions for uploads:
+  // - Pequeno: 24px altura (mobile) / 32px altura (desktop) 
+  // - Médio: 32px altura (mobile) / 40px altura (desktop)
+  // - Grande: 40px altura (mobile) / 48px altura (desktop)
   const badgeSizeClasses = {
-    // Payment & Shipping: reduced icons (30% smaller than before)
-    standard: {
-      small: 'h-3 md:h-4',       // was h-4 md:h-6
-      medium: 'h-4 md:h-5',      // was h-6 md:h-8
-      large: 'h-5 md:h-7',       // was h-8 md:h-10
-    },
-    // Security Seals: larger icons (unchanged)
-    security: {
-      small: 'h-6 md:h-8',
-      medium: 'h-10 md:h-12',
-      large: 'h-12 md:h-14',
-    },
-    // Official Stores: medium icons (unchanged)
-    stores: {
-      small: 'h-6 md:h-8',
-      medium: 'h-8 md:h-10',
-      large: 'h-10 md:h-12',
-    },
+    small: 'h-6 md:h-8',   // 24px / 32px
+    medium: 'h-8 md:h-10', // 32px / 40px
+    large: 'h-10 md:h-12', // 40px / 48px
   };
   
   // Primary color: config > settings > theme default (neutral, not blue)
@@ -1325,7 +1312,7 @@ export function StorefrontFooterContent({
                       key={index}
                       src={item.imageUrl}
                       alt={`Pagamento ${index + 1}`}
-                      className={`${badgeSizeClasses.standard[badgeSize]} w-auto object-contain`}
+                      className={`${badgeSizeClasses[badgeSize]} w-auto object-contain`}
                     />
                   ))}
                 </div>
@@ -1354,7 +1341,7 @@ export function StorefrontFooterContent({
                         <img
                           src={item.imageUrl}
                           alt={`Selo ${index + 1}`}
-                          className={`${badgeSizeClasses.security[badgeSize]} w-auto object-contain`}
+                          className={`${badgeSizeClasses[badgeSize]} w-auto object-contain`}
                         />
                       </a>
                     ) : (
@@ -1362,7 +1349,7 @@ export function StorefrontFooterContent({
                         key={index}
                         src={item.imageUrl}
                         alt={`Selo ${index + 1}`}
-                        className={`${badgeSizeClasses.security[badgeSize]} w-auto object-contain`}
+                        className={`${badgeSizeClasses[badgeSize]} w-auto object-contain`}
                       />
                     )
                   )}
@@ -1385,7 +1372,7 @@ export function StorefrontFooterContent({
                       key={index}
                       src={item.imageUrl}
                       alt={`Envio ${index + 1}`}
-                      className={`${badgeSizeClasses.standard[badgeSize]} w-auto object-contain`}
+                      className={`${badgeSizeClasses[badgeSize]} w-auto object-contain`}
                     />
                   ))}
                 </div>
@@ -1413,7 +1400,7 @@ export function StorefrontFooterContent({
                       <img
                         src={item.imageUrl}
                         alt={`Loja ${index + 1}`}
-                        className={`${badgeSizeClasses.stores[badgeSize]} w-auto object-contain hover:opacity-80 transition-opacity`}
+                        className={`${badgeSizeClasses[badgeSize]} w-auto object-contain hover:opacity-80 transition-opacity`}
                       />
                     </a>
                   ))}
