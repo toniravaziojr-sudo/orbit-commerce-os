@@ -180,18 +180,17 @@ O componente `PaymentIconsQuickSelect` permite adicionar ícones de pagamento pr
 
 > Configurável em: **Configurações do tema** → **Rodapé** → **Visual Menus** → **Tamanho dos Selos**
 
-| Tamanho | Pagamento/Frete | Segurança | Lojas Oficiais |
-|---------|-----------------|-----------|----------------|
-| **Pequeno** | h-3 / h-4 | h-6 / h-8 | h-6 / h-8 |
-| **Médio** (padrão) | h-4 / h-5 | h-10 / h-12 | h-8 / h-10 |
-| **Grande** | h-5 / h-7 | h-12 / h-14 | h-10 / h-12 |
+| Tamanho | Altura Mobile | Altura Desktop | Referência para Upload |
+|---------|---------------|----------------|------------------------|
+| **Pequeno** | 24px (h-6) | 32px (h-8) | Suba imagens com ~24-32px de altura |
+| **Médio** (padrão) | 32px (h-8) | 40px (h-10) | Suba imagens com ~32-40px de altura |
+| **Grande** | 40px (h-10) | 48px (h-12) | Suba imagens com ~40-48px de altura |
 
-*Formato: mobile / desktop*
-*Nota: Badges de Pagamento/Frete foram reduzidos em ~30% em 2026-02-01*
+*Dimensões unificadas para todos os tipos de selos (Pagamento, Segurança, Frete, Lojas Oficiais)*
 
 | Prop | Tipo | Default | Descrição |
 |------|------|---------|-----------|
-| `badgeSize` | `'small'` \| `'medium'` \| `'large'` | `'medium'` | Tamanho dos selos no rodapé |
+| `badgeSize` | `'small'` \| `'medium'` \| `'large'` | `'medium'` | Tamanho padronizado de todos os selos |
 
 ---
 
@@ -340,6 +339,8 @@ const hiddenCount = configuredItems.length - validItems.length;
 
 | Data | Alteração |
 |------|-----------|
+| 2026-02-02 | **UNIFICAÇÃO**: Tamanhos de selos padronizados para todos os tipos (Pagamento, Segurança, Frete, Lojas) - mesmas dimensões para UI consistente |
+| 2026-02-02 | Referência de dimensões (px) adicionada no UI do builder para orientar uploads |
 | 2026-02-01 | **FIX v5**: Movido gerenciamento de `pendingUpdatesRef` para o hook `useThemeFooter` — hook agora retorna `footer` já mesclado com atualizações pendentes |
 | 2026-02-01 | `FooterSettings.tsx` simplificado — não precisa mais de estado local para seções de imagem (paymentMethods, etc.) |
 | 2026-02-01 | Correção usa `saveThemeSettingsAsync` para aguardar persistência antes de limpar flags |
@@ -348,9 +349,7 @@ const hiddenCount = configuredItems.length - validItems.length;
 | 2026-02-01 | **FIX v3**: Estado local é fonte única de verdade; removida invalidação de query no `onSettled` |
 | 2026-02-01 | **CRITICAL FIX**: Corrigido bug de persistência de selos usando optimistic updates no useThemeSettings |
 | 2026-02-01 | Corrigido bug de stale closures em FooterImageSection que impedia adicionar/remover/substituir selos |
-| 2026-02-01 | Badges de Pagamento/Frete reduzidos em 30% (medium: h-4/h-5 era h-6/h-8) |
 | 2026-02-01 | Adicionado `badgeSize` com 3 tamanhos: Pequeno, Médio, Grande para selos do rodapé |
-| 2026-02-01 | Configurável em "Configurações do tema" → "Rodapé" → "Visual Menus" |
 | 2025-01-30 | Adicionado `menuVisualStyle` com 3 estilos: Classic, Elegant, Minimal |
 | 2025-01-30 | Nova seção "Visual Menus" em FooterSettings.tsx |
 | 2025-01-25 | Aviso de páginas não publicadas adicionado na página de Menus (admin) |
