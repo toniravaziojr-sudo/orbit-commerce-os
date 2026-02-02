@@ -44,6 +44,7 @@ import { ptBR } from 'date-fns/locale';
 import { CreateTemplateDialog } from './CreateTemplateDialog';
 import { RenameTemplateDialog } from './RenameTemplateDialog';
 import { PublishTemplateDialog } from './PublishTemplateDialog';
+import { PresetPreviewDialog } from './PresetPreviewDialog';
 
 // Preset thumbnails - ilustrações estáticas para cada tipo de template
 const PRESET_THUMBNAILS: Record<string, string> = {
@@ -85,7 +86,8 @@ export function StorefrontTemplatesTab() {
   } = useTemplateSets();
 
   // Dialog states
-  const [createPreset, setCreatePreset] = useState<'blank' | 'standard' | null>(null);
+  const [createPreset, setCreatePreset] = useState<'blank' | null>(null); // Only blank needs name dialog
+  const [previewPreset, setPreviewPreset] = useState<'blank' | 'standard' | null>(null); // Preview dialog
   const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null);
   const [publishTarget, setPublishTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
@@ -100,10 +102,17 @@ export function StorefrontTemplatesTab() {
   const storeUrl = primaryOrigin || `https://${currentTenant?.slug}.shops.comandocentral.com.br`;
   const previewUrl = `${storeUrl}?preview=1`;
 
-  const handleCreateTemplate = async (name: string) => {
-    if (!createPreset) return;
-    const result = await createTemplate.mutateAsync({ name, basePreset: createPreset });
+  // Handler for blank preset (asks for name)
+  const handleCreateBlankTemplate = async (name: string) => {
+    const result = await createTemplate.mutateAsync({ name, basePreset: 'blank' });
     setCreatePreset(null);
+    navigate(`/storefront/builder?templateId=${result.id}&edit=home`);
+  };
+
+  // Handler for standard preset (uses fixed name from preview dialog)
+  const handleUseStandardPreset = async () => {
+    const result = await createTemplate.mutateAsync({ name: 'Padrão', basePreset: 'standard' });
+    setPreviewPreset(null);
     navigate(`/storefront/builder?templateId=${result.id}&edit=home`);
   };
 
@@ -299,9 +308,10 @@ export function StorefrontTemplatesTab() {
             thumbnail={PRESET_THUMBNAILS.standard}
             badge={PRESET_INFO.standard.badge}
             badgeVariant={PRESET_INFO.standard.badgeVariant}
-            onPreview={() => navigate('/storefront/builder?preset=standard&mode=preview')}
-            onInstall={() => setCreatePreset('standard')}
-            installLabel="Criar novo modelo"
+            onPreview={() => setPreviewPreset('standard')}
+            onInstall={handleUseStandardPreset}
+            installLabel="Usar este modelo"
+            isLoading={createTemplate.isPending}
           />
 
           {/* Iniciar do Zero - Cria novo template vazio */}
@@ -311,7 +321,7 @@ export function StorefrontTemplatesTab() {
             thumbnail={PRESET_THUMBNAILS.blank}
             badge={PRESET_INFO.blank.badge}
             badgeVariant={PRESET_INFO.blank.badgeVariant}
-            onPreview={() => navigate('/storefront/builder?preset=blank&mode=preview')}
+            onPreview={() => setPreviewPreset('blank')}
             onInstall={() => setCreatePreset('blank')}
             installLabel="Criar novo modelo"
           />
@@ -319,11 +329,28 @@ export function StorefrontTemplatesTab() {
       </section>
 
       {/* Dialogs */}
+      {/* Preview Dialog for presets */}
+      <PresetPreviewDialog
+        open={previewPreset !== null}
+        onOpenChange={(open) => !open && setPreviewPreset(null)}
+        preset={previewPreset || 'standard'}
+        onUsePreset={() => {
+          if (previewPreset === 'standard') {
+            handleUseStandardPreset();
+          } else {
+            setPreviewPreset(null);
+            setCreatePreset('blank');
+          }
+        }}
+        isLoading={createTemplate.isPending}
+      />
+
+      {/* Create Blank Template Dialog (only for blank preset) */}
       <CreateTemplateDialog
         open={createPreset !== null}
         onOpenChange={(open) => !open && setCreatePreset(null)}
-        onConfirm={handleCreateTemplate}
-        preset={createPreset || 'blank'}
+        onConfirm={handleCreateBlankTemplate}
+        preset="blank"
         isLoading={createTemplate.isPending}
       />
 
@@ -469,6 +496,7 @@ interface PresetCardProps {
   onInstall: () => void;
   installLabel?: string;
   isInstalled?: boolean;
+  isLoading?: boolean;
 }
 
 function PresetCard({
@@ -481,6 +509,7 @@ function PresetCard({
   onInstall,
   installLabel = 'Instalar',
   isInstalled = false,
+  isLoading = false,
 }: PresetCardProps) {
   return (
     <div className={cn(
@@ -529,9 +558,13 @@ function PresetCard({
             isInstalled && "bg-emerald-500 hover:bg-emerald-600"
           )}
           onClick={onInstall}
-          disabled={isInstalled}
+          disabled={isInstalled || isLoading}
         >
-          {installLabel}
+          {isLoading ? (
+            <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+          ) : (
+            installLabel
+          )}
         </Button>
       </div>
     </div>

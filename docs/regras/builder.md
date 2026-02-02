@@ -1373,13 +1373,20 @@ O sistema oferece um **Template Padrão** pré-configurado baseado no design "Re
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│  1. Usuário clica em "Padrão" na tela de templates                      │
-│  2. Abre CreateTemplateDialog com preset='standard'                     │
-│  3. Usuário insere nome do template                                     │
-│  4. useTemplatesSets.createTemplate() detecta basePreset='standard'     │
+│  FLUXO TEMPLATE PADRÃO ("Usar este modelo"):                           │
+│  1. Usuário clica em "Ver loja modelo" → Abre PresetPreviewDialog      │
+│  2. Dialog mostra preview com viewport desktop/mobile                   │
+│  3. Usuário clica em "Usar este modelo"                                 │
+│  4. useTemplatesSets.createTemplate({ name: 'Padrão', basePreset })    │
 │  5. getAllStandardTemplates() retorna array com todos os templates      │
-│  6. Templates são salvos no banco com themeSettings pré-configurados    │
-│  7. Novo template set é criado com estrutura profissional completa      │
+│  6. Template é criado e usuário vai direto para o Builder               │
+│                                                                          │
+│  FLUXO INICIAR DO ZERO ("Criar novo modelo"):                           │
+│  1. Usuário clica em "Criar novo modelo"                                │
+│  2. Abre CreateTemplateDialog pedindo nome do template                  │
+│  3. Usuário insere nome e confirma                                      │
+│  4. useTemplatesSets.createTemplate({ name, basePreset: 'blank' })     │
+│  5. Template vazio é criado e usuário vai para o Builder                │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -1448,7 +1455,8 @@ standardThemeSettings = {
 | `src/lib/builder/index.ts` | Export do standardPreset |
 | `src/hooks/useTemplatesSets.ts` | Lógica de criação com preset |
 | `src/components/storefront-admin/StorefrontTemplatesTab.tsx` | UI de seleção de preset |
-| `src/components/storefront-admin/CreateTemplateDialog.tsx` | Dialog de criação |
+| `src/components/storefront-admin/CreateTemplateDialog.tsx` | Dialog de criação (apenas blank) |
+| `src/components/storefront-admin/PresetPreviewDialog.tsx` | Dialog de preview com features e viewport toggle |
 
 ### Extensibilidade
 
