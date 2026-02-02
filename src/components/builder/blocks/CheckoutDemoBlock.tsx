@@ -180,7 +180,7 @@ export function CheckoutDemoBlock({
     });
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="storefront-container container mx-auto px-4 py-8">
       {/* Progress Steps */}
       {showTimeline && (
         <div className="flex items-center justify-center gap-2 mb-8 overflow-x-auto pb-2">
@@ -479,7 +479,7 @@ export function CheckoutDemoBlock({
                         className="pl-9"
                       />
                     </div>
-                    <Button variant="secondary" size="sm">
+                    <Button variant="unstyled" className="sf-btn-secondary" size="sm">
                       Aplicar
                     </Button>
                   </div>
@@ -511,7 +511,7 @@ export function CheckoutDemoBlock({
                 ou 12x de R$ {(total / 12).toFixed(2)} sem juros
               </p>
 
-              <Button className="w-full" size="lg">
+              <Button variant="unstyled" className="w-full sf-btn-primary" size="lg">
                 <Lock className="h-4 w-4 mr-2" />
                 {checkoutButtonText}
               </Button>
