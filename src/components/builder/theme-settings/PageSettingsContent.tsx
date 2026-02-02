@@ -10,6 +10,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { usePageSettingsSaveCompletedObserver } from '@/hooks/useBuilderDraftPageSettings';
 import { supabase } from '@/integrations/supabase/client';
 import { Json } from '@/integrations/supabase/types';
 import { Label } from '@/components/ui/label';
@@ -555,27 +556,10 @@ export function PageSettingsContent({
     });
   }, [updateMiniCart, debouncedSaveCartAction, onMiniCartConfigChange]);
 
-  // Counter to force reload when cache is invalidated
-  const [reloadKey, setReloadKey] = useState(0);
-  
-  // Subscribe to query cache invalidation to reload data
-  useEffect(() => {
-    const effectiveTemplateSetId = templateSetId || 'legacy';
-    const cacheKey = `${pageType}-settings-builder`;
-    
-    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
-      if (event.type === 'removed' && 
-          event.query.queryKey[0] === cacheKey &&
-          event.query.queryKey[1] === tenantId) {
-        // Cache was invalidated, reload data
-        setReloadKey(prev => prev + 1);
-      }
-    });
-    
-    return () => unsubscribe();
-  }, [queryClient, tenantId, templateSetId, pageType]);
+  // Subscribe to save completed events to reload data from DB
+  const saveCompletedCounter = usePageSettingsSaveCompletedObserver();
 
-  // Load settings on mount or when reloadKey changes - from template set draft_content if available
+  // Load settings on mount or when save is completed - from template set draft_content if available
   useEffect(() => {
     async function loadSettings() {
       if (!tenantId || !pageType) return;
@@ -631,7 +615,7 @@ export function PageSettingsContent({
     }
 
     loadSettings();
-  }, [tenantId, templateSetId, pageType, reloadKey]);
+  }, [tenantId, templateSetId, pageType, saveCompletedCounter]);
 
   // Save mutation - save to template set draft_content if templateSetId available
   const saveMutation = useMutation({

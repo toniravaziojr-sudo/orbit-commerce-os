@@ -68,6 +68,10 @@ let globalDraftPageSettingsRef: BuilderDraftPageSettingsContextValue | null = nu
 let draftPageSettingsChangeCounter = 0;
 let draftPageSettingsListeners: Set<() => void> = new Set();
 
+// Save completed event - notifies PageSettingsContent to reload from DB
+let saveCompletedCounter = 0;
+let saveCompletedListeners: Set<() => void> = new Set();
+
 function notifyDraftPageSettingsChange() {
   draftPageSettingsChangeCounter++;
   draftPageSettingsListeners.forEach(listener => listener());
@@ -81,6 +85,12 @@ export function getDraftPageSettingsChangeCounter() {
   return draftPageSettingsChangeCounter;
 }
 
+// Notify that save completed - PageSettingsContent should reload from DB
+export function notifyPageSettingsSaveCompleted() {
+  saveCompletedCounter++;
+  saveCompletedListeners.forEach(listener => listener());
+}
+
 // Hook to observe draft changes from outside the provider
 export function useDraftPageSettingsObserver(): number {
   const [counter, setCounter] = useState(draftPageSettingsChangeCounter);
@@ -90,6 +100,21 @@ export function useDraftPageSettingsObserver(): number {
     draftPageSettingsListeners.add(listener);
     return () => {
       draftPageSettingsListeners.delete(listener);
+    };
+  }, []);
+  
+  return counter;
+}
+
+// Hook to observe save completed events - forces reload from DB
+export function usePageSettingsSaveCompletedObserver(): number {
+  const [counter, setCounter] = useState(saveCompletedCounter);
+  
+  useEffect(() => {
+    const listener = () => setCounter(saveCompletedCounter);
+    saveCompletedListeners.add(listener);
+    return () => {
+      saveCompletedListeners.delete(listener);
     };
   }, []);
   
