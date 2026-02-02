@@ -13,6 +13,8 @@ export interface PageColors {
   buttonSecondaryBg?: string;
   buttonSecondaryText?: string;
   buttonSecondaryHover?: string;
+  // Checkout-specific: flags/tags color (badges like "Grátis", "Frete Grátis")
+  flagsColor?: string;
 }
 
 /**
@@ -71,7 +73,8 @@ export function usePageColors(tenantSlug: string, pageType: 'cart' | 'checkout')
         pageConfig.buttonPrimaryHover ||
         pageConfig.buttonSecondaryBg || 
         pageConfig.buttonSecondaryText ||
-        pageConfig.buttonSecondaryHover;
+        pageConfig.buttonSecondaryHover ||
+        pageConfig.flagsColor;
 
       return hasColors ? pageConfig : null;
     },
@@ -93,7 +96,8 @@ export function getPageColorsCss(colors: PageColors | null | undefined): string 
     colors.buttonPrimaryHover ||
     colors.buttonSecondaryBg || 
     colors.buttonSecondaryText ||
-    colors.buttonSecondaryHover;
+    colors.buttonSecondaryHover ||
+    colors.flagsColor;
 
   if (!hasAnyColor) return '';
 
@@ -143,6 +147,20 @@ export function getPageColorsCss(colors: PageColors | null | undefined): string 
     }`;
   }
 
+  // Flags/tags color override (checkout-specific)
+  if (colors.flagsColor) {
+    css += `
+    /* Flags/Tags color override */
+    .storefront-container .sf-tag-success,
+    .storefront-container .sf-checkout-flag {
+      background-color: color-mix(in srgb, ${colors.flagsColor} 15%, transparent) !important;
+      color: ${colors.flagsColor} !important;
+    }
+    .storefront-container .sf-flag-text {
+      color: ${colors.flagsColor} !important;
+    }`;
+  }
+
   // Also set CSS variables for any other components that might use them
   const vars: string[] = [];
   if (colors.buttonPrimaryBg) vars.push(`--theme-button-primary-bg: ${colors.buttonPrimaryBg};`);
@@ -151,6 +169,7 @@ export function getPageColorsCss(colors: PageColors | null | undefined): string 
   if (colors.buttonSecondaryBg) vars.push(`--theme-button-secondary-bg: ${colors.buttonSecondaryBg};`);
   if (colors.buttonSecondaryText) vars.push(`--theme-button-secondary-text: ${colors.buttonSecondaryText};`);
   if (colors.buttonSecondaryHover) vars.push(`--theme-button-secondary-hover: ${colors.buttonSecondaryHover};`);
+  if (colors.flagsColor) vars.push(`--theme-flags-color: ${colors.flagsColor};`);
 
   if (vars.length > 0) {
     css += `

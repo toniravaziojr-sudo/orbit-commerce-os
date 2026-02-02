@@ -240,7 +240,16 @@ export function CheckoutDemoBlock({
                   <p className="font-medium">Cliente Exemplo</p>
                   <p className="text-muted-foreground">cliente@email.com • (11) 99999-9999</p>
                 </div>
-                <Button variant="ghost" size="sm">Alterar</Button>
+                <Button 
+                  variant="unstyled" 
+                  size="sm" 
+                  className="text-sm px-3 py-1.5 rounded-md"
+                  style={{
+                    color: 'var(--theme-button-primary-bg, var(--theme-text-primary, #1a1a1a))',
+                  }}
+                >
+                  Alterar
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -267,7 +276,16 @@ export function CheckoutDemoBlock({
                     <p className="text-muted-foreground">Centro, São Paulo - SP, 01310-100</p>
                   </div>
                 </div>
-                <Button variant="ghost" size="sm">Alterar</Button>
+                <Button 
+                  variant="unstyled" 
+                  size="sm" 
+                  className="text-sm px-3 py-1.5 rounded-md"
+                  style={{
+                    color: 'var(--theme-button-primary-bg, var(--theme-text-primary, #1a1a1a))',
+                  }}
+                >
+                  Alterar
+                </Button>
               </div>
               
               {/* Shipping method */}
@@ -280,7 +298,16 @@ export function CheckoutDemoBlock({
                     <p className="text-muted-foreground">Receba em até 3 dias úteis</p>
                   </div>
                 </div>
-                <Badge variant="secondary" className="sf-tag-success">Grátis</Badge>
+                <Badge 
+                  variant="secondary" 
+                  className="sf-checkout-flag"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, var(--theme-flags-color, var(--theme-accent-color, #22c55e)) 15%, transparent)',
+                    color: 'var(--theme-flags-color, var(--theme-accent-color, #22c55e))',
+                  }}
+                >
+                  Grátis
+                </Badge>
               </div>
             </CardContent>
           </Card>
@@ -320,8 +347,11 @@ export function CheckoutDemoBlock({
                               method === 'pix' || method === 'boleto' ? (
                                 <Badge 
                                   variant="secondary" 
-                                  className="text-xs sf-tag-success"
-                                  style={{ color: 'var(--theme-accent-color, var(--theme-success-text, #22c55e))' }}
+                                  className="text-xs sf-checkout-flag"
+                                  style={{ 
+                                    backgroundColor: 'color-mix(in srgb, var(--theme-flags-color, var(--theme-accent-color, #22c55e)) 15%, transparent)',
+                                    color: 'var(--theme-flags-color, var(--theme-accent-color, #22c55e))' 
+                                  }}
                                 >
                                   {config.sublabel}
                                 </Badge>
@@ -496,7 +526,12 @@ export function CheckoutDemoBlock({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Frete</span>
-                  <span className="font-medium" style={{ color: 'var(--theme-accent-color, #22c55e)' }}>Grátis</span>
+                  <span 
+                    className="font-medium sf-flag-text" 
+                    style={{ color: 'var(--theme-flags-color, var(--theme-accent-color, #22c55e))' }}
+                  >
+                    Grátis
+                  </span>
                 </div>
               </div>
 

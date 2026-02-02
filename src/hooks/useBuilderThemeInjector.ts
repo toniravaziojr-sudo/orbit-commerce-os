@@ -350,6 +350,8 @@ export function useBuilderThemeInjector(
       buttonSecondaryBg: settings.buttonSecondaryBg as string | undefined,
       buttonSecondaryText: settings.buttonSecondaryText as string | undefined,
       buttonSecondaryHover: settings.buttonSecondaryHover as string | undefined,
+      // Checkout-specific: flags color
+      flagsColor: settings.flagsColor as string | undefined,
     };
 
     const css = getPageColorsCss(pageColors);
