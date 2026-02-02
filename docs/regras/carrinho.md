@@ -255,6 +255,45 @@ interface CartItem {
 
 ---
 
+## Cores Personalizadas
+
+A página do carrinho suporta personalização de cores de botões que sobrepõem as cores globais do tema.
+
+### Campos de Configuração (em `themeSettings.pageSettings.cart`)
+
+| Campo | Descrição |
+|-------|-----------|
+| `buttonPrimaryBg` | Cor de fundo do botão primário |
+| `buttonPrimaryText` | Cor do texto do botão primário |
+| `buttonPrimaryHover` | Cor de fundo no hover do botão primário |
+| `buttonSecondaryBg` | Cor de fundo do botão secundário |
+| `buttonSecondaryText` | Cor do texto do botão secundário |
+| `buttonSecondaryHover` | Cor de fundo no hover do botão secundário |
+
+### Regra de Herança
+
+1. **Valores vazios** → Usa cores globais do tema (`themeSettings.colors`)
+2. **Valores preenchidos** → Sobrepõe cores globais
+
+### Arquivos Relevantes
+
+| Arquivo | Responsabilidade |
+|---------|------------------|
+| `src/hooks/usePageColors.ts` | Busca cores publicadas + gera CSS |
+| `src/components/storefront/PageColorsInjector.tsx` | Injeta CSS no storefront público |
+| `src/hooks/useBuilderThemeInjector.ts` | Injeta CSS no builder (draft + saved) |
+| `src/components/builder/theme-settings/PageSettingsContent.tsx` | UI de edição |
+
+### Classes de Botões
+
+Os botões do carrinho usam classes semânticas:
+- `sf-btn-primary` → Botão "Finalizar compra"
+- `sf-btn-secondary` → Botão "Continuar comprando"
+
+**PROIBIDO:** Usar `variant="ghost"` ou cores hardcoded nos botões.
+
+---
+
 ## Persistência
 
 | Tipo | Método |
