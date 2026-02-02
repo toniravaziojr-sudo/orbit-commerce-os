@@ -616,26 +616,10 @@ export function VisualBuilder({
           draftPageSettings.clearDraft();
         }
         
-        // CRITICAL: Invalidate React Query cache to force UI refresh
-        // Without this, PageSettingsContent shows stale data after save
-        const effectiveTemplateSetId = templateSetId || 'legacy';
-        queryClient.invalidateQueries({ queryKey: ['template-set-content', templateSetId] });
-        queryClient.invalidateQueries({ queryKey: ['page-settings', tenantId] });
-        
-        // Invalidate page-specific settings cache
-        if (pageType === 'cart') {
-          queryClient.invalidateQueries({ queryKey: ['cart-settings-builder', tenantId, effectiveTemplateSetId] });
-        } else if (pageType === 'checkout') {
-          queryClient.invalidateQueries({ queryKey: ['checkout-settings-builder', tenantId, effectiveTemplateSetId] });
-        } else if (pageType === 'product') {
-          queryClient.invalidateQueries({ queryKey: ['product-settings-builder', tenantId, effectiveTemplateSetId] });
-        } else if (pageType === 'category') {
-          queryClient.invalidateQueries({ queryKey: ['category-settings-builder', tenantId, effectiveTemplateSetId] });
-        } else if (pageType === 'thank_you') {
-          queryClient.invalidateQueries({ queryKey: ['thankYou-settings-builder', tenantId, effectiveTemplateSetId] });
-        } else if (pageType === 'home') {
-          queryClient.invalidateQueries({ queryKey: ['home-settings-builder', tenantId, effectiveTemplateSetId] });
-        }
+        // CRITICAL: Notify PageSettingsContent to reload from DB
+        // This ensures UI reflects saved data, not stale draft state
+        const { notifyPageSettingsSaveCompleted } = await import('@/hooks/useBuilderDraftPageSettings');
+        notifyPageSettingsSaveCompleted();
       }
 
       // STEP 2: Extract Header/Footer from current content
@@ -699,7 +683,7 @@ export function VisualBuilder({
     } catch (error) {
       toast.error('Erro ao salvar rascunho');
     }
-  }, [saveDraft, saveTemplateSetDraft, entityType, pageType, pageId, store, isHomePage, isCheckoutPage, updateGlobalHeader, updateGlobalFooter, updateCheckoutHeader, updateCheckoutFooter, templateSetId, queryClient, tenantId]);
+  }, [saveDraft, saveTemplateSetDraft, entityType, pageType, pageId, store, isHomePage, isCheckoutPage, updateGlobalHeader, updateGlobalFooter, updateCheckoutHeader, updateCheckoutFooter, templateSetId]);
 
   // Handle publishing - same governance as save
   const handlePublish = useCallback(async () => {
