@@ -180,13 +180,21 @@ O componente `PaymentIconsQuickSelect` permite adicionar ícones de pagamento pr
 
 > Configurável em: **Configurações do tema** → **Rodapé** → **Visual Menus** → **Tamanho dos Selos**
 
+**Selos Padrão (Segurança, Frete, Lojas Oficiais):**
+
 | Tamanho | Altura Mobile | Altura Desktop | Referência para Upload |
 |---------|---------------|----------------|------------------------|
 | **Pequeno** | 24px (h-6) | 32px (h-8) | Suba imagens com ~24-32px de altura |
 | **Médio** (padrão) | 32px (h-8) | 40px (h-10) | Suba imagens com ~32-40px de altura |
 | **Grande** | 40px (h-10) | 48px (h-12) | Suba imagens com ~40-48px de altura |
 
-*Dimensões unificadas para todos os tipos de selos (Pagamento, Segurança, Frete, Lojas Oficiais)*
+**Bandeiras de Pagamento (30% menores para equilíbrio visual):**
+
+| Tamanho | Altura Mobile | Altura Desktop | Referência para Upload |
+|---------|---------------|----------------|------------------------|
+| **Pequeno** | 17px | 22px | Suba imagens com ~17-22px de altura |
+| **Médio** (padrão) | 22px | 28px | Suba imagens com ~22-28px de altura |
+| **Grande** | 28px | 34px | Suba imagens com ~28-34px de altura |
 
 | Prop | Tipo | Default | Descrição |
 |------|------|---------|-----------|
@@ -339,7 +347,8 @@ const hiddenCount = configuredItems.length - validItems.length;
 
 | Data | Alteração |
 |------|-----------|
-| 2026-02-02 | **UNIFICAÇÃO**: Tamanhos de selos padronizados para todos os tipos (Pagamento, Segurança, Frete, Lojas) - mesmas dimensões para UI consistente |
+| 2026-02-02 | **AJUSTE**: Bandeiras de pagamento agora são 30% menores que os outros selos para equilíbrio visual |
+| 2026-02-02 | **UNIFICAÇÃO**: Tamanhos de selos padronizados para todos os tipos (Pagamento, Segurança, Frete, Lojas) |
 | 2026-02-02 | Referência de dimensões (px) adicionada no UI do builder para orientar uploads |
 | 2026-02-01 | **FIX v5**: Movido gerenciamento de `pendingUpdatesRef` para o hook `useThemeFooter` — hook agora retorna `footer` já mesclado com atualizações pendentes |
 | 2026-02-01 | `FooterSettings.tsx` simplificado — não precisa mais de estado local para seções de imagem (paymentMethods, etc.) |

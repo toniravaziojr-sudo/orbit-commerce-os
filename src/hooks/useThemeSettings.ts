@@ -563,13 +563,36 @@ export function useThemeHeader(tenantId: string | undefined, templateSetId: stri
   const { themeSettings, saveThemeSettings, isLoading, isSaving } = 
     useThemeSettings(tenantId, templateSetId);
 
-  const header = {
+  // Track pending saves with useState to trigger re-renders
+  // This prevents race conditions where refetch overwrites local changes
+  const [pendingUpdates, setPendingUpdates] = useState<Partial<ThemeHeaderConfig>>({});
+  const [localSaving, setLocalSaving] = useState(false);
+
+  // Base header from server (React Query cache)
+  const serverHeader = {
     ...DEFAULT_THEME_HEADER,
     ...themeSettings?.header,
   };
 
-  const updateHeader = async (newHeader: Partial<ThemeHeaderConfig>) => {
-    const updatedHeader = { ...header, ...newHeader };
+  // Merge server header with any pending updates to get effective header
+  // This ensures UI is always consistent with what user sees
+  const header = {
+    ...serverHeader,
+    ...pendingUpdates,
+  };
+
+  const updateHeader = useCallback(async (newHeader: Partial<ThemeHeaderConfig>) => {
+    // Immediately update pending state - this will trigger re-render
+    setPendingUpdates(prev => ({ ...prev, ...newHeader }));
+    setLocalSaving(true);
+    
+    // Compute complete header for saving
+    const updatedHeader = { 
+      ...DEFAULT_THEME_HEADER,
+      ...themeSettings?.header,
+      ...pendingUpdates,
+      ...newHeader,
+    };
     
     // Build header block for global layout
     const headerBlock: BlockNode = {
@@ -586,12 +609,46 @@ export function useThemeHeader(tenantId: string | undefined, templateSetId: stri
       });
     }
     
-    // Save to template set (themeSettings)
-    saveThemeSettings({ header: updatedHeader });
+    // CRITICAL: Update themeSettings cache IMMEDIATELY (optimistic update)
+    // This prevents stale data from overwriting our changes on refetch
+    if (tenantId && templateSetId) {
+      queryClient.setQueryData(
+        THEME_SETTINGS_KEYS.all(tenantId, templateSetId),
+        (old: ThemeSettings | undefined) => ({
+          ...old,
+          header: updatedHeader,
+        })
+      );
+    }
     
-    // Also persist to storefront_global_layout for real-time sync
-    if (tenantId) {
-      try {
+    try {
+      // Save to storefront_template_sets.draft_content.themeSettings
+      if (templateSetId) {
+        const { data: current } = await supabase
+          .from('storefront_template_sets')
+          .select('draft_content')
+          .eq('id', templateSetId)
+          .single();
+        
+        const currentContent = current?.draft_content as Record<string, unknown> | null;
+        const currentTheme = currentContent?.themeSettings as ThemeSettings | undefined;
+        
+        const updatedContent = {
+          ...currentContent,
+          themeSettings: {
+            ...currentTheme,
+            header: updatedHeader,
+          },
+        };
+        
+        await supabase
+          .from('storefront_template_sets')
+          .update({ draft_content: updatedContent as unknown as Json })
+          .eq('id', templateSetId);
+      }
+      
+      // Also persist to storefront_global_layout for real-time sync
+      if (tenantId) {
         const { data: existing } = await supabase
           .from('storefront_global_layout')
           .select('id')
@@ -601,27 +658,32 @@ export function useThemeHeader(tenantId: string | undefined, templateSetId: stri
         if (existing) {
           await supabase
             .from('storefront_global_layout')
-            .update({ header_config: headerBlock as unknown as Json })
+            .update({ draft_header_config: headerBlock as unknown as Json })
             .eq('tenant_id', tenantId);
         } else {
           await supabase
             .from('storefront_global_layout')
             .insert({
               tenant_id: tenantId,
-              header_config: headerBlock as unknown as Json,
+              draft_header_config: headerBlock as unknown as Json,
             });
         }
-      } catch (err) {
-        console.error('[useThemeHeader] Error syncing to global layout:', err);
       }
+      
+      // Clear pending updates after successful save
+      setPendingUpdates({});
+    } catch (err) {
+      console.error('[useThemeHeader] Error saving header:', err);
+    } finally {
+      setLocalSaving(false);
     }
-  };
+  }, [themeSettings?.header, pendingUpdates, tenantId, templateSetId, queryClient]);
 
   return {
     header,
     updateHeader,
     isLoading,
-    isSaving,
+    isSaving: isSaving || localSaving,
   };
 }
 
