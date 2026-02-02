@@ -88,6 +88,7 @@ export function getDraftPageSettingsChangeCounter() {
 // Notify that save completed - PageSettingsContent should reload from DB
 export function notifyPageSettingsSaveCompleted() {
   saveCompletedCounter++;
+  console.log('[useBuilderDraftPageSettings] notifyPageSettingsSaveCompleted called, counter:', saveCompletedCounter, 'listeners:', saveCompletedListeners.size);
   saveCompletedListeners.forEach(listener => listener());
 }
 
@@ -111,8 +112,12 @@ export function usePageSettingsSaveCompletedObserver(): number {
   const [counter, setCounter] = useState(saveCompletedCounter);
   
   useEffect(() => {
-    const listener = () => setCounter(saveCompletedCounter);
+    const listener = () => {
+      console.log('[usePageSettingsSaveCompletedObserver] listener triggered, new counter:', saveCompletedCounter);
+      setCounter(saveCompletedCounter);
+    };
     saveCompletedListeners.add(listener);
+    console.log('[usePageSettingsSaveCompletedObserver] listener added, total listeners:', saveCompletedListeners.size);
     return () => {
       saveCompletedListeners.delete(listener);
     };
