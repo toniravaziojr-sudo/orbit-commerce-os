@@ -114,22 +114,26 @@ export function AgendaCalendarView() {
       />
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-3 items-center text-xs text-muted-foreground">
-        <span>Legenda:</span>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-warning" />
+      <div className="flex flex-wrap gap-4 items-center text-xs text-muted-foreground bg-muted/30 p-3 rounded-lg">
+        <span className="font-medium">Legenda:</span>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-sm bg-warning" />
           <span>Pendente</span>
         </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-success" />
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-sm bg-success" />
           <span>Concluída</span>
         </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-destructive" />
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-sm bg-destructive" />
           <span>Atrasada</span>
         </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-info" />
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-sm bg-muted-foreground/50" />
+          <span>Cancelada</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-sm bg-info" />
           <span>Com lembrete</span>
         </div>
       </div>
