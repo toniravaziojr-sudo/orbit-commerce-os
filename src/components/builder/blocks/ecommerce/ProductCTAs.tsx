@@ -199,9 +199,9 @@ export function ProductCTAs({
         </div>
         
         {/* Comprar Agora - Uses theme primary button colors via sf-btn-primary class */}
-        {/* IMPORTANT: variant="ghost" removes Tailwind's hover:bg-primary/90 so our CSS takes over */}
+        {/* IMPORTANT: variant="unstyled" removes ALL color/hover styles so our CSS takes over */}
         <Button
-          variant="ghost"
+          variant="unstyled"
           onClick={handleBuyNow}
           disabled={isOutOfStock || isAddingToCart || disableBuyButtons}
           className="flex-1 h-10 rounded-full sf-btn-primary font-semibold uppercase tracking-wide text-sm"
@@ -215,10 +215,10 @@ export function ProductCTAs({
       </div>
       
       {/* Adicionar ao Carrinho - Uses theme secondary button colors via sf-btn-secondary class */}
-      {/* IMPORTANT: Uses unstyled button base so our CSS takes over */}
+      {/* IMPORTANT: variant="unstyled" removes ALL color/hover styles so our CSS takes over */}
       {showAddToCartButton && (
         <Button
-          variant="ghost"
+          variant="unstyled"
           onClick={handleAddToCart}
           disabled={isOutOfStock || isAddingToCart || disableBuyButtons}
           className="w-full h-12 rounded-full sf-btn-secondary font-semibold uppercase tracking-wide text-sm border-2"
