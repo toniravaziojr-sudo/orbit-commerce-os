@@ -2,14 +2,18 @@
 // BUILDER THEME INJECTOR HOOK - Injects theme CSS in builder preview
 // Uses DRAFT state for real-time preview (changes without saving)
 // Falls back to saved themeSettings when no draft is available
+// Also injects page-specific color overrides for cart/checkout
 // =============================================
 
 import { useEffect } from 'react';
 import { useThemeSettings, ThemeTypography, ThemeColors, DEFAULT_THEME_COLORS, DEFAULT_THEME_TYPOGRAPHY } from './useThemeSettings';
 import { getFontFamily } from './usePublicThemeSettings';
 import { useBuilderDraftTheme } from './useBuilderDraftTheme';
+import { useBuilderDraftPageSettings, PageSettingsKey } from './useBuilderDraftPageSettings';
+import { getPageColorsCss, PageColors } from './usePageColors';
 
 const BUILDER_STYLE_ID = 'builder-theme-styles';
+const BUILDER_PAGE_COLORS_STYLE_ID = 'builder-page-colors-styles';
 
 /**
  * Convert hex color to HSL values string for CSS variable (without hsl() wrapper)
@@ -56,10 +60,12 @@ function hexToHslValues(hex: string): string {
  */
 export function useBuilderThemeInjector(
   tenantId: string | undefined,
-  templateSetId: string | undefined
+  templateSetId: string | undefined,
+  currentPageType?: string
 ) {
   const { themeSettings } = useThemeSettings(tenantId, templateSetId);
   const draftTheme = useBuilderDraftTheme();
+  const draftPageSettings = useBuilderDraftPageSettings();
 
   useEffect(() => {
     if (!tenantId || !templateSetId) return;
@@ -309,5 +315,52 @@ export function useBuilderThemeInjector(
     draftTheme?.draftColors,
     draftTheme?.draftTypography,
     draftTheme?.draftCustomCss,
+  ]);
+
+  // Second effect: Inject page-specific color overrides for cart/checkout
+  useEffect(() => {
+    // Remove existing page colors style element if present
+    const existingStyle = document.getElementById(BUILDER_PAGE_COLORS_STYLE_ID);
+    if (existingStyle) {
+      existingStyle.remove();
+    }
+
+    // Only apply for cart or checkout pages
+    if (currentPageType !== 'cart' && currentPageType !== 'checkout') return;
+    
+    const pageKey = currentPageType as PageSettingsKey;
+    const draftSettings = draftPageSettings?.getDraftPageSettings(pageKey);
+    
+    if (!draftSettings) return;
+
+    // Extract color fields from draft settings - use type assertion since we checked pageType
+    const settings = draftSettings as Record<string, unknown>;
+    const pageColors: PageColors = {
+      buttonPrimaryBg: settings.buttonPrimaryBg as string | undefined,
+      buttonPrimaryText: settings.buttonPrimaryText as string | undefined,
+      buttonPrimaryHover: settings.buttonPrimaryHover as string | undefined,
+      buttonSecondaryBg: settings.buttonSecondaryBg as string | undefined,
+      buttonSecondaryText: settings.buttonSecondaryText as string | undefined,
+      buttonSecondaryHover: settings.buttonSecondaryHover as string | undefined,
+    };
+
+    const css = getPageColorsCss(pageColors);
+    if (!css) return;
+
+    const styleElement = document.createElement('style');
+    styleElement.id = BUILDER_PAGE_COLORS_STYLE_ID;
+    styleElement.textContent = css;
+    document.head.appendChild(styleElement);
+
+    // Cleanup on unmount
+    return () => {
+      const styleToRemove = document.getElementById(BUILDER_PAGE_COLORS_STYLE_ID);
+      if (styleToRemove) {
+        styleToRemove.remove();
+      }
+    };
+  }, [
+    currentPageType,
+    draftPageSettings?.draftPageSettings,
   ]);
 }
