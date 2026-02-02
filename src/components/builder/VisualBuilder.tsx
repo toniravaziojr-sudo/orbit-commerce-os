@@ -618,24 +618,47 @@ export function VisualBuilder({
           throw updateError;
         }
         
-        console.log('[VisualBuilder.handleSave] DB save successful, clearing drafts...');
+        console.log('[VisualBuilder.handleSave] DB save successful');
         
-        // Clear draft states after successful save
+        // CRITICAL FIX: Update React Query cache SYNCHRONOUSLY with saved data BEFORE clearing drafts
+        // This ensures ThemeInjector sees fresh data immediately when draft is cleared
+        // Without this, there's a race condition: draft clears -> injector re-renders with stale cache -> blue flash
+        const { THEME_SETTINGS_KEYS } = await import('@/hooks/useThemeSettings');
+        
+        if (tenantId && templateSetId) {
+          // Synchronously update the theme-settings cache with the EXACT saved themeSettings
+          queryClient.setQueryData(
+            THEME_SETTINGS_KEYS.all(tenantId, templateSetId),
+            updatedThemeSettings
+          );
+          
+          console.log('[VisualBuilder.handleSave] Cache updated with:', {
+            pageSettings: updatedThemeSettings.pageSettings,
+          });
+        }
+        
+        // Wait for React to process the cache update before clearing drafts
+        // requestAnimationFrame ensures DOM updates are flushed, then setTimeout for microtask
+        await new Promise<void>(resolve => {
+          requestAnimationFrame(() => {
+            setTimeout(resolve, 0);
+          });
+        });
+        
+        // NOW clear drafts - React Query cache is guaranteed to have fresh data
         if (draftTheme?.hasDraftChanges) {
           draftTheme.clearDraft();
+          console.log('[VisualBuilder.handleSave] Cleared theme draft');
         }
         if (draftPageSettings?.hasDraftChanges) {
           draftPageSettings.clearDraft();
+          console.log('[VisualBuilder.handleSave] Cleared page settings draft');
         }
         
-        // CRITICAL: Wait for DB to propagate, then notify PageSettingsContent to reload
-        // This ensures UI reflects saved data, not stale draft state
-        console.log('[VisualBuilder.handleSave] Waiting for DB propagation...');
-        await new Promise(resolve => setTimeout(resolve, 200));
-        
+        // Notify PageSettingsContent to reload from DB (for baseline sync)
         const { notifyPageSettingsSaveCompleted } = await import('@/hooks/useBuilderDraftPageSettings');
-        console.log('[VisualBuilder.handleSave] Notifying PageSettingsContent to reload');
         notifyPageSettingsSaveCompleted();
+        console.log('[VisualBuilder.handleSave] Save complete');
       }
 
       // STEP 2: Extract Header/Footer from current content
