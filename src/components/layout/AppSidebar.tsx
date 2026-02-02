@@ -107,6 +107,7 @@ const fullNavigation: NavGroup[] = [
     collapsible: true,
     items: [
       { title: "Loja Virtual", href: "/storefront", icon: Store },
+      { title: "Landing Pages", href: "/landing-pages", icon: Sparkles },
       { title: "Categorias", href: "/categories", icon: FolderTree },
       { title: "Menus", href: "/menus", icon: Menu },
       { title: "Páginas da Loja", href: "/pages", icon: FileText },

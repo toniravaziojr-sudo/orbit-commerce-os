@@ -42,6 +42,8 @@ import StorefrontBuilder from "@/pages/StorefrontBuilder";
 import PageBuilder from "@/pages/PageBuilder";
 import PageTemplates from "@/pages/PageTemplates";
 import TemplateBuilder from "@/pages/TemplateBuilder";
+import LandingPages from "@/pages/LandingPages";
+import LandingPageEditor from "@/pages/LandingPageEditor";
 import BillingSettings from "@/pages/settings/BillingSettings";
 import AddPaymentMethod from "@/pages/settings/AddPaymentMethod";
 
@@ -339,6 +341,8 @@ const App = () => {
                   <Route path="/menus" element={<Menus />} />
                   <Route path="/pages" element={<Pages />} />
                   <Route path="/page-templates" element={<PageTemplates />} />
+                  <Route path="/landing-pages" element={<LandingPages />} />
+                  <Route path="/landing-pages/:id" element={<LandingPageEditor />} />
                   <Route path="/blog" element={<Blog />} />
                   <Route path="/blog/campaigns" element={<FeatureGatedRoute moduleKey="blog" featureKey="ai_campaigns" featureName="Campanhas IA" featureDescription="Crie campanhas de blog com IA"><BlogCampaigns /></FeatureGatedRoute>} />
                   <Route path="/blog/campaigns/:campaignId" element={<FeatureGatedRoute moduleKey="blog" featureKey="ai_campaigns" featureName="Campanhas IA"><BlogCampaignDetail /></FeatureGatedRoute>} />
