@@ -348,15 +348,24 @@ export function StorefrontFooterContent({
   const badgeSize = (configProps.badgeSize as 'small' | 'medium' | 'large') || 'medium';
   
   // Badge size classes mapping - UNIFIED across all badge types
-  // UPDATED 2026-02-02: Standardized all badge sections to same dimensions
+  // UPDATED 2026-02-02: Standardized all badge sections with payment methods 30% smaller
   // Reference dimensions for uploads:
   // - Pequeno: 24px altura (mobile) / 32px altura (desktop) 
   // - Médio: 32px altura (mobile) / 40px altura (desktop)
   // - Grande: 40px altura (mobile) / 48px altura (desktop)
+  // Payment methods are 30% smaller for visual balance
   const badgeSizeClasses = {
     small: 'h-6 md:h-8',   // 24px / 32px
     medium: 'h-8 md:h-10', // 32px / 40px
     large: 'h-10 md:h-12', // 40px / 48px
+  };
+  
+  // Payment badges are 30% smaller to balance with other seal types
+  // Pequeno: 17px/22px, Médio: 22px/28px, Grande: 28px/34px (approx)
+  const paymentBadgeSizeClasses = {
+    small: 'h-[17px] md:h-[22px]',
+    medium: 'h-[22px] md:h-7',
+    large: 'h-7 md:h-[34px]',
   };
   
   // Primary color: config > settings > theme default (neutral, not blue)
@@ -1312,7 +1321,7 @@ export function StorefrontFooterContent({
                       key={index}
                       src={item.imageUrl}
                       alt={`Pagamento ${index + 1}`}
-                      className={`${badgeSizeClasses[badgeSize]} w-auto object-contain`}
+                      className={`${paymentBadgeSizeClasses[badgeSize]} w-auto object-contain`}
                     />
                   ))}
                 </div>

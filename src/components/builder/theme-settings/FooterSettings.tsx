@@ -492,25 +492,25 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
                 <SelectItem value="small" className="text-xs">
                   <div className="flex flex-col gap-0.5">
                     <span className="font-medium">Pequeno</span>
-                    <span className="text-[10px] text-muted-foreground">24px altura (mobile) / 32px (desktop)</span>
+                    <span className="text-[10px] text-muted-foreground">Selos: 24/32px | Bandeiras: 17/22px</span>
                   </div>
                 </SelectItem>
                 <SelectItem value="medium" className="text-xs">
                   <div className="flex flex-col gap-0.5">
                     <span className="font-medium">Médio</span>
-                    <span className="text-[10px] text-muted-foreground">32px altura (mobile) / 40px (desktop)</span>
+                    <span className="text-[10px] text-muted-foreground">Selos: 32/40px | Bandeiras: 22/28px</span>
                   </div>
                 </SelectItem>
                 <SelectItem value="large" className="text-xs">
                   <div className="flex flex-col gap-0.5">
                     <span className="font-medium">Grande</span>
-                    <span className="text-[10px] text-muted-foreground">40px altura (mobile) / 48px (desktop)</span>
+                    <span className="text-[10px] text-muted-foreground">Selos: 40/48px | Bandeiras: 28/34px</span>
                   </div>
                 </SelectItem>
               </SelectContent>
             </Select>
             <p className="text-[10px] text-muted-foreground">
-              Dimensões padronizadas para todos os selos (pagamento, segurança, frete, lojas)
+              Bandeiras de pagamento são 30% menores para equilíbrio visual
             </p>
           </div>
         </CollapsibleContent>
