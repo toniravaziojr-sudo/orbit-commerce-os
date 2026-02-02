@@ -586,6 +586,7 @@ export function VisualBuilder({
         // Merge page settings draft changes
         if (draftPageSettings?.hasDraftChanges) {
           const pendingPageSettingsChanges = draftPageSettings.getPendingChanges();
+          console.log('[VisualBuilder.handleSave] Pending page settings changes:', pendingPageSettingsChanges);
           if (pendingPageSettingsChanges) {
             const currentPageSettings = (currentThemeSettings.pageSettings as Record<string, unknown>) || {};
             updatedThemeSettings.pageSettings = {
@@ -600,6 +601,11 @@ export function VisualBuilder({
           themeSettings: updatedThemeSettings,
         };
         
+        console.log('[VisualBuilder.handleSave] Saving to DB:', {
+          templateSetId,
+          pageSettings: updatedThemeSettings.pageSettings,
+        });
+        
         const { error: updateError } = await supabase
           .from('storefront_template_sets')
           .update({ 
@@ -612,6 +618,8 @@ export function VisualBuilder({
           throw updateError;
         }
         
+        console.log('[VisualBuilder.handleSave] DB save successful, clearing drafts...');
+        
         // Clear draft states after successful save
         if (draftTheme?.hasDraftChanges) {
           draftTheme.clearDraft();
@@ -620,10 +628,13 @@ export function VisualBuilder({
           draftPageSettings.clearDraft();
         }
         
-        // CRITICAL: Wait a bit for DB to propagate, then notify PageSettingsContent to reload
+        // CRITICAL: Wait for DB to propagate, then notify PageSettingsContent to reload
         // This ensures UI reflects saved data, not stale draft state
-        await new Promise(resolve => setTimeout(resolve, 100));
+        console.log('[VisualBuilder.handleSave] Waiting for DB propagation...');
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
         const { notifyPageSettingsSaveCompleted } = await import('@/hooks/useBuilderDraftPageSettings');
+        console.log('[VisualBuilder.handleSave] Notifying PageSettingsContent to reload');
         notifyPageSettingsSaveCompleted();
       }
 
