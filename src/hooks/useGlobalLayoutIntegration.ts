@@ -470,9 +470,17 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
             draft_checkout_footer_config: defaultCheckoutFooterConfig as unknown as Json,
           });
       }
+      
+      // Return saved config for onSuccess to use
+      return headerConfig;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['global-layout-editor'] });
+    onSuccess: (savedHeaderConfig) => {
+      // CRITICAL FIX: Update cache SYNCHRONOUSLY with saved data instead of invalidating
+      // This prevents race conditions where UI briefly shows stale data
+      queryClient.setQueryData(['global-layout-editor', tenantId], (old: unknown) => {
+        if (!old || typeof old !== 'object') return old;
+        return { ...old, draft_header_config: savedHeaderConfig };
+      });
       // NOTE: Do NOT invalidate public-global-layout - changes only go live after publish
     },
   });
@@ -506,9 +514,17 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
             draft_checkout_footer_config: defaultCheckoutFooterConfig as unknown as Json,
           });
       }
+      
+      // Return saved config for onSuccess to use
+      return footerConfig;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['global-layout-editor'] });
+    onSuccess: (savedFooterConfig) => {
+      // CRITICAL FIX: Update cache SYNCHRONOUSLY with saved data instead of invalidating
+      // This prevents race conditions where UI briefly shows stale data
+      queryClient.setQueryData(['global-layout-editor', tenantId], (old: unknown) => {
+        if (!old || typeof old !== 'object') return old;
+        return { ...old, draft_footer_config: savedFooterConfig };
+      });
       // NOTE: Do NOT invalidate public-global-layout - changes only go live after publish
     },
   });
@@ -543,9 +559,16 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
             draft_checkout_footer_config: defaultCheckoutFooterConfig as unknown as Json,
           });
       }
+      
+      // Return saved config for onSuccess to use
+      return headerConfig;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['global-layout-editor'] });
+    onSuccess: (savedHeaderConfig) => {
+      // CRITICAL FIX: Update cache SYNCHRONOUSLY with saved data instead of invalidating
+      queryClient.setQueryData(['global-layout-editor', tenantId], (old: unknown) => {
+        if (!old || typeof old !== 'object') return old;
+        return { ...old, draft_checkout_header_config: savedHeaderConfig };
+      });
     },
   });
 
@@ -578,9 +601,16 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
             ...updateData,
           });
       }
+      
+      // Return saved config for onSuccess to use
+      return footerConfig;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['global-layout-editor'] });
+    onSuccess: (savedFooterConfig) => {
+      // CRITICAL FIX: Update cache SYNCHRONOUSLY with saved data instead of invalidating
+      queryClient.setQueryData(['global-layout-editor', tenantId], (old: unknown) => {
+        if (!old || typeof old !== 'object') return old;
+        return { ...old, draft_checkout_footer_config: savedFooterConfig };
+      });
     },
   });
 
