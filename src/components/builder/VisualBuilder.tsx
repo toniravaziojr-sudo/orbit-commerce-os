@@ -600,13 +600,17 @@ export function VisualBuilder({
           themeSettings: updatedThemeSettings,
         };
         
-        await supabase
+        const { error: updateError } = await supabase
           .from('storefront_template_sets')
           .update({ 
             draft_content: updatedDraftContent as unknown as Json,
             updated_at: new Date().toISOString(),
           })
           .eq('id', templateSetId);
+        
+        if (updateError) {
+          throw updateError;
+        }
         
         // Clear draft states after successful save
         if (draftTheme?.hasDraftChanges) {
@@ -616,8 +620,9 @@ export function VisualBuilder({
           draftPageSettings.clearDraft();
         }
         
-        // CRITICAL: Notify PageSettingsContent to reload from DB
+        // CRITICAL: Wait a bit for DB to propagate, then notify PageSettingsContent to reload
         // This ensures UI reflects saved data, not stale draft state
+        await new Promise(resolve => setTimeout(resolve, 100));
         const { notifyPageSettingsSaveCompleted } = await import('@/hooks/useBuilderDraftPageSettings');
         notifyPageSettingsSaveCompleted();
       }
