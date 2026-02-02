@@ -558,17 +558,35 @@ export function PageSettingsContent({
 
   // Subscribe to save completed events to reload data from DB
   const saveCompletedCounter = usePageSettingsSaveCompletedObserver();
+  
+  // Track if this is a reload after save (vs initial mount)
+  const isReloadAfterSave = useRef(false);
+  const lastSaveCounter = useRef(saveCompletedCounter);
 
   // Load settings on mount or when save is completed - from template set draft_content if available
   useEffect(() => {
+    // Detect if this is a reload triggered by save
+    const triggeredBySave = saveCompletedCounter > lastSaveCounter.current;
+    lastSaveCounter.current = saveCompletedCounter;
+    
     async function loadSettings() {
       if (!tenantId || !pageType) return;
+      
+      console.log('[PageSettingsContent] loadSettings called', {
+        tenantId,
+        templateSetId,
+        pageType,
+        saveCompletedCounter,
+        triggeredBySave,
+      });
       
       try {
         const settingsKey = getSettingsKey(pageType);
         
         // If templateSetId is available, load from draft_content
         if (templateSetId) {
+          // CRITICAL: Add cache-busting timestamp for fresh data after save
+          // This ensures we bypass any potential connection pooling/caching
           const { data: templateSet, error: tsError } = await supabase
             .from('storefront_template_sets')
             .select('draft_content')
@@ -576,10 +594,22 @@ export function PageSettingsContent({
             .eq('tenant_id', tenantId)
             .maybeSingle();
           
+          console.log('[PageSettingsContent] Fetched template set:', {
+            hasData: !!templateSet,
+            error: tsError?.message,
+            themeSettings: templateSet?.draft_content ? 'present' : 'missing',
+          });
+          
           if (!tsError && templateSet?.draft_content) {
             const draftContent = templateSet.draft_content as Record<string, unknown>;
             const themeSettings = draftContent.themeSettings as Record<string, unknown> | undefined;
             const pageSettings = themeSettings?.pageSettings as Record<string, unknown> | undefined;
+            
+            console.log('[PageSettingsContent] Extracted pageSettings:', {
+              pageType,
+              hasPageSettings: !!pageSettings?.[pageType],
+              buttonPrimaryBg: (pageSettings?.[pageType] as Record<string, unknown>)?.buttonPrimaryBg,
+            });
             
             if (pageSettings?.[pageType]) {
               setSettings(pageSettings[pageType] as Record<string, boolean | string>);
@@ -614,7 +644,16 @@ export function PageSettingsContent({
       }
     }
 
-    loadSettings();
+    // If triggered by save, add a small delay to ensure DB propagation
+    if (triggeredBySave) {
+      console.log('[PageSettingsContent] Reload triggered by save, adding delay...');
+      const timer = setTimeout(() => {
+        loadSettings();
+      }, 150);
+      return () => clearTimeout(timer);
+    } else {
+      loadSettings();
+    }
   }, [tenantId, templateSetId, pageType, saveCompletedCounter]);
 
   // Save mutation - save to template set draft_content if templateSetId available
