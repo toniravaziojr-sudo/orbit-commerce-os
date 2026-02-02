@@ -208,14 +208,21 @@ const footerPropsToInherit = [
 |---------|------|---------|-----------|
 | `buttonPrimaryBg` | string | '' | Cor de fundo do botão primário (herda do tema se vazio) |
 | `buttonPrimaryText` | string | '' | Cor do texto do botão primário (herda do tema se vazio) |
+| `buttonPrimaryHover` | string | '' | Cor de hover do botão primário (herda do tema se vazio) |
 | `buttonSecondaryBg` | string | '' | Cor de fundo do botão secundário (herda do tema se vazio) |
 | `buttonSecondaryText` | string | '' | Cor do texto do botão secundário (herda do tema se vazio) |
+| `buttonSecondaryHover` | string | '' | Cor de hover do botão secundário (herda do tema se vazio) |
 
 ### Regra de Herança
 
 1. Se a cor estiver **vazia** (`''`), o botão usa as cores do **tema global**
 2. Se a cor estiver **preenchida**, ela **sobrescreve** o tema
 3. Configuração em: **Configurações do Tema > Páginas > Checkout > Cores Personalizadas**
+
+### Arquitetura de Injeção
+
+- **Builder (preview):** `useBuilderThemeInjector.ts` lê o draft de `useBuilderDraftPageSettings` e injeta variáveis CSS
+- **Loja pública:** `PageColorsInjector.tsx` + `usePageColors.ts` leem do `published_content` e injetam CSS
 
 ---
 

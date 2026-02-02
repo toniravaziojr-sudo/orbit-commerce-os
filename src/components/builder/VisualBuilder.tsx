@@ -104,8 +104,8 @@ function BuilderToolbarWithDraftCheck(props: Omit<React.ComponentProps<typeof Bu
 
 // Component that injects theme CSS - MUST be inside BuilderDraftThemeProvider
 // This ensures useBuilderDraftTheme() returns the context value, not null
-function BuilderThemeInjectorInner({ tenantId, templateSetId }: { tenantId: string; templateSetId?: string }) {
-  useBuilderThemeInjector(tenantId, templateSetId);
+function BuilderThemeInjectorInner({ tenantId, templateSetId, pageType }: { tenantId: string; templateSetId?: string; pageType?: string }) {
+  useBuilderThemeInjector(tenantId, templateSetId, pageType);
   return null;
 }
 
@@ -1104,7 +1104,7 @@ export function VisualBuilder({
   return (
     <BuilderDraftThemeProvider>
     <BuilderDraftPageSettingsProvider>
-    <BuilderThemeInjectorInner tenantId={tenantId} templateSetId={templateSetId} />
+    <BuilderThemeInjectorInner tenantId={tenantId} templateSetId={templateSetId} pageType={pageType} />
     <DraftThemeRefSync />
     <CanvasRichTextProvider onBlockSelect={store.selectBlock}>
     <CanvasEditorProvider>

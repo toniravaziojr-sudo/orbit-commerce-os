@@ -9,8 +9,10 @@ import { supabase } from '@/integrations/supabase/client';
 export interface PageColors {
   buttonPrimaryBg?: string;
   buttonPrimaryText?: string;
+  buttonPrimaryHover?: string;
   buttonSecondaryBg?: string;
   buttonSecondaryText?: string;
+  buttonSecondaryHover?: string;
 }
 
 /**
@@ -66,8 +68,10 @@ export function usePageColors(tenantSlug: string, pageType: 'cart' | 'checkout')
       const hasColors = 
         pageConfig.buttonPrimaryBg || 
         pageConfig.buttonPrimaryText || 
+        pageConfig.buttonPrimaryHover ||
         pageConfig.buttonSecondaryBg || 
-        pageConfig.buttonSecondaryText;
+        pageConfig.buttonSecondaryText ||
+        pageConfig.buttonSecondaryHover;
 
       return hasColors ? pageConfig : null;
     },
@@ -90,11 +94,17 @@ export function getPageColorsCss(colors: PageColors | null | undefined): string 
   if (colors.buttonPrimaryText) {
     vars.push(`--theme-button-primary-text: ${colors.buttonPrimaryText};`);
   }
+  if (colors.buttonPrimaryHover) {
+    vars.push(`--theme-button-primary-hover: ${colors.buttonPrimaryHover};`);
+  }
   if (colors.buttonSecondaryBg) {
     vars.push(`--theme-button-secondary-bg: ${colors.buttonSecondaryBg};`);
   }
   if (colors.buttonSecondaryText) {
     vars.push(`--theme-button-secondary-text: ${colors.buttonSecondaryText};`);
+  }
+  if (colors.buttonSecondaryHover) {
+    vars.push(`--theme-button-secondary-hover: ${colors.buttonSecondaryHover};`);
   }
 
   if (vars.length === 0) return '';

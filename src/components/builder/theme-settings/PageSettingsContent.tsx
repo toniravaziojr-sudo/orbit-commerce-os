@@ -931,6 +931,23 @@ export function PageSettingsContent({
                             />
                           </div>
                         </div>
+                        <div className="space-y-1 col-span-2">
+                          <Label className="text-[10px] text-muted-foreground">Hover</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              type="color"
+                              value={String(settings.buttonPrimaryHover || '#333333')}
+                              onChange={(e) => handleChange('buttonPrimaryHover', e.target.value)}
+                              className="h-8 w-10 p-1"
+                            />
+                            <Input
+                              value={String(settings.buttonPrimaryHover || '')}
+                              onChange={(e) => handleChange('buttonPrimaryHover', e.target.value)}
+                              placeholder="Tema"
+                              className="h-8 text-xs flex-1"
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
                     
@@ -974,6 +991,23 @@ export function PageSettingsContent({
                             />
                           </div>
                         </div>
+                        <div className="space-y-1 col-span-2">
+                          <Label className="text-[10px] text-muted-foreground">Hover</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              type="color"
+                              value={String(settings.buttonSecondaryHover || '#e5e5e5')}
+                              onChange={(e) => handleChange('buttonSecondaryHover', e.target.value)}
+                              className="h-8 w-10 p-1"
+                            />
+                            <Input
+                              value={String(settings.buttonSecondaryHover || '')}
+                              onChange={(e) => handleChange('buttonSecondaryHover', e.target.value)}
+                              placeholder="Tema"
+                              className="h-8 text-xs flex-1"
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
                     
@@ -983,8 +1017,10 @@ export function PageSettingsContent({
                       onClick={() => {
                         handleChange('buttonPrimaryBg', '');
                         handleChange('buttonPrimaryText', '');
+                        handleChange('buttonPrimaryHover', '');
                         handleChange('buttonSecondaryBg', '');
                         handleChange('buttonSecondaryText', '');
+                        handleChange('buttonSecondaryHover', '');
                       }}
                       className="text-xs text-muted-foreground hover:text-foreground underline"
                     >

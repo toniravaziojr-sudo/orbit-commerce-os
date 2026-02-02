@@ -79,8 +79,10 @@ export interface CartSettings {
   // Cores personalizadas (herdam do tema se vazias)
   buttonPrimaryBg?: string;
   buttonPrimaryText?: string;
+  buttonPrimaryHover?: string;
   buttonSecondaryBg?: string;
   buttonSecondaryText?: string;
+  buttonSecondaryHover?: string;
   // Legacy fields (mantidos para compatibilidade)
   miniCartEnabled?: boolean;
   showGoToCartButton?: boolean;
@@ -104,8 +106,10 @@ export interface CheckoutSettings {
   // Cores personalizadas (herdam do tema se vazias)
   buttonPrimaryBg?: string;
   buttonPrimaryText?: string;
+  buttonPrimaryHover?: string;
   buttonSecondaryBg?: string;
   buttonSecondaryText?: string;
+  buttonSecondaryHover?: string;
   // Legacy fields
   purchaseEventAllOrders?: boolean;
 }

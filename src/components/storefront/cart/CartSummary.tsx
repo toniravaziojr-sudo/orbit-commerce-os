@@ -79,7 +79,6 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
             )}
           </div>
           <Button 
-            variant="ghost"
             size="lg" 
             onClick={handleCheckout}
             className="shrink-0 sf-btn-primary"
@@ -147,7 +146,6 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
           </div>
 
           <Button 
-            variant="ghost"
             size="lg" 
             className="w-full mt-6 sf-btn-primary"
             onClick={handleCheckout}
@@ -157,7 +155,6 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
           </Button>
 
           <Button 
-            variant="ghost" 
             className="w-full mt-2 sf-btn-secondary"
             onClick={handleContinueShopping}
           >
@@ -211,7 +208,6 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
       </div>
 
       <Button 
-        variant="ghost"
         size="lg" 
         className="w-full mt-6 sf-btn-primary"
         onClick={handleCheckout}
