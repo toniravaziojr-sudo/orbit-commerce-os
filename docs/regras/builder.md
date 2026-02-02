@@ -1214,3 +1214,126 @@ color: var(--theme-accent-color);
 3. **SEMPRE** usar `color-mix()` para backgrounds com opacidade
 4. **SEMPRE** incluir fallback nas variáveis CSS: `var(--theme-accent-color, #22c55e)`
 5. Cores de feedback (sucesso, aviso, perigo) herdam do accentColor caso não definidas
+
+---
+
+## Padrão de Sincronização de Cache (React Query)
+
+> **Implementado em:** 2025-02-02  
+> **Corrige:** Race conditions que causam "flash" de dados antigos após salvar
+
+### Problema Identificado
+
+Ao salvar configurações no builder, a UI brevemente exibia valores antigos (ex: cor azul voltava por 200ms após salvar verde) mesmo quando a persistência estava correta. Isso ocorria devido a **race conditions** entre:
+
+1. `clearDraft()` — remove estado local, UI volta a ler do cache
+2. `invalidateQueries()` — dispara refetch assíncrono
+3. Cache ainda contém dados **stale** até o refetch completar
+
+### Solução: Cache Síncrono + Delay de Sincronização
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    PADRÃO OBRIGATÓRIO — onSuccess                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│  ❌ ERRADO (causa race condition):                                      │
+│  onSuccess: () => {                                                      │
+│    queryClient.invalidateQueries({ queryKey: ['my-data'] });            │
+│  }                                                                       │
+│                                                                          │
+│  ✅ CORRETO (atualização síncrona):                                     │
+│  onSuccess: (savedData) => {                                             │
+│    queryClient.setQueryData(['my-data', tenantId], (old) => ({          │
+│      ...old,                                                             │
+│      ...savedData,                                                       │
+│    }));                                                                   │
+│  }                                                                       │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Padrão Completo com Drafts
+
+Quando o fluxo envolve estados de draft (local) que são limpos após salvamento:
+
+```tsx
+// Em VisualBuilder.tsx ou similar
+const handleSave = async () => {
+  // 1. Salvar no banco
+  await saveMutation.mutateAsync(dataToSave);
+  
+  // 2. Atualizar cache SÍNCRONAMENTE com dados salvos
+  queryClient.setQueryData(['theme-settings', tenantId, templateSetId], savedData);
+  
+  // 3. CRÍTICO: Aguardar React processar a atualização do cache
+  await new Promise<void>(resolve => {
+    requestAnimationFrame(() => {
+      setTimeout(resolve, 0);
+    });
+  });
+  
+  // 4. SOMENTE AGORA limpar drafts — cache já tem dados frescos
+  draftContext.clearDraft();
+};
+```
+
+### Por Que o Delay é Necessário?
+
+| Sem Delay | Com Delay (requestAnimationFrame + setTimeout) |
+|-----------|-----------------------------------------------|
+| `setQueryData` atualiza cache | `setQueryData` atualiza cache |
+| `clearDraft()` executa imediatamente | React processa re-render com cache novo |
+| ThemeInjector re-renderiza com cache stale (batching) | DOM é atualizado com valores novos |
+| Flash de cor antiga | `clearDraft()` executa |
+| | ThemeInjector já vê dados corretos |
+
+### Arquivos Corrigidos com Este Padrão
+
+| Arquivo | Mutation(s) Corrigida(s) |
+|---------|--------------------------|
+| `src/components/builder/VisualBuilder.tsx` | `handleSave` — tema e page settings |
+| `src/hooks/useGlobalLayoutIntegration.ts` | `updateGlobalHeader`, `updateGlobalFooter`, `updateCheckoutHeader`, `updateCheckoutFooter`, `migrateFromHome`, `updateVisibilityToggles` |
+| `src/hooks/useThemeSettings.ts` | `updateThemeSettings` (usa optimistic update via `onMutate`) |
+
+### Regras Obrigatórias
+
+1. **NUNCA** usar `invalidateQueries` em `onSuccess` para dados que a UI lê imediatamente após save
+2. **SEMPRE** retornar os dados salvos do `mutationFn` para uso no `onSuccess`
+3. **SEMPRE** usar `setQueryData` síncrono no `onSuccess` com os dados salvos
+4. **SEMPRE** aguardar `requestAnimationFrame` + microtask ANTES de limpar drafts
+5. **SEMPRE** que o `mutationFn` modificar dados, retornar os dados modificados (não `void`)
+6. `invalidateQueries` é aceitável apenas para dados que NÃO afetam UI imediata (ex: `public-global-layout`)
+
+### Template de Mutation Segura
+
+```tsx
+const updateSomething = useMutation({
+  mutationFn: async (newData: SomeType) => {
+    const { error } = await supabase
+      .from('my_table')
+      .update(newData)
+      .eq('tenant_id', tenantId);
+    
+    if (error) throw error;
+    
+    // CRÍTICO: Retornar dados para onSuccess
+    return newData;
+  },
+  onSuccess: (savedData) => {
+    // CRÍTICO: Atualização síncrona do cache
+    queryClient.setQueryData(['my-query-key', tenantId], (old: MyType | undefined) => {
+      if (!old) return savedData;
+      return { ...old, ...savedData };
+    });
+  },
+});
+```
+
+### Verificação de Conformidade
+
+Ao criar ou modificar mutations no builder, verificar:
+
+- [ ] `mutationFn` retorna os dados salvos (não `void`)?
+- [ ] `onSuccess` recebe os dados salvos como parâmetro?
+- [ ] `onSuccess` usa `setQueryData` (não `invalidateQueries`)?
+- [ ] Se há estados de draft, o `clearDraft()` ocorre APÓS o delay de sincronização?
+- [ ] Query keys incluem `tenantId` para isolamento multi-tenant?

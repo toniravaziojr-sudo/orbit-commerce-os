@@ -690,8 +690,26 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
 
       return { migrated: true, headerConfig, footerConfig };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['global-layout-editor'] });
+    onSuccess: (result) => {
+      // CRITICAL FIX: Update cache SYNCHRONOUSLY with saved data instead of invalidating
+      // This prevents race conditions where UI briefly shows stale data after migration
+      queryClient.setQueryData(['global-layout-editor', tenantId], (old: unknown) => {
+        if (!old || typeof old !== 'object') {
+          // Create new cache entry if none exists
+          return {
+            draft_header_config: result.headerConfig,
+            draft_footer_config: result.footerConfig,
+            draft_checkout_header_config: defaultCheckoutHeaderConfig,
+            draft_checkout_footer_config: defaultCheckoutFooterConfig,
+          };
+        }
+        return {
+          ...old,
+          draft_header_config: result.headerConfig,
+          draft_footer_config: result.footerConfig,
+        };
+      });
+      // Published layout can be invalidated since it's read-only in builder
       queryClient.invalidateQueries({ queryKey: ['public-global-layout'] });
     },
   });
@@ -730,10 +748,18 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
             ...toggles,
           });
       }
+      
+      // Return saved toggles for onSuccess
+      return toggles;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['global-layout-editor'] });
-      // Visibility toggles apply immediately for now
+    onSuccess: (savedToggles) => {
+      // CRITICAL FIX: Update cache SYNCHRONOUSLY with saved data instead of invalidating
+      // This prevents race conditions where UI briefly shows stale toggle states
+      queryClient.setQueryData(['global-layout-editor', tenantId], (old: unknown) => {
+        if (!old || typeof old !== 'object') return old;
+        return { ...old, ...savedToggles };
+      });
+      // Visibility toggles apply immediately - invalidate public layout for live updates
       queryClient.invalidateQueries({ queryKey: ['public-global-layout'] });
     },
   });
