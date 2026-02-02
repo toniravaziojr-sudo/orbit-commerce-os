@@ -555,7 +555,27 @@ export function PageSettingsContent({
     });
   }, [updateMiniCart, debouncedSaveCartAction, onMiniCartConfigChange]);
 
-  // Load settings on mount - from template set draft_content if available
+  // Counter to force reload when cache is invalidated
+  const [reloadKey, setReloadKey] = useState(0);
+  
+  // Subscribe to query cache invalidation to reload data
+  useEffect(() => {
+    const effectiveTemplateSetId = templateSetId || 'legacy';
+    const cacheKey = `${pageType}-settings-builder`;
+    
+    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+      if (event.type === 'removed' && 
+          event.query.queryKey[0] === cacheKey &&
+          event.query.queryKey[1] === tenantId) {
+        // Cache was invalidated, reload data
+        setReloadKey(prev => prev + 1);
+      }
+    });
+    
+    return () => unsubscribe();
+  }, [queryClient, tenantId, templateSetId, pageType]);
+
+  // Load settings on mount or when reloadKey changes - from template set draft_content if available
   useEffect(() => {
     async function loadSettings() {
       if (!tenantId || !pageType) return;
@@ -611,7 +631,7 @@ export function PageSettingsContent({
     }
 
     loadSettings();
-  }, [tenantId, templateSetId, pageType]);
+  }, [tenantId, templateSetId, pageType, reloadKey]);
 
   // Save mutation - save to template set draft_content if templateSetId available
   const saveMutation = useMutation({
