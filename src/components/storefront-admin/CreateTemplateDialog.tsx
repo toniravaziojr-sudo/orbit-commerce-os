@@ -16,7 +16,7 @@ interface CreateTemplateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: (name: string) => void;
-  preset: 'blank';
+  preset: 'blank' | 'standard';
   isLoading?: boolean;
 }
 
@@ -36,11 +36,17 @@ export function CreateTemplateDialog({
     }
   };
 
-  const presetInfo = {
-    icon: <FileText className="h-5 w-5" />,
-    title: 'Criar Novo Modelo',
-    description: 'Comece do zero com uma estrutura limpa. A Home fica vazia para você personalizar, e as páginas padrão (produto, carrinho, checkout, etc.) já vêm com a estrutura básica funcional.',
-  };
+  const presetInfo = preset === 'standard' 
+    ? {
+        icon: <Sparkles className="h-5 w-5" />,
+        title: 'Criar com Template Padrão',
+        description: 'Template profissional pré-configurado com banner, categorias, produtos em destaque, checkout otimizado e cores premium.',
+      }
+    : {
+        icon: <FileText className="h-5 w-5" />,
+        title: 'Criar Novo Modelo',
+        description: 'Comece do zero com uma estrutura limpa. A Home fica vazia para você personalizar, e as páginas padrão (produto, carrinho, checkout, etc.) já vêm com a estrutura básica funcional.',
+      };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

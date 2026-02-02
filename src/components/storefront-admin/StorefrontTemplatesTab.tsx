@@ -48,6 +48,7 @@ import { PublishTemplateDialog } from './PublishTemplateDialog';
 // Preset thumbnails - ilustrações estáticas para cada tipo de template
 const PRESET_THUMBNAILS: Record<string, string> = {
   blank: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&h=400&fit=crop&q=80',
+  standard: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=600&h=400&fit=crop&q=80',
   custom: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&h=400&fit=crop&q=80',
 };
 
@@ -55,8 +56,14 @@ const PRESET_INFO = {
   blank: {
     name: 'Iniciar do Zero',
     description: 'Comece com uma estrutura limpa e personalize completamente sua loja do jeito que quiser.',
-    badge: 'Novo',
+    badge: 'Avançado',
     badgeVariant: 'secondary' as const,
+  },
+  standard: {
+    name: 'Padrão',
+    description: 'Template profissional pré-configurado com banner, categorias, produtos em destaque e checkout otimizado.',
+    badge: 'Recomendado',
+    badgeVariant: 'default' as const,
   },
 };
 
@@ -78,7 +85,7 @@ export function StorefrontTemplatesTab() {
   } = useTemplateSets();
 
   // Dialog states
-  const [createPreset, setCreatePreset] = useState<'blank' | null>(null);
+  const [createPreset, setCreatePreset] = useState<'blank' | 'standard' | null>(null);
   const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null);
   const [publishTarget, setPublishTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
@@ -285,7 +292,19 @@ export function StorefrontTemplatesTab() {
             />
           ))}
 
-          {/* Iniciar do Zero - Cria novo template */}
+          {/* Template Padrão - Recomendado (primeiro) */}
+          <PresetCard
+            name={PRESET_INFO.standard.name}
+            description={PRESET_INFO.standard.description}
+            thumbnail={PRESET_THUMBNAILS.standard}
+            badge={PRESET_INFO.standard.badge}
+            badgeVariant={PRESET_INFO.standard.badgeVariant}
+            onPreview={() => navigate('/storefront/builder?preset=standard&mode=preview')}
+            onInstall={() => setCreatePreset('standard')}
+            installLabel="Criar novo modelo"
+          />
+
+          {/* Iniciar do Zero - Cria novo template vazio */}
           <PresetCard
             name={PRESET_INFO.blank.name}
             description={PRESET_INFO.blank.description}
