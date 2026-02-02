@@ -555,3 +555,6 @@ verify_jwt = false
 
 [functions.voice-preset-audio]
 verify_jwt = false
+
+[functions.ai-landing-page-generate]
+verify_jwt = true

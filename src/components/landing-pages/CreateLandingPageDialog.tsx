@@ -64,19 +64,46 @@ export function CreateLandingPageDialog({ open, onOpenChange }: CreateLandingPag
   const [productSearch, setProductSearch] = useState("");
 
   // Fetch products
-  const { data: products, isLoading: loadingProducts } = useQuery({
+  const { data: products, isLoading: loadingProducts } = useQuery<Product[]>({
     queryKey: ['products-for-landing', tenant?.id],
     queryFn: async () => {
       if (!tenant?.id) return [];
-      const { data, error } = await supabase
-        .from('products')
-        .select('id, name, price, compare_at_price, product_images(url)')
+      
+      // Fetch products - using explicit any to avoid deep type instantiation
+      const productsQuery = supabase.from('products').select('id, name, price, compare_at_price') as any;
+      const productsResult = await productsQuery
         .eq('tenant_id', tenant.id)
         .eq('is_active', true)
-        .order('name');
+        .order('name')
+        .limit(100);
       
-      if (error) throw error;
-      return data as Product[];
+      if (productsResult.error) throw productsResult.error;
+      const productsData = (productsResult.data || []) as Array<{
+        id: string;
+        name: string;
+        price: number;
+        compare_at_price: number | null;
+      }>;
+      
+      if (productsData.length === 0) return [];
+      
+      // Fetch images separately
+      const productIds = productsData.map(p => p.id);
+      const imagesQuery = supabase.from('product_images').select('product_id, url') as any;
+      const imagesResult = await imagesQuery.in('product_id', productIds).eq('is_primary', true);
+      
+      const imageMap = new Map<string, string>();
+      ((imagesResult.data || []) as Array<{ product_id: string; url: string }>).forEach(
+        img => imageMap.set(img.product_id, img.url)
+      );
+      
+      return productsData.map(p => ({
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        compare_at_price: p.compare_at_price,
+        product_images: imageMap.has(p.id) ? [{ url: imageMap.get(p.id)! }] : undefined,
+      }));
     },
     enabled: !!tenant?.id && open,
   });
