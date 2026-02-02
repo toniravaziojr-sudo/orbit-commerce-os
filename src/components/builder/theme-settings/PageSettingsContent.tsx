@@ -819,6 +819,14 @@ export function PageSettingsContent({
     const newSettings = { ...settings, [key]: value };
     setSettings(newSettings);
     
+    // DEBUG: Log what's being set as draft
+    console.log('[PageSettingsContent] handleChange:', { 
+      key, 
+      value, 
+      newSettingsKeys: Object.keys(newSettings),
+      buttonPrimaryBg: newSettings.buttonPrimaryBg,
+    });
+    
     // Atualizar o draft para preview em tempo real
     // O salvamento no banco é feito pelo VisualBuilder.handleSave
     const validPageTypes: PageSettingsKey[] = ['home', 'category', 'product', 'cart', 'checkout', 'thank_you'];
