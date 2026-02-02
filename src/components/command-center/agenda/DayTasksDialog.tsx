@@ -232,40 +232,42 @@ export function DayTasksDialog({
                     </div>
 
                     {/* Actions */}
-                    {task.status === 'pending' && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => completeTask(task.id)}
-                            disabled={isUpdating}
-                          >
-                            <CheckCircle className="h-4 w-4 mr-2" />
-                            Concluir
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => cancelTask(task.id)}
-                            disabled={isUpdating}
-                          >
-                            <XCircle className="h-4 w-4 mr-2" />
-                            Cancelar
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => deleteTask(task.id)}
-                            disabled={isDeleting}
-                            className="text-destructive focus:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Excluir
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {task.status === 'pending' && (
+                          <>
+                            <DropdownMenuItem
+                              onClick={() => completeTask(task.id)}
+                              disabled={isUpdating}
+                            >
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                              Concluir
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => cancelTask(task.id)}
+                              disabled={isUpdating}
+                            >
+                              <XCircle className="h-4 w-4 mr-2" />
+                              Cancelar
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                          </>
+                        )}
+                        <DropdownMenuItem
+                          onClick={() => deleteTask(task.id)}
+                          disabled={isDeleting}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 );
               })}
