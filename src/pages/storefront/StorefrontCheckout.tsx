@@ -13,6 +13,7 @@ import { CheckoutStepWizard } from '@/components/storefront/checkout/CheckoutSte
 import { StorefrontHeaderContent } from '@/components/storefront/StorefrontHeaderContent';
 import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
 import { StorefrontThemeInjector } from '@/components/storefront/StorefrontThemeInjector';
+import { PageColorsInjector } from '@/components/storefront/PageColorsInjector';
 import { Loader2 } from 'lucide-react';
 import { isPreviewUrl } from '@/lib/sanitizePublicUrl';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
@@ -173,6 +174,9 @@ export default function StorefrontCheckout() {
     <>
       {/* Inject theme CSS variables for buttons and text */}
       <StorefrontThemeInjector tenantSlug={tenantSlug || ''} />
+      
+      {/* Inject page-specific color overrides (checkout custom colors) */}
+      <PageColorsInjector tenantSlug={tenantSlug || ''} pageType="checkout" />
       
       {/* Inject checkout-specific accent color for timeline steps if icon color is set */}
       {checkoutIconColor && (

@@ -56,7 +56,7 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
       <div className="p-6 border rounded-lg bg-muted/30 text-center">
         <ShoppingBag className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
         <p className="text-muted-foreground mb-4">Seu carrinho está vazio</p>
-        <Button onClick={handleContinueShopping}>
+        <Button onClick={handleContinueShopping} className="sf-btn-secondary">
           Continuar comprando
         </Button>
       </div>
@@ -158,7 +158,7 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
 
           <Button 
             variant="ghost" 
-            className="w-full mt-2"
+            className="w-full mt-2 sf-btn-secondary"
             onClick={handleContinueShopping}
           >
             Continuar comprando

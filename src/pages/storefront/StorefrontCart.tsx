@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { usePublicTemplate } from '@/hooks/usePublicTemplate';
 import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRenderer';
+import { PageColorsInjector } from '@/components/storefront/PageColorsInjector';
 import { BlockRenderContext } from '@/lib/builder/types';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { supabase } from '@/integrations/supabase/client';
@@ -126,14 +127,19 @@ export default function StorefrontCart() {
   };
 
   return (
-    <PublicTemplateRenderer
-      content={template.content}
-      context={context}
-      isLoading={template.isLoading || storeLoading}
-      error={template.error}
-      isPreviewMode={false}
-      canPreview={true}
-      pageType="cart"
-    />
+    <>
+      {/* Inject page-specific color overrides */}
+      <PageColorsInjector tenantSlug={tenantSlug || ''} pageType="cart" />
+      
+      <PublicTemplateRenderer
+        content={template.content}
+        context={context}
+        isLoading={template.isLoading || storeLoading}
+        error={template.error}
+        isPreviewMode={false}
+        canPreview={true}
+        pageType="cart"
+      />
+    </>
   );
 }

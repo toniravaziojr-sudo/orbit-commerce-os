@@ -76,6 +76,11 @@ export interface CartSettings {
   bannerMobileUrl?: string | null;
   bannerLink?: string | null;
   bannerDisplay?: 'cart_page' | 'mini_cart' | 'both';
+  // Cores personalizadas (herdam do tema se vazias)
+  buttonPrimaryBg?: string;
+  buttonPrimaryText?: string;
+  buttonSecondaryBg?: string;
+  buttonSecondaryText?: string;
   // Legacy fields (mantidos para compatibilidade)
   miniCartEnabled?: boolean;
   showGoToCartButton?: boolean;
@@ -96,6 +101,11 @@ export interface CheckoutSettings {
   // Payment methods config (from store_settings.checkout_config)
   paymentMethodsOrder?: ('pix' | 'credit_card' | 'boleto')[];
   paymentMethodLabels?: Record<string, string>;
+  // Cores personalizadas (herdam do tema se vazias)
+  buttonPrimaryBg?: string;
+  buttonPrimaryText?: string;
+  buttonSecondaryBg?: string;
+  buttonSecondaryText?: string;
   // Legacy fields
   purchaseEventAllOrders?: boolean;
 }
