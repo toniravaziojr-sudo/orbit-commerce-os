@@ -605,14 +605,32 @@ export function PageSettingsContent({
             const themeSettings = draftContent.themeSettings as Record<string, unknown> | undefined;
             const pageSettings = themeSettings?.pageSettings as Record<string, unknown> | undefined;
             
+            const savedPageSettings = pageSettings?.[pageType] as Record<string, unknown> | undefined;
+            
             console.log('[PageSettingsContent] Extracted pageSettings:', {
               pageType,
-              hasPageSettings: !!pageSettings?.[pageType],
-              buttonPrimaryBg: (pageSettings?.[pageType] as Record<string, unknown>)?.buttonPrimaryBg,
+              hasPageSettings: !!savedPageSettings,
+              buttonPrimaryBg: savedPageSettings?.buttonPrimaryBg,
             });
             
-            if (pageSettings?.[pageType]) {
-              setSettings(pageSettings[pageType] as Record<string, boolean | string>);
+            if (savedPageSettings) {
+              // CRITICAL: Merge with defaults to preserve all fields
+              // This prevents losing fields that exist in defaults but not in saved data
+              const defaults = getDefaultSettings(pageType);
+              const mergedSettings = {
+                ...defaults,
+                ...savedPageSettings,
+              } as Record<string, boolean | string>;
+              
+              console.log('[PageSettingsContent] Merged settings with defaults:', {
+                pageType,
+                defaultKeys: Object.keys(defaults),
+                savedKeys: Object.keys(savedPageSettings),
+                mergedKeys: Object.keys(mergedSettings),
+                buttonPrimaryBg: mergedSettings.buttonPrimaryBg,
+              });
+              
+              setSettings(mergedSettings);
               setIsLoading(false);
               return;
             }
@@ -630,12 +648,15 @@ export function PageSettingsContent({
         if (error) throw error;
 
         const overrides = data?.page_overrides as Record<string, unknown> | null;
+        const defaults = getDefaultSettings(pageType);
         
         if (overrides?.[settingsKey]) {
-          setSettings(overrides[settingsKey] as Record<string, boolean | string>);
+          // CRITICAL: Merge with defaults to preserve all fields
+          const savedSettings = overrides[settingsKey] as Record<string, boolean | string>;
+          setSettings({ ...defaults, ...savedSettings });
         } else {
           // Set defaults based on page type
-          setSettings(getDefaultSettings(pageType));
+          setSettings(defaults);
         }
       } catch (err) {
         console.error('Error loading page settings:', err);
