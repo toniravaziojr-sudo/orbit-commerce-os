@@ -73,7 +73,7 @@ export function CreateLandingPageDialog({ open, onOpenChange }: CreateLandingPag
       const productsQuery = supabase.from('products').select('id, name, price, compare_at_price') as any;
       const productsResult = await productsQuery
         .eq('tenant_id', tenant.id)
-        .eq('is_active', true)
+        .eq('status', 'active')
         .order('name')
         .limit(100);
       
