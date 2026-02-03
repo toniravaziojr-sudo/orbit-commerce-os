@@ -149,6 +149,11 @@ export function StorefrontTemplatesTab() {
   // Templates que NÃO são o publicado
   const otherTemplates = templates.filter((t) => t.id !== publishedTemplateId);
 
+  // Check if tenant already has a template based on standard preset
+  // If so, don't show the standard preset card (avoid duplicates)
+  const hasStandardTemplate = templates.some((t) => t.base_preset === 'standard');
+  const hasBlankTemplate = templates.some((t) => t.base_preset === 'blank');
+
   if (isLoading) {
     return (
       <div className="space-y-8">
@@ -301,20 +306,22 @@ export function StorefrontTemplatesTab() {
             />
           ))}
 
-          {/* Template Padrão - Recomendado (primeiro) */}
-          <PresetCard
-            name={PRESET_INFO.standard.name}
-            description={PRESET_INFO.standard.description}
-            thumbnail={PRESET_THUMBNAILS.standard}
-            badge={PRESET_INFO.standard.badge}
-            badgeVariant={PRESET_INFO.standard.badgeVariant}
-            onPreview={() => setPreviewPreset('standard')}
-            onInstall={handleUseStandardPreset}
-            installLabel="Usar este modelo"
-            isLoading={createTemplate.isPending}
-          />
+          {/* Template Padrão - Recomendado (only show if not already installed) */}
+          {!hasStandardTemplate && (
+            <PresetCard
+              name={PRESET_INFO.standard.name}
+              description={PRESET_INFO.standard.description}
+              thumbnail={PRESET_THUMBNAILS.standard}
+              badge={PRESET_INFO.standard.badge}
+              badgeVariant={PRESET_INFO.standard.badgeVariant}
+              onPreview={() => setPreviewPreset('standard')}
+              onInstall={handleUseStandardPreset}
+              installLabel="Usar este modelo"
+              isLoading={createTemplate.isPending}
+            />
+          )}
 
-          {/* Iniciar do Zero - Cria novo template vazio */}
+          {/* Iniciar do Zero - always available for creating new blank templates */}
           <PresetCard
             name={PRESET_INFO.blank.name}
             description={PRESET_INFO.blank.description}
