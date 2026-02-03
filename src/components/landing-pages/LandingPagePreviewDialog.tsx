@@ -6,6 +6,8 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useAILandingPageUrl } from "@/hooks/useAILandingPageUrl";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +30,13 @@ export function LandingPagePreviewDialog({
   onOpenChange,
 }: LandingPagePreviewDialogProps) {
   const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop');
+  const { currentTenant: tenant } = useAuth();
+
+  // Get tenant's public URL
+  const { baseUrl: tenantBaseUrl } = useAILandingPageUrl({
+    tenantId: tenant?.id,
+    tenantSlug: tenant?.slug,
+  });
 
   const { data: landingPage, isLoading } = useQuery({
     queryKey: ['ai-landing-page-preview', landingPageId],
@@ -112,7 +121,10 @@ export function LandingPagePreviewDialog({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => window.open(`/ai-lp/${landingPage.slug}`, '_blank')}
+                  onClick={() => {
+                    const url = tenantBaseUrl ? `${tenantBaseUrl}/ai-lp/${landingPage.slug}` : `/ai-lp/${landingPage.slug}`;
+                    window.open(url, '_blank');
+                  }}
                 >
                   <ExternalLink className="h-4 w-4 mr-1" />
                   Abrir

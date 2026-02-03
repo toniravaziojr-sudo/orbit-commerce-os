@@ -112,8 +112,16 @@ serve(async (req) => {
           });
 
           // Calculate discount percentage if compare_at_price exists
-          const discountPercent = p.compare_at_price && p.compare_at_price > p.price
-            ? Math.round(((p.compare_at_price - p.price) / p.compare_at_price) * 100)
+          // IMPORTANT: Prices in database are stored in CENTS (integer) OR in REAIS (decimal)
+          // Check if price seems like cents (> 1000 for R$10+) or reais (< 1000 for R$10+)
+          const priceIsInCents = p.price > 1000; // If price > 1000, it's likely cents
+          const priceInReais = priceIsInCents ? (p.price / 100) : p.price;
+          const compareAtPriceInReais = p.compare_at_price 
+            ? (priceIsInCents ? (p.compare_at_price / 100) : p.compare_at_price)
+            : null;
+          
+          const discountPercent = compareAtPriceInReais && compareAtPriceInReais > priceInReais
+            ? Math.round(((compareAtPriceInReais - priceInReais) / compareAtPriceInReais) * 100)
             : null;
 
           return `
@@ -122,8 +130,8 @@ serve(async (req) => {
 - **Slug (URL)**: ${p.slug || "N/A"}
 - **Descrição Curta**: ${p.short_description || "Sem descrição curta"}
 - **Descrição Completa**: ${p.description || "Sem descrição disponível"}
-- **Preço de Venda**: R$ ${(p.price / 100).toFixed(2)}
-${p.compare_at_price ? `- **Preço Original (riscado)**: R$ ${(p.compare_at_price / 100).toFixed(2)}` : ""}
+- **Preço de Venda**: R$ ${priceInReais.toFixed(2).replace('.', ',')}
+${compareAtPriceInReais ? `- **Preço Original (riscado)**: R$ ${compareAtPriceInReais.toFixed(2).replace('.', ',')}` : ""}
 ${discountPercent ? `- **Desconto**: ${discountPercent}% OFF` : ""}
 ${p.brand ? `- **Marca**: ${p.brand}` : ""}
 ${p.vendor ? `- **Fornecedor/Fabricante**: ${p.vendor}` : ""}
@@ -156,14 +164,14 @@ ${allImageUrls.length > 1 ? `- **Galeria de Imagens** (${allImageUrls.length} im
     // Build system prompt with CLEAR instructions about reference vs product data
     const systemPrompt = `Você é um especialista em criar landing pages de alta conversão. Seu trabalho é gerar HTML completo e estilizado para landing pages.
 
-## REGRAS CRÍTICAS:
-1. Gere APENAS HTML válido e completo, pronto para renderização
+## REGRAS CRÍTICAS - OBRIGATÓRIO SEGUIR:
+1. Gere APENAS HTML válido e completo, pronto para renderização (começando com <!DOCTYPE html>)
 2. Use CSS inline ou em tags <style> dentro do HTML
 3. O design deve ser moderno, responsivo e otimizado para conversão
-4. Inclua CTAs claros e visíveis (botões de compra devem linkar para /cart ou página do produto)
+4. Inclua CTAs claros e visíveis (botões de compra devem linkar para /cart ou /p/{slug-do-produto})
 5. Use as cores e identidade visual da marca quando fornecidas
 6. Inclua seções típicas de landing pages de alta conversão:
-   - Hero com headline impactante
+   - Hero com headline impactante e IMAGEM DO PRODUTO
    - Benefícios/Features
    - Prova social (depoimentos fictícios mas realistas)
    - Garantias
@@ -173,19 +181,28 @@ ${allImageUrls.length > 1 ? `- **Galeria de Imagens** (${allImageUrls.length} im
 8. Use fontes do Google Fonts via @import se necessário
 9. Mantenha o código limpo e organizado
 
-## ⚠️ REGRA MAIS IMPORTANTE - PRODUTOS:
+## ⚠️⚠️⚠️ REGRA ABSOLUTAMENTE OBRIGATÓRIA - IMAGENS DOS PRODUTOS ⚠️⚠️⚠️
+**VOCÊ DEVE OBRIGATORIAMENTE USAR AS IMAGENS FORNECIDAS!**
+- As imagens dos produtos estão listadas abaixo com URLs REAIS
+- COPIE E COLE essas URLs exatas nas tags <img src="URL">
+- NÃO use placeholder.com, via.placeholder.com ou qualquer outra imagem genérica
+- NÃO invente URLs de imagens
+- A imagem principal do produto DEVE aparecer em destaque no Hero
+- Use as outras imagens na galeria ou seções de detalhes
+
+## ⚠️⚠️⚠️ REGRA ABSOLUTAMENTE OBRIGATÓRIA - PRODUTOS ⚠️⚠️⚠️
 **USE EXCLUSIVAMENTE OS PRODUTOS LISTADOS ABAIXO!**
-- NÃO invente produtos
+- NÃO invente produtos ou nomes de produtos
 - NÃO copie produtos de URLs de referência
-- Use APENAS o nome, descrição, preço e imagens dos produtos fornecidos
-- As imagens dos produtos DEVEM ser usadas no HTML (tags <img src="URL">)
+- Use EXATAMENTE o nome, descrição, preço que estão listados abaixo
+- Se a URL de referência mostra outro produto, IGNORE e use os dados abaixo
 
 ## ⚠️ REGRA SOBRE URL DE REFERÊNCIA:
 Se uma URL de referência for fornecida, use-a APENAS como inspiração para:
-- Estrutura/layout da página
-- Estilo visual (cores, tipografia, espaçamento)
-- Tipos de seções e organização
-**NUNCA COPIE O CONTEÚDO, TEXTOS OU PRODUTOS DA URL DE REFERÊNCIA!**
+- Estrutura/layout da página (como as seções estão organizadas)
+- Estilo visual (cores, tipografia, espaçamento, sombras, bordas)
+- Tipos de animações ou efeitos visuais
+**NUNCA COPIE: nomes de produtos, preços, descrições, imagens ou textos da URL de referência!**
 
 ## Informações da Loja:
 - Nome: ${storeSettings?.store_name || "Loja"}
@@ -193,15 +210,17 @@ Se uma URL de referência for fornecida, use-a APENAS como inspiração para:
 - Telefone: ${storeSettings?.contact_phone || ""}
 - Email: ${storeSettings?.contact_email || ""}
 
-${productsInfo ? `## PRODUTOS A SEREM DESTACADOS (USE ESTES E APENAS ESTES!):\n${productsInfo}` : "## ATENÇÃO: Nenhum produto foi selecionado. Crie uma landing page genérica para a loja."}
+${productsInfo ? `## PRODUTOS A SEREM DESTACADOS (USE ESTES DADOS!):\n${productsInfo}` : "## ATENÇÃO: Nenhum produto foi selecionado. Crie uma landing page genérica para a loja."}
 
-${productImages.length > 0 ? `## IMAGENS DOS PRODUTOS (USE NO HTML!):\n${productImages.map((url, i) => `${i + 1}. ${url}`).join("\n")}` : ""}
+${productImages.length > 0 ? `## ⚠️ IMAGENS DOS PRODUTOS - USE ESTAS URLs EXATAS! ⚠️
+COPIE E COLE estas URLs nas tags <img>. NÃO use placeholder ou imagens genéricas:
+${productImages.map((url, i) => `${i + 1}. ${url}`).join("\n")}` : ""}
 
-${referenceUrl ? `## URL de Referência (APENAS PARA INSPIRAÇÃO VISUAL/ESTRUTURAL!):\n${referenceUrl}\n⚠️ USE APENAS A ESTRUTURA E ESTILO, NÃO O CONTEÚDO!` : ""}
+${referenceUrl ? `## URL de Referência (APENAS PARA INSPIRAÇÃO VISUAL/ESTRUTURAL!):\n${referenceUrl}\n⚠️ COPIE APENAS O LAYOUT E ESTILO! USE OS DADOS DOS PRODUTOS ACIMA!` : ""}
 
 ${currentHtml ? `## HTML Atual (para ajustes):\n${currentHtml}` : ""}
 
-IMPORTANTE: Retorne APENAS o HTML, sem explicações ou markdown. O HTML deve começar com <!DOCTYPE html>.`;
+IMPORTANTE: Retorne APENAS o HTML completo, sem explicações ou markdown. O HTML DEVE começar com <!DOCTYPE html>.`;
 
     const userPrompt = promptType === "adjustment"
       ? `Faça os seguintes ajustes na landing page atual:\n\n${prompt}\n\nRetorne o HTML completo atualizado.`

@@ -7,6 +7,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { useAILandingPageUrl } from "@/hooks/useAILandingPageUrl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -79,6 +80,12 @@ export default function LandingPageEditor() {
   // Form state
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDescription, setSeoDescription] = useState("");
+  
+  // Get tenant's public URL - MUST be at top level before any conditionals
+  const { baseUrl: tenantBaseUrl } = useAILandingPageUrl({
+    tenantId: tenant?.id,
+    tenantSlug: tenant?.slug,
+  });
 
   // Fetch landing page data
   const { data: landingPage, isLoading, refetch } = useQuery({
@@ -314,7 +321,9 @@ export default function LandingPageEditor() {
             <Separator orientation="vertical" className="h-6" />
             <div>
               <h1 className="font-semibold">{landingPage.name}</h1>
-              <p className="text-xs text-muted-foreground">/ai-lp/{landingPage.slug}</p>
+              <p className="text-xs text-muted-foreground">
+                {tenantBaseUrl ? `${tenantBaseUrl}/ai-lp/${landingPage.slug}` : `/ai-lp/${landingPage.slug}`}
+              </p>
             </div>
             <Badge variant={landingPage.is_published ? "default" : "secondary"}>
               {landingPage.is_published ? "Publicada" : "Rascunho"}
@@ -353,7 +362,10 @@ export default function LandingPageEditor() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => window.open(`/ai-lp/${landingPage.slug}`, '_blank')}
+                  onClick={() => {
+                    const url = tenantBaseUrl ? `${tenantBaseUrl}/ai-lp/${landingPage.slug}` : `/ai-lp/${landingPage.slug}`;
+                    window.open(url, '_blank');
+                  }}
                 >
                   <ExternalLink className="h-4 w-4 mr-1" />
                   Ver Publicada
@@ -531,7 +543,9 @@ export default function LandingPageEditor() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">URL:</span>
-                      <span>/ai-lp/{landingPage.slug}</span>
+                      <span className="text-xs max-w-[200px] truncate" title={tenantBaseUrl ? `${tenantBaseUrl}/ai-lp/${landingPage.slug}` : `/ai-lp/${landingPage.slug}`}>
+                        {tenantBaseUrl ? `${tenantBaseUrl}/ai-lp/${landingPage.slug}` : `/ai-lp/${landingPage.slug}`}
+                      </span>
                     </div>
                     {landingPage.reference_url && (
                       <div className="flex justify-between">
