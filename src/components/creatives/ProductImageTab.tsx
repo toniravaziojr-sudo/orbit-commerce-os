@@ -61,6 +61,13 @@ const FIDELITY_OPTIONS = [
   { value: 'high', label: 'Alta — Preservar rótulo exatamente' },
 ];
 
+// Pose otimizada para Label Lock (rótulo visível)
+const POSE_OPTIONS = [
+  { value: 'holding', label: 'Segurando (rótulo frontal)', description: 'Mão segura pela base, rótulo 100% visível' },
+  { value: 'using', label: 'Usando o produto', description: 'Demonstração de uso real' },
+  { value: 'displaying', label: 'Mostrando para câmera', description: 'Apresentação direta' },
+];
+
 export function ProductImageTab() {
   // Produto OBRIGATÓRIO
   const [selectedProductId, setSelectedProductId] = useState<string>('');
@@ -76,9 +83,12 @@ export function ProductImageTab() {
   const [inputFidelity, setInputFidelity] = useState<string>('high');
   const [variations, setVariations] = useState<number[]>([4]);
   
-  // Controles de QA e Fallback (novos!)
+  // Controles de QA e Fallback
   const [enableQA, setEnableQA] = useState(true);
   const [enableFallback, setEnableFallback] = useState(true);
+  
+  // NOVO: Label Lock — rótulo 100% fiel (ativado por padrão)
+  const [enableLabelLock, setEnableLabelLock] = useState(true);
   
   // Instruções adicionais
   const [additionalPrompt, setAdditionalPrompt] = useState('');
@@ -118,15 +128,17 @@ export function ProductImageTab() {
         variations: variations[0],
         enable_qa: enableQA,
         enable_fallback: enableFallback,
+        label_lock: enableLabelLock, // NOVO: Label Lock
       },
     });
   };
 
-  // Custo estimado
+  // Custo estimado (Label Lock adiciona custo de composição)
   const baseCost = variations[0] * 0.10; // R$ 0,10/imagem
+  const labelLockCost = enableLabelLock ? variations[0] * 0.08 : 0; // R$ 0,08/composição
   const qaCost = enableQA ? variations[0] * 0.05 : 0; // R$ 0,05/QA
   const fallbackCost = enableFallback ? 0.20 : 0; // Custo potencial do fallback
-  const estimatedCost = baseCost + qaCost + (enableFallback ? 0.10 : 0);
+  const estimatedCost = baseCost + labelLockCost + qaCost + (enableFallback ? 0.10 : 0);
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -303,19 +315,57 @@ export function ProductImageTab() {
             </div>
           </div>
 
-          {/* Controles de Pipeline (QA e Fallback) */}
+          {/* Controles de Pipeline (Label Lock, QA e Fallback) */}
           <div className="space-y-4 p-4 rounded-lg border border-primary/20 bg-primary/5">
             <div className="flex items-center gap-2">
               <Shield className="h-4 w-4 text-primary" />
-              <Label className="text-sm font-medium">Controle de Qualidade</Label>
+              <Label className="text-sm font-medium">Controle de Qualidade e Fidelidade</Label>
             </div>
             
             <div className="space-y-3">
+              {/* LABEL LOCK — Principal toggle de fidelidade */}
+              <div className="flex items-center justify-between p-2 rounded-md bg-background/50 border">
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm cursor-pointer font-medium" htmlFor="enable-label-lock">
+                    🔒 Rótulo 100% fiel
+                  </Label>
+                  <Badge variant="secondary" className="text-[10px]">Recomendado</Badge>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-[280px]">
+                      <p className="text-xs font-medium mb-1">Label Lock (v2.1)</p>
+                      <p className="text-xs text-muted-foreground">
+                        O modelo NÃO tenta renderizar o texto do rótulo. Em vez disso, 
+                        o produto real é composto sobre a cena gerada, garantindo 
+                        que marca, texto e cores fiquem 100% fiéis ao original.
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        <strong>Resultado:</strong> Rótulo perfeito mesmo com zoom.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <Switch
+                  id="enable-label-lock"
+                  checked={enableLabelLock}
+                  onCheckedChange={setEnableLabelLock}
+                />
+              </div>
+
+              {enableLabelLock && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1 pl-2">
+                  <CheckCircle2 className="h-3 w-3 text-primary" />
+                  Produto real será composto sobre a cena — texto do rótulo intacto
+                </p>
+              )}
+              
               {/* QA Automático */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Label className="text-sm cursor-pointer" htmlFor="enable-qa">
-                    QA Automático
+                    QA Automático + OCR
                   </Label>
                   <Tooltip>
                     <TooltipTrigger>
@@ -323,8 +373,8 @@ export function ProductImageTab() {
                     </TooltipTrigger>
                     <TooltipContent side="right" className="max-w-[250px]">
                       <p className="text-xs">
-                        Avalia cada imagem gerada quanto à fidelidade do rótulo e similaridade com o produto original. 
-                        Imagens reprovadas são descartadas automaticamente.
+                        Avalia cada imagem com OCR para verificar se o texto do rótulo está correto e legível. 
+                        Imagens com texto distorcido ou ilegível são reprovadas automaticamente.
                       </p>
                     </TooltipContent>
                   </Tooltip>
@@ -348,8 +398,8 @@ export function ProductImageTab() {
                     </TooltipTrigger>
                     <TooltipContent side="right" className="max-w-[250px]">
                       <p className="text-xs">
-                        Se todas as variações falharem no QA, gera automaticamente uma composição 
-                        com o produto real sobreposto na cena. Garante entrega com 100% de fidelidade.
+                        Se todas as variações falharem no QA, gera cena com mão vazia e 
+                        compõe o produto real por cima. Garante entrega com 100% de fidelidade.
                       </p>
                     </TooltipContent>
                   </Tooltip>
@@ -364,8 +414,8 @@ export function ProductImageTab() {
               
               {enableQA && (
                 <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <CheckCircle2 className="h-3 w-3 text-green-500" />
-                  Imagens serão avaliadas por similaridade e legibilidade do rótulo
+                  <CheckCircle2 className="h-3 w-3 text-green-600" />
+                  Imagens serão avaliadas por OCR e similaridade visual
                 </p>
               )}
             </div>
