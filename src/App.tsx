@@ -120,6 +120,7 @@ import StorefrontCategory from "@/pages/storefront/StorefrontCategory";
 import StorefrontProduct from "@/pages/storefront/StorefrontProduct";
 import StorefrontPage from "@/pages/storefront/StorefrontPage";
 import StorefrontLandingPage from "@/pages/storefront/StorefrontLandingPage";
+import StorefrontAILandingPage from "@/pages/storefront/StorefrontAILandingPage";
 import StorefrontCart from "@/pages/storefront/StorefrontCart";
 import StorefrontCheckout from "@/pages/storefront/StorefrontCheckout";
 import StorefrontThankYou from "@/pages/storefront/StorefrontThankYou";
@@ -212,6 +213,11 @@ const App = () => {
                 routes are at root. Otherwise, use /store/:tenantSlug prefix.
               */}
               
+              {/* AI Landing Pages - standalone, no layout (full-page HTML) */}
+              {shouldUseTenantRootRoutes && (
+                <Route path="/ai-lp/:lpSlug" element={<StorefrontAILandingPage />} />
+              )}
+
               {/* Root routes for custom/platform domains */}
               {shouldUseTenantRootRoutes && (
                 <Route path="/" element={<TenantStorefrontLayout />}>
@@ -238,6 +244,9 @@ const App = () => {
                   <Route path="avaliar/:token" element={<StorefrontReview />} />
                 </Route>
               )}
+
+              {/* AI Landing Pages - standalone for /store/ routes (full-page HTML) */}
+              <Route path="/store/:tenantSlug/ai-lp/:lpSlug" element={<StorefrontAILandingPage />} />
 
               {/* Legacy storefront routes with /store/:tenantSlug prefix (for app domain / fallback) */}
               <Route path="/store/:tenantSlug" element={<StorefrontLayout />}>

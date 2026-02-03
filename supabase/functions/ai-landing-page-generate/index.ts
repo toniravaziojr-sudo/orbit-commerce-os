@@ -64,22 +64,52 @@ serve(async (req) => {
       .eq("tenant_id", tenantId)
       .single();
 
-    // Fetch products if provided
+    // Fetch products if provided - include images!
     let productsInfo = "";
+    let productImages: string[] = [];
     if (productIds && productIds.length > 0) {
       const { data: products } = await supabase
         .from("products")
-        .select("name, description, price, compare_at_price, image_url, benefits")
+        .select("id, name, description, price, compare_at_price, image_url, benefits")
         .in("id", productIds);
 
       if (products && products.length > 0) {
-        productsInfo = products.map(p => `
-- Nome: ${p.name}
-- Descrição: ${p.description || "N/A"}
-- Preço: R$ ${(p.price / 100).toFixed(2)}
-${p.compare_at_price ? `- De: R$ ${(p.compare_at_price / 100).toFixed(2)}` : ""}
-- Benefícios: ${p.benefits || "N/A"}
-        `).join("\n\n");
+        // Fetch product images
+        const { data: images } = await supabase
+          .from("product_images")
+          .select("product_id, url, is_primary, alt_text")
+          .in("product_id", productIds)
+          .order("is_primary", { ascending: false });
+
+        const imagesByProduct = new Map<string, { url: string; alt_text: string | null }[]>();
+        images?.forEach(img => {
+          if (!imagesByProduct.has(img.product_id)) {
+            imagesByProduct.set(img.product_id, []);
+          }
+          imagesByProduct.get(img.product_id)!.push({ url: img.url, alt_text: img.alt_text });
+        });
+
+        productsInfo = products.map(p => {
+          const prodImages = imagesByProduct.get(p.id) || [];
+          const primaryImage = prodImages[0]?.url || p.image_url;
+          const allImageUrls = prodImages.map(img => img.url);
+          
+          // Collect all image URLs for the prompt
+          if (primaryImage) productImages.push(primaryImage);
+          allImageUrls.forEach(url => {
+            if (url && !productImages.includes(url)) productImages.push(url);
+          });
+
+          return `
+### Produto: ${p.name}
+- **Descrição**: ${p.description || "Sem descrição disponível"}
+- **Preço de Venda**: R$ ${(p.price / 100).toFixed(2)}
+${p.compare_at_price ? `- **Preço Original (riscado)**: R$ ${(p.compare_at_price / 100).toFixed(2)}` : ""}
+- **Benefícios**: ${p.benefits || "N/A"}
+- **Imagem Principal**: ${primaryImage || "Sem imagem"}
+${allImageUrls.length > 1 ? `- **Outras Imagens**: ${allImageUrls.slice(1).join(", ")}` : ""}
+          `;
+        }).join("\n\n");
       }
     }
 
@@ -95,25 +125,39 @@ ${p.compare_at_price ? `- De: R$ ${(p.compare_at_price / 100).toFixed(2)}` : ""}
       currentHtml = current?.generated_html || "";
     }
 
-    // Build system prompt
+    // Build system prompt with CLEAR instructions about reference vs product data
     const systemPrompt = `Você é um especialista em criar landing pages de alta conversão. Seu trabalho é gerar HTML completo e estilizado para landing pages.
 
-## Regras:
+## REGRAS CRÍTICAS:
 1. Gere APENAS HTML válido e completo, pronto para renderização
 2. Use CSS inline ou em tags <style> dentro do HTML
 3. O design deve ser moderno, responsivo e otimizado para conversão
-4. Inclua CTAs claros e visíveis
+4. Inclua CTAs claros e visíveis (botões de compra devem linkar para /cart ou página do produto)
 5. Use as cores e identidade visual da marca quando fornecidas
 6. Inclua seções típicas de landing pages de alta conversão:
    - Hero com headline impactante
    - Benefícios/Features
-   - Prova social (depoimentos)
+   - Prova social (depoimentos fictícios mas realistas)
    - Garantias
    - FAQ
    - CTA final
-7. O HTML deve ser self-contained (não depender de arquivos externos)
+7. O HTML deve ser self-contained (não depender de arquivos externos exceto Google Fonts)
 8. Use fontes do Google Fonts via @import se necessário
 9. Mantenha o código limpo e organizado
+
+## ⚠️ REGRA MAIS IMPORTANTE - PRODUTOS:
+**USE EXCLUSIVAMENTE OS PRODUTOS LISTADOS ABAIXO!**
+- NÃO invente produtos
+- NÃO copie produtos de URLs de referência
+- Use APENAS o nome, descrição, preço e imagens dos produtos fornecidos
+- As imagens dos produtos DEVEM ser usadas no HTML (tags <img src="URL">)
+
+## ⚠️ REGRA SOBRE URL DE REFERÊNCIA:
+Se uma URL de referência for fornecida, use-a APENAS como inspiração para:
+- Estrutura/layout da página
+- Estilo visual (cores, tipografia, espaçamento)
+- Tipos de seções e organização
+**NUNCA COPIE O CONTEÚDO, TEXTOS OU PRODUTOS DA URL DE REFERÊNCIA!**
 
 ## Informações da Loja:
 - Nome: ${storeSettings?.store_name || "Loja"}
@@ -121,13 +165,15 @@ ${p.compare_at_price ? `- De: R$ ${(p.compare_at_price / 100).toFixed(2)}` : ""}
 - Telefone: ${storeSettings?.contact_phone || ""}
 - Email: ${storeSettings?.contact_email || ""}
 
-${productsInfo ? `## Produtos para Destacar:\n${productsInfo}` : ""}
+${productsInfo ? `## PRODUTOS A SEREM DESTACADOS (USE ESTES E APENAS ESTES!):\n${productsInfo}` : "## ATENÇÃO: Nenhum produto foi selecionado. Crie uma landing page genérica para a loja."}
 
-${referenceUrl ? `## URL de Referência para Inspiração:\n${referenceUrl}\nAnalise a estrutura e estilo desta página como referência.` : ""}
+${productImages.length > 0 ? `## IMAGENS DOS PRODUTOS (USE NO HTML!):\n${productImages.map((url, i) => `${i + 1}. ${url}`).join("\n")}` : ""}
+
+${referenceUrl ? `## URL de Referência (APENAS PARA INSPIRAÇÃO VISUAL/ESTRUTURAL!):\n${referenceUrl}\n⚠️ USE APENAS A ESTRUTURA E ESTILO, NÃO O CONTEÚDO!` : ""}
 
 ${currentHtml ? `## HTML Atual (para ajustes):\n${currentHtml}` : ""}
 
-IMPORTANTE: Retorne APENAS o HTML, sem explicações ou markdown. O HTML deve começar com <!DOCTYPE html> ou diretamente com tags HTML.`;
+IMPORTANTE: Retorne APENAS o HTML, sem explicações ou markdown. O HTML deve começar com <!DOCTYPE html>.`;
 
     const userPrompt = promptType === "adjustment"
       ? `Faça os seguintes ajustes na landing page atual:\n\n${prompt}\n\nRetorne o HTML completo atualizado.`

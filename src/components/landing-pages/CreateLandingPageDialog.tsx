@@ -288,7 +288,7 @@ export function CreateLandingPageDialog({ open, onOpenChange }: CreateLandingPag
               <div className="space-y-2">
                 <Label htmlFor="slug">URL (slug)</Label>
                 <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground text-sm">/lp/</span>
+                  <span className="text-muted-foreground text-sm">/ai-lp/</span>
                   <Input
                     id="slug"
                     value={slug}
