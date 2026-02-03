@@ -7,7 +7,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 
-const VERSION = "1.2.0"; // Fix: sempre buscar productIds do banco + imagens obrigatórias
+const VERSION = "1.3.0"; // Added: support for user-attached media in prompts
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -256,9 +256,17 @@ ${currentHtml ? `## HTML Atual (para ajustes):\n${currentHtml}` : ""}
 
 IMPORTANTE: Retorne APENAS o HTML completo, sem explicações ou markdown. O HTML DEVE começar com <!DOCTYPE html>.`;
 
+    // Check if user attached media in the prompt
+    const hasUserMedia = prompt.includes("[Imagem:") || prompt.includes("[Vídeo:");
+    const userMediaNote = hasUserMedia ? `
+
+## ⚠️ MÍDIA ANEXADA PELO USUÁRIO - USE OBRIGATORIAMENTE!
+O usuário anexou imagens/vídeos no prompt abaixo. As URLs estão marcadas como [Imagem: URL] ou [Vídeo: URL].
+**VOCÊ DEVE usar essas URLs exatas** no HTML onde o usuário indicou. Para vídeos, use <video src="URL"> com controles.` : "";
+
     const userPrompt = promptType === "adjustment"
-      ? `Faça os seguintes ajustes na landing page atual:\n\n${prompt}\n\nRetorne o HTML completo atualizado.`
-      : `Crie uma landing page baseada nas seguintes instruções:\n\n${prompt}\n\nRetorne o HTML completo.`;
+      ? `Faça os seguintes ajustes na landing page atual:\n\n${prompt}${userMediaNote}\n\nRetorne o HTML completo atualizado.`
+      : `Crie uma landing page baseada nas seguintes instruções:\n\n${prompt}${userMediaNote}\n\nRetorne o HTML completo.`;
 
     console.log(`[AI-LP-Generate] Calling AI Gateway for ${promptType}...`);
 
