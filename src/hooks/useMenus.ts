@@ -12,12 +12,14 @@ export interface Menu {
   updated_at: string;
 }
 
+export type MenuItemType = 'category' | 'page' | 'external' | 'blog' | 'tracking';
+
 export interface MenuItem {
   id: string;
   tenant_id: string;
   menu_id: string;
   label: string;
-  item_type: 'category' | 'page' | 'external';
+  item_type: MenuItemType;
   ref_id: string | null;
   url: string | null;
   sort_order: number;

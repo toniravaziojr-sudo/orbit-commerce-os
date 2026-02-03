@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { MenuItem, useMenuItems } from '@/hooks/useMenus';
+import { MenuItem, useMenuItems, MenuItemType } from '@/hooks/useMenus';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -31,7 +31,7 @@ interface LocalMenuItem {
   id: string;
   menu_id: string;
   label: string;
-  item_type: 'category' | 'page' | 'external';
+  item_type: MenuItemType;
   ref_id: string | null;
   url: string | null;
   sort_order: number;
