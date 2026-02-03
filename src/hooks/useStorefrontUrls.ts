@@ -146,6 +146,16 @@ export function useStorefrontUrls(tenantSlug: string): StorefrontUrls {
           }
         }
         
+        // Blog - standard route
+        if (item.item_type === 'blog') {
+          return `${basePath}/blog`;
+        }
+        
+        // Tracking - standard route
+        if (item.item_type === 'tracking') {
+          return `${basePath}/rastreio`;
+        }
+        
         // Fallback to provided URL or home
         return item.url || basePath || '/';
       },
