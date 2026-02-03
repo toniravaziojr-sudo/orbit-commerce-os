@@ -5,11 +5,57 @@
 // =============================================
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { Json } from '@/integrations/supabase/types';
 import type { BlockNode } from '@/lib/builder/types';
+
+// ============================================
+// GLOBAL REFS FOR HEADER/FOOTER DRAFT STATE
+// Allows VisualBuilder to access draft state without prop drilling
+// ============================================
+
+interface HeaderFooterDraftRef {
+  hasDraftChanges: boolean;
+  clearDraft: () => void;
+  getPendingChanges: () => { header?: ThemeHeaderConfig; footer?: ThemeFooterConfig } | null;
+}
+
+let globalHeaderDraftRef: HeaderFooterDraftRef | null = null;
+let globalFooterDraftRef: HeaderFooterDraftRef | null = null;
+
+// Change counter for external observers (triggers re-render in toolbar)
+let headerFooterDraftChangeCounter = 0;
+let headerFooterDraftListeners: Set<() => void> = new Set();
+
+function notifyHeaderFooterDraftChange() {
+  headerFooterDraftChangeCounter++;
+  headerFooterDraftListeners.forEach(listener => listener());
+}
+
+export function getGlobalHeaderDraftRef() {
+  return globalHeaderDraftRef;
+}
+
+export function getGlobalFooterDraftRef() {
+  return globalFooterDraftRef;
+}
+
+// Hook to observe draft changes from outside (for toolbar isDirty)
+export function useHeaderFooterDraftObserver(): number {
+  const [counter, setCounter] = useState(headerFooterDraftChangeCounter);
+  
+  useEffect(() => {
+    const listener = () => setCounter(headerFooterDraftChangeCounter);
+    headerFooterDraftListeners.add(listener);
+    return () => {
+      headerFooterDraftListeners.delete(listener);
+    };
+  }, []);
+  
+  return counter;
+}
 
 // ============================================
 // TYPES & INTERFACES
@@ -559,15 +605,22 @@ export function useThemeCustomCss(tenantId: string | undefined, templateSetId: s
   };
 }
 
+// ============================================
+// DRAFT-BASED HEADER HOOK (follows save flow)
+// Changes are stored locally until user clicks "Salvar"
+// ============================================
+
 export function useThemeHeader(tenantId: string | undefined, templateSetId: string | undefined) {
   const queryClient = useQueryClient();
-  const { themeSettings, saveThemeSettings, isLoading, isSaving } = 
+  const { themeSettings, isLoading, isSaving } = 
     useThemeSettings(tenantId, templateSetId);
 
-  // Track pending saves with useState to trigger re-renders
-  // This prevents race conditions where refetch overwrites local changes
-  const [pendingUpdates, setPendingUpdates] = useState<Partial<ThemeHeaderConfig>>({});
-  const [localSaving, setLocalSaving] = useState(false);
+  // Track draft changes with useState to trigger re-renders
+  // These are LOCAL changes that haven't been saved to DB yet
+  const [draftUpdates, setDraftUpdates] = useState<Partial<ThemeHeaderConfig>>({});
+
+  // hasDraftChanges is TRUE when user has made changes but NOT saved
+  const hasDraftChanges = Object.keys(draftUpdates).length > 0;
 
   // Base header from server (React Query cache)
   const serverHeader = {
@@ -575,43 +628,46 @@ export function useThemeHeader(tenantId: string | undefined, templateSetId: stri
     ...themeSettings?.header,
   };
 
-  // Merge server header with any pending updates to get effective header
-  // This ensures UI is always consistent with what user sees
+  // Merge server header with any draft updates to get effective header
+  // This ensures UI shows draft changes for immediate preview
   const header = {
     ...serverHeader,
-    ...pendingUpdates,
+    ...draftUpdates,
   };
 
-  const updateHeader = useCallback(async (newHeader: Partial<ThemeHeaderConfig>) => {
-    // Immediately update pending state - this will trigger re-render
-    setPendingUpdates(prev => ({ ...prev, ...newHeader }));
-    setLocalSaving(true);
+  // updateHeader: Updates LOCAL draft state only (NO database save)
+  // Changes are visible in builder preview but need "Salvar" to persist
+  const updateHeader = useCallback((newHeader: Partial<ThemeHeaderConfig>) => {
+    // Update draft state - this triggers re-render for preview
+    setDraftUpdates(prev => ({ ...prev, ...newHeader }));
     
-    // Compute complete header for saving
+    // Notify global observers that draft changed (for toolbar isDirty)
+    notifyHeaderFooterDraftChange();
+    
+    // Compute complete header for preview
     const updatedHeader = { 
       ...DEFAULT_THEME_HEADER,
       ...themeSettings?.header,
-      ...pendingUpdates,
+      ...draftUpdates,
       ...newHeader,
     };
     
-    // Build header block for global layout
+    // Build header block for preview cache
     const headerBlock: BlockNode = {
       id: 'global-header',
       type: 'Header',
       props: updatedHeader,
     };
     
-    // Update cache immediately for instant preview
+    // Update cache immediately for instant preview (NOT saving to DB)
     if (tenantId) {
       queryClient.setQueryData(['global-layout-editor', tenantId], (old: unknown) => {
         if (!old || typeof old !== 'object') return old;
-        return { ...old, header_config: headerBlock };
+        return { ...old, draft_header_config: headerBlock };
       });
     }
     
-    // CRITICAL: Update themeSettings cache IMMEDIATELY (optimistic update)
-    // This prevents stale data from overwriting our changes on refetch
+    // Update themeSettings cache for preview
     if (tenantId && templateSetId) {
       queryClient.setQueryData(
         THEME_SETTINGS_KEYS.all(tenantId, templateSetId),
@@ -621,126 +677,112 @@ export function useThemeHeader(tenantId: string | undefined, templateSetId: stri
         })
       );
     }
+  }, [themeSettings?.header, draftUpdates, tenantId, templateSetId, queryClient]);
+
+  // clearDraft: Called after save to reset draft state
+  const clearDraft = useCallback(() => {
+    setDraftUpdates({});
+  }, []);
+
+  // getPendingChanges: Returns changes to save (for VisualBuilder.handleSave)
+  const getPendingChanges = useCallback(() => {
+    if (!hasDraftChanges) return null;
     
-    try {
-      // Save to storefront_template_sets.draft_content.themeSettings
-      if (templateSetId) {
-        const { data: current } = await supabase
-          .from('storefront_template_sets')
-          .select('draft_content')
-          .eq('id', templateSetId)
-          .single();
-        
-        const currentContent = current?.draft_content as Record<string, unknown> | null;
-        const currentTheme = currentContent?.themeSettings as ThemeSettings | undefined;
-        
-        const updatedContent = {
-          ...currentContent,
-          themeSettings: {
-            ...currentTheme,
-            header: updatedHeader,
-          },
-        };
-        
-        await supabase
-          .from('storefront_template_sets')
-          .update({ draft_content: updatedContent as unknown as Json })
-          .eq('id', templateSetId);
-      }
-      
-      // Also persist to storefront_global_layout for real-time sync
-      if (tenantId) {
-        const { data: existing } = await supabase
-          .from('storefront_global_layout')
-          .select('id')
-          .eq('tenant_id', tenantId)
-          .maybeSingle();
-        
-        if (existing) {
-          await supabase
-            .from('storefront_global_layout')
-            .update({ draft_header_config: headerBlock as unknown as Json })
-            .eq('tenant_id', tenantId);
-        } else {
-          await supabase
-            .from('storefront_global_layout')
-            .insert({
-              tenant_id: tenantId,
-              draft_header_config: headerBlock as unknown as Json,
-            });
-        }
-      }
-      
-      // Clear pending updates after successful save
-      setPendingUpdates({});
-    } catch (err) {
-      console.error('[useThemeHeader] Error saving header:', err);
-    } finally {
-      setLocalSaving(false);
-    }
-  }, [themeSettings?.header, pendingUpdates, tenantId, templateSetId, queryClient]);
+    const fullHeader = {
+      ...DEFAULT_THEME_HEADER,
+      ...themeSettings?.header,
+      ...draftUpdates,
+    };
+    
+    return { header: fullHeader };
+  }, [hasDraftChanges, themeSettings?.header, draftUpdates]);
+
+  // Register global ref for access from VisualBuilder
+  useEffect(() => {
+    globalHeaderDraftRef = {
+      hasDraftChanges,
+      clearDraft,
+      getPendingChanges: getPendingChanges as () => { header?: ThemeHeaderConfig; footer?: ThemeFooterConfig } | null,
+    };
+    return () => {
+      globalHeaderDraftRef = null;
+    };
+  }, [hasDraftChanges, clearDraft, getPendingChanges]);
 
   return {
     header,
     updateHeader,
     isLoading,
-    isSaving: isSaving || localSaving,
+    isSaving,
+    hasDraftChanges,
+    clearDraft,
+    getPendingChanges,
   };
 }
+
+// ============================================
+// DRAFT-BASED FOOTER HOOK (follows save flow)
+// Changes are stored locally until user clicks "Salvar"
+// ============================================
 
 export function useThemeFooter(tenantId: string | undefined, templateSetId: string | undefined) {
   const queryClient = useQueryClient();
   const { themeSettings, isLoading, isSaving } = 
     useThemeSettings(tenantId, templateSetId);
 
-  // Track pending saves with useState to trigger re-renders
-  // This is critical - useRef does NOT trigger re-renders, causing stale UI
-  const [pendingUpdates, setPendingUpdates] = useState<Partial<ThemeFooterConfig>>({});
-  const [localSaving, setLocalSaving] = useState(false);
+  // Track draft changes with useState to trigger re-renders
+  // These are LOCAL changes that haven't been saved to DB yet
+  const [draftUpdates, setDraftUpdates] = useState<Partial<ThemeFooterConfig>>({});
 
-  // Base footer from server (React Query cache - includes optimistic updates)
+  // hasDraftChanges is TRUE when user has made changes but NOT saved
+  const hasDraftChanges = Object.keys(draftUpdates).length > 0;
+
+  // Base footer from server (React Query cache)
   const serverFooter = {
     ...DEFAULT_THEME_FOOTER,
     ...themeSettings?.footer,
   };
 
-  // Merge server footer with any pending updates to get effective footer
-  // This ensures UI is always consistent with what user sees
+  // Merge server footer with any draft updates to get effective footer
+  // This ensures UI shows draft changes for immediate preview
   const footer = {
     ...serverFooter,
-    ...pendingUpdates,
+    ...draftUpdates,
   };
 
-  const updateFooter = useCallback(async (newFooter: Partial<ThemeFooterConfig>) => {
-    // Immediately update pending state - this will trigger re-render
-    setPendingUpdates(prev => ({ ...prev, ...newFooter }));
-    setLocalSaving(true);
+  // updateFooter: Updates LOCAL draft state only (NO database save)
+  // Changes are visible in builder preview but need "Salvar" to persist
+  const updateFooter = useCallback((newFooter: Partial<ThemeFooterConfig>) => {
+    // Update draft state - this triggers re-render for preview
+    setDraftUpdates(prev => ({ ...prev, ...newFooter }));
     
-    // Compute complete footer for saving
+    // Notify global observers that draft changed (for toolbar isDirty)
+    notifyHeaderFooterDraftChange();
+    
+    // Compute complete footer for preview
     const updatedFooter = { 
       ...DEFAULT_THEME_FOOTER,
       ...themeSettings?.footer,
-      ...pendingUpdates,
+      ...draftUpdates,
       ...newFooter,
     };
     
-    // Build footer block for global layout
+    // Build footer block for preview cache
     const footerBlock: BlockNode = {
       id: 'global-footer',
       type: 'Footer',
       props: updatedFooter,
     };
     
-    // Update global layout cache immediately for instant preview
+    // Update cache immediately for instant preview (NOT saving to DB)
     if (tenantId) {
       queryClient.setQueryData(['global-layout-editor', tenantId], (old: unknown) => {
         if (!old || typeof old !== 'object') return old;
-        return { ...old, footer_config: footerBlock };
+        return { ...old, draft_footer_config: footerBlock };
       });
     }
     
-    // CRITICAL: Update themeSettings cache IMMEDIATELY (optimistic update)
-    // This prevents stale data from overwriting our changes
+    // Update themeSettings cache for preview
     if (tenantId && templateSetId) {
       queryClient.setQueryData(
         THEME_SETTINGS_KEYS.all(tenantId, templateSetId),
@@ -750,87 +792,46 @@ export function useThemeFooter(tenantId: string | undefined, templateSetId: stri
         })
       );
     }
+  }, [themeSettings?.footer, draftUpdates, tenantId, templateSetId, queryClient]);
+
+  // clearDraft: Called after save to reset draft state
+  const clearDraft = useCallback(() => {
+    setDraftUpdates({});
+  }, []);
+
+  // getPendingChanges: Returns changes to save (for VisualBuilder.handleSave)
+  const getPendingChanges = useCallback(() => {
+    if (!hasDraftChanges) return null;
     
-    try {
-      // Save to storefront_template_sets.draft_content.themeSettings
-      if (templateSetId) {
-        // Fetch current draft content to merge
-        const { data: current } = await supabase
-          .from('storefront_template_sets')
-          .select('draft_content')
-          .eq('id', templateSetId)
-          .single();
+    const fullFooter = {
+      ...DEFAULT_THEME_FOOTER,
+      ...themeSettings?.footer,
+      ...draftUpdates,
+    };
+    
+    return { footer: fullFooter };
+  }, [hasDraftChanges, themeSettings?.footer, draftUpdates]);
 
-        const draftContent = (current?.draft_content as Record<string, unknown>) || {};
-        const currentThemeSettings = (draftContent.themeSettings as ThemeSettings) || {};
-
-        const updatedThemeSettings: ThemeSettings = {
-          ...currentThemeSettings,
-          footer: updatedFooter,
-        };
-
-        const updatedDraftContent = {
-          ...draftContent,
-          themeSettings: updatedThemeSettings,
-        };
-
-        const { error: updateError } = await supabase
-          .from('storefront_template_sets')
-          .update({ 
-            draft_content: updatedDraftContent as unknown as Json,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', templateSetId);
-
-        if (updateError) throw updateError;
-      }
-      
-      // Also persist to storefront_global_layout for real-time sync
-      if (tenantId) {
-        const { data: existing } = await supabase
-          .from('storefront_global_layout')
-          .select('id')
-          .eq('tenant_id', tenantId)
-          .maybeSingle();
-        
-        if (existing) {
-          const { error } = await supabase
-            .from('storefront_global_layout')
-            .update({ footer_config: footerBlock as unknown as Json })
-            .eq('tenant_id', tenantId);
-          if (error) console.error('[useThemeFooter] Update error:', error);
-        } else {
-          const { error } = await supabase
-            .from('storefront_global_layout')
-            .insert({
-              tenant_id: tenantId,
-              footer_config: footerBlock as unknown as Json,
-            });
-          if (error) console.error('[useThemeFooter] Insert error:', error);
-        }
-      }
-      
-      // Save succeeded - clear pending updates for saved keys only
-      setPendingUpdates(prev => {
-        const updated = { ...prev };
-        Object.keys(newFooter).forEach(key => {
-          delete (updated as Record<string, unknown>)[key];
-        });
-        return updated;
-      });
-    } catch (err) {
-      console.error('[useThemeFooter] Error saving footer:', err);
-      // Keep pending updates on error so UI stays consistent
-    } finally {
-      setLocalSaving(false);
-    }
-  }, [tenantId, templateSetId, queryClient, themeSettings?.footer, pendingUpdates]);
+  // Register global ref for access from VisualBuilder
+  useEffect(() => {
+    globalFooterDraftRef = {
+      hasDraftChanges,
+      clearDraft,
+      getPendingChanges: getPendingChanges as () => { header?: ThemeHeaderConfig; footer?: ThemeFooterConfig } | null,
+    };
+    return () => {
+      globalFooterDraftRef = null;
+    };
+  }, [hasDraftChanges, clearDraft, getPendingChanges]);
 
   return {
     footer,
     updateFooter,
     isLoading,
-    isSaving: isSaving || localSaving,
+    isSaving,
+    hasDraftChanges,
+    clearDraft,
+    getPendingChanges,
   };
 }
 
