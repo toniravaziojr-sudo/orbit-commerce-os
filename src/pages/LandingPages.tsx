@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { useAILandingPageUrl } from "@/hooks/useAILandingPageUrl";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,6 +67,12 @@ export default function LandingPages() {
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("all");
 
+  // Get tenant's public URL
+  const { baseUrl: tenantBaseUrl } = useAILandingPageUrl({
+    tenantId: tenant?.id,
+    tenantSlug: tenant?.slug,
+  });
+
   // Fetch landing pages
   const { data: landingPages, isLoading } = useQuery({
     queryKey: ['ai-landing-pages', tenant?.id],
@@ -121,9 +128,14 @@ export default function LandingPages() {
   };
 
   const copySlug = (slug: string) => {
-    const url = `${window.location.origin}/ai-lp/${slug}`;
+    const url = tenantBaseUrl ? `${tenantBaseUrl}/ai-lp/${slug}` : `/ai-lp/${slug}`;
     navigator.clipboard.writeText(url);
     toast.success('URL copiada!');
+  };
+  
+  const openPublishedPage = (slug: string) => {
+    const url = tenantBaseUrl ? `${tenantBaseUrl}/ai-lp/${slug}` : `/ai-lp/${slug}`;
+    window.open(url, '_blank');
   };
 
   if (isLoading) {
@@ -259,7 +271,7 @@ export default function LandingPages() {
                         variant="ghost"
                         size="sm"
                         className="w-full mt-2"
-                        onClick={() => window.open(`/ai-lp/${page.slug}`, '_blank')}
+                        onClick={() => openPublishedPage(page.slug)}
                       >
                         <Globe className="h-4 w-4 mr-1" />
                         Ver Publicada
