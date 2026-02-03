@@ -7,8 +7,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Monitor, Smartphone, Sparkles, Check } from 'lucide-react';
+import { Monitor, Smartphone, Sparkles, Check, ExternalLink, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface PresetPreviewDialogProps {
@@ -18,6 +17,9 @@ interface PresetPreviewDialogProps {
   onUsePreset: () => void;
   isLoading?: boolean;
 }
+
+// URL da loja demo para preview real
+const DEMO_STORE_URL = 'https://respeiteohomem.comandocentral.com.br';
 
 const PRESET_INFO = {
   standard: {
@@ -32,11 +34,11 @@ const PRESET_INFO = {
       'Tema dark premium',
       'Página de conta do cliente',
     ],
-    // Screenshots/mockups das páginas
+    // Páginas para navegação no iframe
     pages: [
-      { name: 'Home', preview: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1200&h=800&fit=crop&q=80' },
-      { name: 'Produto', preview: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=1200&h=800&fit=crop&q=80' },
-      { name: 'Checkout', preview: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1200&h=800&fit=crop&q=80' },
+      { name: 'Home', path: '' },
+      { name: 'Produto', path: '/produto/kit-barba-completo' },
+      { name: 'Checkout', path: '/checkout' },
     ],
   },
   blank: {
@@ -50,7 +52,7 @@ const PRESET_INFO = {
       'Total liberdade de design',
     ],
     pages: [
-      { name: 'Home', preview: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&h=800&fit=crop&q=80' },
+      { name: 'Home', path: '' },
     ],
   },
 };
@@ -64,13 +66,23 @@ export function PresetPreviewDialog({
 }: PresetPreviewDialogProps) {
   const [viewport, setViewport] = useState<'desktop' | 'mobile'>('desktop');
   const [activePageIndex, setActivePageIndex] = useState(0);
+  const [iframeLoading, setIframeLoading] = useState(true);
   
   const info = PRESET_INFO[preset];
   const currentPage = info.pages[activePageIndex];
+  
+  // URL completa para o iframe
+  const iframeUrl = `${DEMO_STORE_URL}${currentPage.path}`;
+  
+  // Reset loading state when page changes
+  const handlePageChange = (index: number) => {
+    setActivePageIndex(index);
+    setIframeLoading(true);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-6xl max-h-[95vh] overflow-hidden flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -89,6 +101,17 @@ export function PresetPreviewDialog({
                 </p>
               </div>
             </div>
+            
+            {/* Open in new tab */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => window.open(iframeUrl, '_blank')}
+            >
+              <ExternalLink className="h-4 w-4" />
+              Abrir em nova aba
+            </Button>
           </div>
         </DialogHeader>
 
@@ -126,7 +149,7 @@ export function PresetPreviewDialog({
                       key={page.name}
                       variant={activePageIndex === index ? 'secondary' : 'ghost'}
                       size="sm"
-                      onClick={() => setActivePageIndex(index)}
+                      onClick={() => handlePageChange(index)}
                     >
                       {page.name}
                     </Button>
@@ -135,19 +158,45 @@ export function PresetPreviewDialog({
               )}
             </div>
 
-            {/* Preview Frame */}
-            <div className="flex-1 bg-muted/50 rounded-lg border overflow-hidden flex items-center justify-center p-4">
+            {/* Preview Frame - Real iframe */}
+            <div className="flex-1 bg-muted/50 rounded-lg border overflow-hidden flex items-center justify-center p-4 min-h-[500px]">
               <div
                 className={cn(
-                  "bg-white rounded-lg shadow-lg overflow-hidden transition-all duration-300",
-                  viewport === 'desktop' ? "w-full max-w-4xl aspect-[16/10]" : "w-[375px] aspect-[9/16]"
+                  "bg-white rounded-lg shadow-lg overflow-hidden transition-all duration-300 relative",
+                  viewport === 'desktop' ? "w-full h-full" : "w-[375px] h-[667px]"
                 )}
               >
-                <img
-                  src={currentPage.preview}
-                  alt={`Preview ${currentPage.name}`}
-                  className="w-full h-full object-cover"
-                />
+                {/* Loading indicator */}
+                {iframeLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
+                    <div className="flex flex-col items-center gap-2">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      <span className="text-sm text-muted-foreground">Carregando preview...</span>
+                    </div>
+                  </div>
+                )}
+                
+                {preset === 'standard' ? (
+                  <iframe
+                    src={iframeUrl}
+                    className="w-full h-full border-0"
+                    title={`Preview ${currentPage.name}`}
+                    onLoad={() => setIframeLoading(false)}
+                  />
+                ) : (
+                  // For blank preset, show a placeholder
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted/30 to-muted/10">
+                    <div className="text-center p-8">
+                      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+                        <Sparkles className="h-8 w-8 text-muted-foreground" />
+                      </div>
+                      <h3 className="font-medium text-lg mb-2">Template em Branco</h3>
+                      <p className="text-sm text-muted-foreground max-w-sm">
+                        Sua loja começará com uma estrutura limpa, pronta para você personalizar do seu jeito.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
