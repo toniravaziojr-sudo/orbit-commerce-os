@@ -254,6 +254,49 @@ Composição com imagem real do produto
 
 ---
 
+## Geração de Vídeos IA (v2.0)
+
+O módulo de Mídias inclui geração de vídeos com pipeline de alta fidelidade:
+
+### Tabelas
+
+| Tabela | Propósito |
+|--------|-----------|
+| `media_category_profiles` | Perfis de nicho com pesos de QA |
+| `media_preset_components` | Componentes modulares (cena, luz, câmera, narrativa) |
+| `media_video_presets` | Presets compostos para geração |
+| `media_video_jobs` | Jobs de geração com pipeline de 6 estágios |
+| `media_video_candidates` | Candidatos gerados com scores de QA |
+
+### Pipeline de 6 Estágios
+
+```
+1. PREPROCESS → Preparar cutout/mask do produto
+2. REWRITE → Converter prompt em shot_plan estruturado
+3. GENERATE_CANDIDATES → Gerar N variações
+4. QA_SELECT → Avaliar com IA vision (similarity + OCR + quality)
+5. RETRY → Tentativa extra com fidelidade rígida (se QA falhar)
+6. FALLBACK → Composição do produto sobre cenário gerado
+```
+
+### Pesos de QA por Nicho
+
+| Nicho | Similaridade | OCR Rótulo | Qualidade | Estabilidade |
+|-------|--------------|------------|-----------|--------------|
+| Foco no Produto | 45% | 30% | 25% | 0% |
+| Lifestyle | 35% | 25% | 30% | 10% |
+| Storytelling | 30% | 20% | 35% | 15% |
+
+### Arquivos
+
+| Arquivo | Propósito |
+|---------|-----------|
+| `supabase/functions/media-video-generate/` | Edge Function do pipeline |
+| `src/hooks/useMediaVideoCreatives.ts` | Hooks React |
+| `src/components/media/MediaVideoJobsList.tsx` | Lista de jobs com progresso |
+
+---
+
 ## Separação de Fluxos: Blog vs. Mídias vs. YouTube
 
 O `PublicationDialog` recebe a prop `campaignType` para diferenciar o fluxo:
@@ -298,6 +341,7 @@ O `PublicationDialog` recebe a prop `campaignType` para diferenciar o fluxo:
 | Ignorar canal alvo | Respeitar target_channel da campanha |
 | Misturar fluxos Blog/Mídias/YouTube | Usar `campaignType` para separar |
 | Upload YouTube sem verificar créditos | Sempre verificar saldo antes |
+| Usar fal.ai para vídeos | Usar pipeline OpenAI/Sora com QA |
 
 ---
 
@@ -309,6 +353,7 @@ O `PublicationDialog` recebe a prop `campaignType` para diferenciar o fluxo:
 - [x] Edição inline de items
 - [x] Fluxo separado Blog vs Mídias vs YouTube
 - [x] Integração YouTube (OAuth + Upload)
+- [x] Geração de vídeos IA (v2.0 pipeline)
 - [ ] Geração de imagens
 - [ ] Conexão com Late
 - [ ] Publicação automática
