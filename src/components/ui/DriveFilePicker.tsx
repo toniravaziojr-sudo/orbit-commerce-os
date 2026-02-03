@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useDriveFiles, DriveFileType } from '@/hooks/useDriveFiles';
 import type { FileItem } from '@/hooks/useFiles';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   Folder, 
   Image, 
@@ -34,16 +35,88 @@ interface DriveFilePickerProps {
   title?: string;
 }
 
-function getFileIcon(file: FileItem) {
-  if (file.is_folder) return <Folder className="h-8 w-8 text-amber-500" />;
+function getFileIcon(file: FileItem, size: 'sm' | 'md' = 'md') {
+  const sizeClass = size === 'sm' ? 'h-6 w-6' : 'h-8 w-8';
+  
+  if (file.is_folder) return <Folder className={cn(sizeClass, "text-amber-500")} />;
   
   const mime = file.mime_type || '';
-  if (mime.startsWith('image/')) return <Image className="h-8 w-8 text-blue-500" />;
-  if (mime.startsWith('video/')) return <FileVideo className="h-8 w-8 text-purple-500" />;
+  if (mime.startsWith('image/')) return <Image className={cn(sizeClass, "text-blue-500")} />;
+  if (mime.startsWith('video/')) return <FileVideo className={cn(sizeClass, "text-purple-500")} />;
   if (mime.includes('pdf') || mime.includes('word') || mime.includes('text')) {
-    return <FileText className="h-8 w-8 text-red-500" />;
+    return <FileText className={cn(sizeClass, "text-red-500")} />;
   }
-  return <File className="h-8 w-8 text-muted-foreground" />;
+  return <File className={cn(sizeClass, "text-muted-foreground")} />;
+}
+
+// Get thumbnail URL for a file (sync, for grid display)
+function getFileThumbnailUrl(file: FileItem): string | null {
+  if (file.is_folder) return null;
+  
+  const mime = file.mime_type || '';
+  if (!mime.startsWith('image/')) return null;
+  
+  // Check metadata for direct URL
+  const metadata = file.metadata as Record<string, unknown> | null;
+  const metadataUrl = metadata?.url as string | undefined;
+  if (metadataUrl) return metadataUrl;
+  
+  // Determine bucket
+  const source = metadata?.source as string | undefined;
+  const bucket = metadata?.bucket as string | undefined;
+  const targetBucket = bucket || (source?.startsWith('storefront_') || file.storage_path?.includes('tenants/') ? 'store-assets' : 'tenant-files');
+  
+  // Get public URL
+  if (file.storage_path) {
+    const { data } = supabase.storage.from(targetBucket).getPublicUrl(file.storage_path);
+    return data?.publicUrl || null;
+  }
+  
+  return null;
+}
+
+// Thumbnail component with loading state
+function FileThumbnail({ file, isSelected }: { file: FileItem; isSelected: boolean }) {
+  const thumbnailUrl = useMemo(() => getFileThumbnailUrl(file), [file]);
+  const [hasError, setHasError] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
+  
+  const isImage = file.mime_type?.startsWith('image/');
+  
+  // Reset states when file changes
+  useEffect(() => {
+    setHasError(false);
+    setIsLoaded(false);
+  }, [file.id]);
+  
+  if (!isImage || !thumbnailUrl || hasError) {
+    return (
+      <div className="w-full aspect-square flex items-center justify-center bg-muted/30 rounded-md">
+        {getFileIcon(file, 'md')}
+      </div>
+    );
+  }
+  
+  return (
+    <div className="w-full aspect-square relative bg-muted/30 rounded-md overflow-hidden">
+      {!isLoaded && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      )}
+      <img
+        src={thumbnailUrl}
+        alt={file.original_name}
+        className={cn(
+          "w-full h-full object-cover transition-opacity duration-200",
+          isLoaded ? "opacity-100" : "opacity-0"
+        )}
+        loading="lazy"
+        onLoad={() => setIsLoaded(true)}
+        onError={() => setHasError(true)}
+      />
+    </div>
+  );
 }
 
 export function DriveFilePicker({
@@ -224,14 +297,14 @@ export function DriveFilePicker({
                     </button>
                   ))}
                   
-                  {/* Files */}
+                  {/* Files with thumbnails */}
                   {files.map((file) => (
                     <button
                       key={file.id}
                       onClick={() => handleItemClick(file)}
                       onDoubleClick={() => handleItemDoubleClick(file)}
                       className={cn(
-                        'relative flex flex-col items-center gap-2 p-3 rounded-lg border transition-all',
+                        'relative flex flex-col items-center gap-2 p-2 rounded-lg border transition-all',
                         'focus:outline-none focus:ring-2 focus:ring-primary',
                         selectedFile?.id === file.id
                           ? 'border-primary bg-primary/5 ring-2 ring-primary'
@@ -239,12 +312,12 @@ export function DriveFilePicker({
                       )}
                     >
                       {selectedFile?.id === file.id && (
-                        <div className="absolute top-2 right-2 h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
+                        <div className="absolute top-1 right-1 h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center z-10">
                           <Check className="h-3 w-3" />
                         </div>
                       )}
-                      {getFileIcon(file)}
-                      <span className="text-xs text-center truncate w-full" title={file.original_name}>
+                      <FileThumbnail file={file} isSelected={selectedFile?.id === file.id} />
+                      <span className="text-xs text-center truncate w-full px-1" title={file.original_name}>
                         {file.original_name}
                       </span>
                     </button>
