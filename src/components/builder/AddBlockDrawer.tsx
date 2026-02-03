@@ -47,9 +47,8 @@ const categoryLabels: Record<BlockCategoryType, string> = {
 };
 
 const blockCategoryMapping: Record<string, BlockCategoryType> = {
-  // Banners (seções de destaque)
-  'HeroBanner': 'banners',
-  'Hero': 'banners',
+  // Banners (seções de destaque) - unified to single "Banner" block
+  'Banner': 'banners',
   'BannerProducts': 'banners',
   
   // Produtos (coleções e exibição de produtos)
@@ -104,10 +103,10 @@ const blockCategoryMapping: Record<string, BlockCategoryType> = {
   'Divider': 'layout',
 };
 
-// Visible blocks - removidos duplicados: Testimonials, AccordionBlock, ProductGrid, FeatureList, ContentColumns, Banner
+// Visible blocks - unified Banner block (was Hero + HeroBanner)
 const visibleBlockTypes = new Set([
-  // Banners
-  'HeroBanner', 'Hero', 'BannerProducts',
+  // Banners - unified
+  'Banner', 'BannerProducts',
   // Produtos
   'CollectionSection', 'ProductCarousel', 'FeaturedProducts', 'ProductCard',
   // Categorias

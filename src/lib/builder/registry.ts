@@ -612,69 +612,165 @@ const blockDefinitions: BlockDefinition[] = [
   },
 
   // ========== CONTENT BLOCKS ==========
+  // UNIFIED BANNER BLOCK (replaces Hero + HeroBanner)
   {
-    type: 'Hero',
-    label: 'Banner de Destaque',
-    category: 'content',
+    type: 'Banner',
+    label: 'Banner',
+    category: 'media',
     icon: 'Image',
     defaultProps: {
-      title: 'Bem-vindo à Nossa Loja',
-      subtitle: 'Descubra produtos incríveis',
+      mode: 'single',
+      // Single mode
       imageDesktop: '',
       imageMobile: '',
+      title: '',
+      subtitle: '',
+      buttonText: '',
+      buttonUrl: '',
+      linkUrl: '',
+      // Style
       backgroundColor: '',
       textColor: '#ffffff',
-      buttonText: 'Ver Produtos',
-      buttonUrl: '/produtos',
       buttonColor: '#ffffff',
       buttonTextColor: '',
       buttonHoverBgColor: '',
       buttonHoverTextColor: '',
       alignment: 'center',
-      overlayOpacity: 50,
-      height: 'md',
+      overlayOpacity: 0,
+      height: 'auto',
+      bannerWidth: 'full',
+      // Carousel mode
+      slides: [],
+      autoplaySeconds: 5,
+      showArrows: true,
+      showDots: true,
     },
     propsSchema: {
-      title: {
-        type: 'string',
-        label: 'Título',
-        defaultValue: 'Bem-vindo à Nossa Loja',
+      mode: {
+        type: 'select',
+        label: 'Modo',
+        defaultValue: 'single',
+        options: [
+          { label: 'Banner Único', value: 'single' },
+          { label: 'Carrossel', value: 'carousel' },
+        ],
       },
-      subtitle: {
-        type: 'string',
-        label: 'Subtítulo',
-        defaultValue: 'Descubra produtos incríveis',
-      },
+      // === SINGLE MODE ===
       imageDesktop: {
         type: 'image',
         label: 'Imagem Desktop',
-        helpText: 'Recomendado: 1920×700px (proporção ~16:6)',
+        helpText: 'Recomendado: 1920×700px (proporção ~21:7)',
+        showWhen: { mode: 'single' },
       },
       imageMobile: {
         type: 'image',
         label: 'Imagem Mobile',
         placeholder: 'Opcional - usa Desktop se vazio',
         helpText: 'Recomendado: 750×420px (proporção 16:9)',
+        showWhen: { mode: 'single' },
+      },
+      linkUrl: {
+        type: 'string',
+        label: 'Link do Banner',
+        placeholder: 'URL ao clicar no banner (sem CTA)',
+        showWhen: { mode: 'single' },
+      },
+      // === CAROUSEL MODE ===
+      slides: {
+        type: 'array',
+        label: 'Slides do Carrossel',
+        defaultValue: [],
+        helpText: 'Adicione slides com imagens para Desktop e Mobile',
+        showWhen: { mode: 'carousel' },
+      },
+      autoplaySeconds: {
+        type: 'number',
+        label: 'Tempo de Autoplay (segundos)',
+        defaultValue: 5,
+        min: 0,
+        max: 30,
+        showWhen: { mode: 'carousel' },
+      },
+      showArrows: {
+        type: 'boolean',
+        label: 'Mostrar Setas',
+        defaultValue: true,
+        showWhen: { mode: 'carousel' },
+      },
+      showDots: {
+        type: 'boolean',
+        label: 'Mostrar Indicadores',
+        defaultValue: true,
+        showWhen: { mode: 'carousel' },
+      },
+      // === CTA OVERLAY ===
+      title: {
+        type: 'string',
+        label: 'Título',
+        placeholder: 'Texto principal do banner',
+      },
+      subtitle: {
+        type: 'string',
+        label: 'Subtítulo',
+        placeholder: 'Texto secundário',
+      },
+      buttonText: {
+        type: 'string',
+        label: 'Texto do Botão',
+        placeholder: 'Ex: Ver Produtos',
+      },
+      buttonUrl: {
+        type: 'string',
+        label: 'Link do Botão',
+        placeholder: '/produtos',
+      },
+      // === STYLE ===
+      height: {
+        type: 'select',
+        label: 'Altura',
+        defaultValue: 'auto',
+        options: [
+          { label: 'Automático', value: 'auto' },
+          { label: 'Pequeno', value: 'sm' },
+          { label: 'Médio', value: 'md' },
+          { label: 'Grande', value: 'lg' },
+          { label: 'Tela Cheia', value: 'full' },
+        ],
+      },
+      bannerWidth: {
+        type: 'select',
+        label: 'Largura',
+        defaultValue: 'full',
+        options: [
+          { label: 'Largura Total', value: 'full' },
+          { label: 'Contido', value: 'contained' },
+        ],
+      },
+      alignment: {
+        type: 'select',
+        label: 'Alinhamento do Texto',
+        defaultValue: 'center',
+        options: [
+          { label: 'Esquerda', value: 'left' },
+          { label: 'Centro', value: 'center' },
+          { label: 'Direita', value: 'right' },
+        ],
       },
       backgroundColor: {
         type: 'color',
         label: 'Cor de Fundo (se sem imagem)',
-        defaultValue: '',
       },
       textColor: {
         type: 'color',
         label: 'Cor do Texto',
         defaultValue: '#ffffff',
       },
-      buttonText: {
-        type: 'string',
-        label: 'Texto do Botão',
-        defaultValue: 'Ver Produtos',
-      },
-      buttonUrl: {
-        type: 'string',
-        label: 'Link do Botão',
-        defaultValue: '/produtos',
+      overlayOpacity: {
+        type: 'number',
+        label: 'Escurecimento (%)',
+        defaultValue: 0,
+        min: 0,
+        max: 100,
       },
       buttonColor: {
         type: 'color',
@@ -692,34 +788,6 @@ const blockDefinitions: BlockDefinition[] = [
       buttonHoverTextColor: {
         type: 'color',
         label: 'Cor do Texto (Hover)',
-      },
-      alignment: {
-        type: 'select',
-        label: 'Alinhamento',
-        defaultValue: 'center',
-        options: [
-          { label: 'Esquerda', value: 'left' },
-          { label: 'Centro', value: 'center' },
-          { label: 'Direita', value: 'right' },
-        ],
-      },
-      height: {
-        type: 'select',
-        label: 'Altura',
-        defaultValue: 'md',
-        options: [
-          { label: 'Pequeno', value: 'sm' },
-          { label: 'Médio', value: 'md' },
-          { label: 'Grande', value: 'lg' },
-          { label: 'Tela Cheia', value: 'full' },
-        ],
-      },
-      overlayOpacity: {
-        type: 'number',
-        label: 'Opacidade do Overlay (%)',
-        defaultValue: 50,
-        min: 0,
-        max: 100,
       },
     },
     canHaveChildren: false,
@@ -1691,55 +1759,7 @@ const blockDefinitions: BlockDefinition[] = [
     isRemovable: false,
   },
 
-  // ========== ESSENTIAL BLOCKS (8 novos) ==========
-  {
-    type: 'HeroBanner',
-    label: 'Carrossel de Banners',
-    category: 'media',
-    icon: 'Image',
-    defaultProps: {
-      slides: [],
-      autoplaySeconds: 5,
-      bannerWidth: 'full',
-      showArrows: true,
-      showDots: true,
-    },
-    propsSchema: {
-      slides: {
-        type: 'array',
-        label: 'Slides do Carrossel',
-        defaultValue: [],
-        helpText: 'Adicione slides com imagens para Desktop e Mobile',
-      },
-      autoplaySeconds: {
-        type: 'number',
-        label: 'Tempo de Autoplay (segundos)',
-        defaultValue: 5,
-        min: 0,
-        max: 30,
-      },
-      bannerWidth: {
-        type: 'select',
-        label: 'Largura do Banner',
-        defaultValue: 'full',
-        options: [
-          { label: 'Largura Total', value: 'full' },
-          { label: 'Contido', value: 'contained' },
-        ],
-      },
-      showArrows: {
-        type: 'boolean',
-        label: 'Mostrar Setas',
-        defaultValue: true,
-      },
-      showDots: {
-        type: 'boolean',
-        label: 'Mostrar Indicadores',
-        defaultValue: true,
-      },
-    },
-    canHaveChildren: false,
-  },
+  // HeroBanner removed - now unified as "Banner" block in content category
   {
     type: 'CollectionSection',
     label: 'Categoria/Coleção',
