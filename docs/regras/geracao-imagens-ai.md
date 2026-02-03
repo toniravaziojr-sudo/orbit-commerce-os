@@ -1,111 +1,111 @@
 # Geração de Imagens e Vídeos com IA — Regras Canônicas
 
-> **REGRA CRÍTICA:** A geração de mídia usa **Fal.AI** com modelos específicos para imagens e vídeos.
+> **REGRA CRÍTICA:** A geração de mídia usa **Lovable AI Gateway (Gemini Image)** com pipeline completa de QA.
 
 ---
 
-## Arquitetura
+## Arquitetura (v2.0)
 
 | Componente | Descrição |
 |------------|-----------|
-| **Provider** | Fal.AI (chave de API global da plataforma) |
-| **Modelo (image-to-image)** | `gpt-image-1.5/edit` — quando há produto detectado no prompt |
-| **Modelo (text-to-image)** | `gpt-image-1.5` — quando não há produto específico |
-| **Modelo (video)** | `sora-2/image-to-video/pro` — vídeo premium a partir de imagem de referência |
-| **Credencial** | `FAL_API_KEY` em `platform_credentials` |
+| **Provider** | Lovable AI Gateway (LOVABLE_API_KEY auto-provisionada) |
+| **Modelo (imagem alta qualidade)** | `google/gemini-3-pro-image-preview` |
+| **Modelo (imagem rápida)** | `google/gemini-2.5-flash-image` |
+| **Modelo (QA/texto)** | `google/gemini-3-flash-preview` |
+| **Vídeos** | ⚠️ DESATIVADOS TEMPORARIAMENTE (migração em andamento) |
 
 ---
 
-## Geração de Imagens
+## Pipeline Completa de Geração de Imagens (v2.0)
 
 ### Fluxo
 
 ```
-1. Cliente cria criativo no calendário de mídia
-2. Cliente solicita geração de imagem
-3. Edge Function `media-generate-image`:
-   - Busca produtos mencionados no prompt (nome, SKU)
-   - Identifica imagem principal do produto
-   - Cria registro em `media_asset_generations` (status: queued)
-   - Dispara processamento
-4. Edge Function `media-process-generation-queue`:
-   - Se produto detectado: baixa imagem do produto
-   - Chama Fal.AI com imagem de referência (image-to-image)
-   - Salva resultado em `media-assets` bucket
-   - Atualiza calendar item com URL
+1. CUTOUT: Gerar recorte do produto (fundo transparente)
+2. GENERATION: Gerar N variações (default 4) com imagem de referência
+3. QA: Avaliar cada variação (similarity + label check)
+4. FALLBACK: Se todas falharem QA, composição com produto real
+5. SELECTION: Escolher melhor variação automaticamente por score
 ```
+
+### Passo 1 — Product Cutout
+
+- Gera versão do produto com fundo transparente
+- Usado para QA (comparação) e fallback (composição)
+- Se falhar, usa imagem original como fallback
+
+### Passo 2 — Prompt Rewriter
+
+O prompt do usuário é expandido com:
+- Preset de cenário (banheiro, lavabo, academia, etc.)
+- Descrição de personagem (gênero, idade)
+- Pose/interação (segurando, usando, mostrando)
+- Regras de fidelidade (alta = preservar rótulo exatamente)
+- Negative prompt (proibir distorções)
+
+### Passo 3 — Geração de Variações
+
+- Gera N variações (1-4, default 4)
+- Cada variação recebe instrução de diversificação
+- Usa imagem do produto como referência obrigatória
+
+### Passo 4 — QA Automático
+
+| Critério | Peso | Descrição |
+|----------|------|-----------|
+| **Similarity** | 40% | Produto gerado parece igual ao original? |
+| **Label** | 30% | Texto do rótulo está legível e correto? |
+| **Quality** | 30% | Imagem tem qualidade profissional? |
+
+- Score mínimo para aprovação: **70%**
+- Imagens reprovadas são descartadas
+- Se QA falhar (API indisponível), aprova com score 60%
+
+### Passo 5 — Fallback por Composição
+
+Se TODAS as variações falharem no QA:
+
+1. Gera cena com pessoa + mão vazia
+2. Compõe o produto real (cutout) na mão
+3. Ajusta sombra, iluminação e oclusão
+
+**Objetivo:** Garantir entrega com 100% de fidelidade ao produto.
+
+### Passo 6 — Seleção Automática
+
+- Variações aprovadas são ordenadas por score
+- A melhor é marcada como `is_best: true`
+- Todas ficam disponíveis para o usuário escolher
 
 ---
 
-## Geração de Vídeos (Sora 2 Pro)
+## UI/UX (aba Imagens)
 
-### Modelo
+### Formulário
 
-| Especificação | Valor |
-|---------------|-------|
-| **Modelo** | `fal-ai/sora-2/image-to-video/pro` |
-| **Tipo** | Image-to-Video (usa imagem como referência criativa) |
-| **Durações** | 5s, 10s, 15s, 20s |
-| **Aspect Ratios** | 16:9, 9:16, 1:1 |
-| **Qualidade** | Premium, cinematográfico |
-| **Áudio** | Gerado automaticamente pelo modelo |
+| Campo | Tipo | Default | Descrição |
+|-------|------|---------|-----------|
+| Produto | Select (obrigatório) | — | Selecionar do catálogo |
+| Cenário | Select | bathroom | Preset de ambiente |
+| Gênero | Select | any | Feminino/Masculino/Qualquer |
+| Faixa Etária | Select | middle | Jovem/Meia Idade/Maduro |
+| Pose | Select | holding | Segurando/Usando/Mostrando |
+| Qualidade | Select | high | Standard/Alta |
+| Fidelidade | Select | high | Baixa/Média/Alta |
+| Variações | Slider | 4 | 1-4 variações |
+| QA Automático | Switch | ON | Avaliar fidelidade |
+| Fallback | Switch | ON | Composição se falhar |
 
-### Fluxo
+### Histórico de Jobs
 
-```
-1. Cliente seleciona duração desejada (5s a 20s)
-2. Edge Function `media-generate-video`:
-   - Busca produtos mencionados no prompt
-   - Identifica imagem principal do produto
-   - Cria registro em `media_asset_generations` com metadata de vídeo
-   - Dispara processamento
-3. Edge Function `media-process-generation-queue`:
-   - Detecta que é geração de vídeo (settings.asset_type === 'video')
-   - Envia para Fal.AI queue (sora-2/image-to-video/pro)
-   - Polling até conclusão (pode levar 1-5 minutos)
-   - Salva resultado .mp4 em `media-assets` bucket
-   - Atualiza variante com URL do vídeo
-```
-
-### Uso da Imagem de Produto
-
-**IMPORTANTE:** A imagem do produto é usada como **REFERÊNCIA CRIATIVA**, não como frame fixo:
-
-| Cenário | Comportamento |
-|---------|---------------|
-| **Pessoas segurando produto** | ✅ Permitido — IA pode criar cenas com pessoas |
-| **Produto em superfície** | ✅ Permitido — ambientes lifestyle |
-| **Produto em movimento** | ✅ Permitido — rotação, zoom, partículas |
-| **Alterar rótulo/design** | ❌ PROIBIDO — manter fidelidade visual |
-| **Kit (múltiplos produtos)** | Produtos devem estar em superfície, não nas mãos |
-
-### Exemplo de Uso
-
-```
-Prompt do cliente: "Um homem de meia idade sorrindo e segurando o Shampoo Calvície Zero"
-
-Sistema:
-1. Detecta "Shampoo Calvície Zero" no prompt
-2. Busca produto com esse nome no catálogo do tenant
-3. Recupera imagem principal do produto
-4. Envia para Fal.AI com instrução:
-   "Use a imagem do produto como referência criativa para manter fidelidade
-    visual. Pode criar cenas com pessoas segurando o produto. Preservar cores,
-    rótulo e design exato."
-5. Gera vídeo com o produto REAL na cena solicitada
-```
-
----
-
-## Detecção Automática de Produtos
-
-O sistema **busca automaticamente** produtos mencionados no prompt:
-
-| Método | Descrição |
-|--------|-----------|
-| **Match exato** | Nome completo do produto está no texto |
-| **Match por palavras** | ≥50% das palavras significativas (>3 chars) do nome |
-| **Kit detection** | Produto com "kit" no nome ou múltiplos produtos mencionados |
+| Info | Descrição |
+|------|-----------|
+| Status | queued/running/succeeded/failed |
+| QA Score | Porcentagem de qualidade (0-100%) |
+| Melhor Variação | Índice da variação selecionada |
+| Aprovadas | X de Y variações passaram no QA |
+| Pipeline Version | v2.0.0 |
+| Etapa Atual | Cutout/Geração/QA/Seleção |
 
 ---
 
@@ -113,21 +113,25 @@ O sistema **busca automaticamente** produtos mencionados no prompt:
 
 | Regra | Descrição |
 |-------|-----------|
-| **Produto sem imagem** | BLOQUEAR geração — exigir cadastro da imagem primeiro |
-| **Kit na mão** | PROIBIDO — kits devem ser apresentados em superfície |
-| **Produto único** | Pode ser segurado (máx. 1 por mão) |
-| **Fidelidade** | A mídia gerada deve preservar rótulo, cores e design do produto real |
+| **Produto obrigatório** | Não gera sem produto selecionado |
+| **Imagem obrigatória** | Produto deve ter imagem cadastrada |
+| **Kit na mão** | PROIBIDO — kits em superfície |
+| **Fidelidade** | Rótulo, cores e design preservados |
+| **QA Score < 70%** | Imagem reprovada automaticamente |
+| **Todas reprovadas** | Fallback por composição |
 
 ---
 
-## Proibições no Prompt (Anti-Alucinação)
+## Custos Estimados (v2.0)
 
-- NÃO inventar rótulos, logos ou textos na embalagem
-- NÃO alterar cores ou design do produto
-- NÃO duplicar o produto na cena
-- NÃO adicionar texto sobreposto
-- NÃO criar produtos genéricos ou "parecidos"
-- NÃO distorcer o produto durante animação de vídeo
+| Operação | Custo Estimado |
+|----------|----------------|
+| Cutout (gemini-flash-image) | ~R$ 0,05 |
+| Variação (gemini-pro-image) | ~R$ 0,10 |
+| QA (gemini-flash) | ~R$ 0,05/variação |
+| Fallback (composição) | ~R$ 0,20 |
+
+**Exemplo:** 4 variações + QA ≈ R$ 0,65
 
 ---
 
@@ -135,112 +139,22 @@ O sistema **busca automaticamente** produtos mencionados no prompt:
 
 | Se for editar... | Leia este doc primeiro |
 |------------------|------------------------|
-| `supabase/functions/media-generate-image/index.ts` | Este documento |
-| `supabase/functions/media-generate-video/index.ts` | Este documento |
-| `supabase/functions/media-process-generation-queue/index.ts` | Este documento |
-| `src/components/media/AssetVariantsGallery.tsx` | Este documento |
-| `src/hooks/useAssetGeneration.ts` | Este documento |
+| `supabase/functions/creative-image-generate/index.ts` | Este documento |
+| `src/components/creatives/ProductImageTab.tsx` | Este documento |
+| `src/components/creatives/CreativeJobsList.tsx` | Este documento |
+| `src/hooks/useCreatives.ts` | Este documento |
 
 ---
 
-## Configuração da Plataforma
+## Vídeos (DESATIVADOS)
 
-A chave `FAL_API_KEY` deve ser configurada em:
-- **Rota:** `/platform-integrations`
-- **Seção:** Fal.AI
-- **Armazenamento:** `platform_credentials` (tabela de credenciais globais)
+> ⚠️ **Funcionalidades de vídeo estão temporariamente desativadas** enquanto migramos de fal.ai para alternativa.
 
-### Fluxo de Credenciais nas Edge Functions
-
-Todas as Edge Functions de geração usam `getCredential()` do shared module:
-
-```typescript
-import { getCredential } from "../_shared/platform-credentials.ts";
-
-const falApiKey = await getCredential(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  "FAL_API_KEY"
-);
-```
-
-**Prioridade de busca:**
-1. Banco de dados (`platform_credentials`) — preferencial
-2. Variável de ambiente (fallback)
-
----
-
-## Custos Estimados
-
-| Operação | Custo Estimado |
-|----------|----------------|
-| gpt-image-1.5/edit (image-to-image) | ~$0.02/imagem |
-| gpt-image-1.5 (text-to-image) | ~$0.02/imagem |
-| sora-2/image-to-video/pro (5s) | ~$0.15/vídeo |
-| sora-2/image-to-video/pro (10s) | ~$0.25/vídeo |
-| sora-2/image-to-video/pro (15s) | ~$0.35/vídeo |
-| sora-2/image-to-video/pro (20s) | ~$0.45/vídeo |
-
----
-
-## UI/UX
-
-### Galeria de Criativos
-
-| Elemento | Comportamento |
-|----------|---------------|
-| **Botão "Gerar imagem"** | Gera 1 imagem com IA |
-| **Selector de duração** | Dropdown com opções: 5s, 10s, 15s, 20s |
-| **Botão "Gerar vídeo"** | Gera vídeo com duração selecionada |
-| **Preview de vídeo** | Hover para play automático, ícone de play sobreposto |
-| **Aprovação** | Mesmo fluxo de imagens — aprovar publica o vídeo |
-| **Excluir criativo** | Botão de lixeira com confirmação via AlertDialog |
-
-### Visibilidade de Modelos IA
-
-| Regra | Descrição |
-|-------|-----------|
-| **Tenants normais** | NÃO exibir badges de modelos/pipeline IA |
-| **Tenants especiais** | Exibir badges completos (respeiteohomem, admin) |
-| **Componente** | `src/components/creatives/AIPipelineInfo.tsx` |
-
-O componente `AIPipelineInfo` verifica automaticamente se o tenant é especial antes de renderizar:
-
-```tsx
-import { AIPipelineInfo, CustomPipelineInfo } from './AIPipelineInfo';
-
-// Uso com lista de modelos (só aparece para tenants especiais)
-<AIPipelineInfo models={models} />
-
-// Uso com badges customizados
-<CustomPipelineInfo label="Pipeline:">
-  <Badge>GPT Image</Badge>
-  <Badge>Kling I2V</Badge>
-</CustomPipelineInfo>
-```
-
-### Exclusão de Criativos
-
-O hook `useDeleteCreativeJob` permite excluir criativos da galeria:
-
-```tsx
-import { useDeleteCreativeJob } from '@/hooks/useCreatives';
-
-const deleteJob = useDeleteCreativeJob();
-deleteJob.mutate(jobId); // Exclui do banco + arquivos do storage
-```
-
----
-
-## Armazenamento de Criativos
-
-Criativos gerados são automaticamente salvos na pasta **"Criativos com IA"** do Meu Drive:
-
-| Item | Valor |
-|------|-------|
-| **Pasta** | `Criativos com IA` (criada automaticamente) |
-| **Bucket** | `media-assets` |
-| **Registro** | `public.files` com `source: 'creative_job'` |
+Abas desativadas:
+- UGC Cliente (Vídeo)
+- UGC 100% IA
+- Vídeos de Produto
+- Avatar Mascote
 
 ---
 
@@ -248,8 +162,20 @@ Criativos gerados são automaticamente salvos na pasta **"Criativos com IA"** do
 
 | Problema | Solução |
 |----------|---------|
-| "FAL_API_KEY não configurada" | Configurar em Integrações da Plataforma > IA > Fal.AI |
-| "Produto não tem imagem" | Cadastrar imagem principal do produto antes de gerar |
-| "Falha ao baixar imagem" | Verificar se URL da imagem do produto é pública/acessível |
-| "Polling timeout" | Vídeos podem levar até 5 minutos — tentar novamente |
-| "Vídeo sem áudio" | Sora 2 Pro gera áudio automaticamente — verificar player |
+| "LOVABLE_API_KEY não configurada" | Verificar se Cloud está habilitado |
+| "Produto não tem imagem" | Cadastrar imagem principal do produto |
+| "QA Score baixo" | Aumentar variações para 4, usar fidelidade alta |
+| "Todas reprovadas" | Fallback será acionado automaticamente |
+| "Rate limit" | Aguardar alguns minutos e tentar novamente |
+| "Créditos insuficientes" | Adicionar créditos no workspace |
+
+---
+
+## Checklist Anti-Regressão
+
+- [ ] Produto selecionado do catálogo
+- [ ] Imagem do produto disponível e pública
+- [ ] QA automático habilitado (recomendado)
+- [ ] Fallback habilitado (recomendado)
+- [ ] Pelo menos 4 variações para maior sucesso
+- [ ] Fidelidade "Alta" para produtos com rótulo importante
