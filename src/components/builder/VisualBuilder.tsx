@@ -256,7 +256,20 @@ export function VisualBuilder({
     enabled: !!exampleCategoryId && isCategoryPage,
   });
 
-  // Global layout integration
+  // Fetch store publication status (is_published) for the toolbar
+  const { data: storePublishStatus } = useQuery({
+    queryKey: ['store-publish-status', tenantId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('store_settings')
+        .select('is_published')
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.is_published ?? false;
+    },
+    enabled: !!tenantId,
+  });
   const { 
     globalLayout, 
     isLoading: layoutLoading,
@@ -1197,6 +1210,7 @@ export function VisualBuilder({
         pageSlug={pageSlug}
         templateSetId={templateSetId}
         storeIsDirty={store.isDirty}
+        isPublished={storePublishStatus ?? false}
         canUndo={store.canUndo}
         canRedo={store.canRedo}
         isSaving={saveDraft.isPending || saveTemplateSetDraft.isPending}

@@ -88,6 +88,50 @@ const handleMouseDown = (e: React.MouseEvent) => {
 
 ---
 
+## Botões de Visualização no Toolbar (Regra Estrutural)
+
+O toolbar do builder possui dois botões distintos para visualização:
+
+### Botão "Preview" (Eye icon)
+
+- **Visibilidade:** Sempre visível
+- **Função:** Abre a loja em nova aba com `?preview=1`
+- **Comportamento:** Exibe conteúdo **DRAFT** (não publicado) da loja
+- **Ícone:** `Eye`
+- **Uso:** Permite ao lojista visualizar como a loja ficará ANTES de publicar
+
+### Botão "Ver loja" (Globe icon)
+
+- **Visibilidade:** Somente quando `is_published = true` em `store_settings`
+- **Função:** Abre a loja pública em nova aba (sem `?preview`)
+- **Comportamento:** Exibe conteúdo **PUBLICADO** da loja
+- **Ícone:** `Globe`
+- **Uso:** Permite ao lojista ver a loja como os clientes a veem
+
+### Arquitetura
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    BOTÕES DE VISUALIZAÇÃO                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│  [Preview]     → primaryOrigin + previewUrl + ?preview=1               │
+│  [Ver loja]    → primaryOrigin + previewUrl (sem parâmetro)            │
+│                                                                          │
+│  isPublished = false → apenas [Preview] visível                         │
+│  isPublished = true  → [Preview] + [Ver loja] visíveis                  │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Arquivos Relacionados
+
+| Arquivo | Responsabilidade |
+|---------|------------------|
+| `BuilderToolbar.tsx` | Renderiza os botões Preview e Ver loja |
+| `VisualBuilder.tsx` | Busca `is_published` e passa para toolbar |
+| `usePrimaryPublicHost.ts` | Resolve URL pública correta (domínio custom ou plataforma) |
+
+---
+
 ## Sistema de Estrutura Padrão (Bloco Agrupado)
 
 > **Implementado em:** 2025-01-30
