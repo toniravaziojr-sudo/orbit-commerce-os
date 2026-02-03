@@ -17,6 +17,7 @@ import {
   Lock,
   Layers,
   Package,
+  AlertTriangle,
 } from 'lucide-react';
 import { BlockNode } from '@/lib/builder/types';
 import { blockRegistry } from '@/lib/builder/registry';
@@ -321,6 +322,7 @@ function SortableBlockItem({
   onDelete,
 }: SortableBlockItemProps) {
   const definition = blockRegistry.get(block.type);
+  const isLegacy = !definition; // Block type not in registry = legacy/deprecated
   const isHidden = block.hidden === true || block.props?.hidden === true;
   
   const {
@@ -355,19 +357,32 @@ function SortableBlockItem({
         isSelected && 'bg-primary/10 border-primary',
         !isSelected && 'border-transparent',
         isDragging && 'opacity-50 shadow-lg',
-        isHidden && 'opacity-50'
+        isHidden && 'opacity-50',
+        isLegacy && 'border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20'
       )}
     >
-      {/* Drag handle */}
+      {/* Drag handle or legacy warning */}
       <div
         {...attributes}
         {...listeners}
         className={cn(
           'cursor-grab active:cursor-grabbing p-0.5 rounded hover:bg-muted',
-          isLocked && 'cursor-not-allowed opacity-30'
+          isLocked && 'cursor-not-allowed opacity-30',
+          isLegacy && 'cursor-default'
         )}
       >
-        {isLocked ? (
+        {isLegacy ? (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+              </TooltipTrigger>
+              <TooltipContent side="right" className="text-xs max-w-[200px]">
+                Bloco legado/removido - recomendado remover
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : isLocked ? (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -388,7 +403,12 @@ function SortableBlockItem({
         onClick={onSelect}
         className="flex-1 flex items-center gap-1.5 text-left min-w-0"
       >
-        <span className="text-xs font-medium truncate">{displayName}</span>
+        <span className={cn(
+          "text-xs font-medium truncate",
+          isLegacy && "text-amber-700 dark:text-amber-400"
+        )}>
+          {displayName}
+        </span>
       </button>
 
       {/* Visibility toggle - show on hover */}
@@ -416,8 +436,8 @@ function SortableBlockItem({
           </Tooltip>
         </TooltipProvider>
         
-        {/* Delete button - only for non-locked blocks */}
-        {!isLocked && (
+        {/* Delete button - for non-locked blocks OR legacy blocks (always show for legacy) */}
+        {(!isLocked || isLegacy) && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -426,13 +446,16 @@ function SortableBlockItem({
                     e.stopPropagation();
                     onDelete();
                   }}
-                  className="p-1 rounded hover:bg-destructive/10 hover:text-destructive"
+                  className={cn(
+                    "p-1 rounded hover:bg-destructive/10 hover:text-destructive",
+                    isLegacy && "opacity-100 text-destructive" // Always visible for legacy
+                  )}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top" className="text-xs">
-                Excluir
+                {isLegacy ? 'Remover bloco legado' : 'Excluir'}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
