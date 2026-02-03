@@ -7,7 +7,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 
-const VERSION = "1.1.0"; // Busca completa de campos do produto
+const VERSION = "1.2.0"; // Fix: sempre buscar productIds do banco + imagens obrigatórias
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -36,7 +36,7 @@ serve(async (req) => {
 
   try {
     const body: GenerateRequest = await req.json();
-    const { landingPageId, tenantId, userId, prompt, promptType, referenceUrl, productIds } = body;
+    let { landingPageId, tenantId, userId, prompt, promptType, referenceUrl, productIds } = body;
 
     if (!landingPageId || !tenantId || !userId || !prompt) {
       return new Response(
@@ -57,6 +57,24 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // ALWAYS fetch the landing page to get saved productIds and referenceUrl
+    const { data: savedLandingPage, error: lpError } = await supabase
+      .from("ai_landing_pages")
+      .select("product_ids, reference_url, generated_html, current_version")
+      .eq("id", landingPageId)
+      .single();
+
+    if (lpError) {
+      console.error("[AI-LP-Generate] Error fetching landing page:", lpError);
+      throw new Error("Landing page not found");
+    }
+
+    // Use saved values if not provided in request (important for adjustments!)
+    productIds = productIds && productIds.length > 0 ? productIds : (savedLandingPage?.product_ids || []);
+    referenceUrl = referenceUrl || savedLandingPage?.reference_url || undefined;
+
+    console.log(`[AI-LP-Generate] Using ${productIds?.length || 0} products, referenceUrl: ${referenceUrl ? 'yes' : 'no'}`);
+
     // Fetch store settings
     const { data: storeSettings } = await supabase
       .from("store_settings")
@@ -68,25 +86,39 @@ serve(async (req) => {
     let productsInfo = "";
     let productImages: string[] = [];
     if (productIds && productIds.length > 0) {
-      const { data: products } = await supabase
+      console.log(`[AI-LP-Generate] Fetching product data for IDs: ${productIds.join(', ')}`);
+      
+      const { data: products, error: productsError } = await supabase
         .from("products")
         .select(`
           id, name, slug, sku, description, short_description,
           price, compare_at_price, cost_price,
           brand, vendor, product_type, tags,
           weight, width, height, depth,
-          seo_title, seo_description, meta_keywords
+          seo_title, seo_description
         `)
         .in("id", productIds);
 
+      if (productsError) {
+        console.error("[AI-LP-Generate] Error fetching products:", productsError);
+      }
+
       if (products && products.length > 0) {
+        console.log(`[AI-LP-Generate] Found ${products.length} products`);
+        
         // Fetch ALL product images
-        const { data: images } = await supabase
+        const { data: images, error: imagesError } = await supabase
           .from("product_images")
           .select("product_id, url, is_primary, alt_text, position")
           .in("product_id", productIds)
           .order("is_primary", { ascending: false })
           .order("position", { ascending: true });
+
+        if (imagesError) {
+          console.error("[AI-LP-Generate] Error fetching images:", imagesError);
+        }
+
+        console.log(`[AI-LP-Generate] Found ${images?.length || 0} product images`);
 
         const imagesByProduct = new Map<string, { url: string; alt_text: string | null; is_primary: boolean }[]>();
         images?.forEach(img => {
@@ -141,7 +173,9 @@ ${p.weight ? `- **Peso**: ${p.weight}g` : ""}
 ${p.width && p.height && p.depth ? `- **Dimensões**: ${p.width} x ${p.height} x ${p.depth} cm` : ""}
 ${p.seo_title ? `- **SEO Title**: ${p.seo_title}` : ""}
 ${p.seo_description ? `- **SEO Description**: ${p.seo_description}` : ""}
-${p.meta_keywords ? `- **Keywords**: ${p.meta_keywords}` : ""}
+- **Imagem Principal**: ${primaryImage || "SEM IMAGEM - ERRO!"}
+- **TODAS AS IMAGENS REAIS DO PRODUTO (USE ESTAS!)**: 
+${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).join("\n") : "  NENHUMA IMAGEM ENCONTRADA"}
 - **Imagem Principal**: ${primaryImage || "Sem imagem"}
 ${allImageUrls.length > 1 ? `- **Galeria de Imagens** (${allImageUrls.length} imagens):\n${allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).join("\n")}` : ""}
           `;
