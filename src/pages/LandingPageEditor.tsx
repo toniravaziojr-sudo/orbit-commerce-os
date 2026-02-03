@@ -314,7 +314,7 @@ export default function LandingPageEditor() {
             <Separator orientation="vertical" className="h-6" />
             <div>
               <h1 className="font-semibold">{landingPage.name}</h1>
-              <p className="text-xs text-muted-foreground">/lp/{landingPage.slug}</p>
+              <p className="text-xs text-muted-foreground">/ai-lp/{landingPage.slug}</p>
             </div>
             <Badge variant={landingPage.is_published ? "default" : "secondary"}>
               {landingPage.is_published ? "Publicada" : "Rascunho"}
@@ -353,7 +353,7 @@ export default function LandingPageEditor() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => window.open(`/lp/${landingPage.slug}`, '_blank')}
+                  onClick={() => window.open(`/ai-lp/${landingPage.slug}`, '_blank')}
                 >
                   <ExternalLink className="h-4 w-4 mr-1" />
                   Ver Publicada
@@ -531,7 +531,7 @@ export default function LandingPageEditor() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">URL:</span>
-                      <span>/lp/{landingPage.slug}</span>
+                      <span>/ai-lp/{landingPage.slug}</span>
                     </div>
                     {landingPage.reference_url && (
                       <div className="flex justify-between">

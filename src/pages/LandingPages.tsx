@@ -121,7 +121,7 @@ export default function LandingPages() {
   };
 
   const copySlug = (slug: string) => {
-    const url = `${window.location.origin}/lp/${slug}`;
+    const url = `${window.location.origin}/ai-lp/${slug}`;
     navigator.clipboard.writeText(url);
     toast.success('URL copiada!');
   };
@@ -201,7 +201,7 @@ export default function LandingPages() {
                       <div className="flex-1 min-w-0">
                         <CardTitle className="text-base truncate">{page.name}</CardTitle>
                         <CardDescription className="flex items-center gap-1 mt-1">
-                          <span className="truncate">/lp/{page.slug}</span>
+                          <span className="truncate">/ai-lp/{page.slug}</span>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -259,7 +259,7 @@ export default function LandingPages() {
                         variant="ghost"
                         size="sm"
                         className="w-full mt-2"
-                        onClick={() => window.open(`/lp/${page.slug}`, '_blank')}
+                        onClick={() => window.open(`/ai-lp/${page.slug}`, '_blank')}
                       >
                         <Globe className="h-4 w-4 mr-1" />
                         Ver Publicada
