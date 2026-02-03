@@ -10,7 +10,7 @@ import { generateBlockId } from './utils';
  * Standard Template Preset
  * 
  * Características:
- * - Home: HeroBanner + FeaturedCategories (grid) + FeaturedProducts + ImageCarousel promocional
+ * - Home: Banner (carousel mode) + FeaturedCategories (grid) + FeaturedProducts + ImageCarousel promocional
  * - Category: Banner com overlay + Grid de produtos com filtros
  * - Product: Detalhes do produto (sem slots extras na estrutura, configura via Tema)
  * - Cart: Carrinho simples
@@ -39,11 +39,12 @@ const standardHomeTemplate: BlockNode = {
         paddingY: 0,
       },
       children: [
-        // 1. Hero Banner (carrossel)
+        // 1. Banner (carrossel)
         {
-          id: generateBlockId('HeroBanner'),
-          type: 'HeroBanner',
+          id: generateBlockId('Banner'),
+          type: 'Banner',
           props: {
+            mode: 'carousel',
             slides: [], // Usuário adiciona seus banners
             autoplaySeconds: 5,
             bannerWidth: 'full',

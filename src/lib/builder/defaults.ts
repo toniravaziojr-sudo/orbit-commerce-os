@@ -203,9 +203,10 @@ export const defaultHomeTemplate: BlockNode = {
     },
     // 2. Banner Principal (Carrossel)
     {
-      id: generateBlockId('HeroBanner'),
-      type: 'HeroBanner',
+      id: generateBlockId('Banner'),
+      type: 'Banner',
       props: {
+        mode: 'carousel',
         slides: demoBannerSlides,
         autoplaySeconds: 5,
         bannerWidth: 'full',

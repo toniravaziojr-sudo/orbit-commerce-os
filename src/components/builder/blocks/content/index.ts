@@ -8,4 +8,4 @@ export { ImageBlock } from './ImageBlock';
 export { ButtonBlock } from './ButtonBlock';
 export { SpacerBlock } from './SpacerBlock';
 export { DividerBlock } from './DividerBlock';
-export { HeroBlock } from './HeroBlock';
+// HeroBlock removed - now unified as BannerBlock in blocks/ root

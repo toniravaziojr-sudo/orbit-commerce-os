@@ -36,8 +36,8 @@ import {
   ImageBlock, 
   ButtonBlock, 
   SpacerBlock, 
-  DividerBlock, 
-  HeroBlock 
+  DividerBlock,
+  // HeroBlock removed - now unified as BannerBlock
 } from './blocks/content';
 
 // Interactive blocks (refactored)
@@ -52,6 +52,7 @@ import { ProductCarouselBlock as ProductCarouselBlockComponent } from './blocks/
 import { FeaturedProductsBlock as FeaturedProductsBlockComponent } from './blocks/FeaturedProductsBlock';
 import { CategoryListBlock as CategoryListBlockComponent } from './blocks/CategoryListBlock';
 import { HeroBannerBlock as HeroBannerBlockComponent } from './blocks/HeroBannerBlock';
+import { BannerBlock as BannerBlockComponent } from './blocks/BannerBlock';
 import { CollectionSectionBlock as CollectionSectionBlockComponent } from './blocks/CollectionSectionBlock';
 import { InfoHighlightsBlock as InfoHighlightsBlockComponent } from './blocks/InfoHighlightsBlock';
 import { BannerProductsBlock as BannerProductsBlockComponent } from './blocks/BannerProductsBlock';
@@ -501,7 +502,8 @@ function getBlockComponent(type: string): React.ComponentType<any> {
     Button: ButtonBlock,
     Spacer: SpacerBlock,
     Divider: DividerBlock,
-    Hero: HeroBlock,
+    Hero: BannerBlockWrapper, // Legacy alias - now uses Banner
+    Banner: BannerBlockWrapper,
     
     // Interactive blocks (refactored)
     FAQ: FAQBlock,
@@ -1659,6 +1661,10 @@ function OrderDetailBlock({ context, isEditing }: any) {
 
 function HeroBannerBlockWrapper({ context, ...props }: any) {
   return <HeroBannerBlockComponent {...props} context={context} />;
+}
+
+function BannerBlockWrapper({ context, ...props }: any) {
+  return <BannerBlockComponent {...props} context={context} />;
 }
 
 function CollectionSectionBlockWrapper({ context, isEditing, ...props }: any) {
