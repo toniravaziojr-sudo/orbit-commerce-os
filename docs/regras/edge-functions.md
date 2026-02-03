@@ -182,3 +182,57 @@ for (const modelToTry of modelsToTry) {
 // await response.text() // Primeira vez
 // await response.text() // ERRO!
 ```
+
+---
+
+## AI Landing Page Generator (`ai-landing-page-generate`)
+
+### Visão Geral
+Edge function para geração de landing pages via IA usando Lovable AI Gateway (Gemini 2.5 Flash).
+
+### Rotas no Frontend
+| Tipo | Rota | Descrição |
+|------|------|-----------|
+| Admin | `/landing-pages` | Listagem e gerenciamento |
+| Admin | `/landing-pages/:id` | Editor com chat IA |
+| Público | `/ai-lp/:slug` | Renderização da LP publicada |
+
+**IMPORTANTE**: A rota `/ai-lp/` é standalone, fora do `StorefrontLayout`, para renderizar HTML puro.
+
+### Campos do Produto Coletados
+```typescript
+// Dados buscados da tabela products:
+{
+  id, name, slug, sku,
+  description, short_description,
+  price, compare_at_price, cost_price,
+  brand, vendor, product_type, tags,
+  weight, width, height, depth,
+  seo_title, seo_description, meta_keywords
+}
+
+// Imagens da tabela product_images:
+{
+  product_id, url, is_primary, alt_text, position
+}
+```
+
+### Regras do Prompt da IA
+1. **URL de Referência** = APENAS inspiração visual/estrutural
+   - ❌ NÃO copiar conteúdo, textos ou produtos
+   - ✅ Copiar layout, cores, tipografia, estrutura
+2. **Produtos** = Usar EXCLUSIVAMENTE os selecionados
+   - Todas as imagens DEVEM ser usadas no HTML
+   - Preços, nomes e descrições devem ser exatos
+3. **Output** = HTML completo com `<!DOCTYPE html>`
+   - CSS inline ou em `<style>`
+   - Responsivo e otimizado para conversão
+
+### Mapeamento Tabela → Edge Function
+| Tabela | Edge Function |
+|--------|---------------|
+| `ai_landing_pages` | `ai-landing-page-generate` |
+| `ai_landing_page_versions` | `ai-landing-page-generate` |
+| `products` | `ai-landing-page-generate` |
+| `product_images` | `ai-landing-page-generate` |
+| `store_settings` | `ai-landing-page-generate` |

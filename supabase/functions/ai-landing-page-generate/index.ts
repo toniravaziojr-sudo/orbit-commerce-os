@@ -7,7 +7,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 
-const VERSION = "1.0.0";
+const VERSION = "1.1.0"; // Busca completa de campos do produto
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -64,34 +64,45 @@ serve(async (req) => {
       .eq("tenant_id", tenantId)
       .single();
 
-    // Fetch products if provided - include images!
+    // Fetch products if provided - include ALL relevant fields!
     let productsInfo = "";
     let productImages: string[] = [];
     if (productIds && productIds.length > 0) {
       const { data: products } = await supabase
         .from("products")
-        .select("id, name, description, price, compare_at_price, image_url, benefits")
+        .select(`
+          id, name, slug, sku, description, short_description,
+          price, compare_at_price, cost_price,
+          brand, vendor, product_type, tags,
+          weight, width, height, depth,
+          seo_title, seo_description, meta_keywords
+        `)
         .in("id", productIds);
 
       if (products && products.length > 0) {
-        // Fetch product images
+        // Fetch ALL product images
         const { data: images } = await supabase
           .from("product_images")
-          .select("product_id, url, is_primary, alt_text")
+          .select("product_id, url, is_primary, alt_text, position")
           .in("product_id", productIds)
-          .order("is_primary", { ascending: false });
+          .order("is_primary", { ascending: false })
+          .order("position", { ascending: true });
 
-        const imagesByProduct = new Map<string, { url: string; alt_text: string | null }[]>();
+        const imagesByProduct = new Map<string, { url: string; alt_text: string | null; is_primary: boolean }[]>();
         images?.forEach(img => {
           if (!imagesByProduct.has(img.product_id)) {
             imagesByProduct.set(img.product_id, []);
           }
-          imagesByProduct.get(img.product_id)!.push({ url: img.url, alt_text: img.alt_text });
+          imagesByProduct.get(img.product_id)!.push({ 
+            url: img.url, 
+            alt_text: img.alt_text,
+            is_primary: img.is_primary 
+          });
         });
 
         productsInfo = products.map(p => {
           const prodImages = imagesByProduct.get(p.id) || [];
-          const primaryImage = prodImages[0]?.url || p.image_url;
+          const primaryImage = prodImages.find(img => img.is_primary)?.url || prodImages[0]?.url;
           const allImageUrls = prodImages.map(img => img.url);
           
           // Collect all image URLs for the prompt
@@ -100,14 +111,31 @@ serve(async (req) => {
             if (url && !productImages.includes(url)) productImages.push(url);
           });
 
+          // Calculate discount percentage if compare_at_price exists
+          const discountPercent = p.compare_at_price && p.compare_at_price > p.price
+            ? Math.round(((p.compare_at_price - p.price) / p.compare_at_price) * 100)
+            : null;
+
           return `
 ### Produto: ${p.name}
-- **Descrição**: ${p.description || "Sem descrição disponível"}
+- **SKU**: ${p.sku || "N/A"}
+- **Slug (URL)**: ${p.slug || "N/A"}
+- **Descrição Curta**: ${p.short_description || "Sem descrição curta"}
+- **Descrição Completa**: ${p.description || "Sem descrição disponível"}
 - **Preço de Venda**: R$ ${(p.price / 100).toFixed(2)}
 ${p.compare_at_price ? `- **Preço Original (riscado)**: R$ ${(p.compare_at_price / 100).toFixed(2)}` : ""}
-- **Benefícios**: ${p.benefits || "N/A"}
+${discountPercent ? `- **Desconto**: ${discountPercent}% OFF` : ""}
+${p.brand ? `- **Marca**: ${p.brand}` : ""}
+${p.vendor ? `- **Fornecedor/Fabricante**: ${p.vendor}` : ""}
+${p.product_type ? `- **Tipo de Produto**: ${p.product_type}` : ""}
+${p.tags && p.tags.length > 0 ? `- **Tags**: ${p.tags.join(", ")}` : ""}
+${p.weight ? `- **Peso**: ${p.weight}g` : ""}
+${p.width && p.height && p.depth ? `- **Dimensões**: ${p.width} x ${p.height} x ${p.depth} cm` : ""}
+${p.seo_title ? `- **SEO Title**: ${p.seo_title}` : ""}
+${p.seo_description ? `- **SEO Description**: ${p.seo_description}` : ""}
+${p.meta_keywords ? `- **Keywords**: ${p.meta_keywords}` : ""}
 - **Imagem Principal**: ${primaryImage || "Sem imagem"}
-${allImageUrls.length > 1 ? `- **Outras Imagens**: ${allImageUrls.slice(1).join(", ")}` : ""}
+${allImageUrls.length > 1 ? `- **Galeria de Imagens** (${allImageUrls.length} imagens):\n${allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).join("\n")}` : ""}
           `;
         }).join("\n\n");
       }
