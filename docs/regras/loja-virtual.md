@@ -119,7 +119,7 @@ A Loja Virtual é o módulo central de e-commerce que permite criar, personaliza
 |----------------|-----------|
 | **Template** | `storefront_template_sets.draft_content.home` |
 | **Blocos essenciais** | Header, Footer |
-| **Blocos opcionais** | HeroBanner, FeaturedProducts, CategoryList, etc. |
+| **Blocos opcionais** | Banner (carrossel), FeaturedProducts, CategoryList, etc. |
 
 ### 2. Categoria
 
@@ -239,7 +239,6 @@ draft_content (edição) → Publicar → published_content (público)
 | `Text` | `TextBlock.tsx` | Texto simples |
 | `Image` | `ImageBlock.tsx` | Imagem única |
 | `Button` | `ButtonBlock.tsx` | Botão CTA |
-| `Hero` | `HeroBlock.tsx` | Hero section |
 | `Divider` | `DividerBlock.tsx` | Divisor |
 | `Spacer` | `SpacerBlock.tsx` | Espaçamento |
 
@@ -247,7 +246,7 @@ draft_content (edição) → Publicar → published_content (público)
 
 | Bloco | Arquivo | Descrição |
 |-------|---------|-----------|
-| `HeroBanner` | `HeroBannerBlock.tsx` | Carrossel de banners |
+| `Banner` | `BannerBlock.tsx` | Banner único ou carrossel (modo: `single` / `carousel`) |
 | `ImageCarousel` | `ImageCarouselBlock.tsx` | Carrossel de imagens |
 | `ImageGallery` | `ImageGalleryBlock.tsx` | Galeria de imagens |
 | `VideoCarousel` | `VideoCarouselBlock.tsx` | Carrossel de vídeos |
