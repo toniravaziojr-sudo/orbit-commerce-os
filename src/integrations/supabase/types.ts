@@ -2448,6 +2448,44 @@ export type Database = {
           },
         ]
       }
+      creative_compliance_profiles: {
+        Row: {
+          created_at: string
+          custom_rules: Json | null
+          id: string
+          prohibited_terms: string[] | null
+          required_disclaimers: string[] | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          custom_rules?: Json | null
+          id?: string
+          prohibited_terms?: string[] | null
+          required_disclaimers?: string[] | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          custom_rules?: Json | null
+          id?: string
+          prohibited_terms?: string[] | null
+          required_disclaimers?: string[] | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creative_compliance_profiles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       creative_jobs: {
         Row: {
           authorization_accepted_at: string | null
@@ -2565,6 +2603,348 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      creative_preset_components: {
+        Row: {
+          component_key: string
+          component_type: string
+          config: Json
+          created_at: string
+          description: string | null
+          display_name: string
+          id: string
+          is_active: boolean | null
+        }
+        Insert: {
+          component_key: string
+          component_type: string
+          config?: Json
+          created_at?: string
+          description?: string | null
+          display_name: string
+          id?: string
+          is_active?: boolean | null
+        }
+        Update: {
+          component_key?: string
+          component_type?: string
+          config?: Json
+          created_at?: string
+          description?: string | null
+          display_name?: string
+          id?: string
+          is_active?: boolean | null
+        }
+        Relationships: []
+      }
+      creative_video_candidates: {
+        Row: {
+          created_at: string
+          duration_actual: number | null
+          generation_metadata: Json | null
+          id: string
+          is_best: boolean | null
+          is_fallback: boolean | null
+          job_id: string
+          ocr_confidence: number | null
+          ocr_extracted_text: string | null
+          qa_final_score: number | null
+          qa_label_score: number | null
+          qa_passed: boolean | null
+          qa_quality_score: number | null
+          qa_rejection_reason: string | null
+          qa_similarity_score: number | null
+          qa_temporal_score: number | null
+          tenant_id: string
+          thumbnail_url: string | null
+          video_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          duration_actual?: number | null
+          generation_metadata?: Json | null
+          id?: string
+          is_best?: boolean | null
+          is_fallback?: boolean | null
+          job_id: string
+          ocr_confidence?: number | null
+          ocr_extracted_text?: string | null
+          qa_final_score?: number | null
+          qa_label_score?: number | null
+          qa_passed?: boolean | null
+          qa_quality_score?: number | null
+          qa_rejection_reason?: string | null
+          qa_similarity_score?: number | null
+          qa_temporal_score?: number | null
+          tenant_id: string
+          thumbnail_url?: string | null
+          video_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          duration_actual?: number | null
+          generation_metadata?: Json | null
+          id?: string
+          is_best?: boolean | null
+          is_fallback?: boolean | null
+          job_id?: string
+          ocr_confidence?: number | null
+          ocr_extracted_text?: string | null
+          qa_final_score?: number | null
+          qa_label_score?: number | null
+          qa_passed?: boolean | null
+          qa_quality_score?: number | null
+          qa_rejection_reason?: string | null
+          qa_similarity_score?: number | null
+          qa_temporal_score?: number | null
+          tenant_id?: string
+          thumbnail_url?: string | null
+          video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creative_video_candidates_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "creative_video_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creative_video_candidates_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      creative_video_jobs: {
+        Row: {
+          aspect_ratio: string
+          best_candidate_id: string | null
+          completed_at: string | null
+          constraints: Json | null
+          cost_credits: number | null
+          cost_usd: number | null
+          created_at: string
+          current_step: string | null
+          duration_seconds: number
+          error_message: string | null
+          fallback_used: boolean | null
+          fidelity_mode: boolean | null
+          hard_fidelity: boolean | null
+          id: string
+          model: string | null
+          n_variations: number
+          negative_prompt: string | null
+          preset_id: string | null
+          product_id: string
+          progress_percent: number | null
+          provider: string | null
+          qa_summary: Json | null
+          result_thumbnail_url: string | null
+          result_url: string | null
+          retry_count: number | null
+          rewritten_prompt: Json | null
+          shot_plan: Json | null
+          started_at: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+          user_id: string
+          user_prompt: string | null
+          video_type: string
+        }
+        Insert: {
+          aspect_ratio?: string
+          best_candidate_id?: string | null
+          completed_at?: string | null
+          constraints?: Json | null
+          cost_credits?: number | null
+          cost_usd?: number | null
+          created_at?: string
+          current_step?: string | null
+          duration_seconds?: number
+          error_message?: string | null
+          fallback_used?: boolean | null
+          fidelity_mode?: boolean | null
+          hard_fidelity?: boolean | null
+          id?: string
+          model?: string | null
+          n_variations?: number
+          negative_prompt?: string | null
+          preset_id?: string | null
+          product_id: string
+          progress_percent?: number | null
+          provider?: string | null
+          qa_summary?: Json | null
+          result_thumbnail_url?: string | null
+          result_url?: string | null
+          retry_count?: number | null
+          rewritten_prompt?: Json | null
+          shot_plan?: Json | null
+          started_at?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+          user_prompt?: string | null
+          video_type: string
+        }
+        Update: {
+          aspect_ratio?: string
+          best_candidate_id?: string | null
+          completed_at?: string | null
+          constraints?: Json | null
+          cost_credits?: number | null
+          cost_usd?: number | null
+          created_at?: string
+          current_step?: string | null
+          duration_seconds?: number
+          error_message?: string | null
+          fallback_used?: boolean | null
+          fidelity_mode?: boolean | null
+          hard_fidelity?: boolean | null
+          id?: string
+          model?: string | null
+          n_variations?: number
+          negative_prompt?: string | null
+          preset_id?: string | null
+          product_id?: string
+          progress_percent?: number | null
+          provider?: string | null
+          qa_summary?: Json | null
+          result_thumbnail_url?: string | null
+          result_url?: string | null
+          retry_count?: number | null
+          rewritten_prompt?: Json | null
+          shot_plan?: Json | null
+          started_at?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+          user_prompt?: string | null
+          video_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creative_video_jobs_preset_id_fkey"
+            columns: ["preset_id"]
+            isOneToOne: false
+            referencedRelation: "creative_video_presets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creative_video_jobs_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creative_video_jobs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      creative_video_presets: {
+        Row: {
+          camera_component_id: string | null
+          category_applicability: string[] | null
+          created_at: string
+          default_constraints: Json | null
+          default_negatives: Json | null
+          description: string | null
+          display_name: string
+          id: string
+          is_active: boolean | null
+          lighting_component_id: string | null
+          narrative_component_id: string | null
+          preset_key: string
+          scene_component_id: string | null
+          shot_plan_10s: Json | null
+          shot_plan_15s: Json | null
+          shot_plan_6s: Json | null
+          sort_order: number | null
+          thumbnail_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          camera_component_id?: string | null
+          category_applicability?: string[] | null
+          created_at?: string
+          default_constraints?: Json | null
+          default_negatives?: Json | null
+          description?: string | null
+          display_name: string
+          id?: string
+          is_active?: boolean | null
+          lighting_component_id?: string | null
+          narrative_component_id?: string | null
+          preset_key: string
+          scene_component_id?: string | null
+          shot_plan_10s?: Json | null
+          shot_plan_15s?: Json | null
+          shot_plan_6s?: Json | null
+          sort_order?: number | null
+          thumbnail_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          camera_component_id?: string | null
+          category_applicability?: string[] | null
+          created_at?: string
+          default_constraints?: Json | null
+          default_negatives?: Json | null
+          description?: string | null
+          display_name?: string
+          id?: string
+          is_active?: boolean | null
+          lighting_component_id?: string | null
+          narrative_component_id?: string | null
+          preset_key?: string
+          scene_component_id?: string | null
+          shot_plan_10s?: Json | null
+          shot_plan_15s?: Json | null
+          shot_plan_6s?: Json | null
+          sort_order?: number | null
+          thumbnail_url?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creative_video_presets_camera_component_id_fkey"
+            columns: ["camera_component_id"]
+            isOneToOne: false
+            referencedRelation: "creative_preset_components"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creative_video_presets_lighting_component_id_fkey"
+            columns: ["lighting_component_id"]
+            isOneToOne: false
+            referencedRelation: "creative_preset_components"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creative_video_presets_narrative_component_id_fkey"
+            columns: ["narrative_component_id"]
+            isOneToOne: false
+            referencedRelation: "creative_preset_components"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creative_video_presets_scene_component_id_fkey"
+            columns: ["scene_component_id"]
+            isOneToOne: false
+            referencedRelation: "creative_preset_components"
             referencedColumns: ["id"]
           },
         ]
@@ -8917,6 +9297,60 @@ export type Database = {
           },
         ]
       }
+      product_category_profiles: {
+        Row: {
+          category_key: string
+          constraints: Json | null
+          created_at: string
+          description: string | null
+          display_name: string
+          hard_fidelity_default: boolean | null
+          id: string
+          negative_rules: Json | null
+          qa_label_weight: number | null
+          qa_pass_threshold: number | null
+          qa_quality_weight: number | null
+          qa_ruleset: Json | null
+          qa_similarity_weight: number | null
+          recommended_preset_ids: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          category_key: string
+          constraints?: Json | null
+          created_at?: string
+          description?: string | null
+          display_name: string
+          hard_fidelity_default?: boolean | null
+          id?: string
+          negative_rules?: Json | null
+          qa_label_weight?: number | null
+          qa_pass_threshold?: number | null
+          qa_quality_weight?: number | null
+          qa_ruleset?: Json | null
+          qa_similarity_weight?: number | null
+          recommended_preset_ids?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          category_key?: string
+          constraints?: Json | null
+          created_at?: string
+          description?: string | null
+          display_name?: string
+          hard_fidelity_default?: boolean | null
+          id?: string
+          negative_rules?: Json | null
+          qa_label_weight?: number | null
+          qa_pass_threshold?: number | null
+          qa_quality_weight?: number | null
+          qa_ruleset?: Json | null
+          qa_similarity_weight?: number | null
+          recommended_preset_ids?: string[] | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       product_components: {
         Row: {
           component_product_id: string
@@ -9079,6 +9513,80 @@ export type Database = {
             columns: ["variant_id"]
             isOneToOne: false
             referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_reference_assets: {
+        Row: {
+          brand_tokens: string[] | null
+          category_override_key: string | null
+          cutout_generated_at: string | null
+          cutout_url: string | null
+          detected_category_key: string | null
+          id: string
+          label_expected_text: string | null
+          mask_url: string | null
+          product_id: string
+          reference_stills: Json | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          brand_tokens?: string[] | null
+          category_override_key?: string | null
+          cutout_generated_at?: string | null
+          cutout_url?: string | null
+          detected_category_key?: string | null
+          id?: string
+          label_expected_text?: string | null
+          mask_url?: string | null
+          product_id: string
+          reference_stills?: Json | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          brand_tokens?: string[] | null
+          category_override_key?: string | null
+          cutout_generated_at?: string | null
+          cutout_url?: string | null
+          detected_category_key?: string | null
+          id?: string
+          label_expected_text?: string | null
+          mask_url?: string | null
+          product_id?: string
+          reference_stills?: Json | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_reference_assets_category_override_key_fkey"
+            columns: ["category_override_key"]
+            isOneToOne: false
+            referencedRelation: "product_category_profiles"
+            referencedColumns: ["category_key"]
+          },
+          {
+            foreignKeyName: "product_reference_assets_detected_category_key_fkey"
+            columns: ["detected_category_key"]
+            isOneToOne: false
+            referencedRelation: "product_category_profiles"
+            referencedColumns: ["category_key"]
+          },
+          {
+            foreignKeyName: "product_reference_assets_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_reference_assets_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]

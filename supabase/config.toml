@@ -561,3 +561,6 @@ verify_jwt = true
 
 [functions.creative-image-generate]
 verify_jwt = true
+
+[functions.creative-video-generate]
+verify_jwt = true
