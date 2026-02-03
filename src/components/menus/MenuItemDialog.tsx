@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MenuItem } from '@/hooks/useMenus';
+import { MenuItem, MenuItemType } from '@/hooks/useMenus';
 
 interface MenuItemDialogProps {
   open: boolean;
@@ -17,7 +17,7 @@ interface MenuItemDialogProps {
   onSubmit: (data: {
     menu_id: string;
     label: string;
-    item_type: 'category' | 'page' | 'external';
+    item_type: MenuItemType;
     ref_id: string | null;
     url: string | null;
     sort_order: number;
@@ -37,7 +37,7 @@ export default function MenuItemDialog({
 }: MenuItemDialogProps) {
   const [form, setForm] = useState({
     label: '',
-    item_type: 'category' as 'category' | 'page' | 'external',
+    item_type: 'category' as MenuItemType,
     ref_id: '',
     url: '',
     parent_id: '' as string | null,
@@ -50,7 +50,7 @@ export default function MenuItemDialog({
       if (editingItem) {
         setForm({
           label: editingItem.label,
-          item_type: editingItem.item_type as 'category' | 'page' | 'external',
+          item_type: editingItem.item_type as MenuItemType,
           ref_id: editingItem.ref_id || '',
           url: editingItem.url || '',
           parent_id: editingItem.parent_id || null,
@@ -91,12 +91,16 @@ export default function MenuItemDialog({
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
+      // Para blog e tracking, não precisa de ref_id nem url externa
+      const needsRefId = form.item_type === 'category' || form.item_type === 'page';
+      const needsUrl = form.item_type === 'external';
+      
       await onSubmit({
         menu_id: menuId,
         label: form.label,
         item_type: form.item_type,
-        ref_id: form.item_type !== 'external' ? form.ref_id || null : null,
-        url: form.item_type === 'external' ? form.url : null,
+        ref_id: needsRefId ? form.ref_id || null : null,
+        url: needsUrl ? form.url : null,
         sort_order: editingItem?.sort_order ?? existingItems.length,
         parent_id: form.parent_id || null,
       });
@@ -106,9 +110,14 @@ export default function MenuItemDialog({
     }
   };
 
-  const isValid = form.label && 
-    ((form.item_type !== 'external' && form.ref_id) || 
-     (form.item_type === 'external' && form.url));
+  // Validação: blog e tracking só precisam do label
+  const isValid = form.label && (
+    (form.item_type === 'category' && form.ref_id) ||
+    (form.item_type === 'page' && form.ref_id) ||
+    (form.item_type === 'external' && form.url) ||
+    form.item_type === 'blog' ||
+    form.item_type === 'tracking'
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -122,9 +131,13 @@ export default function MenuItemDialog({
             <Label className="text-sm font-medium">Tipo de Link</Label>
             <Select
               value={form.item_type}
-              onValueChange={(v: 'category' | 'page' | 'external') =>
-                setForm({ ...form, item_type: v, ref_id: '', url: '' })
-              }
+              onValueChange={(v: MenuItemType) => {
+                // Auto-preencher label para tipos especiais
+                let newLabel = form.label;
+                if (v === 'blog' && !form.label) newLabel = 'Blog';
+                if (v === 'tracking' && !form.label) newLabel = 'Rastrear Pedido';
+                setForm({ ...form, item_type: v, ref_id: '', url: '', label: newLabel });
+              }}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Selecione o tipo" />
@@ -132,6 +145,8 @@ export default function MenuItemDialog({
               <SelectContent>
                 <SelectItem value="category">Categoria</SelectItem>
                 <SelectItem value="page">Página Institucional</SelectItem>
+                <SelectItem value="blog">Página do Blog</SelectItem>
+                <SelectItem value="tracking">Página de Rastreio</SelectItem>
                 <SelectItem value="external">Link Externo</SelectItem>
               </SelectContent>
             </Select>

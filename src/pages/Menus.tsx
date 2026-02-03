@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { useMenus, useMenuItems, MenuItem } from '@/hooks/useMenus';
+import { useMenus, useMenuItems, MenuItem, MenuItemType } from '@/hooks/useMenus';
 import { useCategories } from '@/hooks/useProducts';
 import { useStorePages } from '@/hooks/useStorePages';
 import { PageHeader } from '@/components/ui/page-header';
@@ -12,7 +12,7 @@ interface LocalMenuItem {
   id: string;
   menu_id: string;
   label: string;
-  item_type: 'category' | 'page' | 'external';
+  item_type: MenuItemType;
   ref_id: string | null;
   url: string | null;
   sort_order: number;
