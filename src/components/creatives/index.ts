@@ -8,3 +8,4 @@ export { CreativeJobsList } from './CreativeJobsList';
 export { CreativeGallery } from './CreativeGallery';
 export { VoiceSelector } from './VoiceSelector';
 export { VoicePresetManager } from './VoicePresetManager';
+export { VideoJobsList } from './VideoJobsList';
