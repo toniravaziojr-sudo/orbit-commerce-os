@@ -563,7 +563,7 @@ As cores do tema são gerenciadas **exclusivamente** em **Configuração do tema
 
 | Bloco | Props de Cor Disponíveis |
 |-------|-------------------------|
-| `HeroBlock` | `backgroundColor`, `textColor`, `buttonColor`, `buttonTextColor` |
+| `BannerBlock` | `backgroundColor`, `textColor`, `buttonColor`, `buttonTextColor`, `buttonHoverBgColor`, `buttonHoverTextColor` |
 | `ButtonBlock` | `backgroundColor`, `textColor`, `hoverBgColor`, `hoverTextColor` |
 | `NewsletterBlock` | `backgroundColor`, `textColor`, `buttonBgColor`, `buttonTextColor` |
 | `ContentColumnsBlock` | `backgroundColor`, `textColor`, `iconColor` |
@@ -1396,7 +1396,7 @@ O sistema oferece um **Template Padrão** pré-configurado baseado no design "Re
 
 | Página | Conteúdo |
 |--------|----------|
-| **Home** | HeroBanner genérico, CategoriesGrid, FeaturedProducts |
+| **Home** | Banner (modo carrossel), CategoriesGrid, FeaturedProducts |
 | **Categoria** | CategoryBanner, ProductGrid |
 | **Produto** | ProductDetails, CompreJuntoSlot |
 | **Carrinho** | Cart, RecommendedProducts |
