@@ -174,6 +174,36 @@ export function useCreateCreativeJob() {
         throw new Error('Usuário não autenticado');
       }
 
+      // Use dedicated function for product images (OpenAI pipeline)
+      if (params.type === 'product_image') {
+        const { data, error } = await supabase.functions.invoke('creative-image-generate', {
+          body: {
+            tenant_id: currentTenant.id,
+            product_id: params.product_id,
+            product_name: params.product_name,
+            product_image_url: params.product_image_url,
+            prompt: params.prompt,
+            settings: params.settings,
+          },
+        });
+
+        if (error) {
+          throw new Error(error.message || 'Erro ao gerar imagem');
+        }
+
+        if (!data?.success) {
+          throw new Error(data?.error || 'Erro desconhecido');
+        }
+
+        return data.data;
+      }
+
+      // Video types are temporarily disabled
+      if (['ugc_client_video', 'ugc_ai_video', 'product_video', 'avatar_mascot'].includes(params.type)) {
+        throw new Error('Geração de vídeos temporariamente desativada. Estamos migrando para um novo provedor.');
+      }
+
+      // Legacy path (should not be reached)
       const { data, error } = await supabase.functions.invoke('creative-generate', {
         body: {
           tenant_id: currentTenant.id,
@@ -193,8 +223,11 @@ export function useCreateCreativeJob() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['creative-jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['creative-stats'] });
       toast.success('Geração iniciada!', {
-        description: `Job ${data.job_id} criado com sucesso.`,
+        description: data?.generated_count 
+          ? `${data.generated_count} imagens geradas com sucesso.`
+          : `Job criado com sucesso.`,
       });
     },
     onError: (error: Error) => {

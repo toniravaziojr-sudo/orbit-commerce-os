@@ -558,3 +558,6 @@ verify_jwt = false
 
 [functions.ai-landing-page-generate]
 verify_jwt = true
+
+[functions.creative-image-generate]
+verify_jwt = true
