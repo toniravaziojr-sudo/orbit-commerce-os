@@ -794,6 +794,13 @@ export function VisualBuilder({
     const def = store.selectedBlockDefinition;
     const blockType = store.selectedBlock?.type;
     
+    // LEGACY/ORPHAN BLOCKS: Always allow deletion if no definition exists
+    if (!def) {
+      store.removeBlock(store.selectedBlockId);
+      toast.success('Bloco legado removido');
+      return;
+    }
+    
     // Check page contract first (lockDelete for required blocks)
     if (blockType && !canDeleteBlock(pageType, blockType)) {
       const info = getRequiredBlockInfo(pageType, blockType);
@@ -906,10 +913,17 @@ export function VisualBuilder({
       }
     }
     
-    // Check registry isRemovable
+    // Check registry isRemovable - LEGACY blocks (no definition) are always removable
     const def = blockRegistry.get(block.type);
     if (def?.isRemovable === false) {
       toast.error('Este bloco não pode ser removido');
+      return;
+    }
+    
+    // LEGACY BLOCKS: If no definition exists in registry, allow deletion (deprecated blocks)
+    if (!def) {
+      store.removeBlock(blockId);
+      toast.success('Bloco legado removido');
       return;
     }
     
