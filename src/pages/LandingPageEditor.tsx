@@ -20,6 +20,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
+import { GenerateSeoButton } from "@/components/seo/GenerateSeoButton";
+import { LandingPageChatInput } from "@/components/landing-pages/LandingPageChatInput";
 import {
   ArrowLeft,
   Sparkles,
@@ -468,42 +470,48 @@ export default function LandingPageEditor() {
               </ScrollArea>
 
               {/* Input area */}
-              <div className="border-t p-4">
-                <div className="flex gap-2">
-                  <Textarea
-                    value={promptInput}
-                    onChange={(e) => setPromptInput(e.target.value)}
-                    placeholder="Descreva o ajuste que deseja fazer..."
-                    className="min-h-[80px] resize-none"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && e.metaKey) {
-                        handleSendPrompt();
-                      }
-                    }}
-                  />
-                </div>
-                <Button
-                  className="w-full mt-2"
-                  onClick={handleSendPrompt}
-                  disabled={!promptInput.trim() || sendPromptMutation.isPending}
-                >
-                  {sendPromptMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Send className="h-4 w-4 mr-2" />
-                  )}
-                  Aplicar Ajuste
-                </Button>
-                <p className="text-[10px] text-muted-foreground text-center mt-1">
-                  ⌘ + Enter para enviar
-                </p>
-              </div>
+              <LandingPageChatInput
+                onSend={(message, attachments) => {
+                  // Include attachments info in prompt if any
+                  let fullPrompt = message;
+                  if (attachments && attachments.length > 0) {
+                    const attachmentInfo = attachments.map(a => 
+                      `[${a.type === 'image' ? 'Imagem' : 'Vídeo'}: ${a.url}]`
+                    ).join('\n');
+                    fullPrompt = `${message}\n\nMídias anexadas:\n${attachmentInfo}`;
+                  }
+                  sendPromptMutation.mutate(fullPrompt);
+                }}
+                isLoading={sendPromptMutation.isPending}
+                placeholder="Descreva o ajuste que deseja fazer..."
+              />
             </TabsContent>
 
             <TabsContent value="settings" className="flex-1 p-4 m-0">
               <div className="space-y-6">
                 <div className="space-y-4">
-                  <h3 className="font-medium">SEO</h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-medium">SEO</h3>
+                    <GenerateSeoButton
+                      input={{
+                        type: 'page',
+                        name: landingPage.name,
+                        content: landingPage.generated_html || '',
+                        storeName: tenant?.name,
+                      }}
+                      onGenerated={(result) => {
+                        setSeoTitle(result.seo_title);
+                        setSeoDescription(result.seo_description);
+                        toast.success('SEO gerado! Clique em Salvar para aplicar.');
+                      }}
+                      disabled={!landingPage.generated_html}
+                    />
+                  </div>
+                  {!landingPage.generated_html && (
+                    <p className="text-xs text-muted-foreground">
+                      Gere a página primeiro para habilitar o SEO com IA.
+                    </p>
+                  )}
                   <div className="space-y-2">
                     <Label htmlFor="seo-title">Título SEO</Label>
                     <Input
