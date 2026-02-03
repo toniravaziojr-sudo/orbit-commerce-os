@@ -101,11 +101,12 @@ function BuilderToolbarWithDraftCheck(props: Omit<React.ComponentProps<typeof Bu
   const headerDraft = getGlobalHeaderDraftRef();
   const footerDraft = getGlobalFooterDraftRef();
   
-  // Observe header/footer draft changes to trigger re-render
+  // Observe ALL draft changes to trigger re-render when any draft changes
   useHeaderFooterDraftObserver();
+  useDraftPageSettingsObserver(); // CRITICAL: Also observe page settings changes
   
   const { storeIsDirty, onPageChangeCheck, ...toolbarProps } = props;
-  // Combine store dirty state with all draft sources
+  // Combine store dirty state with ALL draft sources
   const isDirty = storeIsDirty || 
     (draftTheme?.hasDraftChanges ?? false) || 
     (draftPageSettings?.hasDraftChanges ?? false) ||
