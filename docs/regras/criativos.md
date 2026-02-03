@@ -7,21 +7,74 @@
 - `src/pages/Creatives.tsx` — Página principal
 - `src/components/creatives/*` — Componentes de cada aba
 - `src/components/creatives/VoiceSelector.tsx` — Seletor de voz (preset ou custom)
-- `src/hooks/useCreatives.ts` — Hook de dados
+- `src/components/creatives/VideoJobsList.tsx` — Lista de jobs de vídeo v2.0
+- `src/hooks/useCreatives.ts` — Hook de dados (imagens)
+- `src/hooks/useVideoCreatives.ts` — Hook de dados (vídeos v2.0)
 - `src/hooks/useVoicePresets.ts` — Hook de presets de voz
 - `src/types/creatives.ts` — Tipos TypeScript
-- `supabase/functions/creative-process/index.ts` — Edge function de processamento
+- `supabase/functions/creative-video-generate/index.ts` — Edge function de vídeo v2.0
+- `supabase/functions/creative-image-generate/index.ts` — Edge function de imagem
 
 ## Estrutura de Abas
 
-| Aba | Tipo | Descrição |
-|-----|------|-----------|
-| UGC Real | `ugc_client_video` | Vídeo gravado pelo cliente com transformações |
-| UGC 100% IA | `ugc_ai_video` | Avatar IA apresentando produto |
-| Vídeos Produto | `product_video` | Vídeos SEM pessoas (rotação, efeitos) |
-| Imagens | `product_image` | Pessoas + cenário + produto |
-| Mascote | `avatar_mascot` | Mascote animado falando |
-| Galeria | `gallery` | Visualização de todos os criativos |
+| Aba | Tipo | Descrição | Status |
+|-----|------|-----------|--------|
+| UGC Real | `ugc_client_video` | Vídeo gravado pelo cliente com transformações | ⚠️ Desativado (migração) |
+| UGC 100% IA | `ugc_ai_video` | Avatar IA apresentando produto | ⚠️ Desativado (migração) |
+| Vídeos Produto | `product_video` | Vídeos SEM pessoas (rotação, efeitos) | ⚠️ Desativado (migração) |
+| Imagens | `product_image` | Pessoas + cenário + produto | ✅ Ativo (OpenAI/Gemini) |
+| Mascote | `avatar_mascot` | Mascote animado falando | ⚠️ Desativado (migração) |
+| Galeria | `gallery` | Visualização de todos os criativos | ✅ Ativo |
+
+---
+
+## Pipeline de Vídeo v2.0 (OpenAI/Sora)
+
+### Substituição do fal.ai
+
+O pipeline v2.0 substitui completamente o fal.ai por OpenAI/Sora via Lovable AI Gateway.
+
+### Arquitetura de 6 Etapas
+
+| Etapa | Nome | Descrição |
+|-------|------|-----------|
+| 1 | `preprocess` | Gera cutout/mask do produto |
+| 2 | `rewrite` | Otimiza prompt com LLM → shot_plan estruturado |
+| 3 | `generate_candidates` | Produz N variações via Sora |
+| 4 | `qa_select` | Avalia qualidade (Similarity 40% + OCR 30% + Quality 30%) |
+| 5 | `retry` | Se falhar, retry com fidelidade rígida |
+| 6 | `fallback` | Se ainda falhar, composição do cutout real sobre cenário |
+
+### Tabelas do Banco
+
+| Tabela | Descrição |
+|--------|-----------|
+| `creative_video_jobs` | Jobs de geração de vídeo |
+| `creative_video_candidates` | Variações geradas e seus scores |
+| `creative_video_presets` | Presets compostos (cena, luz, câmera, narrativa) |
+| `creative_preset_components` | Componentes modulares reutilizáveis |
+| `product_category_profiles` | Perfis de categoria com pesos de QA |
+
+### Hooks
+
+```typescript
+import { 
+  useVideoPresets, 
+  useVideoJobs, 
+  useCreateVideoJob 
+} from '@/hooks/useVideoCreatives';
+```
+
+### Scores de QA
+
+| Score | Peso | Descrição |
+|-------|------|-----------|
+| `qa_similarity_score` | 40% | Similaridade visual com produto original |
+| `qa_label_score` | 30% | OCR do rótulo/marca |
+| `qa_temporal_score` | 15% | Estabilidade temporal (sem glitches) |
+| `qa_quality_score` | 15% | Qualidade geral (nitidez, composição) |
+
+Threshold de aprovação: **70%** (configurável por categoria)
 
 ---
 
