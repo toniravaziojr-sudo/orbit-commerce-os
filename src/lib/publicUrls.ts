@@ -278,6 +278,16 @@ export function buildMenuItemUrl(
     }
   }
 
+  // Blog - standard route
+  if (item.item_type === 'blog') {
+    return `${baseUrl}/blog`;
+  }
+
+  // Tracking - standard route
+  if (item.item_type === 'tracking') {
+    return `${baseUrl}/rastreio`;
+  }
+
   // Fallback to provided URL or base
   return item.url || baseUrl;
 }

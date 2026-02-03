@@ -263,6 +263,16 @@ export function StorefrontFooterContent({
       return urlFn(tenantSlug, page.slug) || null;
     }
     
+    // Blog - standard route
+    if (itemType === 'blog') {
+      return `${baseUrl}/blog`;
+    }
+    
+    // Tracking - standard route
+    if (itemType === 'tracking') {
+      return `${baseUrl}/rastreio`;
+    }
+    
     return null;
   };
   
