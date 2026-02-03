@@ -64,6 +64,9 @@ export function FeaturedCategoriesBlock({
     ? items 
     : categoryIds.map(id => ({ categoryId: id }));
 
+  // Check if we have explicit category selections
+  const hasExplicitSelection = normalizedItems.length > 0 && normalizedItems.some(item => item.categoryId);
+
   // Fetch categories with error boundary protection
   useEffect(() => {
     let isMounted = true;
@@ -74,18 +77,22 @@ export function FeaturedCategoriesBlock({
         
         const categoryIdsToFetch = normalizedItems.map(item => item.categoryId).filter(Boolean);
         
-        let query = supabase
+        // If no explicit selection, don't fetch - show placeholder instead
+        // This prevents loading tenant-specific data in new templates
+        if (categoryIdsToFetch.length === 0) {
+          if (isMounted) {
+            setCategories([]);
+            setIsLoading(false);
+          }
+          return;
+        }
+        
+        const { data, error } = await supabase
           .from('categories')
           .select('id, name, slug, image_url')
-          .eq('is_active', true);
-
-        if (categoryIdsToFetch.length > 0) {
-          query = query.in('id', categoryIdsToFetch);
-        } else {
-          query = query.limit(8);
-        }
-
-        const { data, error } = await query.order('sort_order', { ascending: true });
+          .eq('is_active', true)
+          .in('id', categoryIdsToFetch)
+          .order('sort_order', { ascending: true });
 
         if (!isMounted) return;
         
@@ -102,13 +109,11 @@ export function FeaturedCategoriesBlock({
         });
         
         // Maintain order from items array
-        if (categoryIdsToFetch.length > 0) {
-          mergedData.sort((a, b) => {
-            const indexA = categoryIdsToFetch.indexOf(a.id);
-            const indexB = categoryIdsToFetch.indexOf(b.id);
-            return indexA - indexB;
-          });
-        }
+        mergedData.sort((a, b) => {
+          const indexA = categoryIdsToFetch.indexOf(a.id);
+          const indexB = categoryIdsToFetch.indexOf(b.id);
+          return indexA - indexB;
+        });
         
         setCategories(mergedData);
       } catch (error) {
