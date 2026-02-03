@@ -1,5 +1,6 @@
 // =============================================
 // MEDIA LIBRARY PICKER - Select from uploaded images (only images, not videos)
+// Now with thumbnail previews in the grid
 // =============================================
 
 import { useState } from 'react';
@@ -8,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useMediaLibrary, MediaVariant } from '@/hooks/useMediaLibrary';
-import { Image, Search, Loader2, Check } from 'lucide-react';
+import { Image, Search, Loader2, Check, ImageOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface MediaLibraryPickerProps {
@@ -16,6 +17,56 @@ interface MediaLibraryPickerProps {
   onOpenChange: (open: boolean) => void;
   variant: MediaVariant;
   onSelect: (url: string) => void;
+}
+
+// Thumbnail with loading and error states
+function MediaThumbnail({ 
+  url, 
+  alt, 
+  isSelected 
+}: { 
+  url: string; 
+  alt: string; 
+  isSelected: boolean;
+}) {
+  const [hasError, setHasError] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  if (hasError || !url) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-muted/50">
+        <ImageOff className="h-6 w-6 text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {!isLoaded && (
+        <div className="absolute inset-0 flex items-center justify-center bg-muted/30">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      )}
+      <img
+        src={url}
+        alt={alt}
+        className={cn(
+          "w-full h-full object-cover transition-opacity duration-200",
+          isLoaded ? "opacity-100" : "opacity-0"
+        )}
+        loading="lazy"
+        onLoad={() => setIsLoaded(true)}
+        onError={() => setHasError(true)}
+      />
+      {isSelected && (
+        <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+          <div className="bg-primary rounded-full p-1">
+            <Check className="h-4 w-4 text-primary-foreground" />
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
 
 export function MediaLibraryPicker({
@@ -66,7 +117,7 @@ export function MediaLibraryPicker({
             />
           </div>
 
-          {/* Gallery */}
+          {/* Gallery with thumbnails */}
           <ScrollArea className="h-[400px] rounded-md border p-2">
             {isLoading ? (
               <div className="flex items-center justify-center h-full">
@@ -97,19 +148,11 @@ export function MediaLibraryPicker({
                         : 'border-transparent hover:border-muted-foreground/30'
                     )}
                   >
-                    <img
-                      src={item.file_url}
+                    <MediaThumbnail 
+                      url={item.file_url} 
                       alt={item.file_name}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
+                      isSelected={selected === item.file_url}
                     />
-                    {selected === item.file_url && (
-                      <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                        <div className="bg-primary rounded-full p-1">
-                          <Check className="h-4 w-4 text-primary-foreground" />
-                        </div>
-                      </div>
-                    )}
                     <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1 py-0.5">
                       <p className="text-[10px] text-white truncate">
                         {item.file_name}
