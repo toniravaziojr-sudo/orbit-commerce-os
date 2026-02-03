@@ -6942,6 +6942,57 @@ export type Database = {
           },
         ]
       }
+      media_category_profiles: {
+        Row: {
+          context_tokens: string[] | null
+          created_at: string | null
+          display_name: string
+          fallback_enabled: boolean | null
+          forbidden_actions: string[] | null
+          id: string
+          label_ocr_weight: number | null
+          metadata: Json | null
+          niche: string
+          product_fidelity_weight: number | null
+          qa_pass_threshold: number | null
+          quality_weight: number | null
+          temporal_stability_weight: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          context_tokens?: string[] | null
+          created_at?: string | null
+          display_name: string
+          fallback_enabled?: boolean | null
+          forbidden_actions?: string[] | null
+          id?: string
+          label_ocr_weight?: number | null
+          metadata?: Json | null
+          niche: string
+          product_fidelity_weight?: number | null
+          qa_pass_threshold?: number | null
+          quality_weight?: number | null
+          temporal_stability_weight?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          context_tokens?: string[] | null
+          created_at?: string | null
+          display_name?: string
+          fallback_enabled?: boolean | null
+          forbidden_actions?: string[] | null
+          id?: string
+          label_ocr_weight?: number | null
+          metadata?: Json | null
+          niche?: string
+          product_fidelity_weight?: number | null
+          qa_pass_threshold?: number | null
+          quality_weight?: number | null
+          temporal_stability_weight?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       media_library: {
         Row: {
           created_at: string
@@ -6985,6 +7036,381 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_preset_components: {
+        Row: {
+          compatible_niches: string[] | null
+          component_type: string
+          created_at: string | null
+          id: string
+          is_default: boolean | null
+          metadata: Json | null
+          name: string
+          prompt_fragment: string
+          slug: string
+          sort_order: number | null
+        }
+        Insert: {
+          compatible_niches?: string[] | null
+          component_type: string
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          metadata?: Json | null
+          name: string
+          prompt_fragment: string
+          slug: string
+          sort_order?: number | null
+        }
+        Update: {
+          compatible_niches?: string[] | null
+          component_type?: string
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          metadata?: Json | null
+          name?: string
+          prompt_fragment?: string
+          slug?: string
+          sort_order?: number | null
+        }
+        Relationships: []
+      }
+      media_video_candidates: {
+        Row: {
+          candidate_index: number
+          completed_at: string | null
+          created_at: string | null
+          duration_seconds: number | null
+          final_score: number | null
+          id: string
+          is_best: boolean | null
+          job_id: string
+          label_ocr_score: number | null
+          metadata: Json | null
+          provider_request_id: string | null
+          provider_response: Json | null
+          qa_details: Json | null
+          qa_passed: boolean | null
+          quality_score: number | null
+          similarity_score: number | null
+          started_at: string | null
+          status: string | null
+          temporal_stability_score: number | null
+          tenant_id: string
+          thumbnail_url: string | null
+          video_url: string | null
+        }
+        Insert: {
+          candidate_index: number
+          completed_at?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          final_score?: number | null
+          id?: string
+          is_best?: boolean | null
+          job_id: string
+          label_ocr_score?: number | null
+          metadata?: Json | null
+          provider_request_id?: string | null
+          provider_response?: Json | null
+          qa_details?: Json | null
+          qa_passed?: boolean | null
+          quality_score?: number | null
+          similarity_score?: number | null
+          started_at?: string | null
+          status?: string | null
+          temporal_stability_score?: number | null
+          tenant_id: string
+          thumbnail_url?: string | null
+          video_url?: string | null
+        }
+        Update: {
+          candidate_index?: number
+          completed_at?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          final_score?: number | null
+          id?: string
+          is_best?: boolean | null
+          job_id?: string
+          label_ocr_score?: number | null
+          metadata?: Json | null
+          provider_request_id?: string | null
+          provider_response?: Json | null
+          qa_details?: Json | null
+          qa_passed?: boolean | null
+          quality_score?: number | null
+          similarity_score?: number | null
+          started_at?: string | null
+          status?: string | null
+          temporal_stability_score?: number | null
+          tenant_id?: string
+          thumbnail_url?: string | null
+          video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_video_candidates_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "media_video_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_video_candidates_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_video_jobs: {
+        Row: {
+          best_candidate_id: string | null
+          calendar_item_id: string | null
+          campaign_id: string | null
+          completed_at: string | null
+          created_at: string | null
+          created_by: string | null
+          current_stage: number | null
+          duration_seconds: number | null
+          error_message: string | null
+          fallback_used: boolean | null
+          id: string
+          max_retries: number | null
+          metadata: Json | null
+          model: string | null
+          niche: string | null
+          original_prompt: string
+          output_thumbnail_url: string | null
+          output_url: string | null
+          preset_id: string | null
+          product_cutout_url: string | null
+          product_id: string | null
+          product_image_url: string | null
+          product_mask_url: string | null
+          provider: string | null
+          qa_passed: boolean | null
+          qa_scores: Json | null
+          qa_threshold: number | null
+          retry_count: number | null
+          rewritten_prompt: string | null
+          shot_plan: Json | null
+          stage_results: Json | null
+          started_at: string | null
+          status: string
+          tenant_id: string
+          updated_at: string | null
+          variation_count: number | null
+        }
+        Insert: {
+          best_candidate_id?: string | null
+          calendar_item_id?: string | null
+          campaign_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          current_stage?: number | null
+          duration_seconds?: number | null
+          error_message?: string | null
+          fallback_used?: boolean | null
+          id?: string
+          max_retries?: number | null
+          metadata?: Json | null
+          model?: string | null
+          niche?: string | null
+          original_prompt: string
+          output_thumbnail_url?: string | null
+          output_url?: string | null
+          preset_id?: string | null
+          product_cutout_url?: string | null
+          product_id?: string | null
+          product_image_url?: string | null
+          product_mask_url?: string | null
+          provider?: string | null
+          qa_passed?: boolean | null
+          qa_scores?: Json | null
+          qa_threshold?: number | null
+          retry_count?: number | null
+          rewritten_prompt?: string | null
+          shot_plan?: Json | null
+          stage_results?: Json | null
+          started_at?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string | null
+          variation_count?: number | null
+        }
+        Update: {
+          best_candidate_id?: string | null
+          calendar_item_id?: string | null
+          campaign_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          current_stage?: number | null
+          duration_seconds?: number | null
+          error_message?: string | null
+          fallback_used?: boolean | null
+          id?: string
+          max_retries?: number | null
+          metadata?: Json | null
+          model?: string | null
+          niche?: string | null
+          original_prompt?: string
+          output_thumbnail_url?: string | null
+          output_url?: string | null
+          preset_id?: string | null
+          product_cutout_url?: string | null
+          product_id?: string | null
+          product_image_url?: string | null
+          product_mask_url?: string | null
+          provider?: string | null
+          qa_passed?: boolean | null
+          qa_scores?: Json | null
+          qa_threshold?: number | null
+          retry_count?: number | null
+          rewritten_prompt?: string | null
+          shot_plan?: Json | null
+          stage_results?: Json | null
+          started_at?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string | null
+          variation_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_video_jobs_calendar_item_id_fkey"
+            columns: ["calendar_item_id"]
+            isOneToOne: false
+            referencedRelation: "media_calendar_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_video_jobs_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "media_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_video_jobs_preset_id_fkey"
+            columns: ["preset_id"]
+            isOneToOne: false
+            referencedRelation: "media_video_presets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_video_jobs_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_video_jobs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_video_presets: {
+        Row: {
+          audio_component_id: string | null
+          camera_component_id: string | null
+          created_at: string | null
+          description: string | null
+          duration_seconds: number
+          id: string
+          is_active: boolean | null
+          is_default: boolean | null
+          lighting_component_id: string | null
+          metadata: Json | null
+          name: string
+          narrative_component_id: string | null
+          scene_component_id: string | null
+          slug: string
+          target_niche: string | null
+          variation_count: number | null
+        }
+        Insert: {
+          audio_component_id?: string | null
+          camera_component_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          duration_seconds?: number
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          lighting_component_id?: string | null
+          metadata?: Json | null
+          name: string
+          narrative_component_id?: string | null
+          scene_component_id?: string | null
+          slug: string
+          target_niche?: string | null
+          variation_count?: number | null
+        }
+        Update: {
+          audio_component_id?: string | null
+          camera_component_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          duration_seconds?: number
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          lighting_component_id?: string | null
+          metadata?: Json | null
+          name?: string
+          narrative_component_id?: string | null
+          scene_component_id?: string | null
+          slug?: string
+          target_niche?: string | null
+          variation_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_video_presets_audio_component_id_fkey"
+            columns: ["audio_component_id"]
+            isOneToOne: false
+            referencedRelation: "media_preset_components"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_video_presets_camera_component_id_fkey"
+            columns: ["camera_component_id"]
+            isOneToOne: false
+            referencedRelation: "media_preset_components"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_video_presets_lighting_component_id_fkey"
+            columns: ["lighting_component_id"]
+            isOneToOne: false
+            referencedRelation: "media_preset_components"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_video_presets_narrative_component_id_fkey"
+            columns: ["narrative_component_id"]
+            isOneToOne: false
+            referencedRelation: "media_preset_components"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_video_presets_scene_component_id_fkey"
+            columns: ["scene_component_id"]
+            isOneToOne: false
+            referencedRelation: "media_preset_components"
             referencedColumns: ["id"]
           },
         ]
