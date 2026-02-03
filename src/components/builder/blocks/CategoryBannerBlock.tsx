@@ -43,7 +43,8 @@ export function CategoryBannerBlock({
   const showTitle = categorySettings.showCategoryName ?? true;
   
   // REGRAS.md linha 77: banner vem do menu Categorias (category.banner_desktop_url)
-  const bannerDesktop = category?.banner_desktop_url || null;
+  // Fallback: category.image_url (conforme docs/regras/pagina-categoria.md)
+  const bannerDesktop = category?.banner_desktop_url || category?.image_url || null;
   const bannerMobile = category?.banner_mobile_url || bannerDesktop;
   
   // Check if we have any banner image
