@@ -1,13 +1,14 @@
 /**
  * Product Image Tab — Imagens de pessoas segurando o produto
  * 
- * Pipeline: OpenAI via Lovable AI Gateway (Gemini Image)
+ * Pipeline v2.0: Lovable AI Gateway (Gemini Image)
  * 
- * PROVEDOR ATUALIZADO: Migrado de fal.ai para Lovable AI Gateway
- * - Usa google/gemini-3-pro-image-preview para alta qualidade
- * - Usa google/gemini-2.5-flash-image para rápido
- * - QA automático com retries
- * - Fidelidade do produto via prompt engineering
+ * PIPELINE COMPLETA:
+ * 1. CUTOUT: Gerar recorte do produto
+ * 2. GENERATION: Gerar N variações
+ * 3. QA: Avaliar fidelidade (similarity + label)
+ * 4. FALLBACK: Composição se QA falhar
+ * 5. SELECTION: Escolher melhor variação
  */
 
 import { useState } from 'react';
@@ -18,6 +19,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { AIPipelineInfo } from './AIPipelineInfo';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
@@ -27,37 +30,36 @@ import {
   Loader2,
   ShoppingBag,
   AlertCircle,
+  Shield,
+  CheckCircle2,
+  HelpCircle,
 } from 'lucide-react';
 import { useCreativeJobs, useCreateCreativeJob } from '@/hooks/useCreatives';
 import { useProductsWithImages } from '@/hooks/useProducts';
 import { CREATIVE_MODELS } from '@/types/creatives';
 import { CreativeJobsList } from './CreativeJobsList';
 
-// Enums corretos conforme schema GPT Image 1.5 Edit
-const GPT_IMAGE_SIZES = [
-  { value: '1024x1024', label: '1024x1024 (Quadrado)' },
-  { value: '1024x1536', label: '1024x1536 (Vertical)' },
-  { value: '1536x1024', label: '1536x1024 (Horizontal)' },
-  { value: 'auto', label: 'Auto' },
-] as const;
+const SCENE_OPTIONS = [
+  { value: 'bathroom', label: 'Banheiro (luz natural)' },
+  { value: 'lavabo', label: 'Lavabo (premium)' },
+  { value: 'bedroom', label: 'Quarto (relaxante)' },
+  { value: 'gym', label: 'Academia (fitness)' },
+  { value: 'outdoor', label: 'Ar Livre (natural)' },
+  { value: 'office', label: 'Escritório (profissional)' },
+  { value: 'kitchen', label: 'Cozinha (lifestyle)' },
+  { value: 'studio', label: 'Estúdio (fundo neutro)' },
+];
 
-const GPT_IMAGE_QUALITY = [
-  { value: 'low', label: 'Baixa (Rápido)' },
-  { value: 'medium', label: 'Média (Balanceado)' },
+const QUALITY_OPTIONS = [
+  { value: 'standard', label: 'Standard (Rápido)' },
   { value: 'high', label: 'Alta (Melhor qualidade)' },
-] as const;
+];
 
-const GPT_IMAGE_BACKGROUND = [
-  { value: 'auto', label: 'Auto' },
-  { value: 'opaque', label: 'Opaco' },
-  { value: 'transparent', label: 'Transparente' },
-] as const;
-
-const INPUT_FIDELITY = [
-  { value: 'low', label: 'Baixa (Mais liberdade criativa)' },
-  { value: 'medium', label: 'Média (Balanceado)' },
-  { value: 'high', label: 'Alta (Preservar rótulo exatamente)' },
-] as const;
+const FIDELITY_OPTIONS = [
+  { value: 'low', label: 'Baixa — Mais liberdade criativa' },
+  { value: 'medium', label: 'Média — Balanceado' },
+  { value: 'high', label: 'Alta — Preservar rótulo exatamente' },
+];
 
 export function ProductImageTab() {
   // Produto OBRIGATÓRIO
@@ -69,12 +71,14 @@ export function ProductImageTab() {
   const [ageRange, setAgeRange] = useState<string>('middle');
   const [pose, setPose] = useState<string>('holding');
   
-  // Configurações de saída (enums corretos)
-  const [size, setSize] = useState<string>('1024x1024');
+  // Configurações de pipeline
   const [quality, setQuality] = useState<string>('high');
-  const [background, setBackground] = useState<string>('auto');
   const [inputFidelity, setInputFidelity] = useState<string>('high');
-  const [variations, setVariations] = useState<number[]>([2]);
+  const [variations, setVariations] = useState<number[]>([4]);
+  
+  // Controles de QA e Fallback (novos!)
+  const [enableQA, setEnableQA] = useState(true);
+  const [enableFallback, setEnableFallback] = useState(true);
   
   // Instruções adicionais
   const [additionalPrompt, setAdditionalPrompt] = useState('');
@@ -109,14 +113,20 @@ export function ProductImageTab() {
         gender,
         age_range: ageRange,
         pose,
-        size,
         quality,
-        background,
         input_fidelity: inputFidelity,
         variations: variations[0],
+        enable_qa: enableQA,
+        enable_fallback: enableFallback,
       },
     });
   };
+
+  // Custo estimado
+  const baseCost = variations[0] * 0.10; // R$ 0,10/imagem
+  const qaCost = enableQA ? variations[0] * 0.05 : 0; // R$ 0,05/QA
+  const fallbackCost = enableFallback ? 0.20 : 0; // Custo potencial do fallback
+  const estimatedCost = baseCost + qaCost + (enableFallback ? 0.10 : 0);
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -128,7 +138,7 @@ export function ProductImageTab() {
             Nova Imagem de Produto
           </CardTitle>
           <CardDescription>
-            Pessoas reais segurando o produto — ultra realismo com fidelidade de rótulo
+            Pipeline v2.0 com QA automático e fallback inteligente
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -207,13 +217,9 @@ export function ProductImageTab() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="bathroom">Banheiro (luz natural)</SelectItem>
-                <SelectItem value="bedroom">Quarto (ambiente relaxante)</SelectItem>
-                <SelectItem value="gym">Academia (energia/fitness)</SelectItem>
-                <SelectItem value="outdoor">Ar Livre (luz natural intensa)</SelectItem>
-                <SelectItem value="office">Escritório (profissional)</SelectItem>
-                <SelectItem value="kitchen">Cozinha (lifestyle)</SelectItem>
-                <SelectItem value="studio">Estúdio (fundo neutro)</SelectItem>
+                {SCENE_OPTIONS.map(s => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -263,24 +269,11 @@ export function ProductImageTab() {
             </Select>
           </div>
 
-          {/* Configurações de Saída (enums corretos) */}
+          {/* Configurações de Qualidade */}
           <div className="space-y-4 p-4 rounded-lg bg-muted/50">
-            <Label className="text-sm font-medium">Configurações de Saída</Label>
+            <Label className="text-sm font-medium">Qualidade e Fidelidade</Label>
             
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">Tamanho</Label>
-                <Select value={size} onValueChange={setSize}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {GPT_IMAGE_SIZES.map(s => (
-                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground">Qualidade</Label>
                 <Select value={quality} onValueChange={setQuality}>
@@ -288,24 +281,8 @@ export function ProductImageTab() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {GPT_IMAGE_QUALITY.map(q => (
+                    {QUALITY_OPTIONS.map(q => (
                       <SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">Fundo</Label>
-                <Select value={background} onValueChange={setBackground}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {GPT_IMAGE_BACKGROUND.map(b => (
-                      <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -317,7 +294,7 @@ export function ProductImageTab() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {INPUT_FIDELITY.map(f => (
+                    {FIDELITY_OPTIONS.map(f => (
                       <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
                     ))}
                   </SelectContent>
@@ -326,11 +303,79 @@ export function ProductImageTab() {
             </div>
           </div>
 
+          {/* Controles de Pipeline (QA e Fallback) */}
+          <div className="space-y-4 p-4 rounded-lg border border-primary/20 bg-primary/5">
+            <div className="flex items-center gap-2">
+              <Shield className="h-4 w-4 text-primary" />
+              <Label className="text-sm font-medium">Controle de Qualidade</Label>
+            </div>
+            
+            <div className="space-y-3">
+              {/* QA Automático */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm cursor-pointer" htmlFor="enable-qa">
+                    QA Automático
+                  </Label>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-[250px]">
+                      <p className="text-xs">
+                        Avalia cada imagem gerada quanto à fidelidade do rótulo e similaridade com o produto original. 
+                        Imagens reprovadas são descartadas automaticamente.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <Switch
+                  id="enable-qa"
+                  checked={enableQA}
+                  onCheckedChange={setEnableQA}
+                />
+              </div>
+              
+              {/* Fallback por Composição */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm cursor-pointer" htmlFor="enable-fallback">
+                    Fallback Inteligente
+                  </Label>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-[250px]">
+                      <p className="text-xs">
+                        Se todas as variações falharem no QA, gera automaticamente uma composição 
+                        com o produto real sobreposto na cena. Garante entrega com 100% de fidelidade.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <Switch
+                  id="enable-fallback"
+                  checked={enableFallback}
+                  onCheckedChange={setEnableFallback}
+                  disabled={!enableQA}
+                />
+              </div>
+              
+              {enableQA && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3 text-green-500" />
+                  Imagens serão avaliadas por similaridade e legibilidade do rótulo
+                </p>
+              )}
+            </div>
+          </div>
+
           {/* Número de Variações */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label>Número de Variações</Label>
-              <span className="text-sm font-medium">{variations[0]}</span>
+              <Badge variant="outline">{variations[0]}</Badge>
             </div>
             <Slider
               value={variations}
@@ -340,9 +385,10 @@ export function ProductImageTab() {
               step={1}
               className="w-full"
             />
-            <p className="text-xs text-muted-foreground">
-              Custo estimado: ~R$ {(variations[0] * 0.02 * 5).toFixed(2)} (R$ 0,10/imagem)
-            </p>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Mínimo: 1</span>
+              <span>Recomendado: 4 (maior chance de sucesso)</span>
+            </div>
           </div>
 
           {/* Brief Adicional */}
@@ -356,12 +402,23 @@ export function ProductImageTab() {
             />
           </div>
 
+          {/* Custo Estimado */}
+          <div className="p-3 rounded-lg bg-muted/50 text-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">Custo estimado:</span>
+              <span className="font-medium">~R$ {estimatedCost.toFixed(2)}</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {variations[0]} variações × R$ 0,10 + QA{!enableQA && ' (desativado)'}
+            </p>
+          </div>
+
           {/* Modelo - Apenas para tenants especiais */}
           <AIPipelineInfo 
-            label="Modelo utilizado:" 
+            label="Pipeline v2.0:" 
             models={models} 
             variant="default"
-            description="Mantém fidelidade máxima ao rótulo e cores do produto original"
+            description="Cutout → Geração → QA → Fallback → Seleção automática"
           />
 
           {/* Submit */}
@@ -380,7 +437,7 @@ export function ProductImageTab() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Histórico de Gerações</CardTitle>
-          <CardDescription>Acompanhe o status dos seus criativos</CardDescription>
+          <CardDescription>Pipeline v2.0 com score de QA</CardDescription>
         </CardHeader>
         <CardContent>
           <CreativeJobsList jobs={jobs || []} isLoading={isLoading} type="product_image" />
