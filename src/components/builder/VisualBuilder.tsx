@@ -48,6 +48,7 @@ import { CanvasEditorProvider } from './CanvasEditorContext';
 import { CanvasRichTextProvider } from './CanvasRichTextContext';
 import { BuilderDraftThemeProvider, useBuilderDraftTheme, getGlobalDraftThemeRef, DraftThemeRefSync } from '@/hooks/useBuilderDraftTheme';
 import { BuilderDraftPageSettingsProvider, getGlobalDraftPageSettingsRef, PageSettingsKey, useDraftPageSettingsObserver } from '@/hooks/useBuilderDraftPageSettings';
+import { getGlobalHeaderDraftRef, getGlobalFooterDraftRef, useHeaderFooterDraftObserver } from '@/hooks/useThemeSettings';
 
 // Isolation modes for debugging React #300
 type IsolateMode = 'app' | 'visual' | 'canvas' | 'blocks' | 'blocks-real' | 'full';
@@ -97,9 +98,19 @@ function VisualIsolationUI({ mode, message }: { mode: string; message: string })
 function BuilderToolbarWithDraftCheck(props: Omit<React.ComponentProps<typeof BuilderToolbar>, 'isDirty'> & { storeIsDirty: boolean; onPageChangeCheck?: (targetUrl: string) => boolean }) {
   const draftTheme = useBuilderDraftTheme();
   const draftPageSettings = getGlobalDraftPageSettingsRef();
+  const headerDraft = getGlobalHeaderDraftRef();
+  const footerDraft = getGlobalFooterDraftRef();
+  
+  // Observe header/footer draft changes to trigger re-render
+  useHeaderFooterDraftObserver();
+  
   const { storeIsDirty, onPageChangeCheck, ...toolbarProps } = props;
-  // Combine store dirty state with draft theme changes AND draft page settings
-  const isDirty = storeIsDirty || (draftTheme?.hasDraftChanges ?? false) || (draftPageSettings?.hasDraftChanges ?? false);
+  // Combine store dirty state with all draft sources
+  const isDirty = storeIsDirty || 
+    (draftTheme?.hasDraftChanges ?? false) || 
+    (draftPageSettings?.hasDraftChanges ?? false) ||
+    (headerDraft?.hasDraftChanges ?? false) ||
+    (footerDraft?.hasDraftChanges ?? false);
   return <BuilderToolbar {...toolbarProps} isDirty={isDirty} onPageChangeCheck={onPageChangeCheck} />;
 }
 
@@ -569,12 +580,17 @@ export function VisualBuilder({
   // Also saves any pending theme settings (colors, typography) from draft state
   const handleSave = useCallback(async () => {
     try {
-      // STEP 1: Save pending theme settings (colors, typography) AND page settings if draft exists
+      // STEP 1: Save pending theme settings (colors, typography), page settings, AND header/footer drafts
       // Access via global ref since we're outside the provider context
       const draftTheme = getGlobalDraftThemeRef();
       const draftPageSettings = getGlobalDraftPageSettingsRef();
+      const headerDraft = getGlobalHeaderDraftRef();
+      const footerDraft = getGlobalFooterDraftRef();
       
-      if (templateSetId && (draftTheme?.hasDraftChanges || draftPageSettings?.hasDraftChanges)) {
+      const hasThemeOrSettingsDraft = draftTheme?.hasDraftChanges || draftPageSettings?.hasDraftChanges || 
+                                       headerDraft?.hasDraftChanges || footerDraft?.hasDraftChanges;
+      
+      if (templateSetId && hasThemeOrSettingsDraft) {
         const { data: current } = await supabase
           .from('storefront_template_sets')
           .select('draft_content')
@@ -610,6 +626,24 @@ export function VisualBuilder({
           }
         }
         
+        // Merge header draft changes
+        if (headerDraft?.hasDraftChanges) {
+          const pendingHeaderChanges = headerDraft.getPendingChanges();
+          console.log('[VisualBuilder.handleSave] Pending header changes:', pendingHeaderChanges);
+          if (pendingHeaderChanges?.header) {
+            updatedThemeSettings.header = pendingHeaderChanges.header;
+          }
+        }
+        
+        // Merge footer draft changes
+        if (footerDraft?.hasDraftChanges) {
+          const pendingFooterChanges = footerDraft.getPendingChanges();
+          console.log('[VisualBuilder.handleSave] Pending footer changes:', pendingFooterChanges);
+          if (pendingFooterChanges?.footer) {
+            updatedThemeSettings.footer = pendingFooterChanges.footer;
+          }
+        }
+        
         const updatedDraftContent = {
           ...draftContent,
           themeSettings: updatedThemeSettings,
@@ -617,7 +651,8 @@ export function VisualBuilder({
         
         console.log('[VisualBuilder.handleSave] Saving to DB:', {
           templateSetId,
-          pageSettings: updatedThemeSettings.pageSettings,
+          hasHeader: !!updatedThemeSettings.header,
+          hasFooter: !!updatedThemeSettings.footer,
         });
         
         const { error: updateError } = await supabase
@@ -632,11 +667,42 @@ export function VisualBuilder({
           throw updateError;
         }
         
+        // ALSO save header/footer to storefront_global_layout for real-time preview sync
+        if (tenantId) {
+          if (headerDraft?.hasDraftChanges) {
+            const pendingHeaderChanges = headerDraft.getPendingChanges();
+            if (pendingHeaderChanges?.header) {
+              const headerBlock: BlockNode = {
+                id: 'global-header',
+                type: 'Header',
+                props: pendingHeaderChanges.header as unknown as Record<string, unknown>,
+              };
+              await supabase
+                .from('storefront_global_layout')
+                .update({ draft_header_config: headerBlock as unknown as Json })
+                .eq('tenant_id', tenantId);
+            }
+          }
+          
+          if (footerDraft?.hasDraftChanges) {
+            const pendingFooterChanges = footerDraft.getPendingChanges();
+            if (pendingFooterChanges?.footer) {
+              const footerBlock: BlockNode = {
+                id: 'global-footer',
+                type: 'Footer',
+                props: pendingFooterChanges.footer as unknown as Record<string, unknown>,
+              };
+              await supabase
+                .from('storefront_global_layout')
+                .update({ draft_footer_config: footerBlock as unknown as Json })
+                .eq('tenant_id', tenantId);
+            }
+          }
+        }
+        
         console.log('[VisualBuilder.handleSave] DB save successful');
         
         // CRITICAL FIX: Update React Query cache SYNCHRONOUSLY with saved data BEFORE clearing drafts
-        // This ensures ThemeInjector sees fresh data immediately when draft is cleared
-        // Without this, there's a race condition: draft clears -> injector re-renders with stale cache -> blue flash
         const { THEME_SETTINGS_KEYS } = await import('@/hooks/useThemeSettings');
         
         if (tenantId && templateSetId) {
@@ -646,13 +712,10 @@ export function VisualBuilder({
             updatedThemeSettings
           );
           
-          console.log('[VisualBuilder.handleSave] Cache updated with:', {
-            pageSettings: updatedThemeSettings.pageSettings,
-          });
+          console.log('[VisualBuilder.handleSave] Cache updated');
         }
         
         // Wait for React to process the cache update before clearing drafts
-        // requestAnimationFrame ensures DOM updates are flushed, then setTimeout for microtask
         await new Promise<void>(resolve => {
           requestAnimationFrame(() => {
             setTimeout(resolve, 0);
@@ -667,6 +730,14 @@ export function VisualBuilder({
         if (draftPageSettings?.hasDraftChanges) {
           draftPageSettings.clearDraft();
           console.log('[VisualBuilder.handleSave] Cleared page settings draft');
+        }
+        if (headerDraft?.hasDraftChanges) {
+          headerDraft.clearDraft();
+          console.log('[VisualBuilder.handleSave] Cleared header draft');
+        }
+        if (footerDraft?.hasDraftChanges) {
+          footerDraft.clearDraft();
+          console.log('[VisualBuilder.handleSave] Cleared footer draft');
         }
         
         // Notify PageSettingsContent to reload from DB (for baseline sync)
