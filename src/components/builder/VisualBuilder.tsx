@@ -34,7 +34,8 @@ import { useThankYouSettings } from './ThankYouSettingsPanel';
 import { BuilderDebugPanel, DebugQueryState, addSupabaseError } from './BuilderDebugPanel';
 // MiniCartPreview is now rendered inside BuilderCanvas
 import { toast } from 'sonner';
-import { LayoutGrid, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { LayoutGrid, PanelRightClose, PanelRightOpen, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { 
   useGlobalLayoutForEditor, 
   applyGlobalLayout, 
@@ -1335,6 +1336,29 @@ export function VisualBuilder({
                   blockType={store.selectedBlock?.type}
                 />
               )
+            ) : store.selectedBlock && !store.selectedBlockDefinition ? (
+              // LEGACY/DEPRECATED BLOCK - show delete option
+              <div className="h-full flex flex-col items-center justify-center p-6 border-l gap-4">
+                <div className="text-center text-muted-foreground">
+                  <LayoutGrid className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm font-medium">Bloco Legado</p>
+                  <p className="text-xs mt-1 text-amber-600">
+                    <strong>{store.selectedBlock.type}</strong> não existe mais no sistema.
+                  </p>
+                  <p className="text-xs mt-1">
+                    Remova este bloco para evitar problemas.
+                  </p>
+                </div>
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  className="gap-1"
+                  onClick={handleDeleteBlock}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Remover bloco
+                </Button>
+              </div>
             ) : (
               <div className="h-full flex items-center justify-center p-6 border-l">
                 <div className="text-center text-muted-foreground">

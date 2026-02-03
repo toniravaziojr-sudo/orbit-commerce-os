@@ -346,8 +346,8 @@ function PropField({ name, schema, value, onChange, blockType, allProps }: PropF
           />
         );
       }
-      // HeroBanner slides
-      if (blockType === 'HeroBanner' && name === 'slides') {
+      // HeroBanner slides (legacy) OR Banner slides (new unified block)
+      if ((blockType === 'HeroBanner' || blockType === 'Banner') && name === 'slides') {
         return (
           <BannerSlidesEditor
             slides={(value as BannerSlide[]) || []}
