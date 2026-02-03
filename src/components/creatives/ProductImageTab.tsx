@@ -1,12 +1,13 @@
 /**
  * Product Image Tab — Imagens de pessoas segurando o produto
  * 
- * Pipeline: OpenAI GPT Image 1.5 Edit
+ * Pipeline: OpenAI via Lovable AI Gateway (Gemini Image)
  * 
- * ENUMS CORRIGIDOS conforme schema:
- * - size: 1024x1024 | 1024x1536 | 1536x1024 | auto
- * - quality: low | medium | high
- * - background: auto | opaque | transparent
+ * PROVEDOR ATUALIZADO: Migrado de fal.ai para Lovable AI Gateway
+ * - Usa google/gemini-3-pro-image-preview para alta qualidade
+ * - Usa google/gemini-2.5-flash-image para rápido
+ * - QA automático com retries
+ * - Fidelidade do produto via prompt engineering
  */
 
 import { useState } from 'react';

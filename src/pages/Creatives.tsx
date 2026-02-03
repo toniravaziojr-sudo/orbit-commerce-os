@@ -34,36 +34,41 @@ import type { CreativeType } from '@/types/creatives';
 
 type TabId = CreativeType | 'gallery';
 
-const TABS: { id: TabId; label: string; icon: React.ElementType; description: string }[] = [
+// Abas de vídeo temporariamente desativadas (migração para OpenAI em andamento)
+const TABS: { id: TabId; label: string; icon: React.ElementType; description: string; disabled?: boolean }[] = [
   {
     id: 'ugc_client_video',
     label: 'UGC Real',
     icon: User,
-    description: 'Transformar vídeo gravado (rosto, fundo, voz opcionais)',
+    description: '⚠️ Temporariamente desativado - Em manutenção',
+    disabled: true,
   },
   {
     id: 'ugc_ai_video',
     label: 'UGC 100% IA',
     icon: Bot,
-    description: 'Avatar IA com produto do catálogo',
+    description: '⚠️ Temporariamente desativado - Em manutenção',
+    disabled: true,
   },
   {
     id: 'product_video',
     label: 'Vídeos Produto',
     icon: Package,
-    description: 'Vídeos SEM pessoas (rotação, efeitos, close-ups)',
+    description: '⚠️ Temporariamente desativado - Em manutenção',
+    disabled: true,
   },
   {
     id: 'product_image',
     label: 'Imagens',
     icon: Image,
-    description: 'Pessoas + cenário + produto do catálogo',
+    description: 'Pessoas + cenário + produto do catálogo (OpenAI)',
   },
   {
     id: 'avatar_mascot',
     label: 'Mascote',
     icon: Wand2,
-    description: 'Mascote animado falando (tipo Lu Magalu)',
+    description: '⚠️ Temporariamente desativado - Em manutenção',
+    disabled: true,
   },
   {
     id: 'gallery',
@@ -74,7 +79,8 @@ const TABS: { id: TabId; label: string; icon: React.ElementType; description: st
 ];
 
 export default function Creatives() {
-  const [activeTab, setActiveTab] = useState<TabId>('ugc_client_video');
+  // Default to product_image (only active tab)
+  const [activeTab, setActiveTab] = useState<TabId>('product_image');
   const { data: stats, isLoading: statsLoading } = useCreativeStats();
   const { data: folderId, isLoading: folderLoading } = useCreativesFolder();
 
@@ -158,13 +164,15 @@ export default function Creatives() {
               <TabsTrigger
                 key={tab.id}
                 value={tab.id}
-                className="flex flex-col items-center gap-1 py-3 px-2 data-[state=active]:bg-primary/10"
+                disabled={tab.disabled}
+                className="flex flex-col items-center gap-1 py-3 px-2 data-[state=active]:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <div className="flex items-center gap-2">
                   <Icon className="h-4 w-4" />
                   <span className="text-xs font-medium hidden lg:inline">{tab.label}</span>
+                  {tab.disabled && <span className="text-[10px] text-destructive">⚠️</span>}
                 </div>
-                {count > 0 && (
+                {count > 0 && !tab.disabled && (
                   <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                     {count}
                   </Badge>
