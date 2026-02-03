@@ -187,6 +187,8 @@ for (const modelToTry of modelsToTry) {
 
 ## AI Landing Page Generator (`ai-landing-page-generate`)
 
+### Versão Atual: v1.2.0
+
 ### Visão Geral
 Edge function para geração de landing pages via IA usando Lovable AI Gateway (Gemini 2.5 Flash).
 
@@ -195,9 +197,16 @@ Edge function para geração de landing pages via IA usando Lovable AI Gateway (
 |------|------|-----------|
 | Admin | `/landing-pages` | Listagem e gerenciamento |
 | Admin | `/landing-pages/:id` | Editor com chat IA |
-| Público | `/ai-lp/:slug` | Renderização da LP publicada |
+| Público | `/ai-lp/:slug` | Renderização da LP publicada (standalone) |
 
-**IMPORTANTE**: A rota `/ai-lp/` é standalone, fora do `StorefrontLayout`, para renderizar HTML puro.
+**IMPORTANTE**: 
+- A rota `/ai-lp/` é standalone, fora do `StorefrontLayout`, para renderizar HTML puro
+- O componente `StorefrontAILandingPage` resolve o tenant automaticamente pelo hostname (domínio customizado ou subdomínio da plataforma)
+
+### Fluxo de Resolução de Tenant (StorefrontAILandingPage)
+1. Verifica se há `tenantSlug` na URL (rota `/store/:tenantSlug/ai-lp/:lpSlug`)
+2. Se for subdomínio da plataforma (`tenant.shops.comandocentral.com.br`), extrai o slug
+3. Se for domínio customizado, busca na tabela `tenant_domains`
 
 ### Campos do Produto Coletados
 ```typescript
@@ -208,7 +217,7 @@ Edge function para geração de landing pages via IA usando Lovable AI Gateway (
   price, compare_at_price, cost_price,
   brand, vendor, product_type, tags,
   weight, width, height, depth,
-  seo_title, seo_description, meta_keywords
+  seo_title, seo_description
 }
 
 // Imagens da tabela product_images:
@@ -217,16 +226,22 @@ Edge function para geração de landing pages via IA usando Lovable AI Gateway (
 }
 ```
 
-### Regras do Prompt da IA
+### Regras do Prompt da IA (CRÍTICAS!)
 1. **URL de Referência** = APENAS inspiração visual/estrutural
    - ❌ NÃO copiar conteúdo, textos ou produtos
    - ✅ Copiar layout, cores, tipografia, estrutura
 2. **Produtos** = Usar EXCLUSIVAMENTE os selecionados
-   - Todas as imagens DEVEM ser usadas no HTML
+   - ⚠️ SEMPRE buscar `product_ids` salvos na landing page (mesmo em adjustments)
+   - Todas as imagens DEVEM ser usadas no HTML (`<img src="URL-REAL">`)
+   - ❌ NUNCA usar placeholder.com ou imagens genéricas
    - Preços, nomes e descrições devem ser exatos
 3. **Output** = HTML completo com `<!DOCTYPE html>`
    - CSS inline ou em `<style>`
    - Responsivo e otimizado para conversão
+
+### Comportamento Importante
+- Em ajustes (`promptType: 'adjustment'`), a função SEMPRE busca `product_ids` e `reference_url` salvos na landing page
+- Isso garante que edições subsequentes mantenham os produtos originais
 
 ### Mapeamento Tabela → Edge Function
 | Tabela | Edge Function |
