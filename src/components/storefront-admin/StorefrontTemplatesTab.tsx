@@ -44,7 +44,6 @@ import { ptBR } from 'date-fns/locale';
 import { CreateTemplateDialog } from './CreateTemplateDialog';
 import { RenameTemplateDialog } from './RenameTemplateDialog';
 import { PublishTemplateDialog } from './PublishTemplateDialog';
-import { PresetPreviewDialog } from './PresetPreviewDialog';
 
 // Preset thumbnails - ilustrações estáticas para cada tipo de template
 const PRESET_THUMBNAILS: Record<string, string> = {
@@ -52,6 +51,9 @@ const PRESET_THUMBNAILS: Record<string, string> = {
   standard: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=600&h=400&fit=crop&q=80',
   custom: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&h=400&fit=crop&q=80',
 };
+
+// URL da loja demo para preview do template padrão
+const DEMO_STORE_URL = 'https://respeiteohomem.comandocentral.com.br';
 
 const PRESET_INFO = {
   blank: {
@@ -87,7 +89,6 @@ export function StorefrontTemplatesTab() {
 
   // Dialog states
   const [createPreset, setCreatePreset] = useState<'blank' | null>(null); // Only blank needs name dialog
-  const [previewPreset, setPreviewPreset] = useState<'blank' | 'standard' | null>(null); // Preview dialog
   const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null);
   const [publishTarget, setPublishTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
@@ -109,11 +110,15 @@ export function StorefrontTemplatesTab() {
     navigate(`/storefront/builder?templateId=${result.id}&edit=home`);
   };
 
-  // Handler for standard preset (uses fixed name from preview dialog)
+  // Handler for standard preset (uses fixed name)
   const handleUseStandardPreset = async () => {
     const result = await createTemplate.mutateAsync({ name: 'Padrão', basePreset: 'standard' });
-    setPreviewPreset(null);
     navigate(`/storefront/builder?templateId=${result.id}&edit=home`);
+  };
+
+  // Handler to open demo store in new tab
+  const handleViewDemoStore = () => {
+    window.open(DEMO_STORE_URL, '_blank', 'noopener,noreferrer');
   };
 
   const handleRenameTemplate = async (newName: string) => {
@@ -314,7 +319,7 @@ export function StorefrontTemplatesTab() {
               thumbnail={PRESET_THUMBNAILS.standard}
               badge={PRESET_INFO.standard.badge}
               badgeVariant={PRESET_INFO.standard.badgeVariant}
-              onPreview={() => setPreviewPreset('standard')}
+              onPreview={handleViewDemoStore}
               onInstall={handleUseStandardPreset}
               installLabel="Usar este modelo"
               isLoading={createTemplate.isPending}
@@ -328,7 +333,7 @@ export function StorefrontTemplatesTab() {
             thumbnail={PRESET_THUMBNAILS.blank}
             badge={PRESET_INFO.blank.badge}
             badgeVariant={PRESET_INFO.blank.badgeVariant}
-            onPreview={() => setPreviewPreset('blank')}
+            onPreview={handleViewDemoStore}
             onInstall={() => setCreatePreset('blank')}
             installLabel="Criar novo modelo"
           />
@@ -336,22 +341,6 @@ export function StorefrontTemplatesTab() {
       </section>
 
       {/* Dialogs */}
-      {/* Preview Dialog for presets */}
-      <PresetPreviewDialog
-        open={previewPreset !== null}
-        onOpenChange={(open) => !open && setPreviewPreset(null)}
-        preset={previewPreset || 'standard'}
-        onUsePreset={() => {
-          if (previewPreset === 'standard') {
-            handleUseStandardPreset();
-          } else {
-            setPreviewPreset(null);
-            setCreatePreset('blank');
-          }
-        }}
-        isLoading={createTemplate.isPending}
-      />
-
       {/* Create Blank Template Dialog (only for blank preset) */}
       <CreateTemplateDialog
         open={createPreset !== null}
