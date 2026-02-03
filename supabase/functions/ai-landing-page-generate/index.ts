@@ -7,7 +7,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 
-const VERSION = "1.3.0"; // Added: support for user-attached media in prompts
+const VERSION = "1.3.1"; // Fix: use sort_order instead of position for product_images
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -109,10 +109,10 @@ serve(async (req) => {
         // Fetch ALL product images
         const { data: images, error: imagesError } = await supabase
           .from("product_images")
-          .select("product_id, url, is_primary, alt_text, position")
+          .select("product_id, url, is_primary, alt_text, sort_order")
           .in("product_id", productIds)
           .order("is_primary", { ascending: false })
-          .order("position", { ascending: true });
+          .order("sort_order", { ascending: true });
 
         if (imagesError) {
           console.error("[AI-LP-Generate] Error fetching images:", imagesError);
