@@ -43,6 +43,8 @@ import {
   ChevronRight,
   CreditCard,
   Loader2,
+  Eye,
+  Globe,
 } from 'lucide-react';
 import { getPreviewUrlWithValidation } from '@/lib/publicUrls';
 import { useNavigate } from 'react-router-dom';
@@ -61,6 +63,7 @@ interface BuilderToolbarProps {
   pageSlug?: string; // For institutional/landing pages
   templateSetId?: string; // For multi-template system - preserve across page changes
   isDirty: boolean;
+  isPublished?: boolean; // Whether the store is already published
   canUndo: boolean;
   canRedo: boolean;
   isSaving?: boolean;
@@ -89,6 +92,7 @@ export function BuilderToolbar({
   pageSlug,
   templateSetId,
   isDirty,
+  isPublished = false,
   canUndo,
   canRedo,
   isSaving = false,
@@ -227,7 +231,17 @@ export function BuilderToolbar({
 
   const previewResult = getPreviewResult();
 
-  const handleOpenPreview = () => {
+  // Preview: Opens store with ?preview=1 to see DRAFT content
+  const handleOpenDraftPreview = () => {
+    if (previewResult.url && primaryOrigin) {
+      const separator = previewResult.url.includes('?') ? '&' : '?';
+      const absoluteUrl = `${primaryOrigin}${previewResult.url}${separator}preview=1`;
+      window.open(absoluteUrl, '_blank');
+    }
+  };
+
+  // View Store: Opens published store (no preview flag)
+  const handleOpenPublishedStore = () => {
     if (previewResult.url && primaryOrigin) {
       const absoluteUrl = `${primaryOrigin}${previewResult.url}`;
       window.open(absoluteUrl, '_blank');
@@ -354,20 +368,39 @@ export function BuilderToolbar({
       {/* Right: Actions */}
       <div className="flex items-center gap-1.5">
 
-        {/* Open in new tab - disabled if no valid preview URL */}
+        {/* Preview button - opens store with DRAFT content (?preview=1) */}
         {tenantSlug && (
           <Button
             variant="outline"
-            size="icon"
-            onClick={handleOpenPreview}
+            size="sm"
+            onClick={handleOpenDraftPreview}
             disabled={!previewResult.canPreview}
             title={previewResult.canPreview 
-              ? "Abrir preview em nova aba" 
+              ? "Visualizar rascunho antes de publicar" 
               : previewResult.reason || "Não é possível visualizar"
             }
-            className="h-7 w-7"
+            className="gap-1 h-7 px-2 text-xs"
           >
-            <ExternalLink className="h-3.5 w-3.5" />
+            <Eye className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Preview</span>
+          </Button>
+        )}
+
+        {/* View Published Store - only shown when store is published */}
+        {tenantSlug && isPublished && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleOpenPublishedStore}
+            disabled={!previewResult.canPreview}
+            title={previewResult.canPreview 
+              ? "Abrir loja publicada" 
+              : previewResult.reason || "Não é possível visualizar"
+            }
+            className="gap-1 h-7 px-2 text-xs"
+          >
+            <Globe className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Ver loja</span>
           </Button>
         )}
 
