@@ -1,18 +1,20 @@
 # Geração de Imagens e Vídeos com IA — Regras Canônicas
 
-> **REGRA CRÍTICA:** A geração de mídia usa **Lovable AI Gateway (Gemini Image)** com pipeline completa de QA e **Label Lock v2.1**.
+> **REGRA CRÍTICA:** A geração de mídia usa **Lovable AI Gateway** com pipeline v3.0 **Dual Provider** (OpenAI + Gemini).
 
 ---
 
-## Arquitetura (v2.1 — Label Lock)
+## Arquitetura (v3.0 — Dual Provider)
 
 | Componente | Descrição |
 |------------|-----------|
-| **Provider** | Lovable AI Gateway (LOVABLE_API_KEY auto-provisionada) |
-| **Modelo (imagem alta qualidade)** | `google/gemini-3-pro-image-preview` |
-| **Modelo (imagem rápida)** | `google/gemini-2.5-flash-image` |
-| **Modelo (QA/OCR)** | `google/gemini-3-flash-preview` |
-| **Vídeos** | ⚠️ DESATIVADOS TEMPORARIAMENTE (migração em andamento) |
+| **Provedores** | OpenAI + Gemini (selecionável pelo usuário) |
+| **Modelo Gemini (alta qualidade)** | `google/gemini-3-pro-image-preview` |
+| **Modelo Gemini (rápido)** | `google/gemini-2.5-flash-image` |
+| **Modelo OpenAI** | Via Lovable AI Gateway |
+| **QA/Scoring** | `google/gemini-3-flash-preview` |
+| **Critério de Seleção** | **REALISMO** (40% peso) |
+| **Vídeos** | ⚠️ DESATIVADOS (migração em andamento) |
 
 ---
 
