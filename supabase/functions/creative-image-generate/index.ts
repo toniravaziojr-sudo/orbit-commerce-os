@@ -821,16 +821,22 @@ serve(async (req) => {
           })
           .eq('id', jobId);
 
-        // Register files
-        for (const img of uploadedImages) {
-          await supabase.from('files').insert({
+        // Register files in Drive (Meu Drive -> Criativos com IA)
+        for (let i = 0; i < uploadedImages.length; i++) {
+          const img = uploadedImages[i];
+          // Extract storage path from URL to ensure it matches the actual uploaded path
+          const urlMatch = img.url.match(/\/storage\/v1\/object\/public\/[^/]+\/(.+)$/);
+          const actualStoragePath = urlMatch ? urlMatch[1] : `${tenant_id}/${jobId}/${img.provider}_${i + 1}.png`;
+          
+          const { error: fileInsertError } = await supabase.from('files').insert({
             tenant_id,
             folder_id: folderId,
-            filename: `${product_name || 'Produto'}_${img.provider}${img.isWinner ? '_BEST' : ''}.png`,
-            original_name: `${img.provider}.png`,
-            storage_path: `${tenant_id}/${jobId}/${img.provider}.png`,
+            filename: `${product_name || 'Produto'}_${img.provider}${img.isWinner ? '_BEST' : ''}_${Date.now()}.png`,
+            original_name: `${img.provider}_${i + 1}.png`,
+            storage_path: actualStoragePath,
             file_type: 'image',
             mime_type: 'image/png',
+            size_bytes: null, // Could calculate from base64 but not critical
             created_by: userId,
             metadata: {
               source: 'creative_job_v3',
@@ -839,8 +845,17 @@ serve(async (req) => {
               provider: img.provider,
               is_winner: img.isWinner,
               scores: img.scores,
+              url: img.url,
+              bucket: 'media-assets',
+              system_managed: true,
             },
           });
+          
+          if (fileInsertError) {
+            console.error(`[creative-image] Error registering file to Drive:`, fileInsertError);
+          } else {
+            console.log(`[creative-image] File registered in Drive: ${actualStoragePath}`);
+          }
         }
 
         console.log(`[creative-image] Pipeline complete: ${uploadedImages.length} images in ${elapsedMs}ms`);

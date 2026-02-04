@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Image, Link, Facebook, Instagram, Youtube, Video, Plus, Loader2 } from "lucide-react";
+import { Calendar, Image, Link, Facebook, Instagram, Youtube, Video, Plus, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CampaignsList } from "@/components/media/CampaignsList";
 import { MediaVideoJobsList } from "@/components/media/MediaVideoJobsList";
+import { ImageGenerationTabV3 } from "@/components/creatives/image-generation";
 import { useYouTubeConnection } from "@/hooks/useYouTubeConnection";
 import { usePlatformOperator } from "@/hooks/usePlatformOperator";
 import { useAdminModeSafe } from "@/contexts/AdminModeContext";
@@ -106,6 +107,10 @@ export default function Media() {
             <Calendar className="h-4 w-4" />
             Campanhas
           </TabsTrigger>
+          <TabsTrigger value="images" className="gap-2">
+            <Sparkles className="h-4 w-4" />
+            Imagens IA
+          </TabsTrigger>
           <TabsTrigger value="videos" className="gap-2">
             <Video className="h-4 w-4" />
             Vídeos IA
@@ -122,6 +127,10 @@ export default function Media() {
 
         <TabsContent value="campaigns">
           <CampaignsList />
+        </TabsContent>
+
+        <TabsContent value="images">
+          <ImageGenerationTabV3 />
         </TabsContent>
 
         <TabsContent value="videos">
