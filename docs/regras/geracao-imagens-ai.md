@@ -1,6 +1,6 @@
-# Geração de Imagens e Vídeos com IA — Regras Canônicas
+# Geração de Imagens com IA — Regras Canônicas v3.0
 
-> **REGRA CRÍTICA:** A geração de mídia usa **Lovable AI Gateway** com pipeline v3.0 **Dual Provider** (OpenAI + Gemini).
+> **REGRA CRÍTICA:** A geração de mídia usa **Lovable AI Gateway** com pipeline v3.0 **Dual Provider** (OpenAI + Gemini) e critério de seleção por **REALISMO**.
 
 ---
 
@@ -8,17 +8,101 @@
 
 | Componente | Descrição |
 |------------|-----------|
-| **Provedores** | OpenAI + Gemini (selecionável pelo usuário) |
+| **Provedores** | OpenAI + Gemini (multi-seleção pelo usuário) |
 | **Modelo Gemini (alta qualidade)** | `google/gemini-3-pro-image-preview` |
 | **Modelo Gemini (rápido)** | `google/gemini-2.5-flash-image` |
-| **Modelo OpenAI** | Via Lovable AI Gateway |
+| **Modelo OpenAI** | Via Lovable AI Gateway (simulado via Gemini Pro) |
 | **QA/Scoring** | `google/gemini-3-flash-preview` |
 | **Critério de Seleção** | **REALISMO** (40% peso) |
-| **Vídeos** | ⚠️ DESATIVADOS (migração em andamento) |
 
 ---
 
-## Princípio Fundamental: NUNCA Confiar no Modelo para Texto
+## Estilos de Geração (v3.0)
+
+### 1. Produto + Fundo Natural (`product_natural`)
+
+Fotografia profissional do produto em cenário natural/studio.
+
+| Campo | Tipo | Opções |
+|-------|------|--------|
+| Ambiente | Select | `studio`, `bathroom`, `kitchen`, `outdoor`, `minimal` |
+| Iluminação | Select | `natural`, `studio`, `golden_hour`, `dramatic` |
+| Mood | Select | `clean`, `premium`, `organic`, `warm` |
+
+**Prompt gerado:**
+- Produto idêntico à referência
+- Ambiente natural sem pessoas
+- Iluminação profissional
+- Foco no produto, fundo desfocado
+
+### 2. Pessoa Interagindo (`person_interacting`)
+
+Pessoa usando/segurando o produto com aparência fotorrealista.
+
+| Campo | Tipo | Opções |
+|-------|------|--------|
+| Ação | Select | `holding`, `using`, `showing` |
+| Perfil da Pessoa | Text | Descrição livre (ex: "mulher jovem, cabelos castanhos") |
+| Tom | Select | `ugc`, `demo`, `review`, `lifestyle` |
+
+**Prompt gerado:**
+- Pessoa com aparência natural (não IA)
+- Mão segura pela BASE (rótulo frontal visível)
+- Modo Label Lock para substituição do produto
+
+### 3. Promocional (`promotional`)
+
+Imagem publicitária de alto impacto visual.
+
+| Campo | Tipo | Opções |
+|-------|------|--------|
+| Intensidade de Efeitos | Select | `low`, `medium`, `high` |
+| Elementos Visuais | Multi-select | `glow`, `particles`, `splash`, `rays`, `bokeh` |
+| Texto Overlay | Text | Opcional (pode falhar em legibilidade) |
+
+**Prompt gerado:**
+- Visual impactante para anúncios
+- Cores vibrantes e contraste alto
+- Efeitos não cobrem o rótulo
+
+---
+
+## Pipeline de Geração
+
+### Fluxo v3.0
+
+```
+1. DOWNLOAD: Baixar imagem do produto como referência
+2. PROMPT: Montar prompt otimizado por estilo
+3. GENERATE: Gerar com provedor(es) selecionado(s)
+4. QA: Avaliar REALISMO por scoring automático
+5. SELECT: Ordenar por score (realismo 40% peso)
+6. UPLOAD: Salvar no storage com metadados
+7. WINNER: Marcar melhor resultado como "is_winner: true"
+```
+
+### Comportamento por Seleção de Provedores
+
+| Cenário | Comportamento |
+|---------|---------------|
+| **Apenas Gemini** | Gera N variações com Gemini |
+| **Apenas OpenAI** | Gera N variações com OpenAI (via Gateway) |
+| **Ambos (recomendado)** | Gera com AMBOS em paralelo, seleciona o mais realista |
+
+### Scoring de Realismo
+
+| Critério | Peso | Descrição |
+|----------|------|-----------|
+| **Realism** | 40% | Parece foto real? Sem artefatos de IA? |
+| **Label** | 25% | Rótulo fiel e legível? |
+| **Quality** | 20% | Qualidade técnica (nitidez, resolução)? |
+| **Composition** | 15% | Enquadramento e composição adequados? |
+
+**Score mínimo para aprovação:** 70%
+
+---
+
+## Princípio Fundamental: Label Lock
 
 **REGRA CRÍTICA:** Modelos de geração de imagem distorcem texto quando tentam "desenhar letras". O rótulo do produto **NUNCA** deve ser gerado pela IA.
 
@@ -26,143 +110,162 @@
 
 ---
 
-## Pipeline Completa de Geração de Imagens (v2.1 — Label Lock)
+## UI/UX (aba Imagens v3.0)
 
-### Fluxo
+### Seleção de Provedores (topo)
 
-```
-1. CUTOUT: Gerar recorte do produto (fundo transparente)
-2. SCENE GENERATION: Gerar cena (pessoa + ambiente) SEM confiar no texto
-3. LABEL LOCK OVERLAY: Compor produto real sobre a cena gerada
-4. QA + OCR: Verificar tokens esperados via OCR
-5. SELECTION: Escolher melhor variação por score
-6. FALLBACK: Se tudo falhar, composição pura (mão vazia + produto real)
-```
+| Componente | Tipo | Default |
+|------------|------|---------|
+| OpenAI | Toggle | ✅ ON |
+| Gemini | Toggle | ✅ ON |
 
-### Passo 1 — Product Cutout
+**Regra:** Se ambos desligados → bloquear botão "Gerar".
 
-- Gera versão do produto com fundo 100% transparente
-- Usado para composição (Label Lock) e fallback
-- Preserva nitidez do texto/rótulo
+### Seleção de Estilo
 
-### Passo 2 — Scene Generation (Label Lock Mode)
+| Estilo | Descrição |
+|--------|-----------|
+| Produto + Fundo (Natural) | Foto de produto em ambiente |
+| Pessoa Interagindo | UGC/Lifestyle com modelo |
+| Promocional (Efeitos) | Visual publicitário impactante |
 
-**IMPORTANTE:** O prompt instrui o modelo a:
-- Gerar a cena (pessoa, cenário, iluminação)
-- NÃO se preocupar com o texto do rótulo (será substituído)
-- Posicionar a mão para segurar pela base (rótulo frontal visível)
+### Campos Comuns
 
-Regras no prompt:
-```
-O produto na imagem será SUBSTITUÍDO por composição — não se preocupe com o texto do rótulo.
-Foque em criar a CENA perfeita (pessoa, mãos, iluminação, fundo).
-A pessoa deve estar segurando o produto pela BASE/CORPO, deixando a FRENTE visível.
-```
+| Campo | Tipo | Obrigatório |
+|-------|------|-------------|
+| Produto | Select (catálogo) | ✅ Sim |
+| Contexto/Brief | Textarea | Não |
+| Formato | Select (`1:1`, `9:16`, `16:9`) | Não |
+| Variações | Slider (1-4) | Não |
 
-### Passo 3 — Label Lock Overlay
+### Campos Dinâmicos por Estilo
 
-**ETAPA CRÍTICA:** Compor o produto real sobre a cena gerada.
+Os campos específicos aparecem baseados no estilo selecionado.
 
-| Operação | Descrição |
-|----------|-----------|
-| Substituição | Produto na cena é substituído pelo cutout real |
-| Escala | Ajustada para encaixar naturalmente nas mãos |
-| Perspectiva | Rotação/ângulo coerente com a cena |
-| Iluminação | Integrada com a cena (sombras, reflexos) |
-| Oclusão | Dedos podem ficar levemente na frente (não cobrir rótulo) |
+### Estimativa de Custo
 
-**Resultado:** Rótulo 100% fiel, mesmo com zoom.
+| Provedor | Custo/Imagem |
+|----------|--------------|
+| Gemini | ~R$ 0,17 |
+| OpenAI | ~R$ 0,35 |
+| QA (por imagem) | ~R$ 0,04 |
 
-### Passo 4 — QA Automático + OCR
-
-| Critério | Peso | Descrição |
-|----------|------|-----------|
-| **Similarity** | 30% | Produto gerado parece igual ao original? |
-| **Label (OCR)** | 40% | Texto do rótulo está CORRETO e LEGÍVEL? |
-| **Quality** | 30% | Imagem tem qualidade profissional? |
-
-**Verificação de OCR:**
-1. Lê TODO o texto visível no rótulo
-2. Verifica presença dos tokens esperados (marca, nome)
-3. Avalia legibilidade (não borrado, não distorcido)
-
-- Score mínimo para aprovação: **70%**
-- Imagens com texto distorcido/ilegível: **reprovadas**
-
-### Passo 5 — Fallback por Composição Pura
-
-Se TODAS as variações falharem no QA:
-
-1. Gera cena com pessoa + **mão vazia**
-2. Compõe o produto real (cutout) na mão
-3. Ajusta sombra, iluminação e oclusão
-
-**Resultado:** Entrega garantida com 100% de fidelidade.
-
-### Passo 6 — Seleção Automática
-
-- Variações aprovadas ordenadas por score
-- A melhor é marcada como `is_best: true`
-- Arquivos nomeados com sufixo `_LL` (Label Lock aplicado)
+**Exemplo:** 2 variações com ambos provedores ≈ R$ 1,20
 
 ---
 
-## UI/UX (aba Imagens)
+## Edge Function: `creative-image-generate`
 
-### Formulário
+### Endpoint
 
-| Campo | Tipo | Default | Descrição |
-|-------|------|---------|-----------|
-| Produto | Select (obrigatório) | — | Selecionar do catálogo |
-| Cenário | Select | bathroom | Preset de ambiente |
-| Gênero | Select | any | Feminino/Masculino/Qualquer |
-| Faixa Etária | Select | middle | Jovem/Meia Idade/Maduro |
-| Pose | Select | holding | Segurando (rótulo frontal) / Usando / Mostrando |
-| Qualidade | Select | high | Standard/Alta |
-| **🔒 Rótulo 100% fiel** | Switch | **ON** | Label Lock ativado |
-| QA Automático + OCR | Switch | ON | Avaliar fidelidade com OCR |
-| Fallback Inteligente | Switch | ON | Composição se falhar |
-| Variações | Slider | 4 | 1-4 variações |
+```
+POST /functions/v1/creative-image-generate
+Authorization: Bearer <token>
+```
 
-### Histórico de Jobs
+### Body
 
-| Info | Descrição |
-|------|-----------|
-| Status | queued/running/succeeded/failed |
-| QA Score | Porcentagem de qualidade (0-100%) |
-| Label Score | Score específico do rótulo (OCR) |
-| OCR Text | Texto lido no rótulo |
-| Label Lock | ✅ Se composição foi aplicada |
-| Melhor Variação | Índice da variação selecionada |
-| Pipeline Version | v2.1.0 |
+```json
+{
+  "tenant_id": "uuid",
+  "product_id": "uuid",
+  "product_name": "Nome do Produto",
+  "product_image_url": "https://...",
+  "prompt": "Brief opcional",
+  "settings": {
+    "providers": ["openai", "gemini"],
+    "generation_style": "person_interacting",
+    "format": "1:1",
+    "variations": 2,
+    "style_config": {
+      "action": "holding",
+      "personProfile": "mulher jovem",
+      "tone": "lifestyle"
+    },
+    "enable_qa": true,
+    "enable_fallback": true,
+    "label_lock": true
+  }
+}
+```
+
+### Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "job_id": "uuid",
+    "status": "running",
+    "message": "Job iniciado. Acompanhe o progresso na lista.",
+    "pipeline_version": "3.0.0",
+    "providers": ["openai", "gemini"]
+  }
+}
+```
+
+### Resultado Final (creative_jobs.settings)
+
+```json
+{
+  "results": [
+    {
+      "url": "https://...",
+      "provider": "gemini",
+      "scores": {
+        "realism": 8.5,
+        "quality": 9.0,
+        "composition": 8.0,
+        "label": 7.5,
+        "overall": 0.82
+      },
+      "isWinner": true
+    }
+  ],
+  "winner_provider": "gemini",
+  "winner_score": 0.82
+}
+```
 
 ---
 
-## Regras de Negócio
+## Custos e Créditos
 
-| Regra | Descrição |
-|-------|-----------|
-| **Produto obrigatório** | Não gera sem produto selecionado |
-| **Imagem obrigatória** | Produto deve ter imagem cadastrada |
-| **Kit na mão** | PROIBIDO — kits em superfície |
-| **Label Lock** | ON por padrão (recomendado) |
-| **QA Score < 70%** | Imagem reprovada automaticamente |
-| **Texto distorcido** | Imagem reprovada (label_score baixo) |
-| **Todas reprovadas** | Fallback por composição pura |
+### Estimativa Antes da Geração
+
+| Configuração | Custo Estimado |
+|--------------|----------------|
+| 1 provedor, 1 variação | ~R$ 0,20 |
+| 1 provedor, 4 variações | ~R$ 0,80 |
+| 2 provedores, 2 variações | ~R$ 1,20 |
+| 2 provedores, 4 variações | ~R$ 2,40 |
+
+### Regras de Cobrança
+
+1. **Estimativa mostrada ANTES** de gerar
+2. **Débito apenas após sucesso**
+3. **Débito parcial** se um provedor falhar
+4. **Registro de erro** para debug
 
 ---
 
-## Custos Estimados (v2.1)
+## Armazenamento
 
-| Operação | Custo Estimado |
-|----------|----------------|
-| Cutout (gemini-flash-image) | ~R$ 0,05 |
-| Variação (gemini-pro-image) | ~R$ 0,10 |
-| Label Lock Overlay | ~R$ 0,08/variação |
-| QA + OCR (gemini-flash) | ~R$ 0,05/variação |
-| Fallback (composição pura) | ~R$ 0,25 |
+### Pasta de Destino
 
-**Exemplo:** 4 variações + Label Lock + QA ≈ R$ 0,95
+```
+/Criativos com IA/{job_id}/{provider}_{index}.png
+```
+
+### Registro em `files`
+
+| Campo | Valor |
+|-------|-------|
+| `source` | `creative_job_v3` |
+| `job_id` | UUID do job |
+| `provider` | `openai` ou `gemini` |
+| `is_winner` | `true` para melhor resultado |
+| `scores` | Objeto com scores de QA |
 
 ---
 
@@ -171,21 +274,9 @@ Se TODAS as variações falharem no QA:
 | Se for editar... | Leia este doc primeiro |
 |------------------|------------------------|
 | `supabase/functions/creative-image-generate/index.ts` | Este documento |
-| `src/components/creatives/ProductImageTab.tsx` | Este documento |
+| `src/components/creatives/image-generation/*.tsx` | Este documento |
 | `src/components/creatives/CreativeJobsList.tsx` | Este documento |
 | `src/hooks/useCreatives.ts` | Este documento |
-
----
-
-## Vídeos (DESATIVADOS)
-
-> ⚠️ **Funcionalidades de vídeo estão temporariamente desativadas** enquanto migramos de fal.ai para alternativa.
-
-Abas desativadas:
-- UGC Cliente (Vídeo)
-- UGC 100% IA
-- Vídeos de Produto
-- Avatar Mascote
 
 ---
 
@@ -195,11 +286,11 @@ Abas desativadas:
 |----------|---------|
 | "LOVABLE_API_KEY não configurada" | Verificar se Cloud está habilitado |
 | "Produto não tem imagem" | Cadastrar imagem principal do produto |
-| "Texto do rótulo distorcido" | Ativar Label Lock (ON por padrão) |
-| "QA Score baixo" | Aumentar variações para 4, Label Lock ON |
-| "Todas reprovadas" | Fallback será acionado automaticamente |
-| "Rate limit" | Aguardar alguns minutos e tentar novamente |
+| "Nenhum provedor selecionado" | Ativar ao menos OpenAI ou Gemini |
+| "QA Score baixo" | Aumentar variações, tentar outro estilo |
+| "Rate limit" | Aguardar alguns minutos |
 | "Créditos insuficientes" | Adicionar créditos no workspace |
+| "Texto do rótulo distorcido" | Ativar Label Lock (padrão) |
 
 ---
 
@@ -207,8 +298,22 @@ Abas desativadas:
 
 - [ ] Produto selecionado do catálogo
 - [ ] Imagem do produto disponível e pública
-- [ ] **Label Lock ativado (recomendado)**
-- [ ] QA automático + OCR habilitado
-- [ ] Fallback habilitado
-- [ ] Pelo menos 4 variações para maior sucesso
-- [ ] Pose "Segurando (rótulo frontal)" para melhor resultado
+- [ ] Ao menos um provedor ativo (OpenAI ou Gemini)
+- [ ] Estilo selecionado com campos preenchidos
+- [ ] Estimativa de custo exibida antes de gerar
+- [ ] Job criado com status "running"
+- [ ] Resultados ordenados por score de realismo
+- [ ] Winner marcado com `is_winner: true`
+- [ ] Arquivos salvos com metadados completos
+
+---
+
+## Vídeos (DESATIVADOS)
+
+> ⚠️ **Funcionalidades de vídeo estão temporariamente desativadas** enquanto migramos de fal.ai para alternativa (Runway, HeyGen, Akool, Sync Labs).
+
+Abas desativadas:
+- UGC Cliente (Vídeo)
+- UGC 100% IA
+- Vídeos de Produto
+- Avatar Mascote
