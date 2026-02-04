@@ -2,7 +2,14 @@
  * Gestão de Criativos — Página Principal
  * 
  * Módulo para geração de criativos com IA (vídeos e imagens)
- * 5 abas: UGC Real, UGC 100% IA, Vídeos de Produto, Imagens Produto, Avatar Mascote, Galeria
+ * 3 abas: Vídeos (unificada), Imagens, Galeria
+ * 
+ * Stack de Vídeo v2.0:
+ * - Runway ML (geração de vídeo)
+ * - ElevenLabs (TTS PT-BR)
+ * - Sync Labs (lipsync)
+ * - Akool (face swap)
+ * - HeyGen (avatares)
  */
 
 import { useState } from 'react';
@@ -14,61 +21,30 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Video, 
   Image, 
-  Bot, 
-  User,
   FolderOpen,
   Info,
   Loader2,
   LayoutGrid,
-  Wand2,
-  Package,
 } from 'lucide-react';
 import { useCreativeStats, useCreativesFolder } from '@/hooks/useCreatives';
-import { UGCClientTab } from '@/components/creatives/UGCClientTab';
-import { UGCAITab } from '@/components/creatives/UGCAITab';
-import { ProductVideoTab } from '@/components/creatives/ProductVideoTab';
+import { UnifiedVideoTab } from '@/components/creatives/UnifiedVideoTab';
 import { ProductImageTab } from '@/components/creatives/ProductImageTab';
-import { AvatarMascotTab } from '@/components/creatives/AvatarMascotTab';
 import { CreativeGallery } from '@/components/creatives/CreativeGallery';
-import type { CreativeType } from '@/types/creatives';
 
-type TabId = CreativeType | 'gallery';
+type TabId = 'videos' | 'images' | 'gallery';
 
-// Abas de vídeo temporariamente desativadas (migração para OpenAI em andamento)
-const TABS: { id: TabId; label: string; icon: React.ElementType; description: string; disabled?: boolean }[] = [
+const TABS: { id: TabId; label: string; icon: React.ElementType; description: string }[] = [
   {
-    id: 'ugc_client_video',
-    label: 'UGC Real',
-    icon: User,
-    description: '⚠️ Temporariamente desativado - Em manutenção',
-    disabled: true,
+    id: 'videos',
+    label: 'Vídeos',
+    icon: Video,
+    description: 'UGC, vídeos de produto e avatares com IA',
   },
   {
-    id: 'ugc_ai_video',
-    label: 'UGC 100% IA',
-    icon: Bot,
-    description: '⚠️ Temporariamente desativado - Em manutenção',
-    disabled: true,
-  },
-  {
-    id: 'product_video',
-    label: 'Vídeos Produto',
-    icon: Package,
-    description: '⚠️ Temporariamente desativado - Em manutenção',
-    disabled: true,
-  },
-  {
-    id: 'product_image',
+    id: 'images',
     label: 'Imagens',
     icon: Image,
-    description: 'Pessoas + cenário + produto do catálogo (OpenAI)',
-  },
-  {
-    id: 'avatar_mascot',
-    label: 'Mascote',
-    icon: Wand2,
-    description: '⚠️ Temporariamente desativado - Em manutenção',
-    disabled: true,
+    description: 'Imagens de produto com cenários e pessoas',
   },
   {
     id: 'gallery',
@@ -79,10 +55,10 @@ const TABS: { id: TabId; label: string; icon: React.ElementType; description: st
 ];
 
 export default function Creatives() {
-  // Default to product_image (only active tab)
-  const [activeTab, setActiveTab] = useState<TabId>('product_image');
-  const { data: stats, isLoading: statsLoading } = useCreativeStats();
-  const { data: folderId, isLoading: folderLoading } = useCreativesFolder();
+  // Default to videos tab
+  const [activeTab, setActiveTab] = useState<TabId>('videos');
+  const { data: stats } = useCreativeStats();
+  const { isLoading: folderLoading } = useCreativesFolder();
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -106,7 +82,7 @@ export default function Creatives() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Na Fila</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{stats?.queued || 0}</div>
+            <div className="text-2xl font-bold text-amber-600">{stats?.queued || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -114,7 +90,7 @@ export default function Creatives() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Processando</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{stats?.running || 0}</div>
+            <div className="text-2xl font-bold text-primary">{stats?.running || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -122,7 +98,7 @@ export default function Creatives() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Concluídos</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats?.succeeded || 0}</div>
+            <div className="text-2xl font-bold text-emerald-600">{stats?.succeeded || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -154,25 +130,21 @@ export default function Creatives() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabId)} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6 h-auto">
+        <TabsList className="grid w-full grid-cols-3 h-auto">
           {TABS.map((tab) => {
             const Icon = tab.icon;
-            const count = tab.id === 'gallery' 
-              ? (stats?.succeeded || 0) 
-              : (stats?.byType?.[tab.id as CreativeType] || 0);
+            const count = tab.id === 'gallery' ? (stats?.succeeded || 0) : 0;
             return (
               <TabsTrigger
                 key={tab.id}
                 value={tab.id}
-                disabled={tab.disabled}
-                className="flex flex-col items-center gap-1 py-3 px-2 data-[state=active]:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex flex-col items-center gap-1 py-3 px-2 data-[state=active]:bg-primary/10"
               >
                 <div className="flex items-center gap-2">
                   <Icon className="h-4 w-4" />
-                  <span className="text-xs font-medium hidden lg:inline">{tab.label}</span>
-                  {tab.disabled && <span className="text-[10px] text-destructive">⚠️</span>}
+                  <span className="text-sm font-medium">{tab.label}</span>
                 </div>
-                {count > 0 && !tab.disabled && (
+                {count > 0 && (
                   <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                     {count}
                   </Badge>
@@ -207,24 +179,12 @@ export default function Creatives() {
         </Card>
 
         {/* Tab Contents */}
-        <TabsContent value="ugc_client_video" className="mt-6">
-          <UGCClientTab />
+        <TabsContent value="videos" className="mt-6">
+          <UnifiedVideoTab />
         </TabsContent>
 
-        <TabsContent value="ugc_ai_video" className="mt-6">
-          <UGCAITab />
-        </TabsContent>
-
-        <TabsContent value="product_video" className="mt-6">
-          <ProductVideoTab />
-        </TabsContent>
-
-        <TabsContent value="product_image" className="mt-6">
+        <TabsContent value="images" className="mt-6">
           <ProductImageTab />
-        </TabsContent>
-
-        <TabsContent value="avatar_mascot" className="mt-6">
-          <AvatarMascotTab />
         </TabsContent>
 
         <TabsContent value="gallery" className="mt-6">
