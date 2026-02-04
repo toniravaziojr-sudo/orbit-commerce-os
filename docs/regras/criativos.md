@@ -4,8 +4,9 @@
 
 ## Arquivos Relacionados
 
-- `src/pages/Creatives.tsx` — Página principal
-- `src/components/creatives/*` — Componentes de cada aba
+- `src/pages/Creatives.tsx` — Página principal (3 abas: Vídeos, Imagens, Galeria)
+- `src/components/creatives/UnifiedVideoTab.tsx` — Aba unificada de vídeos
+- `src/components/creatives/video-forms/*` — Formulários por tipo de vídeo
 - `src/components/creatives/VoiceSelector.tsx` — Seletor de voz (preset ou custom)
 - `src/components/creatives/VideoJobsList.tsx` — Lista de jobs de vídeo v2.0
 - `src/hooks/useCreatives.ts` — Hook de dados (imagens)
@@ -15,24 +16,53 @@
 - `supabase/functions/creative-video-generate/index.ts` — Edge function de vídeo v2.0
 - `supabase/functions/creative-image-generate/index.ts` — Edge function de imagem
 
-## Estrutura de Abas
+---
 
-| Aba | Tipo | Descrição | Status |
-|-----|------|-----------|--------|
-| UGC Real | `ugc_client_video` | Vídeo gravado pelo cliente com transformações | ⚠️ Desativado (migração) |
-| UGC 100% IA | `ugc_ai_video` | Avatar IA apresentando produto | ⚠️ Desativado (migração) |
-| Vídeos Produto | `product_video` | Vídeos SEM pessoas (rotação, efeitos) | ⚠️ Desativado (migração) |
-| Imagens | `product_image` | Pessoas + cenário + produto | ✅ Ativo (OpenAI/Gemini) |
-| Mascote | `avatar_mascot` | Mascote animado falando | ⚠️ Desativado (migração) |
-| Galeria | `gallery` | Visualização de todos os criativos | ✅ Ativo |
+## Stack de Ferramentas v2.0
+
+| Ferramenta | Função | Uso Principal |
+|------------|--------|---------------|
+| **Runway ML** | Geração de vídeo (I2V/T2V) | UGC 100% IA, Vídeos de Produto |
+| **ElevenLabs** | Síntese de voz / Clonagem | TTS PT-BR para todos os tipos |
+| **Sync Labs** | Sincronização labial | Lipsync em vídeos com pessoas |
+| **Akool** | Troca de rostos (Face Swap) | UGC Transformado |
+| **HeyGen** | Avatares falantes | Mascotes e apresentadores IA |
 
 ---
 
-## Pipeline de Vídeo v2.0 (OpenAI/Sora)
+## Estrutura de Abas
 
-### Substituição do fal.ai
+| Aba | Descrição |
+|-----|-----------|
+| **Vídeos** | Aba unificada com dropdown de tipos |
+| **Imagens** | Geração de imagens (OpenAI/Gemini) |
+| **Galeria** | Visualização de todos os criativos |
 
-O pipeline v2.0 substitui completamente o fal.ai por OpenAI/Sora via Lovable AI Gateway.
+---
+
+## Tipos de Vídeo (Dropdown)
+
+| Tipo | ID | Pipeline | Descrição |
+|------|-----|----------|-----------|
+| UGC 100% IA | `ugc_ai` | Runway → ElevenLabs → Sync Labs | Pessoa IA segurando/usando produto |
+| UGC Transformado | `ugc_real` | Akool → ElevenLabs → Sync Labs | Transformar vídeo existente (rosto/voz/fundo) |
+| Vídeo de Produto | `product_video` | Runway + ElevenLabs | Vídeos promocionais sem pessoas |
+| Avatar / Mascote | `avatar_mascot` | HeyGen | Avatar/mascote animado falando |
+
+---
+
+## Formulários de Vídeo
+
+| Componente | Tipo | Campos Principais |
+|------------|------|-------------------|
+| `UGCAIForm` | `ugc_ai` | Produto, Prompt visual, Script, Voz |
+| `UGCRealForm` | `ugc_real` | Vídeo original, Opções de transformação |
+| `ProductVideoForm` | `product_video` | Produto, Estilo visual, Narração |
+| `AvatarMascotForm` | `avatar_mascot` | Avatar, Script, Personalidade |
+
+---
+
+## Pipeline de Vídeo v2.0
 
 ### Arquitetura de 6 Etapas
 
@@ -40,7 +70,7 @@ O pipeline v2.0 substitui completamente o fal.ai por OpenAI/Sora via Lovable AI 
 |-------|------|-----------|
 | 1 | `preprocess` | Gera cutout/mask do produto |
 | 2 | `rewrite` | Otimiza prompt com LLM → shot_plan estruturado |
-| 3 | `generate_candidates` | Produz N variações via Sora |
+| 3 | `generate_candidates` | Produz N variações via modelo de vídeo |
 | 4 | `qa_select` | Avalia qualidade (Similarity 40% + OCR 30% + Quality 30%) |
 | 5 | `retry` | Se falhar, retry com fidelidade rígida |
 | 6 | `fallback` | Se ainda falhar, composição do cutout real sobre cenário |
@@ -55,16 +85,6 @@ O pipeline v2.0 substitui completamente o fal.ai por OpenAI/Sora via Lovable AI 
 | `creative_preset_components` | Componentes modulares reutilizáveis |
 | `product_category_profiles` | Perfis de categoria com pesos de QA |
 
-### Hooks
-
-```typescript
-import { 
-  useVideoPresets, 
-  useVideoJobs, 
-  useCreateVideoJob 
-} from '@/hooks/useVideoCreatives';
-```
-
 ### Scores de QA
 
 | Score | Peso | Descrição |
@@ -78,48 +98,21 @@ Threshold de aprovação: **70%** (configurável por categoria)
 
 ---
 
-## Limitações Técnicas Fundamentais
-
-### 1. Áudio Nativo do Kling I2V
-
-**CRÍTICO**: O modelo Kling I2V v2.6 Pro (`fal-ai/kling-video/v2.6/pro/image-to-video`) suporta áudio nativo **apenas em Inglês e Chinês**.
-
-- `generate_audio: true` → Áudio em EN/ZH apenas
-- `generate_audio: false` → Vídeo mudo
-- **NÃO EXISTE** forma de forçar PT-BR via prompt no áudio nativo
-
-### 2. Solução para Português: Pipeline TTS
-
-Para narrações em Português, usar pipeline separado:
-
-```
-F5-TTS (gera áudio PT-BR) → Sync LipSync (mux/sincroniza)
-```
-
----
-
-## Pipeline de Áudio PT-BR (TTS)
-
-### Modelos Utilizados
-
-| Modelo | Endpoint | Função |
-|--------|----------|--------|
-| F5-TTS | `fal-ai/f5-tts` | Gera áudio PT-BR a partir de texto |
-| Sync LipSync | `fal-ai/sync-lipsync/v2/pro` | Sincroniza áudio com vídeo |
+## Pipeline de Áudio PT-BR (ElevenLabs)
 
 ### Fluxo por Tipo de Vídeo
 
 #### A) Vídeos de Produto (sem pessoas)
 
-1. Gerar vídeo com Kling I2V (`generate_audio: false`)
-2. Gerar áudio PT-BR via F5-TTS (script + voice preset)
-3. Mux áudio + vídeo via Sync LipSync → MP4 final
+1. Gerar vídeo com Runway ML
+2. Gerar áudio PT-BR via ElevenLabs (script + voice preset)
+3. Mux áudio + vídeo → MP4 final
 
 #### B) Talking Head / UGC com Rosto
 
-1. Gerar/transformar vídeo (PixVerse/Kling)
-2. Gerar áudio PT-BR via F5-TTS
-3. Aplicar Sync LipSync (sincroniza lábios)
+1. Gerar/transformar vídeo (Runway/Akool)
+2. Gerar áudio PT-BR via ElevenLabs
+3. Aplicar Sync Labs (sincroniza lábios)
 4. Resultado final com áudio sincronizado
 
 ### Requisitos para TTS
@@ -175,7 +168,7 @@ Presets são armazenados em `voice_presets` e **DEVEM** ter:
 - `ref_text` — Transcrição do áudio de referência
 - `is_active: true`
 
-**Sem `ref_audio_url`**, o F5-TTS não funciona!
+**Sem `ref_audio_url`**, o ElevenLabs não funciona!
 
 ---
 
@@ -184,20 +177,19 @@ Presets são armazenados em `voice_presets` e **DEVEM** ter:
 ### Enum `AudioMode`
 
 ```typescript
-type AudioMode = 'none' | 'native' | 'tts_ptbr';
+type AudioMode = 'none' | 'tts_ptbr';
 ```
 
 | Valor | Label | Comportamento |
 |-------|-------|---------------|
-| `none` | Sem áudio | `generate_audio: false`, sem TTS |
-| `native` | Nativo (EN/ZH) | `generate_audio: true` |
-| `tts_ptbr` | Português (TTS) | F5-TTS + Sync LipSync |
+| `none` | Sem áudio | Vídeo mudo |
+| `tts_ptbr` | Português (TTS) | ElevenLabs + Sync Labs |
 
 ### UI Condicional
 
 Quando `audioMode === 'tts_ptbr'`:
 - Exibir campo **Script** (textarea obrigatória)
-- Exibir select **Voz** (voice presets ativos com `ref_audio_url`)
+- Exibir **VoiceSelector** (presets ou custom)
 
 ---
 
@@ -207,15 +199,11 @@ Quando `audioMode === 'tts_ptbr'`:
 
 | Step | Modelo | Custo Base |
 |------|--------|------------|
-| Kling I2V | `fal-ai/kling-video/v2.6/pro` | $0.32/5s |
-| F5-TTS | `fal-ai/f5-tts` | $0.01/request |
-| Sync LipSync | `fal-ai/sync-lipsync/v2/pro` | $0.05/request |
-
-### Fórmula Total
-
-```
-custo_total = custo_video + (tts_ptbr ? custo_tts + custo_sync : 0)
-```
+| Runway ML | Gen-3 Alpha | ~$0.50/5s |
+| ElevenLabs | TTS | ~$0.30/1000 chars |
+| Sync Labs | Lipsync | ~$0.10/request |
+| Akool | Face Swap | ~$0.20/request |
+| HeyGen | Avatar | Variável por plano |
 
 ---
 
@@ -228,7 +216,7 @@ interface CreativeSettings {
   // ... outros campos
   
   // Áudio
-  audio_mode: 'none' | 'native' | 'tts_ptbr';
+  audio_mode: 'none' | 'tts_ptbr';
   tts_script?: string;        // Texto para narração
   voice_preset_id?: string;   // UUID do preset
   
@@ -255,61 +243,28 @@ apresentando o produto em um escritório moderno..."
 - Campos separados para `personGender`, `personAge`, `scenarioPreset`
 - Conflita com descrições do prompt
 
-### Prompt NÃO Controla Idioma do Áudio
-
-O idioma do áudio depende **exclusivamente** do `audio_mode`:
-- `native` → EN/ZH (independente do prompt)
-- `tts_ptbr` → PT-BR via TTS (independente do prompt)
-
 ---
 
 ## Proibições
 
 | Proibido | Motivo |
 |----------|--------|
-| Prometer PT-BR no áudio nativo | Kling I2V não suporta |
 | Campos de personagem na UI | Conflita com prompt |
-| Usar TTS sem `ref_audio_url` | F5-TTS requer áudio de referência |
+| Usar TTS sem `ref_audio_url` | ElevenLabs requer referência |
 | Muxar áudio via Edge Function | Deno não tem ffmpeg |
-
----
-
-## Edge Function: creative-process
-
-### Pipeline Steps
-
-```typescript
-const steps = [
-  { name: 'tts', model: 'fal-ai/f5-tts' },           // Se tts_ptbr
-  { name: 'video', model: 'fal-ai/kling-video/...' },
-  { name: 'sync', model: 'fal-ai/sync-lipsync/...' }, // Se tts_ptbr
-];
-```
-
-### Requisitos para TTS
-
-Antes de chamar F5-TTS, buscar o preset:
-
-```typescript
-const { data: preset } = await supabase
-  .from('voice_presets')
-  .select('ref_audio_url, ref_text')
-  .eq('id', settings.voice_preset_id)
-  .single();
-
-if (!preset?.ref_audio_url) {
-  throw new Error('Voice preset sem ref_audio_url');
-}
-```
 
 ---
 
 ## Checklist de Implementação
 
+- [x] Aba unificada de vídeos com dropdown
+- [x] Formulários específicos por tipo
+- [ ] Integração Runway ML (Gen-3 Alpha)
+- [ ] Integração ElevenLabs (conector disponível)
+- [ ] Integração Sync Labs (lipsync)
+- [ ] Integração Akool (face swap)
+- [ ] Integração HeyGen (avatares)
 - [ ] Campo `audio_mode` no formulário
 - [ ] UI condicional para script + voice preset
-- [ ] Hook `useVoicePresets` filtrando `ref_audio_url`
-- [ ] Edge function com step TTS antes do vídeo
-- [ ] Edge function com step Sync após vídeo
-- [ ] Cálculo de custo incluindo TTS + Sync
-- [ ] Tratamento de erro se preset sem `ref_audio_url`
+- [ ] Edge functions para cada pipeline
+- [ ] Cálculo de custo dinâmico
