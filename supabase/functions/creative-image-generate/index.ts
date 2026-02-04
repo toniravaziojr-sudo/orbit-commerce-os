@@ -964,291 +964,304 @@ serve(async (req) => {
     const jobId = job.id;
     console.log(`[creative-image] Job created: ${jobId}`);
 
-    // ========== PIPELINE EXECUTION (LABEL LOCK v2.1) ==========
-
-    // STEP 1: Download product image
-    const productBase64 = await downloadImageAsBase64(product_image_url);
-    if (!productBase64) {
-      await supabase.from('creative_jobs').update({ 
-        status: 'failed', 
-        error_message: 'Não foi possível baixar a imagem do produto' 
-      }).eq('id', jobId);
-      
-      return new Response(
-        JSON.stringify({ success: false, error: 'Falha ao baixar imagem do produto' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // STEP 2: Generate product cutout (CRÍTICO para Label Lock)
-    await supabase.from('creative_jobs').update({ current_step: 0 }).eq('id', jobId);
+    // ========== BACKGROUND PROCESSING (ASYNC) ==========
+    // Retorna 202 imediatamente e processa em background
+    // Isso evita timeout de conexão HTTP (~60s)
     
-    const cutoutResult = await generateProductCutout(lovableApiKey, productBase64, product_name || 'Produto');
-    const productCutoutBase64 = cutoutResult.cutoutBase64 || productBase64; // Fallback to original if cutout fails
-
-    // STEP 3: Build prompt (Label Lock mode)
-    const { promptFinal, negativePrompt, shotPlan } = rewritePromptLabelLock({
-      productName: product_name || 'Produto',
-      scene,
-      gender,
-      ageRange: age_range,
-      pose,
-      additionalPrompt: prompt,
-      labelLock: label_lock,
-      isKit: false,
-    });
-
-    // STEP 4: Generate scenes + apply Label Lock
-    const variants: GeneratedVariant[] = [];
-    let totalCostCents = 0;
-    let currentStepIndex = 1;
-
-    for (let i = 0; i < numVariations; i++) {
-      console.log(`[creative-image] Generating scene ${i + 1}/${numVariations}...`);
-      await supabase.from('creative_jobs').update({ current_step: currentStepIndex }).eq('id', jobId);
-      currentStepIndex++;
-
-      const variantPrompt = i === 0 
-        ? promptFinal 
-        : `${promptFinal}\n\n🔄 VARIAÇÃO ${i + 1}: Crie versão diferente. Varie sutilmente: ângulo, pose, expressão ou iluminação.`;
-
-      // Generate scene
-      const sceneResult = await generateSceneForLabelLock(
-        lovableApiKey,
-        variantPrompt,
-        productBase64,
-        quality === 'high' ? 'high' : 'standard'
-      );
-
-      if (!sceneResult.imageBase64) {
-        console.error(`[creative-image] Scene ${i + 1} failed:`, sceneResult.error);
-        continue;
-      }
-
-      totalCostCents += Math.ceil(COST_PER_IMAGE_USD * CREDIT_MARKUP * USD_TO_BRL * 100);
-
-      // Apply Label Lock overlay (substitui produto pelo cutout real)
-      if (label_lock) {
-        console.log(`[creative-image] Applying Label Lock to variant ${i + 1}...`);
-        await supabase.from('creative_jobs').update({ current_step: currentStepIndex }).eq('id', jobId);
-        currentStepIndex++;
-
-        const labelLockResult = await applyLabelLockOverlay(
-          lovableApiKey,
-          sceneResult.imageBase64,
-          productCutoutBase64,
-          product_name || 'Produto'
-        );
-
-        if (labelLockResult.imageBase64) {
-          variants.push({
-            imageBase64: labelLockResult.imageBase64,
-            model: sceneResult.model,
-            variantIndex: i + 1,
-            isLabelLock: true,
-          });
-          totalCostCents += Math.ceil(COST_PER_COMPOSITE_USD * CREDIT_MARKUP * USD_TO_BRL * 100);
-        } else {
-          // Se Label Lock falhar, usar cena original
-          console.warn(`[creative-image] Label Lock failed for variant ${i + 1}, using original scene`);
-          variants.push({
-            imageBase64: sceneResult.imageBase64,
-            model: sceneResult.model,
-            variantIndex: i + 1,
-            isLabelLock: false,
-          });
-        }
-      } else {
-        // Sem Label Lock, usar cena diretamente
-        variants.push({
-          imageBase64: sceneResult.imageBase64,
-          model: sceneResult.model,
-          variantIndex: i + 1,
-          isLabelLock: false,
-        });
-      }
-    }
-
-    // STEP 5: QA Evaluation with OCR
-    if (enable_qa && variants.length > 0) {
-      console.log(`[creative-image] Running QA+OCR on ${variants.length} variants...`);
-      await supabase.from('creative_jobs').update({ current_step: currentStepIndex }).eq('id', jobId);
-      currentStepIndex++;
-
-      for (const variant of variants) {
-        const qa = await evaluateImageQAWithOCR(
-          lovableApiKey,
-          variant.imageBase64,
-          productBase64,
-          product_name || 'Produto',
-          labelTokens
-        );
-        variant.qa = qa;
-        totalCostCents += Math.ceil(COST_PER_QA_USD * CREDIT_MARKUP * USD_TO_BRL * 100);
-      }
-    }
-
-    // STEP 6: Check if all failed QA → Pure Composite Fallback
-    const passedVariants = variants.filter(v => !enable_qa || v.qa?.passed !== false);
-    
-    if (passedVariants.length === 0 && enable_fallback) {
-      console.log(`[creative-image] All variants failed QA, generating PURE COMPOSITE fallback...`);
-      
-      const fallbackResult = await generatePureComposite(
-        lovableApiKey,
-        productCutoutBase64,
-        product_name || 'Produto',
-        scene,
-        gender,
-        pose
-      );
-
-      if (fallbackResult.imageBase64) {
-        variants.push({
-          imageBase64: fallbackResult.imageBase64,
-          model: 'pure-composite-fallback',
-          variantIndex: variants.length + 1,
-          isFallback: true,
-          isLabelLock: true,
-          qa: { 
-            passed: true, 
-            score: 0.85, 
-            similarityScore: 10, 
-            labelScore: 10, // 100% fidelidade garantida
-            qualityScore: 7, 
-            reason: 'Pure composite fallback - 100% label fidelity guaranteed' 
-          },
-        });
-        totalCostCents += Math.ceil(COST_PER_IMAGE_USD * 2.5 * CREDIT_MARKUP * USD_TO_BRL * 100);
-      }
-    }
-
-    // STEP 7: Select best variant
-    await supabase.from('creative_jobs').update({ current_step: currentStepIndex }).eq('id', jobId);
-    
-    const finalVariants = variants
-      .filter(v => !enable_qa || v.qa?.passed !== false || v.isFallback)
-      .sort((a, b) => (b.qa?.score || 0.5) - (a.qa?.score || 0.5));
-
-    // STEP 8: Upload to storage
-    const uploadedImages: { url: string; model: string; variantIndex: number; qa?: QAResult; isBest: boolean; isLabelLock: boolean }[] = [];
-    
-    for (let i = 0; i < finalVariants.length; i++) {
-      const variant = finalVariants[i];
-      const storagePath = `${tenant_id}/${jobId}/variant_${variant.variantIndex}.png`;
-      
+    const processPipeline = async () => {
       try {
-        const binaryData = Uint8Array.from(atob(variant.imageBase64), c => c.charCodeAt(0));
-        
-        const { error: uploadError } = await supabase.storage
-          .from('media-assets')
-          .upload(storagePath, binaryData, { contentType: 'image/png', upsert: true });
-
-        if (uploadError) {
-          console.error(`[creative-image] Upload error:`, uploadError);
-          continue;
+        // STEP 1: Download product image
+        const productBase64 = await downloadImageAsBase64(product_image_url);
+        if (!productBase64) {
+          await supabase.from('creative_jobs').update({ 
+            status: 'failed', 
+            error_message: 'Não foi possível baixar a imagem do produto',
+            completed_at: new Date().toISOString(),
+          }).eq('id', jobId);
+          return;
         }
 
-        const { data: publicUrlData } = supabase.storage
-          .from('media-assets')
-          .getPublicUrl(storagePath);
+        // STEP 2: Generate product cutout (CRÍTICO para Label Lock)
+        await supabase.from('creative_jobs').update({ current_step: 0 }).eq('id', jobId);
+        
+        const cutoutResult = await generateProductCutout(lovableApiKey, productBase64, product_name || 'Produto');
+        const productCutoutBase64 = cutoutResult.cutoutBase64 || productBase64;
 
-        if (publicUrlData?.publicUrl) {
-          uploadedImages.push({
-            url: publicUrlData.publicUrl,
-            model: variant.model,
-            variantIndex: variant.variantIndex,
-            qa: variant.qa,
-            isBest: i === 0, // First is best (sorted by score)
-            isLabelLock: variant.isLabelLock || false,
+        // STEP 3: Build prompt (Label Lock mode)
+        const { promptFinal, negativePrompt, shotPlan } = rewritePromptLabelLock({
+          productName: product_name || 'Produto',
+          scene,
+          gender,
+          ageRange: age_range,
+          pose,
+          additionalPrompt: prompt,
+          labelLock: label_lock,
+          isKit: false,
+        });
+
+        // STEP 4: Generate scenes + apply Label Lock
+        const variants: GeneratedVariant[] = [];
+        let totalCostCents = 0;
+        let currentStepIndex = 1;
+
+        for (let i = 0; i < numVariations; i++) {
+          console.log(`[creative-image] Generating scene ${i + 1}/${numVariations}...`);
+          await supabase.from('creative_jobs').update({ current_step: currentStepIndex }).eq('id', jobId);
+          currentStepIndex++;
+
+          const variantPrompt = i === 0 
+            ? promptFinal 
+            : `${promptFinal}\n\n🔄 VARIAÇÃO ${i + 1}: Crie versão diferente. Varie sutilmente: ângulo, pose, expressão ou iluminação.`;
+
+          const sceneResult = await generateSceneForLabelLock(
+            lovableApiKey,
+            variantPrompt,
+            productBase64,
+            quality === 'high' ? 'high' : 'standard'
+          );
+
+          if (!sceneResult.imageBase64) {
+            console.error(`[creative-image] Scene ${i + 1} failed:`, sceneResult.error);
+            continue;
+          }
+
+          totalCostCents += Math.ceil(COST_PER_IMAGE_USD * CREDIT_MARKUP * USD_TO_BRL * 100);
+
+          if (label_lock) {
+            console.log(`[creative-image] Applying Label Lock to variant ${i + 1}...`);
+            await supabase.from('creative_jobs').update({ current_step: currentStepIndex }).eq('id', jobId);
+            currentStepIndex++;
+
+            const labelLockResult = await applyLabelLockOverlay(
+              lovableApiKey,
+              sceneResult.imageBase64,
+              productCutoutBase64,
+              product_name || 'Produto'
+            );
+
+            if (labelLockResult.imageBase64) {
+              variants.push({
+                imageBase64: labelLockResult.imageBase64,
+                model: sceneResult.model,
+                variantIndex: i + 1,
+                isLabelLock: true,
+              });
+              totalCostCents += Math.ceil(COST_PER_COMPOSITE_USD * CREDIT_MARKUP * USD_TO_BRL * 100);
+            } else {
+              console.warn(`[creative-image] Label Lock failed for variant ${i + 1}, using original scene`);
+              variants.push({
+                imageBase64: sceneResult.imageBase64,
+                model: sceneResult.model,
+                variantIndex: i + 1,
+                isLabelLock: false,
+              });
+            }
+          } else {
+            variants.push({
+              imageBase64: sceneResult.imageBase64,
+              model: sceneResult.model,
+              variantIndex: i + 1,
+              isLabelLock: false,
+            });
+          }
+        }
+
+        // STEP 5: QA Evaluation with OCR
+        if (enable_qa && variants.length > 0) {
+          console.log(`[creative-image] Running QA+OCR on ${variants.length} variants...`);
+          await supabase.from('creative_jobs').update({ current_step: currentStepIndex }).eq('id', jobId);
+          currentStepIndex++;
+
+          for (const variant of variants) {
+            const qa = await evaluateImageQAWithOCR(
+              lovableApiKey,
+              variant.imageBase64,
+              productBase64,
+              product_name || 'Produto',
+              labelTokens
+            );
+            variant.qa = qa;
+            totalCostCents += Math.ceil(COST_PER_QA_USD * CREDIT_MARKUP * USD_TO_BRL * 100);
+          }
+        }
+
+        // STEP 6: Check if all failed QA → Pure Composite Fallback
+        const passedVariants = variants.filter(v => !enable_qa || v.qa?.passed !== false);
+        
+        if (passedVariants.length === 0 && enable_fallback) {
+          console.log(`[creative-image] All variants failed QA, generating PURE COMPOSITE fallback...`);
+          
+          const fallbackResult = await generatePureComposite(
+            lovableApiKey,
+            productCutoutBase64,
+            product_name || 'Produto',
+            scene,
+            gender,
+            pose
+          );
+
+          if (fallbackResult.imageBase64) {
+            variants.push({
+              imageBase64: fallbackResult.imageBase64,
+              model: 'pure-composite-fallback',
+              variantIndex: variants.length + 1,
+              isFallback: true,
+              isLabelLock: true,
+              qa: { 
+                passed: true, 
+                score: 0.85, 
+                similarityScore: 10, 
+                labelScore: 10,
+                qualityScore: 7, 
+                reason: 'Pure composite fallback - 100% label fidelity guaranteed' 
+              },
+            });
+            totalCostCents += Math.ceil(COST_PER_IMAGE_USD * 2.5 * CREDIT_MARKUP * USD_TO_BRL * 100);
+          }
+        }
+
+        // STEP 7: Select best variant
+        await supabase.from('creative_jobs').update({ current_step: currentStepIndex }).eq('id', jobId);
+        
+        const finalVariants = variants
+          .filter(v => !enable_qa || v.qa?.passed !== false || v.isFallback)
+          .sort((a, b) => (b.qa?.score || 0.5) - (a.qa?.score || 0.5));
+
+        // STEP 8: Upload to storage
+        const uploadedImages: { url: string; model: string; variantIndex: number; qa?: QAResult; isBest: boolean; isLabelLock: boolean }[] = [];
+        
+        for (let i = 0; i < finalVariants.length; i++) {
+          const variant = finalVariants[i];
+          const storagePath = `${tenant_id}/${jobId}/variant_${variant.variantIndex}.png`;
+          
+          try {
+            const binaryData = Uint8Array.from(atob(variant.imageBase64), c => c.charCodeAt(0));
+            
+            const { error: uploadError } = await supabase.storage
+              .from('media-assets')
+              .upload(storagePath, binaryData, { contentType: 'image/png', upsert: true });
+
+            if (uploadError) {
+              console.error(`[creative-image] Upload error:`, uploadError);
+              continue;
+            }
+
+            const { data: publicUrlData } = supabase.storage
+              .from('media-assets')
+              .getPublicUrl(storagePath);
+
+            if (publicUrlData?.publicUrl) {
+              uploadedImages.push({
+                url: publicUrlData.publicUrl,
+                model: variant.model,
+                variantIndex: variant.variantIndex,
+                qa: variant.qa,
+                isBest: i === 0,
+                isLabelLock: variant.isLabelLock || false,
+              });
+            }
+          } catch (error) {
+            console.error(`[creative-image] Upload error:`, error);
+          }
+        }
+
+        // STEP 9: Save results
+        const elapsedMs = Date.now() - startTime;
+        const finalStatus = uploadedImages.length > 0 ? 'succeeded' : 'failed';
+        const bestImage = uploadedImages.find(img => img.isBest);
+
+        await supabase
+          .from('creative_jobs')
+          .update({
+            status: finalStatus,
+            output_urls: uploadedImages.map(img => img.url),
+            cost_cents: totalCostCents,
+            processing_time_ms: elapsedMs,
+            completed_at: new Date().toISOString(),
+            error_message: uploadedImages.length === 0 ? 'Nenhuma imagem aprovada pelo QA' : null,
+            settings: {
+              ...job.settings,
+              actual_variants: uploadedImages.length,
+              best_variant_index: bestImage?.variantIndex,
+              best_score: bestImage?.qa?.score,
+              label_lock_applied: uploadedImages.filter(img => img.isLabelLock).length,
+              qa_results: uploadedImages.map(img => ({
+                variantIndex: img.variantIndex,
+                score: img.qa?.score,
+                passed: img.qa?.passed,
+                labelScore: img.qa?.labelScore,
+                ocrText: img.qa?.ocrText?.substring(0, 100),
+                tokensFound: img.qa?.tokensFound,
+                tokensMissing: img.qa?.tokensMissing,
+                reason: img.qa?.reason,
+                isLabelLock: img.isLabelLock,
+              })),
+            },
+          })
+          .eq('id', jobId);
+
+        // Register files in drive
+        for (const img of uploadedImages) {
+          await supabase.from('files').insert({
+            tenant_id,
+            folder_id: folderId,
+            filename: `Criativo_${(product_name || 'Produto').substring(0, 20)}_v${img.variantIndex}${img.isBest ? '_BEST' : ''}${img.isLabelLock ? '_LL' : ''}.png`,
+            original_name: `variant_${img.variantIndex}.png`,
+            storage_path: `${tenant_id}/${jobId}/variant_${img.variantIndex}.png`,
+            file_type: 'image',
+            mime_type: 'image/png',
+            created_by: userId,
+            metadata: {
+              source: 'creative_job',
+              job_id: jobId,
+              product_id,
+              variant_index: img.variantIndex,
+              model: img.model,
+              is_best: img.isBest,
+              is_label_lock: img.isLabelLock,
+              qa_score: img.qa?.score,
+              label_score: img.qa?.labelScore,
+            },
           });
         }
-      } catch (error) {
-        console.error(`[creative-image] Upload error:`, error);
+
+        console.log(`[creative-image] LABEL LOCK Pipeline complete: ${uploadedImages.length} images in ${elapsedMs}ms`);
+        
+      } catch (pipelineError) {
+        console.error(`[creative-image] Pipeline error:`, pipelineError);
+        await supabase.from('creative_jobs').update({
+          status: 'failed',
+          error_message: String(pipelineError),
+          completed_at: new Date().toISOString(),
+        }).eq('id', jobId);
       }
+    };
+
+    // Usar EdgeRuntime.waitUntil para processar em background
+    // @ts-ignore - EdgeRuntime é disponível no Deno Deploy
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(processPipeline());
+    } else {
+      // Fallback: processar sem aguardar (não ideal, mas funciona)
+      processPipeline().catch(console.error);
     }
 
-    // STEP 9: Save results
-    const elapsedMs = Date.now() - startTime;
-    const finalStatus = uploadedImages.length > 0 ? 'succeeded' : 'failed';
-    const bestImage = uploadedImages.find(img => img.isBest);
-
-    await supabase
-      .from('creative_jobs')
-      .update({
-        status: finalStatus,
-        output_urls: uploadedImages.map(img => img.url),
-        cost_cents: totalCostCents,
-        processing_time_ms: elapsedMs,
-        completed_at: new Date().toISOString(),
-        error_message: uploadedImages.length === 0 ? 'Nenhuma imagem aprovada pelo QA' : null,
-        settings: {
-          ...job.settings,
-          actual_variants: uploadedImages.length,
-          best_variant_index: bestImage?.variantIndex,
-          best_score: bestImage?.qa?.score,
-          label_lock_applied: uploadedImages.filter(img => img.isLabelLock).length,
-          qa_results: uploadedImages.map(img => ({
-            variantIndex: img.variantIndex,
-            score: img.qa?.score,
-            passed: img.qa?.passed,
-            labelScore: img.qa?.labelScore,
-            ocrText: img.qa?.ocrText?.substring(0, 100),
-            tokensFound: img.qa?.tokensFound,
-            tokensMissing: img.qa?.tokensMissing,
-            reason: img.qa?.reason,
-            isLabelLock: img.isLabelLock,
-          })),
-        },
-      })
-      .eq('id', jobId);
-
-    // Register files in drive
-    for (const img of uploadedImages) {
-      await supabase.from('files').insert({
-        tenant_id,
-        folder_id: folderId,
-        filename: `Criativo_${(product_name || 'Produto').substring(0, 20)}_v${img.variantIndex}${img.isBest ? '_BEST' : ''}${img.isLabelLock ? '_LL' : ''}.png`,
-        original_name: `variant_${img.variantIndex}.png`,
-        storage_path: `${tenant_id}/${jobId}/variant_${img.variantIndex}.png`,
-        file_type: 'image',
-        mime_type: 'image/png',
-        created_by: userId,
-        metadata: {
-          source: 'creative_job',
-          job_id: jobId,
-          product_id,
-          variant_index: img.variantIndex,
-          model: img.model,
-          is_best: img.isBest,
-          is_label_lock: img.isLabelLock,
-          qa_score: img.qa?.score,
-          label_score: img.qa?.labelScore,
-        },
-      });
-    }
-
-    console.log(`[creative-image] LABEL LOCK Pipeline complete: ${uploadedImages.length} images in ${elapsedMs}ms`);
-
+    // Retornar 202 Accepted imediatamente
+    // Frontend fará polling do status do job
+    console.log(`[creative-image] Job ${jobId} queued for background processing`);
+    
     return new Response(
       JSON.stringify({
-        success: uploadedImages.length > 0,
+        success: true,
         data: {
           job_id: jobId,
-          status: finalStatus,
-          generated_count: uploadedImages.length,
-          requested_count: numVariations,
-          label_lock_count: uploadedImages.filter(img => img.isLabelLock).length,
-          best_image: bestImage?.url,
-          best_score: bestImage?.qa?.score,
-          best_label_score: bestImage?.qa?.labelScore,
-          output_urls: uploadedImages.map(img => img.url),
-          cost_cents: totalCostCents,
-          processing_time_ms: elapsedMs,
+          status: 'running',
+          message: 'Job iniciado. Acompanhe o progresso na lista de jobs.',
           pipeline_version: VERSION,
         },
       }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
