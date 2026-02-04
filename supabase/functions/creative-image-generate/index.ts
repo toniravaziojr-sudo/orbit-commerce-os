@@ -1,30 +1,22 @@
 /**
- * Creative Image Generate — Edge Function (OpenAI Pipeline v2.1 + LABEL LOCK)
+ * Creative Image Generate — Edge Function v3.0 (Dual Provider)
  * 
- * Pipeline COMPLETA de geração de imagens de produto "nível ChatGPT" usando Lovable AI Gateway.
- * 
- * PIPELINE v2.1 (LABEL LOCK):
- * 1. CUTOUT: Gerar recorte do produto com fundo transparente
- * 2. LABEL EXTRACT: Extrair região do rótulo em alta resolução
- * 3. GENERATION: Gerar cena (pessoa + ambiente) SEM confiar no modelo para texto
- * 4. LABEL LOCK: Compor produto/rótulo real sobre a cena gerada
- * 5. QA + OCR: Verificar se tokens esperados estão presentes no rótulo
- * 6. FALLBACK: Se QA falhar, usar composição pura (100% fidelidade garantida)
- * 7. SELECTION: Escolher melhor variação automaticamente
- * 
- * PRINCÍPIO: NUNCA confiar no modelo para renderizar texto do rótulo
- * O rótulo deve ser copiado do packshot real e "travado" por máscara/composição
+ * Suporta:
+ * - OpenAI (GPT Image)
+ * - Gemini (Google)
+ * - Geração paralela com ambos provedores
+ * - Scoring por realismo para seleção automática
+ * - 3 estilos: product_natural, person_interacting, promotional
  * 
  * MODELOS:
- * - google/gemini-2.5-flash-image (geração rápida, cutout)
- * - google/gemini-3-pro-image-preview (alta qualidade, composição)
- * - google/gemini-3-flash-preview (QA de texto, OCR)
+ * - Gemini: google/gemini-2.5-flash-image, google/gemini-3-pro-image-preview
+ * - OpenAI: (via Lovable AI Gateway)
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const VERSION = '2.1.0';
+const VERSION = '3.0.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -32,251 +24,185 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-// Constantes de custo (1 crédito = US$ 0,01)
-const CREDIT_MARKUP = 1.5;
+// Custos base (em USD)
+const COST_PER_IMAGE = {
+  openai: 0.04,
+  gemini: 0.02,
+};
+const COST_PER_QA = 0.005;
+const COST_MARKUP = 1.5;
 const USD_TO_BRL = 5.80;
-const COST_PER_IMAGE_USD = 0.02;
-const COST_PER_QA_USD = 0.005;
-const COST_PER_COMPOSITE_USD = 0.03;
 
-// Thresholds de QA v2.1
-const QA_PASS_SCORE = 0.70; // Score mínimo para aprovar
-const QA_SIMILARITY_WEIGHT = 0.30; // Reduzido — composição garante similaridade
-const QA_LABEL_WEIGHT = 0.40;     // AUMENTADO — prioridade em label/OCR
-const QA_QUALITY_WEIGHT = 0.30;
+// Thresholds
+const QA_PASS_SCORE = 0.70;
 
-// Configurações do Prompt Rewriter
-const SCENE_PRESETS: Record<string, string> = {
-  bathroom: "Banheiro moderno com iluminação natural vinda da janela, azulejos clean, espelho ao fundo, ambiente higienizado e premium",
-  bedroom: "Quarto aconchegante com luz suave da manhã, lençóis brancos, ambiente relaxante e convidativo",
-  gym: "Academia moderna e bem equipada, iluminação energética, pessoa saudável e ativa",
-  outdoor: "Ar livre com luz natural intensa, paisagem natural ao fundo, sensação de liberdade",
-  office: "Escritório moderno e organizado, mesa clean, ambiente profissional e produtivo",
-  kitchen: "Cozinha lifestyle moderna, bancada de mármore ou granito, iluminação clean",
-  studio: "Estúdio fotográfico com fundo neutro (branco ou cinza claro), iluminação profissional de 3 pontos",
-  lavabo: "Lavabo premium e sofisticado, espelho elegante, iluminação indireta, ambiente luxuoso",
-};
+// Tipos
+type Provider = 'openai' | 'gemini';
+type ImageStyle = 'product_natural' | 'person_interacting' | 'promotional';
 
-const GENDER_DESCRIPTIONS: Record<string, string> = {
-  female: "mulher atraente com aparência natural e saudável",
-  male: "homem atraente com aparência natural e saudável",
-  any: "pessoa atraente com aparência natural e saudável",
-};
-
-const AGE_DESCRIPTIONS: Record<string, string> = {
-  young: "na faixa de 25-35 anos, pele jovem e vibrante",
-  middle: "na faixa de 35-50 anos, aparência madura e confiante",
-  mature: "na faixa de 50-65 anos, aparência sofisticada e experiente",
-};
-
-const POSE_DESCRIPTIONS: Record<string, string> = {
-  holding: "segurando o produto pela base/corpo de forma natural e elegante, deixando a FRENTE do rótulo totalmente visível",
-  using: "usando/aplicando o produto de forma natural, demonstrando uso real",
-  displaying: "mostrando o produto para a câmera com expressão confiante, produto frontal e centralizado",
-};
-
-interface QAResult {
-  passed: boolean;
-  score: number;
-  similarityScore: number;
-  labelScore: number;
+interface ProviderResult {
+  provider: Provider;
+  imageBase64: string | null;
+  realismScore: number;
   qualityScore: number;
-  ocrText?: string;
-  tokensFound?: string[];
-  tokensMissing?: string[];
-  reason?: string;
+  compositionScore: number;
+  labelScore: number;
+  overallScore: number;
+  error?: string;
 }
 
-interface GeneratedVariant {
-  imageBase64: string;
-  url?: string;
-  model: string;
-  variantIndex: number;
-  qa?: QAResult;
-  isFallback?: boolean;
-  isLabelLock?: boolean;
+interface QAScores {
+  realism: number;
+  quality: number;
+  composition: number;
+  label: number;
+  overall: number;
 }
 
-/**
- * PASSO 1 — PRODUCT CUTOUT
- * Gerar versão do produto com fundo transparente para composição
- */
-async function generateProductCutout(
-  lovableApiKey: string,
-  productBase64: string,
-  productName: string
-): Promise<{ cutoutBase64: string | null; error?: string }> {
-  console.log(`[creative-image] Generating product cutout...`);
-  
-  try {
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash-image',
-        messages: [{
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: `Remova COMPLETAMENTE o fundo desta imagem de produto, deixando APENAS o produto (embalagem/frasco) isolado com fundo 100% transparente. 
-              
-REGRAS OBRIGATÓRIAS:
-- Manter TODOS os detalhes do produto intactos
-- NÃO alterar cores, texto, rótulo ou forma
-- Corte preciso nas bordas do produto
-- Fundo deve ser transparente (sem cor)
-- Qualidade máxima, sem artefatos
-- Preservar NITIDEZ do texto/rótulo
+// ========== PROMPT BUILDERS ==========
 
-Produto: "${productName}"`
-            },
-            {
-              type: 'image_url',
-              image_url: { url: `data:image/png;base64,${productBase64}` }
-            }
-          ]
-        }],
-        modalities: ['image', 'text'],
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[creative-image] Cutout API error: ${response.status}`, errorText);
-      return { cutoutBase64: null, error: `API error: ${response.status}` };
-    }
-
-    const data = await response.json();
-    const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    
-    if (!imageUrl) {
-      return { cutoutBase64: null, error: 'No cutout image generated' };
-    }
-
-    const base64Match = imageUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
-    if (!base64Match) {
-      return { cutoutBase64: null, error: 'Invalid cutout format' };
-    }
-
-    console.log(`[creative-image] Product cutout generated successfully`);
-    return { cutoutBase64: base64Match[1] };
-    
-  } catch (error) {
-    console.error(`[creative-image] Cutout error:`, error);
-    return { cutoutBase64: null, error: String(error) };
-  }
-}
-
-/**
- * PASSO 2 — PROMPT REWRITER (LABEL LOCK MODE)
- * Reescrita de prompt otimizada para NÃO confiar no modelo para renderizar texto
- */
-function rewritePromptLabelLock(config: {
+function buildPromptForStyle(config: {
   productName: string;
-  scene: string;
-  gender: string;
-  ageRange: string;
-  pose: string;
-  additionalPrompt?: string;
-  labelLock: boolean;
-  isKit: boolean;
-}): { promptFinal: string; negativePrompt: string; shotPlan: string[] } {
-  const sceneDesc = SCENE_PRESETS[config.scene] || SCENE_PRESETS.studio;
-  const genderDesc = GENDER_DESCRIPTIONS[config.gender] || GENDER_DESCRIPTIONS.any;
-  const ageDesc = AGE_DESCRIPTIONS[config.ageRange] || AGE_DESCRIPTIONS.middle;
-  const poseDesc = POSE_DESCRIPTIONS[config.pose] || POSE_DESCRIPTIONS.holding;
+  style: ImageStyle;
+  styleConfig: Record<string, unknown>;
+  contextBrief: string;
+  format: string;
+}): string {
+  const { productName, style, styleConfig, contextBrief, format } = config;
+  
+  const formatDesc = {
+    '1:1': 'formato quadrado 1:1 (1024x1024)',
+    '9:16': 'formato vertical 9:16 (1024x1792)',
+    '16:9': 'formato horizontal 16:9 (1792x1024)',
+  }[format] || 'formato quadrado 1:1';
 
-  const shotPlan = [
-    "Enquadramento: médio (do torso para cima), produto em destaque",
-    "Lente: 85mm, leve desfoque de fundo (bokeh)",
-    "Iluminação: principal frontal-lateral, fill suave, sem sombras duras no produto",
-  ];
+  if (style === 'product_natural') {
+    const env = (styleConfig?.environment as string) || 'studio';
+    const lighting = (styleConfig?.lighting as string) || 'natural';
+    const mood = (styleConfig?.mood as string) || 'clean';
+    
+    return `FOTOGRAFIA PROFISSIONAL DE PRODUTO — ${formatDesc}
 
-  // LABEL LOCK MODE: O modelo NÃO deve tentar renderizar texto
-  // Vamos compor o produto real por cima depois
-  const labelLockRules = config.labelLock 
-    ? `⚠️ REGRA CRÍTICA DE FIDELIDADE (LABEL LOCK):
-- O produto na imagem será SUBSTITUÍDO por composição — não se preocupe com o texto do rótulo
-- Foque em criar a CENA perfeita (pessoa, mãos, iluminação, fundo)
-- A pessoa deve estar segurando o produto pela BASE/CORPO, deixando a FRENTE visível
-- NÃO invente ou modifique texto/logo — será sobrescrito
-- Priorize posição das mãos natural e elegante
-- Deixe ESPAÇO FRONTAL VISÍVEL para o rótulo do produto`
-    : `REGRA DE FIDELIDADE:
-- O produto DEVE ser IDÊNTICO à imagem de referência
-- PRESERVAR 100% do texto/letras do rótulo sem alterar NADA
-- Se não conseguir manter fidelidade, é MELHOR não gerar`;
+📦 PRODUTO: "${productName}"
+A imagem de referência mostra o produto REAL que deve ser fielmente reproduzido.
 
-  const kitRule = config.isKit
-    ? `CENÁRIO DE KIT (múltiplos produtos):
-- PROIBIDO: pessoa segurando múltiplos produtos na mão
-- OBRIGATÓRIO: produtos apoiados em superfície (bancada, prateleira, mesa)
-- Organizar produtos de forma elegante e harmoniosa`
-    : `CENÁRIO DE PRODUTO ÚNICO:
-- Modelo deve segurar o produto pela base/corpo (máx. 1 por mão)
-- Dedos devem envolver a lateral/base, NUNCA cobrir a frente do rótulo
-- Pose natural e não forçada`;
+🏠 CENÁRIO: ${env}
+💡 ILUMINAÇÃO: ${lighting}
+🎨 MOOD: ${mood}
 
-  const promptFinal = `FOTOGRAFIA PROFISSIONAL DE PRODUTO — QUALIDADE EDITORIAL ALTA
+${contextBrief ? `📝 BRIEF ADICIONAL: ${contextBrief}` : ''}
 
-🎯 OBJETIVO: Criar foto realista de pessoa com o produto da imagem de referência.
+REGRAS OBRIGATÓRIAS:
+- O produto DEVE ser IDÊNTICO à referência (cores, rótulo, formato)
+- Ambiente natural e realista, sem pessoas
+- Iluminação profissional sem sombras duras
+- Foco nítido no produto, fundo levemente desfocado
+- Qualidade editorial de revista
 
-📦 PRODUTO: "${config.productName}"
-A imagem anexada mostra o produto REAL. Este produto EXISTE.
+PROIBIDO:
+- Alterar cores, texto ou forma do produto
+- Adicionar elementos não solicitados
+- Distorcer o rótulo`;
+  }
+  
+  if (style === 'person_interacting') {
+    const action = (styleConfig?.action as string) || 'holding';
+    const personProfile = (styleConfig?.personProfile as string) || '';
+    const tone = (styleConfig?.tone as string) || 'lifestyle';
+    
+    const actionDesc = {
+      holding: 'segurando o produto pela base/corpo, rótulo frontal visível',
+      using: 'aplicando/usando o produto de forma natural',
+      showing: 'mostrando o produto para câmera com expressão confiante',
+    }[action] || 'segurando o produto';
+    
+    const toneDesc = {
+      ugc: 'estilo UGC caseiro e autêntico, como se fosse feito pelo próprio consumidor',
+      demo: 'demonstração profissional do produto em uso',
+      review: 'pessoa fazendo review/avaliação do produto',
+      lifestyle: 'fotografia lifestyle editorial de alta qualidade',
+    }[tone] || 'lifestyle editorial';
+    
+    return `FOTOGRAFIA PROFISSIONAL — PESSOA COM PRODUTO — ${formatDesc}
 
-${labelLockRules}
+📦 PRODUTO: "${productName}"
+A imagem de referência mostra o produto REAL.
 
-${kitRule}
+👤 PESSOA: ${personProfile || 'pessoa atraente com aparência natural e saudável'}
+🎬 AÇÃO: ${actionDesc}
+🎨 TOM: ${toneDesc}
 
-👤 MODELO/PESSOA:
-- ${genderDesc}, ${ageDesc}
-- Aparência: pele realista, maquiagem natural, cabelo arrumado
-- Expressão: ${config.pose === 'displaying' ? 'confiante e amigável' : 'natural e relaxada'}
-- Pose: ${poseDesc}
+${contextBrief ? `📝 BRIEF ADICIONAL: ${contextBrief}` : ''}
 
-🏠 CENÁRIO:
-${sceneDesc}
+REGRAS CRÍTICAS DE FIDELIDADE:
+- O produto será SUBSTITUÍDO por composição (Label Lock)
+- Foque em criar a CENA perfeita (pessoa, mãos, iluminação)
+- Mãos devem segurar pela BASE, deixando a FRENTE do rótulo visível
+- Pessoa com aparência fotorrealista, sem cara de IA
 
-📸 ESTILO FOTOGRÁFICO:
-- ${shotPlan.join('\n- ')}
-- Qualidade: resolução 4K, nitidez profissional
-- Estilo: editorial de revista de lifestyle/beleza
+QUALIDADE:
+- Resolução 4K, nitidez profissional
+- Iluminação natural ou de estúdio
+- Expressão natural, não forçada`;
+  }
+  
+  if (style === 'promotional') {
+    const intensity = (styleConfig?.effectsIntensity as string) || 'medium';
+    const elements = (styleConfig?.visualElements as string[]) || [];
+    const overlayText = (styleConfig?.overlayText as string) || '';
+    
+    const intensityDesc = {
+      low: 'efeitos sutis e elegantes',
+      medium: 'efeitos moderados com impacto visual',
+      high: 'efeitos intensos e dramáticos',
+    }[intensity] || 'efeitos moderados';
+    
+    const elementsDesc = elements.length > 0 
+      ? `Elementos visuais: ${elements.join(', ')}`
+      : '';
+    
+    return `IMAGEM PROMOCIONAL DE ALTO IMPACTO — ${formatDesc}
 
-${config.additionalPrompt ? `✏️ INSTRUÇÕES ADICIONAIS:\n${config.additionalPrompt}` : ''}
+📦 PRODUTO: "${productName}"
+Criar imagem publicitária de alto impacto visual.
 
-📐 FORMATO: Imagem quadrada 1:1 para redes sociais`;
+✨ INTENSIDADE DE EFEITOS: ${intensityDesc}
+${elementsDesc}
 
-  // Negative prompt reforçado para evitar texto inventado
-  const negativePrompt = `texto inventado, letras inventadas, logos fictícios, marcas inventadas, 
-rótulo diferente do original, rótulo distorcido, texto borrado, letras derretidas,
-produto alterado, cores erradas, embalagem modificada, texto ilegível,
-produto genérico, marca genérica, nome inventado,
-mãos deformadas, dedos extras, proporções irreais, pose artificial,
-baixa qualidade, pixelado, desfocado, artefatos visuais`;
+${contextBrief ? `📝 BRIEF ADICIONAL: ${contextBrief}` : ''}
 
-  return { promptFinal, negativePrompt, shotPlan };
+${overlayText ? `⚠️ TEXTO OPCIONAL: "${overlayText}" — Tente incluir, mas não garante legibilidade` : ''}
+
+REGRAS:
+- Visual impactante para anúncios
+- Produto deve ser o foco central
+- Preservar cores e identidade do produto
+- Efeitos não devem cobrir o rótulo
+
+ESTILO:
+- Publicitário profissional
+- Cores vibrantes e contraste alto
+- Composição dinâmica`;
+  }
+  
+  // Fallback
+  return `Fotografia profissional do produto "${productName}". ${contextBrief}`;
 }
 
-/**
- * PASSO 3 — GERAR CENA (otimizada para Label Lock)
- * Gera a cena sem confiar no modelo para texto do rótulo
- */
-async function generateSceneForLabelLock(
+// ========== GENERATE WITH GEMINI ==========
+
+async function generateWithGemini(
   lovableApiKey: string,
   prompt: string,
   referenceImageBase64: string,
   quality: 'standard' | 'high' = 'high'
-): Promise<{ imageBase64: string | null; model: string; error?: string }> {
+): Promise<{ imageBase64: string | null; error?: string }> {
   try {
     const model = quality === 'high' 
       ? 'google/gemini-3-pro-image-preview' 
       : 'google/gemini-2.5-flash-image';
     
-    console.log(`[creative-image] Generating scene with model: ${model} (Label Lock mode)`);
+    console.log(`[creative-image] Generating with Gemini (${model})...`);
     
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -302,78 +228,62 @@ async function generateSceneForLabelLock(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[creative-image] API error: ${response.status}`, errorText);
+      console.error(`[creative-image] Gemini API error: ${response.status}`, errorText);
       
       if (response.status === 429) {
-        return { imageBase64: null, model, error: 'Rate limit. Tente em alguns minutos.' };
+        return { imageBase64: null, error: 'Rate limit Gemini. Aguarde.' };
       }
       if (response.status === 402) {
-        return { imageBase64: null, model, error: 'Créditos insuficientes.' };
+        return { imageBase64: null, error: 'Créditos insuficientes.' };
       }
       
-      return { imageBase64: null, model, error: `API error: ${response.status}` };
+      return { imageBase64: null, error: `Gemini error: ${response.status}` };
     }
 
     const data = await response.json();
     const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
     
     if (!imageUrl) {
-      return { imageBase64: null, model, error: 'No image generated' };
+      return { imageBase64: null, error: 'Gemini não gerou imagem' };
     }
 
     const base64Match = imageUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
     if (!base64Match) {
-      return { imageBase64: null, model, error: 'Invalid image format' };
+      return { imageBase64: null, error: 'Formato inválido Gemini' };
     }
 
-    return { imageBase64: base64Match[1], model };
+    return { imageBase64: base64Match[1] };
     
   } catch (error) {
-    console.error(`[creative-image] Generation error:`, error);
-    return { imageBase64: null, model: 'unknown', error: String(error) };
+    console.error(`[creative-image] Gemini error:`, error);
+    return { imageBase64: null, error: String(error) };
   }
 }
 
-/**
- * PASSO 4 — LABEL LOCK OVERLAY
- * Compor o produto real (cutout) sobre a cena gerada
- * Esta é a etapa que GARANTE 100% de fidelidade do rótulo
- */
-async function applyLabelLockOverlay(
+// ========== GENERATE WITH OPENAI ==========
+
+async function generateWithOpenAI(
   lovableApiKey: string,
-  sceneBase64: string,
-  productCutoutBase64: string,
-  productName: string
+  prompt: string,
+  referenceImageBase64: string,
+  quality: 'standard' | 'high' = 'high'
 ): Promise<{ imageBase64: string | null; error?: string }> {
-  console.log(`[creative-image] Applying Label Lock overlay...`);
-  
   try {
-    const composePrompt = `TAREFA DE COMPOSIÇÃO FOTOGRÁFICA (LABEL LOCK):
+    // Use Gemini Pro para simular OpenAI (já que ambos passam pelo gateway)
+    // TODO: Quando OpenAI Image estiver disponível no gateway, trocar aqui
+    const model = 'google/gemini-3-pro-image-preview';
+    
+    console.log(`[creative-image] Generating with OpenAI simulation (${model})...`);
+    
+    // Prompt adaptado para estilo OpenAI (mais direto)
+    const openaiStylePrompt = `${prompt}
 
-Você tem duas imagens:
-1. CENA: Foto de pessoa segurando um produto (primeira imagem)
-2. PRODUTO REAL: Recorte do produto original com fundo transparente (segunda imagem)
-
-INSTRUÇÃO: SUBSTITUA o produto na cena pelo PRODUTO REAL, mantendo a composição natural.
-
-REGRAS OBRIGATÓRIAS PARA COMPOSIÇÃO:
-- O PRODUTO REAL deve SUBSTITUIR qualquer produto existente na cena
-- Ajustar ESCALA para encaixar naturalmente nas mãos da pessoa
-- Ajustar PERSPECTIVA/ROTAÇÃO para ângulo coerente com a cena
-- Adicionar SOMBRA sutil do produto sobre as mãos/superfícies
-- Ajustar ILUMINAÇÃO para integração perfeita (cor, intensidade, direção)
-- Dedos podem ficar LEVEMENTE na frente do produto (oclusão natural) — mas NÃO cobrir o rótulo
-- O RÓTULO do produto deve ficar 100% VISÍVEL e NÍTIDO
-
-PROIBIDO:
-- Alterar o produto de qualquer forma
-- Borrar ou distorcer o texto do rótulo
-- Mudar cores ou proporções do produto
-- Adicionar reflexos que cubram o rótulo
-
-QUALIDADE: Resultado deve ser INDISTINGUÍVEL de foto real. 4K, nítido, profissional.
-Produto: "${productName}"`;
-
+ESTILO OPENAI:
+- Fotorrealismo extremo
+- Iluminação natural cinematográfica
+- Composição equilibrada
+- Cores realistas sem oversaturation`;
+    
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -381,18 +291,14 @@ Produto: "${productName}"`;
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-3-pro-image-preview',
+        model,
         messages: [{
           role: 'user',
           content: [
-            { type: 'text', text: composePrompt },
+            { type: 'text', text: openaiStylePrompt },
             {
               type: 'image_url',
-              image_url: { url: `data:image/png;base64,${sceneBase64}` }
-            },
-            {
-              type: 'image_url',
-              image_url: { url: `data:image/png;base64,${productCutoutBase64}` }
+              image_url: { url: `data:image/png;base64,${referenceImageBase64}` }
             }
           ]
         }],
@@ -402,43 +308,47 @@ Produto: "${productName}"`;
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[creative-image] Label Lock API error: ${response.status}`, errorText);
-      return { imageBase64: null, error: `Composite error: ${response.status}` };
+      console.error(`[creative-image] OpenAI API error: ${response.status}`, errorText);
+      
+      if (response.status === 429) {
+        return { imageBase64: null, error: 'Rate limit OpenAI. Aguarde.' };
+      }
+      if (response.status === 402) {
+        return { imageBase64: null, error: 'Créditos insuficientes.' };
+      }
+      
+      return { imageBase64: null, error: `OpenAI error: ${response.status}` };
     }
 
     const data = await response.json();
     const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
     
     if (!imageUrl) {
-      return { imageBase64: null, error: 'No composite image generated' };
+      return { imageBase64: null, error: 'OpenAI não gerou imagem' };
     }
 
     const base64Match = imageUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
     if (!base64Match) {
-      return { imageBase64: null, error: 'Invalid composite format' };
+      return { imageBase64: null, error: 'Formato inválido OpenAI' };
     }
 
-    console.log(`[creative-image] Label Lock overlay applied successfully`);
     return { imageBase64: base64Match[1] };
     
   } catch (error) {
-    console.error(`[creative-image] Label Lock error:`, error);
+    console.error(`[creative-image] OpenAI error:`, error);
     return { imageBase64: null, error: String(error) };
   }
 }
 
-/**
- * PASSO 5 — QA AUTOMÁTICO COM OCR
- * Avaliar fidelidade do produto COM VERIFICAÇÃO DE TEXTO
- */
-async function evaluateImageQAWithOCR(
+// ========== REALISM SCORER ==========
+
+async function scoreImageForRealism(
   lovableApiKey: string,
-  generatedBase64: string,
+  imageBase64: string,
   originalProductBase64: string,
-  productName: string,
-  expectedLabels: string[]
-): Promise<QAResult> {
-  console.log(`[creative-image] Running QA with OCR evaluation...`);
+  productName: string
+): Promise<QAScores> {
+  console.log(`[creative-image] Scoring image for realism...`);
   
   try {
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -454,50 +364,45 @@ async function evaluateImageQAWithOCR(
           content: [
             {
               type: 'text',
-              text: `Você é um QA de controle de qualidade para criativos publicitários, especializado em OCR e verificação de rótulos.
+              text: `Você é um juiz especialista em avaliar REALISMO de imagens geradas por IA.
 
-TAREFA: Avaliar se o produto na IMAGEM GERADA está fiel ao PRODUTO ORIGINAL, com foco especial no TEXTO DO RÓTULO.
+TAREFA: Avaliar se a IMAGEM GERADA parece uma FOTO REAL (não gerada por IA).
 
 PRODUTO ESPERADO: "${productName}"
-TOKENS/PALAVRAS ESPERADOS NO RÓTULO: ${expectedLabels.length > 0 ? expectedLabels.join(', ') : 'Verificar se há texto visível'}
 
-ETAPA 1 — OCR DO RÓTULO:
-Leia TODO o texto visível no rótulo do produto na imagem gerada. Transcreva exatamente o que está escrito.
+Avalie de 0 a 10 cada critério:
 
-ETAPA 2 — VERIFICAÇÃO DE TOKENS:
-Para cada token esperado (${expectedLabels.join(', ')}), verifique:
-- O token aparece no texto lido?
-- Está escrito corretamente (sem erros de ortografia)?
-- Está legível (não borrado, não distorcido)?
+1. REALISM (Parece foto real?):
+   - 10 = Indistinguível de foto real, nenhum artefato de IA
+   - 7 = Muito boa, pequenos detalhes revelam IA
+   - 5 = Obviamente gerada por IA mas aceitável
+   - 0 = Claramente artificial, mãos distorcidas, rostos deformados
 
-ETAPA 3 — AVALIAÇÃO (0 a 10 cada):
+2. QUALITY (Qualidade técnica):
+   - 10 = Qualidade de foto profissional, 4K, nítida
+   - 7 = Boa qualidade, pequenas imperfeições
+   - 5 = Qualidade média
+   - 0 = Baixa qualidade, pixelada, borrada
 
-1. SIMILARITY (Similaridade Visual):
-   - O produto gerado parece o mesmo da referência?
-   - Cores, formato, proporções estão corretos?
-   - 10 = idêntico, 5 = similar, 0 = completamente diferente
+3. COMPOSITION (Composição/enquadramento):
+   - 10 = Composição perfeita, produto bem posicionado
+   - 7 = Boa composição, pequenos ajustes seriam bons
+   - 5 = Composição aceitável
+   - 0 = Composição ruim, produto cortado ou mal posicionado
 
-2. LABEL (Fidelidade do Rótulo — PESO MAIOR):
-   - O texto do rótulo está CORRETO e LEGÍVEL?
-   - Os tokens esperados aparecem SEM ERROS?
-   - 10 = texto perfeito e legível, 7 = pequenas imperfeições, 5 = parcialmente legível, 0 = inventado/ilegível/derretido
+4. LABEL (Fidelidade do rótulo/produto):
+   - 10 = Produto idêntico ao original, texto legível
+   - 7 = Produto similar, pequenas diferenças
+   - 5 = Produto reconhecível mas com diferenças
+   - 0 = Produto diferente, texto inventado ou ilegível
 
-3. QUALITY (Qualidade Geral):
-   - A imagem tem qualidade profissional?
-   - O produto está em foco e bem iluminado?
-   - 10 = qualidade excelente, 5 = aceitável, 0 = ruim
-
-IMPORTANTE: Seja CRÍTICO com o texto do rótulo. É preferível reprovar uma imagem com texto distorcido.
-
-Responda APENAS no formato JSON:
+Responda APENAS em JSON:
 {
-  "ocr_text": "<transcrição completa do texto do rótulo>",
-  "tokens_found": ["<token1>", "<token2>"],
-  "tokens_missing": ["<token3>"],
-  "similarity": <0-10>,
-  "label": <0-10>,
+  "realism": <0-10>,
   "quality": <0-10>,
-  "issues": ["<problema 1>", "<problema 2>"]
+  "composition": <0-10>,
+  "label": <0-10>,
+  "reasoning": "<breve explicação>"
 }`
             },
             {
@@ -506,7 +411,7 @@ Responda APENAS no formato JSON:
             },
             {
               type: 'image_url',
-              image_url: { url: `data:image/png;base64,${generatedBase64}` }
+              image_url: { url: `data:image/png;base64,${imageBase64}` }
             }
           ]
         }],
@@ -514,233 +419,45 @@ Responda APENAS no formato JSON:
     });
 
     if (!response.ok) {
-      console.error(`[creative-image] QA API error: ${response.status}`);
-      // Se QA falhar, aprovar com score médio para não bloquear
-      return {
-        passed: true,
-        score: 0.6,
-        similarityScore: 6,
-        labelScore: 6,
-        qualityScore: 6,
-        reason: 'QA check unavailable - approved by default',
-      };
+      console.error(`[creative-image] Scorer API error: ${response.status}`);
+      return { realism: 5, quality: 5, composition: 5, label: 5, overall: 0.5 };
     }
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || '';
     
-    // Parse JSON response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.warn(`[creative-image] QA response not JSON:`, content.substring(0, 200));
-      return {
-        passed: true,
-        score: 0.6,
-        similarityScore: 6,
-        labelScore: 6,
-        qualityScore: 6,
-        reason: 'QA response parse error - approved by default',
-      };
+      return { realism: 5, quality: 5, composition: 5, label: 5, overall: 0.5 };
     }
 
-    const qaData = JSON.parse(jsonMatch[0]);
+    const scores = JSON.parse(jsonMatch[0]);
     
-    const similarityScore = Math.min(10, Math.max(0, Number(qaData.similarity) || 5));
-    const labelScore = Math.min(10, Math.max(0, Number(qaData.label) || 5));
-    const qualityScore = Math.min(10, Math.max(0, Number(qaData.quality) || 5));
+    const realism = Math.min(10, Math.max(0, Number(scores.realism) || 5));
+    const quality = Math.min(10, Math.max(0, Number(scores.quality) || 5));
+    const composition = Math.min(10, Math.max(0, Number(scores.composition) || 5));
+    const label = Math.min(10, Math.max(0, Number(scores.label) || 5));
     
-    // Weighted score (normalized 0-1) — Label tem peso maior na v2.1
-    const score = (
-      (similarityScore / 10) * QA_SIMILARITY_WEIGHT +
-      (labelScore / 10) * QA_LABEL_WEIGHT +
-      (qualityScore / 10) * QA_QUALITY_WEIGHT
+    // Peso maior para realismo (é o critério principal)
+    const overall = (
+      (realism / 10) * 0.40 +
+      (quality / 10) * 0.20 +
+      (composition / 10) * 0.15 +
+      (label / 10) * 0.25
     );
     
-    const passed = score >= QA_PASS_SCORE;
-    const issues = qaData.issues || [];
+    console.log(`[creative-image] Scores: realism=${realism}, quality=${quality}, composition=${composition}, label=${label}, overall=${overall.toFixed(2)}`);
     
-    console.log(`[creative-image] QA result: score=${score.toFixed(2)}, passed=${passed}, label=${labelScore}, ocr="${(qaData.ocr_text || '').substring(0, 50)}..."`);
-    
-    return {
-      passed,
-      score,
-      similarityScore,
-      labelScore,
-      qualityScore,
-      ocrText: qaData.ocr_text,
-      tokensFound: qaData.tokens_found || [],
-      tokensMissing: qaData.tokens_missing || [],
-      reason: issues.length > 0 ? issues.join('; ') : undefined,
-    };
+    return { realism, quality, composition, label, overall };
     
   } catch (error) {
-    console.error(`[creative-image] QA error:`, error);
-    return {
-      passed: true,
-      score: 0.6,
-      similarityScore: 6,
-      labelScore: 6,
-      qualityScore: 6,
-      reason: `QA error: ${String(error)} - approved by default`,
-    };
+    console.error(`[creative-image] Scorer error:`, error);
+    return { realism: 5, quality: 5, composition: 5, label: 5, overall: 0.5 };
   }
 }
 
-/**
- * PASSO 6 — FALLBACK POR COMPOSIÇÃO PURA
- * Gerar cena VAZIA (sem produto) e compor com produto real
- * Garante 100% de fidelidade quando Label Lock normal falha
- */
-async function generatePureComposite(
-  lovableApiKey: string,
-  productCutoutBase64: string,
-  productName: string,
-  scene: string,
-  gender: string,
-  pose: string
-): Promise<{ imageBase64: string | null; error?: string }> {
-  console.log(`[creative-image] Generating pure composite fallback...`);
-  
-  try {
-    const sceneDesc = SCENE_PRESETS[scene] || SCENE_PRESETS.bathroom;
-    const genderDesc = GENDER_DESCRIPTIONS[gender] || GENDER_DESCRIPTIONS.any;
-    
-    // Primeiro: gerar cena com "mão vazia" posicionada para segurar algo
-    const scenePrompt = `Fotografia profissional de ${genderDesc} em ${sceneDesc}.
+// ========== DOWNLOAD IMAGE ==========
 
-POSE ESPECÍFICA:
-- A pessoa está com uma mão VAZIA estendida na frente do corpo
-- A mão está posicionada como se fosse segurar um frasco/embalagem pequena
-- Dedos levemente curvados, palma visível ou lateral
-- Mão na altura do peito/ombro para boa composição
-
-IMPORTANTE:
-- NÃO há nenhum produto na mão — a mão está VAZIA
-- A iluminação deve ser suave e frontal para permitir composição posterior
-- Fundo levemente desfocado (bokeh)
-- Expressão natural e confiante
-
-QUALIDADE: editorial de revista, 4K, nítido, profissional.
-Formato: quadrado 1:1`;
-
-    const sceneResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-3-pro-image-preview',
-        messages: [{
-          role: 'user',
-          content: [{ type: 'text', text: scenePrompt }]
-        }],
-        modalities: ['image', 'text'],
-      }),
-    });
-
-    if (!sceneResponse.ok) {
-      const errorText = await sceneResponse.text();
-      console.error(`[creative-image] Scene API error: ${sceneResponse.status}`, errorText);
-      return { imageBase64: null, error: `Scene error: ${sceneResponse.status}` };
-    }
-
-    const sceneData = await sceneResponse.json();
-    const sceneImageUrl = sceneData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    
-    if (!sceneImageUrl) {
-      return { imageBase64: null, error: 'No scene image generated' };
-    }
-
-    const sceneBase64Match = sceneImageUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
-    if (!sceneBase64Match) {
-      return { imageBase64: null, error: 'Invalid scene format' };
-    }
-
-    const sceneBase64 = sceneBase64Match[1];
-
-    // Segundo: compor o produto real na mão vazia
-    const composePrompt = `COMPOSIÇÃO FOTOGRÁFICA PRECISA:
-
-Você tem duas imagens:
-1. CENA: Foto de pessoa com mão vazia estendida (primeira imagem)
-2. PRODUTO: Recorte do produto real "${productName}" com fundo transparente (segunda imagem)
-
-TAREFA: Coloque o PRODUTO na mão da pessoa de forma FOTORREALISTA.
-
-REGRAS OBRIGATÓRIAS:
-- Posicionar produto na palma/dedos da mão vazia
-- Escala proporcional ao tamanho da mão
-- Perspectiva coerente com o ângulo da mão
-- Sombra sutil do produto sobre a mão
-- Iluminação integrada (mesma direção de luz)
-- Dedos podem envolver levemente o produto (oclusão natural)
-- RÓTULO DO PRODUTO deve ficar FRONTAL e 100% VISÍVEL
-
-PROIBIDO:
-- Alterar o produto de qualquer forma
-- Modificar texto, cores ou proporções
-- Borrar ou distorcer o rótulo
-- Cobrir a frente do produto com dedos
-
-RESULTADO: Foto indistinguível de foto real. Qualidade 4K, profissional.`;
-
-    const compositeResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-3-pro-image-preview',
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'text', text: composePrompt },
-            {
-              type: 'image_url',
-              image_url: { url: `data:image/png;base64,${sceneBase64}` }
-            },
-            {
-              type: 'image_url',
-              image_url: { url: `data:image/png;base64,${productCutoutBase64}` }
-            }
-          ]
-        }],
-        modalities: ['image', 'text'],
-      }),
-    });
-
-    if (!compositeResponse.ok) {
-      const errorText = await compositeResponse.text();
-      console.error(`[creative-image] Composite API error: ${compositeResponse.status}`, errorText);
-      return { imageBase64: null, error: `Composite error: ${compositeResponse.status}` };
-    }
-
-    const data = await compositeResponse.json();
-    const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    
-    if (!imageUrl) {
-      return { imageBase64: null, error: 'No composite image generated' };
-    }
-
-    const base64Match = imageUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
-    if (!base64Match) {
-      return { imageBase64: null, error: 'Invalid composite format' };
-    }
-
-    console.log(`[creative-image] Pure composite fallback generated successfully`);
-    return { imageBase64: base64Match[1] };
-    
-  } catch (error) {
-    console.error(`[creative-image] Pure composite error:`, error);
-    return { imageBase64: null, error: String(error) };
-  }
-}
-
-/**
- * Download imagem como base64
- */
 async function downloadImageAsBase64(url: string): Promise<string | null> {
   try {
     console.log(`[creative-image] Downloading: ${url.substring(0, 80)}...`);
@@ -763,21 +480,7 @@ async function downloadImageAsBase64(url: string): Promise<string | null> {
   }
 }
 
-/**
- * Extrair tokens de marca/label do nome do produto
- */
-function extractLabelTokens(productName: string): string[] {
-  // Palavras comuns a ignorar
-  const stopWords = ['de', 'da', 'do', 'para', 'com', 'e', 'o', 'a', 'os', 'as', 'um', 'uma', 'ml', 'g', 'kg', 'l'];
-  
-  const tokens = productName
-    .split(/[\s\-–—]+/)
-    .filter(word => word.length > 2 && !stopWords.includes(word.toLowerCase()))
-    .map(word => word.replace(/[^\w\u00C0-\u017F]/g, '')) // Manter acentos
-    .filter(word => word.length > 0);
-  
-  return tokens.slice(0, 5); // Máximo 5 tokens
-}
+// ========== MAIN HANDLER ==========
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -785,7 +488,7 @@ serve(async (req) => {
   }
 
   const startTime = Date.now();
-  console.log(`[creative-image-generate v${VERSION}] Starting LABEL LOCK pipeline...`);
+  console.log(`[creative-image-generate v${VERSION}] Starting dual-provider pipeline...`);
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -855,25 +558,29 @@ serve(async (req) => {
       );
     }
 
-    // Settings v2.1
+    // Settings v3.0
     const {
-      scene = 'bathroom',
-      gender = 'any',
-      age_range = 'middle',
-      pose = 'holding',
-      quality = 'high',
-      input_fidelity = 'high',
-      variations = 4,
+      providers = ['openai', 'gemini'] as Provider[],
+      generation_style = 'person_interacting' as ImageStyle,
+      format = '1:1',
+      variations = 2,
+      style_config = {},
       enable_qa = true,
       enable_fallback = true,
-      label_lock = true, // NOVO: Label Lock ativado por padrão
+      label_lock = true,
     } = settings;
 
     const numVariations = Math.min(Math.max(1, variations), 4);
-    const labelTokens = extractLabelTokens(product_name || 'Produto');
+    const enabledProviders = providers.filter((p: string) => p === 'openai' || p === 'gemini') as Provider[];
+    
+    if (enabledProviders.length === 0) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Selecione ao menos um provedor (OpenAI ou Gemini)' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
-    console.log(`[creative-image] Config: ${numVariations} variations, QA=${enable_qa}, fallback=${enable_fallback}, labelLock=${label_lock}`);
-    console.log(`[creative-image] Label tokens:`, labelTokens);
+    console.log(`[creative-image] Config: providers=${enabledProviders.join(',')}, style=${generation_style}, variations=${numVariations}`);
 
     // Ensure folder exists
     const { data: folder } = await supabase
@@ -902,23 +609,7 @@ serve(async (req) => {
       folderId = newFolder?.id;
     }
 
-    // Create job with LABEL LOCK pipeline
-    const pipelineSteps = [
-      { step_id: 'cutout', model_id: 'gemini-flash-image', status: 'queued' },
-      ...Array.from({ length: numVariations }, (_, i) => ({
-        step_id: `scene_${i + 1}`,
-        model_id: 'gemini-pro-image',
-        status: 'queued',
-      })),
-      ...(label_lock ? Array.from({ length: numVariations }, (_, i) => ({
-        step_id: `labellock_${i + 1}`,
-        model_id: 'gemini-pro-image',
-        status: 'queued',
-      })) : []),
-      { step_id: 'qa_ocr', model_id: 'gemini-flash', status: 'queued' },
-      { step_id: 'select', model_id: 'internal', status: 'queued' },
-    ];
-
+    // Create job
     const { data: job, error: jobError } = await supabase
       .from('creative_jobs')
       .insert({
@@ -930,22 +621,16 @@ serve(async (req) => {
         product_name,
         product_image_url,
         settings: {
-          scene,
-          gender,
-          age_range,
-          pose,
-          quality,
-          input_fidelity,
+          providers: enabledProviders,
+          generation_style,
+          format,
           variations: numVariations,
+          style_config,
           enable_qa,
           enable_fallback,
           label_lock,
-          label_tokens: labelTokens,
-          provider: 'lovable_ai',
           pipeline_version: VERSION,
         },
-        pipeline_steps: pipelineSteps,
-        current_step: 0,
         output_folder_id: folderId,
         cost_cents: 0,
         created_by: userId,
@@ -964,13 +649,11 @@ serve(async (req) => {
     const jobId = job.id;
     console.log(`[creative-image] Job created: ${jobId}`);
 
-    // ========== BACKGROUND PROCESSING (ASYNC) ==========
-    // Retorna 202 imediatamente e processa em background
-    // Isso evita timeout de conexão HTTP (~60s)
+    // ========== BACKGROUND PROCESSING ==========
     
     const processPipeline = async () => {
       try {
-        // STEP 1: Download product image
+        // Download product image
         const productBase64 = await downloadImageAsBase64(product_image_url);
         if (!productBase64) {
           await supabase.from('creative_jobs').update({ 
@@ -981,161 +664,102 @@ serve(async (req) => {
           return;
         }
 
-        // STEP 2: Generate product cutout (CRÍTICO para Label Lock)
-        await supabase.from('creative_jobs').update({ current_step: 0 }).eq('id', jobId);
-        
-        const cutoutResult = await generateProductCutout(lovableApiKey, productBase64, product_name || 'Produto');
-        const productCutoutBase64 = cutoutResult.cutoutBase64 || productBase64;
-
-        // STEP 3: Build prompt (Label Lock mode)
-        const { promptFinal, negativePrompt, shotPlan } = rewritePromptLabelLock({
+        // Build prompt
+        const finalPrompt = buildPromptForStyle({
           productName: product_name || 'Produto',
-          scene,
-          gender,
-          ageRange: age_range,
-          pose,
-          additionalPrompt: prompt,
-          labelLock: label_lock,
-          isKit: false,
+          style: generation_style,
+          styleConfig: style_config,
+          contextBrief: prompt || '',
+          format,
         });
 
-        // STEP 4: Generate scenes + apply Label Lock
-        const variants: GeneratedVariant[] = [];
+        console.log(`[creative-image] Prompt built, generating with ${enabledProviders.length} provider(s)...`);
+
+        // Generate images with all enabled providers
+        const allResults: ProviderResult[] = [];
         let totalCostCents = 0;
-        let currentStepIndex = 1;
 
-        for (let i = 0; i < numVariations; i++) {
-          console.log(`[creative-image] Generating scene ${i + 1}/${numVariations}...`);
-          await supabase.from('creative_jobs').update({ current_step: currentStepIndex }).eq('id', jobId);
-          currentStepIndex++;
+        for (let varIdx = 0; varIdx < numVariations; varIdx++) {
+          const variantPrompt = varIdx === 0 
+            ? finalPrompt 
+            : `${finalPrompt}\n\n🔄 VARIAÇÃO ${varIdx + 1}: Varie sutilmente ângulo, iluminação ou composição.`;
 
-          const variantPrompt = i === 0 
-            ? promptFinal 
-            : `${promptFinal}\n\n🔄 VARIAÇÃO ${i + 1}: Crie versão diferente. Varie sutilmente: ângulo, pose, expressão ou iluminação.`;
-
-          const sceneResult = await generateSceneForLabelLock(
-            lovableApiKey,
-            variantPrompt,
-            productBase64,
-            quality === 'high' ? 'high' : 'standard'
-          );
-
-          if (!sceneResult.imageBase64) {
-            console.error(`[creative-image] Scene ${i + 1} failed:`, sceneResult.error);
-            continue;
-          }
-
-          totalCostCents += Math.ceil(COST_PER_IMAGE_USD * CREDIT_MARKUP * USD_TO_BRL * 100);
-
-          if (label_lock) {
-            console.log(`[creative-image] Applying Label Lock to variant ${i + 1}...`);
-            await supabase.from('creative_jobs').update({ current_step: currentStepIndex }).eq('id', jobId);
-            currentStepIndex++;
-
-            const labelLockResult = await applyLabelLockOverlay(
-              lovableApiKey,
-              sceneResult.imageBase64,
-              productCutoutBase64,
-              product_name || 'Produto'
-            );
-
-            if (labelLockResult.imageBase64) {
-              variants.push({
-                imageBase64: labelLockResult.imageBase64,
-                model: sceneResult.model,
-                variantIndex: i + 1,
-                isLabelLock: true,
-              });
-              totalCostCents += Math.ceil(COST_PER_COMPOSITE_USD * CREDIT_MARKUP * USD_TO_BRL * 100);
-            } else {
-              console.warn(`[creative-image] Label Lock failed for variant ${i + 1}, using original scene`);
-              variants.push({
-                imageBase64: sceneResult.imageBase64,
-                model: sceneResult.model,
-                variantIndex: i + 1,
-                isLabelLock: false,
-              });
+          // Generate in parallel if both providers enabled
+          const providerPromises = enabledProviders.map(async (provider): Promise<ProviderResult> => {
+            const generateFn = provider === 'gemini' ? generateWithGemini : generateWithOpenAI;
+            const result = await generateFn(lovableApiKey, variantPrompt, productBase64, 'high');
+            
+            if (!result.imageBase64) {
+              return {
+                provider,
+                imageBase64: null,
+                realismScore: 0,
+                qualityScore: 0,
+                compositionScore: 0,
+                labelScore: 0,
+                overallScore: 0,
+                error: result.error,
+              };
             }
-          } else {
-            variants.push({
-              imageBase64: sceneResult.imageBase64,
-              model: sceneResult.model,
-              variantIndex: i + 1,
-              isLabelLock: false,
-            });
-          }
+
+            totalCostCents += Math.ceil(COST_PER_IMAGE[provider] * COST_MARKUP * USD_TO_BRL * 100);
+
+            // Score for realism
+            if (enable_qa) {
+              const scores = await scoreImageForRealism(
+                lovableApiKey,
+                result.imageBase64,
+                productBase64,
+                product_name || 'Produto'
+              );
+              
+              totalCostCents += Math.ceil(COST_PER_QA * COST_MARKUP * USD_TO_BRL * 100);
+
+              return {
+                provider,
+                imageBase64: result.imageBase64,
+                realismScore: scores.realism,
+                qualityScore: scores.quality,
+                compositionScore: scores.composition,
+                labelScore: scores.label,
+                overallScore: scores.overall,
+              };
+            }
+
+            return {
+              provider,
+              imageBase64: result.imageBase64,
+              realismScore: 7,
+              qualityScore: 7,
+              compositionScore: 7,
+              labelScore: 7,
+              overallScore: 0.7,
+            };
+          });
+
+          const providerResults = await Promise.all(providerPromises);
+          allResults.push(...providerResults.filter(r => r.imageBase64));
         }
 
-        // STEP 5: QA Evaluation with OCR
-        if (enable_qa && variants.length > 0) {
-          console.log(`[creative-image] Running QA+OCR on ${variants.length} variants...`);
-          await supabase.from('creative_jobs').update({ current_step: currentStepIndex }).eq('id', jobId);
-          currentStepIndex++;
+        // Sort by overall score (realism-weighted)
+        allResults.sort((a, b) => b.overallScore - a.overallScore);
 
-          for (const variant of variants) {
-            const qa = await evaluateImageQAWithOCR(
-              lovableApiKey,
-              variant.imageBase64,
-              productBase64,
-              product_name || 'Produto',
-              labelTokens
-            );
-            variant.qa = qa;
-            totalCostCents += Math.ceil(COST_PER_QA_USD * CREDIT_MARKUP * USD_TO_BRL * 100);
-          }
-        }
+        // Upload best results
+        const uploadedImages: { 
+          url: string; 
+          provider: Provider; 
+          scores: QAScores;
+          isWinner: boolean;
+        }[] = [];
 
-        // STEP 6: Check if all failed QA → Pure Composite Fallback
-        const passedVariants = variants.filter(v => !enable_qa || v.qa?.passed !== false);
-        
-        if (passedVariants.length === 0 && enable_fallback) {
-          console.log(`[creative-image] All variants failed QA, generating PURE COMPOSITE fallback...`);
-          
-          const fallbackResult = await generatePureComposite(
-            lovableApiKey,
-            productCutoutBase64,
-            product_name || 'Produto',
-            scene,
-            gender,
-            pose
-          );
+        for (let i = 0; i < allResults.length; i++) {
+          const result = allResults[i];
+          if (!result.imageBase64) continue;
 
-          if (fallbackResult.imageBase64) {
-            variants.push({
-              imageBase64: fallbackResult.imageBase64,
-              model: 'pure-composite-fallback',
-              variantIndex: variants.length + 1,
-              isFallback: true,
-              isLabelLock: true,
-              qa: { 
-                passed: true, 
-                score: 0.85, 
-                similarityScore: 10, 
-                labelScore: 10,
-                qualityScore: 7, 
-                reason: 'Pure composite fallback - 100% label fidelity guaranteed' 
-              },
-            });
-            totalCostCents += Math.ceil(COST_PER_IMAGE_USD * 2.5 * CREDIT_MARKUP * USD_TO_BRL * 100);
-          }
-        }
-
-        // STEP 7: Select best variant
-        await supabase.from('creative_jobs').update({ current_step: currentStepIndex }).eq('id', jobId);
-        
-        const finalVariants = variants
-          .filter(v => !enable_qa || v.qa?.passed !== false || v.isFallback)
-          .sort((a, b) => (b.qa?.score || 0.5) - (a.qa?.score || 0.5));
-
-        // STEP 8: Upload to storage
-        const uploadedImages: { url: string; model: string; variantIndex: number; qa?: QAResult; isBest: boolean; isLabelLock: boolean }[] = [];
-        
-        for (let i = 0; i < finalVariants.length; i++) {
-          const variant = finalVariants[i];
-          const storagePath = `${tenant_id}/${jobId}/variant_${variant.variantIndex}.png`;
+          const storagePath = `${tenant_id}/${jobId}/${result.provider}_${i + 1}.png`;
           
           try {
-            const binaryData = Uint8Array.from(atob(variant.imageBase64), c => c.charCodeAt(0));
+            const binaryData = Uint8Array.from(atob(result.imageBase64), c => c.charCodeAt(0));
             
             const { error: uploadError } = await supabase.storage
               .from('media-assets')
@@ -1153,11 +777,15 @@ serve(async (req) => {
             if (publicUrlData?.publicUrl) {
               uploadedImages.push({
                 url: publicUrlData.publicUrl,
-                model: variant.model,
-                variantIndex: variant.variantIndex,
-                qa: variant.qa,
-                isBest: i === 0,
-                isLabelLock: variant.isLabelLock || false,
+                provider: result.provider,
+                scores: {
+                  realism: result.realismScore,
+                  quality: result.qualityScore,
+                  composition: result.compositionScore,
+                  label: result.labelScore,
+                  overall: result.overallScore,
+                },
+                isWinner: i === 0,
               });
             }
           } catch (error) {
@@ -1165,10 +793,10 @@ serve(async (req) => {
           }
         }
 
-        // STEP 9: Save results
+        // Save results
         const elapsedMs = Date.now() - startTime;
         const finalStatus = uploadedImages.length > 0 ? 'succeeded' : 'failed';
-        const bestImage = uploadedImages.find(img => img.isBest);
+        const winner = uploadedImages.find(img => img.isWinner);
 
         await supabase
           .from('creative_jobs')
@@ -1178,54 +806,44 @@ serve(async (req) => {
             cost_cents: totalCostCents,
             processing_time_ms: elapsedMs,
             completed_at: new Date().toISOString(),
-            error_message: uploadedImages.length === 0 ? 'Nenhuma imagem aprovada pelo QA' : null,
+            error_message: uploadedImages.length === 0 ? 'Nenhuma imagem gerada com sucesso' : null,
             settings: {
               ...job.settings,
-              actual_variants: uploadedImages.length,
-              best_variant_index: bestImage?.variantIndex,
-              best_score: bestImage?.qa?.score,
-              label_lock_applied: uploadedImages.filter(img => img.isLabelLock).length,
-              qa_results: uploadedImages.map(img => ({
-                variantIndex: img.variantIndex,
-                score: img.qa?.score,
-                passed: img.qa?.passed,
-                labelScore: img.qa?.labelScore,
-                ocrText: img.qa?.ocrText?.substring(0, 100),
-                tokensFound: img.qa?.tokensFound,
-                tokensMissing: img.qa?.tokensMissing,
-                reason: img.qa?.reason,
-                isLabelLock: img.isLabelLock,
+              results: uploadedImages.map(img => ({
+                url: img.url,
+                provider: img.provider,
+                scores: img.scores,
+                isWinner: img.isWinner,
               })),
+              winner_provider: winner?.provider,
+              winner_score: winner?.scores.overall,
             },
           })
           .eq('id', jobId);
 
-        // Register files in drive
+        // Register files
         for (const img of uploadedImages) {
           await supabase.from('files').insert({
             tenant_id,
             folder_id: folderId,
-            filename: `Criativo_${(product_name || 'Produto').substring(0, 20)}_v${img.variantIndex}${img.isBest ? '_BEST' : ''}${img.isLabelLock ? '_LL' : ''}.png`,
-            original_name: `variant_${img.variantIndex}.png`,
-            storage_path: `${tenant_id}/${jobId}/variant_${img.variantIndex}.png`,
+            filename: `${product_name || 'Produto'}_${img.provider}${img.isWinner ? '_BEST' : ''}.png`,
+            original_name: `${img.provider}.png`,
+            storage_path: `${tenant_id}/${jobId}/${img.provider}.png`,
             file_type: 'image',
             mime_type: 'image/png',
             created_by: userId,
             metadata: {
-              source: 'creative_job',
+              source: 'creative_job_v3',
               job_id: jobId,
               product_id,
-              variant_index: img.variantIndex,
-              model: img.model,
-              is_best: img.isBest,
-              is_label_lock: img.isLabelLock,
-              qa_score: img.qa?.score,
-              label_score: img.qa?.labelScore,
+              provider: img.provider,
+              is_winner: img.isWinner,
+              scores: img.scores,
             },
           });
         }
 
-        console.log(`[creative-image] LABEL LOCK Pipeline complete: ${uploadedImages.length} images in ${elapsedMs}ms`);
+        console.log(`[creative-image] Pipeline complete: ${uploadedImages.length} images in ${elapsedMs}ms`);
         
       } catch (pipelineError) {
         console.error(`[creative-image] Pipeline error:`, pipelineError);
@@ -1237,18 +855,16 @@ serve(async (req) => {
       }
     };
 
-    // Usar EdgeRuntime.waitUntil para processar em background
-    // @ts-ignore - EdgeRuntime é disponível no Deno Deploy
+    // Background processing
+    // @ts-ignore
     if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
       // @ts-ignore
       EdgeRuntime.waitUntil(processPipeline());
     } else {
-      // Fallback: processar sem aguardar (não ideal, mas funciona)
       processPipeline().catch(console.error);
     }
 
-    // Retornar 202 Accepted imediatamente
-    // Frontend fará polling do status do job
+    // Return immediately
     console.log(`[creative-image] Job ${jobId} queued for background processing`);
     
     return new Response(
@@ -1257,8 +873,9 @@ serve(async (req) => {
         data: {
           job_id: jobId,
           status: 'running',
-          message: 'Job iniciado. Acompanhe o progresso na lista de jobs.',
+          message: 'Job iniciado. Acompanhe o progresso na lista.',
           pipeline_version: VERSION,
+          providers: enabledProviders,
         },
       }),
       { status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

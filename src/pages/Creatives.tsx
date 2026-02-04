@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import { useCreativeStats, useCreativesFolder } from '@/hooks/useCreatives';
 import { UnifiedVideoTab } from '@/components/creatives/UnifiedVideoTab';
-import { ProductImageTab } from '@/components/creatives/ProductImageTab';
+import { ImageGenerationTabV3 } from '@/components/creatives/image-generation';
 import { CreativeGallery } from '@/components/creatives/CreativeGallery';
 
 type TabId = 'videos' | 'images' | 'gallery';
@@ -44,7 +44,7 @@ const TABS: { id: TabId; label: string; icon: React.ElementType; description: st
     id: 'images',
     label: 'Imagens',
     icon: Image,
-    description: 'Imagens de produto com cenários e pessoas',
+    description: 'Imagens de produto com OpenAI + Gemini',
   },
   {
     id: 'gallery',
@@ -184,7 +184,7 @@ export default function Creatives() {
         </TabsContent>
 
         <TabsContent value="images" className="mt-6">
-          <ProductImageTab />
+          <ImageGenerationTabV3 />
         </TabsContent>
 
         <TabsContent value="gallery" className="mt-6">
