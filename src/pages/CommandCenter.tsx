@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LayoutDashboard, Bot, CalendarClock } from "lucide-react";
+import { LayoutDashboard, Bot, CalendarClock, Wrench } from "lucide-react";
 import { AgendaContent } from "@/components/command-center/agenda";
 import { EmbeddedCommandAssistant } from "@/components/command-assistant/EmbeddedCommandAssistant";
+import { GoogleMapsToFacebookConverter } from "@/components/tools/GoogleMapsToFacebookConverter";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useDashboardMetrics,
@@ -349,7 +350,7 @@ export default function CommandCenter() {
       />
 
       <Tabs value={currentTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-3">
+        <TabsList className="grid w-full max-w-lg grid-cols-4">
           <TabsTrigger value="overview" className="gap-2">
             <LayoutDashboard className="h-4 w-4" />
             <span className="hidden sm:inline">Central de Execuções</span>
@@ -361,6 +362,10 @@ export default function CommandCenter() {
           <TabsTrigger value="agenda" className="gap-2">
             <CalendarClock className="h-4 w-4" />
             <span className="hidden sm:inline">Agenda</span>
+          </TabsTrigger>
+          <TabsTrigger value="tools" className="gap-2">
+            <Wrench className="h-4 w-4" />
+            <span className="hidden sm:inline">Ferramentas</span>
           </TabsTrigger>
         </TabsList>
 
@@ -374,6 +379,12 @@ export default function CommandCenter() {
 
         <TabsContent value="agenda" className="mt-6">
           <AgendaContent />
+        </TabsContent>
+
+        <TabsContent value="tools" className="mt-6">
+          <div className="space-y-6">
+            <GoogleMapsToFacebookConverter />
+          </div>
         </TabsContent>
       </Tabs>
     </div>
