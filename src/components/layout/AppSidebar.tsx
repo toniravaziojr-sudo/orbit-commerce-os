@@ -54,6 +54,7 @@ import {
   Handshake,
   UsersRound,
   Lock,
+   Wrench,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -228,6 +229,7 @@ const platformAdminNavigation: NavGroup[] = [
       { title: "Emails do Sistema", href: "/platform/emails", icon: Mail },
       { title: "Avisos da Plataforma", href: "/platform/announcements", icon: Bell },
       { title: "Tutoriais por Módulo", href: "/platform/tutorials", icon: BookOpen },
+       { title: "Ferramentas", href: "/platform/tools", icon: Wrench },
     ],
   },
 ];
