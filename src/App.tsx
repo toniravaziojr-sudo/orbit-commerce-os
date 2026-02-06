@@ -106,6 +106,7 @@ import PlatformBilling from "@/pages/platform/PlatformBilling";
 import PlatformAnnouncements from "@/pages/platform/PlatformAnnouncements";
 import PlatformTutorials from "@/pages/platform/PlatformTutorials";
  import PlatformTools from "@/pages/platform/PlatformTools";
+import PlatformTenants from "@/pages/platform/PlatformTenants";
 import Influencers from "@/pages/Influencers";
 
 import Affiliates from "@/pages/Affiliates";
@@ -418,6 +419,7 @@ const App = () => {
                   <Route path="/platform/emails" element={<SystemEmails />} />
                   <Route path="/platform/announcements" element={<PlatformAnnouncements />} />
                   <Route path="/platform/tutorials" element={<PlatformTutorials />} />
+                   <Route path="/platform/tenants" element={<PlatformTenants />} />
                    <Route path="/platform/tools" element={<PlatformTools />} />
                   {/* System routes - Owner only */}
                   <Route path="/system/users" element={<GatedRoute moduleKey="sistema_usuarios" moduleName="Usuários e Permissões" moduleDescription="Gerencie usuários e permissões da sua loja"><SystemUsers /></GatedRoute>} />
