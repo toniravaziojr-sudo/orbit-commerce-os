@@ -196,7 +196,7 @@ export function GenerateReviewsDialog({ trigger }: GenerateReviewsDialogProps) {
               </Select>
               {selectedProduct?.description && (
                 <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                  {selectedProduct.description}
+                  {selectedProduct.description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()}
                 </p>
               )}
             </div>
