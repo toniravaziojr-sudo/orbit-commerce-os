@@ -40,6 +40,7 @@ import { ProductVariantPicker, type PendingVariant } from './ProductVariantPicke
 import { validateSlugFormat, generateSlug as generateSlugFromPolicy, RESERVED_SLUGS } from '@/lib/slugPolicy';
 import { useToast } from '@/hooks/use-toast';
 import { GenerateSeoButton } from '@/components/seo/GenerateSeoButton';
+import { AIDescriptionButton } from './AIDescriptionButton';
 
 const productSchema = z.object({
   // === CAMPOS OBRIGATÓRIOS BÁSICOS ===
@@ -721,7 +722,15 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                     name="short_description"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Descrição Curta</FormLabel>
+                        <div className="flex items-center justify-between">
+                          <FormLabel>Descrição Curta</FormLabel>
+                          <AIDescriptionButton
+                            type="short_description"
+                            productName={form.watch('name')}
+                            fullDescription={form.watch('description') ?? ''}
+                            onGenerated={(text) => form.setValue('short_description', text, { shouldDirty: true })}
+                          />
+                        </div>
                         <FormControl>
                           <Textarea
                             {...field}
@@ -740,7 +749,15 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                     name="description"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Descrição Completa</FormLabel>
+                        <div className="flex items-center justify-between">
+                          <FormLabel>Descrição Completa</FormLabel>
+                          <AIDescriptionButton
+                            type="full_description"
+                            productName={form.watch('name')}
+                            fullDescription={field.value ?? ''}
+                            onGenerated={(text) => form.setValue('description', text, { shouldDirty: true })}
+                          />
+                        </div>
                         <FormControl>
                           <ProductRichTextEditor
                             value={field.value ?? ''}

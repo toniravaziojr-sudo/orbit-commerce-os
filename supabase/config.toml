@@ -564,3 +564,6 @@ verify_jwt = true
 
 [functions.creative-video-generate]
 verify_jwt = true
+
+[functions.ai-product-description]
+verify_jwt = true
