@@ -12,7 +12,7 @@ import { usePublicGlobalLayout } from '@/hooks/useGlobalLayoutIntegration';
 import { CheckoutStepWizard } from '@/components/storefront/checkout/CheckoutStepWizard';
 import { StorefrontHeaderContent } from '@/components/storefront/StorefrontHeaderContent';
 import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
-import { StorefrontThemeInjector } from '@/components/storefront/StorefrontThemeInjector';
+
 import { PageColorsInjector } from '@/components/storefront/PageColorsInjector';
 import { Loader2 } from 'lucide-react';
 import { isPreviewUrl } from '@/lib/sanitizePublicUrl';
@@ -172,8 +172,9 @@ export default function StorefrontCheckout() {
 
   return (
     <>
-      {/* Inject theme CSS variables for buttons and text */}
-      <StorefrontThemeInjector tenantSlug={tenantSlug || ''} />
+      {/* Theme CSS is injected by TenantStorefrontLayout - do NOT duplicate here
+          Duplicating causes the style to be removed on checkout unmount,
+          leaving the storefront without theme styles */}
       
       {/* Inject page-specific color overrides (checkout custom colors) */}
       <PageColorsInjector tenantSlug={tenantSlug || ''} pageType="checkout" />
