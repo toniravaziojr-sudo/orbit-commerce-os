@@ -2,7 +2,7 @@
 // REVIEWS PAGE - Moderate product reviews
 // =============================================
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -33,8 +33,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Star, MoreHorizontal, Check, X, Trash2, Search, Loader2, MessageSquare, Plus, Sparkles, Play, Image as ImageIcon } from 'lucide-react';
+import { Star, MoreHorizontal, Check, X, Trash2, Search, Loader2, MessageSquare, Plus, Sparkles, Play, Image as ImageIcon, CheckCheck } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -65,6 +66,24 @@ export default function Reviews() {
   const [productFilter, setProductFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [lightboxMedia, setLightboxMedia] = useState<string | null>(null);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Clear selection when tab/filter changes
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [activeTab, productFilter, searchTerm]);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  
 
   const isVideo = (url: string) => {
     return url.match(/\.(mp4|webm|ogg|mov)$/i);
@@ -205,6 +224,75 @@ export default function Reviews() {
     );
   });
 
+  const toggleSelectAll = useCallback(() => {
+    if (selectedIds.size === filteredReviews.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredReviews.map(r => r.id)));
+    }
+  }, [selectedIds.size, filteredReviews]);
+
+  // Bulk status mutation
+  const bulkStatusMutation = useMutation({
+    mutationFn: async ({ ids, status }: { ids: string[]; status: string }) => {
+      const updateData: any = { status };
+      if (status === 'approved') {
+        updateData.approved_at = new Date().toISOString();
+        updateData.approved_by = user?.id;
+      }
+      const { error } = await supabase
+        .from('product_reviews')
+        .update(updateData)
+        .in('id', ids);
+      if (error) throw error;
+
+      // Register media to Drive for approved reviews with media
+      if (status === 'approved' && currentTenantId && user?.id) {
+        const reviewsWithMedia = reviews.filter(r => ids.includes(r.id) && r.media_urls?.length);
+        for (const review of reviewsWithMedia) {
+          await registerReviewMediaToDrive(
+            currentTenantId,
+            user.id,
+            review.media_urls!,
+            review.id,
+            review.customer_name
+          ).catch(console.error);
+        }
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['product-reviews'] });
+      queryClient.invalidateQueries({ queryKey: ['product-ratings-batch'] });
+      queryClient.invalidateQueries({ queryKey: ['files'] });
+      const count = variables.ids.length;
+      setSelectedIds(new Set());
+      toast.success(`${count} avaliações atualizadas`);
+    },
+    onError: () => {
+      toast.error('Erro ao atualizar avaliações em massa');
+    },
+  });
+
+  // Bulk delete mutation
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase
+        .from('product_reviews')
+        .delete()
+        .in('id', ids);
+      if (error) throw error;
+      return ids.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ['product-reviews'] });
+      setSelectedIds(new Set());
+      toast.success(`${count} avaliações excluídas`);
+    },
+    onError: () => {
+      toast.error('Erro ao excluir avaliações em massa');
+    },
+  });
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'approved':
@@ -324,6 +412,49 @@ export default function Reviews() {
           </Select>
         </div>
 
+      {/* Bulk Actions Bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 p-3 bg-muted rounded-lg border">
+          <span className="text-sm font-medium">
+            {selectedIds.size} selecionada{selectedIds.size > 1 ? 's' : ''}
+          </span>
+          <div className="flex gap-2 ml-auto">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => bulkStatusMutation.mutate({ ids: Array.from(selectedIds), status: 'approved' })}
+              disabled={bulkStatusMutation.isPending}
+            >
+              <Check className="h-4 w-4 mr-1 text-green-600" />
+              Aprovar
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => bulkStatusMutation.mutate({ ids: Array.from(selectedIds), status: 'rejected' })}
+              disabled={bulkStatusMutation.isPending}
+            >
+              <X className="h-4 w-4 mr-1 text-red-600" />
+              Rejeitar
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                if (confirm(`Excluir ${selectedIds.size} avaliação(ões)?`)) {
+                  bulkDeleteMutation.mutate(Array.from(selectedIds));
+                }
+              }}
+              disabled={bulkDeleteMutation.isPending}
+              className="text-destructive"
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              Excluir
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Reviews Table */}
       <Card>
         <CardHeader>
@@ -346,6 +477,12 @@ export default function Reviews() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={filteredReviews.length > 0 && selectedIds.size === filteredReviews.length}
+                      onCheckedChange={toggleSelectAll}
+                    />
+                  </TableHead>
                   <TableHead>Produto</TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Nota</TableHead>
@@ -358,7 +495,13 @@ export default function Reviews() {
               </TableHeader>
               <TableBody>
                 {filteredReviews.map((review) => (
-                  <TableRow key={review.id}>
+                  <TableRow key={review.id} className={selectedIds.has(review.id) ? 'bg-muted/50' : ''}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.has(review.id)}
+                        onCheckedChange={() => toggleSelect(review.id)}
+                      />
+                    </TableCell>
                     <TableCell>
                       <span className="font-medium">{review.product?.name}</span>
                     </TableCell>
