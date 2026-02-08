@@ -310,20 +310,90 @@ graph TD
 
 ---
 
-## 10. Arquivos Relacionados
+## 10. Geração de Descrições com IA
+
+### 10.1 Componentes
+
+| Arquivo | Responsabilidade |
+|---------|------------------|
+| `src/components/products/AIDescriptionButton.tsx` | Botão reutilizável para gerar descrições via IA |
+| `supabase/functions/ai-product-description/index.ts` | Edge Function que chama o modelo de IA |
+
+### 10.2 Modelo de IA
+
+- **Modelo**: `google/gemini-2.5-pro` via Lovable AI Gateway
+- **Autenticação**: `LOVABLE_API_KEY` (secret do sistema)
+- **JWT**: `verify_jwt = true` — requer usuário autenticado
+
+### 10.3 Fluxos
+
+#### Descrição Curta (`short_description`)
+
+1. **Requisito**: Descrição completa preenchida
+2. **Ação**: Botão "Gerar com IA" ao lado do campo
+3. **Processo**: IA resume a descrição completa em 2-3 frases (até 300 caracteres)
+4. **Formato**: Texto simples (sem HTML)
+
+#### Descrição Completa (`full_description`) — Com conteúdo existente
+
+1. **Ação**: Botão "Melhorar com IA"
+2. **Processo**: IA reorganiza e melhora o conteúdo existente
+3. **Formato**: HTML semântico estruturado (h2, h3, ul, ol, hr, strong, em)
+
+#### Descrição Completa (`full_description`) — Sem conteúdo
+
+1. **Ação**: Botão "Gerar com IA" → Abre dialog de prompt
+2. **Input**: Usuário fornece informações base do produto (características, benefícios, composição)
+3. **Processo**: IA gera descrição completa profissional
+4. **Formato**: HTML semântico com estrutura obrigatória:
+   - `<h2>` Nome do produto
+   - `<p><em>` Tagline
+   - `<h3>DESCRIÇÃO:</h3>` — Apresentação geral
+   - `<h3>AÇÃO / FUNCIONALIDADES:</h3>` — Lista numerada (`<ol>`)
+   - `<h3>BENEFÍCIOS PRINCIPAIS:</h3>` — Lista com bullets (`<ul>`)
+   - `<h3>BENEFÍCIOS ADICIONAIS:</h3>` — Lista com bullets (`<ul>`)
+   - `<h3>ESPECIFICAÇÕES:</h3>` — Detalhes técnicos
+   - Separadores `<hr>` entre seções
+
+### 10.4 Props do `AIDescriptionButton`
+
+```typescript
+interface AIDescriptionButtonProps {
+  type: 'short_description' | 'full_description';
+  productName: string;
+  fullDescription?: string;
+  onGenerated: (text: string) => void;
+}
+```
+
+### 10.5 Regras
+
+| Regra | Detalhe |
+|-------|---------|
+| Requisito descrição curta | Só gera se `fullDescription` estiver preenchida |
+| Descrição curta sem HTML | Texto limpo, sem tags |
+| Descrição completa com HTML | Usa HTML semântico, **nunca** markdown |
+| Dialog de prompt | Só aparece quando descrição completa está vazia |
+| Botão dinâmico | "Gerar com IA" (vazio) / "Melhorar com IA" (com conteúdo) |
+
+---
+
+## 11. Arquivos Relacionados
 
 - `src/pages/Products.tsx`
 - `src/components/products/*`
+- `src/components/products/AIDescriptionButton.tsx`
 - `src/hooks/useProducts.ts`
 - `src/hooks/useProductImages.ts`
 - `src/hooks/useProductVariants.ts`
 - `src/lib/coreApi.ts` (coreProductsApi)
 - `supabase/functions/core-products/`
+- `supabase/functions/ai-product-description/`
 - `src/lib/slugPolicy.ts`
 
 ---
 
-## 11. Pendências
+## 12. Pendências
 
 - [ ] Exportação em massa (CSV/Excel)
 - [ ] Histórico de alterações do produto
