@@ -219,6 +219,20 @@ const footerPropsToInherit = [
 2. Se a cor estiver **preenchida**, ela **sobrescreve** o tema
 3. Configuração em: **Configurações do Tema > Páginas > Checkout > Cores Personalizadas**
 
+### Timeline de Passos (ProgressTimeline)
+
+A timeline de passos do checkout (indicadores "Contato > Entrega > Pagamento") utiliza as cores customizadas do checkout:
+
+| Estado | Cor utilizada | Fallback |
+|--------|--------------|----------|
+| **Passo atual** | `--theme-button-primary-bg` | `hsl(var(--primary))` do tema global |
+| **Passo atual (texto)** | `--theme-button-primary-text` | `hsl(var(--primary-foreground))` |
+| **Passos completos** | `--theme-button-primary-bg` com 15% opacity | `--theme-accent-color` ou `#22c55e` |
+| **Passos futuros** | `bg-muted` / `text-muted-foreground` | — |
+| **Barras conectoras (mobile)** | `--theme-button-primary-bg` | `--theme-accent-color` ou `#22c55e` |
+
+> ⚠️ **IMPORTANTE**: As variáveis `--theme-button-primary-bg` e `--theme-button-primary-text` são injetadas pelo `PageColorsInjector` quando cores personalizadas estão configuradas. Se não houver cores customizadas, a timeline usa as cores do tema global.
+
 ### Classes CSS para Flags
 
 | Classe | Uso |
