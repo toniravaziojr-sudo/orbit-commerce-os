@@ -357,9 +357,8 @@ async function quoteCorreios(
     
     console.log('[Correios] Token obtained, proceeding with price quote');
 
-    // Get optional contract info from credentials
-    const contrato = provider.credentials.contrato as string;
-    const dr = provider.credentials.dr as string;
+    // Contract info is already embedded in the cartaopostagem token
+    // DO NOT send nuContrato/nuDR separately — causes PRC-124
 
     // Step 2: Get prices using POST /v1/nacional (batch) or GET /v1/nacional/{coProduto}
     // Using POST for batch request of multiple services at once
@@ -398,11 +397,9 @@ async function quoteCorreios(
         altura,
       };
       
-      // Add contract info if available
-      if (contrato) {
-        baseParams.nuContrato = contrato;
-        baseParams.nuDR = parseInt(dr || '0', 10);
-      }
+      // DO NOT send nuContrato/nuDR in the price request
+      // The token from cartaopostagem auth already carries contract info
+      // Sending mismatched DR causes PRC-124 error
       
       // Only add Valor Declarado if explicitly required in provider settings
       if (requireDeclaredValue) {
@@ -470,10 +467,10 @@ async function quoteCorreios(
       const priceStr = result.pcFinal || result.pcBase || '0';
       const price = parseFloat(String(priceStr).replace(',', '.')) || 0;
       
-      // Parse delivery time
-      const days = parseInt(result.prazoEntrega, 10) || 0;
+      // Parse delivery time - field can be prazoEntrega or prazo
+      const days = parseInt(result.prazoEntrega, 10) || parseInt(result.prazo, 10) || 5;
 
-      if (price > 0) {
+      if (price >= 0) {
         const serviceName = serviceNameMap[coProduto] || `Correios ${coProduto}`;
         
         options.push({
@@ -645,44 +642,78 @@ async function quoteLoggi(
       };
     }
 
-    // Step 3: Build payload with complete addresses using correiosAddress format
-    const quotePayload = {
-      shipFrom: {
-        address: {
-          correiosAddress: {
-            logradouro: originAddress.logradouro,
-            numero: originAddress.numero,
-            bairro: originAddress.bairro,
-            cep: originAddress.cep,
-            cidade: originAddress.cidade,
-            uf: originAddress.uf,
+    // Step 3: Build payload - try multiple address format strategies
+    // The quotation API may accept simpler format than async-shipments
+    const buildQuotePayload = (useCorreiosAddress: boolean) => {
+      if (useCorreiosAddress) {
+        return {
+          shipFrom: {
+            address: {
+              correiosAddress: {
+                logradouro: originAddress.logradouro,
+                numero: originAddress.numero,
+                bairro: originAddress.bairro,
+                cep: originAddress.cep,
+                cidade: originAddress.cidade,
+                uf: originAddress.uf,
+              },
+            },
           },
-        },
-      },
-      shipTo: {
-        address: {
-          correiosAddress: {
-            logradouro: recipientAddress.logradouro,
-            numero: recipientAddress.numero,
-            bairro: recipientAddress.bairro,
-            cep: recipientAddress.cep,
-            cidade: recipientAddress.cidade,
-            uf: recipientAddress.uf,
+          shipTo: {
+            address: {
+              correiosAddress: {
+                logradouro: recipientAddress.logradouro,
+                numero: recipientAddress.numero,
+                bairro: recipientAddress.bairro,
+                cep: recipientAddress.cep,
+                cidade: recipientAddress.cidade,
+                uf: recipientAddress.uf,
+              },
+            },
           },
-        },
-      },
-      packages: [{
-        weightG: Math.max(100, Math.round(totals.weight * 1000)), // Convert to grams, min 100g
-        heightCm: Math.max(2, Math.round(totals.height)),
-        widthCm: Math.max(11, Math.round(totals.width)),
-        lengthCm: Math.max(16, Math.round(totals.length)),
-      }],
-      declaredValue: Math.round(totals.value * 100), // Convert to cents
+          packages: [{
+            weightG: Math.max(100, Math.round(totals.weight * 1000)),
+            heightCm: Math.max(2, Math.round(totals.height)),
+            widthCm: Math.max(11, Math.round(totals.width)),
+            lengthCm: Math.max(16, Math.round(totals.length)),
+          }],
+        };
+      } else {
+        // addressLines format (international style)
+        return {
+          shipFrom: {
+            address: {
+              addressLines: [`${originAddress.logradouro}, ${originAddress.numero}`],
+              city: originAddress.cidade,
+              state: originAddress.uf,
+              zip: originAddress.cep,
+              country: 'BR',
+            },
+          },
+          shipTo: {
+            address: {
+              addressLines: [`${recipientAddress.logradouro}, ${recipientAddress.numero}`],
+              city: recipientAddress.cidade,
+              state: recipientAddress.uf,
+              zip: recipientAddress.cep,
+              country: 'BR',
+            },
+          },
+          packages: [{
+            weightG: Math.max(100, Math.round(totals.weight * 1000)),
+            heightCm: Math.max(2, Math.round(totals.height)),
+            widthCm: Math.max(11, Math.round(totals.width)),
+            lengthCm: Math.max(16, Math.round(totals.length)),
+          }],
+        };
+      }
     };
 
-    console.log('[Loggi] Requesting quote with correiosAddress format:', JSON.stringify(quotePayload));
+    // Try correiosAddress format first
+    let quotePayload = buildQuotePayload(true);
+    console.log('[Loggi] Requesting quote (correiosAddress):', JSON.stringify(quotePayload));
 
-    const quoteResponse = await fetch(
+    let quoteResponse = await fetch(
       `https://api.loggi.com/v1/companies/${companyId}/quotations`,
       {
         method: 'POST',
@@ -697,8 +728,30 @@ async function quoteLoggi(
 
     if (!quoteResponse.ok) {
       const errorText = await quoteResponse.text();
-      console.error('[Loggi] Quote API error:', quoteResponse.status, errorText);
-      return [];
+      console.warn('[Loggi] correiosAddress format failed:', quoteResponse.status, errorText);
+      
+      // Retry with addressLines format
+      quotePayload = buildQuotePayload(false);
+      console.log('[Loggi] Retrying with addressLines format:', JSON.stringify(quotePayload));
+      
+      quoteResponse = await fetch(
+        `https://api.loggi.com/v1/companies/${companyId}/quotations`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify(quotePayload),
+        }
+      );
+      
+      if (!quoteResponse.ok) {
+        const errorText2 = await quoteResponse.text();
+        console.error('[Loggi] addressLines format also failed:', quoteResponse.status, errorText2);
+        return [];
+      }
     }
 
     const quoteData = await quoteResponse.json();
