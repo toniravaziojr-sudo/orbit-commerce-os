@@ -897,12 +897,14 @@ function ProgressTimeline({
                 disabled={step.id > currentStep}
                 className={cn(
                   "flex items-center gap-2 px-3 py-2 rounded-full text-sm whitespace-nowrap transition-colors",
-                  isCurrent && "bg-primary text-primary-foreground",
                   !isCompleted && !isCurrent && "bg-muted text-muted-foreground cursor-not-allowed"
                 )}
-                style={isCompleted ? {
-                  backgroundColor: 'color-mix(in srgb, var(--theme-accent-color, #22c55e) 15%, transparent)',
-                  color: 'var(--theme-accent-color, #22c55e)',
+                style={isCurrent ? {
+                  backgroundColor: 'var(--theme-button-primary-bg, hsl(var(--primary)))',
+                  color: 'var(--theme-button-primary-text, hsl(var(--primary-foreground)))',
+                } : isCompleted ? {
+                  backgroundColor: 'color-mix(in srgb, var(--theme-button-primary-bg, var(--theme-accent-color, #22c55e)) 15%, transparent)',
+                  color: 'var(--theme-button-primary-bg, var(--theme-accent-color, #22c55e))',
                   cursor: 'pointer',
                 } : undefined}
               >
@@ -935,11 +937,13 @@ function ProgressTimeline({
                   disabled={step.id > currentStep}
                   className={cn(
                     "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors",
-                    isCurrent && "bg-primary text-primary-foreground",
                     !isCompleted && !isCurrent && "bg-muted text-muted-foreground"
                   )}
-                  style={isCompleted ? {
-                    backgroundColor: 'var(--theme-accent-color, #22c55e)',
+                  style={isCurrent ? {
+                    backgroundColor: 'var(--theme-button-primary-bg, hsl(var(--primary)))',
+                    color: 'var(--theme-button-primary-text, hsl(var(--primary-foreground)))',
+                  } : isCompleted ? {
+                    backgroundColor: 'var(--theme-button-primary-bg, var(--theme-accent-color, #22c55e))',
                     color: 'white',
                   } : undefined}
                 >
@@ -953,7 +957,7 @@ function ProgressTimeline({
                   <div 
                     className={cn("w-6 h-0.5", !isCompleted && "bg-muted")}
                     style={currentStep > step.id ? {
-                      backgroundColor: 'var(--theme-accent-color, #22c55e)',
+                      backgroundColor: 'var(--theme-button-primary-bg, var(--theme-accent-color, #22c55e))',
                     } : undefined}
                   />
                 )}
