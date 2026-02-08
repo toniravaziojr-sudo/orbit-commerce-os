@@ -139,7 +139,8 @@ interface Response {
 | **Busca** | Por nome, conteúdo ou produto |
 | **Filtro por produto** | Dropdown com todos os produtos |
 | **Coluna Mídia** | Thumbnails clicáveis com lightbox |
-| **Ações** | Aprovar, Rejeitar, Excluir |
+| **Ações individuais** | Aprovar, Rejeitar, Excluir (menu dropdown por linha) |
+| **Ações em massa** | Checkbox por linha + "Selecionar todos" no cabeçalho. Barra de ações exibida ao selecionar: Aprovar, Rejeitar, Excluir em lote. Seleção limpa ao trocar aba/filtro/busca. Mídias registradas no Drive ao aprovar em massa. |
 
 ---
 
