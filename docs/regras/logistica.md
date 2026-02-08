@@ -1,10 +1,11 @@
 # Logística (Shipping) — Regras e Especificações
 
-> **STATUS:** ✅ Produção (Correios e Frenet operacionais)
+> **STATUS:** ✅ Produção (Correios, Frenet e Loggi operacionais via `shipping-quote`)
 
 ## Visão Geral
 
 Módulo de gestão de envios, transportadoras, regras de frete grátis e frete personalizado.
+O cálculo de frete é centralizado na Edge Function `shipping-quote`, que consulta todos os providers ativos em paralelo e retorna opções unificadas com deduplicação inteligente.
 
 ---
 
@@ -18,6 +19,8 @@ Módulo de gestão de envios, transportadoras, regras de frete grátis e frete p
 | `src/components/shipping/CarrierConfigDialog.tsx` | Diálogo de configuração |
 | `src/components/shipping/FreeShippingRulesTab.tsx` | Regras frete grátis |
 | `src/components/shipping/CustomShippingRulesTab.tsx` | Frete personalizado |
+| `supabase/functions/shipping-quote/index.ts` | Edge Function agregadora multi-provider |
+| `supabase/functions/frenet-quote/index.ts` | Edge Function legada (Frenet direto) |
 
 ---
 
@@ -191,9 +194,60 @@ interface CustomShippingRule {
 |----------------|---------|--------------|-----------|--------------|--------|
 | Frenet | ✅ | ✅ (via gateway) | ✅ (via gateway) | ✅ | **Produção** |
 | Correios (API Code) | ✅ | ✅ SRO | ✅ PDF/ZPL | ✅ PLP | **Produção** |
-| Loggi | ✅ | 🟧 | 🟧 | 🟧 | **Em progresso** |
+| Loggi | ✅ (via Frenet) | 🟧 | 🟧 | 🟧 | **Parcial** — cotação direta depende de confirmação do `externalServiceId` |
 | Melhor Envio | 🟧 | 🟧 | 🟧 | 🟧 | **Pendente** |
 | Jadlog | 🟧 | 🟧 | 🟧 | 🟧 | **Pendente** |
+
+---
+
+## Edge Function `shipping-quote` — Agregador Multi-Provider
+
+### Arquitetura
+
+```
+Cliente → shipping-quote (Edge Function)
+                │
+                ├─── Regras de Frete Grátis (DB)
+                ├─── Regras de Frete Personalizado (DB)
+                ├─── Frenet API (token do tenant)
+                ├─── Correios API REST v1 (credenciais do tenant)
+                └─── Loggi API v2 (OAuth plataforma + company_id tenant)
+```
+
+### Fluxo de Execução
+
+1. Resolve tenant pelo host (domain-aware)
+2. Busca em paralelo: regras (free/custom), providers ativos, store_settings
+3. Para cada provider ativo com `supports_quote = true`, chama adapter específico
+4. Aplica timeout de 10s por provider
+5. Deduplica opções por `source_provider|carrier|service_code|estimated_days`
+6. Retorna regras primeiro (frete grátis no topo), depois opções de transportadoras
+
+### Deduplicação (REGRA CRÍTICA)
+
+A chave de deduplicação **DEVE incluir `source_provider`** para que opções iguais vindas de providers diferentes NÃO sejam mescladas:
+
+```typescript
+const key = `${opt.source_provider}|${carrierNorm}|${codeNorm}|${opt.estimated_days}`;
+```
+
+**Justificativa:** Se Frenet retorna PAC e Correios direto também retorna PAC, ambas devem aparecer porque os preços podem diferir.
+
+### Correios — Notas Técnicas
+
+- **Autenticação:** Usa `POST /token/v1/autentica/cartaopostagem` com Basic Auth (usuario:codigo_acesso)
+- **Cotação:** `POST /preco/v1/nacional` com batch de serviços (SEDEX 03220 + PAC 03298)
+- **PROIBIDO:** Enviar `nuContrato` e `nuDR` no payload de preço — causa erro **PRC-124** pois já estão embutidos no token do cartão de postagem
+- **Valor Declarado:** Só enviar `servicosAdicionais` com VD se `require_declared_value = true` nas settings do provider
+- **Prazo:** Usar campo `prazoEntrega` com fallback para `prazo`, default 5 dias
+
+### Loggi — Notas Técnicas
+
+- **Auth:** OAuth2 com secrets da plataforma (`LOGGI_CLIENT_ID`, `LOGGI_CLIENT_SECRET`)
+- **Cotação direta:** Endpoint `POST /v1/companies/{companyId}/quotations` — requer endereço completo (não aceita apenas CEP)
+- **Formatos tentados:** `correiosAddress` → fallback `addressLines` — API ainda rejeita com "Address field required"
+- **Status atual:** Cotação Loggi funciona via **Frenet gateway** (Frenet retorna opção Loggi)
+- **Pendência:** Confirmar formato correto de endereço ou `externalServiceId` com equipe Loggi
 
 ---
 
@@ -201,12 +255,14 @@ interface CustomShippingRule {
 
 ```
 1. Cliente informa CEP no checkout
-2. Sistema verifica regras de frete grátis
-3. Se não aplicável, calcula frete personalizado
-4. Se não houver regra, consulta transportadoras
-5. Retorna opções ordenadas por preço/prazo
-6. Cliente seleciona opção
-7. Valor adicionado ao pedido
+2. Sistema chama shipping-quote com CEP + itens do carrinho
+3. Edge Function verifica regras de frete grátis (primeira match)
+4. Verifica regras de frete personalizado (todas que match)
+5. Consulta transportadoras ativas em paralelo (Frenet, Correios, Loggi)
+6. Deduplica opções (por provider + carrier + serviço + prazo)
+7. Retorna opções ordenadas: grátis primeiro, depois por preço
+8. Cliente seleciona opção
+9. Valor adicionado ao pedido
 ```
 
 ---
@@ -240,6 +296,7 @@ Todas as Edge Functions de cotação (frenet-quote, shipping-quote) DEVEM usar `
 
 - [ ] Integração Melhor Envio
 - [ ] Integração Jadlog
+- [ ] Cotação direta Loggi (formato de endereço pendente)
 - [ ] Rastreamento Loggi
 - [ ] Etiquetas Loggi
 - [ ] Notificações de status automáticas
