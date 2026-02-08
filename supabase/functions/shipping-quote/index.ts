@@ -787,13 +787,15 @@ async function lookupCep(cep: string): Promise<{ logradouro: string; bairro: str
 // ========== DEDUPLICATION ==========
 
 function deduplicateOptions(options: ShippingOption[]): ShippingOption[] {
-  // Group by carrier_normalized + service_code_normalized + estimated_days
+  // Group by source_provider + carrier_normalized + service_code_normalized + estimated_days
+  // Each provider keeps its own options (Frenet PAC ≠ Correios PAC)
   const groups = new Map<string, ShippingOption[]>();
 
   for (const opt of options) {
     const carrierNorm = normalizeCarrier(opt.carrier);
     const codeNorm = normalizeServiceCode(opt.service_code);
-    const key = `${carrierNorm}|${codeNorm}|${opt.estimated_days}`;
+    // Include source_provider so different integrations are NOT merged
+    const key = `${opt.source_provider}|${carrierNorm}|${codeNorm}|${opt.estimated_days}`;
     
     if (!groups.has(key)) {
       groups.set(key, []);
