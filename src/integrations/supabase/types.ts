@@ -7415,6 +7415,93 @@ export type Database = {
           },
         ]
       }
+      meli_listings: {
+        Row: {
+          attributes: Json | null
+          available_quantity: number
+          category_id: string | null
+          condition: string
+          created_at: string
+          currency_id: string
+          description: string | null
+          error_message: string | null
+          id: string
+          images: Json | null
+          listing_type: string
+          meli_item_id: string | null
+          meli_response: Json | null
+          price: number
+          product_id: string
+          published_at: string | null
+          shipping: Json | null
+          status: string
+          tenant_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          attributes?: Json | null
+          available_quantity?: number
+          category_id?: string | null
+          condition?: string
+          created_at?: string
+          currency_id?: string
+          description?: string | null
+          error_message?: string | null
+          id?: string
+          images?: Json | null
+          listing_type?: string
+          meli_item_id?: string | null
+          meli_response?: Json | null
+          price: number
+          product_id: string
+          published_at?: string | null
+          shipping?: Json | null
+          status?: string
+          tenant_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          attributes?: Json | null
+          available_quantity?: number
+          category_id?: string | null
+          condition?: string
+          created_at?: string
+          currency_id?: string
+          description?: string | null
+          error_message?: string | null
+          id?: string
+          images?: Json | null
+          listing_type?: string
+          meli_item_id?: string | null
+          meli_response?: Json | null
+          price?: number
+          product_id?: string
+          published_at?: string | null
+          shipping?: Json | null
+          status?: string
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meli_listings_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meli_listings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       menu_items: {
         Row: {
           created_at: string

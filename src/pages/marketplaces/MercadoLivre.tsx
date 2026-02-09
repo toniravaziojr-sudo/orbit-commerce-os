@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { 
   CheckCircle2, 
@@ -13,12 +11,12 @@ import {
   ShoppingBag,
   MessageSquare,
   Package,
-  Construction,
   ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { MeliConnectionCard } from "@/components/marketplaces/MeliConnectionCard";
 import { MeliOrdersTab } from "@/components/marketplaces/MeliOrdersTab";
+import { MeliListingsTab } from "@/components/marketplaces/MeliListingsTab";
 import { useMeliConnection } from "@/hooks/useMeliConnection";
 
 // Mercado Livre Logo Component
@@ -200,26 +198,7 @@ export default function MercadoLivre() {
         </TabsContent>
 
         <TabsContent value="anuncios" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5" />
-                Anúncios do Mercado Livre
-              </CardTitle>
-              <CardDescription>
-                Gerencie seus anúncios, estoque e preços
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Alert className="border-amber-500/30 bg-amber-50 dark:bg-amber-900/10">
-                <Construction className="h-4 w-4 text-amber-600" />
-                <AlertDescription className="text-amber-800 dark:text-amber-200">
-                  <strong>Em desenvolvimento:</strong> O gerenciamento de anúncios do Mercado Livre está sendo implementado.
-                  Em breve você poderá criar e editar anúncios diretamente por aqui.
-                </AlertDescription>
-              </Alert>
-            </CardContent>
-          </Card>
+          <MeliListingsTab />
         </TabsContent>
       </Tabs>
     </div>
