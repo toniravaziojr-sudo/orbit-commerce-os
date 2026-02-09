@@ -90,11 +90,28 @@ export function useMeliConnection() {
         `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes`
       );
 
-      // Verificar periodicamente se o popup fechou (callback foi processado)
+      // Listen for postMessage from popup (success/error)
+      const handleMessage = (event: MessageEvent) => {
+        if (event.origin !== window.location.origin) return;
+        if (event.data?.type === 'meli_connected' || event.data?.type === 'meli_error') {
+          window.removeEventListener('message', handleMessage);
+          queryClient.invalidateQueries({ queryKey: ["meli-connection-status"] });
+          
+          if (event.data.type === 'meli_connected') {
+            toast.success("Mercado Livre conectado com sucesso!");
+          } else {
+            toast.error("Erro ao conectar: " + (event.data.value || "Tente novamente"));
+          }
+        }
+      };
+      window.addEventListener('message', handleMessage);
+
+      // Fallback: check if popup closed without sending message
       const checkPopup = setInterval(() => {
         if (popup?.closed) {
           clearInterval(checkPopup);
-          // Invalidar query para atualizar status
+          // Remove listener after timeout
+          setTimeout(() => window.removeEventListener('message', handleMessage), 1000);
           queryClient.invalidateQueries({ queryKey: ["meli-connection-status"] });
         }
       }, 500);
