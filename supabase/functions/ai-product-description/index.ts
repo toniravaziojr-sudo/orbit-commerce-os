@@ -52,9 +52,6 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { type, productName, fullDescription, userPrompt } = body;
-
-    console.log(`[ai-product-description][${VERSION}] type=${type}, product=${productName}`);
 
     if (!type || !productName) {
       return new Response(
@@ -66,8 +63,27 @@ serve(async (req) => {
     let systemPrompt: string;
     let userContent: string;
 
+    const { type, productName, fullDescription, userPrompt, referenceLinks } = body;
+
+    console.log(`[ai-product-description][${VERSION}] type=${type}, product=${productName}`);
+
+    if (!type || !productName) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Parâmetros inválidos" }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Build reference links context
+    let referencesContext = "";
+    if (referenceLinks && referenceLinks.length > 0) {
+      referencesContext = `\n\nLINKS DE REFERÊNCIA (use como inspiração de estrutura e conteúdo):\n${referenceLinks.map((l: string, i: number) => `${i + 1}. ${l}`).join("\n")}`;
+    }
+
+    let systemPrompt: string;
+    let userContent: string;
+
     if (type === "short_description") {
-      // Gerar descrição curta a partir da completa
       if (!fullDescription) {
         return new Response(
           JSON.stringify({ success: false, error: "A descrição completa é necessária para gerar a descrição curta" }),
@@ -76,59 +92,72 @@ serve(async (req) => {
       }
 
       systemPrompt = `Você é um copywriter profissional especializado em e-commerce brasileiro.
-Sua tarefa é criar uma DESCRIÇÃO CURTA para um produto a partir da descrição completa fornecida.
+Crie uma DESCRIÇÃO CURTA para o produto a partir da descrição completa fornecida.
 
-REGRAS:
-- Máximo 2-3 frases (até 300 caracteres idealmente)
-- Deve capturar a essência e principal benefício do produto
+REGRAS ABSOLUTAS:
+- Máximo 2-3 frases (até 300 caracteres)
+- Capture a essência e principal benefício do produto
 - Linguagem persuasiva e direta
-- Foco no público-alvo e resultado que o produto entrega
 - NÃO use markdown, apenas texto simples
 - NÃO repita o nome do produto no início
+- NÃO inclua saudações, introduções ou explicações sobre o que você fez
+- Retorne APENAS o texto da descrição curta, nada mais
 - Escreva em português brasileiro`;
 
       userContent = `Produto: ${productName}\n\nDescrição completa:\n${fullDescription}`;
 
     } else if (type === "full_description") {
-      // Gerar ou melhorar descrição completa
-      systemPrompt = `Você é um copywriter profissional especializado em e-commerce brasileiro, com vasta experiência em criar descrições de produtos que convertem.
+      systemPrompt = `Você é um copywriter profissional especializado em e-commerce brasileiro.
 
-Sua tarefa é criar uma DESCRIÇÃO COMPLETA e PROFISSIONAL para um produto de e-commerce.
+REGRAS ABSOLUTAS — SIGA RIGOROSAMENTE:
+1. Retorne APENAS o HTML da descrição. NADA MAIS.
+2. NÃO inclua saudações, introduções, explicações, comentários ou qualquer texto fora do HTML.
+3. NÃO escreva frases como "Com certeza!", "Aqui está", "Preparei para você" etc.
+4. A primeira linha da sua resposta DEVE ser uma tag HTML (ex: <h2>).
+5. A última linha DEVE ser uma tag HTML de fechamento.
 
-ESTRUTURA OBRIGATÓRIA (use HTML formatado):
-1. <h2>NOME DO PRODUTO</h2> — Título principal
-2. <p><em>Subtítulo/Tagline</em></p> — Uma frase de impacto
-3. <p>Parágrafo introdutório</p> — Apresentação geral breve e informativa do produto
-4. <hr> (separador)
-5. <h3>DESCRIÇÃO:</h3> — 2-3 parágrafos descrevendo o produto, como funciona, para quem é
-6. <hr>
-7. <h3>AÇÃO / FUNCIONALIDADES:</h3> — Lista numerada (<ol>) com as principais funcionalidades/ações do produto com destaque em negrito nos títulos
-8. <hr>
-9. <h3>BENEFÍCIOS PRINCIPAIS:</h3> — Lista com bullets (<ul>) dos benefícios mais importantes
-10. <hr>
-11. <h3>BENEFÍCIOS ADICIONAIS:</h3> — Lista com bullets (<ul>) de benefícios secundários
-12. <hr>
-13. <h3>ESPECIFICAÇÕES:</h3> — Detalhes técnicos se aplicável (tamanho, peso, composição, etc.)
+ESTRUTURA HTML OBRIGATÓRIA:
+<h2>NOME DO PRODUTO (versão/variação se aplicável)</h2>
+<p><em>Frase de impacto / tagline persuasiva</em></p>
+<p>Parágrafo introdutório apresentando o produto de forma envolvente.</p>
+<hr>
+<h3>DESCRIÇÃO</h3>
+<p>2-3 parágrafos descrevendo o produto, como funciona, para quem é indicado.</p>
+<hr>
+<h3>AÇÃO / FUNCIONALIDADES</h3>
+<ol>
+<li><strong>Nome da funcionalidade:</strong> Explicação detalhada.</li>
+</ol>
+<hr>
+<h3>BENEFÍCIOS PRINCIPAIS</h3>
+<ul>
+<li><strong>Benefício:</strong> Explicação.</li>
+</ul>
+<hr>
+<h3>BENEFÍCIOS ADICIONAIS</h3>
+<ul>
+<li>Benefício secundário.</li>
+</ul>
+<hr>
+<h3>ESPECIFICAÇÕES</h3>
+<ul>
+<li><strong>Item:</strong> Valor</li>
+</ul>
 
-REGRAS DE ESTILO:
-- Use HTML semântico (h2, h3, p, ul, ol, li, strong, em, hr)
-- Negrito (<strong>) para termos-chave e nomes de funcionalidades
-- Itálico (<em>) para destaques sutis
-- Separadores (<hr>) entre seções
-- Linguagem persuasiva mas informativa
-- Tom profissional e confiável
-- Adapte a estrutura ao tipo de produto (nem todos precisam de todas as seções)
-- Se o produto tiver composição/ingredientes, inclua
-- Se tiver modo de uso, inclua como seção extra
-- Escreva em português brasileiro
-- NÃO use markdown, use HTML`;
+REGRAS DE FORMATAÇÃO:
+- Use APENAS HTML semântico (h2, h3, p, ul, ol, li, strong, em, hr)
+- Separadores <hr> entre TODAS as seções
+- Negrito (<strong>) para termos-chave
+- Itálico (<em>) apenas para tagline
+- NUNCA use markdown (**, ##, -, etc.)
+- Adapte seções ao tipo de produto (nem todos precisam de todas)
+- Se tiver composição/ingredientes ou modo de uso, adicione como seção extra
+- Escreva em português brasileiro`;
 
       if (fullDescription) {
-        // Melhorar descrição existente
-        userContent = `Produto: ${productName}\n\nDescrição atual (reorganize e melhore):\n${fullDescription}`;
+        userContent = `Produto: ${productName}\n\nReorganize e melhore esta descrição existente mantendo as informações:\n${fullDescription}${referencesContext}`;
       } else if (userPrompt) {
-        // Gerar do zero com informações do usuário
-        userContent = `Produto: ${productName}\n\nInformações fornecidas pelo lojista:\n${userPrompt}`;
+        userContent = `Produto: ${productName}\n\nInformações base fornecidas pelo lojista:\n${userPrompt}${referencesContext}`;
       } else {
         return new Response(
           JSON.stringify({ success: false, error: "Forneça informações sobre o produto ou preencha a descrição existente" }),
@@ -184,7 +213,18 @@ REGRAS DE ESTILO:
     }
 
     const aiData = await aiResponse.json();
-    const generatedText = aiData.choices?.[0]?.message?.content;
+    let generatedText = aiData.choices?.[0]?.message?.content;
+
+    // Strip any conversational preamble the LLM may have added
+    if (generatedText && type === "full_description") {
+      // Remove everything before the first HTML tag
+      const firstTagIndex = generatedText.indexOf('<');
+      if (firstTagIndex > 0) {
+        generatedText = generatedText.substring(firstTagIndex);
+      }
+      // Remove trailing markdown fences
+      generatedText = generatedText.replace(/```$/g, '').trim();
+    }
 
     if (!generatedText) {
       console.error("[ai-product-description] No content in AI response");
