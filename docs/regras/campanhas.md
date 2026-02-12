@@ -82,9 +82,12 @@ Sistema de planejamento e criação de campanhas de marketing com IA, dividido e
 
 > **Fluxo obrigatório:** Estratégia → Copys & Prompts → Criativos → Publicar
 
-### Regra de Unificação de Criativos
+### Regra de Separação de Módulos
 
-A aba "Criativos" unifica Imagens IA e Vídeos IA com botões de alternância internos (`creativesSubTab`). **NÃO** criar abas de primeiro nível separadas para imagens e vídeos.
+A aba "Criativos" do Gestor de Mídias IA usa o componente **`MediaCreativesTab`** (`src/components/media/MediaCreativesTab.tsx`), que é **próprio do módulo Media**. **NÃO** importar componentes do módulo Gestão de Criativos (`src/components/creatives/*`). A interface oferece duas sub-opções:
+
+1. **Gerar com IA** — Gerar imagem ou vídeo simplificado para o post da campanha
+2. **Selecionar da Galeria** — Escolher criativo existente do Drive ou da Gestão de Criativos
 
 ### Tabelas
 
