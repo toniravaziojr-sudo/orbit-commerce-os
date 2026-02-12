@@ -98,11 +98,44 @@ POST /meli-publish-listing
 ### Regras de Anúncio
 
 - **Título:** Máximo 60 caracteres (limite do ML)
-- **Tipos de anúncio:** `gold_special` (Clássico), `gold_pro` (Premium), `gold` (Gold), `free` (Grátis)
-- **Condição:** `new` (Novo) ou `used` (Usado)
+- **Tipos de anúncio:** `gold_special` (Clássico), `gold_pro` (Premium), `free` (Grátis)
+- **Condição:** `new` (Novo), `used` (Usado) ou `not_specified`
 - **Moeda:** `BRL` (padrão)
-- **Imagens:** Máximo 10 (limite do ML)
+- **Imagens:** Máximo 10 (limite do ML), mínimo 1 (obrigatório)
+- **Categoria:** `category_id` é **obrigatório** (ex: `MLB1000`). Sem fallback.
+- **Descrição:** Apenas texto plano. HTML é removido automaticamente pela edge function.
 - **Unicidade:** Um produto só pode ter um anúncio ativo (constraint `idx_meli_listings_tenant_product`)
+
+### Campos do Formulário de Anúncio
+
+| Campo | Obrigatório | Descrição |
+|-------|:-----------:|-----------|
+| Título | ✅ | Máx. 60 chars |
+| Descrição | — | Texto plano (HTML removido) |
+| Preço (R$) | ✅ | Decimal |
+| Quantidade | ✅ | Inteiro ≥ 1 |
+| Tipo de anúncio | ✅ | gold_special / gold_pro / free |
+| Condição | ✅ | new / used / not_specified |
+| Categoria ML | ✅ | ID da categoria (ex: MLB1000) |
+| Marca (BRAND) | — | Atributo ML |
+| GTIN / EAN | — | Obrigatório para algumas categorias |
+| Garantia | — | Texto livre |
+| Frete Grátis | — | Switch (boolean) |
+| Retirada no Local | — | Switch (boolean) |
+
+### Atributos Enviados Automaticamente
+
+A edge function `meli-publish-listing` monta os atributos a partir do formulário + dados do produto:
+
+| Atributo | Fonte |
+|----------|-------|
+| `BRAND` | Formulário ou `products.brand` |
+| `GTIN` | Formulário |
+| `SELLER_SKU` | `products.sku` |
+| `PACKAGE_WEIGHT` | `products.weight` |
+| `PACKAGE_WIDTH` | `products.width` |
+| `PACKAGE_HEIGHT` | `products.height` |
+| `PACKAGE_LENGTH` | `products.depth` |
 
 ### Status do Anúncio
 
