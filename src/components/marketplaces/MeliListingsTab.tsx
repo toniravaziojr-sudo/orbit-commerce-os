@@ -28,9 +28,10 @@ import { toast } from "sonner";
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; color?: string }> = {
   draft: { label: "Rascunho", variant: "outline" },
   ready: { label: "Pronto", variant: "secondary" },
-  approved: { label: "Aprovado", variant: "default", color: "bg-blue-600" },
+  approved: { label: "Aprovado", variant: "default", color: "bg-primary" },
   publishing: { label: "Publicando...", variant: "secondary" },
   published: { label: "Publicado", variant: "default", color: "bg-green-600" },
+  paused: { label: "Pausado", variant: "secondary" },
   error: { label: "Erro", variant: "destructive" },
 };
 
@@ -48,7 +49,7 @@ function formatCurrency(value: number) {
 }
 
 export function MeliListingsTab() {
-  const { listings, isLoading, createListing, updateListing, deleteListing, approveListing } = useMeliListings();
+  const { listings, isLoading, createListing, updateListing, deleteListing, approveListing, publishListing } = useMeliListings();
   const { products, isLoading: productsLoading } = useProductsWithImages();
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -146,8 +147,21 @@ export function MeliListingsTab() {
   };
 
   const handlePublish = (listing: MeliListing) => {
-    // TODO: Call edge function to publish to ML API
-    toast.info("Publicação via API do Mercado Livre será implementada na próxima fase.");
+    if (confirm("Publicar este anúncio no Mercado Livre?")) {
+      publishListing.mutate({ id: listing.id });
+    }
+  };
+
+  const handlePause = (listing: MeliListing) => {
+    publishListing.mutate({ id: listing.id, action: "pause" });
+  };
+
+  const handleActivate = (listing: MeliListing) => {
+    publishListing.mutate({ id: listing.id, action: "activate" });
+  };
+
+  const handleSyncUpdate = (listing: MeliListing) => {
+    publishListing.mutate({ id: listing.id, action: "update" });
   };
 
   const handleDelete = (id: string) => {
@@ -255,21 +269,36 @@ export function MeliListingsTab() {
                             </>
                           )}
                           {listing.status === 'approved' && (
-                            <Button variant="ghost" size="icon" onClick={() => handlePublish(listing)} title="Publicar no ML">
-                              <Send className="h-4 w-4 text-green-500" />
+                            <Button variant="ghost" size="icon" onClick={() => handlePublish(listing)} title="Publicar no ML" disabled={publishListing.isPending}>
+                              <Send className="h-4 w-4 text-primary" />
                             </Button>
+                          )}
+                          {listing.status === 'error' && (
+                            <>
+                              <Button variant="ghost" size="icon" onClick={() => handleEditListing(listing)} title="Editar">
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => handlePublish(listing)} title="Tentar novamente" disabled={publishListing.isPending}>
+                                <Send className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </>
                           )}
                           {listing.status === 'published' && listing.meli_item_id && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => window.open(`https://produto.mercadolivre.com.br/${listing.meli_item_id}`, '_blank')}
-                              title="Ver no ML"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => window.open(`https://produto.mercadolivre.com.br/${listing.meli_item_id}`, '_blank')}
+                                title="Ver no ML"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => handleSyncUpdate(listing)} title="Sincronizar preço/estoque" disabled={publishListing.isPending}>
+                                <Send className="h-4 w-4 text-muted-foreground" />
+                              </Button>
+                            </>
                           )}
-                          {listing.status !== 'published' && (
+                          {listing.status !== 'published' && listing.status !== 'publishing' && (
                             <Button variant="ghost" size="icon" onClick={() => handleDelete(listing.id)} title="Remover">
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
