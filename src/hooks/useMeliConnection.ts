@@ -29,21 +29,13 @@ export function useMeliConnection() {
         throw new Error("Tenant não selecionado");
       }
 
-      const { data, error } = await supabase.functions.invoke("meli-connection-status", {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: null,
-      });
-
-      // Para GET com query params, precisamos usar fetch direto
+      // Use fetch direto para GET com query params
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meli-connection-status?tenantId=${currentTenant.id}`,
         {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
-            "Content-Type": "application/json",
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
           },
         }
       );

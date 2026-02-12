@@ -94,11 +94,36 @@ serve(async (req) => {
       return jsonResponse({ success: false, error: "Mercado Livre não conectado" });
     }
 
-    if (connection.expires_at && new Date(connection.expires_at) < new Date()) {
-      return jsonResponse({ success: false, error: "Token ML expirado. Reconecte sua conta.", code: "token_expired" });
-    }
+    let accessToken = connection.access_token;
 
-    const accessToken = connection.access_token;
+    // Auto-refresh token if expired
+    if (connection.expires_at && new Date(connection.expires_at) < new Date()) {
+      console.log(`[meli-publish-listing] Token expired, attempting auto-refresh...`);
+      try {
+        const refreshRes = await supabase.functions.invoke("meli-token-refresh", {
+          body: { connectionId: connection.id },
+        });
+        if (refreshRes.data?.success && refreshRes.data?.refreshed > 0) {
+          // Re-fetch updated token
+          const { data: refreshedConn } = await supabase
+            .from("marketplace_connections")
+            .select("access_token")
+            .eq("id", connection.id)
+            .single();
+          if (refreshedConn?.access_token) {
+            accessToken = refreshedConn.access_token;
+            console.log(`[meli-publish-listing] Token refreshed successfully`);
+          } else {
+            return jsonResponse({ success: false, error: "Token ML expirado. Reconecte sua conta.", code: "token_expired" });
+          }
+        } else {
+          return jsonResponse({ success: false, error: "Token ML expirado. Reconecte sua conta.", code: "token_expired" });
+        }
+      } catch (refreshErr) {
+        console.error(`[meli-publish-listing] Token refresh failed:`, refreshErr);
+        return jsonResponse({ success: false, error: "Token ML expirado. Reconecte sua conta.", code: "token_expired" });
+      }
+    }
 
     // Get product images
     const { data: productImages } = await supabase

@@ -258,30 +258,28 @@ export function MeliListingsTab() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          {listing.status === 'draft' && (
-                            <>
-                              <Button variant="ghost" size="icon" onClick={() => handleEditListing(listing)} title="Editar">
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => handleApprove(listing.id)} title="Aprovar">
-                                <CheckCircle2 className="h-4 w-4 text-blue-500" />
-                              </Button>
-                            </>
+                          {/* Edit - available for all non-published statuses */}
+                          {['draft', 'ready', 'approved', 'error'].includes(listing.status) && (
+                            <Button variant="ghost" size="icon" onClick={() => handleEditListing(listing)} title="Editar">
+                              <Edit className="h-4 w-4" />
+                            </Button>
                           )}
+                          {/* Approve - only for draft/ready */}
+                          {['draft', 'ready'].includes(listing.status) && (
+                            <Button variant="ghost" size="icon" onClick={() => handleApprove(listing.id)} title="Aprovar">
+                              <CheckCircle2 className="h-4 w-4 text-blue-500" />
+                            </Button>
+                          )}
+                          {/* Publish - for approved or error (retry) */}
                           {listing.status === 'approved' && (
                             <Button variant="ghost" size="icon" onClick={() => handlePublish(listing)} title="Publicar no ML" disabled={publishListing.isPending}>
                               <Send className="h-4 w-4 text-primary" />
                             </Button>
                           )}
                           {listing.status === 'error' && (
-                            <>
-                              <Button variant="ghost" size="icon" onClick={() => handleEditListing(listing)} title="Editar">
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => handlePublish(listing)} title="Tentar novamente" disabled={publishListing.isPending}>
-                                <Send className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </>
+                            <Button variant="ghost" size="icon" onClick={() => handlePublish(listing)} title="Tentar novamente" disabled={publishListing.isPending}>
+                              <Send className="h-4 w-4 text-destructive" />
+                            </Button>
                           )}
                           {listing.status === 'published' && listing.meli_item_id && (
                             <>
