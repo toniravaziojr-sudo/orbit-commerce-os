@@ -68,7 +68,25 @@ Sistema de planejamento e criação de campanhas de marketing com IA, dividido e
 
 ---
 
-## Módulo 2: Gestão de Mídias
+## Módulo 2: Gestor de Mídias IA (`/media`)
+
+### Abas (Fluxo Sequencial)
+
+| Aba | Propósito |
+|-----|-----------|
+| **Estratégia** | Planejamento de campanhas (calendário editorial, períodos, canais) |
+| **Copys & Prompts** | Geração de legendas, CTAs, hashtags e prompts de imagem/vídeo com IA |
+| **Criativos** | Geração unificada de Imagens IA e Vídeos IA (sub-seletor interno) |
+| **Publicar** | Agendamento e publicação direta no Facebook, Instagram e YouTube |
+| **Conexões** | Configuração de contas de redes sociais (OAuth Meta, YouTube) |
+
+> **Fluxo obrigatório:** Estratégia → Copys & Prompts → Criativos → Publicar
+
+### Regra de Unificação de Criativos
+
+A aba "Criativos" unifica Imagens IA e Vídeos IA com botões de alternância internos (`creativesSubTab`). **NÃO** criar abas de primeiro nível separadas para imagens e vídeos.
+
+### Tabelas
 
 ### Tabelas
 
