@@ -1,9 +1,8 @@
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Link, Facebook, Instagram, Youtube, Send, Lightbulb, FileText, Palette } from "lucide-react";
+import { Link, Facebook, Instagram, Youtube, Send, Lightbulb, FileText } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { CampaignsList } from "@/components/media/CampaignsList";
-import { MediaCreativesTab } from "@/components/media/MediaCreativesTab";
 import { useYouTubeConnection } from "@/hooks/useYouTubeConnection";
 import { usePlatformOperator } from "@/hooks/usePlatformOperator";
 import { useAdminModeSafe } from "@/contexts/AdminModeContext";
@@ -50,14 +49,6 @@ export default function Media() {
             <Lightbulb className="h-4 w-4" />
             Estratégia
           </TabsTrigger>
-          <TabsTrigger value="copys" className="gap-2">
-            <FileText className="h-4 w-4" />
-            Copys & Prompts
-          </TabsTrigger>
-          <TabsTrigger value="creatives" className="gap-2">
-            <Palette className="h-4 w-4" />
-            Criativos
-          </TabsTrigger>
           <TabsTrigger value="publish" className="gap-2">
             <Send className="h-4 w-4" />
             Publicar
@@ -96,12 +87,7 @@ export default function Media() {
           </Card>
         </TabsContent>
 
-        {/* 3. Criativos — Interface PRÓPRIA do módulo Media */}
-        <TabsContent value="creatives">
-          <MediaCreativesTab />
-        </TabsContent>
-
-        {/* 4. Publicar */}
+        {/* 3. Publicar */}
         <TabsContent value="publish">
           <Card>
             <CardHeader>

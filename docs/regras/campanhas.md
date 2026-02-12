@@ -76,18 +76,16 @@ Sistema de planejamento e criação de campanhas de marketing com IA, dividido e
 |-----|-----------|
 | **Estratégia** | Planejamento de campanhas (calendário editorial, períodos, canais) |
 | **Copys & Prompts** | Geração de legendas, CTAs, hashtags e prompts de imagem/vídeo com IA |
-| **Criativos** | Geração unificada de Imagens IA e Vídeos IA (sub-seletor interno) |
 | **Publicar** | Agendamento e publicação direta no Facebook, Instagram e YouTube |
 | **Conexões** | Configuração de contas de redes sociais (OAuth Meta, YouTube) |
 
-> **Fluxo obrigatório:** Estratégia → Copys & Prompts → Criativos → Publicar
+> **Fluxo obrigatório:** Estratégia → Copys & Prompts → Publicar
+
+> **Nota:** Criativos são gerados diretamente a partir dos itens do calendário na aba Estratégia, vinculados ao post. Não existe aba separada "Criativos".
 
 ### Regra de Separação de Módulos
 
-A aba "Criativos" do Gestor de Mídias IA usa o componente **`MediaCreativesTab`** (`src/components/media/MediaCreativesTab.tsx`), que é **próprio do módulo Media**. **NÃO** importar componentes do módulo Gestão de Criativos (`src/components/creatives/*`). A interface oferece duas sub-opções:
-
-1. **Gerar com IA** — Gerar imagem ou vídeo simplificado para o post da campanha
-2. **Selecionar da Galeria** — Escolher criativo existente do Drive ou da Gestão de Criativos
+O módulo Gestor de Mídias IA **NÃO** importa componentes do módulo Gestão de Criativos (`src/components/creatives/*`). São módulos independentes.
 
 ### Tabelas
 
