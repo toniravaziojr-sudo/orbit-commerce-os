@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import {
   Package,
   Plus,
@@ -20,6 +21,10 @@ import {
   AlertCircle,
   Search,
   Image as ImageIcon,
+  Loader2,
+  Pause,
+  Play,
+  RefreshCw,
 } from "lucide-react";
 import { useMeliListings, type MeliListing } from "@/hooks/useMeliListings";
 import { useProductsWithImages, type ProductWithImage } from "@/hooks/useProducts";
@@ -39,8 +44,6 @@ const LISTING_TYPES: Record<string, string> = {
   gold_special: "Clássico (Gold Special)",
   gold_pro: "Premium (Gold Pro)",
   gold: "Gold",
-  silver: "Silver",
-  bronze: "Bronze",
   free: "Grátis",
 };
 
@@ -57,14 +60,21 @@ export function MeliListingsTab() {
   const [editingListing, setEditingListing] = useState<MeliListing | null>(null);
   const [productSearch, setProductSearch] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<ProductWithImage | null>(null);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
-  // Form state for create/edit
+  // Form state
   const [formTitle, setFormTitle] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formPrice, setFormPrice] = useState("");
   const [formQuantity, setFormQuantity] = useState("1");
   const [formListingType, setFormListingType] = useState("gold_special");
   const [formCondition, setFormCondition] = useState("new");
+  const [formCategoryId, setFormCategoryId] = useState("");
+  const [formGtin, setFormGtin] = useState("");
+  const [formBrand, setFormBrand] = useState("");
+  const [formWarranty, setFormWarranty] = useState("");
+  const [formFreeShipping, setFormFreeShipping] = useState(false);
+  const [formLocalPickup, setFormLocalPickup] = useState(false);
 
   // Products that don't have listings yet
   const listedProductIds = new Set(listings.map(l => l.product_id));
@@ -76,11 +86,26 @@ export function MeliListingsTab() {
 
   const handleSelectProduct = (product: ProductWithImage) => {
     setSelectedProduct(product);
-    setFormTitle(product.name.slice(0, 60)); // ML limit ~60 chars
+    setFormTitle(product.name.slice(0, 60));
     setFormDescription(product.description || "");
     setFormPrice(String(product.price));
     setFormQuantity(String(product.stock_quantity || 1));
+    setFormBrand((product as any).brand || "");
+    setFormGtin((product as any).gtin || (product as any).ean || "");
   };
+
+  const buildAttributes = () => {
+    const attrs: any[] = [];
+    if (formBrand) attrs.push({ id: "BRAND", value_name: formBrand });
+    if (formGtin) attrs.push({ id: "GTIN", value_name: formGtin });
+    return attrs;
+  };
+
+  const buildShipping = () => ({
+    mode: "me2",
+    local_pick_up: formLocalPickup,
+    free_shipping: formFreeShipping,
+  });
 
   const handleCreateListing = () => {
     if (!selectedProduct) return;
@@ -92,7 +117,10 @@ export function MeliListingsTab() {
       available_quantity: parseInt(formQuantity) || 1,
       listing_type: formListingType,
       condition: formCondition,
+      category_id: formCategoryId || undefined,
       images: selectedProduct.primary_image_url ? [{ url: selectedProduct.primary_image_url }] : [],
+      attributes: buildAttributes(),
+      shipping: buildShipping(),
     }, {
       onSuccess: () => {
         setShowCreateDialog(false);
@@ -109,6 +137,16 @@ export function MeliListingsTab() {
     setFormQuantity(String(listing.available_quantity));
     setFormListingType(listing.listing_type);
     setFormCondition(listing.condition);
+    setFormCategoryId(listing.category_id || "");
+    // Extract attributes
+    const attrs = listing.attributes || [];
+    setFormBrand(attrs.find((a: any) => a.id === "BRAND")?.value_name || "");
+    setFormGtin(attrs.find((a: any) => a.id === "GTIN")?.value_name || "");
+    // Extract shipping
+    const ship = listing.shipping || {};
+    setFormFreeShipping(ship.free_shipping || false);
+    setFormLocalPickup(ship.local_pick_up || false);
+    setFormWarranty(attrs.find((a: any) => a.id === "WARRANTY_TYPE")?.value_name || "");
     setShowEditDialog(true);
   };
 
@@ -122,6 +160,9 @@ export function MeliListingsTab() {
       available_quantity: parseInt(formQuantity) || 1,
       listing_type: formListingType,
       condition: formCondition,
+      category_id: formCategoryId || null,
+      attributes: buildAttributes(),
+      shipping: buildShipping(),
     }, {
       onSuccess: () => {
         setShowEditDialog(false);
@@ -139,6 +180,12 @@ export function MeliListingsTab() {
     setFormQuantity("1");
     setFormListingType("gold_special");
     setFormCondition("new");
+    setFormCategoryId("");
+    setFormGtin("");
+    setFormBrand("");
+    setFormWarranty("");
+    setFormFreeShipping(false);
+    setFormLocalPickup(false);
     setProductSearch("");
   };
 
@@ -148,20 +195,32 @@ export function MeliListingsTab() {
 
   const handlePublish = (listing: MeliListing) => {
     if (confirm("Publicar este anúncio no Mercado Livre?")) {
-      publishListing.mutate({ id: listing.id });
+      setActionLoadingId(listing.id);
+      publishListing.mutate({ id: listing.id }, {
+        onSettled: () => setActionLoadingId(null),
+      });
     }
   };
 
   const handlePause = (listing: MeliListing) => {
-    publishListing.mutate({ id: listing.id, action: "pause" });
+    setActionLoadingId(listing.id);
+    publishListing.mutate({ id: listing.id, action: "pause" }, {
+      onSettled: () => setActionLoadingId(null),
+    });
   };
 
   const handleActivate = (listing: MeliListing) => {
-    publishListing.mutate({ id: listing.id, action: "activate" });
+    setActionLoadingId(listing.id);
+    publishListing.mutate({ id: listing.id, action: "activate" }, {
+      onSettled: () => setActionLoadingId(null),
+    });
   };
 
   const handleSyncUpdate = (listing: MeliListing) => {
-    publishListing.mutate({ id: listing.id, action: "update" });
+    setActionLoadingId(listing.id);
+    publishListing.mutate({ id: listing.id, action: "update" }, {
+      onSettled: () => setActionLoadingId(null),
+    });
   };
 
   const handleDelete = (id: string) => {
@@ -169,6 +228,8 @@ export function MeliListingsTab() {
       deleteListing.mutate(id);
     }
   };
+
+  const isActionLoading = (id: string) => actionLoadingId === id && publishListing.isPending;
 
   return (
     <>
@@ -225,6 +286,7 @@ export function MeliListingsTab() {
               <TableBody>
                 {listings.map((listing) => {
                   const statusInfo = STATUS_MAP[listing.status] || STATUS_MAP.draft;
+                  const loading = isActionLoading(listing.id);
                   return (
                     <TableRow key={listing.id}>
                       <TableCell>
@@ -253,12 +315,14 @@ export function MeliListingsTab() {
                           {statusInfo.label}
                         </Badge>
                         {listing.error_message && (
-                          <p className="text-xs text-destructive mt-1">{listing.error_message}</p>
+                          <p className="text-xs text-destructive mt-1 max-w-[180px] truncate" title={listing.error_message}>
+                            {listing.error_message}
+                          </p>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          {/* Edit - available for all non-published statuses */}
+                          {/* Edit - available for all pre-publication statuses */}
                           {['draft', 'ready', 'approved', 'error'].includes(listing.status) && (
                             <Button variant="ghost" size="icon" onClick={() => handleEditListing(listing)} title="Editar">
                               <Edit className="h-4 w-4" />
@@ -271,16 +335,22 @@ export function MeliListingsTab() {
                             </Button>
                           )}
                           {/* Publish - for approved or error (retry) */}
-                          {listing.status === 'approved' && (
-                            <Button variant="ghost" size="icon" onClick={() => handlePublish(listing)} title="Publicar no ML" disabled={publishListing.isPending}>
-                              <Send className="h-4 w-4 text-primary" />
+                          {(listing.status === 'approved' || listing.status === 'error') && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handlePublish(listing)}
+                              title={listing.status === 'error' ? "Tentar novamente" : "Publicar no ML"}
+                              disabled={loading}
+                            >
+                              {loading ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Send className={`h-4 w-4 ${listing.status === 'error' ? 'text-destructive' : 'text-primary'}`} />
+                              )}
                             </Button>
                           )}
-                          {listing.status === 'error' && (
-                            <Button variant="ghost" size="icon" onClick={() => handlePublish(listing)} title="Tentar novamente" disabled={publishListing.isPending}>
-                              <Send className="h-4 w-4 text-destructive" />
-                            </Button>
-                          )}
+                          {/* Published actions */}
                           {listing.status === 'published' && listing.meli_item_id && (
                             <>
                               <Button
@@ -291,12 +361,40 @@ export function MeliListingsTab() {
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
-                              <Button variant="ghost" size="icon" onClick={() => handleSyncUpdate(listing)} title="Sincronizar preço/estoque" disabled={publishListing.isPending}>
-                                <Send className="h-4 w-4 text-muted-foreground" />
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleSyncUpdate(listing)}
+                                title="Sincronizar preço/estoque"
+                                disabled={loading}
+                              >
+                                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4 text-muted-foreground" />}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handlePause(listing)}
+                                title="Pausar anúncio"
+                                disabled={loading}
+                              >
+                                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pause className="h-4 w-4 text-amber-500" />}
                               </Button>
                             </>
                           )}
-                          {listing.status !== 'published' && listing.status !== 'publishing' && (
+                          {/* Paused → reactivate */}
+                          {listing.status === 'paused' && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleActivate(listing)}
+                              title="Reativar anúncio"
+                              disabled={loading}
+                            >
+                              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4 text-green-500" />}
+                            </Button>
+                          )}
+                          {/* Delete - not published/publishing */}
+                          {!['published', 'publishing'].includes(listing.status) && (
                             <Button variant="ghost" size="icon" onClick={() => handleDelete(listing.id)} title="Remover">
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
@@ -374,18 +472,18 @@ export function MeliListingsTab() {
             </div>
           ) : (
             <ListingForm
-              formTitle={formTitle}
-              setFormTitle={setFormTitle}
-              formDescription={formDescription}
-              setFormDescription={setFormDescription}
-              formPrice={formPrice}
-              setFormPrice={setFormPrice}
-              formQuantity={formQuantity}
-              setFormQuantity={setFormQuantity}
-              formListingType={formListingType}
-              setFormListingType={setFormListingType}
-              formCondition={formCondition}
-              setFormCondition={setFormCondition}
+              formTitle={formTitle} setFormTitle={setFormTitle}
+              formDescription={formDescription} setFormDescription={setFormDescription}
+              formPrice={formPrice} setFormPrice={setFormPrice}
+              formQuantity={formQuantity} setFormQuantity={setFormQuantity}
+              formListingType={formListingType} setFormListingType={setFormListingType}
+              formCondition={formCondition} setFormCondition={setFormCondition}
+              formCategoryId={formCategoryId} setFormCategoryId={setFormCategoryId}
+              formGtin={formGtin} setFormGtin={setFormGtin}
+              formBrand={formBrand} setFormBrand={setFormBrand}
+              formWarranty={formWarranty} setFormWarranty={setFormWarranty}
+              formFreeShipping={formFreeShipping} setFormFreeShipping={setFormFreeShipping}
+              formLocalPickup={formLocalPickup} setFormLocalPickup={setFormLocalPickup}
               selectedProduct={selectedProduct}
               onBack={() => setSelectedProduct(null)}
             />
@@ -400,7 +498,9 @@ export function MeliListingsTab() {
                 onClick={handleCreateListing}
                 disabled={!formTitle || !formPrice || createListing.isPending}
               >
-                {createListing.isPending ? "Salvando..." : "Preparar Anúncio"}
+                {createListing.isPending ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvando...</>
+                ) : "Preparar Anúncio"}
               </Button>
             )}
           </DialogFooter>
@@ -418,18 +518,18 @@ export function MeliListingsTab() {
           </DialogHeader>
 
           <ListingForm
-            formTitle={formTitle}
-            setFormTitle={setFormTitle}
-            formDescription={formDescription}
-            setFormDescription={setFormDescription}
-            formPrice={formPrice}
-            setFormPrice={setFormPrice}
-            formQuantity={formQuantity}
-            setFormQuantity={setFormQuantity}
-            formListingType={formListingType}
-            setFormListingType={setFormListingType}
-            formCondition={formCondition}
-            setFormCondition={setFormCondition}
+            formTitle={formTitle} setFormTitle={setFormTitle}
+            formDescription={formDescription} setFormDescription={setFormDescription}
+            formPrice={formPrice} setFormPrice={setFormPrice}
+            formQuantity={formQuantity} setFormQuantity={setFormQuantity}
+            formListingType={formListingType} setFormListingType={setFormListingType}
+            formCondition={formCondition} setFormCondition={setFormCondition}
+            formCategoryId={formCategoryId} setFormCategoryId={setFormCategoryId}
+            formGtin={formGtin} setFormGtin={setFormGtin}
+            formBrand={formBrand} setFormBrand={setFormBrand}
+            formWarranty={formWarranty} setFormWarranty={setFormWarranty}
+            formFreeShipping={formFreeShipping} setFormFreeShipping={setFormFreeShipping}
+            formLocalPickup={formLocalPickup} setFormLocalPickup={setFormLocalPickup}
           />
 
           <DialogFooter>
@@ -437,7 +537,9 @@ export function MeliListingsTab() {
               Cancelar
             </Button>
             <Button onClick={handleSaveEdit} disabled={!formTitle || !formPrice || updateListing.isPending}>
-              {updateListing.isPending ? "Salvando..." : "Salvar Alterações"}
+              {updateListing.isPending ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvando...</>
+              ) : "Salvar Alterações"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -446,26 +548,43 @@ export function MeliListingsTab() {
   );
 }
 
-// Reusable form fields component
-function ListingForm({
-  formTitle, setFormTitle,
-  formDescription, setFormDescription,
-  formPrice, setFormPrice,
-  formQuantity, setFormQuantity,
-  formListingType, setFormListingType,
-  formCondition, setFormCondition,
-  selectedProduct,
-  onBack,
-}: {
+// ============ Reusable Listing Form ============
+
+interface ListingFormProps {
   formTitle: string; setFormTitle: (v: string) => void;
   formDescription: string; setFormDescription: (v: string) => void;
   formPrice: string; setFormPrice: (v: string) => void;
   formQuantity: string; setFormQuantity: (v: string) => void;
   formListingType: string; setFormListingType: (v: string) => void;
   formCondition: string; setFormCondition: (v: string) => void;
+  formCategoryId: string; setFormCategoryId: (v: string) => void;
+  formGtin: string; setFormGtin: (v: string) => void;
+  formBrand: string; setFormBrand: (v: string) => void;
+  formWarranty: string; setFormWarranty: (v: string) => void;
+  formFreeShipping: boolean; setFormFreeShipping: (v: boolean) => void;
+  formLocalPickup: boolean; setFormLocalPickup: (v: boolean) => void;
   selectedProduct?: ProductWithImage | null;
   onBack?: () => void;
-}) {
+}
+
+function ListingForm(props: ListingFormProps) {
+  const {
+    formTitle, setFormTitle,
+    formDescription, setFormDescription,
+    formPrice, setFormPrice,
+    formQuantity, setFormQuantity,
+    formListingType, setFormListingType,
+    formCondition, setFormCondition,
+    formCategoryId, setFormCategoryId,
+    formGtin, setFormGtin,
+    formBrand, setFormBrand,
+    formWarranty, setFormWarranty,
+    formFreeShipping, setFormFreeShipping,
+    formLocalPickup, setFormLocalPickup,
+    selectedProduct,
+    onBack,
+  } = props;
+
   return (
     <div className="space-y-4">
       {selectedProduct && (
@@ -489,6 +608,7 @@ function ListingForm({
         </div>
       )}
 
+      {/* Título */}
       <div className="space-y-2">
         <Label>Título do Anúncio *</Label>
         <Input
@@ -500,16 +620,19 @@ function ListingForm({
         <p className="text-xs text-muted-foreground">{formTitle.length}/60 caracteres</p>
       </div>
 
+      {/* Descrição */}
       <div className="space-y-2">
         <Label>Descrição</Label>
         <Textarea
           value={formDescription}
           onChange={(e) => setFormDescription(e.target.value)}
-          placeholder="Descrição detalhada do produto..."
+          placeholder="Descrição detalhada do produto (texto plano, sem HTML)..."
           rows={4}
         />
+        <p className="text-xs text-muted-foreground">O ML aceita apenas texto plano na descrição.</p>
       </div>
 
+      {/* Preço + Quantidade */}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Preço (R$) *</Label>
@@ -532,6 +655,7 @@ function ListingForm({
         </div>
       </div>
 
+      {/* Tipo + Condição */}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Tipo de Anúncio</Label>
@@ -558,6 +682,72 @@ function ListingForm({
               <SelectItem value="not_specified">Não especificado</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+      </div>
+
+      {/* Categoria ML */}
+      <div className="space-y-2">
+        <Label>Categoria do Mercado Livre</Label>
+        <Input
+          value={formCategoryId}
+          onChange={(e) => setFormCategoryId(e.target.value)}
+          placeholder="Ex: MLB1000 (ID da categoria no ML)"
+        />
+        <p className="text-xs text-muted-foreground">
+          Obrigatório. Encontre o ID em{" "}
+          <a href="https://api.mercadolibre.com/sites/MLB/categories" target="_blank" rel="noopener noreferrer" className="underline text-primary">
+            api.mercadolibre.com/sites/MLB/categories
+          </a>
+        </p>
+      </div>
+
+      {/* Marca + GTIN/EAN */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Marca (BRAND)</Label>
+          <Input
+            value={formBrand}
+            onChange={(e) => setFormBrand(e.target.value)}
+            placeholder="Ex: Nike, Samsung..."
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>GTIN / EAN / UPC</Label>
+          <Input
+            value={formGtin}
+            onChange={(e) => setFormGtin(e.target.value)}
+            placeholder="Código de barras do produto"
+          />
+          <p className="text-xs text-muted-foreground">Obrigatório para algumas categorias</p>
+        </div>
+      </div>
+
+      {/* Garantia */}
+      <div className="space-y-2">
+        <Label>Garantia</Label>
+        <Input
+          value={formWarranty}
+          onChange={(e) => setFormWarranty(e.target.value)}
+          placeholder="Ex: 12 meses de garantia do fabricante"
+        />
+      </div>
+
+      {/* Frete */}
+      <div className="space-y-3">
+        <Label className="text-sm font-medium">Frete</Label>
+        <div className="flex items-center justify-between rounded-lg border p-3">
+          <div>
+            <p className="text-sm font-medium">Frete Grátis</p>
+            <p className="text-xs text-muted-foreground">O vendedor assume o custo do envio</p>
+          </div>
+          <Switch checked={formFreeShipping} onCheckedChange={setFormFreeShipping} />
+        </div>
+        <div className="flex items-center justify-between rounded-lg border p-3">
+          <div>
+            <p className="text-sm font-medium">Retirada no Local</p>
+            <p className="text-xs text-muted-foreground">Permitir que o comprador retire pessoalmente</p>
+          </div>
+          <Switch checked={formLocalPickup} onCheckedChange={setFormLocalPickup} />
         </div>
       </div>
     </div>
