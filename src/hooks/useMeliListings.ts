@@ -7,7 +7,7 @@ export interface MeliListing {
   id: string;
   tenant_id: string;
   product_id: string;
-  status: 'draft' | 'ready' | 'approved' | 'publishing' | 'published' | 'error';
+  status: 'draft' | 'ready' | 'approved' | 'publishing' | 'published' | 'paused' | 'error';
   meli_item_id: string | null;
   title: string;
   description: string | null;
@@ -86,7 +86,10 @@ export function useMeliListings() {
       available_quantity: number;
       listing_type?: string;
       condition?: string;
+      category_id?: string;
       images?: any[];
+      attributes?: any[];
+      shipping?: Record<string, any>;
     }) => {
       if (!currentTenant?.id) throw new Error('Tenant não selecionado');
 

@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "1.0.0"; // Initial release - publish listings to ML API
+const VERSION = "2.0.0"; // Complete ML payload with all required fields + auto-refresh
 // ===================
 
 const corsHeaders = {
@@ -18,9 +18,9 @@ function jsonResponse(data: any) {
 }
 
 /**
- * Mercado Livre Publish Listing v1.0.0
+ * Mercado Livre Publish Listing v2.0.0
  * 
- * Publica um anúncio aprovado na API do Mercado Livre.
+ * Publica um anúncio aprovado na API do Mercado Livre com payload completo.
  * POST /items - Cria novo item
  * PUT /items/{id} - Atualiza item existente
  * 
@@ -63,19 +63,19 @@ serve(async (req) => {
       .select("role")
       .eq("user_id", user.id)
       .eq("tenant_id", tenantId)
-      .single();
+      .maybeSingle();
 
     if (!userRole) {
       return jsonResponse({ success: false, error: "Sem acesso ao tenant" });
     }
 
-    // Get listing
+    // Get listing with product data
     const { data: listing, error: listingError } = await supabase
       .from("meli_listings")
       .select("*, product:products(name, sku, price, stock_quantity, description, weight, width, height, depth, brand)")
       .eq("id", listingId)
       .eq("tenant_id", tenantId)
-      .single();
+      .maybeSingle();
 
     if (listingError || !listing) {
       return jsonResponse({ success: false, error: "Anúncio não encontrado" });
@@ -88,7 +88,7 @@ serve(async (req) => {
       .eq("tenant_id", tenantId)
       .eq("marketplace", "mercadolivre")
       .eq("is_active", true)
-      .single();
+      .maybeSingle();
 
     if (!connection?.access_token) {
       return jsonResponse({ success: false, error: "Mercado Livre não conectado" });
@@ -104,12 +104,11 @@ serve(async (req) => {
           body: { connectionId: connection.id },
         });
         if (refreshRes.data?.success && refreshRes.data?.refreshed > 0) {
-          // Re-fetch updated token
           const { data: refreshedConn } = await supabase
             .from("marketplace_connections")
             .select("access_token")
             .eq("id", connection.id)
-            .single();
+            .maybeSingle();
           if (refreshedConn?.access_token) {
             accessToken = refreshedConn.access_token;
             console.log(`[meli-publish-listing] Token refreshed successfully`);
@@ -141,7 +140,7 @@ serve(async (req) => {
       return await activateListing(accessToken, listing, supabase);
     }
     if (action === "update") {
-      return await updateListing(accessToken, listing, supabase);
+      return await updateListing(accessToken, listing, productImages, supabase);
     }
 
     // Default: publish new listing
@@ -155,27 +154,45 @@ serve(async (req) => {
       .update({ status: "publishing" })
       .eq("id", listingId);
 
-    // Build ML item payload
+    // Build complete ML item payload
     const images = buildImagesList(listing.images, productImages);
     
+    // Validate required fields
+    if (!listing.category_id) {
+      await supabase.from("meli_listings").update({ status: "error", error_message: "Categoria do ML é obrigatória. Edite o anúncio e informe o category_id." }).eq("id", listingId);
+      return jsonResponse({ success: false, error: "Categoria do ML é obrigatória (category_id). Edite o anúncio." });
+    }
+
+    if (images.length === 0) {
+      await supabase.from("meli_listings").update({ status: "error", error_message: "Pelo menos 1 imagem é obrigatória." }).eq("id", listingId);
+      return jsonResponse({ success: false, error: "Pelo menos 1 imagem é obrigatória para publicar no ML." });
+    }
+
+    // Strip HTML from description - ML only accepts plain text
+    const rawDescription = listing.description || listing.product?.description || "";
+    const plainDescription = rawDescription.replace(/<[^>]*>/g, "").trim();
+
     const itemPayload: any = {
       title: listing.title,
-      category_id: listing.category_id || "MLB1000", // Default category if not set
+      category_id: listing.category_id,
       price: Number(listing.price),
       currency_id: listing.currency_id || "BRL",
       available_quantity: listing.available_quantity || 1,
       buying_mode: "buy_it_now",
       condition: listing.condition || "new",
       listing_type_id: listing.listing_type || "gold_special",
-      description: { plain_text: listing.description || listing.product?.description || "" },
       pictures: images,
     };
 
-    // Add shipping if configured
+    // Description (separate field, plain text)
+    if (plainDescription) {
+      itemPayload.description = { plain_text: plainDescription };
+    }
+
+    // Shipping
     if (listing.shipping && Object.keys(listing.shipping).length > 0) {
       itemPayload.shipping = listing.shipping;
     } else {
-      // Default: mercado envios
       itemPayload.shipping = {
         mode: "me2",
         local_pick_up: false,
@@ -183,24 +200,43 @@ serve(async (req) => {
       };
     }
 
-    // Add attributes if available
-    if (listing.attributes && Array.isArray(listing.attributes) && listing.attributes.length > 0) {
-      itemPayload.attributes = listing.attributes;
-    } else {
-      // Add basic attributes from product
-      const attrs: any[] = [];
-      if (listing.product?.brand) {
-        attrs.push({ id: "BRAND", value_name: listing.product.brand });
-      }
-      if (listing.product?.sku) {
-        attrs.push({ id: "SELLER_SKU", value_name: listing.product.sku });
-      }
-      if (attrs.length > 0) {
-        itemPayload.attributes = attrs;
-      }
+    // Attributes - merge saved + product fallback
+    const attributes: any[] = [];
+    
+    if (Array.isArray(listing.attributes) && listing.attributes.length > 0) {
+      attributes.push(...listing.attributes);
+    }
+    
+    // Add product-level fallbacks if not already in attributes
+    const attrIds = new Set(attributes.map((a: any) => a.id));
+    
+    if (!attrIds.has("BRAND") && listing.product?.brand) {
+      attributes.push({ id: "BRAND", value_name: listing.product.brand });
+    }
+    if (!attrIds.has("SELLER_SKU") && listing.product?.sku) {
+      attributes.push({ id: "SELLER_SKU", value_name: listing.product.sku });
+    }
+    
+    // Add package dimensions from product if available
+    if (!attrIds.has("PACKAGE_WEIGHT") && listing.product?.weight) {
+      attributes.push({ id: "PACKAGE_WEIGHT", value_name: `${listing.product.weight} g` });
+    }
+    if (!attrIds.has("PACKAGE_WIDTH") && listing.product?.width) {
+      attributes.push({ id: "PACKAGE_WIDTH", value_name: `${listing.product.width} cm` });
+    }
+    if (!attrIds.has("PACKAGE_HEIGHT") && listing.product?.height) {
+      attributes.push({ id: "PACKAGE_HEIGHT", value_name: `${listing.product.height} cm` });
+    }
+    if (!attrIds.has("PACKAGE_LENGTH") && listing.product?.depth) {
+      attributes.push({ id: "PACKAGE_LENGTH", value_name: `${listing.product.depth} cm` });
     }
 
-    console.log(`[meli-publish-listing] Publishing item: ${listing.title}`);
+    if (attributes.length > 0) {
+      itemPayload.attributes = attributes;
+    }
+
+    console.log(`[meli-publish-listing] Publishing item: ${listing.title}, category: ${listing.category_id}, images: ${images.length}, attrs: ${attributes.length}`);
+    console.log(`[meli-publish-listing] Payload:`, JSON.stringify(itemPayload).slice(0, 500));
 
     // Call ML API
     const publishRes = await fetch("https://api.mercadolibre.com/items", {
@@ -221,14 +257,20 @@ serve(async (req) => {
     }
 
     if (!publishRes.ok) {
-      const errorMsg = responseData?.message || responseData?.cause?.[0]?.message || "Erro ao publicar no Mercado Livre";
-      console.error(`[meli-publish-listing] ML API error:`, responseData);
+      // Build detailed error message
+      let errorMsg = responseData?.message || "Erro ao publicar no Mercado Livre";
+      const causes = responseData?.cause || [];
+      if (Array.isArray(causes) && causes.length > 0) {
+        const causeMessages = causes.map((c: any) => c.message || c.code || JSON.stringify(c)).join("; ");
+        errorMsg = `${errorMsg}: ${causeMessages}`;
+      }
+      console.error(`[meli-publish-listing] ML API error ${publishRes.status}:`, JSON.stringify(responseData).slice(0, 1000));
 
       await supabase
         .from("meli_listings")
         .update({
           status: "error",
-          error_message: errorMsg,
+          error_message: errorMsg.slice(0, 500),
           meli_response: responseData,
         })
         .eq("id", listingId);
@@ -236,11 +278,11 @@ serve(async (req) => {
       return jsonResponse({
         success: false,
         error: errorMsg,
-        details: responseData?.cause || undefined,
+        details: causes.length > 0 ? causes : undefined,
       });
     }
 
-    // Success - update listing with ML data
+    // Success
     const meliItemId = responseData.id;
     const permalink = responseData.permalink;
 
@@ -275,7 +317,6 @@ serve(async (req) => {
 function buildImagesList(listingImages: any[], productImages: any[] | null): any[] {
   const images: any[] = [];
 
-  // Use listing images first (if any)
   if (Array.isArray(listingImages) && listingImages.length > 0) {
     for (const img of listingImages) {
       const url = typeof img === "string" ? img : img.url || img.source;
@@ -290,7 +331,7 @@ function buildImagesList(listingImages: any[], productImages: any[] | null): any
     }
   }
 
-  return images.slice(0, 10); // ML limit: 10 images
+  return images.slice(0, 10);
 }
 
 async function pauseListing(accessToken: string, listing: any, supabase: any) {
@@ -300,10 +341,7 @@ async function pauseListing(accessToken: string, listing: any, supabase: any) {
 
   const res = await fetch(`https://api.mercadolibre.com/items/${listing.meli_item_id}`, {
     method: "PUT",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify({ status: "paused" }),
   });
 
@@ -312,11 +350,7 @@ async function pauseListing(accessToken: string, listing: any, supabase: any) {
     return jsonResponse({ success: false, error: data.message || "Erro ao pausar" });
   }
 
-  await supabase
-    .from("meli_listings")
-    .update({ status: "paused", meli_response: data })
-    .eq("id", listing.id);
-
+  await supabase.from("meli_listings").update({ status: "paused", meli_response: data }).eq("id", listing.id);
   return jsonResponse({ success: true, message: "Anúncio pausado" });
 }
 
@@ -327,10 +361,7 @@ async function activateListing(accessToken: string, listing: any, supabase: any)
 
   const res = await fetch(`https://api.mercadolibre.com/items/${listing.meli_item_id}`, {
     method: "PUT",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify({ status: "active" }),
   });
 
@@ -339,31 +370,29 @@ async function activateListing(accessToken: string, listing: any, supabase: any)
     return jsonResponse({ success: false, error: data.message || "Erro ao reativar" });
   }
 
-  await supabase
-    .from("meli_listings")
-    .update({ status: "published", meli_response: data })
-    .eq("id", listing.id);
-
+  await supabase.from("meli_listings").update({ status: "published", meli_response: data }).eq("id", listing.id);
   return jsonResponse({ success: true, message: "Anúncio reativado" });
 }
 
-async function updateListing(accessToken: string, listing: any, supabase: any) {
+async function updateListing(accessToken: string, listing: any, productImages: any[] | null, supabase: any) {
   if (!listing.meli_item_id) {
     return jsonResponse({ success: false, error: "Anúncio não publicado" });
   }
 
-  // ML allows updating: price, available_quantity, description, pictures, shipping
   const updatePayload: any = {
     price: Number(listing.price),
     available_quantity: listing.available_quantity,
   };
 
+  // Update images if available
+  const images = buildImagesList(listing.images, productImages);
+  if (images.length > 0) {
+    updatePayload.pictures = images;
+  }
+
   const res = await fetch(`https://api.mercadolibre.com/items/${listing.meli_item_id}`, {
     method: "PUT",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify(updatePayload),
   });
 
@@ -372,22 +401,16 @@ async function updateListing(accessToken: string, listing: any, supabase: any) {
     return jsonResponse({ success: false, error: data.message || "Erro ao atualizar" });
   }
 
-  // Also update description separately (ML requires separate endpoint)
+  // Also update description separately
   if (listing.description) {
+    const plainDesc = listing.description.replace(/<[^>]*>/g, "").trim();
     await fetch(`https://api.mercadolibre.com/items/${listing.meli_item_id}/description`, {
       method: "PUT",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ plain_text: listing.description }),
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ plain_text: plainDesc }),
     });
   }
 
-  await supabase
-    .from("meli_listings")
-    .update({ meli_response: data })
-    .eq("id", listing.id);
-
+  await supabase.from("meli_listings").update({ meli_response: data }).eq("id", listing.id);
   return jsonResponse({ success: true, message: "Anúncio atualizado no Mercado Livre" });
 }
