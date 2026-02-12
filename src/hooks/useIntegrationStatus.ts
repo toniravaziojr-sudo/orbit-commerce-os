@@ -1,7 +1,7 @@
 import { useMeliConnection } from "@/hooks/useMeliConnection";
 import { useShopeeConnection } from "@/hooks/useShopeeConnection";
 import { useOlistConnection } from "@/hooks/useOlistConnection";
-import { useLateConnection } from "@/hooks/useLateConnection";
+import { useMetaConnection } from "@/hooks/useMetaConnection";
 import { useFiscalSettings } from "@/hooks/useFiscal";
 import { usePaymentProviders } from "@/hooks/usePaymentProviders";
 
@@ -50,8 +50,8 @@ export function useIntegrationStatus() {
     isLoading: olistLoading
   } = useOlistConnection();
 
-  // Redes Sociais (Late)
-  const { isConnected: lateConnected, isLoading: lateLoading } = useLateConnection();
+  // Redes Sociais (Meta - Facebook/Instagram)
+  const { isConnected: metaConnected, isLoading: metaLoading } = useMetaConnection();
 
   // Fiscal
   const { settings: fiscalSettings, isLoading: fiscalLoading } = useFiscalSettings();
@@ -89,7 +89,7 @@ export function useIntegrationStatus() {
     },
     whatsapp: {
       name: "WhatsApp",
-      isConfigured: true, // WhatsApp tem múltiplos providers, sempre "configurável"
+      isConfigured: true,
       isConnected: false, // TODO: Implementar verificação real
       isLoading: false,
       redirectPath: "/integrations",
@@ -98,8 +98,8 @@ export function useIntegrationStatus() {
     redes_sociais: {
       name: "Redes Sociais",
       isConfigured: true,
-      isConnected: lateConnected,
-      isLoading: lateLoading,
+      isConnected: metaConnected,
+      isLoading: metaLoading,
       redirectPath: "/integrations",
       buttonText: "Conectar Redes Sociais",
     },
@@ -152,7 +152,7 @@ export function useIntegrationStatus() {
     isMeliConnected: meliConnected,
     isShopeeConnected: shopeeConnected,
     isOlistConnected: olistConnected,
-    isLateConnected: lateConnected,
+    isMetaConnected: metaConnected,
     isFiscalConfigured: fiscalConfigured && fiscalHasCertificate,
     hasActivePayment,
   };

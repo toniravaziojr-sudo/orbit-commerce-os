@@ -11,13 +11,12 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PaymentGatewaySettings } from "@/components/payments/PaymentGatewaySettings";
-import { LateConnectionSettings } from "@/components/integrations/LateConnectionSettings";
 import { MetaUnifiedSettings } from "@/components/integrations/MetaUnifiedSettings";
 import { YouTubeSettings } from "@/components/integrations/YouTubeSettings";
 import { MarketplacesIntegrationTab } from "@/components/integrations/MarketplacesIntegrationTab";
 import { DomainAndEmailSettings } from "@/components/integrations/DomainAndEmailSettings";
 import { usePaymentProviders } from "@/hooks/usePaymentProviders";
-import { useLateConnection } from "@/hooks/useLateConnection";
+import { useMetaConnection } from "@/hooks/useMetaConnection";
 import { useMeliConnection } from "@/hooks/useMeliConnection";
 import { useYouTubeConnection } from "@/hooks/useYouTubeConnection";
 import { usePlatformOperator } from "@/hooks/usePlatformOperator";
@@ -37,7 +36,7 @@ const ERP_INTEGRATIONS = [
 
 export default function Integrations() {
   const { providers: paymentProviders, isLoading: loadingPayments } = usePaymentProviders();
-  const { isConnected: lateConnected } = useLateConnection();
+  const { isConnected: metaConnected } = useMetaConnection();
   const { isConnected: meliConnected } = useMeliConnection();
   const { isConnected: youtubeConnected } = useYouTubeConnection();
   const { isPlatformOperator } = usePlatformOperator();
@@ -48,7 +47,7 @@ export default function Integrations() {
   const showYouTube = isPlatformOperator && isStoreMode;
   
   const activePaymentGateways = paymentProviders.filter(p => p.is_enabled).length;
-  const socialAccountsCount = (lateConnected ? 1 : 0) + (showYouTube && youtubeConnected ? 1 : 0);
+  const socialAccountsCount = (metaConnected ? 1 : 0) + (showYouTube && youtubeConnected ? 1 : 0);
   const marketplacesCount = meliConnected ? 1 : 0;
 
   return (
@@ -150,7 +149,6 @@ export default function Integrations() {
 
         <TabsContent value="social" className="space-y-6">
           <MetaUnifiedSettings />
-          <LateConnectionSettings />
         </TabsContent>
 
         {showYouTube && (

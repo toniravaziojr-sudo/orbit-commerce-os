@@ -11485,6 +11485,96 @@ export type Database = {
           },
         ]
       }
+      social_posts: {
+        Row: {
+          api_response: Json | null
+          calendar_item_id: string | null
+          caption: string | null
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          hashtags: string[] | null
+          id: string
+          instagram_account_id: string | null
+          link_url: string | null
+          media_urls: string[] | null
+          meta_container_id: string | null
+          meta_post_id: string | null
+          page_id: string
+          page_name: string | null
+          platform: string
+          post_type: string
+          published_at: string | null
+          scheduled_at: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          api_response?: Json | null
+          calendar_item_id?: string | null
+          caption?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          hashtags?: string[] | null
+          id?: string
+          instagram_account_id?: string | null
+          link_url?: string | null
+          media_urls?: string[] | null
+          meta_container_id?: string | null
+          meta_post_id?: string | null
+          page_id: string
+          page_name?: string | null
+          platform: string
+          post_type: string
+          published_at?: string | null
+          scheduled_at?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          api_response?: Json | null
+          calendar_item_id?: string | null
+          caption?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          hashtags?: string[] | null
+          id?: string
+          instagram_account_id?: string | null
+          link_url?: string | null
+          media_urls?: string[] | null
+          meta_container_id?: string | null
+          meta_post_id?: string | null
+          page_id?: string
+          page_name?: string | null
+          platform?: string
+          post_type?: string
+          published_at?: string | null
+          scheduled_at?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_posts_calendar_item_id_fkey"
+            columns: ["calendar_item_id"]
+            isOneToOne: false
+            referencedRelation: "media_calendar_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_posts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       special_tenants: {
         Row: {
           created_at: string

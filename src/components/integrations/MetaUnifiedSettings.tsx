@@ -49,7 +49,7 @@ const SCOPE_PACK_INFO: Record<MetaScopePack, ScopePackInfo> = {
     label: "WhatsApp",
     description: "WABA / Cloud API",
     icon: <MessageCircle className="h-4 w-4" />,
-    available: true, // Only WhatsApp is available now
+    available: true,
   },
   atendimento: {
     label: "Atendimento",
@@ -59,9 +59,9 @@ const SCOPE_PACK_INFO: Record<MetaScopePack, ScopePackInfo> = {
   },
   publicacao: {
     label: "Publicação",
-    description: "Facebook + Instagram Posts",
+    description: "Facebook + Instagram Posts, Stories, Reels",
     icon: <Megaphone className="h-4 w-4" />,
-    available: false,
+    available: true,
   },
   ads: {
     label: "Anúncios",

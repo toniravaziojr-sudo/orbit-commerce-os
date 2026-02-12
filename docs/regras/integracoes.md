@@ -37,7 +37,7 @@ Hub central de integrações com serviços externos: pagamentos, redes sociais, 
 | Fiscal | Nuvem Fiscal, Focus NFe |
 | Logística | Loggi OAuth global |
 | IA | Fal.AI, Firecrawl |
-| Late | Late integration |
+| Mercado Livre | Meli platform config |
 | Mercado Livre | Meli platform config |
 | Mercado Pago | MP platform config |
 | Shopee | Shopee platform config |
@@ -69,7 +69,7 @@ Hub central de integrações com serviços externos: pagamentos, redes sociais, 
 | Tab | Valor | Componente | Descrição |
 |-----|-------|------------|-----------|
 | Pagamentos | `payments` | `PaymentGatewaySettings` | Gateways de pagamento |
-| Meta | `social` | `MetaUnifiedSettings`, `LateConnectionSettings` | Meta, Late |
+| Meta | `social` | `MetaUnifiedSettings` | Meta (WhatsApp + Publicação FB/IG) |
 | Marketplaces | `marketplaces` | `MarketplacesIntegrationTab` | Mercado Livre, etc |
 | **Domínio/Email** | `domain-email` | `DomainAndEmailSettings` | Domínio da loja + Email |
 | Outros | `outros` | Cards ERP | Integrações ERP (em breve) |
@@ -114,10 +114,9 @@ A aba `domain-email` unifica duas seções:
 ### 2. Redes Sociais / Mídias
 | Plataforma | Status | Descrição |
 |------------|--------|-----------|
-| Meta (FB/IG) | ✅ Ready | Catálogo, pixel |
-| Instagram | ✅ Ready | Via Meta |
+| Meta (FB/IG) | ✅ Ready | Publicação Feed/Stories/Reels, WhatsApp, Catálogo, Pixel |
+| Instagram | ✅ Ready | Via Meta Graph API (container flow) |
 | **YouTube** | ✅ Ready | Upload, agendamento, analytics (via Gestor de Mídias IA) |
-| Late | ✅ Ready | Agendamento de posts |
 | TikTok Ads | 🟧 Pending | Pixel/Conversions |
 | Google | 🟧 Pending | Merchant Center |
 
@@ -212,7 +211,7 @@ Disponível apenas para `isPlatformOperator`:
 | Fiscal | Focus NFe |
 | Logística | Loggi OAuth |
 | IA | Firecrawl e AI config |
-| Late | Late integration |
+| Mercado Livre | Meli platform config |
 | Mercado Livre | Meli platform config |
 
 ---

@@ -6,7 +6,7 @@ import { WhatsAppPlatformSettings } from "@/components/integrations/WhatsAppPlat
 import { FiscalPlatformSettings } from "@/components/integrations/FiscalPlatformSettings";
 import { LogisticsPlatformSettings } from "@/components/integrations/LogisticsPlatformSettings";
 import { AIPlatformSettings } from "@/components/integrations/AIPlatformSettings";
-import { LatePlatformSettings } from "@/components/integrations/platform/LatePlatformSettings";
+
 import { MeliPlatformSettings } from "@/components/integrations/MeliPlatformSettings";
 import { ShopeePlatformSettings } from "@/components/integrations/ShopeePlatformSettings";
 import { SmokeTestDialog } from "@/components/integrations/SmokeTestDialog";
@@ -95,10 +95,6 @@ export default function PlatformIntegrations() {
             <Bot className="h-4 w-4" />
             <span className="hidden sm:inline">IA</span>
           </TabsTrigger>
-          <TabsTrigger value="late" className="gap-2">
-            <Calendar className="h-4 w-4" />
-            <span className="hidden sm:inline">Late</span>
-          </TabsTrigger>
           <TabsTrigger value="mercadolivre" className="gap-2">
             <ShoppingBag className="h-4 w-4" />
             <span className="hidden sm:inline">Mercado Livre</span>
@@ -137,9 +133,6 @@ export default function PlatformIntegrations() {
           <AIPlatformSettings />
         </TabsContent>
 
-        <TabsContent value="late">
-          <LatePlatformSettings />
-        </TabsContent>
 
         <TabsContent value="mercadolivre">
           <MeliPlatformSettings />
