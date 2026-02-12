@@ -487,16 +487,19 @@ export function CampaignCalendar() {
       });
 
       if (error) {
-        toast.error("Erro ao agendar publicações");
+        toast.error("Erro ao publicar/agendar");
       } else if (data?.success) {
-        if (data.scheduled > 0) {
-          toast.success(`${data.scheduled} publicação(ões) agendada(s)!`);
+        const parts = [];
+        if (data.published > 0) parts.push(`${data.published} publicado(s)`);
+        if (data.scheduled > 0) parts.push(`${data.scheduled} agendado(s)`);
+        if (parts.length > 0) {
+          toast.success(parts.join(", ") + "!");
         }
         if (data.failed > 0) {
           toast.error(`${data.failed} item(ns) falharam`);
         }
       } else {
-        toast.error(data?.error || "Erro ao agendar");
+        toast.error(data?.error || "Erro ao publicar");
       }
       
       await refetchItems();

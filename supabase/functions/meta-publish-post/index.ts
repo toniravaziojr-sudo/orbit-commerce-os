@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const VERSION = "1.0.0";
+const VERSION = "2.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,12 +11,15 @@ const corsHeaders = {
 /**
  * Meta Publish Post v${VERSION}
  * 
- * Publica conteúdo no Facebook Pages e Instagram via Graph API.
+ * Publica ou agenda conteúdo no Facebook Pages e Instagram via Graph API.
  * Suporta: Feed (imagem/vídeo/texto/link), Stories, Reels, Carousels.
+ * Suporta agendamento futuro via scheduled_publish_time (Facebook) e cron (Instagram).
  * 
  * Fluxos:
  * - Facebook: POST /{page_id}/feed ou /{page_id}/photos ou /{page_id}/videos
+ *   - Agendamento: published=false + scheduled_publish_time
  * - Instagram: POST /{ig_id}/media (container) → POST /{ig_id}/media_publish
+ *   - Agendamento: Salva como 'scheduled' no social_posts, cron publica no horário
  * 
  * Contrato: HTTP 200 + { success: true/false }
  */
@@ -79,6 +82,15 @@ serve(async (req) => {
       return jsonResponse({ success: false, error: "Token Meta expirado. Reconecte em Integrações." });
     }
 
+    // Check scope packs include publicacao
+    const scopePacks = (metaConn.metadata as any)?.scope_packs || [];
+    if (!scopePacks.includes("publicacao")) {
+      return jsonResponse({ 
+        success: false, 
+        error: "Permissão de publicação não concedida. Reconecte a Meta em Integrações com a permissão 'Publicação' habilitada." 
+      });
+    }
+
     const userAccessToken = metaConn.access_token;
     const metadata = metaConn.metadata as any;
     const assets = metadata?.assets || { pages: [], instagram_accounts: [] };
@@ -98,45 +110,66 @@ serve(async (req) => {
       return jsonResponse({ success: false, error: "Nenhum item aprovado encontrado." });
     }
 
+    let published = 0;
     let scheduled = 0;
     let failed = 0;
     const errors: string[] = [];
 
     for (const item of items) {
       try {
-        // Determine target based on content_type and target_channel
         const targetChannel = item.target_channel || "facebook";
         const contentType = item.content_type || "image";
         
-        // Use first page by default
+        // Build scheduled datetime from item
+        const scheduledAt = buildScheduledAt(item.scheduled_date, item.scheduled_time);
+        const isFutureSchedule = scheduledAt && new Date(scheduledAt) > new Date(Date.now() + 15 * 60 * 1000); // >15min future
+        
         const page = assets.pages[0];
         const pageAccessToken = page.access_token || userAccessToken;
         
         let result: any = null;
+        let finalStatus = "published";
 
         if (targetChannel === "instagram" || targetChannel === "all") {
-          // Instagram publishing via container flow
           const igAccount = assets.instagram_accounts?.[0];
           if (igAccount) {
-            result = await publishToInstagram(
-              igAccount.id,
-              userAccessToken,
-              item,
-              contentType
-            );
+            if (isFutureSchedule) {
+              // Instagram não suporta agendamento nativo via API
+              // Salvamos como 'scheduled' e um cron publicará no horário
+              finalStatus = "scheduled";
+              result = { scheduled: true, scheduled_at: scheduledAt };
+            } else {
+              result = await publishToInstagram(
+                igAccount.id,
+                userAccessToken,
+                item,
+                contentType
+              );
+            }
           } else {
             throw new Error("Nenhuma conta Instagram conectada");
           }
         }
         
         if (targetChannel === "facebook" || targetChannel === "all") {
-          // Facebook publishing
-          result = await publishToFacebook(
-            page.id,
-            pageAccessToken,
-            item,
-            contentType
-          );
+          if (isFutureSchedule) {
+            // Facebook suporta agendamento nativo via scheduled_publish_time
+            result = await scheduleToFacebook(
+              page.id,
+              pageAccessToken,
+              item,
+              contentType,
+              scheduledAt!
+            );
+            finalStatus = "scheduled";
+          } else {
+            result = await publishToFacebook(
+              page.id,
+              pageAccessToken,
+              item,
+              contentType
+            );
+          }
         }
 
         // Save to social_posts for audit/App Review
@@ -152,8 +185,10 @@ serve(async (req) => {
           media_urls: item.asset_url ? [item.asset_url] : null,
           hashtags: item.hashtags,
           meta_post_id: result?.id || result?.post_id || null,
-          status: "published",
-          published_at: new Date().toISOString(),
+          meta_container_id: result?.container_id || null,
+          status: finalStatus,
+          scheduled_at: isFutureSchedule ? scheduledAt : null,
+          published_at: finalStatus === "published" ? new Date().toISOString() : null,
           api_response: result,
           created_by: user.id,
         });
@@ -161,10 +196,14 @@ serve(async (req) => {
         // Update calendar item status
         await supabase
           .from("media_calendar_items")
-          .update({ status: "published" })
+          .update({ status: finalStatus })
           .eq("id", item.id);
 
-        scheduled++;
+        if (finalStatus === "scheduled") {
+          scheduled++;
+        } else {
+          published++;
+        }
       } catch (itemError: any) {
         failed++;
         const errMsg = itemError?.message || "Erro desconhecido";
@@ -181,6 +220,7 @@ serve(async (req) => {
           caption: item.copy || item.title,
           status: "failed",
           error_message: errMsg,
+          api_response: { error: errMsg },
           created_by: user.id,
         });
 
@@ -194,8 +234,10 @@ serve(async (req) => {
 
     return jsonResponse({
       success: true,
+      published,
       scheduled,
       failed,
+      total: items.length,
       errors: errors.length > 0 ? errors : undefined,
     });
 
@@ -205,10 +247,92 @@ serve(async (req) => {
   }
 });
 
+// ===================== Scheduling Functions =====================
+
+/**
+ * Build ISO datetime from scheduled_date + scheduled_time
+ */
+function buildScheduledAt(date: string | null, time: string | null): string | null {
+  if (!date) return null;
+  const timeStr = time || "10:00:00";
+  // Assume timezone America/Sao_Paulo (UTC-3)
+  return `${date}T${timeStr}-03:00`;
+}
+
+/**
+ * Schedule a post to Facebook Page (native scheduling)
+ * Uses published=false + scheduled_publish_time
+ * scheduled_publish_time must be ≥10min in future and ≤6 months
+ */
+async function scheduleToFacebook(
+  pageId: string,
+  pageAccessToken: string,
+  item: any,
+  contentType: string,
+  scheduledAt: string
+): Promise<any> {
+  const caption = buildCaption(item);
+  const scheduledTimestamp = Math.floor(new Date(scheduledAt).getTime() / 1000);
+
+  if (contentType === "image" && item.asset_url) {
+    // Scheduled photo post
+    const res = await fetch(`https://graph.facebook.com/v19.0/${pageId}/photos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url: item.asset_url,
+        message: caption,
+        published: false,
+        scheduled_publish_time: scheduledTimestamp,
+        access_token: pageAccessToken,
+      }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    return data;
+  }
+
+  if (contentType === "video" || contentType === "reel") {
+    if (!item.asset_url) throw new Error("URL do vídeo é obrigatória");
+    const res = await fetch(`https://graph.facebook.com/v19.0/${pageId}/videos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        file_url: item.asset_url,
+        description: caption,
+        published: false,
+        scheduled_publish_time: scheduledTimestamp,
+        access_token: pageAccessToken,
+      }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    return data;
+  }
+
+  // Text/link scheduled post
+  const body: any = {
+    message: caption,
+    published: false,
+    scheduled_publish_time: scheduledTimestamp,
+    access_token: pageAccessToken,
+  };
+  if (item.link_url) body.link = item.link_url;
+
+  const res = await fetch(`https://graph.facebook.com/v19.0/${pageId}/feed`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data;
+}
+
 // ===================== Publishing Functions =====================
 
 /**
- * Publish to Facebook Page
+ * Publish to Facebook Page (immediate)
  */
 async function publishToFacebook(
   pageId: string,
@@ -219,7 +343,6 @@ async function publishToFacebook(
   const caption = buildCaption(item);
 
   if (contentType === "video" || contentType === "reel") {
-    // Video post
     if (!item.asset_url) throw new Error("URL do vídeo é obrigatória");
     
     const res = await fetch(`https://graph.facebook.com/v19.0/${pageId}/videos`, {
@@ -237,7 +360,6 @@ async function publishToFacebook(
   }
 
   if (contentType === "image" && item.asset_url) {
-    // Photo post
     const res = await fetch(`https://graph.facebook.com/v19.0/${pageId}/photos`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -293,7 +415,6 @@ async function publishToInstagram(
     containerBody.video_url = item.asset_url;
   } else if (contentType === "story") {
     if (!item.asset_url) throw new Error("URL da mídia é obrigatória para Stories");
-    // Stories can be image or video
     if (item.asset_url.match(/\.(mp4|mov|avi)$/i)) {
       containerBody.media_type = "STORIES";
       containerBody.video_url = item.asset_url;
@@ -302,12 +423,9 @@ async function publishToInstagram(
       containerBody.image_url = item.asset_url;
     }
   } else if (contentType === "carousel") {
-    // Carousel requires multiple images
-    // For now, treat as single image
     if (!item.asset_url) throw new Error("URL da imagem é obrigatória");
     containerBody.image_url = item.asset_url;
   } else {
-    // Image post (default)
     if (!item.asset_url) throw new Error("URL da imagem é obrigatória para Instagram");
     containerBody.image_url = item.asset_url;
   }
@@ -331,7 +449,7 @@ async function publishToInstagram(
   // For video/reel, we need to wait for processing
   if (contentType === "reel" || contentType === "video" || 
       (contentType === "story" && item.asset_url?.match(/\.(mp4|mov|avi)$/i))) {
-    await waitForContainerReady(igAccountId, containerId, accessToken);
+    await waitForContainerReady(containerId, accessToken);
   }
 
   // Step 2: Publish the container
@@ -358,7 +476,6 @@ async function publishToInstagram(
  * Wait for Instagram container to finish processing (for videos/reels)
  */
 async function waitForContainerReady(
-  igAccountId: string,
   containerId: string,
   accessToken: string,
   maxAttempts = 30,
