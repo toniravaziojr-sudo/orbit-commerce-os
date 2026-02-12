@@ -11,8 +11,12 @@ import {
   CheckCircle,
   AlertCircle,
   Clock,
-  Trash2
+  Trash2,
+  Zap,
+  Loader2
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,6 +57,7 @@ const statusConfig: Record<MailboxStatus, { label: string; icon: typeof CheckCir
 
 export function MailboxList({ onOpenInbox }: MailboxListProps) {
   const { mailboxes, isLoading, createMailbox, updateMailbox, deleteMailbox } = useMailboxes();
+  const [activatingId, setActivatingId] = useState<string | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [settingsMailbox, setSettingsMailbox] = useState<typeof mailboxes[0] | null>(null);
   const [newEmail, setNewEmail] = useState("");
@@ -77,6 +82,28 @@ export function MailboxList({ onOpenInbox }: MailboxListProps) {
   const handleDelete = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir esta caixa de email?')) return;
     await deleteMailbox.mutateAsync(id);
+  };
+
+  const handleActivate = async (mailbox: typeof mailboxes[0]) => {
+    setActivatingId(mailbox.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('mailbox-dns-verify', {
+        body: { mailbox_id: mailbox.id },
+      });
+
+      if (error) throw error;
+
+      if (data?.verified) {
+        toast.success('Email ativado com sucesso!');
+      } else {
+        toast.error('Domínio ainda não verificado. Configure o DNS em Integrações → Emails primeiro.');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao ativar email. Verifique a configuração do domínio em Integrações.');
+    } finally {
+      setActivatingId(null);
+    }
   };
 
   const handleChangePurpose = async (id: string, purpose: EmailPurpose) => {
@@ -195,11 +222,27 @@ export function MailboxList({ onOpenInbox }: MailboxListProps) {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between">
                   <div className={`flex items-center gap-1 text-xs ${status.color}`}>
                     <StatusIcon className="h-3 w-3" />
                     {status.label}
                   </div>
+                  {mailbox.status === 'pending_dns' && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="h-7 text-xs"
+                      disabled={activatingId === mailbox.id}
+                      onClick={() => handleActivate(mailbox)}
+                    >
+                      {activatingId === mailbox.id ? (
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      ) : (
+                        <Zap className="h-3 w-3 mr-1" />
+                      )}
+                      Ativar Email
+                    </Button>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between text-sm text-muted-foreground">
