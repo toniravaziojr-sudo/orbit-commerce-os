@@ -15,7 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
-import { useLateConnection } from "@/hooks/useLateConnection";
+import { useMetaConnection } from "@/hooks/useMetaConnection";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { getHolidayForDate } from "@/lib/brazilian-holidays";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -82,7 +82,7 @@ export function CampaignCalendar() {
   const queryClient = useQueryClient();
   const { campaigns } = useMediaCampaigns();
   const { items, isLoading, refetch: refetchItems, deleteItem, createItem } = useMediaCalendarItems(campaignId);
-  const { isConnected: lateConnected, isLoading: lateLoading } = useLateConnection();
+  const { isConnected: metaConnected, isLoading: metaLoading } = useMetaConnection();
   
   const campaign = campaigns?.find((c) => c.id === campaignId);
   
@@ -457,7 +457,7 @@ export function CampaignCalendar() {
   const handleScheduleAll = async () => {
     if (!items || !currentTenant) return;
     
-    if (!lateConnected) {
+    if (!metaConnected) {
       toast.error("Conecte suas redes sociais primeiro", {
         action: {
           label: "Conectar",
@@ -479,7 +479,7 @@ export function CampaignCalendar() {
     try {
       const itemIds = approvedItems.map(i => i.id);
       
-      const { data, error } = await supabase.functions.invoke("late-schedule-post", {
+      const { data, error } = await supabase.functions.invoke("meta-publish-post", {
         body: { 
           calendar_item_ids: itemIds,
           tenant_id: currentTenant.id,
@@ -756,14 +756,14 @@ export function CampaignCalendar() {
                 {/* Agendar Publicações - redes sociais */}
                 {stats.approved > 0 && (
                   <Button 
-                    variant={lateConnected ? "outline" : "secondary"}
+                    variant={metaConnected ? "outline" : "secondary"}
                     onClick={handleScheduleAll}
                     disabled={isScheduling}
                     className="gap-2"
                   >
                     {isScheduling ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : lateConnected ? (
+                    ) : metaConnected ? (
                       <Send className="h-4 w-4" />
                     ) : (
                       <AlertCircle className="h-4 w-4" />
@@ -823,7 +823,7 @@ export function CampaignCalendar() {
       </Card>
 
       {/* Channel Connection Alert - apenas para redes sociais, não para blog */}
-      {!lateLoading && !lateConnected && hasSuggestions && campaign?.target_channel !== "blog" && (
+      {!metaLoading && !metaConnected && hasSuggestions && campaign?.target_channel !== "blog" && (
         <Alert variant="default" className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
           <AlertCircle className="h-4 w-4 text-amber-600" />
           <AlertDescription className="flex items-center justify-between">

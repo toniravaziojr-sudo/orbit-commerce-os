@@ -86,7 +86,7 @@ import Quizzes from "@/pages/Quizzes";
 import { QuizEditor } from "@/components/quizzes";
 import BlockSuggestions from "@/pages/BlockSuggestions";
 import DemoEstruturaPage from "@/pages/DemoEstruturaPage";
-import LateCallback from "@/pages/integrations/LateCallback";
+
 import MetaOAuthCallback from "@/pages/MetaOAuthCallback";
 import MeliOAuthCallback from "@/pages/MeliOAuthCallback";
 import YouTubeCallback from "@/pages/integrations/YouTubeCallback";
@@ -198,8 +198,6 @@ const App = () => {
               <Route path="/start/info" element={<StartInfo />} />
               <Route path="/start/pending" element={<StartPending />} />
               <Route path="/complete-signup" element={<CompleteSignup />} />
-              {/* Late OAuth callback - opened in popup, handles close */}
-              <Route path="/integrations/late/callback" element={<LateCallback />} />
               {/* Meta OAuth callback - handles Meta connection result */}
               <Route path="/integrations/meta/callback" element={<MetaOAuthCallback />} />
               {/* Mercado Livre OAuth callback - forwards to edge function */}
