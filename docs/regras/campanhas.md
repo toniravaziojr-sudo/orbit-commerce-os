@@ -1,7 +1,7 @@
 # Campanhas (Criador de Campanhas) — Regras e Especificações
 
 > **Status:** 🟩 Atualizado  
-> **Última atualização:** 2026-01-28
+> **Última atualização:** 2026-02-12
 
 ---
 
@@ -25,11 +25,12 @@ Sistema de planejamento e criação de campanhas de marketing com IA, dividido e
 | `src/pages/Campaigns.tsx` | IA Estrategista |
 | `src/pages/Media.tsx` | Mídias Sociais (Facebook/Instagram/YouTube) |
 | `src/hooks/useMediaCampaigns.ts` | Hook CRUD campanhas |
+| `src/hooks/useMetaConnection.ts` | Hook de conexão Meta (OAuth, status, assets) |
 | `src/components/media/CampaignCalendar.tsx` | Calendário visual |
 | `src/components/media/CampaignsList.tsx` | Lista de campanhas |
 | `src/components/media/PublicationDialog.tsx` | Dialog de criação/edição |
 | `supabase/functions/media-generate-suggestions/` | Geração IA |
-| `supabase/functions/late-schedule-post/` | Agendamento Late (Meta) |
+| `supabase/functions/meta-publish-post/` | Publicação nativa Meta (Facebook + Instagram) |
 | `supabase/functions/youtube-upload/` | Upload para YouTube |
 
 ### Campanhas Blog
@@ -104,6 +105,26 @@ Sistema de planejamento e criação de campanhas de marketing com IA, dividido e
 | `status` | ENUM | `draft`, `suggested`, `approved`, `published` |
 | `target_channel` | ENUM | Canal alvo (`youtube`, `blog`, etc.) |
 
+#### social_posts
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `id` | UUID | PK |
+| `tenant_id` | UUID | FK tenants |
+| `calendar_item_id` | UUID | FK media_calendar_items (nullable) |
+| `platform` | TEXT | `facebook` ou `instagram` |
+| `post_type` | TEXT | `feed`, `story`, `reel`, `carousel` |
+| `caption` | TEXT | Texto do post |
+| `media_urls` | TEXT[] | URLs das mídias |
+| `status` | TEXT | `draft`, `scheduled`, `publishing`, `published`, `failed` |
+| `meta_post_id` | TEXT | ID retornado pela Meta após publicação |
+| `api_response` | JSONB | Response completo da API (evidência App Review) |
+| `error_message` | TEXT | Mensagem de erro (se failed) |
+| `scheduled_at` | TIMESTAMPTZ | Horário agendado |
+| `published_at` | TIMESTAMPTZ | Horário efetivo da publicação |
+| `created_at` | TIMESTAMPTZ | Criação |
+| `updated_at` | TIMESTAMPTZ | Última atualização |
+
 ### Enums
 
 ```sql
@@ -133,7 +154,7 @@ CREATE TYPE media_content_type AS ENUM (
 1. Admin cria campanha com:
    - Nome, período, dias da semana
    - Prompt base (tema/tom)
-   - Canal alvo (Instagram, Facebook, Blog, YouTube)
+   - Canal alvo (Instagram, Facebook, YouTube)
    ↓
 2. Clica "Gerar Sugestões"
    ↓
@@ -150,9 +171,10 @@ CREATE TYPE media_content_type AS ENUM (
    - media-generate-image
    - Status → "generating_asset" → "ready"
    ↓
-6. Agenda publicação
-   - late-schedule-post (Meta) OU youtube-upload (YouTube)
-   - Status → "scheduled" → "published"
+6. Publica via Meta Graph API
+   - meta-publish-post (Facebook Pages API / Instagram Graph API)
+   - Cria registro em social_posts
+   - Status → "publishing" → "published"
 ```
 
 ### Fluxo YouTube (Vídeos)
@@ -174,28 +196,66 @@ CREATE TYPE media_content_type AS ENUM (
    - Status → "published"
 ```
 
-### Publicação via Late (Meta)
+---
+
+## Integração Meta Nativa (Facebook + Instagram)
+
+### Edge Function: `meta-publish-post`
 
 ```typescript
-// late-schedule-post
-POST /late-schedule-post
+POST /meta-publish-post
 {
   "tenant_id": "...",
-  "calendar_item_ids": ["..."],
-  "publish_at": "2025-01-20T10:00:00Z"
+  "calendar_item_id": "...",       // opcional
+  "platform": "facebook" | "instagram",
+  "post_type": "feed" | "story" | "reel" | "carousel",
+  "caption": "Texto do post...",
+  "media_urls": ["https://..."],   // URLs públicas das mídias
+  "scheduled_at": "2026-02-15T10:00:00Z"  // opcional (se omitido, publica imediatamente)
 }
 ```
 
----
+### Plataformas
 
-## Integração Late (Meta)
+| Plataforma | API | Tipos Suportados |
+|------------|-----|------------------|
+| **Facebook** | Pages API (`/{page-id}/feed`, `/{page-id}/photos`, `/{page-id}/videos`) | feed (texto, imagem, vídeo, link) |
+| **Instagram** | Instagram Graph API (`/{ig-user-id}/media`, `/{ig-user-id}/media_publish`) | feed, story, reel, carousel |
 
-| Função | Propósito |
+### Fluxo Instagram (Container Flow)
+
+```
+1. Criar Container de Mídia
+   POST /{ig-user-id}/media
+   { image_url, caption, media_type }
+   → retorna container_id
+   ↓
+2. Aguardar processamento (polling)
+   GET /{container_id}?fields=status_code
+   → aguardar status_code = "FINISHED"
+   ↓
+3. Publicar Container
+   POST /{ig-user-id}/media_publish
+   { creation_id: container_id }
+   → retorna post_id (salvo como meta_post_id)
+```
+
+### Escopos OAuth Necessários
+
+| Escopo | Propósito |
 |--------|-----------|
-| `late-auth-start` | Início OAuth |
-| `late-auth-callback` | Callback OAuth |
-| `late-schedule-post` | Agendar publicação |
-| `late-auth-status` | Status da conexão |
+| `pages_manage_posts` | Publicar em Páginas do Facebook |
+| `pages_read_engagement` | Ler métricas de posts |
+| `instagram_basic` | Acesso básico ao Instagram |
+| `instagram_content_publish` | Publicar conteúdo no Instagram |
+| `instagram_manage_insights` | Métricas do Instagram |
+
+### Tabelas de Conexão
+
+| Tabela | Propósito |
+|--------|-----------|
+| `marketplace_connections` | Tokens OAuth Meta por tenant (marketplace = 'meta') |
+| `social_posts` | Registro de publicações com evidências para App Review |
 
 ---
 
@@ -314,7 +374,7 @@ O `PublicationDialog` recebe a prop `campaignType` para diferenciar o fluxo:
 | Blog mostra apenas formulário de artigo | Blog mostrar opções Feed/Stories/YouTube |
 | Mídias mostra apenas Feed/Stories | Mídias mostrar opção de Blog ou YouTube |
 | YouTube mostra apenas formulário de vídeo | YouTube mostrar opções de outras plataformas |
-| Cada módulo usa sua Edge Function | Misturar `late-schedule-post` com `youtube-upload` |
+| Cada módulo usa sua Edge Function | Misturar `meta-publish-post` com `youtube-upload` |
 
 ### Implementação
 
@@ -342,6 +402,8 @@ O `PublicationDialog` recebe a prop `campaignType` para diferenciar o fluxo:
 | Misturar fluxos Blog/Mídias/YouTube | Usar `campaignType` para separar |
 | Upload YouTube sem verificar créditos | Sempre verificar saldo antes |
 | Usar fal.ai para vídeos | Usar pipeline OpenAI/Sora com QA |
+| Publicar no Instagram sem aguardar container FINISHED | Sempre fazer polling do status_code antes de media_publish |
+| Publicar sem criar registro em social_posts | Toda publicação Meta deve ter registro para evidência App Review |
 
 ---
 
@@ -354,6 +416,7 @@ O `PublicationDialog` recebe a prop `campaignType` para diferenciar o fluxo:
 - [x] Fluxo separado Blog vs Mídias vs YouTube
 - [x] Integração YouTube (OAuth + Upload)
 - [x] Geração de vídeos IA (v2.0 pipeline)
+- [x] Conexão com Meta (nativa via Graph API)
+- [x] Tabela social_posts para evidências App Review
 - [ ] Geração de imagens
-- [ ] Conexão com Late
-- [ ] Publicação automática
+- [ ] Publicação automática (worker/cron)
