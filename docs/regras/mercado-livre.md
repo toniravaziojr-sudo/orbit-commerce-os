@@ -106,15 +106,24 @@ POST /meli-publish-listing
 
 ### Status do Anúncio
 
-| Status | Descrição |
-|--------|-----------|
-| `draft` | Rascunho, editável |
-| `ready` | Pronto para aprovação |
-| `approved` | Aprovado, aguardando publicação |
-| `publishing` | Em processo de envio ao ML |
-| `published` | Publicado no ML |
-| `paused` | Pausado no ML |
-| `error` | Erro na publicação (pode editar e retentar) |
+| Status | Descrição | Ações Disponíveis |
+|--------|-----------|-------------------|
+| `draft` | Rascunho | Editar, Aprovar, Excluir |
+| `ready` | Pronto para aprovação | Editar, Aprovar, Excluir |
+| `approved` | Aprovado, aguardando publicação | Editar, Publicar, Excluir |
+| `publishing` | Em processo de envio ao ML | — |
+| `published` | Publicado no ML | Ver no ML, Sincronizar preço/estoque, Pausar |
+| `paused` | Pausado no ML | Reativar |
+| `error` | Erro na publicação | Editar, Retentar publicação, Excluir |
+
+### Regra: Edição de Anúncios (OBRIGATÓRIO)
+
+> O botão de edição (✏️) DEVE estar disponível em **todos os status pré-publicação**: `draft`, `ready`, `approved` e `error`.
+> Anúncios com status `published`, `publishing` ou `paused` NÃO podem ser editados localmente (apenas via sync/update na API ML).
+
+### Regra: Auto-Refresh de Token (OBRIGATÓRIO)
+
+> A edge function `meli-publish-listing` DEVE tentar renovar o token automaticamente via `meli-token-refresh` quando detectar que o `expires_at` já passou, ANTES de retornar erro ao usuário. Só retorna `token_expired` se o refresh falhar.
 
 ## Tabela: marketplace_connections
 
