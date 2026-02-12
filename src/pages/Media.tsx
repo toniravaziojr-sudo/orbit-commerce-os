@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Image, Link, Facebook, Instagram, Youtube, Video, Plus, Loader2, Sparkles } from "lucide-react";
+import { Calendar, Image, Link, Facebook, Instagram, Youtube, Video, Plus, Loader2, Sparkles, FileText, Send, Lightbulb, Palette } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { CampaignsList } from "@/components/media/CampaignsList";
 import { MediaVideoJobsList } from "@/components/media/MediaVideoJobsList";
 import { ImageGenerationTabV3 } from "@/components/creatives/image-generation";
@@ -39,7 +39,6 @@ export default function Media() {
   const { isPlatformOperator } = usePlatformOperator();
   const { isStoreMode } = useAdminModeSafe();
   
-  // YouTube is only visible for platform operators in store mode (following rollout protocol)
   const showYouTube = isPlatformOperator && isStoreMode;
 
   // Video generation state
@@ -50,6 +49,9 @@ export default function Media() {
   const [videoProductUrl, setVideoProductUrl] = useState("");
   const [enableQa, setEnableQa] = useState(true);
   const [enableFallback, setEnableFallback] = useState(true);
+
+  // Creatives sub-tab
+  const [creativesSubTab, setCreativesSubTab] = useState<"images" | "videos">("images");
 
   const { data: categoryProfiles } = useMediaCategoryProfiles();
   const createVideoJob = useCreateMediaVideoJob();
@@ -66,7 +68,6 @@ export default function Media() {
       enable_fallback: enableFallback,
     });
 
-    // Reset form
     setVideoPrompt("");
     setVideoProductUrl("");
     setVideoDialogOpen(false);
@@ -101,23 +102,23 @@ export default function Media() {
         )}
       </div>
 
-      <Tabs defaultValue="campaigns" className="space-y-6">
+      <Tabs defaultValue="strategy" className="space-y-6">
         <TabsList>
-          <TabsTrigger value="campaigns" className="gap-2">
-            <Calendar className="h-4 w-4" />
-            Campanhas
+          <TabsTrigger value="strategy" className="gap-2">
+            <Lightbulb className="h-4 w-4" />
+            Estratégia
           </TabsTrigger>
-          <TabsTrigger value="images" className="gap-2">
-            <Sparkles className="h-4 w-4" />
-            Imagens IA
+          <TabsTrigger value="copys" className="gap-2">
+            <FileText className="h-4 w-4" />
+            Copys & Prompts
           </TabsTrigger>
-          <TabsTrigger value="videos" className="gap-2">
-            <Video className="h-4 w-4" />
-            Vídeos IA
+          <TabsTrigger value="creatives" className="gap-2">
+            <Palette className="h-4 w-4" />
+            Criativos
           </TabsTrigger>
-          <TabsTrigger value="library" className="gap-2" disabled>
-            <Image className="h-4 w-4" />
-            Biblioteca
+          <TabsTrigger value="publish" className="gap-2">
+            <Send className="h-4 w-4" />
+            Publicar
           </TabsTrigger>
           <TabsTrigger value="connections" className="gap-2" disabled>
             <Link className="h-4 w-4" />
@@ -125,35 +126,101 @@ export default function Media() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="campaigns">
+        {/* 1. Estratégia — Campanhas e planejamento */}
+        <TabsContent value="strategy">
           <CampaignsList />
         </TabsContent>
 
-        <TabsContent value="images">
-          <ImageGenerationTabV3 />
-        </TabsContent>
-
-        <TabsContent value="videos">
+        {/* 2. Copys & Prompts — Gerar textos e prompts com IA */}
+        <TabsContent value="copys">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-lg">Geração de Vídeos com IA</CardTitle>
-              <Button onClick={() => setVideoDialogOpen(true)} className="gap-2">
-                <Plus className="h-4 w-4" />
-                Gerar Vídeo
-              </Button>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Copys & Prompts
+              </CardTitle>
+              <CardDescription>
+                Gere textos de legendas, CTAs, hashtags e prompts para criação de imagens e vídeos com IA
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <MediaVideoJobsList />
+              <div className="text-center py-12 text-muted-foreground">
+                <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <h3 className="text-lg font-medium mb-2">Gerador de Copys com IA</h3>
+                <p className="mb-1">Gere legendas, CTAs e prompts de imagem automaticamente.</p>
+                <p className="text-xs">Selecione uma campanha na aba "Estratégia" e clique em "Gerar Sugestões" para começar.</p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="library">
-          <div className="text-center py-12 text-muted-foreground">
-            <Image className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <h3 className="text-lg font-medium mb-2">Biblioteca de Mídias</h3>
-            <p>Em breve você poderá gerenciar todos os seus assets aqui.</p>
+        {/* 3. Criativos — Imagens IA + Vídeos IA unificados */}
+        <TabsContent value="creatives">
+          <div className="space-y-4">
+            {/* Sub-tabs para alternar entre imagens e vídeos */}
+            <div className="flex gap-2">
+              <Button
+                variant={creativesSubTab === "images" ? "default" : "outline"}
+                onClick={() => setCreativesSubTab("images")}
+                className="gap-2"
+                size="sm"
+              >
+                <Sparkles className="h-4 w-4" />
+                Imagens IA
+              </Button>
+              <Button
+                variant={creativesSubTab === "videos" ? "default" : "outline"}
+                onClick={() => setCreativesSubTab("videos")}
+                className="gap-2"
+                size="sm"
+              >
+                <Video className="h-4 w-4" />
+                Vídeos IA
+              </Button>
+            </div>
+
+            {creativesSubTab === "images" && (
+              <ImageGenerationTabV3 />
+            )}
+
+            {creativesSubTab === "videos" && (
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-lg">Geração de Vídeos com IA</CardTitle>
+                  <Button onClick={() => setVideoDialogOpen(true)} className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    Gerar Vídeo
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  <MediaVideoJobsList />
+                </CardContent>
+              </Card>
+            )}
           </div>
+        </TabsContent>
+
+        {/* 4. Publicar — Agendar e publicar nas redes */}
+        <TabsContent value="publish">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Send className="h-5 w-5" />
+                Publicar nas Redes
+              </CardTitle>
+              <CardDescription>
+                Agende e publique seus criativos diretamente no Facebook, Instagram e YouTube
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-12 text-muted-foreground">
+                <Send className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <h3 className="text-lg font-medium mb-2">Publicação Automática</h3>
+                <p className="mb-1">Após gerar seus criativos, agende a publicação aqui.</p>
+                <p className="text-xs">Conecte suas redes sociais na aba "Conexões" para ativar.</p>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="connections">
