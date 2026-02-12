@@ -12,11 +12,13 @@ import {
   MessageSquare,
   Package,
   ExternalLink,
+  BarChart3,
 } from "lucide-react";
 import { toast } from "sonner";
 import { MeliConnectionCard } from "@/components/marketplaces/MeliConnectionCard";
 import { MeliOrdersTab } from "@/components/marketplaces/MeliOrdersTab";
 import { MeliListingsTab } from "@/components/marketplaces/MeliListingsTab";
+import { MeliMetricsTab } from "@/components/marketplaces/MeliMetricsTab";
 import { useMeliConnection } from "@/hooks/useMeliConnection";
 
 // Mercado Livre Logo Component
@@ -125,6 +127,10 @@ export default function MercadoLivre() {
             <Package className="h-4 w-4" />
             Anúncios
           </TabsTrigger>
+          <TabsTrigger value="metricas" className="gap-2" disabled={!isConnected}>
+            <BarChart3 className="h-4 w-4" />
+            Métricas
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="conexao" className="mt-6">
@@ -184,7 +190,6 @@ export default function MercadoLivre() {
                       <p className="text-xs text-muted-foreground">
                         Crie e gerencie seus anúncios, sincronize estoque e preços
                       </p>
-                      <Badge variant="secondary" className="mt-1 text-xs">Em breve</Badge>
                     </div>
                   </div>
                 </div>
@@ -199,6 +204,10 @@ export default function MercadoLivre() {
 
         <TabsContent value="anuncios" className="mt-6">
           <MeliListingsTab />
+        </TabsContent>
+
+        <TabsContent value="metricas" className="mt-6">
+          <MeliMetricsTab />
         </TabsContent>
       </Tabs>
     </div>

@@ -171,6 +171,32 @@ export function useMeliListings() {
     },
   });
 
+  const publishListing = useMutation({
+    mutationFn: async ({ id, action }: { id: string; action?: 'publish' | 'pause' | 'activate' | 'update' }) => {
+      if (!currentTenant?.id) throw new Error('Tenant não selecionado');
+
+      const { data, error } = await supabase.functions.invoke('meli-publish-listing', {
+        body: {
+          tenantId: currentTenant.id,
+          listingId: id,
+          action: action || undefined,
+        },
+      });
+
+      if (error) throw new Error(error.message || 'Erro ao publicar');
+      if (!data?.success) throw new Error(data?.error || 'Erro ao publicar no Mercado Livre');
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['meli-listings'] });
+      toast.success(data.message || 'Operação realizada com sucesso!');
+    },
+    onError: (error: Error) => {
+      queryClient.invalidateQueries({ queryKey: ['meli-listings'] });
+      toast.error(error.message || 'Erro ao publicar anúncio');
+    },
+  });
+
   return {
     listings: listingsQuery.data ?? [],
     isLoading: listingsQuery.isLoading,
@@ -178,6 +204,7 @@ export function useMeliListings() {
     updateListing,
     deleteListing,
     approveListing,
+    publishListing,
     refetch: listingsQuery.refetch,
   };
 }

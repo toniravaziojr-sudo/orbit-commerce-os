@@ -1,28 +1,33 @@
 # Mercado Livre — Regras e Especificações
 
-> **Status:** 🟧 Pending (não validado)  
-> **Última atualização:** 2026-02-11
+> **Status:** 🟩 Atualizado  
+> **Última atualização:** 2026-02-12
 
 ---
 
 ## Visão Geral
 
-Integração OAuth com Mercado Livre para sincronização de pedidos, atendimento e gestão de anúncios.
+Integração OAuth com Mercado Livre para sincronização de pedidos, atendimento, gestão de anúncios e métricas.
 
 ## Arquivos Principais
 
 | Arquivo | Propósito |
 |---------|-----------|
-| `src/pages/marketplaces/MercadoLivre.tsx` | Dashboard com abas (Conexão, Pedidos, Anúncios) |
-| `src/pages/MeliOAuthCallback.tsx` | Proxy page para callback OAuth (captura code/state, notifica via postMessage e fecha popup) |
+| `src/pages/marketplaces/MercadoLivre.tsx` | Dashboard com abas (Conexão, Pedidos, Anúncios, Métricas) |
+| `src/pages/MeliOAuthCallback.tsx` | Proxy page para callback OAuth |
 | `src/hooks/useMeliConnection.ts` | Status/OAuth com listener de postMessage |
 | `src/hooks/useMeliOrders.ts` | Pedidos |
-| `src/hooks/useMeliListings.ts` | CRUD de anúncios (meli_listings) |
+| `src/hooks/useMeliListings.ts` | CRUD + publicação de anúncios (meli_listings) |
 | `src/components/marketplaces/MeliListingsTab.tsx` | UI da aba Anúncios (preparar, aprovar, publicar) |
+| `src/components/marketplaces/MeliMetricsTab.tsx` | UI da aba Métricas (KPIs + desempenho) |
 | `src/components/marketplaces/MeliConnectionCard.tsx` | Card de conexão OAuth |
 | `src/components/marketplaces/MeliOrdersTab.tsx` | Aba de pedidos |
 | `supabase/functions/meli-oauth-*` | Fluxo OAuth |
-| `supabase/functions/meli-webhook/` | Notificações |
+| `supabase/functions/meli-publish-listing/` | Publicação de anúncios na API do ML |
+| `supabase/functions/meli-sync-orders/` | Sincronização de pedidos |
+| `supabase/functions/meli-sync-questions/` | Sincronização de perguntas → Atendimento |
+| `supabase/functions/meli-answer-question/` | Responder perguntas via API ML |
+| `supabase/functions/meli-webhook/` | Notificações do ML |
 
 ## Fluxo OAuth
 
@@ -45,15 +50,12 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 > 2. Chamar a edge function `meli-oauth-callback` via fetch
 > 3. Enviar resultado via `window.opener.postMessage()`
 > 4. Fechar o popup com `window.close()`
->
-> A janela principal (`useMeliConnection.ts`) escuta o `postMessage` e atualiza o estado.
 
 ## Rota Frontend
 
 - **Path:** `/integrations/meli/callback`
 - **Componente:** `MeliOAuthCallback`
 - **Registrada em:** `src/App.tsx`
-- **Função:** Proxy entre o redirect do ML e a edge function. Necessária porque o ML redireciona para o domínio do app, não diretamente para a edge function.
 
 ## Regra: Atendimento
 
@@ -69,8 +71,29 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 2. Preenche dados específicos do ML (título ≤60 chars, preço, estoque, tipo de anúncio, condição)
 3. Anúncio salvo como status 'draft'
 4. Lojista revisa e clica "Aprovar" → status 'approved'
-5. (Futuro) Lojista clica "Publicar" → edge function envia para API do ML → status 'published'
+5. Lojista clica "Publicar" → edge function meli-publish-listing → API do ML → status 'published'
+6. Após publicação: pode pausar, reativar, sincronizar preço/estoque
 ```
+
+### Edge Function: `meli-publish-listing`
+
+```typescript
+POST /meli-publish-listing
+{
+  "tenantId": "...",
+  "listingId": "...",
+  "action": "publish" | "pause" | "activate" | "update"  // opcional
+}
+```
+
+### Ações Suportadas
+
+| Ação | Descrição | API ML |
+|------|-----------|--------|
+| `publish` (default) | Publica novo anúncio | `POST /items` |
+| `pause` | Pausa anúncio ativo | `PUT /items/{id}` status=paused |
+| `activate` | Reativa anúncio pausado | `PUT /items/{id}` status=active |
+| `update` | Sincroniza preço/estoque | `PUT /items/{id}` + `PUT /items/{id}/description` |
 
 ### Regras de Anúncio
 
@@ -78,6 +101,7 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 - **Tipos de anúncio:** `gold_special` (Clássico), `gold_pro` (Premium), `gold` (Gold), `free` (Grátis)
 - **Condição:** `new` (Novo) ou `used` (Usado)
 - **Moeda:** `BRL` (padrão)
+- **Imagens:** Máximo 10 (limite do ML)
 - **Unicidade:** Um produto só pode ter um anúncio ativo (constraint `idx_meli_listings_tenant_product`)
 
 ### Status do Anúncio
@@ -89,7 +113,8 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 | `approved` | Aprovado, aguardando publicação |
 | `publishing` | Em processo de envio ao ML |
 | `published` | Publicado no ML |
-| `error` | Erro na publicação |
+| `paused` | Pausado no ML |
+| `error` | Erro na publicação (pode editar e retentar) |
 
 ## Tabela: marketplace_connections
 
@@ -109,7 +134,7 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 | `id` | UUID | PK |
 | `tenant_id` | UUID | FK tenants |
 | `product_id` | UUID | FK products |
-| `status` | TEXT | draft/ready/approved/publishing/published/error |
+| `status` | TEXT | draft/ready/approved/publishing/published/paused/error |
 | `meli_item_id` | TEXT | ID do anúncio no ML (após publicação) |
 | `title` | TEXT | Título do anúncio (≤60 chars) |
 | `description` | TEXT | Descrição HTML |
@@ -129,3 +154,43 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 ### RLS: meli_listings
 
 - SELECT/INSERT/UPDATE/DELETE: `user_has_tenant_access(tenant_id)`
+
+## Aba Métricas
+
+Busca dados diretamente da API do ML (não armazena localmente):
+
+| Métrica | Endpoint ML |
+|---------|-------------|
+| Anúncios ativos | `GET /users/{seller_id}/items/search` |
+| Detalhes dos itens | `GET /items?ids=...&attributes=...` |
+| Visitas (30 dias) | `GET /items/{id}/visits/time_window` |
+
+### KPIs exibidos
+
+- Anúncios ativos / total
+- Visitas (últimos 30 dias)
+- Unidades vendidas
+- Faturamento estimado
+
+## Anti-Patterns
+
+| Proibido | Correto |
+|----------|---------|
+| Manter aba de mensagens no marketplace | Mensagens vão para Atendimento |
+| Publicar sem aprovação | Fluxo: draft → approved → published |
+| Hardcodar categoria ML | Usar `category_id` configurável |
+| Ignorar erro da API ML | Salvar `error_message` e `meli_response` |
+
+## Checklist
+
+- [x] OAuth com popup + postMessage
+- [x] Sincronização de pedidos
+- [x] Sincronização de perguntas → Atendimento
+- [x] Responder perguntas via API
+- [x] CRUD de anúncios (preparar, aprovar)
+- [x] Publicação de anúncios via API ML
+- [x] Pausar/reativar anúncios
+- [x] Sincronizar preço/estoque
+- [x] Aba de métricas (visitas, vendas, faturamento)
+- [ ] Busca de categorias ML (category picker)
+- [ ] Webhook de notificações de pedidos (real-time)
