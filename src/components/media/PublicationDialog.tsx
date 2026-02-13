@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Newspaper, Instagram, Facebook, Image, Check, Clock, Square, CheckSquare, Youtube, Video } from "lucide-react";
+import { Newspaper, Instagram, Facebook, Image, Check, Clock, Square, CheckSquare, Youtube, Video, Upload, X, Loader2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,6 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useMediaCalendarItems, MediaCalendarItem } from "@/hooks/useMediaCampaigns";
 import { useAuth } from "@/hooks/useAuth";
+import { useSystemUpload } from "@/hooks/useSystemUpload";
 import { toast } from "sonner";
 
 export type PublicationType = "feed" | "stories" | "blog" | "youtube";
@@ -92,7 +93,7 @@ const ALL_CHANNELS = [
 
 const feedFormSchema = z.object({
   title: z.string().min(1, "Título é obrigatório"),
-  copy: z.string().min(1, "Legenda é obrigatória"),
+  copy: z.string().optional(),
   cta: z.string().optional(),
   hashtags: z.string().optional(),
   scheduled_time: z.string().optional(),
@@ -107,13 +108,13 @@ const storyFormSchema = z.object({
 
 const blogFormSchema = z.object({
   title: z.string().min(1, "Título é obrigatório"),
-  copy: z.string().min(1, "Conteúdo é obrigatório"),
+  copy: z.string().optional(),
   scheduled_time: z.string().optional(),
 });
 
 const youtubeFormSchema = z.object({
   title: z.string().min(1, "Título é obrigatório"),
-  copy: z.string().min(1, "Descrição é obrigatória"),
+  copy: z.string().optional(),
   tags: z.string().optional(),
   scheduled_time: z.string().optional(),
   generation_prompt: z.string().optional(),
@@ -131,6 +132,9 @@ export function PublicationDialog({
 }: PublicationDialogProps) {
   const { currentTenant, user } = useAuth();
   const { createItem, updateItem, deleteItem } = useMediaCalendarItems(campaignId);
+  const { upload: uploadFile, isUploading } = useSystemUpload({ source: 'media_creative', subPath: 'criativos' });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadedAssetUrl, setUploadedAssetUrl] = useState<string | null>(null);
 
   const [step, setStep] = useState<"type" | "channels" | "details">("type");
   const [selectedType, setSelectedType] = useState<PublicationType | null>(null);
@@ -201,6 +205,7 @@ export function PublicationDialog({
   // Reset ao abrir/fechar ou quando muda editItem
   useEffect(() => {
     if (open) {
+      setUploadedAssetUrl(null);
       if (editItem) {
         // Modo edição: preenche dados
         const type = editItem.content_type === "story" ? "stories" 
@@ -344,6 +349,20 @@ export function PublicationDialog({
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const result = await uploadFile(file);
+    if (result?.publicUrl) {
+      setUploadedAssetUrl(result.publicUrl);
+    }
+  };
+
+  const removeUploadedAsset = () => {
+    setUploadedAssetUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const handleSubmitFeed = async (values: z.infer<typeof feedFormSchema>) => {
     if (!date || !currentTenant) return;
 
@@ -353,7 +372,7 @@ export function PublicationDialog({
 
     const baseData = {
       title: values.title,
-      copy: values.copy,
+      copy: values.copy || null,
       cta: values.cta || null,
       hashtags,
       scheduled_time: values.scheduled_time ? `${values.scheduled_time}:00` : null,
@@ -364,7 +383,11 @@ export function PublicationDialog({
     };
 
     if (isEditing && editItem) {
-      await updateItem.mutateAsync({ id: editItem.id, ...baseData });
+      const updateData: Record<string, unknown> = { id: editItem.id, ...baseData };
+      if (uploadedAssetUrl) {
+        updateData.asset_url = uploadedAssetUrl;
+      }
+      await updateItem.mutateAsync(updateData as any);
     } else {
       await createItem.mutateAsync({
         tenant_id: currentTenant.id,
@@ -372,8 +395,8 @@ export function PublicationDialog({
         scheduled_date: format(date, "yyyy-MM-dd"),
         ...baseData,
         reference_urls: null,
-        asset_url: null,
-        asset_thumbnail_url: null,
+        asset_url: uploadedAssetUrl || null,
+        asset_thumbnail_url: uploadedAssetUrl || null,
         asset_metadata: {},
         target_channel: null,
         blog_post_id: null,
@@ -706,9 +729,9 @@ export function PublicationDialog({
                   name="copy"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Legenda / Copy</FormLabel>
+                      <FormLabel>Legenda / Copy <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Escreva a legenda do post..." className="min-h-[80px]" {...field} />
+                        <Textarea placeholder="Escreva a legenda do post ou adicione depois..." className="min-h-[80px]" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -759,14 +782,73 @@ export function PublicationDialog({
                   )}
                 />
 
+                {/* Criativo: Preview existente ou Upload */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Criativo <span className="text-muted-foreground font-normal">(opcional)</span></label>
+                  
+                  {/* Existing asset preview */}
+                  {isEditing && editItem?.asset_url && !uploadedAssetUrl && (
+                    <div className="rounded-lg border overflow-hidden bg-muted/50">
+                      <img src={editItem.asset_url} alt={editItem.title || "Criativo"} className="w-full h-40 object-cover" />
+                      <div className="p-2 flex items-center justify-between">
+                        <span className="text-xs text-green-600 font-medium">✓ Criativo atual</span>
+                        <div className="flex gap-1">
+                          <Button type="button" variant="ghost" size="sm" asChild>
+                            <a href={editItem.asset_url} target="_blank" rel="noopener noreferrer">
+                              <ExternalLink className="h-3.5 w-3.5 mr-1" />Abrir
+                            </a>
+                          </Button>
+                          <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                            Substituir
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* New uploaded asset preview */}
+                  {uploadedAssetUrl && (
+                    <div className="relative rounded-lg border overflow-hidden bg-muted/50">
+                      <img src={uploadedAssetUrl} alt="Novo criativo" className="w-full h-40 object-cover" />
+                      <Button type="button" variant="destructive" size="icon" className="absolute top-2 right-2 h-6 w-6" onClick={removeUploadedAsset}>
+                        <X className="h-3 w-3" />
+                      </Button>
+                      <div className="p-2">
+                        <span className="text-xs text-primary font-medium">Novo criativo selecionado</span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Upload area */}
+                  {!uploadedAssetUrl && !(isEditing && editItem?.asset_url) && (
+                    <div
+                      className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      {isUploading ? (
+                        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin" />Enviando...
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-1 text-sm text-muted-foreground">
+                          <Upload className="h-5 w-5" />
+                          <span>Clique para enviar imagem ou vídeo</span>
+                          <span className="text-xs">Ou use "Criativos IA" no stepper para gerar com IA</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFileUpload} />
+                </div>
+
                 <FormField
                   control={feedForm.control}
                   name="generation_prompt"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Prompt para criativo (opcional)</FormLabel>
+                      <FormLabel>Prompt para criativo IA (opcional)</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Descreva o visual desejado..." className="min-h-[60px]" {...field} />
+                        <Textarea placeholder="Descreva o visual desejado para geração com IA..." className="min-h-[60px]" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
