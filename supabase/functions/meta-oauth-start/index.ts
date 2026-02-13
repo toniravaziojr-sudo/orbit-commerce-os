@@ -139,7 +139,10 @@ serve(async (req) => {
     }
 
     // Buscar credenciais do app Meta (da tabela platform_credentials)
-    const appId = await getCredential(supabaseUrl, supabaseServiceKey, "META_APP_ID");
+    const [appId, apiVersion] = await Promise.all([
+      getCredential(supabaseUrl, supabaseServiceKey, "META_APP_ID"),
+      getCredential(supabaseUrl, supabaseServiceKey, "META_GRAPH_API_VERSION"),
+    ]);
     
     if (!appId) {
       return new Response(
@@ -152,6 +155,8 @@ serve(async (req) => {
       );
     }
 
+    const graphVersion = apiVersion || "v21.0";
+
     // Construir escopos combinados (sem duplicatas)
     const allScopes = new Set([...BASE_SCOPES]);
     for (const pack of validPacks) {
@@ -160,6 +165,8 @@ serve(async (req) => {
       }
     }
     const scopeString = Array.from(allScopes).join(",");
+
+    console.log(`[meta-oauth-start] Escopos solicitados: ${scopeString}`);
 
     // Gerar state seguro com hash
     const stateNonce = crypto.randomUUID();
@@ -191,7 +198,7 @@ serve(async (req) => {
 
     // URL de autorização do Facebook/Meta
     // Docs: https://developers.facebook.com/docs/facebook-login/guides/advanced/manual-flow
-    const authUrl = new URL("https://www.facebook.com/v19.0/dialog/oauth");
+    const authUrl = new URL(`https://www.facebook.com/${graphVersion}/dialog/oauth`);
     authUrl.searchParams.set("client_id", appId);
     authUrl.searchParams.set("redirect_uri", redirectUri);
     authUrl.searchParams.set("state", stateHash);
