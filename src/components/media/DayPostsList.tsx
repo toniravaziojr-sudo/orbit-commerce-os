@@ -170,7 +170,7 @@ export function DayPostsList({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[520px]">
+      <DialogContent className="sm:max-w-[600px] flex flex-col overflow-hidden max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span className="capitalize">
@@ -191,7 +191,7 @@ export function DayPostsList({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[400px] pr-4">
+        <ScrollArea className="flex-1 overflow-y-auto pr-4">
           <div className="space-y-2">
             {items.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
