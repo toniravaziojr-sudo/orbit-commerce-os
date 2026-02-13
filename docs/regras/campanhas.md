@@ -114,9 +114,11 @@ O calendário editorial suporta **dois fluxos paralelos** que podem ser combinad
   │
   4. "Gerar Criativos IA" → gera imagens para os items
   │
-  5. "Aprovar" → marca items como aprovados
-  │
-  6. "Publicar" → publica/agenda nas redes
+   5. "Aprovar" → marca items como aprovados
+   │
+   6. "Finalizar Campanha" → agenda TODOS os items aprovados:
+      - Items com data/hora futura → agendados (Meta nativa ou worker)
+      - Items com data/hora já passada → publicados imediatamente com intervalo de 30s entre cada
 ```
 
 > **IMPORTANTE:** Os fluxos podem ser combinados. Ex: criar estratégia com IA, mas escrever copys manualmente e subir criativos próprios.
@@ -164,7 +166,7 @@ Os botões seguem ordem sequencial e só ficam ativos quando o passo anterior es
 | 3 | Gerar Copys IA | Items existem com título mas sem copy |
 | 4 | Gerar Criativos IA | Items têm copy preenchida |
 | 5 | Aprovar | Items com copy e/ou criativo prontos → abre `ApprovalDialog` com resumo visual |
-| 6 | Publicar/Agendar | Items aprovados |
+| 6 | Finalizar Campanha | Items aprovados |
 
 ### IAs Especialistas
 
@@ -627,7 +629,8 @@ Usa técnicas AIDA, PAS e storytelling.
 | Proibido | Correto |
 |----------|---------|
 | Adicionar abas na página `/media` | Lista de campanhas direta, fluxo no calendário |
-| Publicar sem revisão | Fluxo: suggested → approved → published |
+| Publicar sem revisão | Fluxo: suggested → approved → finalizar campanha |
+| Publicar items passados sem intervalo | Stagger de 30s entre publicações imediatas para evitar rate limit |
 | Gerar asset sem prompt | Sempre ter generation_prompt |
 | Ignorar canal alvo | Respeitar target_channel da campanha |
 | Misturar fluxos Blog/Mídias/YouTube | Usar `campaignType` para separar |
@@ -658,4 +661,5 @@ Usa técnicas AIDA, PAS e storytelling.
 - [x] Geração de imagens (dual provider v5.0 — Gemini Flash + OpenAI/Pro + QA Scorer)
 - [x] Indicadores visuais de status no calendário (cores, dots, legenda)
 - [x] DayPostsList com layout `max-h-[90vh]` e scroll interno
+- [x] Finalizar Campanha com stagger de 30s para items passados
 - [ ] Publicação automática (worker/cron)
