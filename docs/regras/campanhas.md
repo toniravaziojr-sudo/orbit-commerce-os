@@ -77,27 +77,58 @@ A página `/media` exibe a **lista de campanhas diretamente**, sem sistema de ab
 
 > **PROIBIDO:** Adicionar abas na página `/media`. O fluxo é sequencial dentro do calendário.
 
-### Fluxo Principal
+### Fluxo Principal — Dual (Manual + IA)
+
+O calendário editorial suporta **dois fluxos paralelos** que podem ser combinados:
+
+#### Fluxo Manual (sempre disponível)
 
 ```text
-/media (lista de campanhas)
-  │
-  ▼
-Criar Campanha (dialog: nome, mês, prompt de direcionamento)
-  │
-  ▼
 /media/campaign/:id (calendário editorial)
   │
-  ├── Manual: clicar no dia → criar item (copy + upload de criativo)
+  1. Clicar no dia → criar item (título, tipo, data)
+     - Copy é OPCIONAL neste momento
   │
-  └── Com IA: selecionar dias → botões de ação sequenciais
-       │
-       1. "Gerar Estratégia IA" → cria items (título, tema, tipo)
-       2. "Gerar Copys IA" → preenche copy, CTA, hashtags
-       3. "Gerar Criativos IA" → gera imagens para os items
-       4. "Aprovar" → marca items como aprovados
-       5. "Publicar" → publica/agenda nas redes
+  2. Abrir item existente → preencher copy, CTA, hashtags
+  │
+  3. Abrir item → upload de criativo (imagem/vídeo)
+     - Upload via sistema universal (arquivo local, Meu Drive, URL)
+     - Preview da imagem/vídeo diretamente no dialog
+  │
+  4. Aprovar items prontos
+  │
+  5. Publicar/Agendar
 ```
+
+#### Fluxo IA (botões na barra de ações)
+
+```text
+/media/campaign/:id (calendário editorial)
+  │
+  1. Selecionar dias no calendário
+  │
+  2. "Gerar Estratégia IA" → cria items (título, tema, tipo)
+  │
+  3. "Gerar Copys IA" → preenche copy, CTA, hashtags dos items existentes
+  │
+  4. "Gerar Criativos IA" → gera imagens para os items
+  │
+  5. "Aprovar" → marca items como aprovados
+  │
+  6. "Publicar" → publica/agenda nas redes
+```
+
+> **IMPORTANTE:** Os fluxos podem ser combinados. Ex: criar estratégia com IA, mas escrever copys manualmente e subir criativos próprios.
+
+### Indicadores Visuais no Calendário (DayPostsList)
+
+Cada item no calendário mostra badges de status:
+
+| Badge | Condição |
+|-------|----------|
+| `"Sem copy"` | Item tem título mas `copy` está vazio |
+| `"Sem criativo"` | Item não tem `asset_url` |
+| `"✓ Criativo"` | Item tem `asset_url` preenchida |
 
 ### Barra de Ações Progressiva (CampaignCalendar.tsx)
 
@@ -105,11 +136,12 @@ Os botões seguem ordem sequencial e só ficam ativos quando o passo anterior es
 
 | Passo | Botão | Condição de Ativação |
 |-------|-------|---------------------|
-| 1 | Gerar Estratégia IA | Dias selecionados no calendário |
-| 2 | Gerar Copys IA | Items existem com título mas sem copy |
-| 3 | Gerar Criativos IA | Items têm copy preenchida |
-| 4 | Aprovar | Items com copy e/ou criativo prontos |
-| 5 | Publicar/Agendar | Items aprovados |
+| 1 | Selecionar Dias | Calendário interativo |
+| 2 | Gerar Estratégia IA | Dias selecionados no calendário |
+| 3 | Gerar Copys IA | Items existem com título mas sem copy |
+| 4 | Gerar Criativos IA | Items têm copy preenchida |
+| 5 | Aprovar | Items com copy e/ou criativo prontos |
+| 6 | Publicar/Agendar | Items aprovados |
 
 ### IAs Especialistas
 
@@ -144,12 +176,15 @@ Técnicas utilizadas:
 - Emojis estratégicos
 - Tom de voz adaptado ao nicho da loja
 
-### Fluxo Manual
+### CalendarItemDialog (Edição Manual de Item)
 
-O usuário pode preencher tudo manualmente via `CalendarItemDialog`:
-- Título, copy, CTA, hashtags
-- Upload de criativo próprio (imagem/vídeo) via sistema de upload
-- O upload preenche `asset_url` diretamente
+O dialog de edição manual (`CalendarItemDialog.tsx`) permite:
+- **Título e tipo de conteúdo** (obrigatório)
+- **Copy, CTA, hashtags** (opcional — pode ser preenchido depois)
+- **Upload de criativo** (imagem/vídeo) via sistema universal de upload
+  - Preview visual da imagem/vídeo diretamente no dialog
+  - Suporta arquivo local e Meu Drive
+- **NÃO auto-aprova** — o item fica como `draft` ou `suggested` até o usuário aprovar manualmente
 
 ### Regra de Separação de Módulos
 
