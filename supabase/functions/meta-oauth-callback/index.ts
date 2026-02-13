@@ -93,7 +93,10 @@ serve(async (req) => {
     const redirectUri = `${appBaseUrl}/integrations/meta/callback`;
 
     // Trocar code por access_token (short-lived)
-    const tokenUrl = new URL("https://graph.facebook.com/v19.0/oauth/access_token");
+    // Buscar versão da API configurada
+    const graphVersion = await getCredential(supabaseUrl, supabaseServiceKey, "META_GRAPH_API_VERSION") || "v21.0";
+    
+    const tokenUrl = new URL(`https://graph.facebook.com/${graphVersion}/oauth/access_token`);
     tokenUrl.searchParams.set("client_id", appId);
     tokenUrl.searchParams.set("redirect_uri", redirectUri);
     tokenUrl.searchParams.set("client_secret", appSecret);
@@ -115,7 +118,7 @@ serve(async (req) => {
     let expiresIn = tokenData.expires_in || 3600;
 
     // Trocar por long-lived token (60 dias)
-    const longLivedUrl = new URL("https://graph.facebook.com/v19.0/oauth/access_token");
+    const longLivedUrl = new URL(`https://graph.facebook.com/${graphVersion}/oauth/access_token`);
     longLivedUrl.searchParams.set("grant_type", "fb_exchange_token");
     longLivedUrl.searchParams.set("client_id", appId);
     longLivedUrl.searchParams.set("client_secret", appSecret);
@@ -132,7 +135,7 @@ serve(async (req) => {
     }
 
     // Buscar informações do usuário Meta
-    const meResponse = await fetch(`https://graph.facebook.com/v19.0/me?fields=id,name,email&access_token=${accessToken}`);
+    const meResponse = await fetch(`https://graph.facebook.com/${graphVersion}/me?fields=id,name,email&access_token=${accessToken}`);
     let metaUserId = "";
     let metaUserName = "";
     if (meResponse.ok) {
@@ -228,8 +231,9 @@ async function discoverMetaAssets(accessToken: string, scopePacks: string[]) {
 
   try {
     // Buscar páginas do usuário
+    const graphVersion = "v21.0"; // Fallback - idealmente receber como parâmetro
     const pagesResponse = await fetch(
-      `https://graph.facebook.com/v19.0/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${accessToken}`
+      `https://graph.facebook.com/${graphVersion}/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${accessToken}`
     );
     
     if (pagesResponse.ok) {
@@ -247,7 +251,7 @@ async function discoverMetaAssets(accessToken: string, scopePacks: string[]) {
             const igId = page.instagram_business_account.id;
             // Buscar detalhes do IG
             const igResponse = await fetch(
-              `https://graph.facebook.com/v19.0/${igId}?fields=id,username&access_token=${accessToken}`
+              `https://graph.facebook.com/${graphVersion}/${igId}?fields=id,username&access_token=${accessToken}`
             );
             if (igResponse.ok) {
               const igData = await igResponse.json();
@@ -267,7 +271,7 @@ async function discoverMetaAssets(accessToken: string, scopePacks: string[]) {
       try {
         // Primeiro precisamos do Business Manager ID
         const businessResponse = await fetch(
-          `https://graph.facebook.com/v19.0/me/businesses?access_token=${accessToken}`
+          `https://graph.facebook.com/${graphVersion}/me/businesses?access_token=${accessToken}`
         );
         
         if (businessResponse.ok) {
@@ -276,7 +280,7 @@ async function discoverMetaAssets(accessToken: string, scopePacks: string[]) {
             for (const business of businessData.data) {
               // Buscar WABAs do business
               const wabaResponse = await fetch(
-                `https://graph.facebook.com/v19.0/${business.id}/owned_whatsapp_business_accounts?access_token=${accessToken}`
+                `https://graph.facebook.com/${graphVersion}/${business.id}/owned_whatsapp_business_accounts?access_token=${accessToken}`
               );
               if (wabaResponse.ok) {
                 const wabaData = await wabaResponse.json();
@@ -301,7 +305,7 @@ async function discoverMetaAssets(accessToken: string, scopePacks: string[]) {
     if (scopePacks.includes("ads")) {
       try {
         const adAccountsResponse = await fetch(
-          `https://graph.facebook.com/v19.0/me/adaccounts?fields=id,name&access_token=${accessToken}`
+          `https://graph.facebook.com/${graphVersion}/me/adaccounts?fields=id,name&access_token=${accessToken}`
         );
         
         if (adAccountsResponse.ok) {
