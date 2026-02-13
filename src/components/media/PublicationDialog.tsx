@@ -5,6 +5,7 @@ import { z } from "zod";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Newspaper, Instagram, Facebook, Image, Check, Clock, Square, CheckSquare, Youtube, Video, Upload, X, Loader2, ExternalLink } from "lucide-react";
+import { UniversalImageUploader } from "@/components/ui/UniversalImageUploader";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -428,7 +429,11 @@ export function PublicationDialog({
     };
 
     if (isEditing && editItem) {
-      await updateItem.mutateAsync({ id: editItem.id, ...baseData });
+      const updateData: Record<string, unknown> = { id: editItem.id, ...baseData };
+      if (uploadedAssetUrl) {
+        updateData.asset_url = uploadedAssetUrl;
+      }
+      await updateItem.mutateAsync(updateData as any);
     } else {
       await createItem.mutateAsync({
         tenant_id: currentTenant.id,
@@ -439,8 +444,8 @@ export function PublicationDialog({
         cta: null,
         hashtags: [],
         reference_urls: null,
-        asset_url: null,
-        asset_thumbnail_url: null,
+        asset_url: uploadedAssetUrl || null,
+        asset_thumbnail_url: uploadedAssetUrl || null,
         asset_metadata: {},
         target_channel: null,
         blog_post_id: null,
@@ -783,62 +788,20 @@ export function PublicationDialog({
                   )}
                 />
 
-                {/* Criativo: Preview existente ou Upload */}
+                {/* Criativo: Upload universal com Meu Drive */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Criativo <span className="text-muted-foreground font-normal">(opcional)</span></label>
-                  
-                  {/* Existing asset preview */}
-                  {isEditing && editItem?.asset_url && !uploadedAssetUrl && (
-                    <div className="rounded-lg border overflow-hidden bg-muted/50">
-                      <img src={editItem.asset_url} alt={editItem.title || "Criativo"} className="w-full h-40 object-cover" />
-                      <div className="p-2 flex items-center justify-between">
-                        <span className="text-xs text-green-600 font-medium">✓ Criativo atual</span>
-                        <div className="flex gap-1">
-                          <Button type="button" variant="ghost" size="sm" asChild>
-                            <a href={editItem.asset_url} target="_blank" rel="noopener noreferrer">
-                              <ExternalLink className="h-3.5 w-3.5 mr-1" />Abrir
-                            </a>
-                          </Button>
-                          <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-                            Substituir
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* New uploaded asset preview */}
-                  {uploadedAssetUrl && (
-                    <div className="relative rounded-lg border overflow-hidden bg-muted/50">
-                      <img src={uploadedAssetUrl} alt="Novo criativo" className="w-full h-40 object-cover" />
-                      <Button type="button" variant="destructive" size="icon" className="absolute top-2 right-2 h-6 w-6" onClick={removeUploadedAsset}>
-                        <X className="h-3 w-3" />
-                      </Button>
-                      <div className="p-2">
-                        <span className="text-xs text-primary font-medium">Novo criativo selecionado</span>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Upload area */}
-                  {!uploadedAssetUrl && !(isEditing && editItem?.asset_url) && (
-                    <div
-                      className="border-2 border-dashed rounded-lg p-3 text-center cursor-pointer hover:border-primary/50 transition-colors"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      {isUploading ? (
-                        <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                          <Loader2 className="h-3 w-3 animate-spin" />Enviando...
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center gap-2">
-                          <Upload className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">Enviar imagem ou vídeo</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFileUpload} />
+                  <UniversalImageUploader
+                    value={uploadedAssetUrl || (isEditing ? editItem?.asset_url || '' : '')}
+                    onChange={(url) => setUploadedAssetUrl(url || null)}
+                    source="media_creative"
+                    subPath="criativos"
+                    accept="all"
+                    aspectRatio="video"
+                    placeholder="Enviar imagem ou vídeo"
+                    showUrlTab={false}
+                    disabled={isUploading}
+                  />
                 </div>
 
                 <FormField
@@ -943,12 +906,28 @@ export function PublicationDialog({
                   )}
                 />
 
+                {/* Criativo: Upload universal com Meu Drive */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Criativo <span className="text-muted-foreground font-normal">(opcional)</span></label>
+                  <UniversalImageUploader
+                    value={uploadedAssetUrl || (isEditing ? editItem?.asset_url || '' : '')}
+                    onChange={(url) => setUploadedAssetUrl(url || null)}
+                    source="media_creative_story"
+                    subPath="criativos"
+                    accept="all"
+                    aspectRatio="square"
+                    placeholder="Enviar imagem ou vídeo do story"
+                    showUrlTab={false}
+                    disabled={isUploading}
+                  />
+                </div>
+
                 <FormField
                   control={storyForm.control}
                   name="generation_prompt"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Prompt para criativo</FormLabel>
+                      <FormLabel>Prompt para criativo IA (opcional)</FormLabel>
                       <FormControl>
                         <Textarea placeholder="Descreva o visual do story..." className="min-h-[40px]" {...field} />
                       </FormControl>
