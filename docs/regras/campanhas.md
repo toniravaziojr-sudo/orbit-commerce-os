@@ -1,7 +1,7 @@
 # Campanhas (Criador de Campanhas) — Regras e Especificações
 
 > **Status:** 🟩 Atualizado  
-> **Última atualização:** 2026-02-12
+> **Última atualização:** 2026-02-13
 
 ---
 
@@ -22,14 +22,15 @@ Sistema de planejamento e criação de campanhas de marketing com IA, dividido e
 
 | Arquivo | Propósito |
 |---------|-----------|
-| `src/pages/Campaigns.tsx` | IA Estrategista |
-| `src/pages/Media.tsx` | Mídias Sociais (Facebook/Instagram/YouTube) |
+| `src/pages/Media.tsx` | Página principal — lista de campanhas direta (sem abas) |
 | `src/hooks/useMediaCampaigns.ts` | Hook CRUD campanhas |
 | `src/hooks/useMetaConnection.ts` | Hook de conexão Meta (OAuth, status, assets) |
-| `src/components/media/CampaignCalendar.tsx` | Calendário visual |
+| `src/components/media/CampaignCalendar.tsx` | Calendário visual com barra de ações progressiva |
 | `src/components/media/CampaignsList.tsx` | Lista de campanhas |
-| `src/components/media/PublicationDialog.tsx` | Dialog de criação/edição |
-| `supabase/functions/media-generate-suggestions/` | Geração IA |
+| `src/components/media/CalendarItemDialog.tsx` | Dialog de edição manual (copy + upload de criativo) |
+| `src/components/media/PublicationDialog.tsx` | Dialog de publicação |
+| `supabase/functions/media-generate-suggestions/` | IA Especialista em Estratégia de Conteúdo |
+| `supabase/functions/media-generate-copys/` | IA Especialista em Copywriting |
 | `supabase/functions/meta-publish-post/` | Publicação nativa Meta (Facebook + Instagram) |
 | `supabase/functions/youtube-upload/` | Upload para YouTube |
 
@@ -70,24 +71,89 @@ Sistema de planejamento e criação de campanhas de marketing com IA, dividido e
 
 ## Módulo 2: Gestor de Mídias IA (`/media`)
 
-### Abas (Fluxo Sequencial)
+### Arquitetura (SEM ABAS)
 
-| Aba | Propósito |
-|-----|-----------|
-| **Estratégia** | Planejamento de campanhas (calendário editorial, períodos, canais) |
-| **Copys & Prompts** | Geração de legendas, CTAs, hashtags e prompts de imagem/vídeo com IA |
-| **Publicar** | Agendamento e publicação direta no Facebook, Instagram e YouTube |
-| **Conexões** | Configuração de contas de redes sociais (OAuth Meta, YouTube) |
+A página `/media` exibe a **lista de campanhas diretamente**, sem sistema de abas. Todo o fluxo (estratégia, copys, criativos, publicação) acontece **dentro do calendário de cada campanha**.
 
-> **Fluxo obrigatório:** Estratégia → Copys & Prompts → Publicar
+> **PROIBIDO:** Adicionar abas na página `/media`. O fluxo é sequencial dentro do calendário.
 
-> **Nota:** Criativos são gerados diretamente a partir dos itens do calendário na aba Estratégia, vinculados ao post. Não existe aba separada "Criativos".
+### Fluxo Principal
+
+```text
+/media (lista de campanhas)
+  │
+  ▼
+Criar Campanha (dialog: nome, mês, prompt de direcionamento)
+  │
+  ▼
+/media/campaign/:id (calendário editorial)
+  │
+  ├── Manual: clicar no dia → criar item (copy + upload de criativo)
+  │
+  └── Com IA: selecionar dias → botões de ação sequenciais
+       │
+       1. "Gerar Estratégia IA" → cria items (título, tema, tipo)
+       2. "Gerar Copys IA" → preenche copy, CTA, hashtags
+       3. "Gerar Criativos IA" → gera imagens para os items
+       4. "Aprovar" → marca items como aprovados
+       5. "Publicar" → publica/agenda nas redes
+```
+
+### Barra de Ações Progressiva (CampaignCalendar.tsx)
+
+Os botões seguem ordem sequencial e só ficam ativos quando o passo anterior está concluído:
+
+| Passo | Botão | Condição de Ativação |
+|-------|-------|---------------------|
+| 1 | Gerar Estratégia IA | Dias selecionados no calendário |
+| 2 | Gerar Copys IA | Items existem com título mas sem copy |
+| 3 | Gerar Criativos IA | Items têm copy preenchida |
+| 4 | Aprovar | Items com copy e/ou criativo prontos |
+| 5 | Publicar/Agendar | Items aprovados |
+
+### IAs Especialistas
+
+#### IA de Estratégia (`media-generate-suggestions`)
+
+Especialista em **planejamento editorial**. Gera APENAS:
+- Título do post
+- Tema/assunto
+- Tipo de conteúdo (image, video, carousel, story, reel)
+- Plataformas alvo
+
+**NÃO gera:** copy, legendas, CTAs ou hashtags (isso é responsabilidade da IA de Copys).
+
+Considera:
+- Datas comemorativas e sazonalidade
+- Equilíbrio entre conteúdo educativo, promocional e engajamento
+- Distribuição entre stories, feed e blog
+- Tendências do nicho
+
+#### IA de Copywriting (`media-generate-copys`)
+
+Especialista em **copywriting para redes sociais**. Recebe items que já têm título/tema e gera:
+- **Copy/legenda** otimizada por plataforma (Instagram 2200 chars, Facebook ilimitado)
+- **CTA** persuasivo
+- **Hashtags** relevantes (mix de volume alto e nicho)
+- **Prompt de imagem** detalhado para geração posterior
+
+Técnicas utilizadas:
+- AIDA (Atenção, Interesse, Desejo, Ação)
+- PAS (Problema, Agitação, Solução)
+- Storytelling
+- Emojis estratégicos
+- Tom de voz adaptado ao nicho da loja
+
+### Fluxo Manual
+
+O usuário pode preencher tudo manualmente via `CalendarItemDialog`:
+- Título, copy, CTA, hashtags
+- Upload de criativo próprio (imagem/vídeo) via sistema de upload
+- O upload preenche `asset_url` diretamente
 
 ### Regra de Separação de Módulos
 
 O módulo Gestor de Mídias IA **NÃO** importa componentes do módulo Gestão de Criativos (`src/components/creatives/*`). São módulos independentes.
-
-### Tabelas
 
 ### Tabelas
 
@@ -175,25 +241,20 @@ CREATE TYPE media_content_type AS ENUM (
    - Prompt base (tema/tom)
    - Canal alvo (Instagram, Facebook, YouTube)
    ↓
-2. Clica "Gerar Sugestões"
+2. Fluxo IA (sequencial):
+   a. "Gerar Estratégia IA" → cria items com título, tema, content_type
+   b. "Gerar Copys IA" → preenche copy, CTA, hashtags, generation_prompt
+   c. "Gerar Criativos IA" → gera imagens
+   d. "Aprovar" → marca items como aprovados
+   e. "Publicar" → publica nas redes
    ↓
-3. media-generate-suggestions:
-   - Usa IA para gerar calendar_items
-   - Preenche title, copy, hashtags, generation_prompt
-   - Status = "suggested"
+   OU
    ↓
-4. Admin revisa no calendário
-   - Edita/aprova cada item
-   - Status → "approved"
-   ↓
-5. Gera assets (imagens) - apenas para redes sociais
-   - media-generate-image
-   - Status → "generating_asset" → "ready"
-   ↓
-6. Publica via Meta Graph API
-   - meta-publish-post (Facebook Pages API / Instagram Graph API)
-   - Cria registro em social_posts
-   - Status → "publishing" → "published"
+2. Fluxo Manual:
+   a. Clicar no dia → criar item
+   b. Preencher título, copy, CTA, hashtags
+   c. Upload de criativo próprio
+   d. Aprovar → Publicar
 ```
 
 ### Fluxo YouTube (Vídeos)
@@ -411,10 +472,42 @@ O `PublicationDialog` recebe a prop `campaignType` para diferenciar o fluxo:
 
 ---
 
+## Edge Functions
+
+### `media-generate-suggestions` (IA Estrategista)
+
+```typescript
+POST /media-generate-suggestions
+{
+  "campaign_id": "...",
+  "tenant_id": "...",
+  "selected_dates": ["2026-03-01", "2026-03-03", ...]
+}
+```
+
+Gera APENAS: título, tema, content_type, target_platforms.
+**NÃO gera copy, CTA ou hashtags.**
+
+### `media-generate-copys` (IA Copywriter)
+
+```typescript
+POST /media-generate-copys
+{
+  "campaign_id": "...",
+  "tenant_id": "..."
+}
+```
+
+Busca items com título mas sem copy e gera: copy, CTA, hashtags, generation_prompt.
+Usa técnicas AIDA, PAS e storytelling.
+
+---
+
 ## Anti-Patterns
 
 | Proibido | Correto |
 |----------|---------|
+| Adicionar abas na página `/media` | Lista de campanhas direta, fluxo no calendário |
 | Publicar sem revisão | Fluxo: suggested → approved → published |
 | Gerar asset sem prompt | Sempre ter generation_prompt |
 | Ignorar canal alvo | Respeitar target_channel da campanha |
@@ -423,19 +516,24 @@ O `PublicationDialog` recebe a prop `campaignType` para diferenciar o fluxo:
 | Usar fal.ai para vídeos | Usar pipeline OpenAI/Sora com QA |
 | Publicar no Instagram sem aguardar container FINISHED | Sempre fazer polling do status_code antes de media_publish |
 | Publicar sem criar registro em social_posts | Toda publicação Meta deve ter registro para evidência App Review |
+| Gerar copys na IA de Estratégia | Estratégia gera apenas título/tema; Copys são geradas pela IA Copywriter |
+| IA Copywriter gerar estratégia | Copywriter só preenche copy/CTA/hashtags de items existentes |
 
 ---
 
 ## Checklist
 
 - [x] Criar campanha com período
-- [x] Gerar sugestões com IA
+- [x] Gerar sugestões com IA (estratégia especialista)
+- [x] Gerar copys com IA (copywriter especialista)
 - [x] Calendário visual funciona
 - [x] Edição inline de items
+- [x] Upload manual de criativos
 - [x] Fluxo separado Blog vs Mídias vs YouTube
 - [x] Integração YouTube (OAuth + Upload)
 - [x] Geração de vídeos IA (v2.0 pipeline)
 - [x] Conexão com Meta (nativa via Graph API)
 - [x] Tabela social_posts para evidências App Review
+- [x] Barra de ações progressiva no calendário
 - [ ] Geração de imagens
 - [ ] Publicação automática (worker/cron)
