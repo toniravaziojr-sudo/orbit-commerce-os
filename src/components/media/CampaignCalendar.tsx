@@ -481,6 +481,54 @@ export function CampaignCalendar() {
     return counts;
   };
 
+  // Get status summary for a day's items
+  const getStatusSummary = (dayItems: MediaCalendarItem[]) => {
+    const summary = { published: 0, scheduled: 0, approved: 0, failed: 0, draft: 0 };
+    dayItems.forEach(item => {
+      if (item.status === "published") summary.published++;
+      else if (item.status === "scheduled" || item.status === "publishing") summary.scheduled++;
+      else if (item.status === "approved") summary.approved++;
+      else if (item.status === "failed") summary.failed++;
+      else summary.draft++;
+    });
+    return summary;
+  };
+
+  // Get dominant status color for day cell border
+  const getDayStatusBorder = (dayItems: MediaCalendarItem[]) => {
+    if (dayItems.length === 0) return "";
+    const s = getStatusSummary(dayItems);
+    if (s.failed > 0) return "border-red-500 dark:border-red-600";
+    if (s.published > 0 && s.published === dayItems.length) return "border-green-500 dark:border-green-600";
+    if (s.scheduled > 0) return "border-blue-500 dark:border-blue-600";
+    if (s.published > 0) return "border-green-500 dark:border-green-600";
+    if (s.approved > 0) return "border-amber-500 dark:border-amber-600";
+    return "border-muted-foreground/30";
+  };
+
+  // Get background for day cell based on status
+  const getDayStatusBg = (dayItems: MediaCalendarItem[]) => {
+    if (dayItems.length === 0) return "";
+    const s = getStatusSummary(dayItems);
+    if (s.failed > 0) return "bg-red-50 dark:bg-red-950/20";
+    if (s.published > 0 && s.published === dayItems.length) return "bg-green-50 dark:bg-green-950/30";
+    if (s.scheduled > 0) return "bg-blue-50 dark:bg-blue-950/20";
+    if (s.published > 0) return "bg-green-50 dark:bg-green-950/30";
+    if (s.approved > 0) return "bg-amber-50 dark:bg-amber-950/20";
+    return "bg-muted/50";
+  };
+
+  // Status dot color
+  const getItemStatusDot = (status: string) => {
+    switch (status) {
+      case "published": return "bg-green-500";
+      case "scheduled": case "publishing": return "bg-blue-500";
+      case "approved": return "bg-amber-500";
+      case "failed": return "bg-red-500";
+      default: return "bg-muted-foreground/40";
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
@@ -593,8 +641,9 @@ export function CampaignCalendar() {
                   const isSelected = selectedDays.has(dateKey);
                   const hasContent = dayItems.length > 0;
                   const counts = getPublicationCounts(dayItems);
-                  const hasApprovedOrScheduled = dayItems.some(i => ["approved", "scheduled", "published"].includes(i.status));
-                  const hasOnlyDraft = hasContent && dayItems.every(i => ["draft", "suggested", "review", "generating_asset", "asset_review"].includes(i.status));
+                  const statusBorder = getDayStatusBorder(dayItems);
+                  const statusBg = getDayStatusBg(dayItems);
+                  const statusSummary = hasContent ? getStatusSummary(dayItems) : null;
 
                   return (
                     <div
@@ -604,8 +653,8 @@ export function CampaignCalendar() {
                         "min-h-[100px] p-1 rounded-md border-2 transition-all relative",
                         inPeriod ? "cursor-pointer hover:shadow-md" : "bg-muted/30 border-transparent",
                         isSelected && "bg-primary/20 border-primary border-dashed",
-                        hasApprovedOrScheduled && inPeriod && !isSelected && "bg-green-50 border-green-500 dark:bg-green-950/30 dark:border-green-600",
-                        hasOnlyDraft && inPeriod && !isSelected && "bg-muted/50 border-muted-foreground/30",
+                        hasContent && inPeriod && !isSelected && statusBorder,
+                        hasContent && inPeriod && !isSelected && statusBg,
                         !isSelected && !hasContent && inPeriod && "bg-background border-border",
                         holiday && inPeriod && "ring-2 ring-red-400/50",
                         isSelectMode && inPeriod && "cursor-cell"
@@ -627,43 +676,107 @@ export function CampaignCalendar() {
                       </div>
                       
                       {hasContent && (
-                        <div className="flex items-center gap-1.5 mt-1 px-1">
-                          {(counts.feed_instagram > 0 || counts.feed_facebook > 0) && (
-                            <div className="relative">
-                              <div className={cn(
-                                "w-5 h-5 rounded flex items-center justify-center text-white text-[9px] font-bold",
-                                counts.feed_instagram > 0 && counts.feed_facebook > 0 
-                                  ? "bg-gradient-to-r from-orange-500 to-blue-500"
-                                  : counts.feed_instagram > 0 ? "bg-orange-500" : "bg-blue-500"
-                              )}>
-                                <LayoutGrid className="w-3 h-3" />
+                        <div className="space-y-1 mt-0.5">
+                          {/* Channel type badges */}
+                          <div className="flex items-center gap-1.5 px-1">
+                            {(counts.feed_instagram > 0 || counts.feed_facebook > 0) && (
+                              <div className="relative">
+                                <div className={cn(
+                                  "w-5 h-5 rounded flex items-center justify-center text-white text-[9px] font-bold",
+                                  counts.feed_instagram > 0 && counts.feed_facebook > 0 
+                                    ? "bg-gradient-to-r from-orange-500 to-blue-500"
+                                    : counts.feed_instagram > 0 ? "bg-orange-500" : "bg-blue-500"
+                                )}>
+                                  <LayoutGrid className="w-3 h-3" />
+                                </div>
+                                <span className="absolute -top-1 -right-1 bg-foreground text-background text-[8px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center">
+                                  {counts.feed_instagram + counts.feed_facebook}
+                                </span>
                               </div>
-                              <span className="absolute -top-1 -right-1 bg-foreground text-background text-[8px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center">
-                                {counts.feed_instagram + counts.feed_facebook}
-                              </span>
-                            </div>
-                          )}
-                          {(counts.story_instagram > 0 || counts.story_facebook > 0) && (
-                            <div className="relative">
-                              <div className={cn(
-                                "w-5 h-5 rounded flex items-center justify-center text-white text-[10px] font-bold",
-                                counts.story_instagram > 0 && counts.story_facebook > 0 
-                                  ? "bg-gradient-to-r from-orange-500 to-blue-500"
-                                  : counts.story_instagram > 0 ? "bg-orange-500" : "bg-blue-500"
-                              )}>S</div>
-                              <span className="absolute -top-1 -right-1 bg-foreground text-background text-[8px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center">
-                                {counts.story_instagram + counts.story_facebook}
-                              </span>
-                            </div>
-                          )}
-                          {counts.blog > 0 && (
-                            <div className="relative">
-                              <div className="w-5 h-5 rounded bg-emerald-500 flex items-center justify-center text-white">
-                                <FileText className="w-3 h-3" />
+                            )}
+                            {(counts.story_instagram > 0 || counts.story_facebook > 0) && (
+                              <div className="relative">
+                                <div className={cn(
+                                  "w-5 h-5 rounded flex items-center justify-center text-white text-[10px] font-bold",
+                                  counts.story_instagram > 0 && counts.story_facebook > 0 
+                                    ? "bg-gradient-to-r from-orange-500 to-blue-500"
+                                    : counts.story_instagram > 0 ? "bg-orange-500" : "bg-blue-500"
+                                )}>S</div>
+                                <span className="absolute -top-1 -right-1 bg-foreground text-background text-[8px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center">
+                                  {counts.story_instagram + counts.story_facebook}
+                                </span>
                               </div>
-                              <span className="absolute -top-1 -right-1 bg-foreground text-background text-[8px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center">
-                                {counts.blog}
-                              </span>
+                            )}
+                            {counts.blog > 0 && (
+                              <div className="relative">
+                                <div className="w-5 h-5 rounded bg-emerald-500 flex items-center justify-center text-white">
+                                  <FileText className="w-3 h-3" />
+                                </div>
+                                <span className="absolute -top-1 -right-1 bg-foreground text-background text-[8px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center">
+                                  {counts.blog}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Status dots row */}
+                          {statusSummary && (
+                            <div className="flex items-center gap-1 px-1 flex-wrap">
+                              {statusSummary.published > 0 && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="flex items-center gap-0.5">
+                                      <div className="w-2 h-2 rounded-full bg-green-500" />
+                                      <span className="text-[9px] font-medium text-green-700 dark:text-green-400">{statusSummary.published}</span>
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent><p>{statusSummary.published} publicado(s)</p></TooltipContent>
+                                </Tooltip>
+                              )}
+                              {statusSummary.scheduled > 0 && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="flex items-center gap-0.5">
+                                      <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                      <span className="text-[9px] font-medium text-blue-700 dark:text-blue-400">{statusSummary.scheduled}</span>
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent><p>{statusSummary.scheduled} agendado(s)</p></TooltipContent>
+                                </Tooltip>
+                              )}
+                              {statusSummary.approved > 0 && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="flex items-center gap-0.5">
+                                      <div className="w-2 h-2 rounded-full bg-amber-500" />
+                                      <span className="text-[9px] font-medium text-amber-700 dark:text-amber-400">{statusSummary.approved}</span>
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent><p>{statusSummary.approved} aprovado(s)</p></TooltipContent>
+                                </Tooltip>
+                              )}
+                              {statusSummary.failed > 0 && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="flex items-center gap-0.5">
+                                      <div className="w-2 h-2 rounded-full bg-red-500" />
+                                      <span className="text-[9px] font-medium text-red-700 dark:text-red-400">{statusSummary.failed}</span>
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent><p>{statusSummary.failed} com erro(s)</p></TooltipContent>
+                                </Tooltip>
+                              )}
+                              {statusSummary.draft > 0 && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="flex items-center gap-0.5">
+                                      <div className="w-2 h-2 rounded-full bg-muted-foreground/40" />
+                                      <span className="text-[9px] font-medium text-muted-foreground">{statusSummary.draft}</span>
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent><p>{statusSummary.draft} rascunho(s)</p></TooltipContent>
+                                </Tooltip>
+                              )}
                             </div>
                           )}
                         </div>
@@ -690,13 +803,28 @@ export function CampaignCalendar() {
       </Card>
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-2 items-center">
-        <span className="text-xs text-muted-foreground">Legenda:</span>
-        <Badge className={cn("text-xs", statusColors.draft)}>Em Construção</Badge>
-        <Badge className={cn("text-xs", statusColors.approved)}>Aprovado</Badge>
-        <Badge className={cn("text-xs", statusColors.scheduled)}>Agendado</Badge>
-        <Badge className={cn("text-xs", statusColors.published)}>Publicado</Badge>
-        <Badge className={cn("text-xs", statusColors.failed)}>Com Erros</Badge>
+      <div className="flex flex-wrap gap-3 items-center">
+        <span className="text-xs text-muted-foreground font-medium">Legenda:</span>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-full bg-muted-foreground/40" />
+          <span className="text-xs text-muted-foreground">Rascunho</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+          <span className="text-xs text-muted-foreground">Aprovado</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+          <span className="text-xs text-muted-foreground">Agendado</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
+          <span className="text-xs text-muted-foreground">Publicado</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
+          <span className="text-xs text-muted-foreground">Com Erro</span>
+        </div>
       </div>
 
       {/* Dialogs */}
