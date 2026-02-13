@@ -43,6 +43,7 @@ interface StepConfig {
   icon: React.ReactNode;
   action: () => void;
   isActive: boolean;
+  isCurrent?: boolean;
   isLoading: boolean;
   count?: number;
   variant?: "default" | "outline" | "destructive";
@@ -54,23 +55,24 @@ function WorkflowStepper({ steps }: { steps: StepConfig[] }) {
     <div className="flex items-center gap-1 overflow-x-auto pb-1">
       {steps.map((step, index) => {
         const showConnector = index < steps.length - 1;
+        const isCurrent = step.isCurrent || false;
         return (
           <div key={step.number} className="flex items-center gap-1 shrink-0">
             <Button
-              variant={step.isActive ? "default" : "outline"}
+              variant={isCurrent ? "default" : "outline"}
               size="sm"
               onClick={step.action}
               disabled={!step.isActive || step.isLoading}
               className={cn(
                 "gap-1.5 h-9 text-xs font-medium transition-all",
-                step.isActive && "shadow-sm",
+                isCurrent && "shadow-sm",
                 !step.isActive && "opacity-50",
                 step.className,
               )}
             >
               <span className={cn(
                 "flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold shrink-0",
-                step.isActive ? "bg-background/20 text-inherit" : "bg-muted text-muted-foreground"
+                isCurrent ? "bg-background/20 text-inherit" : "bg-muted text-muted-foreground"
               )}>
                 {step.isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : step.number}
               </span>
@@ -401,12 +403,27 @@ export function CampaignCalendar() {
   const isBlog = campaign?.target_channel === "blog";
   const hasSuggestions = items && items.length > 0;
 
+  // Determine current step based on campaign state
+  const getCurrentStep = (): number => {
+    if (isSelectMode) return 1;
+    if (!hasSuggestions && selectedDays.size === 0) return 1;
+    if (selectedDays.size > 0 && !hasSuggestions) return 1;
+    if (isGenerating) return 2;
+    if (hasSuggestions && stats.needsCopy > 0) return 3;
+    if (!isBlog && hasSuggestions && stats.needsCreative > 0) return 4;
+    if (hasSuggestions && stats.readyToApprove > 0) return isBlog ? 4 : 5;
+    if (hasSuggestions && stats.approved > 0) return isBlog ? 5 : 6;
+    return 1;
+  };
+  const currentStep = getCurrentStep();
+
   const workflowSteps: StepConfig[] = [
     {
       number: 1, label: isSelectMode ? `Selecionando (${selectedDays.size})` : "Selecionar Dias",
       icon: <MousePointer2 className="h-3.5 w-3.5" />,
       action: () => setIsSelectMode(!isSelectMode),
       isActive: true, isLoading: false,
+      isCurrent: currentStep === 1,
     },
     {
       number: 2, label: isGenerating ? "Gerando..." : "Estratégia IA",
@@ -414,6 +431,7 @@ export function CampaignCalendar() {
       action: handleGenerateStrategy,
       isActive: selectedDays.size > 0 || stats.total === 0,
       isLoading: isGenerating,
+      isCurrent: currentStep === 2,
     },
     {
       number: 3, label: isGeneratingCopys ? "Gerando..." : "Copys IA",
@@ -422,6 +440,7 @@ export function CampaignCalendar() {
       isActive: hasSuggestions === true && stats.needsCopy > 0,
       isLoading: isGeneratingCopys,
       count: stats.needsCopy,
+      isCurrent: currentStep === 3,
     },
     ...(!isBlog ? [{
       number: 4, 
@@ -431,6 +450,7 @@ export function CampaignCalendar() {
       isActive: hasSuggestions === true && stats.needsCreative > 0,
       isLoading: isGeneratingAssets,
       count: stats.needsCreative,
+      isCurrent: currentStep === 4,
     }] : []),
     {
       number: isBlog ? 4 : 5,
@@ -440,7 +460,8 @@ export function CampaignCalendar() {
       isActive: hasSuggestions === true && stats.readyToApprove > 0,
       isLoading: isApproving,
       count: stats.readyToApprove,
-      className: stats.readyToApprove > 0 ? "bg-green-600 hover:bg-green-700 text-white" : "",
+      isCurrent: currentStep === (isBlog ? 4 : 5),
+      className: stats.readyToApprove > 0 && currentStep !== (isBlog ? 4 : 5) ? "bg-green-600 hover:bg-green-700 text-white" : "",
     },
     {
       number: isBlog ? 5 : 6,
@@ -450,6 +471,7 @@ export function CampaignCalendar() {
       isActive: hasSuggestions === true && stats.approved > 0,
       isLoading: isScheduling,
       count: stats.approved,
+      isCurrent: currentStep === (isBlog ? 5 : 6),
     },
   ];
 
