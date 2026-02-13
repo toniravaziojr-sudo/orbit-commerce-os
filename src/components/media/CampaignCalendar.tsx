@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { useMediaCampaigns, useMediaCalendarItems, MediaCalendarItem } from "@/hooks/useMediaCampaigns";
 import { PublicationDialog } from "./PublicationDialog";
+import { ApprovalDialog } from "./ApprovalDialog";
 import { DayPostsList } from "./DayPostsList";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -115,6 +116,7 @@ export function CampaignCalendar() {
   const [isGeneratingAssets, setIsGeneratingAssets] = useState(false);
   const [isScheduling, setIsScheduling] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
+  const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [selectedDays, setSelectedDays] = useState<Set<string>>(new Set());
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [isGeneratingCopys, setIsGeneratingCopys] = useState(false);
@@ -313,21 +315,27 @@ export function CampaignCalendar() {
     } catch { toast.error("Erro ao gerar criativos"); setIsGeneratingAssets(false); setGenerationProgress(null); }
   };
 
-  // Step 4: Approve
-  const handleApproveCampaign = async () => {
-    if (!items || !currentTenant) return;
+  // Step 4: Approve — open visual dialog
+  const readyToApproveItems = useMemo(() => {
+    if (!items) return [];
     const isBlog = campaign?.target_channel === "blog";
-    const ready = items.filter(i => 
+    return items.filter(i => 
       ["draft", "suggested", "review"].includes(i.status) && i.copy && (isBlog || i.asset_url)
     );
-    if (ready.length === 0) { toast.info("Nenhum item pronto para aprovar."); return; }
-    
+  }, [items, campaign?.target_channel]);
+
+  const handleApproveCampaign = () => {
+    if (readyToApproveItems.length === 0) { toast.info("Nenhum item pronto para aprovar."); return; }
+    setApprovalDialogOpen(true);
+  };
+
+  const handleApproveSelected = async (selectedIds: string[]) => {
     setIsApproving(true);
     try {
-      for (const item of ready) {
-        await supabase.from("media_calendar_items").update({ status: "approved" }).eq("id", item.id);
+      for (const id of selectedIds) {
+        await supabase.from("media_calendar_items").update({ status: "approved" }).eq("id", id);
       }
-      toast.success(`${ready.length} item(ns) aprovado(s)!`);
+      toast.success(`${selectedIds.length} item(ns) aprovado(s)!`);
       await refetchItems();
     } catch { toast.error("Erro ao aprovar"); }
     finally { setIsApproving(false); }
@@ -708,6 +716,14 @@ export function CampaignCalendar() {
           onDeleteItem={handleDeleteItem} onDuplicateItem={handleDuplicateItem}
         />
       )}
+
+      <ApprovalDialog
+        open={approvalDialogOpen}
+        onOpenChange={setApprovalDialogOpen}
+        items={readyToApproveItems}
+        onApprove={handleApproveSelected}
+        isApproving={isApproving}
+      />
     </div>
   );
 }
