@@ -1,10 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Upload, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -35,6 +35,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { useMediaCalendarItems, MediaCalendarItem } from "@/hooks/useMediaCampaigns";
 import { useAuth } from "@/hooks/useAuth";
+import { useSystemUpload } from "@/hooks/useSystemUpload";
 import { Database } from "@/integrations/supabase/types";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -104,6 +105,9 @@ export function CalendarItemDialog({
 }: CalendarItemDialogProps) {
   const { currentTenant, user } = useAuth();
   const { createItem, updateItem, deleteItem } = useMediaCalendarItems(campaignId);
+  const { upload: uploadFile, isUploading } = useSystemUpload({ source: 'media_creative', subPath: 'criativos' });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadedAssetUrl, setUploadedAssetUrl] = useState<string | null>(null);
   const isEditing = !!item;
 
   // Determina se é campanha apenas para blog
@@ -139,6 +143,7 @@ export function CalendarItemDialog({
         scheduled_time: item.scheduled_time?.slice(0, 5) || "10:00",
         target_platforms: item.target_platforms || ["instagram"],
       });
+      setUploadedAssetUrl(null);
     } else {
       form.reset({
         title: "",
@@ -151,8 +156,24 @@ export function CalendarItemDialog({
         scheduled_time: "10:00",
         target_platforms: ["instagram"],
       });
+      setUploadedAssetUrl(null);
     }
   }, [item, form]);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const result = await uploadFile(file);
+    if (result?.publicUrl) {
+      setUploadedAssetUrl(result.publicUrl);
+    }
+  };
+
+  const removeUploadedAsset = () => {
+    setUploadedAssetUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   const onSubmit = async (values: FormValues) => {
     const hashtags = values.hashtags
@@ -170,7 +191,7 @@ export function CalendarItemDialog({
     }
 
     if (isEditing && item) {
-      await updateItem.mutateAsync({
+      const updateData: Record<string, unknown> = {
         id: item.id,
         title: values.title,
         copy: values.copy,
@@ -179,7 +200,12 @@ export function CalendarItemDialog({
         status: finalStatus,
         hashtags,
         target_platforms: platforms,
-      });
+      };
+      // If user uploaded a creative manually
+      if (uploadedAssetUrl) {
+        updateData.asset_url = uploadedAssetUrl;
+      }
+      await updateItem.mutateAsync(updateData as any);
     } else if (date && currentTenant) {
       await createItem.mutateAsync({
         tenant_id: currentTenant.id,
@@ -193,8 +219,8 @@ export function CalendarItemDialog({
         hashtags,
         generation_prompt: values.generation_prompt || null,
         reference_urls: null,
-        asset_url: null,
-        asset_thumbnail_url: null,
+        asset_url: uploadedAssetUrl || null,
+        asset_thumbnail_url: uploadedAssetUrl || null,
         asset_metadata: {},
         status: finalStatus,
         target_channel: null,
@@ -474,6 +500,32 @@ export function CalendarItemDialog({
                   </FormItem>
                 )}
               />
+            )}
+
+            {/* Upload manual de criativo */}
+            {!isBlogOnly && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Upload de Criativo (opcional)</label>
+                {uploadedAssetUrl && (
+                  <div className="relative rounded-lg border overflow-hidden bg-muted/50">
+                    <img src={uploadedAssetUrl} alt="Criativo" className="w-full h-32 object-cover" />
+                    <Button type="button" variant="destructive" size="icon" className="absolute top-2 right-2 h-6 w-6" onClick={removeUploadedAsset}>
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
+                {!uploadedAssetUrl && (
+                  <div className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors" onClick={() => fileInputRef.current?.click()}>
+                    {isUploading ? (
+                      <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Enviando...</div>
+                    ) : (
+                      <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground"><Upload className="h-4 w-4" />Clique para enviar imagem ou vídeo</div>
+                    )}
+                  </div>
+                )}
+                <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFileUpload} />
+                <p className="text-xs text-muted-foreground">Envie seu próprio criativo em vez de gerar com IA</p>
+              </div>
             )}
 
             <DialogFooter className="gap-2 sm:gap-0">
