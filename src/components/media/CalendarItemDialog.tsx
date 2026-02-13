@@ -5,6 +5,7 @@ import { z } from "zod";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ExternalLink, Upload, Loader2, X } from "lucide-react";
+import { UniversalImageUploader } from "@/components/ui/UniversalImageUploader";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -407,32 +408,23 @@ export function CalendarItemDialog({
                 />
               )}
 
-              {/* Upload manual de criativo */}
-              
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Criativo (opcional)</label>
-                  {uploadedAssetUrl && (
-                    <div className="relative rounded-lg border overflow-hidden bg-muted/50">
-                      <img src={uploadedAssetUrl} alt="Criativo" className="w-full h-32 object-cover" />
-                      <Button type="button" variant="destructive" size="icon" className="absolute top-2 right-2 h-6 w-6" onClick={removeUploadedAsset}>
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  )}
-                  {!uploadedAssetUrl && (
-                    <div className="border-2 border-dashed rounded-lg p-3 text-center cursor-pointer hover:border-primary/50 transition-colors" onClick={() => fileInputRef.current?.click()}>
-                      {isUploading ? (
-                        <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />Enviando...</div>
-                      ) : (
-                        <div className="flex items-center justify-center gap-2">
-                          <Upload className="h-4 w-4 text-muted-foreground" />
-                          <p className="text-xs text-muted-foreground">Enviar imagem ou vídeo</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFileUpload} />
-                </div>
+              {/* Criativo: Upload universal com Meu Drive */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Criativo (opcional)</label>
+                <UniversalImageUploader
+                  value={uploadedAssetUrl || (isEditing ? item?.asset_url || '' : '')}
+                  onChange={(url) => {
+                    setUploadedAssetUrl(url || null);
+                  }}
+                  source="media_creative"
+                  subPath="criativos"
+                  accept="all"
+                  aspectRatio="video"
+                  placeholder="Enviar imagem ou vídeo"
+                  showUrlTab={false}
+                  disabled={isUploading}
+                />
+              </div>
               
 
               {/* Prompt para criativo IA */}
