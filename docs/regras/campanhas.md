@@ -121,15 +121,37 @@ O calendário editorial suporta **dois fluxos paralelos** que podem ser combinad
 
 > **IMPORTANTE:** Os fluxos podem ser combinados. Ex: criar estratégia com IA, mas escrever copys manualmente e subir criativos próprios.
 
-### Indicadores Visuais no Calendário (DayPostsList)
+### Indicadores Visuais no Calendário
 
-Cada item no calendário mostra badges de status:
+#### Status por Cor (Borda e Fundo do Dia)
+
+Cada dia no calendário recebe estilização baseada no status dominante dos seus items:
+
+| Cor | Status | Classe CSS |
+|-----|--------|------------|
+| 🟢 Verde | Publicado (`published`) | `border-green-500`, `bg-green-50` |
+| 🔵 Azul | Agendado/Publicando (`scheduled`, `publishing`) | `border-blue-500`, `bg-blue-50` |
+| 🟡 Âmbar | Aprovado (`approved`) | `border-amber-500`, `bg-amber-50` |
+| 🔴 Vermelho | Falha (`failed`) | `border-red-500`, `bg-red-50` |
+| ⚪ Cinza | Rascunho/Sugestão (`draft`, `suggested`) | `border-gray-300`, `bg-gray-50` |
+
+#### Dots de Status por Item
+
+Dentro de cada dia, uma linha de "dots" coloridos mostra a contagem por status com `Tooltip` descritivo (ex: "2 publicado(s)").
+
+#### Badges de Completude (DayPostsList)
+
+Cada item no dialog de detalhes mostra badges:
 
 | Badge | Condição |
 |-------|----------|
 | `"Sem copy"` | Item tem título mas `copy` está vazio |
 | `"Sem criativo"` | Item não tem `asset_url` |
 | `"✓ Criativo"` | Item tem `asset_url` preenchida |
+
+#### Legenda do Calendário
+
+O calendário inclui uma legenda fixa no rodapé com todos os status e suas cores correspondentes.
 
 ### Barra de Ações Progressiva (CampaignCalendar.tsx)
 
@@ -417,12 +439,21 @@ POST /meta-publish-post
 
 ```tsx
 <CampaignCalendar campaignId={id}>
-  // Grid mensal
-  // Cada dia mostra itens agendados
-  // Drag-and-drop para reagendar
-  // Click para editar
+  // Grid mensal com indicadores visuais de status
+  // Bordas e fundos coloridos por status dominante
+  // Dots de contagem por status com tooltips
+  // Legenda de cores no rodapé
+  // Click para ver/editar items do dia (DayPostsList)
 </CampaignCalendar>
 ```
+
+### DayPostsList (Dialog de Items do Dia)
+
+O dialog segue o **padrão `max-h-[90vh]`** com:
+- `flex flex-col overflow-hidden` no `DialogContent`
+- Área de conteúdo com `flex-1 overflow-y-auto` (scroll interno)
+- Rodapé fixo com botões de ação sempre visíveis
+- Largura `sm:max-w-[600px]` para melhor legibilidade
 
 ---
 
@@ -625,4 +656,6 @@ Usa técnicas AIDA, PAS e storytelling.
 - [x] Tabela social_posts para evidências App Review
 - [x] Barra de ações progressiva no calendário
 - [x] Geração de imagens (dual provider v5.0 — Gemini Flash + OpenAI/Pro + QA Scorer)
+- [x] Indicadores visuais de status no calendário (cores, dots, legenda)
+- [x] DayPostsList com layout `max-h-[90vh]` e scroll interno
 - [ ] Publicação automática (worker/cron)
