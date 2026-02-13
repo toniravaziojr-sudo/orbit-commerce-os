@@ -110,9 +110,7 @@ export function CalendarItemDialog({
   const [uploadedAssetUrl, setUploadedAssetUrl] = useState<string | null>(null);
   const isEditing = !!item;
 
-  // Determina se é campanha apenas para blog
   const isBlogOnly = selectedChannels.length === 1 && selectedChannels[0] === "blog";
-  // Verifica se tem canais de redes sociais (não-blog)
   const hasSocialChannels = selectedChannels.some(c => ["instagram", "facebook", "tiktok", "linkedin", "youtube"].includes(c));
 
   const form = useForm<FormValues>({
@@ -163,7 +161,6 @@ export function CalendarItemDialog({
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
     const result = await uploadFile(file);
     if (result?.publicUrl) {
       setUploadedAssetUrl(result.publicUrl);
@@ -180,8 +177,6 @@ export function CalendarItemDialog({
       ? values.hashtags.split(",").map((h) => h.trim()).filter(Boolean)
       : [];
     const platforms = values.target_platforms || [];
-
-    // Keep the selected status — user decides when to approve
     let finalStatus = values.status as MediaItemStatus;
 
     if (isEditing && item) {
@@ -195,7 +190,6 @@ export function CalendarItemDialog({
         hashtags,
         target_platforms: platforms,
       };
-      // If user uploaded a creative manually
       if (uploadedAssetUrl) {
         updateData.asset_url = uploadedAssetUrl;
       }
@@ -247,282 +241,299 @@ export function CalendarItemDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>{isEditing ? "Editar Item" : "Novo Item"}</DialogTitle>
           <DialogDescription className="capitalize">
             {displayDate}
           </DialogDescription>
         </DialogHeader>
 
-        {/* Asset Variants Gallery */}
-        {isEditing && item && (
-          <>
-            <AssetVariantsGallery 
-              calendarItemId={item.id}
-              onAssetApproved={(url) => {
-                form.setValue("status", "asset_review");
-              }}
-            />
-            <Separator />
-          </>
-        )}
-
-        {/* Asset Preview (se já tem aprovado) */}
-        {item?.asset_url && (
-          <div className="rounded-lg border overflow-hidden bg-muted/50">
-            <img 
-              src={item.asset_url} 
-              alt={item.title || "Asset"} 
-              className="w-full h-48 object-cover"
-            />
-            <div className="p-2 flex items-center justify-between">
-              <Badge variant="outline" className="bg-green-500/10 text-green-600">
-                ✓ Criativo aprovado
-              </Badge>
-              <Button variant="ghost" size="sm" asChild>
-                <a href={item.asset_url} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="h-4 w-4 mr-1" />
-                  Abrir
-                </a>
-              </Button>
-            </div>
-          </div>
-        )}
-
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="content_type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tipo de conteúdo</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {contentTypes.map((type) => (
-                          <SelectItem key={type.value} value={type.value}>
-                            {type.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Status</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {itemStatuses.map((status) => (
-                          <SelectItem key={status.value} value={status.value}>
-                            {status.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* Plataformas/Canais - sempre mostrar para poder alterar */}
-            <FormField
-              control={form.control}
-              name="target_platforms"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Canais de publicação</FormLabel>
-                  <div className="flex flex-wrap gap-3">
-                    {platformOptions.map((platform) => {
-                      const isChecked = field.value?.includes(platform.value) || false;
-                      return (
-                        <label
-                          key={platform.value}
-                          className={cn(
-                            "flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all",
-                            isChecked
-                              ? "border-primary bg-primary/10 text-primary"
-                              : "border-border hover:border-primary/50"
-                          )}
-                        >
-                          <Checkbox
-                            checked={isChecked}
-                            onCheckedChange={(checked) => {
-                              const currentPlatforms = field.value || [];
-                              if (checked) {
-                                field.onChange([...currentPlatforms, platform.value]);
-                              } else {
-                                field.onChange(currentPlatforms.filter((p) => p !== platform.value));
-                              }
-                            }}
-                          />
-                          <span className="text-sm">
-                            {platform.icon} {platform.label}
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                  <FormDescription className="text-xs">
-                    Selecione onde esta publicação será postada
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
+            <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+              {/* Asset Variants Gallery */}
+              {isEditing && item && (
+                <>
+                  <AssetVariantsGallery 
+                    calendarItemId={item.id}
+                    onAssetApproved={() => {
+                      form.setValue("status", "asset_review");
+                    }}
+                  />
+                  <Separator />
+                </>
               )}
-            />
 
-            {/* Horário de publicação - só mostrar se não for blog-only */}
-            {!isBlogOnly && (
+              {/* Asset Preview */}
+              {item?.asset_url && (
+                <div className="rounded-lg border overflow-hidden bg-muted/50">
+                  <img 
+                    src={item.asset_url} 
+                    alt={item.title || "Asset"} 
+                    className="w-full h-48 object-cover"
+                  />
+                  <div className="p-2 flex items-center justify-between">
+                    <Badge variant="outline" className="bg-green-500/10 text-green-600">
+                      ✓ Criativo aprovado
+                    </Badge>
+                    <Button variant="ghost" size="sm" asChild>
+                      <a href={item.asset_url} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-4 w-4 mr-1" />
+                        Abrir
+                      </a>
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Canais de publicação */}
               <FormField
                 control={form.control}
-                name="scheduled_time"
+                name="target_platforms"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Horário de publicação</FormLabel>
+                    <FormLabel>Canais de publicação</FormLabel>
+                    <div className="flex flex-wrap gap-2">
+                      {platformOptions.map((platform) => {
+                        const isChecked = field.value?.includes(platform.value) || false;
+                        return (
+                          <label
+                            key={platform.value}
+                            className={cn(
+                              "flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer transition-all text-sm",
+                              isChecked
+                                ? "border-primary bg-primary/10 text-primary"
+                                : "border-border hover:border-primary/50"
+                            )}
+                          >
+                            <Checkbox
+                              checked={isChecked}
+                              onCheckedChange={(checked) => {
+                                const currentPlatforms = field.value || [];
+                                if (checked) {
+                                  field.onChange([...currentPlatforms, platform.value]);
+                                } else {
+                                  field.onChange(currentPlatforms.filter((p) => p !== platform.value));
+                                }
+                              }}
+                            />
+                            {platform.icon} {platform.label}
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{isBlogOnly ? "Título do Artigo" : "Título / Tema"}</FormLabel>
                     <FormControl>
-                      <Input type="time" {...field} className="w-40" />
+                      <Input placeholder={isBlogOnly ? "Ex: 10 dicas para..." : "Ex: Lançamento de produto"} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            )}
 
-            <FormField
-              control={form.control}
-              name="title"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{isBlogOnly ? "Título do Artigo" : "Título / Tema"}</FormLabel>
-                  <FormControl>
-                    <Input placeholder={isBlogOnly ? "Ex: 10 dicas para..." : "Ex: Lançamento de produto"} {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+              <FormField
+                control={form.control}
+                name="copy"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{isBlogOnly ? "Conteúdo / Resumo" : "Legenda / Copy"} <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder={isBlogOnly ? "Escreva o conteúdo ou resumo do artigo..." : "Escreva a legenda do post ou adicione depois..."}
+                        className="min-h-[80px]"
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* CTA + Horário lado a lado */}
+              {hasSocialChannels && (
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="cta"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>CTA (opcional)</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Link na bio!" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="scheduled_time"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Horário</FormLabel>
+                        <FormControl>
+                          <Input type="time" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               )}
-            />
 
-            <FormField
-              control={form.control}
-              name="copy"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{isBlogOnly ? "Conteúdo / Resumo" : "Legenda / Copy"} <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder={isBlogOnly ? "Escreva o conteúdo ou resumo do artigo..." : "Escreva a legenda do post ou use 'Copys IA' no stepper..."}
-                      className="min-h-[80px]"
-                      {...field} 
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* CTA e Hashtags - só mostrar se tem redes sociais */}
-            {hasSocialChannels && (
-              <>
+              {/* Horário standalone quando não tem social */}
+              {!hasSocialChannels && !isBlogOnly && (
                 <FormField
                   control={form.control}
-                  name="cta"
+                  name="scheduled_time"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Call to Action (opcional)</FormLabel>
+                      <FormLabel>Horário</FormLabel>
                       <FormControl>
-                        <Input placeholder="Ex: Link na bio!" {...field} />
+                        <Input type="time" {...field} className="w-40" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+              )}
 
+              {/* Hashtags */}
+              {hasSocialChannels && (
                 <FormField
                   control={form.control}
                   name="hashtags"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Hashtags (separadas por vírgula)</FormLabel>
+                      <FormLabel>Hashtags</FormLabel>
                       <FormControl>
-                        <Input placeholder="#marketing, #vendas, #ecommerce" {...field} />
+                        <Input placeholder="#marketing, #vendas" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              </>
-            )}
+              )}
 
-            {/* Prompt para criativo - só mostrar se NÃO for blog-only */}
-            {!isBlogOnly && (
-              <FormField
-                control={form.control}
-                name="generation_prompt"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Prompt para gerar imagem/vídeo</FormLabel>
-                    <FormControl>
-                      <Textarea 
-                        placeholder="Descreva detalhadamente o visual que você quer para este conteúdo..."
-                        className="min-h-[60px]"
-                        {...field} 
-                      />
-                    </FormControl>
-                    <FormDescription className="text-xs">
-                      Este prompt será usado pela IA para gerar o criativo
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
+              {/* Upload manual de criativo */}
+              {!isBlogOnly && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Criativo (opcional)</label>
+                  {uploadedAssetUrl && (
+                    <div className="relative rounded-lg border overflow-hidden bg-muted/50">
+                      <img src={uploadedAssetUrl} alt="Criativo" className="w-full h-32 object-cover" />
+                      <Button type="button" variant="destructive" size="icon" className="absolute top-2 right-2 h-6 w-6" onClick={removeUploadedAsset}>
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                  {!uploadedAssetUrl && (
+                    <div className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors" onClick={() => fileInputRef.current?.click()}>
+                      {isUploading ? (
+                        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Enviando...</div>
+                      ) : (
+                        <>
+                          <Upload className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
+                          <p className="text-sm text-muted-foreground">Clique para enviar imagem ou vídeo</p>
+                          <p className="text-xs text-muted-foreground mt-1">Ou use "Criativos IA" no stepper para gerar com IA</p>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFileUpload} />
+                </div>
+              )}
 
-            {/* Upload manual de criativo */}
-            {!isBlogOnly && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Upload de Criativo (opcional)</label>
-                {uploadedAssetUrl && (
-                  <div className="relative rounded-lg border overflow-hidden bg-muted/50">
-                    <img src={uploadedAssetUrl} alt="Criativo" className="w-full h-32 object-cover" />
-                    <Button type="button" variant="destructive" size="icon" className="absolute top-2 right-2 h-6 w-6" onClick={removeUploadedAsset}>
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </div>
-                )}
-                {!uploadedAssetUrl && (
-                  <div className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors" onClick={() => fileInputRef.current?.click()}>
-                    {isUploading ? (
-                      <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Enviando...</div>
-                    ) : (
-                      <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground"><Upload className="h-4 w-4" />Clique para enviar imagem ou vídeo</div>
-                    )}
-                  </div>
-                )}
-                <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFileUpload} />
-                <p className="text-xs text-muted-foreground">Envie seu próprio criativo em vez de gerar com IA</p>
+              {/* Prompt para criativo IA */}
+              {!isBlogOnly && (
+                <FormField
+                  control={form.control}
+                  name="generation_prompt"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Prompt para criativo IA (opcional)</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          placeholder="Descreva detalhadamente o visual que você quer..."
+                          className="min-h-[60px]"
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormDescription className="text-xs">
+                        Este prompt será usado pela IA para gerar o criativo
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* Tipo + Status compactos */}
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="content_type"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tipo de conteúdo</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {contentTypes.map((type) => (
+                            <SelectItem key={type.value} value={type.value}>
+                              {type.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Status</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {itemStatuses.map((status) => (
+                            <SelectItem key={status.value} value={status.value}>
+                              {status.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
-            )}
+            </div>
 
-            <DialogFooter className="gap-2 sm:gap-0">
+            <DialogFooter className="flex-shrink-0 gap-2 sm:gap-0 pt-4 border-t mt-4">
               {isEditing && (
                 <Button 
                   type="button" 
