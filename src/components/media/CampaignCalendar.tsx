@@ -20,14 +20,13 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { getHolidayForDate } from "@/lib/brazilian-holidays";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-// Status simplificados conforme solicitado
+// Status colors
 const statusColors: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
   approved: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
   scheduled: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
   published: "bg-green-600 text-white",
   failed: "bg-destructive/10 text-destructive",
-  // Mapear status antigos para novos
   suggested: "bg-muted text-muted-foreground",
   review: "bg-muted text-muted-foreground",
   generating_asset: "bg-muted text-muted-foreground",
@@ -36,44 +35,61 @@ const statusColors: Record<string, string> = {
   skipped: "bg-muted text-muted-foreground line-through",
 };
 
-const statusLabels: Record<string, string> = {
-  draft: "Em Construção",
-  suggested: "Em Construção",
-  review: "Em Construção",
-  approved: "Aprovado",
-  scheduled: "Agendado",
-  published: "Publicado",
-  failed: "Com Erros",
-};
+// ========== STEPPER COMPONENT ==========
+interface StepConfig {
+  number: number;
+  label: string;
+  icon: React.ReactNode;
+  action: () => void;
+  isActive: boolean;
+  isLoading: boolean;
+  count?: number;
+  variant?: "default" | "outline" | "destructive";
+  className?: string;
+}
 
-// Ícones de publicação por tipo e canal
-const getPublicationIcon = (item: MediaCalendarItem) => {
-  const platforms = item.target_platforms || [];
-  const type = item.content_type;
-
-  // Blog
-  if (type === "text" || platforms.includes("blog")) {
-    return { icon: Newspaper, color: "text-emerald-600", label: "Blog" };
-  }
-
-  // Story
-  if (type === "story") {
-    return { icon: () => <span className="font-bold text-orange-500 text-xs">S</span>, color: "text-orange-500", label: "Story" };
-  }
-
-  // Feed Instagram
-  if (platforms.includes("instagram")) {
-    return { icon: Instagram, color: "text-pink-600", label: "Instagram" };
-  }
-
-  // Feed Facebook
-  if (platforms.includes("facebook")) {
-    return { icon: Facebook, color: "text-blue-600", label: "Facebook" };
-  }
-
-  // Default
-  return { icon: Image, color: "text-muted-foreground", label: "Post" };
-};
+function WorkflowStepper({ steps }: { steps: StepConfig[] }) {
+  return (
+    <div className="flex items-center gap-1 overflow-x-auto pb-1">
+      {steps.map((step, index) => {
+        const showConnector = index < steps.length - 1;
+        return (
+          <div key={step.number} className="flex items-center gap-1 shrink-0">
+            <Button
+              variant={step.isActive ? "default" : "outline"}
+              size="sm"
+              onClick={step.action}
+              disabled={!step.isActive || step.isLoading}
+              className={cn(
+                "gap-1.5 h-9 text-xs font-medium transition-all",
+                step.isActive && "shadow-sm",
+                !step.isActive && "opacity-50",
+                step.className,
+              )}
+            >
+              <span className={cn(
+                "flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold shrink-0",
+                step.isActive ? "bg-background/20 text-inherit" : "bg-muted text-muted-foreground"
+              )}>
+                {step.isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : step.number}
+              </span>
+              {step.icon}
+              {step.label}
+              {step.count !== undefined && step.count > 0 && (
+                <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-bold">
+                  {step.count}
+                </Badge>
+              )}
+            </Button>
+            {showConnector && (
+              <ChevronRight className="h-3 w-3 text-muted-foreground/40 shrink-0" />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export function CampaignCalendar() {
   const { campaignId } = useParams<{ campaignId: string }>();
@@ -87,9 +103,7 @@ export function CampaignCalendar() {
   const campaign = campaigns?.find((c) => c.id === campaignId);
   
   const [currentMonth, setCurrentMonth] = useState(() => {
-    if (campaign?.start_date) {
-      return startOfMonth(parseISO(campaign.start_date));
-    }
+    if (campaign?.start_date) return startOfMonth(parseISO(campaign.start_date));
     return startOfMonth(new Date());
   });
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -104,560 +118,341 @@ export function CampaignCalendar() {
   const [selectedDays, setSelectedDays] = useState<Set<string>>(new Set());
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [isGeneratingCopys, setIsGeneratingCopys] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState<{ total: number; completed: number } | null>(null);
 
+  // ========== MEMOS ==========
   const days = useMemo(() => {
-    const monthStart = startOfMonth(currentMonth);
-    const monthEnd = endOfMonth(currentMonth);
-    return eachDayOfInterval({ start: monthStart, end: monthEnd });
+    return eachDayOfInterval({ start: startOfMonth(currentMonth), end: endOfMonth(currentMonth) });
   }, [currentMonth]);
 
   const campaignInterval = useMemo(() => {
     if (!campaign) return null;
-    return {
-      start: parseISO(campaign.start_date),
-      end: parseISO(campaign.end_date),
-    };
+    return { start: parseISO(campaign.start_date), end: parseISO(campaign.end_date) };
   }, [campaign]);
 
   const itemsByDate = useMemo(() => {
     const map = new Map<string, MediaCalendarItem[]>();
     items?.forEach((item) => {
       const key = item.scheduled_date;
-      const existing = map.get(key) || [];
-      map.set(key, [...existing, item]);
+      map.set(key, [...(map.get(key) || []), item]);
     });
     return map;
   }, [items]);
 
   const stats = useMemo(() => {
-    if (!items) return { total: 0, draft: 0, approved: 0, scheduled: 0 };
+    if (!items) return { total: 0, draft: 0, needsCopy: 0, needsCreative: 0, readyToApprove: 0, approved: 0, scheduled: 0 };
+    const isBlog = campaign?.target_channel === "blog";
     return {
       total: items.length,
       draft: items.filter(i => ["draft", "suggested", "review"].includes(i.status)).length,
+      needsCopy: items.filter(i => ["draft", "suggested"].includes(i.status) && i.title && (!i.copy || i.copy.trim() === "")).length,
+      needsCreative: items.filter(i => ["draft", "suggested", "review"].includes(i.status) && i.copy && !i.asset_url && i.content_type !== "text").length,
+      readyToApprove: items.filter(i => ["draft", "suggested", "review"].includes(i.status) && i.copy && (isBlog || i.asset_url)).length,
       approved: items.filter(i => i.status === "approved").length,
       scheduled: items.filter(i => ["scheduled", "published"].includes(i.status)).length,
     };
-  }, [items]);
+  }, [items, campaign?.target_channel]);
 
-  const isInCampaignPeriod = (date: Date) => {
-    if (!campaignInterval) return false;
-    return isWithinInterval(date, campaignInterval);
-  };
+  const isInCampaignPeriod = (date: Date) => campaignInterval ? isWithinInterval(date, campaignInterval) : false;
 
+  // ========== HANDLERS ==========
   const toggleDaySelection = (dateKey: string) => {
     setSelectedDays(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(dateKey)) {
-        newSet.delete(dateKey);
-      } else {
-        newSet.add(dateKey);
-      }
-      return newSet;
+      const next = new Set(prev);
+      next.has(dateKey) ? next.delete(dateKey) : next.add(dateKey);
+      return next;
     });
   };
 
   const handleDayClick = (date: Date, dayItems: MediaCalendarItem[]) => {
     if (!isInCampaignPeriod(date)) return;
-    
     const dateKey = format(date, "yyyy-MM-dd");
-    
-    if (isSelectMode) {
-      toggleDaySelection(dateKey);
-      return;
-    }
-    
-    // Se tem itens, abre lista para ver/editar
-    if (dayItems.length > 0) {
-      setDayListDate(date);
-      setDayListOpen(true);
-    } else {
-      // Se não tem, abre dialog para criar
-      setSelectedDate(date);
-      setEditItem(null);
-      setDialogOpen(true);
-    }
+    if (isSelectMode) { toggleDaySelection(dateKey); return; }
+    if (dayItems.length > 0) { setDayListDate(date); setDayListOpen(true); }
+    else { setSelectedDate(date); setEditItem(null); setDialogOpen(true); }
   };
 
-  const handleAddItem = (date: Date) => {
-    setSelectedDate(date);
-    setEditItem(null);
-    setDialogOpen(true);
-  };
-
-  const handleEditItem = (item: MediaCalendarItem) => {
-    const itemDate = parseISO(item.scheduled_date);
-    setSelectedDate(itemDate);
-    setEditItem(item);
-    setDialogOpen(true);
-  };
-
-  const handleDeleteItem = async (id: string) => {
-    await deleteItem.mutateAsync(id);
-  };
-
+  const handleAddItem = (date: Date) => { setSelectedDate(date); setEditItem(null); setDialogOpen(true); };
+  const handleEditItem = (item: MediaCalendarItem) => { setSelectedDate(parseISO(item.scheduled_date)); setEditItem(item); setDialogOpen(true); };
+  const handleDeleteItem = async (id: string) => { await deleteItem.mutateAsync(id); };
+  
   const handleDuplicateItem = async (item: MediaCalendarItem) => {
     if (!currentTenant) return;
     try {
       await createItem.mutateAsync({
-        tenant_id: currentTenant.id,
-        campaign_id: item.campaign_id,
-        scheduled_date: item.scheduled_date,
-        scheduled_time: item.scheduled_time,
-        content_type: item.content_type,
-        title: item.title ? `${item.title} (cópia)` : null,
-        copy: item.copy,
-        cta: item.cta,
-        hashtags: item.hashtags,
-        generation_prompt: item.generation_prompt,
-        reference_urls: item.reference_urls,
-        asset_url: null,
-        asset_thumbnail_url: null,
-        asset_metadata: {},
-        status: "draft",
-        target_channel: item.target_channel,
-        blog_post_id: null,
-        published_blog_at: null,
-        target_platforms: item.target_platforms,
-        published_at: null,
-        publish_results: {},
-        version: 1,
-        edited_by: null,
-        edited_at: null,
-        metadata: {},
+        tenant_id: currentTenant.id, campaign_id: item.campaign_id,
+        scheduled_date: item.scheduled_date, scheduled_time: item.scheduled_time,
+        content_type: item.content_type, title: item.title ? `${item.title} (cópia)` : null,
+        copy: item.copy, cta: item.cta, hashtags: item.hashtags,
+        generation_prompt: item.generation_prompt, reference_urls: item.reference_urls,
+        asset_url: null, asset_thumbnail_url: null, asset_metadata: {},
+        status: "draft", target_channel: item.target_channel,
+        blog_post_id: null, published_blog_at: null,
+        target_platforms: item.target_platforms, published_at: null,
+        publish_results: {}, version: 1, edited_by: null, edited_at: null, metadata: {},
       });
       toast.success("Publicação duplicada!");
-    } catch (err) {
-      console.error("Error duplicating item:", err);
-      toast.error("Erro ao duplicar publicação");
-    }
+    } catch { toast.error("Erro ao duplicar"); }
   };
 
-  // Criar Estratégia IA
+  // Step 1: Generate Strategy
   const handleGenerateStrategy = async () => {
     if (!currentTenant || !campaignId) return;
-    
     if (selectedDays.size === 0) {
-      toast.info("Selecione os dias no calendário antes de gerar conteúdo");
+      toast.info("Selecione os dias no calendário antes de gerar");
       setIsSelectMode(true);
       return;
     }
-    
-    const targetDates = Array.from(selectedDays);
-    
     setIsGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke("media-generate-suggestions", {
-        body: { 
-          campaign_id: campaignId, 
-          tenant_id: currentTenant.id,
-          target_dates: targetDates,
-        },
+        body: { campaign_id: campaignId, tenant_id: currentTenant.id, target_dates: Array.from(selectedDays) },
       });
-
       if (error) throw error;
-      
       if (data?.success) {
-        toast.success(data.message || "Estratégia gerada com sucesso!");
-        setSelectedDays(new Set());
-        setIsSelectMode(false);
+        toast.success(data.message || "Estratégia gerada!");
+        setSelectedDays(new Set()); setIsSelectMode(false);
         await refetchItems();
-        queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
-      } else {
-        toast.error(data?.error || "Erro ao gerar estratégia");
-      }
-    } catch (err) {
-      console.error("Error generating strategy:", err);
-      toast.error("Erro ao gerar estratégia. Tente novamente.");
-    } finally {
-      setIsGenerating(false);
-    }
+      } else toast.error(data?.error || "Erro ao gerar estratégia");
+    } catch { toast.error("Erro ao gerar estratégia"); }
+    finally { setIsGenerating(false); }
   };
 
-  // Gerar Copys IA
+  // Step 2: Generate Copys
   const handleGenerateCopys = async () => {
     if (!currentTenant || !campaignId) return;
-    
     setIsGeneratingCopys(true);
     try {
       const { data, error } = await supabase.functions.invoke("media-generate-copys", {
-        body: { 
-          campaign_id: campaignId, 
-          tenant_id: currentTenant.id,
-        },
+        body: { campaign_id: campaignId, tenant_id: currentTenant.id },
       });
-
       if (error) throw error;
-      
-      if (data?.success) {
-        toast.success(data.message || "Copys geradas com sucesso!");
-        await refetchItems();
-        queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
-      } else {
-        toast.error(data?.error || "Erro ao gerar copys");
-      }
-    } catch (err) {
-      console.error("Error generating copys:", err);
-      toast.error("Erro ao gerar copys. Tente novamente.");
-    } finally {
-      setIsGeneratingCopys(false);
-    }
+      if (data?.success) { toast.success(data.message || "Copys geradas!"); await refetchItems(); }
+      else toast.error(data?.error || "Erro ao gerar copys");
+    } catch { toast.error("Erro ao gerar copys"); }
+    finally { setIsGeneratingCopys(false); }
   };
 
-  // Conta itens que precisam de copy (têm título mas sem copy)
-  const itemsNeedingCopy = useMemo(() => {
-    if (!items) return 0;
-    return items.filter(i => 
-      ["draft", "suggested"].includes(i.status) && 
-      i.title && 
-      (!i.copy || i.copy.trim() === "")
-    ).length;
-  }, [items]);
-
-  // Gerar Criativos
-  const [generationProgress, setGenerationProgress] = useState<{ total: number; completed: number } | null>(null);
-  
+  // Step 3: Generate Creatives
   const handleGenerateCreatives = async () => {
     if (!items || !currentTenant) return;
-    
-    // Itens elegíveis: status draft/suggested, com copy preenchida, sem asset ainda
-    // EXCLUIR Blog (content_type === "text") - não precisa de imagem
-    const eligibleItems = items.filter(i => 
-      ["draft", "suggested", "review"].includes(i.status) && 
-      i.copy && // tem copy preenchida
-      !i.asset_url && // não tem criativo ainda
-      i.content_type !== "text" // Blog não precisa de imagem
+    const eligible = items.filter(i => 
+      ["draft", "suggested", "review"].includes(i.status) && i.copy && !i.asset_url && i.content_type !== "text"
     );
-    
-    if (eligibleItems.length === 0) {
-      toast.info("Nenhum item elegível para gerar criativo. Itens de Blog não geram imagem.");
-      return;
-    }
+    if (eligible.length === 0) { toast.info("Nenhum item elegível para gerar criativo."); return; }
     
     setIsGeneratingAssets(true);
-    setGenerationProgress({ total: eligibleItems.length, completed: 0 });
+    setGenerationProgress({ total: eligible.length, completed: 0 });
     let successCount = 0;
-    let errorCount = 0;
     const generationIds: string[] = [];
     
     try {
-      // Start all generations
-      for (const item of eligibleItems) {
+      for (const item of eligible) {
         const { data, error } = await supabase.functions.invoke("media-generate-image", {
-          body: { 
-            calendar_item_id: item.id,
-            variant_count: 1,
-            use_packshot: false,
-          },
+          body: { calendar_item_id: item.id, variant_count: 1, use_packshot: false },
         });
-
-        if (error || !data?.success) {
-          errorCount++;
-        } else {
+        if (!error && data?.success) {
           successCount++;
-          if (data.generation_id) {
-            generationIds.push(data.generation_id);
-          }
+          if (data.generation_id) generationIds.push(data.generation_id);
         }
       }
       
       if (successCount === 0) {
-        toast.error("Falha ao iniciar geração de criativos");
-        setIsGeneratingAssets(false);
-        setGenerationProgress(null);
+        toast.error("Falha ao iniciar geração");
+        setIsGeneratingAssets(false); setGenerationProgress(null);
         return;
       }
       
       toast.info(`Gerando ${successCount} criativo(s)... Aguarde.`);
       
-      // Poll for completion - check every 3 seconds
+      // Poll for completion
       const pollInterval = setInterval(async () => {
-        // Check items for asset_url updates
-        const { data: updatedItems, error: fetchError } = await supabase
-          .from("media_calendar_items")
-          .select("id, asset_url")
-          .in("id", eligibleItems.map(i => i.id));
-        
-        if (fetchError) {
-          console.error("Error polling items:", fetchError);
-          return;
-        }
-        
-        const completedCount = updatedItems?.filter(i => i.asset_url).length || 0;
-        setGenerationProgress({ total: eligibleItems.length, completed: completedCount });
-        
-        // Also check generation status
         if (generationIds.length > 0) {
-          const { data: generations } = await supabase
-            .from("media_asset_generations")
-            .select("id, status")
-            .in("id", generationIds);
+          const { data: gens } = await supabase
+            .from("media_asset_generations").select("id, status").in("id", generationIds);
           
-          const pending = generations?.filter(g => g.status === "queued" || g.status === "generating").length || 0;
-          const failed = generations?.filter(g => g.status === "failed").length || 0;
-          const succeeded = generations?.filter(g => g.status === "succeeded").length || 0;
+          const pending = gens?.filter(g => g.status === "queued" || g.status === "generating").length || 0;
+          const failed = gens?.filter(g => g.status === "failed").length || 0;
+          const succeeded = gens?.filter(g => g.status === "succeeded").length || 0;
           
-          // All done?
+          setGenerationProgress({ total: eligible.length, completed: succeeded + failed });
+          
           if (pending === 0) {
             clearInterval(pollInterval);
-            setGenerationProgress(null);
-            setIsGeneratingAssets(false);
-            
-            if (succeeded > 0) {
-              toast.success(`${succeeded} criativo(s) gerado(s) com sucesso!`);
-            }
-            if (failed > 0) {
-              toast.error(`${failed} criativo(s) falharam na geração`);
-            }
-            
+            setGenerationProgress(null); setIsGeneratingAssets(false);
+            if (succeeded > 0) toast.success(`${succeeded} criativo(s) gerado(s)!`);
+            if (failed > 0) toast.error(`${failed} criativo(s) falharam`);
             await refetchItems();
-            queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
-          }
-        } else {
-          // No generation IDs, check by asset_url
-          if (completedCount >= eligibleItems.length) {
-            clearInterval(pollInterval);
-            setGenerationProgress(null);
-            setIsGeneratingAssets(false);
-            toast.success("Criativos gerados com sucesso!");
-            await refetchItems();
-            queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
           }
         }
       }, 3000);
       
-      // Safety timeout after 5 minutes
       setTimeout(() => {
-        if (isGeneratingAssets) {
-          clearInterval(pollInterval);
-          setGenerationProgress(null);
-          setIsGeneratingAssets(false);
-          toast.info("Geração em andamento. Atualize a página para ver o progresso.");
-          refetchItems();
-        }
+        clearInterval(pollInterval);
+        setGenerationProgress(null); setIsGeneratingAssets(false);
+        refetchItems();
       }, 5 * 60 * 1000);
       
-    } catch (err) {
-      toast.error("Erro ao gerar criativos");
-      setIsGeneratingAssets(false);
-      setGenerationProgress(null);
-    }
+    } catch { toast.error("Erro ao gerar criativos"); setIsGeneratingAssets(false); setGenerationProgress(null); }
   };
 
-  // Aprovar Campanha
+  // Step 4: Approve
   const handleApproveCampaign = async () => {
     if (!items || !currentTenant) return;
-    
-    const isBlogCampaign = campaign?.target_channel === "blog";
-    
-    // Para blog: só precisa de copy
-    // Para redes sociais: precisa de copy + criativo
-    const readyItems = items.filter(i => 
-      ["draft", "suggested", "review"].includes(i.status) && 
-      i.copy && 
-      (isBlogCampaign || i.asset_url)
+    const isBlog = campaign?.target_channel === "blog";
+    const ready = items.filter(i => 
+      ["draft", "suggested", "review"].includes(i.status) && i.copy && (isBlog || i.asset_url)
     );
-    
-    if (readyItems.length === 0) {
-      const msg = isBlogCampaign 
-        ? "Nenhum item pronto para aprovar. Certifique-se que os itens tenham conteúdo."
-        : "Nenhum item pronto para aprovar. Certifique-se que os itens tenham copy e criativo.";
-      toast.info(msg);
-      return;
-    }
+    if (ready.length === 0) { toast.info("Nenhum item pronto para aprovar."); return; }
     
     setIsApproving(true);
     try {
-      for (const item of readyItems) {
-        await supabase
-          .from("media_calendar_items")
-          .update({ status: "approved" })
-          .eq("id", item.id);
+      for (const item of ready) {
+        await supabase.from("media_calendar_items").update({ status: "approved" }).eq("id", item.id);
       }
-      toast.success(`${readyItems.length} item(ns) aprovado(s)!`);
+      toast.success(`${ready.length} item(ns) aprovado(s)!`);
       await refetchItems();
-      queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
-    } catch (err) {
-      toast.error("Erro ao aprovar itens");
-    } finally {
-      setIsApproving(false);
-    }
+    } catch { toast.error("Erro ao aprovar"); }
+    finally { setIsApproving(false); }
   };
 
-  // Verifica se há itens prontos para aprovar
-  const itemsReadyToApprove = useMemo(() => {
-    if (!items) return 0;
-    const isBlogCampaign = campaign?.target_channel === "blog";
-    return items.filter(i => 
-      ["draft", "suggested", "review"].includes(i.status) && 
-      i.copy && 
-      (isBlogCampaign || i.asset_url)
-    ).length;
-  }, [items, campaign?.target_channel]);
-
-  // Agendar Publicações (Redes Sociais)
-  const handleScheduleAll = async () => {
+  // Step 5: Publish
+  const handlePublish = async () => {
     if (!items || !currentTenant) return;
+    const isBlog = campaign?.target_channel === "blog";
     
-    if (!metaConnected) {
-      toast.error("Conecte suas redes sociais primeiro", {
-        action: {
-          label: "Conectar",
-          onClick: () => navigate("/integrations"),
-        },
-      });
-      return;
-    }
-    
-    // Somente itens aprovados podem ser agendados
-    const approvedItems = items.filter(i => i.status === "approved");
-    if (approvedItems.length === 0) {
-      toast.info("Nenhum item aprovado para agendar. Aprove os itens primeiro.");
-      return;
-    }
-    
-    setIsScheduling(true);
-    
-    try {
-      const itemIds = approvedItems.map(i => i.id);
-      
-      const { data, error } = await supabase.functions.invoke("meta-publish-post", {
-        body: { 
-          calendar_item_ids: itemIds,
-          tenant_id: currentTenant.id,
-        },
-      });
-
-      if (error) {
-        toast.error("Erro ao publicar/agendar");
-      } else if (data?.success) {
-        const parts = [];
-        if (data.published > 0) parts.push(`${data.published} publicado(s)`);
-        if (data.scheduled > 0) parts.push(`${data.scheduled} agendado(s)`);
-        if (parts.length > 0) {
-          toast.success(parts.join(", ") + "!");
+    if (isBlog) {
+      // Blog publish flow
+      const approved = items.filter(i => i.status === "approved" && !i.blog_post_id);
+      if (approved.length === 0) { toast.info("Nenhum item aprovado para agendar."); return; }
+      setIsScheduling(true);
+      let scheduled = 0, published = 0, failedCount = 0;
+      try {
+        for (const item of approved) {
+          const scheduleAt = item.scheduled_date ? `${item.scheduled_date}T${item.scheduled_time || "10:00:00"}` : null;
+          const { data, error } = await supabase.functions.invoke("media-publish-blog", {
+            body: { calendar_item_id: item.id, publish_now: false, schedule_at: scheduleAt },
+          });
+          if (error || !data?.success) failedCount++;
+          else if (data.published) published++;
+          else if (data.scheduled) scheduled++;
         }
-        if (data.failed > 0) {
-          toast.error(`${data.failed} item(ns) falharam`);
-        }
-      } else {
-        toast.error(data?.error || "Erro ao publicar");
-      }
-      
-      await refetchItems();
-      queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
-    } catch (err) {
-      toast.error("Erro ao agendar");
-    } finally {
-      setIsScheduling(false);
-    }
-  };
-
-  // Agendar/Publicar Posts do Blog
-  const handleScheduleBlog = async () => {
-    if (!items || !currentTenant) return;
-    
-    // Itens aprovados que ainda não foram publicados/agendados
-    const approvedItems = items.filter(i => i.status === "approved" && !i.blog_post_id);
-    if (approvedItems.length === 0) {
-      toast.info("Nenhum item aprovado para agendar. Aprove os itens primeiro.");
-      return;
-    }
-    
-    setIsScheduling(true);
-    let scheduled = 0;
-    let published = 0;
-    let failed = 0;
-    
-    try {
-      for (const item of approvedItems) {
-        // Monta datetime do agendamento baseado no item
-        let scheduleAt: string | null = null;
-        if (item.scheduled_date) {
-          const timePart = item.scheduled_time || "10:00:00";
-          scheduleAt = `${item.scheduled_date}T${timePart}`;
-        }
-        
-        const { data, error } = await supabase.functions.invoke("media-publish-blog", {
-          body: { 
-            calendar_item_id: item.id,
-            // Não forçar publish_now - usar a data/hora agendada
-            publish_now: false,
-            schedule_at: scheduleAt,
-          },
+        if (scheduled > 0) toast.success(`${scheduled} post(s) agendado(s)!`);
+        if (published > 0) toast.success(`${published} post(s) publicado(s)!`);
+        if (failedCount > 0) toast.error(`${failedCount} post(s) falharam`);
+        await refetchItems();
+      } catch { toast.error("Erro ao agendar"); }
+      finally { setIsScheduling(false); }
+    } else {
+      // Social publish flow
+      if (!metaConnected) {
+        toast.error("Conecte suas redes sociais primeiro", {
+          action: { label: "Conectar", onClick: () => navigate("/integrations") },
         });
-
-        if (error || !data?.success) {
-          failed++;
-          console.error(`Failed to schedule item ${item.id}:`, error || data?.error);
-        } else {
-          if (data.published) {
-            published++;
-          } else if (data.scheduled) {
-            scheduled++;
-          }
-        }
+        return;
       }
-      
-      if (scheduled > 0) {
-        toast.success(`${scheduled} post(s) agendado(s) para publicação!`);
-      }
-      if (published > 0) {
-        toast.success(`${published} post(s) publicado(s) imediatamente!`);
-      }
-      if (failed > 0) {
-        toast.error(`${failed} post(s) falharam`);
-      }
-      
-      await refetchItems();
-      queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
-    } catch (err) {
-      toast.error("Erro ao agendar posts");
-    } finally {
-      setIsScheduling(false);
+      const approved = items.filter(i => i.status === "approved");
+      if (approved.length === 0) { toast.info("Nenhum item aprovado."); return; }
+      setIsScheduling(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("meta-publish-post", {
+          body: { calendar_item_ids: approved.map(i => i.id), tenant_id: currentTenant.id },
+        });
+        if (error) toast.error("Erro ao publicar");
+        else if (data?.success) {
+          const parts = [];
+          if (data.published > 0) parts.push(`${data.published} publicado(s)`);
+          if (data.scheduled > 0) parts.push(`${data.scheduled} agendado(s)`);
+          if (parts.length > 0) toast.success(parts.join(", ") + "!");
+          if (data.failed > 0) toast.error(`${data.failed} falharam`);
+        } else toast.error(data?.error || "Erro");
+        await refetchItems();
+      } catch { toast.error("Erro ao publicar"); }
+      finally { setIsScheduling(false); }
     }
   };
 
+  // ========== STEPPER CONFIG ==========
+  const isBlog = campaign?.target_channel === "blog";
+  const hasSuggestions = items && items.length > 0;
+
+  const workflowSteps: StepConfig[] = [
+    {
+      number: 1, label: isSelectMode ? `Selecionando (${selectedDays.size})` : "Selecionar Dias",
+      icon: <MousePointer2 className="h-3.5 w-3.5" />,
+      action: () => setIsSelectMode(!isSelectMode),
+      isActive: true, isLoading: false,
+    },
+    {
+      number: 2, label: isGenerating ? "Gerando..." : "Estratégia IA",
+      icon: <Sparkles className="h-3.5 w-3.5" />,
+      action: handleGenerateStrategy,
+      isActive: selectedDays.size > 0 || stats.total === 0,
+      isLoading: isGenerating,
+    },
+    {
+      number: 3, label: isGeneratingCopys ? "Gerando..." : "Copys IA",
+      icon: <PenTool className="h-3.5 w-3.5" />,
+      action: handleGenerateCopys,
+      isActive: hasSuggestions === true && stats.needsCopy > 0,
+      isLoading: isGeneratingCopys,
+      count: stats.needsCopy,
+    },
+    ...(!isBlog ? [{
+      number: 4, 
+      label: generationProgress ? `${generationProgress.completed}/${generationProgress.total}` : "Criativos IA",
+      icon: <Image className="h-3.5 w-3.5" />,
+      action: handleGenerateCreatives,
+      isActive: hasSuggestions === true && stats.needsCreative > 0,
+      isLoading: isGeneratingAssets,
+      count: stats.needsCreative,
+    }] : []),
+    {
+      number: isBlog ? 4 : 5,
+      label: isApproving ? "Aprovando..." : "Aprovar",
+      icon: <Check className="h-3.5 w-3.5" />,
+      action: handleApproveCampaign,
+      isActive: hasSuggestions === true && stats.readyToApprove > 0,
+      isLoading: isApproving,
+      count: stats.readyToApprove,
+      className: stats.readyToApprove > 0 ? "bg-green-600 hover:bg-green-700 text-white" : "",
+    },
+    {
+      number: isBlog ? 5 : 6,
+      label: isScheduling ? "Publicando..." : "Publicar",
+      icon: <Send className="h-3.5 w-3.5" />,
+      action: handlePublish,
+      isActive: hasSuggestions === true && stats.approved > 0,
+      isLoading: isScheduling,
+      count: stats.approved,
+    },
+  ];
+
+  // ========== RENDER ==========
   if (!campaign) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <p className="text-muted-foreground">Campanha não encontrada</p>
-      </div>
-    );
+    return <div className="flex items-center justify-center py-12"><p className="text-muted-foreground">Campanha não encontrada</p></div>;
   }
 
   const weekDayHeaders = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-  const hasSuggestions = items && items.length > 0;
   const dayListItems = dayListDate ? itemsByDate.get(format(dayListDate, "yyyy-MM-dd")) || [] : [];
   const currentDateItems = selectedDate ? itemsByDate.get(format(selectedDate, "yyyy-MM-dd")) || [] : [];
 
-  // Função para agrupar e contar publicações por tipo/canal - usando novos formatos
   const getPublicationCounts = (dayItems: MediaCalendarItem[]) => {
-    const counts = {
-      feed_instagram: 0,
-      feed_facebook: 0,
-      story_instagram: 0,
-      story_facebook: 0,
-      blog: 0,
-    };
-
+    const counts = { feed_instagram: 0, feed_facebook: 0, story_instagram: 0, story_facebook: 0, blog: 0 };
     dayItems.forEach(item => {
       const platforms = item.target_platforms || [];
-      const contentType = item.content_type as string;
-      const isBlog = contentType === "text" || contentType === "blog" || platforms.includes("blog");
-      
-      if (isBlog) {
-        counts.blog++;
-      } else {
-        // Conta diretamente pelos novos formatos OU formato legado
+      const ct = item.content_type as string;
+      const isBlogItem = ct === "text" || ct === "blog" || platforms.includes("blog");
+      if (isBlogItem) { counts.blog++; }
+      else {
         platforms.forEach(p => {
-          if (p === "feed_instagram" || (p === "instagram" && contentType !== "story")) counts.feed_instagram++;
-          if (p === "feed_facebook" || (p === "facebook" && contentType !== "story")) counts.feed_facebook++;
-          if (p === "story_instagram" || (p === "instagram" && contentType === "story")) counts.story_instagram++;
-          if (p === "story_facebook" || (p === "facebook" && contentType === "story")) counts.story_facebook++;
+          if (p === "feed_instagram" || (p === "instagram" && ct !== "story")) counts.feed_instagram++;
+          if (p === "feed_facebook" || (p === "facebook" && ct !== "story")) counts.feed_facebook++;
+          if (p === "story_instagram" || (p === "instagram" && ct === "story")) counts.story_instagram++;
+          if (p === "story_facebook" || (p === "facebook" && ct === "story")) counts.story_facebook++;
         });
       }
     });
-
     return counts;
   };
 
@@ -674,246 +469,65 @@ export function CampaignCalendar() {
         }
       />
 
-      {/* Action Buttons */}
-      <Card className="border-primary/20 bg-primary/5">
-        <CardContent className="pt-4">
-          <div className="flex flex-wrap gap-3 items-center">
-            {/* Selecionar Dias */}
-            <Button 
-              variant={isSelectMode ? "default" : "outline"}
-              onClick={() => setIsSelectMode(!isSelectMode)}
-              className="gap-2"
-            >
-              <MousePointer2 className="h-4 w-4" />
-              {isSelectMode ? `Selecionando (${selectedDays.size})` : "Selecionar Dias"}
-            </Button>
-
-            {selectedDays.size > 0 && (
-              <>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => {
-                    setSelectedDays(new Set());
-                    setIsSelectMode(false);
-                  }}
-                >
-                  Limpar seleção
-                </Button>
-                {/* Só mostrar botão excluir se há publicações reais nos dias selecionados */}
-                {(() => {
-                  let totalItemsInSelectedDays = 0;
-                  selectedDays.forEach(dateKey => {
-                    const dayItems = itemsByDate.get(dateKey) || [];
-                    totalItemsInSelectedDays += dayItems.length;
-                  });
-                  
-                  if (totalItemsInSelectedDays === 0) return null;
-                  
-                  return (
-                    <Button 
-                      variant="destructive" 
-                      size="sm"
-                      className="gap-1"
-                      onClick={async () => {
-                        const itemsToDelete: string[] = [];
-                        selectedDays.forEach(dateKey => {
-                          const dayItems = itemsByDate.get(dateKey) || [];
-                          dayItems.forEach(item => itemsToDelete.push(item.id));
-                        });
-                        
-                        if (!confirm(`Excluir ${itemsToDelete.length} publicação(ões) dos dias selecionados?`)) {
-                          return;
-                        }
-                        
-                        try {
-                          for (const id of itemsToDelete) {
-                            await deleteItem.mutateAsync(id);
-                          }
-                          toast.success(`${itemsToDelete.length} publicação(ões) excluída(s)`);
-                          setSelectedDays(new Set());
-                          setIsSelectMode(false);
-                        } catch (err) {
-                          toast.error("Erro ao excluir publicações");
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      Excluir selecionados ({totalItemsInSelectedDays})
-                    </Button>
-                  );
-                })()}
-              </>
-            )}
-
-            {/* Criar Estratégia IA */}
-            <Button 
-              onClick={handleGenerateStrategy}
-              disabled={isGenerating}
-              className="gap-2"
-            >
-              {isGenerating ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Sparkles className="h-4 w-4" />
-              )}
-              {isGenerating ? "Gerando..." : "Criar Estratégia IA"}
-            </Button>
-
-            {/* Ações para Redes Sociais */}
-            {hasSuggestions && campaign?.target_channel !== "blog" && (
-              <>
-                {/* Gerar Copys IA */}
-                {itemsNeedingCopy > 0 && (
-                  <Button 
-                    variant="outline"
-                    onClick={handleGenerateCopys}
-                    disabled={isGeneratingCopys}
-                    className="gap-2"
-                  >
-                    {isGeneratingCopys ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <PenTool className="h-4 w-4" />
-                    )}
-                    {isGeneratingCopys ? "Gerando Copys..." : `Gerar Copys IA (${itemsNeedingCopy})`}
-                  </Button>
-                )}
-
-                <Button 
-                  variant="outline"
-                  onClick={handleGenerateCreatives}
-                  disabled={isGeneratingAssets}
-                  className="gap-2"
-                >
-                  {isGeneratingAssets ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Image className="h-4 w-4" />
-                  )}
-                  {generationProgress 
-                    ? `Gerando... ${generationProgress.completed}/${generationProgress.total}`
-                    : "Gerar Criativos"
-                  }
-                </Button>
-
-                {/* Aprovar Campanha - redes sociais */}
-                {itemsReadyToApprove > 0 && (
-                  <Button 
-                    variant="default"
-                    onClick={handleApproveCampaign}
-                    disabled={isApproving}
-                    className="gap-2 bg-green-600 hover:bg-green-700"
-                  >
-                    {isApproving ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Check className="h-4 w-4" />
-                    )}
-                    Aprovar ({itemsReadyToApprove})
-                  </Button>
-                )}
-
-                {/* Agendar Publicações - redes sociais */}
-                {stats.approved > 0 && (
-                  <Button 
-                    variant={metaConnected ? "outline" : "secondary"}
-                    onClick={handleScheduleAll}
-                    disabled={isScheduling}
-                    className="gap-2"
-                  >
-                    {isScheduling ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : metaConnected ? (
-                      <Send className="h-4 w-4" />
-                    ) : (
-                      <AlertCircle className="h-4 w-4" />
-                    )}
-                    Agendar Publicações
-                  </Button>
-                )}
-              </>
-            )}
-
-            {/* Ações para Blog */}
-            {hasSuggestions && campaign?.target_channel === "blog" && (
-              <>
-                {/* Gerar Copys IA - blog */}
-                {itemsNeedingCopy > 0 && (
-                  <Button 
-                    variant="outline"
-                    onClick={handleGenerateCopys}
-                    disabled={isGeneratingCopys}
-                    className="gap-2"
-                  >
-                    {isGeneratingCopys ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <PenTool className="h-4 w-4" />
-                    )}
-                    {isGeneratingCopys ? "Gerando Copys..." : `Gerar Copys IA (${itemsNeedingCopy})`}
-                  </Button>
-                )}
-                {/* Aprovar Campanha - blog */}
-                {itemsReadyToApprove > 0 && (
-                  <Button 
-                    variant="default"
-                    onClick={handleApproveCampaign}
-                    disabled={isApproving}
-                    className="gap-2 bg-green-600 hover:bg-green-700"
-                  >
-                    {isApproving ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Check className="h-4 w-4" />
-                    )}
-                    Aprovar ({itemsReadyToApprove})
-                  </Button>
-                )}
-
-                {/* Agendar no Blog - só para itens aprovados */}
-                {stats.approved > 0 && (
-                  <Button 
-                    variant="default"
-                    onClick={handleScheduleBlog}
-                    disabled={isScheduling}
-                    className="gap-2"
-                  >
-                    {isScheduling ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Send className="h-4 w-4" />
-                    )}
-                    Agendar no Blog ({stats.approved})
-                  </Button>
-                )}
-              </>
-            )}
-
-            <div className="ml-auto flex gap-4 text-sm text-muted-foreground">
-              <span>{stats.total} itens</span>
+      {/* Workflow Stepper */}
+      <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
+        <CardContent className="pt-4 pb-3">
+          <div className="flex items-center justify-between gap-4 mb-3">
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+              {isSelectMode ? "Modo Seleção — clique nos dias" : "Fluxo de Trabalho"}
+            </h3>
+            <div className="flex gap-3 text-xs text-muted-foreground">
+              <span className="font-medium">{stats.total} itens</span>
               <span>{stats.approved} aprovados</span>
-              <span>{stats.scheduled} agendados</span>
+              <span>{stats.scheduled} publicados</span>
             </div>
           </div>
+          
+          <WorkflowStepper steps={workflowSteps} />
+
+          {/* Selection tools */}
+          {isSelectMode && selectedDays.size > 0 && (
+            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border/50">
+              <Button variant="ghost" size="sm" onClick={() => { setSelectedDays(new Set()); setIsSelectMode(false); }}>
+                Limpar seleção
+              </Button>
+              {(() => {
+                let totalInSelection = 0;
+                selectedDays.forEach(dk => { totalInSelection += (itemsByDate.get(dk) || []).length; });
+                if (totalInSelection === 0) return null;
+                return (
+                  <Button variant="destructive" size="sm" className="gap-1" onClick={async () => {
+                    const ids: string[] = [];
+                    selectedDays.forEach(dk => (itemsByDate.get(dk) || []).forEach(i => ids.push(i.id)));
+                    if (!confirm(`Excluir ${ids.length} publicação(ões)?`)) return;
+                    try {
+                      for (const id of ids) await deleteItem.mutateAsync(id);
+                      toast.success(`${ids.length} excluída(s)`);
+                      setSelectedDays(new Set()); setIsSelectMode(false);
+                    } catch { toast.error("Erro ao excluir"); }
+                  }}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Excluir ({totalInSelection})
+                  </Button>
+                );
+              })()}
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Channel Connection Alert - apenas para redes sociais, não para blog */}
-      {!metaLoading && !metaConnected && hasSuggestions && campaign?.target_channel !== "blog" && (
+      {/* Connection Alert */}
+      {!metaLoading && !metaConnected && hasSuggestions && !isBlog && (
         <Alert variant="default" className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
           <AlertCircle className="h-4 w-4 text-amber-600" />
           <AlertDescription className="flex items-center justify-between">
-            <span className="text-amber-800 dark:text-amber-200">
-              Para publicar nas redes sociais, conecte suas contas.
-            </span>
-            <Button size="sm" variant="outline" onClick={() => navigate("/integrations")} className="ml-4">
-              Conectar Canais
-            </Button>
+            <span className="text-amber-800 dark:text-amber-200">Para publicar nas redes sociais, conecte suas contas.</span>
+            <Button size="sm" variant="outline" onClick={() => navigate("/integrations")} className="ml-4">Conectar</Button>
           </AlertDescription>
         </Alert>
       )}
 
+      {/* Calendar Grid */}
       <Card>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
@@ -939,9 +553,7 @@ export function CampaignCalendar() {
             <TooltipProvider>
               <div className="grid grid-cols-7 gap-1">
                 {weekDayHeaders.map((day) => (
-                  <div key={day} className="p-2 text-center text-xs font-medium text-muted-foreground">
-                    {day}
-                  </div>
+                  <div key={day} className="p-2 text-center text-xs font-medium text-muted-foreground">{day}</div>
                 ))}
                 
                 {Array.from({ length: days[0].getDay() }).map((_, i) => (
@@ -952,38 +564,25 @@ export function CampaignCalendar() {
                   const dateKey = format(date, "yyyy-MM-dd");
                   const dayItems = itemsByDate.get(dateKey) || [];
                   const inPeriod = isInCampaignPeriod(date);
-                  const isClickable = inPeriod;
                   const holiday = getHolidayForDate(date);
                   const isSelected = selectedDays.has(dateKey);
                   const hasContent = dayItems.length > 0;
                   const counts = getPublicationCounts(dayItems);
-                  
-                  // Determinar o status predominante dos itens do dia
-                  const hasApprovedOrScheduled = dayItems.some(i => 
-                    ["approved", "scheduled", "published"].includes(i.status)
-                  );
-                  const hasOnlyDraft = hasContent && dayItems.every(i => 
-                    ["draft", "suggested", "review", "generating_asset", "asset_review"].includes(i.status)
-                  );
+                  const hasApprovedOrScheduled = dayItems.some(i => ["approved", "scheduled", "published"].includes(i.status));
+                  const hasOnlyDraft = hasContent && dayItems.every(i => ["draft", "suggested", "review", "generating_asset", "asset_review"].includes(i.status));
 
                   return (
                     <div
                       key={dateKey}
-                      onClick={() => isClickable && handleDayClick(date, dayItems)}
+                      onClick={() => inPeriod && handleDayClick(date, dayItems)}
                       className={cn(
                         "min-h-[100px] p-1 rounded-md border-2 transition-all relative",
                         inPeriod ? "cursor-pointer hover:shadow-md" : "bg-muted/30 border-transparent",
-                        // Selecionado para IA
                         isSelected && "bg-primary/20 border-primary border-dashed",
-                        // Com conteúdo aprovado/agendado - azul/verde
                         hasApprovedOrScheduled && inPeriod && !isSelected && "bg-green-50 border-green-500 dark:bg-green-950/30 dark:border-green-600",
-                        // Com conteúdo apenas em construção (draft/suggested) - cinza/neutro
                         hasOnlyDraft && inPeriod && !isSelected && "bg-muted/50 border-muted-foreground/30",
-                        // Normal sem conteúdo
                         !isSelected && !hasContent && inPeriod && "bg-background border-border",
-                        // Feriado
                         holiday && inPeriod && "ring-2 ring-red-400/50",
-                        // Select mode
                         isSelectMode && inPeriod && "cursor-cell"
                       )}
                     >
@@ -993,34 +592,24 @@ export function CampaignCalendar() {
                         (isSelected || hasContent) && "text-primary font-semibold"
                       )}>
                         {format(date, "d")}
-                        {isSelected && !hasContent && (
-                          <Check className="h-3 w-3 text-primary" />
-                        )}
+                        {isSelected && !hasContent && <Check className="h-3 w-3 text-primary" />}
                         {holiday && (
                           <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="cursor-help">{holiday.emoji}</span>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p className="font-medium">{holiday.name}</p>
-                            </TooltipContent>
+                            <TooltipTrigger asChild><span className="cursor-help">{holiday.emoji}</span></TooltipTrigger>
+                            <TooltipContent><p className="font-medium">{holiday.name}</p></TooltipContent>
                           </Tooltip>
                         )}
                       </div>
                       
-                      {/* Preview compacto com ícones */}
                       {hasContent && (
                         <div className="flex items-center gap-1.5 mt-1 px-1">
-                          {/* Feed - ícone de grid com indicador de plataformas */}
                           {(counts.feed_instagram > 0 || counts.feed_facebook > 0) && (
                             <div className="relative">
                               <div className={cn(
                                 "w-5 h-5 rounded flex items-center justify-center text-white text-[9px] font-bold",
                                 counts.feed_instagram > 0 && counts.feed_facebook > 0 
                                   ? "bg-gradient-to-r from-orange-500 to-blue-500"
-                                  : counts.feed_instagram > 0 
-                                    ? "bg-orange-500" 
-                                    : "bg-blue-500"
+                                  : counts.feed_instagram > 0 ? "bg-orange-500" : "bg-blue-500"
                               )}>
                                 <LayoutGrid className="w-3 h-3" />
                               </div>
@@ -1029,27 +618,19 @@ export function CampaignCalendar() {
                               </span>
                             </div>
                           )}
-                          
-                          {/* Stories - S estilizado */}
                           {(counts.story_instagram > 0 || counts.story_facebook > 0) && (
                             <div className="relative">
                               <div className={cn(
                                 "w-5 h-5 rounded flex items-center justify-center text-white text-[10px] font-bold",
                                 counts.story_instagram > 0 && counts.story_facebook > 0 
                                   ? "bg-gradient-to-r from-orange-500 to-blue-500"
-                                  : counts.story_instagram > 0 
-                                    ? "bg-orange-500" 
-                                    : "bg-blue-500"
-                              )}>
-                                S
-                              </div>
+                                  : counts.story_instagram > 0 ? "bg-orange-500" : "bg-blue-500"
+                              )}>S</div>
                               <span className="absolute -top-1 -right-1 bg-foreground text-background text-[8px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center">
                                 {counts.story_instagram + counts.story_facebook}
                               </span>
                             </div>
                           )}
-                          
-                          {/* Blog - ícone de texto */}
                           {counts.blog > 0 && (
                             <div className="relative">
                               <div className="w-5 h-5 rounded bg-emerald-500 flex items-center justify-center text-white">
@@ -1063,8 +644,7 @@ export function CampaignCalendar() {
                         </div>
                       )}
 
-                      {/* Placeholder para dias vazios */}
-                      {!hasContent && isClickable && !isSelected && (
+                      {!hasContent && inPeriod && !isSelected && (
                         <div className="text-xs text-muted-foreground/50 px-1 flex items-center gap-1 mt-2">
                           <Plus className="h-3 w-3" />
                           {isSelectMode ? "Selecionar" : "Adicionar"}
@@ -1072,8 +652,7 @@ export function CampaignCalendar() {
                       )}
                       {!hasContent && isSelected && (
                         <div className="text-xs text-primary/70 px-1 flex items-center gap-1 mt-2">
-                          <Sparkles className="h-3 w-3" />
-                          Para IA
+                          <Sparkles className="h-3 w-3" />Para IA
                         </div>
                       )}
                     </div>
@@ -1085,60 +664,31 @@ export function CampaignCalendar() {
         </CardContent>
       </Card>
 
-      {/* Legenda simplificada - mostrar apenas labels únicos */}
+      {/* Legend */}
       <div className="flex flex-wrap gap-2 items-center">
         <span className="text-xs text-muted-foreground">Legenda:</span>
-        {/* Em Construção */}
-        <Badge className={cn("text-xs", statusColors.draft)}>
-          Em Construção
-        </Badge>
-        {/* Aprovado */}
-        <Badge className={cn("text-xs", statusColors.approved)}>
-          Aprovado
-        </Badge>
-        {/* Agendado */}
-        <Badge className={cn("text-xs", statusColors.scheduled)}>
-          Agendado
-        </Badge>
-        {/* Publicado */}
-        <Badge className={cn("text-xs", statusColors.published)}>
-          Publicado
-        </Badge>
-        {/* Com Erros */}
-        <Badge className={cn("text-xs", statusColors.failed)}>
-          Com Erros
-        </Badge>
+        <Badge className={cn("text-xs", statusColors.draft)}>Em Construção</Badge>
+        <Badge className={cn("text-xs", statusColors.approved)}>Aprovado</Badge>
+        <Badge className={cn("text-xs", statusColors.scheduled)}>Agendado</Badge>
+        <Badge className={cn("text-xs", statusColors.published)}>Publicado</Badge>
+        <Badge className={cn("text-xs", statusColors.failed)}>Com Erros</Badge>
       </div>
 
-      {/* Dialog de criação/edição de publicação */}
+      {/* Dialogs */}
       <PublicationDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        date={selectedDate}
-        campaignId={campaignId!}
-        existingItems={currentDateItems}
-        editItem={editItem}
+        open={dialogOpen} onOpenChange={setDialogOpen}
+        date={selectedDate} campaignId={campaignId!}
+        existingItems={currentDateItems} editItem={editItem}
         campaignType={campaign?.target_channel === "blog" ? "blog" : campaign?.target_channel === "youtube" ? "youtube" : "social"}
-        onBackToList={() => {
-          // Reabrir o DayPostsList com o mesmo dia
-          if (selectedDate) {
-            setDayListDate(selectedDate);
-            setDayListOpen(true);
-          }
-        }}
+        onBackToList={() => { if (selectedDate) { setDayListDate(selectedDate); setDayListOpen(true); } }}
       />
 
-      {/* Dialog de lista de posts do dia */}
       {dayListDate && (
         <DayPostsList
-          open={dayListOpen}
-          onOpenChange={setDayListOpen}
-          date={dayListDate}
-          items={dayListItems}
-          onEditItem={handleEditItem}
-          onAddItem={handleAddItem}
-          onDeleteItem={handleDeleteItem}
-          onDuplicateItem={handleDuplicateItem}
+          open={dayListOpen} onOpenChange={setDayListOpen}
+          date={dayListDate} items={dayListItems}
+          onEditItem={handleEditItem} onAddItem={handleAddItem}
+          onDeleteItem={handleDeleteItem} onDuplicateItem={handleDuplicateItem}
         />
       )}
     </div>
