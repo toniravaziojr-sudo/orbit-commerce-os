@@ -562,10 +562,10 @@ export function PublicationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[480px] max-h-[85vh] flex flex-col overflow-hidden p-0">
         {/* Step 1: Tipo de publicação - APENAS PARA REDES SOCIAIS */}
         {step === "type" && campaignType === "social" && (
-          <>
+          <div className="p-5">
             <DialogHeader>
               <DialogTitle>Nova Publicação</DialogTitle>
               <DialogDescription className="capitalize">{displayDate}</DialogDescription>
@@ -605,12 +605,12 @@ export function PublicationDialog({
             <DialogFooter>
               <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
             </DialogFooter>
-          </>
+          </div>
         )}
 
         {/* Step 2: Canal (só para feed/stories) */}
         {step === "channels" && (
-          <>
+          <div className="p-5">
             <DialogHeader>
               <DialogTitle>Selecionar Canais</DialogTitle>
               <DialogDescription>
@@ -663,19 +663,20 @@ export function PublicationDialog({
                 Continuar
               </Button>
             </DialogFooter>
-          </>
+          </div>
         )}
 
         {/* Step 3: Detalhes - Feed */}
         {step === "details" && selectedType === "feed" && (
           <>
-            <DialogHeader>
-              <DialogTitle>{isEditing ? "Editar" : "Criar"} Post do Feed</DialogTitle>
-              <DialogDescription className="capitalize">{displayDate}</DialogDescription>
+            <DialogHeader className="flex-shrink-0 px-5 pt-4 pb-1">
+              <DialogTitle className="text-base">{isEditing ? "Editar" : "Criar"} Post do Feed</DialogTitle>
+              <DialogDescription className="capitalize text-xs">{displayDate}</DialogDescription>
             </DialogHeader>
 
             <Form {...feedForm}>
-              <form onSubmit={feedForm.handleSubmit(handleSubmitFeed)} className="space-y-4">
+              <form onSubmit={feedForm.handleSubmit(handleSubmitFeed)} className="flex flex-col flex-1 min-h-0">
+                <div className="flex-1 overflow-y-auto space-y-3 px-5 pb-2">
                 {/* Seletor de Canais - Múltipla seleção */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Canais de publicação</label>
@@ -731,7 +732,7 @@ export function PublicationDialog({
                     <FormItem>
                       <FormLabel>Legenda / Copy <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Escreva a legenda do post ou adicione depois..." className="min-h-[80px]" {...field} />
+                        <Textarea placeholder="Escreva a legenda do post ou adicione depois..." className="min-h-[60px]" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -822,18 +823,17 @@ export function PublicationDialog({
                   {/* Upload area */}
                   {!uploadedAssetUrl && !(isEditing && editItem?.asset_url) && (
                     <div
-                      className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                      className="border-2 border-dashed rounded-lg p-3 text-center cursor-pointer hover:border-primary/50 transition-colors"
                       onClick={() => fileInputRef.current?.click()}
                     >
                       {isUploading ? (
-                        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                          <Loader2 className="h-4 w-4 animate-spin" />Enviando...
+                        <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                          <Loader2 className="h-3 w-3 animate-spin" />Enviando...
                         </div>
                       ) : (
-                        <div className="flex flex-col items-center gap-1 text-sm text-muted-foreground">
-                          <Upload className="h-5 w-5" />
-                          <span>Clique para enviar imagem ou vídeo</span>
-                          <span className="text-xs">Ou use "Criativos IA" no stepper para gerar com IA</span>
+                        <div className="flex items-center justify-center gap-2">
+                          <Upload className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">Enviar imagem ou vídeo</span>
                         </div>
                       )}
                     </div>
@@ -855,7 +855,8 @@ export function PublicationDialog({
                   )}
                 />
 
-                <DialogFooter className="gap-2">
+                </div>
+                <DialogFooter className="flex-shrink-0 gap-2 px-5 py-3 border-t">
                   {isEditing && (
                     <Button type="button" variant="destructive" onClick={handleDelete} className="mr-auto">
                       Excluir
@@ -872,13 +873,14 @@ export function PublicationDialog({
         {/* Step 3: Detalhes - Stories */}
         {step === "details" && selectedType === "stories" && (
           <>
-            <DialogHeader>
-              <DialogTitle>{isEditing ? "Editar" : "Criar"} Story</DialogTitle>
-              <DialogDescription className="capitalize">{displayDate}</DialogDescription>
+            <DialogHeader className="flex-shrink-0 px-5 pt-4 pb-1">
+              <DialogTitle className="text-base">{isEditing ? "Editar" : "Criar"} Story</DialogTitle>
+              <DialogDescription className="capitalize text-xs">{displayDate}</DialogDescription>
             </DialogHeader>
 
             <Form {...storyForm}>
-              <form onSubmit={storyForm.handleSubmit(handleSubmitStory)} className="space-y-4">
+              <form onSubmit={storyForm.handleSubmit(handleSubmitStory)} className="flex flex-col flex-1 min-h-0">
+                <div className="flex-1 overflow-y-auto space-y-3 px-5 pb-2">
                 {/* Seletor de Canais - Múltipla seleção */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Canais de publicação</label>
@@ -948,14 +950,15 @@ export function PublicationDialog({
                     <FormItem>
                       <FormLabel>Prompt para criativo</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Descreva o visual do story..." className="min-h-[80px]" {...field} />
+                        <Textarea placeholder="Descreva o visual do story..." className="min-h-[40px]" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
-                <DialogFooter className="gap-2">
+                </div>
+                <DialogFooter className="flex-shrink-0 gap-2 px-5 py-3 border-t">
                   {isEditing && (
                     <Button type="button" variant="destructive" onClick={handleDelete} className="mr-auto">
                       Excluir
@@ -972,13 +975,14 @@ export function PublicationDialog({
         {/* Step 3: Detalhes - Blog (SEM campo de imagem/criativo) */}
         {step === "details" && selectedType === "blog" && (
           <>
-            <DialogHeader>
-              <DialogTitle>{isEditing ? "Editar" : "Criar"} Artigo do Blog</DialogTitle>
-              <DialogDescription className="capitalize">{displayDate}</DialogDescription>
+            <DialogHeader className="flex-shrink-0 px-5 pt-4 pb-1">
+              <DialogTitle className="text-base">{isEditing ? "Editar" : "Criar"} Artigo do Blog</DialogTitle>
+              <DialogDescription className="capitalize text-xs">{displayDate}</DialogDescription>
             </DialogHeader>
 
             <Form {...blogForm}>
-              <form onSubmit={blogForm.handleSubmit(handleSubmitBlog)} className="space-y-4">
+              <form onSubmit={blogForm.handleSubmit(handleSubmitBlog)} className="flex flex-col flex-1 min-h-0">
+                <div className="flex-1 overflow-y-auto space-y-3 px-5 pb-2">
                 {/* Aviso: Blog não gera imagem */}
                 <div className="bg-muted/50 rounded-lg p-3 text-sm text-muted-foreground">
                   📝 Artigos de Blog são apenas texto. Não há geração de imagem para este tipo de publicação.
@@ -1026,7 +1030,8 @@ export function PublicationDialog({
                   )}
                 />
 
-                <DialogFooter className="gap-2">
+                </div>
+                <DialogFooter className="flex-shrink-0 gap-2 px-5 py-3 border-t">
                   {isEditing && (
                     <Button type="button" variant="destructive" onClick={handleDelete} className="mr-auto">
                       Excluir
@@ -1043,13 +1048,14 @@ export function PublicationDialog({
         {/* Step 3: Detalhes - YouTube */}
         {step === "details" && selectedType === "youtube" && (
           <>
-            <DialogHeader>
-              <DialogTitle>{isEditing ? "Editar" : "Criar"} Vídeo do YouTube</DialogTitle>
-              <DialogDescription className="capitalize">{displayDate}</DialogDescription>
+            <DialogHeader className="flex-shrink-0 px-5 pt-4 pb-1">
+              <DialogTitle className="text-base">{isEditing ? "Editar" : "Criar"} Vídeo do YouTube</DialogTitle>
+              <DialogDescription className="capitalize text-xs">{displayDate}</DialogDescription>
             </DialogHeader>
 
             <Form {...youtubeForm}>
-              <form onSubmit={youtubeForm.handleSubmit(handleSubmitYoutube)} className="space-y-4">
+              <form onSubmit={youtubeForm.handleSubmit(handleSubmitYoutube)} className="flex flex-col flex-1 min-h-0">
+                <div className="flex-1 overflow-y-auto space-y-3 px-5 pb-2">
                 {/* Aviso: YouTube consome créditos */}
                 <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 text-sm text-destructive flex items-center gap-2">
                   <Youtube className="h-4 w-4 flex-shrink-0" />
@@ -1128,7 +1134,8 @@ export function PublicationDialog({
                   )}
                 />
 
-                <DialogFooter className="gap-2">
+                </div>
+                <DialogFooter className="flex-shrink-0 gap-2 px-5 py-3 border-t">
                   {isEditing && (
                     <Button type="button" variant="destructive" onClick={handleDelete} className="mr-auto">
                       Excluir

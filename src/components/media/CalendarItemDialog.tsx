@@ -238,17 +238,17 @@ export function CalendarItemDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px] max-h-[85vh] flex flex-col overflow-hidden p-0">
-        <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-2">
-          <DialogTitle>{isEditing ? "Editar Item" : "Novo Item"}</DialogTitle>
-          <DialogDescription className="capitalize">
+      <DialogContent className="sm:max-w-[500px] max-h-[85vh] flex flex-col overflow-hidden p-0">
+        <DialogHeader className="flex-shrink-0 px-5 pt-4 pb-1">
+          <DialogTitle className="text-base">{isEditing ? "Editar Item" : "Novo Item"}</DialogTitle>
+          <DialogDescription className="capitalize text-xs">
             {displayDate}
           </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
-            <div className="flex-1 overflow-y-auto space-y-4 px-6 pb-2">
+            <div className="flex-1 overflow-y-auto space-y-3 px-5 pb-2">
               {/* Asset Variants Gallery */}
               {isEditing && item && (
                 <>
@@ -348,7 +348,7 @@ export function CalendarItemDialog({
                     <FormControl>
                       <Textarea 
                         placeholder="Escreva a legenda do post ou adicione depois..."
-                        className="min-h-[80px]"
+                        className="min-h-[60px]"
                         {...field} 
                       />
                     </FormControl>
@@ -420,15 +420,14 @@ export function CalendarItemDialog({
                     </div>
                   )}
                   {!uploadedAssetUrl && (
-                    <div className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors" onClick={() => fileInputRef.current?.click()}>
+                    <div className="border-2 border-dashed rounded-lg p-3 text-center cursor-pointer hover:border-primary/50 transition-colors" onClick={() => fileInputRef.current?.click()}>
                       {isUploading ? (
-                        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Enviando...</div>
+                        <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />Enviando...</div>
                       ) : (
-                        <>
-                          <Upload className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
-                          <p className="text-sm text-muted-foreground">Clique para enviar imagem ou vídeo</p>
-                          <p className="text-xs text-muted-foreground mt-1">Ou use "Criativos IA" no stepper para gerar com IA</p>
-                        </>
+                        <div className="flex items-center justify-center gap-2">
+                          <Upload className="h-4 w-4 text-muted-foreground" />
+                          <p className="text-xs text-muted-foreground">Enviar imagem ou vídeo</p>
+                        </div>
                       )}
                     </div>
                   )}
@@ -446,8 +445,8 @@ export function CalendarItemDialog({
                       <FormLabel>Prompt para criativo IA (opcional)</FormLabel>
                       <FormControl>
                         <Textarea 
-                          placeholder="Descreva detalhadamente o visual que você quer..."
-                          className="min-h-[60px]"
+                          placeholder="Descreva o visual desejado para geração com IA..."
+                          className="min-h-[40px]"
                           {...field} 
                         />
                       </FormControl>
@@ -513,7 +512,7 @@ export function CalendarItemDialog({
               </div>
             </div>
 
-            <DialogFooter className="flex-shrink-0 gap-2 sm:gap-0 px-6 py-4 border-t">
+            <DialogFooter className="flex-shrink-0 gap-2 sm:gap-0 px-5 py-3 border-t">
               {isEditing && (
                 <Button 
                   type="button" 
