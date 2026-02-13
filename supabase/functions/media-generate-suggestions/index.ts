@@ -449,21 +449,27 @@ ${validDates.join(", ")}
 ${frequencyInstructions}
 CRÍTICO: Responda APENAS com JSON puro. NÃO use \`\`\`json ou \`\`\`. Comece diretamente com [ e termine com ].
 
+REGRA ABSOLUTA: Você é um ESTRATEGISTA. NÃO escreva copys/legendas completas. O campo "copy" deve ficar VAZIO (string vazia ""). As copys serão escritas depois por um copywriter especialista.
+
 Estrutura de cada item:
 {
   "scheduled_date": "YYYY-MM-DD",
   "content_type": ${contentTypes},
   "target_channel": "instagram" | "facebook" | "blog",
   "title": "Título/tema do post ou artigo",
-  "copy": "Legenda/conteúdo completo (para blog, use markdown)",
-  "cta": "Call to action principal",
-  "hashtags": ["hashtag1", "hashtag2", ...],
+  "copy": "",
+  "cta": "",
+  "hashtags": [],
   "generation_prompt": "Prompt detalhado para gerar a imagem${targetChannel === "blog" ? " de capa (NÃO inclua produtos na imagem, apenas cenário/conceito)" : " do post"}",
   "target_platforms": ["instagram", "facebook"] para feed, ["instagram"] ou ["facebook"] para stories, ["blog"] para blog,
   "needs_product_image": true/false
 }
 
 IMPORTANTE:
+- O campo "copy" DEVE ser "" (vazio). NÃO escreva legendas ou conteúdo.
+- O campo "cta" DEVE ser "" (vazio). NÃO escreva CTAs.
+- O campo "hashtags" DEVE ser [] (vazio). NÃO sugira hashtags.
+- Foque APENAS em: scheduled_date, content_type, target_channel, title, generation_prompt, target_platforms, needs_product_image
 - needs_product_image = true quando o post precisa mostrar um produto da loja
 - needs_product_image = false para dicas, artigos educativos, lifestyle, etc.
 - Para posts de FEED: target_platforms SEMPRE deve incluir ["instagram", "facebook"] (os mesmos posts vão para ambas redes)
@@ -581,12 +587,12 @@ IMPORTANTE:
       content_type: s.content_type || "image",
       target_channel: s.target_channel || targetChannel,
       title: s.title,
-      copy: s.copy,
-      cta: s.cta,
-      hashtags: s.hashtags || [],
+      copy: null,
+      cta: null,
+      hashtags: [],
       generation_prompt: s.generation_prompt,
       target_platforms: s.target_platforms || targetPlatformsDefault,
-      status: "draft",
+      status: "suggested",
       version: 1,
       metadata: {
         needs_product_image: s.needs_product_image ?? false,

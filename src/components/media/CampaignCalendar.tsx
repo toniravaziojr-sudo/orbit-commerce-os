@@ -145,26 +145,25 @@ export function CampaignCalendar() {
     return {
       total: items.length,
       draft: items.filter(i => ["draft", "suggested", "review"].includes(i.status)).length,
-      // Items that have a title but NO copy (empty or null)
+      // Items that have a title but NO copy — these need copywriting
       needsCopy: items.filter(i => 
-        ["draft", "suggested"].includes(i.status) && 
+        ["draft", "suggested", "review"].includes(i.status) && 
         i.title && 
         (!i.copy || i.copy.trim() === "")
       ).length,
-      // Items that have copy filled but no asset (for non-text types)
+      // Items that have copy filled but no asset (for non-text types) — these need creatives
       needsCreative: items.filter(i => 
         ["draft", "suggested", "review"].includes(i.status) && 
         i.copy && i.copy.trim() !== "" && 
         !i.asset_url && 
         i.content_type !== "text"
       ).length,
-      // Items that have title AND (copy OR is text) — ready for manual approval  
-      // For non-blog: also needs asset OR is text type
+      // Items ready for approval: have copy, and for social also need asset or be text type
       readyToApprove: items.filter(i => 
         ["draft", "suggested", "review"].includes(i.status) && 
         i.title &&
-        (isBlog || i.content_type === "text" || i.asset_url) &&
-        (i.copy && i.copy.trim() !== "" || isBlog)
+        (i.copy && i.copy.trim() !== "") &&
+        (isBlog || i.content_type === "text" || i.asset_url)
       ).length,
       approved: items.filter(i => i.status === "approved").length,
       scheduled: items.filter(i => ["scheduled", "published"].includes(i.status)).length,

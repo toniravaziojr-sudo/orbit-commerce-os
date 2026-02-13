@@ -426,10 +426,10 @@ export function CalendarItemDialog({
               name="copy"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{isBlogOnly ? "Conteúdo / Resumo" : "Legenda / Copy"}</FormLabel>
+                  <FormLabel>{isBlogOnly ? "Conteúdo / Resumo" : "Legenda / Copy"} <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                   <FormControl>
                     <Textarea 
-                      placeholder={isBlogOnly ? "Escreva o conteúdo ou resumo do artigo..." : "Escreva a legenda do post..."}
+                      placeholder={isBlogOnly ? "Escreva o conteúdo ou resumo do artigo..." : "Escreva a legenda do post ou use 'Copys IA' no stepper..."}
                       className="min-h-[80px]"
                       {...field} 
                     />
