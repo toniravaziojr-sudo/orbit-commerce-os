@@ -10,7 +10,7 @@
 Sistema de planejamento e criação de campanhas de marketing com IA, dividido em quatro módulos:
 
 1. **Campanhas** (`/campaigns`) - IA Estrategista para tráfego pago
-2. **Mídias Sociais** (`/media`) - Calendário editorial para Facebook, Instagram e YouTube
+2. **Mídias Sociais** (`/media`) - Calendário editorial para Facebook, Instagram e YouTube (EXCLUSIVO redes sociais, SEM Blog)
 3. **Campanhas Blog** (`/blog/campaigns`) - Calendário editorial para posts de blog (ver `docs/regras/blog.md`)
 4. **YouTube** - Upload e agendamento de vídeos no canal (integrado ao módulo Mídias Sociais)
 
@@ -28,6 +28,7 @@ Sistema de planejamento e criação de campanhas de marketing com IA, dividido e
 | `src/components/media/CampaignCalendar.tsx` | Calendário visual com barra de ações progressiva |
 | `src/components/media/CampaignsList.tsx` | Lista de campanhas |
 | `src/components/media/CalendarItemDialog.tsx` | Dialog de edição manual (copy + upload de criativo) |
+| `src/components/media/ApprovalDialog.tsx` | Dialog visual de aprovação com thumbnails e resumo |
 | `src/components/media/PublicationDialog.tsx` | Dialog de publicação |
 | `supabase/functions/media-generate-suggestions/` | IA Especialista em Estratégia de Conteúdo |
 | `supabase/functions/media-generate-copys/` | IA Especialista em Copywriting |
@@ -140,7 +141,7 @@ Os botões seguem ordem sequencial e só ficam ativos quando o passo anterior es
 | 2 | Gerar Estratégia IA | Dias selecionados no calendário |
 | 3 | Gerar Copys IA | Items existem com título mas sem copy |
 | 4 | Gerar Criativos IA | Items têm copy preenchida |
-| 5 | Aprovar | Items com copy e/ou criativo prontos |
+| 5 | Aprovar | Items com copy e/ou criativo prontos → abre `ApprovalDialog` com resumo visual |
 | 6 | Publicar/Agendar | Items aprovados |
 
 ### IAs Especialistas
@@ -185,6 +186,18 @@ O dialog de edição manual (`CalendarItemDialog.tsx`) permite:
   - Preview visual da imagem/vídeo diretamente no dialog
   - Suporta arquivo local e Meu Drive
 - **NÃO auto-aprova** — o item fica como `draft` ou `suggested` até o usuário aprovar manualmente
+- **Exclusivo para redes sociais** — NÃO inclui opções de Blog (Blog tem módulo dedicado)
+
+### ApprovalDialog (Aprovação Visual)
+
+O dialog de aprovação (`ApprovalDialog.tsx`) exibe um **resumo visual** das postagens pendentes:
+- **Thumbnails** dos criativos gerados ou uploaded
+- **Título, copy (preview), plataformas e horário** de cada item
+- **Multi-select** com checkboxes individuais e "Selecionar todos"
+- **Badge** com contagem de selecionados
+- Aprovação em lote — apenas items selecionados são marcados como `approved`
+
+> **PROIBIDO:** Auto-aprovar items sem revisão visual. O fluxo SEMPRE passa pelo ApprovalDialog.
 
 ### Regra de Separação de Módulos
 
