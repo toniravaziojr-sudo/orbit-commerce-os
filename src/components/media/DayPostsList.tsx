@@ -253,6 +253,24 @@ export function DayPostsList({
                         <p className="font-medium text-sm line-clamp-1">
                           {item.title || "Sem título"}
                         </p>
+                        {/* Status indicators for what's missing */}
+                        <div className="flex flex-wrap gap-1 mt-0.5">
+                          {(!item.copy || item.copy.trim() === "") && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                              Sem copy
+                            </span>
+                          )}
+                          {item.copy && item.copy.trim() !== "" && !item.asset_url && item.content_type !== "text" && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                              Sem criativo
+                            </span>
+                          )}
+                          {item.asset_url && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                              ✓ Criativo
+                            </span>
+                          )}
+                        </div>
                         {item.copy && (
                           <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
                             {item.copy.slice(0, 60)}...

@@ -181,14 +181,8 @@ export function CalendarItemDialog({
       : [];
     const platforms = values.target_platforms || [];
 
-    // Aprovação automática: se é conteúdo manual (não sugerido pela IA), aprova ao salvar
-    // Exceto se o status já é "suggested" (veio da IA e precisa revisão)
+    // Keep the selected status — user decides when to approve
     let finalStatus = values.status as MediaItemStatus;
-    const isManualContent = !isEditing || (item && item.status === "draft");
-    if (isManualContent && finalStatus === "draft") {
-      // Conteúdo manual vai direto para aprovado
-      finalStatus = "approved";
-    }
 
     if (isEditing && item) {
       const updateData: Record<string, unknown> = {

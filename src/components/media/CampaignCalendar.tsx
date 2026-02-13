@@ -145,9 +145,27 @@ export function CampaignCalendar() {
     return {
       total: items.length,
       draft: items.filter(i => ["draft", "suggested", "review"].includes(i.status)).length,
-      needsCopy: items.filter(i => ["draft", "suggested"].includes(i.status) && i.title && (!i.copy || i.copy.trim() === "")).length,
-      needsCreative: items.filter(i => ["draft", "suggested", "review"].includes(i.status) && i.copy && !i.asset_url && i.content_type !== "text").length,
-      readyToApprove: items.filter(i => ["draft", "suggested", "review"].includes(i.status) && i.copy && (isBlog || i.asset_url)).length,
+      // Items that have a title but NO copy (empty or null)
+      needsCopy: items.filter(i => 
+        ["draft", "suggested"].includes(i.status) && 
+        i.title && 
+        (!i.copy || i.copy.trim() === "")
+      ).length,
+      // Items that have copy filled but no asset (for non-text types)
+      needsCreative: items.filter(i => 
+        ["draft", "suggested", "review"].includes(i.status) && 
+        i.copy && i.copy.trim() !== "" && 
+        !i.asset_url && 
+        i.content_type !== "text"
+      ).length,
+      // Items that have title AND (copy OR is text) — ready for manual approval  
+      // For non-blog: also needs asset OR is text type
+      readyToApprove: items.filter(i => 
+        ["draft", "suggested", "review"].includes(i.status) && 
+        i.title &&
+        (isBlog || i.content_type === "text" || i.asset_url) &&
+        (i.copy && i.copy.trim() !== "" || isBlog)
+      ).length,
       approved: items.filter(i => i.status === "approved").length,
       scheduled: items.filter(i => ["scheduled", "published"].includes(i.status)).length,
     };
