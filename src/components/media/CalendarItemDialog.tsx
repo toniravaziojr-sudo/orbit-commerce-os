@@ -63,7 +63,6 @@ const contentTypes: { value: MediaContentType; label: string }[] = [
   { value: "image", label: "🖼️ Imagem (Feed)" },
   { value: "carousel", label: "📸 Carrossel (Feed)" },
   { value: "story", label: "📱 Story" },
-  { value: "text", label: "📝 Texto (Blog)" },
 ];
 
 const itemStatuses: { value: MediaItemStatus; label: string }[] = [
@@ -80,7 +79,6 @@ const itemStatuses: { value: MediaItemStatus; label: string }[] = [
 const platformOptions = [
   { value: "instagram", label: "Instagram", icon: "🟠" },
   { value: "facebook", label: "Facebook", icon: "🔵" },
-  { value: "blog", label: "Blog", icon: "📝" },
   { value: "tiktok", label: "TikTok", icon: "⚫" },
   { value: "linkedin", label: "LinkedIn", icon: "🔷" },
   { value: "youtube", label: "YouTube", icon: "🔴" },
@@ -110,8 +108,7 @@ export function CalendarItemDialog({
   const [uploadedAssetUrl, setUploadedAssetUrl] = useState<string | null>(null);
   const isEditing = !!item;
 
-  const isBlogOnly = selectedChannels.length === 1 && selectedChannels[0] === "blog";
-  const hasSocialChannels = selectedChannels.some(c => ["instagram", "facebook", "tiktok", "linkedin", "youtube"].includes(c));
+  const hasSocialChannels = true;
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -241,8 +238,8 @@ export function CalendarItemDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col overflow-hidden">
-        <DialogHeader className="flex-shrink-0">
+      <DialogContent className="sm:max-w-[560px] max-h-[85vh] flex flex-col overflow-hidden p-0">
+        <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-2">
           <DialogTitle>{isEditing ? "Editar Item" : "Novo Item"}</DialogTitle>
           <DialogDescription className="capitalize">
             {displayDate}
@@ -251,7 +248,7 @@ export function CalendarItemDialog({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
-            <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+            <div className="flex-1 overflow-y-auto space-y-4 px-6 pb-2">
               {/* Asset Variants Gallery */}
               {isEditing && item && (
                 <>
@@ -333,9 +330,9 @@ export function CalendarItemDialog({
                 name="title"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{isBlogOnly ? "Título do Artigo" : "Título / Tema"}</FormLabel>
+                    <FormLabel>Título / Tema</FormLabel>
                     <FormControl>
-                      <Input placeholder={isBlogOnly ? "Ex: 10 dicas para..." : "Ex: Lançamento de produto"} {...field} />
+                      <Input placeholder="Ex: Lançamento de produto" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -347,10 +344,10 @@ export function CalendarItemDialog({
                 name="copy"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{isBlogOnly ? "Conteúdo / Resumo" : "Legenda / Copy"} <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
+                    <FormLabel>Legenda / Copy <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                     <FormControl>
                       <Textarea 
-                        placeholder={isBlogOnly ? "Escreva o conteúdo ou resumo do artigo..." : "Escreva a legenda do post ou adicione depois..."}
+                        placeholder="Escreva a legenda do post ou adicione depois..."
                         className="min-h-[80px]"
                         {...field} 
                       />
@@ -392,22 +389,6 @@ export function CalendarItemDialog({
                 </div>
               )}
 
-              {/* Horário standalone quando não tem social */}
-              {!hasSocialChannels && !isBlogOnly && (
-                <FormField
-                  control={form.control}
-                  name="scheduled_time"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Horário</FormLabel>
-                      <FormControl>
-                        <Input type="time" {...field} className="w-40" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
 
               {/* Hashtags */}
               {hasSocialChannels && (
@@ -427,7 +408,7 @@ export function CalendarItemDialog({
               )}
 
               {/* Upload manual de criativo */}
-              {!isBlogOnly && (
+              
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Criativo (opcional)</label>
                   {uploadedAssetUrl && (
@@ -453,10 +434,10 @@ export function CalendarItemDialog({
                   )}
                   <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFileUpload} />
                 </div>
-              )}
+              
 
               {/* Prompt para criativo IA */}
-              {!isBlogOnly && (
+              
                 <FormField
                   control={form.control}
                   name="generation_prompt"
@@ -477,7 +458,6 @@ export function CalendarItemDialog({
                     </FormItem>
                   )}
                 />
-              )}
 
               {/* Tipo + Status compactos */}
               <div className="grid grid-cols-2 gap-4">
@@ -533,7 +513,7 @@ export function CalendarItemDialog({
               </div>
             </div>
 
-            <DialogFooter className="flex-shrink-0 gap-2 sm:gap-0 pt-4 border-t mt-4">
+            <DialogFooter className="flex-shrink-0 gap-2 sm:gap-0 px-6 py-4 border-t">
               {isEditing && (
                 <Button 
                   type="button" 
