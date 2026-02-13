@@ -120,7 +120,7 @@ export function CampaignCalendar() {
   const [isApproving, setIsApproving] = useState(false);
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [selectedDays, setSelectedDays] = useState<Set<string>>(new Set());
-  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [isSelectMode, setIsSelectMode] = useState(true);
   const [isGeneratingCopys, setIsGeneratingCopys] = useState(false);
   const [generationProgress, setGenerationProgress] = useState<{ total: number; completed: number } | null>(null);
 
@@ -579,6 +579,14 @@ export function CampaignCalendar() {
           </div>
           
           <WorkflowStepper steps={workflowSteps} />
+
+          {/* Selection info */}
+          {isSelectMode && selectedDays.size === 0 && (
+            <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1.5">
+              <MousePointer2 className="h-3.5 w-3.5" />
+              Clique nos dias do calendário abaixo para selecionar as datas de publicação
+            </p>
+          )}
 
           {/* Selection tools */}
           {isSelectMode && selectedDays.size > 0 && (
