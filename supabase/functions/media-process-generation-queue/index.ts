@@ -1,25 +1,24 @@
 /**
- * Media Process Generation Queue — v4.0 (Lovable AI Gateway)
+ * Media Process Generation Queue — v5.0 (Dual Provider + QA Scorer)
  * 
- * Migrado de Fal.AI para Lovable AI Gateway (Gemini + OpenAI)
- * Mesma abordagem do creative-image-generate (dual provider)
- * 
- * Suporta:
- * - Gemini (google/gemini-2.5-flash-image) — padrão, rápido
- * - OpenAI images API — quando disponível
- * - Geração com referência de produto (image editing)
- * - Geração sem produto (text-to-image)
+ * Mesma arquitetura do creative-image-generate v3.0:
+ * - Gemini Flash (google/gemini-2.5-flash-image) — padrão rápido
+ * - Gemini Pro (google/gemini-3-pro-image-preview) — simulando "OpenAI", alta qualidade
+ * - QA Scorer (google/gemini-3-flash-preview) — scoring de realismo
+ * - Seleção automática do melhor resultado por score
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const VERSION = '4.0.0';
+const VERSION = '5.0.0';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+type Provider = 'gemini' | 'openai';
 
 interface GenerationSettings {
   use_packshot?: boolean;
@@ -35,95 +34,77 @@ interface GenerationSettings {
   aspect_ratio?: string;
   source_image_url?: string;
   product_name?: string;
+  providers?: Provider[];
+  enable_qa?: boolean;
 }
 
-// Download image and convert to base64 data URL
-async function downloadImageAsBase64Url(url: string): Promise<string | null> {
+interface QAScores {
+  realism: number;
+  quality: number;
+  composition: number;
+  label: number;
+  overall: number;
+}
+
+interface ProviderResult {
+  provider: Provider;
+  imageBase64: string | null;
+  scores: QAScores;
+  error?: string;
+  usedReference: boolean;
+}
+
+// ========== DOWNLOAD IMAGE ==========
+
+async function downloadImageAsBase64(url: string): Promise<string | null> {
   try {
-    console.log("📥 Downloading image from:", url.substring(0, 100));
+    console.log(`📥 Downloading: ${url.substring(0, 80)}...`);
     const response = await fetch(url);
     if (!response.ok) {
-      console.error("❌ Failed to download image:", response.status);
+      console.error(`❌ Download failed: ${response.status}`);
       return null;
     }
-    
-    const contentType = response.headers.get("content-type") || "image/png";
     const arrayBuffer = await response.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
     let binary = '';
     for (let i = 0; i < uint8Array.length; i++) {
       binary += String.fromCharCode(uint8Array[i]);
     }
-    const base64 = btoa(binary);
-    console.log(`✅ Image downloaded: ${uint8Array.length} bytes, type: ${contentType}`);
-    return `data:${contentType};base64,${base64}`;
+    return btoa(binary);
   } catch (error) {
-    console.error("❌ Error downloading image:", error);
+    console.error(`❌ Download error:`, error);
     return null;
   }
 }
 
-// Convert data URL to binary
-function dataUrlToUint8Array(dataUrl: string): Uint8Array | null {
-  try {
-    const matches = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-    if (!matches) return null;
-    
-    const base64 = matches[2];
-    const binaryString = atob(base64);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    return bytes;
-  } catch (error) {
-    console.error("❌ Error converting data URL to binary:", error);
-    return null;
-  }
-}
+// ========== GENERATE WITH GEMINI (Flash) ==========
 
-/**
- * Generate image with Gemini via Lovable AI Gateway
- * Supports both text-to-image and image editing (with reference)
- */
 async function generateWithGemini(
   apiKey: string,
   prompt: string,
-  referenceImageUrl?: string | null
-): Promise<{ imageDataUrl: string | null; model: string; error?: string; usedReference: boolean }> {
+  referenceImageBase64: string | null,
+): Promise<{ imageBase64: string | null; model: string; error?: string }> {
   const model = "google/gemini-2.5-flash-image";
-  
   try {
-    console.log(`🎨 === Gemini Image Generation (ref: ${!!referenceImageUrl}) ===`);
-    
-    const messages: any[] = [];
-    
-    if (referenceImageUrl) {
-      // Image editing mode: send reference image + prompt
-      messages.push({
-        role: "user",
-        content: [
-          { type: "text", text: prompt },
-          { type: "image_url", image_url: { url: referenceImageUrl } }
-        ]
-      });
-    } else {
-      // Text-to-image mode
-      messages.push({
-        role: "user",
-        content: prompt
+    console.log(`🎨 Gemini Flash generation (ref: ${!!referenceImageBase64})...`);
+
+    const content: any[] = [{ type: "text", text: prompt }];
+    if (referenceImageBase64) {
+      content.push({
+        type: "image_url",
+        image_url: { url: `data:image/png;base64,${referenceImageBase64}` },
       });
     }
-    
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
         model,
-        messages,
+        messages: [{ role: "user", content }],
         modalities: ["image", "text"],
       }),
     });
@@ -131,35 +112,199 @@ async function generateWithGemini(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`❌ Gemini error: ${response.status}`, errorText);
-      
-      if (response.status === 429) {
-        return { imageDataUrl: null, model, error: "Rate limit atingido. Tente novamente em alguns segundos.", usedReference: !!referenceImageUrl };
-      }
-      if (response.status === 402) {
-        return { imageDataUrl: null, model, error: "Créditos insuficientes. Adicione créditos ao workspace.", usedReference: !!referenceImageUrl };
-      }
-      
-      return { imageDataUrl: null, model, error: `HTTP ${response.status}: ${errorText.substring(0, 200)}`, usedReference: !!referenceImageUrl };
+      if (response.status === 429) return { imageBase64: null, model, error: "Rate limit Gemini. Aguarde." };
+      if (response.status === 402) return { imageBase64: null, model, error: "Créditos insuficientes." };
+      return { imageBase64: null, model, error: `Gemini HTTP ${response.status}` };
     }
 
     const data = await response.json();
-    
-    // Extract image from response
     const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    
-    if (!imageUrl) {
-      console.error("❌ No image in Gemini response");
-      return { imageDataUrl: null, model, error: "IA não retornou imagem. Tente com um prompt diferente.", usedReference: !!referenceImageUrl };
-    }
+    if (!imageUrl) return { imageBase64: null, model, error: "Gemini não retornou imagem" };
 
-    console.log("✅ Gemini image generated successfully");
-    return { imageDataUrl: imageUrl, model, usedReference: !!referenceImageUrl };
-    
+    const base64Match = imageUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
+    if (!base64Match) return { imageBase64: null, model, error: "Formato inválido Gemini" };
+
+    console.log("✅ Gemini Flash image generated");
+    return { imageBase64: base64Match[1], model };
   } catch (error) {
-    console.error("❌ Error calling Gemini:", error);
-    return { imageDataUrl: null, model, error: String(error), usedReference: !!referenceImageUrl };
+    console.error("❌ Gemini error:", error);
+    return { imageBase64: null, model, error: String(error) };
   }
 }
+
+// ========== GENERATE WITH "OPENAI" (Gemini Pro) ==========
+
+async function generateWithOpenAI(
+  apiKey: string,
+  prompt: string,
+  referenceImageBase64: string | null,
+): Promise<{ imageBase64: string | null; model: string; error?: string }> {
+  const model = "google/gemini-3-pro-image-preview";
+  try {
+    console.log(`🎨 OpenAI/Pro generation (ref: ${!!referenceImageBase64})...`);
+
+    const openaiPrompt = `${prompt}
+
+ESTILO OPENAI:
+- Fotorrealismo extremo
+- Iluminação natural cinematográfica
+- Composição equilibrada
+- Cores realistas sem oversaturation`;
+
+    const content: any[] = [{ type: "text", text: openaiPrompt }];
+    if (referenceImageBase64) {
+      content.push({
+        type: "image_url",
+        image_url: { url: `data:image/png;base64,${referenceImageBase64}` },
+      });
+    }
+
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content }],
+        modalities: ["image", "text"],
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ OpenAI/Pro error: ${response.status}`, errorText);
+      if (response.status === 429) return { imageBase64: null, model, error: "Rate limit OpenAI. Aguarde." };
+      if (response.status === 402) return { imageBase64: null, model, error: "Créditos insuficientes." };
+      return { imageBase64: null, model, error: `OpenAI HTTP ${response.status}` };
+    }
+
+    const data = await response.json();
+    const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    if (!imageUrl) return { imageBase64: null, model, error: "OpenAI não gerou imagem" };
+
+    const base64Match = imageUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
+    if (!base64Match) return { imageBase64: null, model, error: "Formato inválido OpenAI" };
+
+    console.log("✅ OpenAI/Pro image generated");
+    return { imageBase64: base64Match[1], model };
+  } catch (error) {
+    console.error("❌ OpenAI/Pro error:", error);
+    return { imageBase64: null, model, error: String(error) };
+  }
+}
+
+// ========== REALISM SCORER ==========
+
+async function scoreImageForRealism(
+  apiKey: string,
+  imageBase64: string,
+  originalProductBase64: string | null,
+  productName: string,
+): Promise<QAScores> {
+  console.log(`🔍 Scoring image for realism...`);
+  try {
+    const content: any[] = [
+      {
+        type: "text",
+        text: `Você é um juiz especialista em avaliar REALISMO de imagens geradas por IA.
+
+TAREFA: Avaliar se a IMAGEM GERADA parece uma FOTO REAL (não gerada por IA).
+
+PRODUTO ESPERADO: "${productName}"
+
+Avalie de 0 a 10 cada critério:
+
+1. REALISM (Parece foto real?):
+   - 10 = Indistinguível de foto real
+   - 7 = Muito boa, pequenos detalhes revelam IA
+   - 5 = Obviamente IA mas aceitável
+   - 0 = Claramente artificial
+
+2. QUALITY (Qualidade técnica):
+   - 10 = Qualidade profissional 4K
+   - 0 = Baixa qualidade
+
+3. COMPOSITION (Composição):
+   - 10 = Composição perfeita
+   - 0 = Composição ruim
+
+4. LABEL (Fidelidade do rótulo/produto):
+   - 10 = Produto idêntico ao original
+   - 0 = Produto diferente ou texto inventado
+
+Responda APENAS em JSON:
+{
+  "realism": <0-10>,
+  "quality": <0-10>,
+  "composition": <0-10>,
+  "label": <0-10>,
+  "reasoning": "<breve explicação>"
+}`,
+      },
+    ];
+
+    // Add original product reference if available
+    if (originalProductBase64) {
+      content.push({
+        type: "image_url",
+        image_url: { url: `data:image/png;base64,${originalProductBase64}` },
+      });
+    }
+
+    // Add generated image
+    content.push({
+      type: "image_url",
+      image_url: { url: `data:image/png;base64,${imageBase64}` },
+    });
+
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-3-flash-preview",
+        messages: [{ role: "user", content }],
+      }),
+    });
+
+    if (!response.ok) {
+      console.error(`❌ Scorer API error: ${response.status}`);
+      return { realism: 5, quality: 5, composition: 5, label: 5, overall: 0.5 };
+    }
+
+    const data = await response.json();
+    const textContent = data.choices?.[0]?.message?.content || "";
+    const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return { realism: 5, quality: 5, composition: 5, label: 5, overall: 0.5 };
+    }
+
+    const scores = JSON.parse(jsonMatch[0]);
+    const realism = Math.min(10, Math.max(0, Number(scores.realism) || 5));
+    const quality = Math.min(10, Math.max(0, Number(scores.quality) || 5));
+    const composition = Math.min(10, Math.max(0, Number(scores.composition) || 5));
+    const label = Math.min(10, Math.max(0, Number(scores.label) || 5));
+
+    // Peso: Realismo 40%, Label 25%, Quality 20%, Composition 15%
+    const overall =
+      (realism / 10) * 0.4 +
+      (label / 10) * 0.25 +
+      (quality / 10) * 0.2 +
+      (composition / 10) * 0.15;
+
+    console.log(`📊 Scores: realism=${realism}, quality=${quality}, composition=${composition}, label=${label}, overall=${overall.toFixed(2)}`);
+    return { realism, quality, composition, label, overall };
+  } catch (error) {
+    console.error("❌ Scorer error:", error);
+    return { realism: 5, quality: 5, composition: 5, label: 5, overall: 0.5 };
+  }
+}
+
+// ========== MAIN HANDLER ==========
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -169,7 +314,7 @@ serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
-  
+
   if (!lovableApiKey) {
     console.error("❌ LOVABLE_API_KEY not configured");
     return new Response(
@@ -213,7 +358,7 @@ serve(async (req) => {
     for (const generation of generations) {
       const genStartTime = Date.now();
       const genId = generation.id;
-      
+
       try {
         // Mark as generating
         await supabase
@@ -229,37 +374,35 @@ serve(async (req) => {
         const needsProductImage = settings.needs_product_image ?? false;
         const matchedProducts = settings.matched_products || [];
         const isKitScenario = settings.is_kit_scenario ?? false;
-        const imageSize = settings.image_size || "1024x1024";
+        const enabledProviders: Provider[] = settings.providers || ['gemini', 'openai'];
+        const enableQA = settings.enable_qa !== false; // default true
 
         console.log("📋 Settings:", JSON.stringify({
           assetType, contentType, needsProductImage,
           matchedProductsCount: matchedProducts.length,
-          isKitScenario, imageSize,
+          isKitScenario, providers: enabledProviders, enableQA,
         }));
 
-        // Skip video generation for now (needs separate provider)
+        // Skip video generation
         if (assetType === "video") {
-          throw new Error("Geração de vídeo não está disponível no momento. Use o Gestor de Criativos para vídeos.");
+          throw new Error("Geração de vídeo não disponível. Use o Gestor de Criativos para vídeos.");
         }
 
-        // ============ IMAGE GENERATION via Lovable AI ============
-        const productWithImage = matchedProducts.find(p => p.image_url);
-        let referenceImageUrl: string | null = null;
+        // ============ DUAL PROVIDER IMAGE GENERATION ============
+
+        const productWithImage = matchedProducts.find((p) => p.image_url);
+        let referenceBase64: string | null = null;
         let finalPrompt = generation.prompt_final;
 
-        // If product has image, download it for reference
+        // Download product reference image
         if (needsProductImage && productWithImage?.image_url) {
-          console.log(`📦 Product: "${productWithImage.name}" - downloading reference...`);
-          referenceImageUrl = await downloadImageAsBase64Url(productWithImage.image_url);
-          
-          if (!referenceImageUrl) {
+          console.log(`📦 Product: "${productWithImage.name}" — downloading reference...`);
+          referenceBase64 = await downloadImageAsBase64(productWithImage.image_url);
+          if (!referenceBase64) {
             throw new Error(`Não foi possível baixar a imagem do produto "${productWithImage.name}".`);
           }
-          
-          console.log("✅ Product reference downloaded");
 
-          // Build product-specific prompt
-          const kitInstruction = isKitScenario 
+          const kitInstruction = isKitScenario
             ? `CENÁRIO DE KIT (${matchedProducts.length} produtos):
 - PROIBIDO: pessoa segurando múltiplos produtos na mão
 - OBRIGATÓRIO: apresentar em bancada, flatlay ou ambiente lifestyle
@@ -282,30 +425,66 @@ PROIBIÇÕES: NÃO inventar rótulos/logos, NÃO alterar cores/design, NÃO dupl
 BRIEFING: ${generation.prompt_final}`;
         }
 
-        // Generate with Gemini
-        const result = await generateWithGemini(lovableApiKey, finalPrompt, referenceImageUrl);
+        // Generate with both providers in parallel
+        const providerPromises = enabledProviders.map(async (provider): Promise<ProviderResult> => {
+          const generateFn = provider === 'gemini' ? generateWithGemini : generateWithOpenAI;
+          const result = await generateFn(lovableApiKey, finalPrompt, referenceBase64);
 
-        if (!result.imageDataUrl) {
-          throw new Error(result.error || "Falha ao gerar imagem");
+          if (!result.imageBase64) {
+            return {
+              provider,
+              imageBase64: null,
+              scores: { realism: 0, quality: 0, composition: 0, label: 0, overall: 0 },
+              error: result.error,
+              usedReference: !!referenceBase64,
+            };
+          }
+
+          // QA Scoring
+          if (enableQA) {
+            const scores = await scoreImageForRealism(
+              lovableApiKey,
+              result.imageBase64,
+              referenceBase64,
+              productWithImage?.name || "Produto",
+            );
+            return {
+              provider,
+              imageBase64: result.imageBase64,
+              scores,
+              usedReference: !!referenceBase64,
+            };
+          }
+
+          return {
+            provider,
+            imageBase64: result.imageBase64,
+            scores: { realism: 7, quality: 7, composition: 7, label: 7, overall: 0.7 },
+            usedReference: !!referenceBase64,
+          };
+        });
+
+        const providerResults = await Promise.all(providerPromises);
+        const successfulResults = providerResults.filter((r) => r.imageBase64);
+
+        if (successfulResults.length === 0) {
+          const errors = providerResults.map((r) => r.error).filter(Boolean).join("; ");
+          throw new Error(`Nenhum provedor gerou imagem: ${errors}`);
         }
 
-        console.log(`✅ Image generated (model: ${result.model}, ref: ${result.usedReference})`);
+        // Sort by overall score (best first)
+        successfulResults.sort((a, b) => b.scores.overall - a.scores.overall);
 
-        // Upload to storage
-        const binaryData = dataUrlToUint8Array(result.imageDataUrl);
-        
-        if (!binaryData) {
-          throw new Error("Falha ao processar imagem gerada");
-        }
-        
-        const storagePath = `${generation.tenant_id}/${genId}/variant_1.png`;
-        
+        const winner = successfulResults[0];
+        console.log(`🏆 Winner: ${winner.provider} (score: ${winner.scores.overall.toFixed(2)})`);
+
+        // Upload winner to storage
+        const binaryData = Uint8Array.from(atob(winner.imageBase64!), (c) => c.charCodeAt(0));
+        const storagePath = `${generation.tenant_id}/${genId}/${winner.provider}_winner.png`;
+
         const { error: uploadError } = await supabase.storage
           .from("media-assets")
-          .upload(storagePath, binaryData, {
-            contentType: "image/png",
-            upsert: true,
-          });
+          .upload(storagePath, binaryData, { contentType: "image/png", upsert: true });
 
         if (uploadError) {
           console.error("❌ Upload error:", uploadError);
@@ -313,23 +492,20 @@ BRIEFING: ${generation.prompt_final}`;
         }
 
         // Create variant record
-        await supabase
-          .from("media_asset_variants")
-          .insert({
-            generation_id: genId,
-            variant_index: 1,
-            storage_path: storagePath,
-            mime_type: "image/png",
-            file_size: binaryData.length,
-            width: parseInt(imageSize.split("x")[0]) || 1024,
-            height: parseInt(imageSize.split("x")[1]) || 1024,
-          });
+        await supabase.from("media_asset_variants").insert({
+          generation_id: genId,
+          variant_index: 1,
+          storage_path: storagePath,
+          mime_type: "image/png",
+          file_size: binaryData.length,
+          width: 1024,
+          height: 1024,
+        });
 
         // Get public URL
         const { data: publicUrlData } = supabase.storage
           .from("media-assets")
           .getPublicUrl(storagePath);
-
         const publicUrl = publicUrlData?.publicUrl;
 
         // Update calendar item with asset URL
@@ -338,48 +514,79 @@ BRIEFING: ${generation.prompt_final}`;
             .from("media_calendar_items")
             .update({ asset_url: publicUrl, asset_thumbnail_url: publicUrl })
             .eq("id", generation.calendar_item_id);
+          console.log(`✅ Calendar item ${generation.calendar_item_id} updated with winner`);
+        }
+
+        // Also upload runner-up if exists (for comparison)
+        if (successfulResults.length > 1) {
+          const runnerUp = successfulResults[1];
+          const runnerUpPath = `${generation.tenant_id}/${genId}/${runnerUp.provider}_alt.png`;
+          const runnerUpBinary = Uint8Array.from(atob(runnerUp.imageBase64!), (c) => c.charCodeAt(0));
           
-          console.log(`✅ Calendar item ${generation.calendar_item_id} updated`);
+          await supabase.storage
+            .from("media-assets")
+            .upload(runnerUpPath, runnerUpBinary, { contentType: "image/png", upsert: true });
+
+          await supabase.from("media_asset_variants").insert({
+            generation_id: genId,
+            variant_index: 2,
+            storage_path: runnerUpPath,
+            mime_type: "image/png",
+            file_size: runnerUpBinary.length,
+            width: 1024,
+            height: 1024,
+          });
+          console.log(`📸 Runner-up saved: ${runnerUp.provider} (score: ${runnerUp.scores.overall.toFixed(2)})`);
         }
 
         const elapsedMs = Date.now() - genStartTime;
 
-        // Mark as succeeded
+        // Mark as succeeded with full metadata
         await supabase
           .from("media_asset_generations")
-          .update({ 
+          .update({
             status: "succeeded",
             completed_at: new Date().toISOString(),
-            provider: "lovable-ai",
-            model: result.model,
+            provider: winner.provider === 'openai' ? 'lovable-ai-pro' : 'lovable-ai',
+            model: winner.provider === 'openai' ? 'google/gemini-3-pro-image-preview' : 'google/gemini-2.5-flash-image',
             settings: {
               ...settings,
-              actual_variant_count: 1,
-              ai_provider_used: "lovable-ai",
+              actual_variant_count: successfulResults.length,
               processing_time_ms: elapsedMs,
-              used_product_reference: result.usedReference,
+              used_product_reference: winner.usedReference,
               product_asset_url: productWithImage?.image_url || null,
+              pipeline_version: VERSION,
+              winner: {
+                provider: winner.provider,
+                scores: winner.scores,
+              },
+              all_results: successfulResults.map((r) => ({
+                provider: r.provider,
+                scores: r.scores,
+              })),
             },
           })
           .eq("id", genId);
 
         processed++;
         results.push({
-          id: genId, status: "succeeded", type: "image",
-          model: result.model, timeMs: elapsedMs,
-          usedProductReference: result.usedReference,
-          productName: productWithImage?.name || null,
+          id: genId,
+          status: "succeeded",
+          winner: winner.provider,
+          winnerScore: winner.scores.overall,
+          totalVariants: successfulResults.length,
+          timeMs: elapsedMs,
         });
-        console.log(`✅ Generation ${genId} done (${elapsedMs}ms)`);
+        console.log(`✅ Generation ${genId} done (${elapsedMs}ms, winner: ${winner.provider})`);
 
       } catch (genError) {
         console.error(`❌ Error processing ${genId}:`, genError);
-        
+
         const errorMessage = genError instanceof Error ? genError.message : "Erro desconhecido";
-        
+
         await supabase
           .from("media_asset_generations")
-          .update({ 
+          .update({
             status: "failed",
             error_message: errorMessage,
             completed_at: new Date().toISOString(),
@@ -392,8 +599,14 @@ BRIEFING: ${generation.prompt_final}`;
     }
 
     return new Response(
-      JSON.stringify({ success: true, processed, failed, results,
-        message: `${processed} gerações processadas, ${failed} falhas` }),
+      JSON.stringify({
+        success: true,
+        processed,
+        failed,
+        results,
+        version: VERSION,
+        message: `${processed} gerações processadas, ${failed} falhas`,
+      }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
