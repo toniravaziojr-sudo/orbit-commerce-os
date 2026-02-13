@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWithinInterval, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, ArrowLeft, Plus, Sparkles, Image, Check, Loader2, Send, AlertCircle, MousePointer2, Instagram, Facebook, Newspaper, Trash2, LayoutGrid, FileText } from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowLeft, Plus, Sparkles, Image, Check, Loader2, Send, AlertCircle, MousePointer2, Instagram, Facebook, Newspaper, Trash2, LayoutGrid, FileText, PenTool } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -103,6 +103,7 @@ export function CampaignCalendar() {
   const [isApproving, setIsApproving] = useState(false);
   const [selectedDays, setSelectedDays] = useState<Set<string>>(new Set());
   const [isSelectMode, setIsSelectMode] = useState(false);
+  const [isGeneratingCopys, setIsGeneratingCopys] = useState(false);
 
   const days = useMemo(() => {
     const monthStart = startOfMonth(currentMonth);
@@ -271,6 +272,46 @@ export function CampaignCalendar() {
       setIsGenerating(false);
     }
   };
+
+  // Gerar Copys IA
+  const handleGenerateCopys = async () => {
+    if (!currentTenant || !campaignId) return;
+    
+    setIsGeneratingCopys(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("media-generate-copys", {
+        body: { 
+          campaign_id: campaignId, 
+          tenant_id: currentTenant.id,
+        },
+      });
+
+      if (error) throw error;
+      
+      if (data?.success) {
+        toast.success(data.message || "Copys geradas com sucesso!");
+        await refetchItems();
+        queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
+      } else {
+        toast.error(data?.error || "Erro ao gerar copys");
+      }
+    } catch (err) {
+      console.error("Error generating copys:", err);
+      toast.error("Erro ao gerar copys. Tente novamente.");
+    } finally {
+      setIsGeneratingCopys(false);
+    }
+  };
+
+  // Conta itens que precisam de copy (têm título mas sem copy)
+  const itemsNeedingCopy = useMemo(() => {
+    if (!items) return 0;
+    return items.filter(i => 
+      ["draft", "suggested"].includes(i.status) && 
+      i.title && 
+      (!i.copy || i.copy.trim() === "")
+    ).length;
+  }, [items]);
 
   // Gerar Criativos
   const [generationProgress, setGenerationProgress] = useState<{ total: number; completed: number } | null>(null);
@@ -722,6 +763,23 @@ export function CampaignCalendar() {
             {/* Ações para Redes Sociais */}
             {hasSuggestions && campaign?.target_channel !== "blog" && (
               <>
+                {/* Gerar Copys IA */}
+                {itemsNeedingCopy > 0 && (
+                  <Button 
+                    variant="outline"
+                    onClick={handleGenerateCopys}
+                    disabled={isGeneratingCopys}
+                    className="gap-2"
+                  >
+                    {isGeneratingCopys ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <PenTool className="h-4 w-4" />
+                    )}
+                    {isGeneratingCopys ? "Gerando Copys..." : `Gerar Copys IA (${itemsNeedingCopy})`}
+                  </Button>
+                )}
+
                 <Button 
                   variant="outline"
                   onClick={handleGenerateCreatives}
@@ -780,6 +838,22 @@ export function CampaignCalendar() {
             {/* Ações para Blog */}
             {hasSuggestions && campaign?.target_channel === "blog" && (
               <>
+                {/* Gerar Copys IA - blog */}
+                {itemsNeedingCopy > 0 && (
+                  <Button 
+                    variant="outline"
+                    onClick={handleGenerateCopys}
+                    disabled={isGeneratingCopys}
+                    className="gap-2"
+                  >
+                    {isGeneratingCopys ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <PenTool className="h-4 w-4" />
+                    )}
+                    {isGeneratingCopys ? "Gerando Copys..." : `Gerar Copys IA (${itemsNeedingCopy})`}
+                  </Button>
+                )}
                 {/* Aprovar Campanha - blog */}
                 {itemsReadyToApprove > 0 && (
                   <Button 
