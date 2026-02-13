@@ -297,10 +297,30 @@ O componente `ImageUpload` é usado para upload de logo e favicon nas configura�
 
 ---
 
+## Gestor de Mídias IA — Criativos (Upload/Drive)
+
+O fluxo de criação manual de publicações no Gestor de Mídias (`/media`) utiliza o `UniversalImageUploader` para seleção de criativos, garantindo acesso a **Upload**, **Meu Drive** e **URL** em todos os formatos (Feed e Stories).
+
+| Componente | Integração |
+|------------|------------|
+| `PublicationDialog.tsx` | `UniversalImageUploader` para Feed e Stories |
+| `CalendarItemDialog.tsx` | `UniversalImageUploader` para itens do calendário |
+
+### Regra
+
+| ❌ Proibido | ✅ Correto |
+|-------------|------------|
+| Input file simples sem acesso ao Drive | `UniversalImageUploader` com abas Upload/Drive/URL |
+| Stories sem campo de upload manual | Stories com `UniversalImageUploader` igual ao Feed |
+
+---
+
 ## Histórico de Alterações
 
 | Data | Alteração |
 |------|-----------|
+| 2025-02-13 | Integrado UniversalImageUploader no PublicationDialog (Feed + Stories) e CalendarItemDialog |
+| 2025-02-13 | Corrigido Stories sem opção de upload manual de criativos |
 | 2025-01-31 | Corrigido fluxo de substituição de logo/favicon para chamar onChange() após upload |
 | 2025-01-31 | Adicionada recomendação de tamanho (200x60px) na descrição do campo logo |
 | 2025-01-31 | Reset do input file após upload para permitir reenvio do mesmo arquivo |
