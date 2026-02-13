@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const VERSION = "2.1.0"; // Fix: polling for images, retry on transient errors, API v21.0
+const VERSION = "2.2.0"; // Finalize campaign: sort by date, stagger past items with 30s interval
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -110,25 +110,45 @@ serve(async (req) => {
       return jsonResponse({ success: false, error: "Nenhum item aprovado encontrado." });
     }
 
+    // Sort items by scheduled_date + scheduled_time (chronological order)
+    const sortedItems = [...items].sort((a, b) => {
+      const dateA = `${a.scheduled_date}T${a.scheduled_time || "10:00:00"}`;
+      const dateB = `${b.scheduled_date}T${b.scheduled_time || "10:00:00"}`;
+      return dateA.localeCompare(dateB);
+    });
+
     let published = 0;
     let scheduled = 0;
     let failed = 0;
     const errors: string[] = [];
+    const STAGGER_INTERVAL_MS = 30_000; // 30 seconds between immediate publishes
+    let immediatePublishIndex = 0;
 
-    for (const item of items) {
+    console.log(`[meta-publish-post][${VERSION}] Processing ${sortedItems.length} items for tenant ${tenant_id}`);
+
+    for (const item of sortedItems) {
       try {
         const targetChannel = item.target_channel || "facebook";
         const contentType = item.content_type || "image";
         
         // Build scheduled datetime from item
         const scheduledAt = buildScheduledAt(item.scheduled_date, item.scheduled_time);
-        const isFutureSchedule = scheduledAt && new Date(scheduledAt) > new Date(Date.now() + 15 * 60 * 1000); // >15min future
+        const now = new Date();
+        const scheduledDate = scheduledAt ? new Date(scheduledAt) : now;
+        const isFutureSchedule = scheduledDate > new Date(now.getTime() + 15 * 60 * 1000); // >15min future
         
         const page = assets.pages[0];
         const pageAccessToken = page.access_token || userAccessToken;
         
         let result: any = null;
         let finalStatus = "published";
+
+        // For past items, stagger with 30s interval to avoid API rate limits
+        if (!isFutureSchedule && immediatePublishIndex > 0) {
+          const waitMs = STAGGER_INTERVAL_MS * immediatePublishIndex;
+          console.log(`[meta-publish-post] Staggering item ${item.id}: waiting ${waitMs / 1000}s before publishing`);
+          await new Promise(resolve => setTimeout(resolve, waitMs));
+        }
 
         if (targetChannel === "instagram" || targetChannel === "all") {
           const igAccount = assets.instagram_accounts?.[0];
@@ -145,6 +165,7 @@ serve(async (req) => {
                 item,
                 contentType
               );
+              if (!isFutureSchedule) immediatePublishIndex++;
             }
           } else {
             throw new Error("Nenhuma conta Instagram conectada");
@@ -169,6 +190,7 @@ serve(async (req) => {
               item,
               contentType
             );
+            if (targetChannel === "facebook") immediatePublishIndex++;
           }
         }
 
@@ -193,16 +215,22 @@ serve(async (req) => {
           created_by: user.id,
         });
 
-        // Update calendar item status
+        // Update calendar item status + published_at
+        const updateData: Record<string, any> = { status: finalStatus };
+        if (finalStatus === "published") {
+          updateData.published_at = new Date().toISOString();
+        }
         await supabase
           .from("media_calendar_items")
-          .update({ status: finalStatus })
+          .update(updateData)
           .eq("id", item.id);
 
         if (finalStatus === "scheduled") {
           scheduled++;
+          console.log(`[meta-publish-post] Item ${item.id} scheduled for ${scheduledAt}`);
         } else {
           published++;
+          console.log(`[meta-publish-post] Item ${item.id} published immediately`);
         }
       } catch (itemError: any) {
         failed++;

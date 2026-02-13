@@ -444,7 +444,7 @@ export function CampaignCalendar() {
     },
     {
       number: isBlog ? 5 : 6,
-      label: isScheduling ? "Publicando..." : "Publicar",
+      label: isScheduling ? "Finalizando..." : "Finalizar Campanha",
       icon: <Send className="h-3.5 w-3.5" />,
       action: handlePublish,
       isActive: hasSuggestions === true && stats.approved > 0,
