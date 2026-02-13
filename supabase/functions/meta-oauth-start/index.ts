@@ -35,7 +35,7 @@ const SCOPE_PACKS: Record<string, string[]> = {
     "pages_read_engagement",
     "instagram_basic",
     "instagram_content_publish",
-    "instagram_manage_insights",
+    // instagram_manage_insights requer App Review - adicionar após aprovação
   ],
   // Ads/Insights (campanhas e métricas)
   ads: [
