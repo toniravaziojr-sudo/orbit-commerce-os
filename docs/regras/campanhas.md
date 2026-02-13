@@ -378,19 +378,59 @@ POST /meta-publish-post
 
 ---
 
-## Geração de Assets
+## Geração de Criativos (Imagens) — Dual Provider v5.0
 
-### Sem Produto (Lovable AI)
+### Arquitetura Compartilhada
+
+A geração de imagens usa a **mesma arquitetura dual-provider** em ambos os módulos:
+
+| Módulo | Edge Function | Versão |
+|--------|---------------|--------|
+| **Gestão de Criativos** (`/creatives`) | `creative-image-generate` | v3.0 |
+| **Gestor de Mídias IA** (`/media`) | `media-process-generation-queue` | v5.0 |
+
+### Provedores via Lovable AI Gateway
+
+| Provider | Modelo | Uso |
+|----------|--------|-----|
+| **Gemini Flash** | `google/gemini-2.5-flash-image` | Geração rápida (padrão) |
+| **OpenAI (Gemini Pro)** | `google/gemini-3-pro-image-preview` | Alta qualidade, fotorrealismo |
+| **QA Scorer** | `google/gemini-3-flash-preview` | Avaliação de realismo automática |
+
+### Pipeline de Geração
+
 ```
-Cenários, lifestyle, conceitos
-→ gemini-2.5-flash-image
+1. DOWNLOAD: Baixar imagem do produto como referência (se aplicável)
+2. GENERATE: Gerar com AMBOS provedores em PARALELO
+3. QA SCORE: Avaliar realismo de cada resultado
+   - Realism: 40% (parece foto real?)
+   - Label: 25% (rótulo fiel?)
+   - Quality: 20% (nitidez, resolução)
+   - Composition: 15% (enquadramento)
+4. SELECT: Escolher WINNER pelo maior score overall
+5. UPLOAD: Salvar winner + runner-up no storage
+6. UPDATE: Atualizar calendar_item com asset_url do winner
 ```
 
-### Com Produto (OpenAI)
-```
-Composição com imagem real do produto
-→ dall-e-3
-```
+### Score Mínimo de Aprovação: **70%**
+
+### Comportamento por Cenário
+
+| Cenário | Comportamento |
+|---------|---------------|
+| Com produto (referência) | Envia imagem base64 + prompt → composição fiel |
+| Sem produto | Text-to-image puro |
+| Kit (múltiplos produtos) | Prompt adaptado: flatlay/bancada, proibido segurar múltiplos |
+
+### Custos Estimados
+
+| Configuração | Custo |
+|--------------|-------|
+| 1 provedor (Gemini Flash) | ~R$ 0,17/imagem |
+| 1 provedor (OpenAI/Pro) | ~R$ 0,35/imagem |
+| Dual provider + QA | ~R$ 0,60/imagem |
+
+> **IMPORTANTE:** Ambos módulos usam `LOVABLE_API_KEY` (auto-configurada). Não requer API key externa.
 
 ---
 
@@ -513,7 +553,8 @@ Usa técnicas AIDA, PAS e storytelling.
 | Ignorar canal alvo | Respeitar target_channel da campanha |
 | Misturar fluxos Blog/Mídias/YouTube | Usar `campaignType` para separar |
 | Upload YouTube sem verificar créditos | Sempre verificar saldo antes |
-| Usar fal.ai para vídeos | Usar pipeline OpenAI/Sora com QA |
+| Usar fal.ai para imagens | Usar Lovable AI Gateway (Gemini + OpenAI dual provider) |
+| Usar apenas 1 provedor para imagens | Dual provider com QA Scorer para máximo realismo |
 | Publicar no Instagram sem aguardar container FINISHED | Sempre fazer polling do status_code antes de media_publish |
 | Publicar sem criar registro em social_posts | Toda publicação Meta deve ter registro para evidência App Review |
 | Gerar copys na IA de Estratégia | Estratégia gera apenas título/tema; Copys são geradas pela IA Copywriter |
@@ -535,5 +576,5 @@ Usa técnicas AIDA, PAS e storytelling.
 - [x] Conexão com Meta (nativa via Graph API)
 - [x] Tabela social_posts para evidências App Review
 - [x] Barra de ações progressiva no calendário
-- [ ] Geração de imagens
+- [x] Geração de imagens (dual provider v5.0 — Gemini Flash + OpenAI/Pro + QA Scorer)
 - [ ] Publicação automática (worker/cron)
