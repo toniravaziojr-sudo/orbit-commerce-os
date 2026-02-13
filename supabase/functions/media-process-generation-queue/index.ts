@@ -1,6 +1,20 @@
+/**
+ * Media Process Generation Queue — v4.0 (Lovable AI Gateway)
+ * 
+ * Migrado de Fal.AI para Lovable AI Gateway (Gemini + OpenAI)
+ * Mesma abordagem do creative-image-generate (dual provider)
+ * 
+ * Suporta:
+ * - Gemini (google/gemini-2.5-flash-image) — padrão, rápido
+ * - OpenAI images API — quando disponível
+ * - Geração com referência de produto (image editing)
+ * - Geração sem produto (text-to-image)
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getCredential } from "../_shared/platform-credentials.ts";
+
+const VERSION = '4.0.0';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,7 +30,6 @@ interface GenerationSettings {
   needs_product_image?: boolean;
   is_kit_scenario?: boolean;
   image_size?: string;
-  // Video-specific settings
   asset_type?: "image" | "video";
   duration?: number;
   aspect_ratio?: string;
@@ -25,7 +38,7 @@ interface GenerationSettings {
 }
 
 // Download image and convert to base64 data URL
-async function downloadImageAsDataUrl(url: string): Promise<string | null> {
+async function downloadImageAsBase64Url(url: string): Promise<string | null> {
   try {
     console.log("📥 Downloading image from:", url.substring(0, 100));
     const response = await fetch(url);
@@ -50,326 +63,6 @@ async function downloadImageAsDataUrl(url: string): Promise<string | null> {
   }
 }
 
-// Extract base64 from data URL
-function extractBase64FromDataUrl(dataUrl: string): string | null {
-  const matches = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-  return matches ? matches[2] : null;
-}
-
-/**
- * GERAÇÃO COM FAL.AI - gpt-image-1.5/edit (IMAGE-TO-IMAGE)
- * Usa a imagem REAL do produto e cria uma cena/contexto
- */
-async function editWithFalAI(
-  falApiKey: string,
-  prompt: string,
-  productImageBase64: string
-): Promise<{ imageDataUrl: string | null; model: string; error?: string; usedReference: boolean }> {
-  try {
-    console.log("🎨 === Fal.AI gpt-image-1.5/edit - PRODUTO REAL ===");
-    
-    const response = await fetch("https://queue.fal.run/fal-ai/gpt-image-1.5/edit", {
-      method: "POST",
-      headers: {
-        "Authorization": `Key ${falApiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        prompt: prompt,
-        image_url: `data:image/png;base64,${productImageBase64}`,
-        quality: "high",
-        output_format: "png",
-        safety_tolerance: "6",
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("❌ Fal.AI edit error:", response.status, errorText);
-      return { imageDataUrl: null, model: "gpt-image-1.5/edit", error: `HTTP ${response.status}: ${errorText}`, usedReference: true };
-    }
-
-    const data = await response.json();
-    console.log("📦 Fal.AI response:", JSON.stringify(data, null, 2).substring(0, 500));
-    
-    // Handle queue response - get result URL
-    if (data.request_id) {
-      console.log("⏳ Fal.AI queued, polling for result...");
-      return await pollFalAIResult(falApiKey, data.request_id, "gpt-image-1.5/edit", true);
-    }
-
-    // Direct response
-    const imageUrl = data.images?.[0]?.url || data.image?.url;
-    
-    if (!imageUrl) {
-      console.error("❌ No image in Fal.AI response:", data);
-      return { imageDataUrl: null, model: "gpt-image-1.5/edit", error: "No image in response", usedReference: true };
-    }
-
-    // Download the generated image
-    const generatedImageDataUrl = await downloadImageAsDataUrl(imageUrl);
-    if (!generatedImageDataUrl) {
-      return { imageDataUrl: null, model: "gpt-image-1.5/edit", error: "Failed to download generated image", usedReference: true };
-    }
-
-    console.log("✅ Fal.AI edit with product reference - SUCCESS");
-    return { imageDataUrl: generatedImageDataUrl, model: "gpt-image-1.5/edit", usedReference: true };
-  } catch (error) {
-    console.error("❌ Error calling Fal.AI edit:", error);
-    return { imageDataUrl: null, model: "gpt-image-1.5/edit", error: String(error), usedReference: true };
-  }
-}
-
-/**
- * GERAÇÃO COM FAL.AI - gpt-image-1.5 (TEXT-TO-IMAGE)
- * Usado quando não há produto específico
- */
-async function generateWithFalAI(
-  falApiKey: string,
-  prompt: string,
-  aspectRatio: string = "1:1"
-): Promise<{ imageDataUrl: string | null; model: string; error?: string; usedReference: boolean }> {
-  try {
-    console.log("🎨 === Fal.AI gpt-image-1.5 Text-to-Image ===");
-    
-    const response = await fetch("https://queue.fal.run/fal-ai/gpt-image-1.5", {
-      method: "POST",
-      headers: {
-        "Authorization": `Key ${falApiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        prompt: prompt,
-        aspect_ratio: aspectRatio,
-        quality: "high",
-        output_format: "png",
-        safety_tolerance: "6",
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("❌ Fal.AI error:", response.status, errorText);
-      return { imageDataUrl: null, model: "gpt-image-1.5", error: `HTTP ${response.status}: ${errorText}`, usedReference: false };
-    }
-
-    const data = await response.json();
-    console.log("📦 Fal.AI response:", JSON.stringify(data, null, 2).substring(0, 500));
-    
-    // Handle queue response
-    if (data.request_id) {
-      console.log("⏳ Fal.AI queued, polling for result...");
-      return await pollFalAIResult(falApiKey, data.request_id, "gpt-image-1.5", false);
-    }
-
-    // Direct response
-    const imageUrl = data.images?.[0]?.url || data.image?.url;
-    
-    if (!imageUrl) {
-      console.error("❌ No image in Fal.AI response:", data);
-      return { imageDataUrl: null, model: "gpt-image-1.5", error: "No image in response", usedReference: false };
-    }
-
-    const generatedImageDataUrl = await downloadImageAsDataUrl(imageUrl);
-    if (!generatedImageDataUrl) {
-      return { imageDataUrl: null, model: "gpt-image-1.5", error: "Failed to download generated image", usedReference: false };
-    }
-
-    console.log("✅ Fal.AI text-to-image - SUCCESS");
-    return { imageDataUrl: generatedImageDataUrl, model: "gpt-image-1.5", usedReference: false };
-  } catch (error) {
-    console.error("❌ Error calling Fal.AI:", error);
-    return { imageDataUrl: null, model: "gpt-image-1.5", error: String(error), usedReference: false };
-  }
-}
-
-/**
- * GERAÇÃO DE VÍDEO COM SORA 2 - Image-to-Video Pro
- * Usa imagem do produto como primeiro frame para manter fidelidade
- */
-async function generateVideoWithSora2(
-  falApiKey: string,
-  prompt: string,
-  sourceImageUrl: string,
-  duration: number = 5,
-  aspectRatio: string = "16:9"
-): Promise<{ videoUrl: string | null; model: string; error?: string }> {
-  try {
-    console.log("🎬 === Fal.AI Sora 2 Image-to-Video Pro ===");
-    console.log(`   Source image: ${sourceImageUrl.substring(0, 80)}...`);
-    console.log(`   Duration: ${duration}s, Aspect: ${aspectRatio}`);
-    
-    const response = await fetch("https://queue.fal.run/fal-ai/sora-2/image-to-video/pro", {
-      method: "POST",
-      headers: {
-        "Authorization": `Key ${falApiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        prompt: prompt,
-        image_url: sourceImageUrl,
-        duration: duration,
-        aspect_ratio: aspectRatio,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("❌ Sora 2 error:", response.status, errorText);
-      return { videoUrl: null, model: "sora-2/image-to-video/pro", error: `HTTP ${response.status}: ${errorText}` };
-    }
-
-    const data = await response.json();
-    console.log("📦 Sora 2 response:", JSON.stringify(data, null, 2).substring(0, 500));
-    
-    // Handle queue response - Sora 2 always queues
-    if (data.request_id) {
-      console.log("⏳ Sora 2 queued, polling for result (this may take 2-5 minutes)...");
-      return await pollSora2Result(falApiKey, data.request_id);
-    }
-
-    // Direct response (unlikely for Sora 2)
-    const videoUrl = data.video?.url;
-    
-    if (!videoUrl) {
-      console.error("❌ No video in Sora 2 response:", data);
-      return { videoUrl: null, model: "sora-2/image-to-video/pro", error: "No video in response" };
-    }
-
-    console.log("✅ Sora 2 video generated - SUCCESS");
-    return { videoUrl, model: "sora-2/image-to-video/pro" };
-  } catch (error) {
-    console.error("❌ Error calling Sora 2:", error);
-    return { videoUrl: null, model: "sora-2/image-to-video/pro", error: String(error) };
-  }
-}
-
-/**
- * Poll Sora 2 queue for video result
- * Sora 2 takes longer (2-5 minutes typically)
- */
-async function pollSora2Result(
-  falApiKey: string,
-  requestId: string,
-  maxAttempts: number = 150 // ~5 minutes with 2s intervals
-): Promise<{ videoUrl: string | null; model: string; error?: string }> {
-  const statusUrl = `https://queue.fal.run/fal-ai/sora-2-image-to-video-pro/requests/${requestId}/status`;
-  
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
-    
-    try {
-      const statusResponse = await fetch(statusUrl, {
-        headers: { "Authorization": `Key ${falApiKey}` },
-      });
-      
-      if (!statusResponse.ok) {
-        console.log(`⏳ Sora 2 polling attempt ${attempt + 1}/${maxAttempts}...`);
-        continue;
-      }
-      
-      const statusData = await statusResponse.json();
-      console.log(`📊 Sora 2 Status: ${statusData.status}`);
-      
-      if (statusData.status === "COMPLETED") {
-        // Get result
-        const resultUrl = `https://queue.fal.run/fal-ai/sora-2-image-to-video-pro/requests/${requestId}`;
-        const resultResponse = await fetch(resultUrl, {
-          headers: { "Authorization": `Key ${falApiKey}` },
-        });
-        
-        if (!resultResponse.ok) {
-          return { videoUrl: null, model: "sora-2/image-to-video/pro", error: "Failed to fetch video result" };
-        }
-        
-        const resultData = await resultResponse.json();
-        const videoUrl = resultData.video?.url;
-        
-        if (!videoUrl) {
-          return { videoUrl: null, model: "sora-2/image-to-video/pro", error: "No video in completed result" };
-        }
-        
-        console.log("✅ Sora 2 polling complete - VIDEO READY");
-        return { videoUrl, model: "sora-2/image-to-video/pro" };
-      }
-      
-      if (statusData.status === "FAILED") {
-        return { videoUrl: null, model: "sora-2/image-to-video/pro", error: statusData.error || "Video generation failed" };
-      }
-    } catch (pollError) {
-      console.error(`⚠️ Sora 2 polling error (attempt ${attempt + 1}):`, pollError);
-    }
-  }
-  
-  return { videoUrl: null, model: "sora-2/image-to-video/pro", error: "Video generation timeout (exceeded 5 minutes)" };
-}
-
-/**
- * Poll Fal.AI queue for result
- */
-async function pollFalAIResult(
-  falApiKey: string,
-  requestId: string,
-  model: string,
-  usedReference: boolean,
-  maxAttempts: number = 60
-): Promise<{ imageDataUrl: string | null; model: string; error?: string; usedReference: boolean }> {
-  const statusUrl = `https://queue.fal.run/fal-ai/${model.replace('/', '-')}/requests/${requestId}/status`;
-  
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
-    
-    try {
-      const statusResponse = await fetch(statusUrl, {
-        headers: { "Authorization": `Key ${falApiKey}` },
-      });
-      
-      if (!statusResponse.ok) {
-        console.log(`⏳ Polling attempt ${attempt + 1}/${maxAttempts}...`);
-        continue;
-      }
-      
-      const statusData = await statusResponse.json();
-      console.log(`📊 Status: ${statusData.status}`);
-      
-      if (statusData.status === "COMPLETED") {
-        // Get result
-        const resultUrl = `https://queue.fal.run/fal-ai/${model.replace('/', '-')}/requests/${requestId}`;
-        const resultResponse = await fetch(resultUrl, {
-          headers: { "Authorization": `Key ${falApiKey}` },
-        });
-        
-        if (!resultResponse.ok) {
-          return { imageDataUrl: null, model, error: "Failed to fetch result", usedReference };
-        }
-        
-        const resultData = await resultResponse.json();
-        const imageUrl = resultData.images?.[0]?.url || resultData.image?.url;
-        
-        if (!imageUrl) {
-          return { imageDataUrl: null, model, error: "No image in completed result", usedReference };
-        }
-        
-        const generatedImageDataUrl = await downloadImageAsDataUrl(imageUrl);
-        if (!generatedImageDataUrl) {
-          return { imageDataUrl: null, model, error: "Failed to download generated image", usedReference };
-        }
-        
-        console.log("✅ Fal.AI polling complete - SUCCESS");
-        return { imageDataUrl: generatedImageDataUrl, model, usedReference };
-      }
-      
-      if (statusData.status === "FAILED") {
-        return { imageDataUrl: null, model, error: statusData.error || "Generation failed", usedReference };
-      }
-    } catch (pollError) {
-      console.error(`⚠️ Polling error (attempt ${attempt + 1}):`, pollError);
-    }
-  }
-  
-  return { imageDataUrl: null, model, error: "Polling timeout", usedReference };
-}
-
 // Convert data URL to binary
 function dataUrlToUint8Array(dataUrl: string): Uint8Array | null {
   try {
@@ -389,6 +82,85 @@ function dataUrlToUint8Array(dataUrl: string): Uint8Array | null {
   }
 }
 
+/**
+ * Generate image with Gemini via Lovable AI Gateway
+ * Supports both text-to-image and image editing (with reference)
+ */
+async function generateWithGemini(
+  apiKey: string,
+  prompt: string,
+  referenceImageUrl?: string | null
+): Promise<{ imageDataUrl: string | null; model: string; error?: string; usedReference: boolean }> {
+  const model = "google/gemini-2.5-flash-image";
+  
+  try {
+    console.log(`🎨 === Gemini Image Generation (ref: ${!!referenceImageUrl}) ===`);
+    
+    const messages: any[] = [];
+    
+    if (referenceImageUrl) {
+      // Image editing mode: send reference image + prompt
+      messages.push({
+        role: "user",
+        content: [
+          { type: "text", text: prompt },
+          { type: "image_url", image_url: { url: referenceImageUrl } }
+        ]
+      });
+    } else {
+      // Text-to-image mode
+      messages.push({
+        role: "user",
+        content: prompt
+      });
+    }
+    
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        modalities: ["image", "text"],
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Gemini error: ${response.status}`, errorText);
+      
+      if (response.status === 429) {
+        return { imageDataUrl: null, model, error: "Rate limit atingido. Tente novamente em alguns segundos.", usedReference: !!referenceImageUrl };
+      }
+      if (response.status === 402) {
+        return { imageDataUrl: null, model, error: "Créditos insuficientes. Adicione créditos ao workspace.", usedReference: !!referenceImageUrl };
+      }
+      
+      return { imageDataUrl: null, model, error: `HTTP ${response.status}: ${errorText.substring(0, 200)}`, usedReference: !!referenceImageUrl };
+    }
+
+    const data = await response.json();
+    
+    // Extract image from response
+    const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    
+    if (!imageUrl) {
+      console.error("❌ No image in Gemini response");
+      return { imageDataUrl: null, model, error: "IA não retornou imagem. Tente com um prompt diferente.", usedReference: !!referenceImageUrl };
+    }
+
+    console.log("✅ Gemini image generated successfully");
+    return { imageDataUrl: imageUrl, model, usedReference: !!referenceImageUrl };
+    
+  } catch (error) {
+    console.error("❌ Error calling Gemini:", error);
+    return { imageDataUrl: null, model, error: String(error), usedReference: !!referenceImageUrl };
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -396,19 +168,17 @@ serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-  // Get Fal.AI API key from platform credentials
-  const falApiKey = await getCredential(supabaseUrl, supabaseServiceKey, "FAL_API_KEY");
+  const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
   
-  if (!falApiKey) {
-    console.error("❌ FAL_API_KEY not configured");
+  if (!lovableApiKey) {
+    console.error("❌ LOVABLE_API_KEY not configured");
     return new Response(
-      JSON.stringify({ success: false, error: "Fal.AI API key não configurada. Configure em Integrações da Plataforma > IA" }),
+      JSON.stringify({ success: false, error: "LOVABLE_API_KEY não configurada" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
+
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
     // Fetch queued generations (limit 3)
@@ -434,7 +204,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`🚀 Processing ${generations.length} queued generations with Fal.AI`);
+    console.log(`[media-process-generation-queue v${VERSION}] Processing ${generations.length} queued generations`);
 
     let processed = 0;
     let failed = 0;
@@ -451,9 +221,8 @@ serve(async (req) => {
           .update({ status: "generating" })
           .eq("id", genId);
 
-        console.log(`\n========== 🎬 Processing generation ${genId} with Fal.AI ==========`);
+        console.log(`\n========== 🎬 Processing generation ${genId} ==========`);
 
-        // Parse settings
         const settings = (generation.settings || {}) as GenerationSettings;
         const assetType = settings.asset_type || "image";
         const contentType = settings.content_type || "image";
@@ -463,228 +232,70 @@ serve(async (req) => {
         const imageSize = settings.image_size || "1024x1024";
 
         console.log("📋 Settings:", JSON.stringify({
-          assetType,
-          contentType,
-          needsProductImage,
+          assetType, contentType, needsProductImage,
           matchedProductsCount: matchedProducts.length,
-          isKitScenario,
-          imageSize,
-        }, null, 2));
+          isKitScenario, imageSize,
+        }));
 
-        // ============ VIDEO GENERATION (Sora 2) ============
+        // Skip video generation for now (needs separate provider)
         if (assetType === "video") {
-          console.log("🎬 Processing VIDEO generation with Sora 2");
-          
-          const sourceImageUrl = settings.source_image_url;
-          const duration = settings.duration || 5;
-          const aspectRatio = settings.aspect_ratio || "16:9";
-          
-          if (!sourceImageUrl) {
-            throw new Error("Geração de vídeo requer imagem de origem (source_image_url)");
-          }
-          
-          const videoResult = await generateVideoWithSora2(
-            falApiKey,
-            generation.prompt_final,
-            sourceImageUrl,
-            duration,
-            aspectRatio
-          );
-          
-          if (!videoResult.videoUrl) {
-            throw new Error(videoResult.error || "Falha ao gerar vídeo - resposta vazia");
-          }
-          
-          console.log("✅ Video generated successfully");
-          
-          // Download and upload video to storage
-          const videoResponse = await fetch(videoResult.videoUrl);
-          if (!videoResponse.ok) {
-            throw new Error("Falha ao baixar vídeo gerado");
-          }
-          
-          const videoBuffer = await videoResponse.arrayBuffer();
-          const videoData = new Uint8Array(videoBuffer);
-          
-          const storagePath = `${generation.tenant_id}/${genId}/variant_1.mp4`;
-          
-          const { error: uploadError } = await supabase.storage
-            .from("media-assets")
-            .upload(storagePath, videoData, {
-              contentType: "video/mp4",
-              upsert: true,
-            });
-
-          if (uploadError) {
-            console.error("❌ Video upload error:", uploadError);
-            throw new Error("Falha ao salvar vídeo no storage");
-          }
-
-          // Create variant record for video
-          const { error: variantError } = await supabase
-            .from("media_asset_variants")
-            .insert({
-              generation_id: genId,
-              variant_index: 1,
-              storage_path: storagePath,
-              mime_type: "video/mp4",
-              file_size: videoData.length,
-              width: aspectRatio === "9:16" ? 720 : 1280,
-              height: aspectRatio === "9:16" ? 1280 : 720,
-            });
-
-          if (variantError) {
-            console.error("⚠️ Variant record error:", variantError);
-          }
-
-          // Get public URL
-          const { data: publicUrlData } = supabase.storage
-            .from("media-assets")
-            .getPublicUrl(storagePath);
-
-          const publicUrl = publicUrlData?.publicUrl;
-
-          // Update calendar item with video URL
-          if (publicUrl && generation.calendar_item_id) {
-            const { error: updateItemError } = await supabase
-              .from("media_calendar_items")
-              .update({ 
-                asset_url: publicUrl,
-                asset_thumbnail_url: publicUrl // For video, we use same URL
-              })
-              .eq("id", generation.calendar_item_id);
-
-            if (updateItemError) {
-              console.error("⚠️ Error updating calendar item:", updateItemError);
-            }
-          }
-
-          const elapsedMs = Date.now() - genStartTime;
-          const costEstimate = 0.50; // Sora 2 Pro estimate
-
-          await supabase
-            .from("media_asset_generations")
-            .update({ 
-              status: "succeeded",
-              completed_at: new Date().toISOString(),
-              provider: "fal-ai",
-              model: "sora-2/image-to-video/pro",
-              settings: {
-                ...settings,
-                actual_variant_count: 1,
-                cost_estimate: costEstimate,
-                ai_provider_used: "fal-ai",
-                processing_time_ms: elapsedMs,
-                used_product_reference: true,
-                product_asset_url: sourceImageUrl,
-              },
-            })
-            .eq("id", genId);
-
-          processed++;
-          results.push({
-            id: genId,
-            status: "succeeded",
-            type: "video",
-            model: "sora-2/image-to-video/pro",
-            cost: costEstimate,
-            timeMs: elapsedMs,
-            duration,
-          });
-          console.log(`✅ Video generation ${genId} completed (time: ${elapsedMs}ms, duration: ${duration}s)`);
-          continue; // Skip to next generation
+          throw new Error("Geração de vídeo não está disponível no momento. Use o Gestor de Criativos para vídeos.");
         }
 
-        // ============ IMAGE GENERATION ============
-        // Determine aspect ratio for Fal.AI
-        const aspectRatio = contentType === "story" || contentType === "reel" ? "9:16" : "1:1";
-
-        // Find product with image
+        // ============ IMAGE GENERATION via Lovable AI ============
         const productWithImage = matchedProducts.find(p => p.image_url);
-        
-        let result: { imageDataUrl: string | null; model: string; error?: string; usedReference: boolean };
-        let productReferenceBase64: string | null = null;
+        let referenceImageUrl: string | null = null;
         let finalPrompt = generation.prompt_final;
 
-        // DECISÃO CRÍTICA: Se temos produto com imagem, DEVEMOS usar edição (image-to-image)
+        // If product has image, download it for reference
         if (needsProductImage && productWithImage?.image_url) {
-          console.log(`📦 Product detected: "${productWithImage.name}" - Downloading image...`);
-          const productReferenceDataUrl = await downloadImageAsDataUrl(productWithImage.image_url);
+          console.log(`📦 Product: "${productWithImage.name}" - downloading reference...`);
+          referenceImageUrl = await downloadImageAsBase64Url(productWithImage.image_url);
           
-          if (!productReferenceDataUrl) {
-            throw new Error(`FALHA CRÍTICA: Não foi possível baixar a imagem do produto "${productWithImage.name}". Verifique se o produto tem imagem cadastrada corretamente.`);
+          if (!referenceImageUrl) {
+            throw new Error(`Não foi possível baixar a imagem do produto "${productWithImage.name}".`);
           }
           
-          productReferenceBase64 = extractBase64FromDataUrl(productReferenceDataUrl);
-          if (!productReferenceBase64) {
-            throw new Error(`FALHA CRÍTICA: Não foi possível processar a imagem do produto "${productWithImage.name}".`);
-          }
-          
-          console.log("✅ Product image downloaded successfully");
-          
-          // Build edit prompt specifically for product placement
+          console.log("✅ Product reference downloaded");
+
+          // Build product-specific prompt
           const kitInstruction = isKitScenario 
             ? `CENÁRIO DE KIT (${matchedProducts.length} produtos):
 - PROIBIDO: pessoa segurando múltiplos produtos na mão
-- OBRIGATÓRIO: apresentar em bancada elegante, flatlay, prateleira ou ambiente lifestyle
-- Os produtos devem estar APOIADOS em superfície, nunca flutuando ou em mãos`
+- OBRIGATÓRIO: apresentar em bancada, flatlay ou ambiente lifestyle
+- Produtos APOIADOS em superfície, organizados elegantemente`
             : `CENÁRIO DE PRODUTO ÚNICO:
-- Pode mostrar modelo segurando o produto de forma natural
-- Máximo 1 produto por mão (total máximo 2 se usar ambas as mãos)
-- Pose natural e elegante`;
+- Pode mostrar modelo segurando de forma natural
+- Máximo 1 produto por mão, pose elegante`;
 
-          finalPrompt = `INSTRUÇÃO CRÍTICA - IMAGEM DE REFERÊNCIA:
-A imagem anexada mostra o produto REAL "${productWithImage.name}".
-
-SEU TRABALHO:
-1. Criar uma CENA/CONTEXTO profissional com este produto EXATO
-2. O produto na imagem final DEVE ser IDÊNTICO ao da referência (mesma embalagem, rótulo, cores, design)
-3. NÃO recrie, redesenhe ou invente um novo produto - USE O QUE ESTÁ NA REFERÊNCIA
+          finalPrompt = `A imagem anexada mostra o produto REAL "${productWithImage.name}".
+Crie uma CENA/CONTEXTO profissional com este produto EXATO.
+O produto DEVE ser IDÊNTICO à referência (mesma embalagem, rótulo, cores).
 
 ${kitInstruction}
 
-ESTILO VISUAL:
-- Fotografia profissional de alta qualidade, estilo editorial/UGC
-- Iluminação suave e premium (estúdio ou luz natural)
-- Fundo contextualizado (banheiro, quarto, lifestyle) ou limpo
+ESTILO: Fotografia profissional editorial/UGC, iluminação premium.
+FORMATO: ${contentType === "story" || contentType === "reel" ? "Vertical 9:16" : "Quadrado 1:1"}
 
-PROIBIÇÕES ABSOLUTAS:
-- NÃO inventar rótulos, logos ou textos na embalagem
-- NÃO alterar cores ou design do produto
-- NÃO duplicar o produto (gerar múltiplas cópias)
-- NÃO adicionar texto sobreposto na imagem
-- NÃO criar produtos genéricos ou "parecidos"
-- NÃO mostrar caixas se o produto não tem caixa
+PROIBIÇÕES: NÃO inventar rótulos/logos, NÃO alterar cores/design, NÃO duplicar produto, NÃO adicionar texto sobreposto.
 
-CONTEXTO DO BRIEFING:
-${generation.prompt_final}
-
-FORMATO: ${contentType === "story" || contentType === "reel" ? "Vertical 9:16" : "Quadrado 1:1"}`;
-
-          // Usar Fal.AI com imagem de referência (image-to-image)
-          result = await editWithFalAI(falApiKey, finalPrompt, productReferenceBase64);
-          
-        } else {
-          // Sem produto específico - geração genérica (text-to-image)
-          console.log("ℹ️ No specific product - using text-to-image generation");
-          result = await generateWithFalAI(falApiKey, finalPrompt, aspectRatio);
+BRIEFING: ${generation.prompt_final}`;
         }
 
-        // Verificar resultado
+        // Generate with Gemini
+        const result = await generateWithGemini(lovableApiKey, finalPrompt, referenceImageUrl);
+
         if (!result.imageDataUrl) {
-          throw new Error(result.error || "Falha ao gerar imagem - resposta vazia da IA");
+          throw new Error(result.error || "Falha ao gerar imagem");
         }
 
-        console.log(`✅ Image generated successfully with model: ${result.model}, usedReference: ${result.usedReference}`);
-
-        // Cost estimates (Fal.AI)
-        const costPerImage = 0.02; // Estimate for gpt-image-1.5
+        console.log(`✅ Image generated (model: ${result.model}, ref: ${result.usedReference})`);
 
         // Upload to storage
         const binaryData = dataUrlToUint8Array(result.imageDataUrl);
         
         if (!binaryData) {
-          throw new Error("Failed to convert image to binary for storage");
+          throw new Error("Falha ao processar imagem gerada");
         }
         
         const storagePath = `${generation.tenant_id}/${genId}/variant_1.png`;
@@ -702,7 +313,7 @@ FORMATO: ${contentType === "story" || contentType === "reel" ? "Vertical 9:16" :
         }
 
         // Create variant record
-        const { error: variantError } = await supabase
+        await supabase
           .from("media_asset_variants")
           .insert({
             generation_id: genId,
@@ -714,10 +325,6 @@ FORMATO: ${contentType === "story" || contentType === "reel" ? "Vertical 9:16" :
             height: parseInt(imageSize.split("x")[1]) || 1024,
           });
 
-        if (variantError) {
-          console.error("⚠️ Variant record error:", variantError);
-        }
-
         // Get public URL
         const { data: publicUrlData } = supabase.storage
           .from("media-assets")
@@ -727,99 +334,71 @@ FORMATO: ${contentType === "story" || contentType === "reel" ? "Vertical 9:16" :
 
         // Update calendar item with asset URL
         if (publicUrl && generation.calendar_item_id) {
-          const { error: updateItemError } = await supabase
+          await supabase
             .from("media_calendar_items")
-            .update({ 
-              asset_url: publicUrl,
-              asset_thumbnail_url: publicUrl 
-            })
+            .update({ asset_url: publicUrl, asset_thumbnail_url: publicUrl })
             .eq("id", generation.calendar_item_id);
-
-          if (updateItemError) {
-            console.error("⚠️ Error updating calendar item:", updateItemError);
-          } else {
-            console.log(`✅ Updated calendar item ${generation.calendar_item_id} with asset`);
-          }
+          
+          console.log(`✅ Calendar item ${generation.calendar_item_id} updated`);
         }
 
         const elapsedMs = Date.now() - genStartTime;
 
-        // Mark as succeeded with detailed logging
+        // Mark as succeeded
         await supabase
           .from("media_asset_generations")
           .update({ 
             status: "succeeded",
             completed_at: new Date().toISOString(),
-            provider: "fal-ai",
+            provider: "lovable-ai",
             model: result.model,
             settings: {
               ...settings,
               actual_variant_count: 1,
-              cost_estimate: costPerImage,
-              ai_provider_used: "fal-ai",
+              ai_provider_used: "lovable-ai",
               processing_time_ms: elapsedMs,
               used_product_reference: result.usedReference,
               product_asset_url: productWithImage?.image_url || null,
-              fallback_used: false,
             },
           })
           .eq("id", genId);
 
         processed++;
         results.push({
-          id: genId,
-          status: "succeeded",
-          type: "image",
-          model: result.model,
-          cost: costPerImage,
-          timeMs: elapsedMs,
+          id: genId, status: "succeeded", type: "image",
+          model: result.model, timeMs: elapsedMs,
           usedProductReference: result.usedReference,
           productName: productWithImage?.name || null,
         });
-        console.log(`✅ Generation ${genId} completed (model: ${result.model}, usedRef: ${result.usedReference}, time: ${elapsedMs}ms)`);
+        console.log(`✅ Generation ${genId} done (${elapsedMs}ms)`);
 
       } catch (genError) {
-        console.error(`❌ Error processing generation ${genId}:`, genError);
+        console.error(`❌ Error processing ${genId}:`, genError);
         
         const errorMessage = genError instanceof Error ? genError.message : "Erro desconhecido";
         
-        // Mark as failed with error details
         await supabase
           .from("media_asset_generations")
           .update({ 
             status: "failed",
             error_message: errorMessage,
             completed_at: new Date().toISOString(),
-            settings: {
-              ...((generation.settings || {}) as GenerationSettings),
-              fallback_used: false,
-              failure_reason: errorMessage,
-            },
           })
           .eq("id", genId);
 
         failed++;
-        results.push({
-          id: genId,
-          status: "failed",
-          error: errorMessage,
-        });
+        results.push({ id: genId, status: "failed", error: errorMessage });
       }
     }
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        processed,
-        failed,
-        results,
-        message: `Processadas ${processed} gerações com Fal.AI, ${failed} falhas` 
-      }),
+      JSON.stringify({ success: true, processed, failed, results,
+        message: `${processed} gerações processadas, ${failed} falhas` }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
   } catch (error) {
-    console.error("❌ Error in media-process-generation-queue:", error);
+    console.error(`[media-process-generation-queue v${VERSION}] Error:`, error);
     return new Response(
       JSON.stringify({ success: false, error: error instanceof Error ? error.message : "Erro interno" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
