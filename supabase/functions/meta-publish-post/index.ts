@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const VERSION = "2.0.0";
+const VERSION = "2.1.0"; // Fix: polling for images, retry on transient errors, API v21.0
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -276,7 +276,7 @@ async function scheduleToFacebook(
 
   if (contentType === "image" && item.asset_url) {
     // Scheduled photo post
-    const res = await fetch(`https://graph.facebook.com/v19.0/${pageId}/photos`, {
+    const res = await fetch(`https://graph.facebook.com/v21.0/${pageId}/photos`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -294,7 +294,7 @@ async function scheduleToFacebook(
 
   if (contentType === "video" || contentType === "reel") {
     if (!item.asset_url) throw new Error("URL do vídeo é obrigatória");
-    const res = await fetch(`https://graph.facebook.com/v19.0/${pageId}/videos`, {
+    const res = await fetch(`https://graph.facebook.com/v21.0/${pageId}/videos`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -319,7 +319,7 @@ async function scheduleToFacebook(
   };
   if (item.link_url) body.link = item.link_url;
 
-  const res = await fetch(`https://graph.facebook.com/v19.0/${pageId}/feed`, {
+  const res = await fetch(`https://graph.facebook.com/v21.0/${pageId}/feed`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -345,7 +345,7 @@ async function publishToFacebook(
   if (contentType === "video" || contentType === "reel") {
     if (!item.asset_url) throw new Error("URL do vídeo é obrigatória");
     
-    const res = await fetch(`https://graph.facebook.com/v19.0/${pageId}/videos`, {
+    const res = await fetch(`https://graph.facebook.com/v21.0/${pageId}/videos`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -360,7 +360,7 @@ async function publishToFacebook(
   }
 
   if (contentType === "image" && item.asset_url) {
-    const res = await fetch(`https://graph.facebook.com/v19.0/${pageId}/photos`, {
+    const res = await fetch(`https://graph.facebook.com/v21.0/${pageId}/photos`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -381,7 +381,7 @@ async function publishToFacebook(
   };
   if (item.link_url) body.link = item.link_url;
 
-  const res = await fetch(`https://graph.facebook.com/v19.0/${pageId}/feed`, {
+  const res = await fetch(`https://graph.facebook.com/v21.0/${pageId}/feed`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -403,7 +403,7 @@ async function publishToInstagram(
 ): Promise<any> {
   const caption = buildCaption(item);
 
-  // Step 1: Create media container
+  // Step 1: Create media container (with retry for transient errors)
   let containerBody: any = {
     caption,
     access_token: accessToken,
@@ -430,31 +430,45 @@ async function publishToInstagram(
     containerBody.image_url = item.asset_url;
   }
 
-  const containerRes = await fetch(
-    `https://graph.facebook.com/v19.0/${igAccountId}/media`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(containerBody),
+  // Retry logic for container creation (transient Meta errors)
+  let containerData: any = null;
+  const maxRetries = 3;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const containerRes = await fetch(
+      `https://graph.facebook.com/v21.0/${igAccountId}/media`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(containerBody),
+      }
+    );
+    containerData = await containerRes.json();
+    
+    if (!containerData.error) break; // Success
+    
+    // If it's a transient error and we have retries left, wait and retry
+    const isTransient = containerData.error?.is_transient === true || 
+      containerData.error?.message?.includes("unexpected error") ||
+      containerData.error?.message?.includes("Please retry");
+    
+    if (isTransient && attempt < maxRetries) {
+      console.log(`[meta-publish-post] Container transient error, retry ${attempt}/${maxRetries}...`);
+      await new Promise(resolve => setTimeout(resolve, 3000 * attempt)); // Backoff: 3s, 6s
+      continue;
     }
-  );
-  const containerData = await containerRes.json();
-  if (containerData.error) {
+    
     throw new Error(`Container: ${containerData.error.message}`);
   }
 
   const containerId = containerData.id;
   if (!containerId) throw new Error("Container ID não retornado");
 
-  // For video/reel, we need to wait for processing
-  if (contentType === "reel" || contentType === "video" || 
-      (contentType === "story" && item.asset_url?.match(/\.(mp4|mov|avi)$/i))) {
-    await waitForContainerReady(containerId, accessToken);
-  }
+  // ALWAYS wait for container to be ready (images AND videos need this)
+  await waitForContainerReady(containerId, accessToken);
 
   // Step 2: Publish the container
   const publishRes = await fetch(
-    `https://graph.facebook.com/v19.0/${igAccountId}/media_publish`,
+    `https://graph.facebook.com/v21.0/${igAccountId}/media_publish`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -473,28 +487,32 @@ async function publishToInstagram(
 }
 
 /**
- * Wait for Instagram container to finish processing (for videos/reels)
+ * Wait for Instagram container to finish processing (images AND videos)
+ * Images usually finish in 1-5s, videos can take up to 2-3min
  */
 async function waitForContainerReady(
   containerId: string,
   accessToken: string,
   maxAttempts = 30,
-  intervalMs = 5000
+  intervalMs = 3000
 ): Promise<void> {
   for (let i = 0; i < maxAttempts; i++) {
     const statusRes = await fetch(
-      `https://graph.facebook.com/v19.0/${containerId}?fields=status_code&access_token=${accessToken}`
+      `https://graph.facebook.com/v21.0/${containerId}?fields=status_code,status&access_token=${accessToken}`
     );
     const statusData = await statusRes.json();
     
+    console.log(`[meta-publish-post] Container ${containerId} status: ${statusData.status_code} (attempt ${i + 1}/${maxAttempts})`);
+    
     if (statusData.status_code === "FINISHED") return;
     if (statusData.status_code === "ERROR") {
-      throw new Error("Processamento do vídeo falhou no Instagram");
+      const errorDetail = statusData.status || "Processamento falhou no Instagram";
+      throw new Error(`Container processing error: ${errorDetail}`);
     }
     
     await new Promise(resolve => setTimeout(resolve, intervalMs));
   }
-  throw new Error("Timeout aguardando processamento do vídeo");
+  throw new Error("Timeout aguardando processamento do container Instagram");
 }
 
 // ===================== Helpers =====================
