@@ -331,7 +331,7 @@ export function DriveFilePicker({
           </ScrollArea>
 
           {/* Preview panel */}
-          <div className="w-72 shrink-0 flex flex-col min-h-0">
+          <div className="w-72 shrink-0 flex flex-col min-h-0 overflow-hidden">
             {selectedFile ? (
               <>
                 <div className="flex-1 flex items-center justify-center p-4 bg-muted/30 min-h-0 overflow-hidden">
@@ -350,13 +350,13 @@ export function DriveFilePicker({
                     </div>
                   )}
                 </div>
-                <div className="p-4 border-t space-y-2">
+                <div className="p-3 border-t space-y-1 shrink-0">
                   <p className="text-sm font-medium truncate" title={selectedFile.original_name}>
                     {selectedFile.original_name}
                   </p>
-                  <div className="text-xs text-muted-foreground space-y-1">
+                  <div className="text-xs text-muted-foreground space-y-0.5">
                     <p>Tamanho: {formatFileSize(selectedFile.size_bytes)}</p>
-                    <p>Tipo: {selectedFile.mime_type || 'Desconhecido'}</p>
+                    <p className="truncate">Tipo: {selectedFile.mime_type || 'Desconhecido'}</p>
                   </div>
                 </div>
               </>
