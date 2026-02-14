@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const VERSION = "2.2.0"; // Finalize campaign: sort by date, stagger past items with 30s interval
+const VERSION = "2.3.0"; // Fix: items with future schedule_time stay as 'scheduled' until published
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -135,7 +135,10 @@ serve(async (req) => {
         const scheduledAt = buildScheduledAt(item.scheduled_date, item.scheduled_time);
         const now = new Date();
         const scheduledDate = scheduledAt ? new Date(scheduledAt) : now;
-        const isFutureSchedule = scheduledDate > new Date(now.getTime() + 15 * 60 * 1000); // >15min future
+        // Any item scheduled in the future (>2min buffer) should NOT be published immediately
+        const isFutureSchedule = scheduledDate > new Date(now.getTime() + 2 * 60 * 1000);
+        // Facebook requires at least 10min in future for native scheduling
+        const isFacebookSchedulable = scheduledDate > new Date(now.getTime() + 10 * 60 * 1000);
         
         const page = assets.pages[0];
         const pageAccessToken = page.access_token || userAccessToken;
@@ -173,8 +176,8 @@ serve(async (req) => {
         }
         
         if (targetChannel === "facebook" || targetChannel === "all") {
-          if (isFutureSchedule) {
-            // Facebook suporta agendamento nativo via scheduled_publish_time
+          if (isFutureSchedule && isFacebookSchedulable) {
+            // Facebook suporta agendamento nativo via scheduled_publish_time (min 10min)
             result = await scheduleToFacebook(
               page.id,
               pageAccessToken,
@@ -183,6 +186,10 @@ serve(async (req) => {
               scheduledAt!
             );
             finalStatus = "scheduled";
+          } else if (isFutureSchedule && !isFacebookSchedulable) {
+            // Future but <10min — save as scheduled, cron will handle it
+            finalStatus = "scheduled";
+            result = { scheduled: true, scheduled_at: scheduledAt, reason: "facebook_too_close_for_native" };
           } else {
             result = await publishToFacebook(
               page.id,
