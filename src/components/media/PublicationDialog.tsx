@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { useMediaCalendarItems, MediaCalendarItem } from "@/hooks/useMediaCampaigns";
 import { useAuth } from "@/hooks/useAuth";
 import { useSystemUpload } from "@/hooks/useSystemUpload";
+import { useMediaMonthFolder } from "@/hooks/useMediaMonthFolder";
 import { toast } from "sonner";
 
 export type PublicationType = "feed" | "stories" | "blog" | "youtube";
@@ -42,6 +43,7 @@ interface PublicationDialogProps {
   existingItems: MediaCalendarItem[];
   editItem?: MediaCalendarItem | null;
   onBackToList?: () => void;
+  campaignStartDate?: string;
   /**
    * Tipo da campanha: "blog" mostra apenas formulário de artigo,
    * "social" mostra Feed/Stories, "youtube" mostra formulário de vídeo
@@ -129,11 +131,13 @@ export function PublicationDialog({
   existingItems,
   editItem,
   onBackToList,
+  campaignStartDate,
   campaignType = "social",
 }: PublicationDialogProps) {
   const { currentTenant, user } = useAuth();
   const { createItem, updateItem, deleteItem } = useMediaCalendarItems(campaignId);
-  const { upload: uploadFile, isUploading } = useSystemUpload({ source: 'media_creative', subPath: 'criativos' });
+  const mediaMonthFolderId = useMediaMonthFolder(campaignStartDate);
+  const { upload: uploadFile, isUploading } = useSystemUpload({ source: 'media_creative', subPath: 'criativos', folderId: mediaMonthFolderId || undefined });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadedAssetUrl, setUploadedAssetUrl] = useState<string | null>(null);
 

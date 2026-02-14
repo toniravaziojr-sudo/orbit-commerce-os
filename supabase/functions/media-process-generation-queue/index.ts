@@ -54,6 +54,92 @@ interface ProviderResult {
   usedReference: boolean;
 }
 
+// ========== ENSURE MEDIA MONTH FOLDER (Drive) ==========
+
+const MEDIA_ROOT_FOLDER = 'Mídias Sociais';
+
+async function ensureMediaMonthFolderEdge(
+  supabase: any,
+  tenantId: string,
+  userId: string,
+  campaignStartDate: string
+): Promise<string | null> {
+  try {
+    // Ensure root folder
+    let rootFolderId: string | null = null;
+    const { data: existingRoot } = await supabase
+      .from('files')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('filename', MEDIA_ROOT_FOLDER)
+      .eq('is_folder', true)
+      .maybeSingle();
+
+    if (existingRoot) {
+      rootFolderId = existingRoot.id;
+    } else {
+      const { data: createdRoot, error: rootErr } = await supabase
+        .from('files')
+        .insert({
+          tenant_id: tenantId,
+          folder_id: null,
+          filename: MEDIA_ROOT_FOLDER,
+          original_name: MEDIA_ROOT_FOLDER,
+          storage_path: `${tenantId}/midias-sociais/`,
+          is_folder: true,
+          is_system_folder: false,
+          created_by: userId,
+          metadata: { source: 'media_module', system_managed: true },
+        })
+        .select('id')
+        .single();
+      if (rootErr || !createdRoot) return null;
+      rootFolderId = createdRoot.id;
+    }
+
+    // Parse month from start_date
+    const date = new Date(campaignStartDate + 'T00:00:00');
+    const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    const monthName = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
+    const monthSlug = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+    // Ensure month folder
+    const { data: existingMonth } = await supabase
+      .from('files')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('folder_id', rootFolderId)
+      .eq('filename', monthName)
+      .eq('is_folder', true)
+      .maybeSingle();
+
+    if (existingMonth) return existingMonth.id;
+
+    const { data: createdMonth, error: monthErr } = await supabase
+      .from('files')
+      .insert({
+        tenant_id: tenantId,
+        folder_id: rootFolderId,
+        filename: monthName,
+        original_name: monthName,
+        storage_path: `${tenantId}/midias-sociais/${monthSlug}/`,
+        is_folder: true,
+        is_system_folder: false,
+        created_by: userId,
+        metadata: { source: 'media_campaign', system_managed: true, month: monthSlug },
+      })
+      .select('id')
+      .single();
+
+    if (monthErr || !createdMonth) return null;
+    return createdMonth.id;
+  } catch (err) {
+    console.error('⚠️ ensureMediaMonthFolderEdge error:', err);
+    return null;
+  }
+}
+
 // ========== DOWNLOAD IMAGE ==========
 
 async function downloadImageAsBase64(url: string): Promise<string | null> {
@@ -508,13 +594,57 @@ BRIEFING: ${generation.prompt_final}`;
           .getPublicUrl(storagePath);
         const publicUrl = publicUrlData?.publicUrl;
 
-        // Update calendar item with asset URL
+        // Update calendar item with asset URL & register to Drive month folder
         if (publicUrl && generation.calendar_item_id) {
           await supabase
             .from("media_calendar_items")
             .update({ asset_url: publicUrl, asset_thumbnail_url: publicUrl })
             .eq("id", generation.calendar_item_id);
           console.log(`✅ Calendar item ${generation.calendar_item_id} updated with winner`);
+
+          // Register in Drive month folder
+          try {
+            // Get campaign start_date via calendar_item → campaign
+            const { data: calItem } = await supabase
+              .from("media_calendar_items")
+              .select("campaign_id")
+              .eq("id", generation.calendar_item_id)
+              .single();
+
+            if (calItem?.campaign_id) {
+              const { data: campaignData } = await supabase
+                .from("media_campaigns")
+                .select("start_date, created_by")
+                .eq("id", calItem.campaign_id)
+                .single();
+
+              if (campaignData?.start_date) {
+                const monthFolderId = await ensureMediaMonthFolderEdge(
+                  supabase, generation.tenant_id, campaignData.created_by || generation.tenant_id, campaignData.start_date
+                );
+
+                if (monthFolderId) {
+                  const filename = `${winner.provider}_winner_${genId.slice(0, 8)}.png`;
+                  await supabase.from("files").insert({
+                    tenant_id: generation.tenant_id,
+                    folder_id: monthFolderId,
+                    filename,
+                    original_name: filename,
+                    storage_path: storagePath,
+                    mime_type: "image/png",
+                    size_bytes: binaryData.length,
+                    is_folder: false,
+                    is_system_folder: false,
+                    created_by: campaignData.created_by,
+                    metadata: { source: "media_ai_creative", url: publicUrl, bucket: "media-assets", system_managed: true },
+                  });
+                  console.log(`📁 File registered in Drive month folder`);
+                }
+              }
+            }
+          } catch (driveErr) {
+            console.error("⚠️ Drive registration failed (non-blocking):", driveErr);
+          }
         }
 
         // Also upload runner-up if exists (for comparison)

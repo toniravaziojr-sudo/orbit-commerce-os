@@ -37,6 +37,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useMediaCalendarItems, MediaCalendarItem } from "@/hooks/useMediaCampaigns";
 import { useAuth } from "@/hooks/useAuth";
 import { useSystemUpload } from "@/hooks/useSystemUpload";
+import { useMediaMonthFolder } from "@/hooks/useMediaMonthFolder";
 import { Database } from "@/integrations/supabase/types";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -92,6 +93,7 @@ interface CalendarItemDialogProps {
   date: Date | null;
   campaignId: string;
   selectedChannels?: string[];
+  campaignStartDate?: string;
 }
 
 export function CalendarItemDialog({
@@ -101,10 +103,12 @@ export function CalendarItemDialog({
   date,
   campaignId,
   selectedChannels = [],
+  campaignStartDate,
 }: CalendarItemDialogProps) {
   const { currentTenant, user } = useAuth();
   const { createItem, updateItem, deleteItem } = useMediaCalendarItems(campaignId);
-  const { upload: uploadFile, isUploading } = useSystemUpload({ source: 'media_creative', subPath: 'criativos' });
+  const mediaMonthFolderId = useMediaMonthFolder(campaignStartDate);
+  const { upload: uploadFile, isUploading } = useSystemUpload({ source: 'media_creative', subPath: 'criativos', folderId: mediaMonthFolderId || undefined });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadedAssetUrl, setUploadedAssetUrl] = useState<string | null>(null);
   const isEditing = !!item;

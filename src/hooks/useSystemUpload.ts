@@ -9,6 +9,7 @@ import {
 interface UseSystemUploadOptions {
   source: string; // e.g., 'storefront_logo', 'category_banner', 'testimonial_image'
   subPath?: string; // e.g., 'branding', 'testimonials', 'products'
+  folderId?: string; // Optional: custom folder ID to register file into
 }
 
 interface UseSystemUploadResult {
@@ -44,6 +45,7 @@ export function useSystemUpload(options: UseSystemUploadOptions): UseSystemUploa
         source: options.source,
         subPath: options.subPath,
         customFilename,
+        folderId: options.folderId,
       });
 
       if (!result) {
