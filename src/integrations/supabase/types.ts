@@ -5601,6 +5601,124 @@ export type Database = {
           },
         ]
       }
+      google_connections: {
+        Row: {
+          access_token: string | null
+          assets: Json | null
+          avatar_url: string | null
+          connected_by: string
+          connection_status: string | null
+          created_at: string
+          display_name: string | null
+          google_email: string | null
+          google_user_id: string | null
+          granted_scopes: string[] | null
+          id: string
+          is_active: boolean | null
+          last_error: string | null
+          last_sync_at: string | null
+          metadata: Json | null
+          refresh_token: string | null
+          scope_packs: string[] | null
+          tenant_id: string
+          token_expires_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token?: string | null
+          assets?: Json | null
+          avatar_url?: string | null
+          connected_by: string
+          connection_status?: string | null
+          created_at?: string
+          display_name?: string | null
+          google_email?: string | null
+          google_user_id?: string | null
+          granted_scopes?: string[] | null
+          id?: string
+          is_active?: boolean | null
+          last_error?: string | null
+          last_sync_at?: string | null
+          metadata?: Json | null
+          refresh_token?: string | null
+          scope_packs?: string[] | null
+          tenant_id: string
+          token_expires_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string | null
+          assets?: Json | null
+          avatar_url?: string | null
+          connected_by?: string
+          connection_status?: string | null
+          created_at?: string
+          display_name?: string | null
+          google_email?: string | null
+          google_user_id?: string | null
+          granted_scopes?: string[] | null
+          id?: string
+          is_active?: boolean | null
+          last_error?: string | null
+          last_sync_at?: string | null
+          metadata?: Json | null
+          refresh_token?: string | null
+          scope_packs?: string[] | null
+          tenant_id?: string
+          token_expires_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_connections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_oauth_states: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          return_path: string | null
+          scope_packs: string[] | null
+          state: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          return_path?: string | null
+          scope_packs?: string[] | null
+          state: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          return_path?: string | null
+          scope_packs?: string[] | null
+          state?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_oauth_states_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ibge_municipios: {
         Row: {
           codigo: string
@@ -14800,6 +14918,7 @@ export type Database = {
           plan_key: string
         }[]
       }
+      cleanup_expired_google_oauth_states: { Args: never; Returns: undefined }
       cleanup_expired_meta_oauth_states: { Args: never; Returns: undefined }
       cleanup_expired_tiktok_oauth_states: { Args: never; Returns: undefined }
       cleanup_expired_youtube_oauth_states: { Args: never; Returns: undefined }
