@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { 
   Loader2, 
   Link2, 
@@ -22,12 +21,8 @@ import {
   CheckCircle,
   RefreshCw,
   Lock,
-  ChevronDown,
-  FlaskConical,
   Send,
-  Save,
   Phone,
-  AlertCircle,
 } from "lucide-react";
 import { useMetaConnection, MetaScopePack } from "@/hooks/useMetaConnection";
 import { formatDistanceToNow } from "date-fns";
@@ -101,17 +96,8 @@ export function MetaUnifiedSettings() {
   } = useMetaConnection();
 
   const [selectedPacks, setSelectedPacks] = useState<MetaScopePack[]>(["whatsapp"]);
-  const [showTestConfig, setShowTestConfig] = useState(false);
   const [testPhone, setTestPhone] = useState("");
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
-  
-  // Test mode temporary credentials
-  const [testCredentials, setTestCredentials] = useState({
-    phoneNumberId: "",
-    accessToken: "",
-    wabaId: "",
-    displayPhoneNumber: "",
-  });
 
   // Fetch existing WhatsApp config to pre-populate test mode fields
   const { data: whatsappConfig } = useQuery({
@@ -132,17 +118,7 @@ export function MetaUnifiedSettings() {
     enabled: !!tenantId,
   });
 
-  // Pre-populate test credentials when config exists and section is expanded
-  useEffect(() => {
-    if (whatsappConfig && showTestConfig) {
-      setTestCredentials({
-        phoneNumberId: whatsappConfig.phone_number_id || "",
-        accessToken: whatsappConfig.access_token || "",
-        wabaId: whatsappConfig.waba_id || "",
-        displayPhoneNumber: whatsappConfig.display_phone_number || whatsappConfig.phone_number || "",
-      });
-    }
-  }, [whatsappConfig, showTestConfig]);
+  // URL params for OAuth callback
 
   // Check URL params for OAuth callback (both meta_connected and whatsapp_connected for backwards compatibility)
   useEffect(() => {
@@ -182,46 +158,6 @@ export function MetaUnifiedSettings() {
     }
     connect(selectedPacks);
   };
-
-  // Save test credentials mutation
-  const saveTestConfigMutation = useMutation({
-    mutationFn: async () => {
-      if (!tenantId) throw new Error("Tenant não identificado");
-      if (!testCredentials.phoneNumberId.trim()) throw new Error("Phone Number ID é obrigatório");
-      if (!testCredentials.accessToken.trim()) throw new Error("Access Token é obrigatório");
-
-      const { data, error } = await supabase
-        .from("whatsapp_configs")
-        .upsert({
-          tenant_id: tenantId,
-          provider: "meta",
-          phone_number_id: testCredentials.phoneNumberId.trim(),
-          access_token: testCredentials.accessToken.trim(),
-          waba_id: testCredentials.wabaId.trim() || null,
-          display_phone_number: testCredentials.displayPhoneNumber.trim() || null,
-          phone_number: testCredentials.displayPhoneNumber.trim() || null,
-          connection_status: "connected",
-          is_enabled: true,
-          updated_at: new Date().toISOString(),
-        }, {
-          onConflict: "tenant_id,provider",
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      toast.success("Credenciais de teste salvas!");
-      // Keep the section open and don't clear fields - just refresh the data
-      queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
-      queryClient.invalidateQueries({ queryKey: ["meta-connection-status"] });
-    },
-    onError: (error: any) => {
-      toast.error(error.message || "Erro ao salvar credenciais");
-    },
-  });
 
   // Test message mutation
   const testMutation = useMutation({
@@ -575,107 +511,7 @@ export function MetaUnifiedSettings() {
         </CardContent>
       </Card>
 
-      {/* Test Mode Card (Temporary for Meta Approval) */}
-      <Collapsible open={showTestConfig} onOpenChange={setShowTestConfig}>
-        <Card className="border border-dashed border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-950/20">
-          <CollapsibleTrigger asChild>
-            <CardHeader className="cursor-pointer hover:bg-amber-100/50 dark:hover:bg-amber-900/20 transition-colors">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/50">
-                    <FlaskConical className="h-5 w-5 text-amber-600" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-base flex items-center gap-2">
-                      Modo de Teste (WhatsApp)
-                      {whatsappConfig?.connection_status === "connected" ? (
-                        <Badge className="bg-green-600 text-white">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          Configurado
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="border-amber-400 text-amber-700 dark:text-amber-400">
-                          Temporário
-                        </Badge>
-                      )}
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                      Para validação do app na Meta (será removido após aprovação)
-                    </CardDescription>
-                  </div>
-                </div>
-                <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform ${showTestConfig ? 'rotate-180' : ''}`} />
-              </div>
-            </CardHeader>
-          </CollapsibleTrigger>
-
-          <CollapsibleContent>
-            <CardContent className="pt-0 space-y-4">
-              <Alert className="border-amber-300 bg-amber-50 dark:bg-amber-950/30">
-                <AlertCircle className="h-4 w-4 text-amber-600" />
-                <AlertDescription className="text-amber-800 dark:text-amber-200">
-                  Use esta seção apenas para testes de aprovação do Meta App. 
-                  O fluxo real do lojista é conectar via OAuth (botão "Conectar Meta" acima).
-                </AlertDescription>
-              </Alert>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="test-phone-number-id">Phone Number ID *</Label>
-                  <Input
-                    id="test-phone-number-id"
-                    value={testCredentials.phoneNumberId}
-                    onChange={(e) => setTestCredentials(prev => ({ ...prev, phoneNumberId: e.target.value }))}
-                    placeholder="Ex: 123456789012345"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="test-waba-id">WABA ID</Label>
-                  <Input
-                    id="test-waba-id"
-                    value={testCredentials.wabaId}
-                    onChange={(e) => setTestCredentials(prev => ({ ...prev, wabaId: e.target.value }))}
-                    placeholder="Ex: 123456789012345"
-                  />
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="test-access-token">Access Token *</Label>
-                  <Input
-                    id="test-access-token"
-                    type="password"
-                    value={testCredentials.accessToken}
-                    onChange={(e) => setTestCredentials(prev => ({ ...prev, accessToken: e.target.value }))}
-                    placeholder="Token temporário do Meta for Developers"
-                  />
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="test-display-phone">Número do WhatsApp</Label>
-                  <Input
-                    id="test-display-phone"
-                    value={testCredentials.displayPhoneNumber}
-                    onChange={(e) => setTestCredentials(prev => ({ ...prev, displayPhoneNumber: e.target.value }))}
-                    placeholder="Ex: 5511999999999"
-                  />
-                </div>
-              </div>
-
-              <Button 
-                onClick={() => saveTestConfigMutation.mutate()}
-                disabled={saveTestConfigMutation.isPending || !testCredentials.phoneNumberId || !testCredentials.accessToken}
-                className="w-full"
-                variant="outline"
-              >
-                {saveTestConfigMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Save className="h-4 w-4 mr-2" />
-                )}
-                Salvar para Teste
-              </Button>
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
+      {/* Test mode removed - Meta approved WhatsApp scopes */}
     </div>
   );
 }
