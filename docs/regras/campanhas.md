@@ -198,6 +198,12 @@ Especialista em **copywriting para redes sociais**. Recebe items que já têm t�
 - **Hashtags** relevantes (mix de volume alto e nicho)
 - **Prompt de criativo (generation_prompt)** detalhado para geração de imagem posterior
 
+**Catálogo de Produtos Real:**
+A IA consulta o catálogo de produtos ativos do tenant (`products` table, `status = 'active'`) e injeta os nomes e preços reais no prompt. Regras:
+- **PROIBIDO** inventar produtos que não existem no catálogo
+- Deve usar os **nomes exatos** dos produtos cadastrados
+- Se o catálogo estiver vazio, gera conteúdo genérico sem mencionar produtos específicos
+
 Técnicas utilizadas:
 - AIDA (Atenção, Interesse, Desejo, Ação)
 - PAS (Problema, Agitação, Solução)
@@ -211,7 +217,7 @@ O dialog de edição manual (`CalendarItemDialog.tsx`) permite:
 - **Título e tipo de conteúdo** (obrigatório)
 - **Copy, CTA, hashtags** (opcional — pode ser preenchido depois)
 - **Upload de criativo** (imagem/vídeo) via sistema universal de upload
-  - Preview visual da imagem/vídeo diretamente no dialog
+  - Preview visual da imagem/vídeo diretamente no dialog com `object-contain` (sem corte)
   - Suporta arquivo local e Meu Drive
 - **NÃO auto-aprova** — o item fica como `draft` ou `suggested` até o usuário aprovar manualmente
 - **Exclusivo para redes sociais** — NÃO inclui opções de Blog (Blog tem módulo dedicado)

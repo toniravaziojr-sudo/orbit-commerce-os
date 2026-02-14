@@ -315,10 +315,26 @@ O fluxo de criação manual de publicações no Gestor de Mídias (`/media`) uti
 
 ---
 
+## Visibilidade de Criativos — Regras de Exibição
+
+Todas as previews de criativos (gerados ou uploaded) devem usar `object-contain` para garantir que a imagem completa seja visível, sem corte:
+
+| Componente | Regra |
+|------------|-------|
+| `CalendarItemDialog.tsx` | `object-contain` com altura generosa (`max-h-80`+) |
+| `AssetVariantsGallery.tsx` | Thumbnails sem `aspect-square` forçado; usar `object-contain` com `bg-muted` |
+| `ApprovalDialog.tsx` | Thumbnails com `object-cover` (80x80 — tamanho pequeno, corte aceitável) |
+
+> **PROIBIDO:** Usar `object-cover` em previews grandes de criativos. Apenas thumbnails pequenos (≤80px) podem usar `object-cover`.
+
+---
+
 ## Histórico de Alterações
 
 | Data | Alteração |
 |------|-----------|
+| 2026-02-14 | Adicionada seção de Visibilidade de Criativos — regras de `object-contain` vs `object-cover` |
+| 2026-02-14 | Corrigido `CalendarItemDialog` e `AssetVariantsGallery` para não cortar imagens |
 | 2025-02-13 | Integrado UniversalImageUploader no PublicationDialog (Feed + Stories) e CalendarItemDialog |
 | 2025-02-13 | Corrigido Stories sem opção de upload manual de criativos |
 | 2025-01-31 | Corrigido fluxo de substituição de logo/favicon para chamar onChange() após upload |
