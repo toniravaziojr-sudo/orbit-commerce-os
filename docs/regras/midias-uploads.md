@@ -101,9 +101,9 @@ if (result?.publicUrl) {
 
 ---
 
-## Gestor de Mídias IA — Integração YouTube
+## Calendário de Conteúdo (IA) — Integração YouTube
 
-O módulo "Gestor de Mídias IA" (`/media`) inclui integração com YouTube para upload e agendamento de vídeos.
+O módulo "Calendário de Conteúdo (IA)" (`/media`), localizado no grupo **Central de Conteúdo** na sidebar, inclui integração com YouTube para upload e agendamento de vídeos.
 
 ### Funcionalidades
 
