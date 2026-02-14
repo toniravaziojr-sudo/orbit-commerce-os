@@ -21,6 +21,8 @@ import {
   RefreshCw,
   AtSign,
   Video,
+  Crosshair,
+  BarChart3,
 } from "lucide-react";
 import { useMetaConnection, MetaScopePack } from "@/hooks/useMetaConnection";
 import { formatDistanceToNow } from "date-fns";
@@ -66,6 +68,16 @@ const SCOPE_PACK_INFO: Record<MetaScopePack, { label: string; description: strin
     label: "Lives",
     description: "Transmissões ao vivo",
     icon: <Video className="h-4 w-4" />,
+  },
+  pixel: {
+    label: "Pixel + CAPI",
+    description: "Rastreamento e Conversions API",
+    icon: <Crosshair className="h-4 w-4" />,
+  },
+  insights: {
+    label: "Insights",
+    description: "Métricas de páginas e perfis",
+    icon: <BarChart3 className="h-4 w-4" />,
   },
 };
 
