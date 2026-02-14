@@ -338,11 +338,11 @@ export function MetaUnifiedSettings() {
               </div>
 
               {/* Assets descobertos */}
-              {connection.assets && (
+              {(connection.assets || whatsappConfig) && (
                 <div className="space-y-3">
                   <h4 className="text-sm font-medium">Ativos conectados</h4>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    {connection.assets.pages.length > 0 && (
+                    {connection.assets?.pages && connection.assets.pages.length > 0 && (
                       <div className="rounded-lg border p-3">
                         <div className="flex items-center gap-2 mb-2">
                           <Facebook className="h-4 w-4 text-blue-600" />
@@ -359,7 +359,7 @@ export function MetaUnifiedSettings() {
                         </ul>
                       </div>
                     )}
-                    {connection.assets.instagram_accounts.length > 0 && (
+                    {connection.assets?.instagram_accounts && connection.assets.instagram_accounts.length > 0 && (
                       <div className="rounded-lg border p-3">
                         <div className="flex items-center gap-2 mb-2">
                           <Instagram className="h-4 w-4 text-pink-600" />
@@ -373,7 +373,23 @@ export function MetaUnifiedSettings() {
                         </ul>
                       </div>
                     )}
-                    {connection.assets.whatsapp_business_accounts.length > 0 && (
+                    {/* WhatsApp - mostrar número conectado do whatsapp_configs */}
+                    {whatsappConfig?.phone_number && whatsappConfig.provider === "meta" && (
+                      <div className="rounded-lg border p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <MessageCircle className="h-4 w-4 text-green-600" />
+                          <span className="text-sm font-medium">WhatsApp</span>
+                          <Badge variant="outline" className="ml-auto bg-green-50 text-green-700 border-green-200">
+                            <Phone className="h-3 w-3 mr-1" />
+                            Ativo
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          +{whatsappConfig.display_phone_number || whatsappConfig.phone_number}
+                        </p>
+                      </div>
+                    )}
+                    {connection.assets?.whatsapp_business_accounts && connection.assets.whatsapp_business_accounts.length > 0 && (
                       <div className="rounded-lg border p-3">
                         <div className="flex items-center gap-2 mb-2">
                           <MessageCircle className="h-4 w-4 text-green-600" />
@@ -387,7 +403,7 @@ export function MetaUnifiedSettings() {
                         </ul>
                       </div>
                     )}
-                    {connection.assets.ad_accounts.length > 0 && (
+                    {connection.assets?.ad_accounts && connection.assets.ad_accounts.length > 0 && (
                       <div className="rounded-lg border p-3">
                         <div className="flex items-center gap-2 mb-2">
                           <Megaphone className="h-4 w-4 text-blue-600" />
