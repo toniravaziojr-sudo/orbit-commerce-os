@@ -261,7 +261,7 @@ export function AssetVariantsGallery({
 
       {/* Variants grid */}
       {hasVariants && (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto">
         {variants.map((variant) => {
           const mediaUrl = signedUrls[variant.id];
           const isApproved = !!variant.approved_at;
@@ -271,7 +271,7 @@ export function AssetVariantsGallery({
           return (
             <Card
               key={variant.id}
-              className={`relative aspect-square overflow-hidden group cursor-pointer ${
+              className={`relative overflow-hidden group cursor-pointer ${
                 selectedVariant?.id === variant.id ? "ring-2 ring-primary" : ""
               } ${isApproved ? "ring-2 ring-green-500" : ""}`}
               onClick={() => setSelectedVariant(variant)}
@@ -298,7 +298,7 @@ export function AssetVariantsGallery({
                   <img
                     src={mediaUrl}
                     alt={`Variante ${variant.variant_index}`}
-                    className="w-full h-full object-cover"
+                    className="w-full h-auto max-h-48 object-contain bg-black/5"
                   />
                 )
               ) : (
