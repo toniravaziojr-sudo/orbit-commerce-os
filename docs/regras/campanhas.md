@@ -180,12 +180,15 @@ Especialista em **planejamento editorial**. Gera APENAS:
 - Flag `needs_product_image` (true/false)
 
 **NÃO gera:** copy, legendas, CTAs, hashtags ou prompts de criativos (isso é responsabilidade da IA de Copys).
+**NÃO gera posts de Blog** — o módulo Mídias é EXCLUSIVO para redes sociais. Blog tem módulo dedicado (`/blog/campaigns`).
 
 Considera:
 - Datas comemorativas e sazonalidade
 - Equilíbrio entre conteúdo educativo, promocional e engajamento
-- Distribuição entre stories, feed e blog
+- Distribuição entre stories e feed (Instagram/Facebook)
 - Tendências do nicho
+
+Filtro de segurança: mesmo que a IA retorne items com `target_channel: "blog"`, eles são descartados automaticamente antes do insert.
 
 #### IA de Copywriting (`media-generate-copys`)
 
@@ -242,7 +245,7 @@ O módulo Gestor de Mídias IA **NÃO** importa componentes do módulo Gestão d
 | `end_date` | DATE | Fim |
 | `days_of_week` | INT[] | Dias ativos (0-6) |
 | `status` | ENUM | `draft`, `planning`, `generating`, `ready`, `active` |
-| `target_channel` | ENUM | `all`, `facebook`, `instagram`, `blog`, `youtube` |
+| `target_channel` | ENUM | `all`, `facebook`, `instagram`, `youtube` (SEM blog — blog tem módulo dedicado) |
 | `auto_publish` | BOOLEAN | Publicação automática |
 
 #### media_calendar_items
