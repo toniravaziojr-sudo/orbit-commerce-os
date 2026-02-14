@@ -19,6 +19,8 @@ import {
   AlertTriangle,
   CheckCircle,
   RefreshCw,
+  AtSign,
+  Video,
 } from "lucide-react";
 import { useMetaConnection, MetaScopePack } from "@/hooks/useMetaConnection";
 import { formatDistanceToNow } from "date-fns";
@@ -27,7 +29,7 @@ import { ptBR } from "date-fns/locale";
 const SCOPE_PACK_INFO: Record<MetaScopePack, { label: string; description: string; icon: React.ReactNode }> = {
   atendimento: {
     label: "Atendimento",
-    description: "Messenger + Instagram DM",
+    description: "Messenger + Instagram DM + Comentários",
     icon: <MessageCircle className="h-4 w-4" />,
   },
   publicacao: {
@@ -47,13 +49,23 @@ const SCOPE_PACK_INFO: Record<MetaScopePack, { label: string; description: strin
   },
   catalogo: {
     label: "Catálogo",
-    description: "Produtos e Pixels",
+    description: "Produtos e Commerce Manager",
     icon: <ShoppingBag className="h-4 w-4" />,
   },
   whatsapp: {
     label: "WhatsApp",
     description: "WABA / Cloud API",
     icon: <MessageCircle className="h-4 w-4" />,
+  },
+  threads: {
+    label: "Threads",
+    description: "Publicação e gestão no Threads",
+    icon: <AtSign className="h-4 w-4" />,
+  },
+  live_video: {
+    label: "Lives",
+    description: "Transmissões ao vivo",
+    icon: <Video className="h-4 w-4" />,
   },
 };
 

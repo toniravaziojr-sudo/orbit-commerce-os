@@ -23,6 +23,9 @@ import {
   Lock,
   Send,
   Phone,
+  AtSign,
+  Video,
+  Plus,
 } from "lucide-react";
 import { useMetaConnection, MetaScopePack } from "@/hooks/useMetaConnection";
 import { formatDistanceToNow } from "date-fns";
@@ -48,9 +51,9 @@ const SCOPE_PACK_INFO: Record<MetaScopePack, ScopePackInfo> = {
   },
   atendimento: {
     label: "Atendimento",
-    description: "Messenger + Instagram DM",
+    description: "Messenger + Instagram DM + Comentários",
     icon: <MessageCircle className="h-4 w-4" />,
-    available: false,
+    available: true,
   },
   publicacao: {
     label: "Publicação",
@@ -62,19 +65,31 @@ const SCOPE_PACK_INFO: Record<MetaScopePack, ScopePackInfo> = {
     label: "Anúncios",
     description: "Campanhas e métricas",
     icon: <Megaphone className="h-4 w-4" />,
-    available: false,
+    available: true,
   },
   leads: {
     label: "Leads",
     description: "Lead Ads",
     icon: <Users className="h-4 w-4" />,
-    available: false,
+    available: true,
   },
   catalogo: {
     label: "Catálogo",
-    description: "Produtos e Pixels",
+    description: "Produtos e Commerce Manager",
     icon: <ShoppingBag className="h-4 w-4" />,
-    available: false,
+    available: true,
+  },
+  threads: {
+    label: "Threads",
+    description: "Publicação e gestão no Threads",
+    icon: <AtSign className="h-4 w-4" />,
+    available: true,
+  },
+  live_video: {
+    label: "Lives",
+    description: "Transmissões ao vivo",
+    icon: <Video className="h-4 w-4" />,
+    available: true,
   },
 };
 
@@ -353,6 +368,34 @@ export function MetaUnifiedSettings() {
                         </ul>
                       </div>
                     )}
+                    {connection.assets?.catalogs && connection.assets.catalogs.length > 0 && (
+                      <div className="rounded-lg border p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <ShoppingBag className="h-4 w-4 text-orange-600" />
+                          <span className="text-sm font-medium">Catálogos</span>
+                          <Badge variant="outline" className="ml-auto">{connection.assets.catalogs.length}</Badge>
+                        </div>
+                        <ul className="text-xs text-muted-foreground space-y-1">
+                          {connection.assets.catalogs.map((cat) => (
+                            <li key={cat.id}>{cat.name}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {connection.assets?.threads_profile && (
+                      <div className="rounded-lg border p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <AtSign className="h-4 w-4 text-foreground" />
+                          <span className="text-sm font-medium">Threads</span>
+                          <Badge variant="outline" className="ml-auto bg-green-50 text-green-700 border-green-200">
+                            Ativo
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          @{connection.assets.threads_profile.username}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -367,6 +410,18 @@ export function MetaUnifiedSettings() {
               )}
 
               <Separator />
+
+              {/* Consentimento incremental — adicionar permissões */}
+              <IncrementalConsentSection
+                currentPacks={connection.scopePacks}
+                allPacks={SCOPE_PACK_INFO}
+                onAddPacks={(newPacks) => {
+                  // Unir packs atuais + novos e disparar re-auth
+                  const allPacks = [...new Set([...connection.scopePacks, ...newPacks])];
+                  connect(allPacks);
+                }}
+                isConnecting={isConnecting}
+              />
 
               <div className="flex gap-3">
                 <Button
@@ -480,6 +535,106 @@ export function MetaUnifiedSettings() {
       </Card>
 
       {/* Test mode removed - Meta approved WhatsApp scopes */}
+    </div>
+  );
+}
+
+// Componente para consentimento incremental
+function IncrementalConsentSection({
+  currentPacks,
+  allPacks,
+  onAddPacks,
+  isConnecting,
+}: {
+  currentPacks: MetaScopePack[];
+  allPacks: Record<MetaScopePack, ScopePackInfo>;
+  onAddPacks: (packs: MetaScopePack[]) => void;
+  isConnecting: boolean;
+}) {
+  const [showSelector, setShowSelector] = useState(false);
+  const [newPacks, setNewPacks] = useState<MetaScopePack[]>([]);
+
+  const missingPacks = (Object.keys(allPacks) as MetaScopePack[]).filter(
+    (pack) => !currentPacks.includes(pack) && allPacks[pack].available
+  );
+
+  if (missingPacks.length === 0) return null;
+
+  const toggleNewPack = (pack: MetaScopePack) => {
+    setNewPacks((prev) =>
+      prev.includes(pack) ? prev.filter((p) => p !== pack) : [...prev, pack]
+    );
+  };
+
+  if (!showSelector) {
+    return (
+      <Button
+        variant="outline"
+        onClick={() => setShowSelector(true)}
+        className="gap-2"
+      >
+        <Plus className="h-4 w-4" />
+        Adicionar permissões
+      </Button>
+    );
+  }
+
+  return (
+    <div className="space-y-3 rounded-lg border p-4">
+      <Label className="text-sm font-medium">Selecione permissões adicionais:</Label>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {missingPacks.map((pack) => {
+          const info = allPacks[pack];
+          return (
+            <div
+              key={pack}
+              className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+                newPacks.includes(pack)
+                  ? "border-primary bg-primary/5"
+                  : "hover:border-muted-foreground/50"
+              }`}
+              onClick={() => toggleNewPack(pack)}
+            >
+              <Checkbox
+                checked={newPacks.includes(pack)}
+                onCheckedChange={() => toggleNewPack(pack)}
+              />
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  {info.icon}
+                  <span className="text-sm font-medium">{info.label}</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">{info.description}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          onClick={() => {
+            onAddPacks(newPacks);
+            setShowSelector(false);
+            setNewPacks([]);
+          }}
+          disabled={newPacks.length === 0 || isConnecting}
+          className="gap-2"
+        >
+          {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+          Autorizar
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            setShowSelector(false);
+            setNewPacks([]);
+          }}
+        >
+          Cancelar
+        </Button>
+      </div>
     </div>
   );
 }

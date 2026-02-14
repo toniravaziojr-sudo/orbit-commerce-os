@@ -22,12 +22,13 @@ const corsHeaders = {
 // NOTA: Escopos avançados (instagram_manage_messages, etc.) requerem App Review da Meta.
 // Para modo desenvolvimento, usamos apenas escopos que funcionam sem aprovação.
 const SCOPE_PACKS: Record<string, string[]> = {
-  // Atendimento (Messenger + Instagram) - escopos básicos que funcionam em dev mode
+  // Atendimento (Messenger + Instagram DM + Comentários)
   atendimento: [
     "pages_messaging",
-    "pages_manage_metadata",
+    "instagram_manage_messages",
+    "pages_manage_engagement",
+    "pages_read_user_content",
     "pages_read_engagement",
-    // instagram_manage_messages e instagram_manage_comments requerem App Review
   ],
   // Publicação/Agendamento (Facebook + Instagram)
   publicacao: [
@@ -35,28 +36,40 @@ const SCOPE_PACKS: Record<string, string[]> = {
     "pages_read_engagement",
     "instagram_basic",
     "instagram_content_publish",
-    // instagram_manage_insights requer App Review - adicionar após aprovação
   ],
   // Ads/Insights (campanhas e métricas)
   ads: [
+    "ads_management",
     "ads_read",
-    "read_insights",
-    // ads_management requer App Review para uso completo
+    "pages_manage_ads",
+    "leads_retrieval",
   ],
   // Leads (Lead Ads)
   leads: [
     "leads_retrieval",
     "pages_manage_ads",
   ],
-  // Catálogo/Pixels/Ativos de negócio
+  // Catálogo/Commerce Manager
   catalogo: [
     "catalog_management",
-    "business_management",
   ],
   // WhatsApp (WABA/Cloud API)
   whatsapp: [
     "whatsapp_business_management",
     "whatsapp_business_messaging",
+  ],
+  // Threads (publicação e gestão)
+  threads: [
+    "threads_content_publish",
+    "threads_manage_replies",
+    "threads_manage_insights",
+    "threads_basic",
+    "threads_read_replies",
+  ],
+  // Live Video (transmissões ao vivo)
+  live_video: [
+    "publish_video",
+    "pages_manage_posts",
   ],
 };
 
