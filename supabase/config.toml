@@ -627,3 +627,9 @@ verify_jwt = false
 
 [functions.google-token-refresh]
 verify_jwt = false
+
+[functions.google-merchant-sync]
+verify_jwt = false
+
+[functions.google-merchant-status]
+verify_jwt = false

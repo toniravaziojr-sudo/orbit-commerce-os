@@ -5678,6 +5678,78 @@ export type Database = {
           },
         ]
       }
+      google_merchant_products: {
+        Row: {
+          channel: string | null
+          content_language: string | null
+          created_at: string
+          disapproval_reasons: Json | null
+          id: string
+          last_error: string | null
+          last_sync_at: string | null
+          merchant_account_id: string
+          merchant_product_id: string | null
+          metadata: Json | null
+          product_id: string
+          sync_status: string
+          synced_data_hash: string | null
+          target_country: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          channel?: string | null
+          content_language?: string | null
+          created_at?: string
+          disapproval_reasons?: Json | null
+          id?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          merchant_account_id: string
+          merchant_product_id?: string | null
+          metadata?: Json | null
+          product_id: string
+          sync_status?: string
+          synced_data_hash?: string | null
+          target_country?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          channel?: string | null
+          content_language?: string | null
+          created_at?: string
+          disapproval_reasons?: Json | null
+          id?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          merchant_account_id?: string
+          merchant_product_id?: string | null
+          metadata?: Json | null
+          product_id?: string
+          sync_status?: string
+          synced_data_hash?: string | null
+          target_country?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_merchant_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_merchant_products_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_oauth_states: {
         Row: {
           created_at: string
