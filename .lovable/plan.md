@@ -9,7 +9,7 @@
 | 1 | Scope Packs + OAuth Incremental + Descoberta de Ativos | ✅ Concluída |
 | 2 | Atendimento Unificado (Messenger + IG DM + Comentários) | ✅ Concluída |
 | 3 | Gestor de Tráfego IA (Ads Manager) | ✅ Concluída |
-| 4 | Lead Ads (Captura de Leads) | ⬜ Pendente |
+| 4 | Lead Ads (Captura de Leads) | ✅ Concluída |
 | 5 | Catálogo de Produtos | ⬜ Pendente |
 | 6 | Threads (Publicação) | ⬜ Pendente |
 | 7 | oEmbed (Bloco no Builder) | ⬜ Pendente |
@@ -79,15 +79,18 @@
 
 ---
 
-## Fase 4 — Lead Ads
+## Fase 4 — ✅ Concluída (2026-02-14)
 
-### Edge Functions
-| Function | Descrição |
-|---|---|
-| `meta-leads-webhook` | Recebe leads via webhook |
+### O que foi implementado
 
-### Fluxo
-Lead → `customers` + tag automática + notificação
+1. **`meta-leads-webhook`** — Webhook que recebe leads do Meta Lead Ads via Graph API
+2. **Fluxo completo**: Lead → busca dados via Graph API → upsert `customers` → tag "Lead Ads" → notificação → sync subscriber email marketing
+3. **Parsing inteligente** — Suporta campos em PT-BR e EN (email, nome, telefone, cidade, estado)
+
+### Arquivos criados/alterados
+- `supabase/functions/meta-leads-webhook/index.ts` (novo)
+- `supabase/config.toml` (atualizado)
+- `docs/regras/integracoes.md` (atualizado)
 
 ---
 

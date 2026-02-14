@@ -591,3 +591,6 @@ verify_jwt = false
 
 [functions.meta-ads-creatives]
 verify_jwt = false
+
+[functions.meta-leads-webhook]
+verify_jwt = false
