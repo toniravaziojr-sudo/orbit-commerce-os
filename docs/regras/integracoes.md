@@ -516,6 +516,8 @@ A integração Meta usa **Scope Packs** para consentimento incremental. O tenant
 | `catalogo` | Catálogo | `catalog_management` |
 | `threads` | Threads | `threads_content_publish`, `threads_manage_replies`, `threads_manage_insights`, `threads_basic`, `threads_read_replies` |
 | `live_video` | Lives | `publish_video`, `pages_manage_posts` |
+| `pixel` | Pixel + CAPI | Configuração via token de sistema (sem OAuth) |
+| `insights` | Insights | `read_insights`, `pages_read_engagement` |
 
 **Escopos base** (sempre incluídos): `public_profile`, `pages_show_list`
 
@@ -557,6 +559,8 @@ O callback OAuth descobre automaticamente:
 | `leads` | CRM / Clientes | `/customers` |
 | `catalogo` | Marketing / Integrações | `/marketing` |
 | `live_video` | Lives | `/lives` |
+| `pixel` | Loja Online (Storefront) | `/integrations` (config) |
+| `insights` | Gestor de Mídias IA | `/media` |
 
 ### Arquivos
 
@@ -576,7 +580,7 @@ O callback OAuth descobre automaticamente:
 ### Tipos TypeScript
 
 ```typescript
-type MetaScopePack = "atendimento" | "publicacao" | "ads" | "leads" | "catalogo" | "whatsapp" | "threads" | "live_video";
+type MetaScopePack = "atendimento" | "publicacao" | "ads" | "leads" | "catalogo" | "whatsapp" | "threads" | "live_video" | "pixel" | "insights";
 
 interface MetaAssets {
   pages: Array<{ id: string; name: string; access_token?: string }>;
