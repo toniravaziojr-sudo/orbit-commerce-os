@@ -237,11 +237,11 @@ export function UniversalImageUploader({
 
       {/* Preview */}
       {value && (
-        <div className={cn('relative rounded-lg overflow-hidden border bg-muted', aspectRatioClass)}>
+        <div className="relative rounded-lg overflow-hidden border bg-muted max-h-[250px]">
           <img
             src={value}
             alt="Preview"
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain max-h-[250px]"
             onError={(e) => {
               (e.target as HTMLImageElement).src = '/placeholder.svg';
             }}
