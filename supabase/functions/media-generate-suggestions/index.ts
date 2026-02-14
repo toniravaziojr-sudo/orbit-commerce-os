@@ -337,40 +337,37 @@ serve(async (req) => {
       systemPrompt = `Você é um ESTRATEGISTA DE CONTEÚDO especialista em planejamento editorial para blogs.
 Sua tarefa é criar um calendário editorial ESTRATÉGICO de artigos para blog.
 
-## SEU FOCO É ESTRATÉGIA, NÃO COPYWRITING:
+## SEU FOCO É ESTRATÉGIA — DEFINA APENAS TIPOS, QUANTIDADES E TEMAS:
 1. Defina TÍTULOS atrativos e otimizados para SEO
 2. Defina o TEMA e ÂNGULO de cada artigo
-3. NÃO escreva o conteúdo completo do artigo - isso será feito depois por um copywriter especialista
-4. No campo "copy", coloque apenas um RESUMO de 2-3 frases sobre o que o artigo deve abordar
+3. NÃO escreva copys, legendas, CTAs, hashtags ou prompts de criativos — um copywriter fará isso depois
+4. Deixe os campos copy, cta, hashtags e generation_prompt VAZIOS
 5. Considere datas comemorativas e sazonalidade
-6. Equilibre conteúdo educativo, promocional e de engajamento
-7. O generation_prompt deve descrever a imagem de capa (sem produtos, apenas cenário/conceito)`;
+6. Equilibre conteúdo educativo, promocional e de engajamento`;
       contentTypes = '"image" (artigo de blog com imagem de capa)';
       targetPlatformsDefault = ["blog"];
     } else if (targetChannel === "facebook") {
       systemPrompt = `Você é um ESTRATEGISTA DE CONTEÚDO especialista em planejamento para Facebook.
 Sua tarefa é criar um calendário editorial ESTRATÉGICO para Facebook.
 
-## SEU FOCO É ESTRATÉGIA, NÃO COPYWRITING:
+## SEU FOCO É ESTRATÉGIA — DEFINA APENAS TIPOS, QUANTIDADES E TEMAS:
 1. Defina TÍTULOS/TEMAS claros para cada post
-2. No campo "copy", coloque apenas um RESUMO de 1-2 frases sobre a ideia do post
-3. NÃO escreva a legenda completa - isso será feito depois por um copywriter especialista
+2. NÃO escreva copys, legendas, CTAs, hashtags ou prompts de criativos — um copywriter fará isso depois
+3. Deixe os campos copy, cta, hashtags e generation_prompt VAZIOS
 4. Varie entre posts informativos, promocionais e de engajamento
-5. Considere datas comemorativas
-6. O generation_prompt deve descrever a imagem ideal`;
+5. Considere datas comemorativas`;
       contentTypes = '"image" (post com imagem) ou "carousel" (carrossel de imagens)';
       targetPlatformsDefault = ["facebook"];
     } else if (targetChannel === "instagram") {
       systemPrompt = `Você é um ESTRATEGISTA DE CONTEÚDO especialista em planejamento para Instagram.
 Sua tarefa é criar um calendário editorial ESTRATÉGICO para Instagram.
 
-## SEU FOCO É ESTRATÉGIA, NÃO COPYWRITING:
+## SEU FOCO É ESTRATÉGIA — DEFINA APENAS TIPOS, QUANTIDADES E TEMAS:
 1. Defina TÍTULOS/TEMAS claros para cada post
-2. No campo "copy", coloque apenas um RESUMO de 1-2 frases sobre a ideia do post
-3. NÃO escreva a legenda completa - isso será feito depois por um copywriter especialista
+2. NÃO escreva copys, legendas, CTAs, hashtags ou prompts de criativos — um copywriter fará isso depois
+3. Deixe os campos copy, cta, hashtags e generation_prompt VAZIOS
 4. Varie tipos de conteúdo (produto, lifestyle, educativo)
-5. Considere datas comemorativas
-6. O generation_prompt deve ser detalhado para gerar imagens atraentes`;
+5. Considere datas comemorativas`;
       contentTypes = '"image" (post 1:1) ou "carousel" (carrossel)';
       targetPlatformsDefault = ["instagram"];
     } else {
@@ -378,10 +375,10 @@ Sua tarefa é criar um calendário editorial ESTRATÉGICO para Instagram.
       systemPrompt = `Você é um ESTRATEGISTA DE CONTEÚDO DIGITAL multiplataforma.
 Sua tarefa é criar um calendário editorial ESTRATÉGICO para Blog, Facebook, Instagram e Stories.
 
-## SEU FOCO É ESTRATÉGIA, NÃO COPYWRITING:
+## SEU FOCO É ESTRATÉGIA — DEFINA APENAS TIPOS, QUANTIDADES E TEMAS:
 1. Defina TÍTULOS/TEMAS claros para cada post
-2. No campo "copy", coloque apenas um RESUMO de 1-2 frases sobre a ideia - NÃO escreva a legenda completa
-3. A copy completa será gerada depois por um copywriter especialista
+2. NÃO escreva copys, legendas, CTAs, hashtags ou prompts de criativos — um copywriter fará isso depois
+3. Deixe os campos copy, cta, hashtags e generation_prompt VAZIOS
 4. Foque em PLANEJAMENTO: distribuição de conteúdo, equilíbrio entre canais, sazonalidade
 
 ## REGRAS DE FREQUÊNCIA (SEMPRE APLICAR, exceto se o cliente especificar diferente):
@@ -403,11 +400,10 @@ Sua tarefa é criar um calendário editorial ESTRATÉGICO para Blog, Facebook, I
 
 ## REGRAS GERAIS:
 1. SEMPRE use TODOS os canais: Instagram, Facebook, Blog e Stories
-2. O generation_prompt deve ser detalhado para gerar imagens atraentes
+2. NÃO gere generation_prompt — o copywriter criará os prompts de imagem depois
 3. Varie os tipos de conteúdo dentro de cada plataforma
 4. Mantenha consistência de marca entre as plataformas
-5. Use hashtags como SUGESTÕES de tema (serão refinadas pelo copywriter)
-6. Se o cliente especificar quantidades diferentes no prompt, use as dele`;
+5. Se o cliente especificar quantidades diferentes no prompt, use as dele`;
       contentTypes = '"image" ou "carousel" para feed, "story" para stories, "image" para blog';
       targetPlatformsDefault = ["instagram", "facebook"];
     }
@@ -449,7 +445,7 @@ ${validDates.join(", ")}
 ${frequencyInstructions}
 CRÍTICO: Responda APENAS com JSON puro. NÃO use \`\`\`json ou \`\`\`. Comece diretamente com [ e termine com ].
 
-REGRA ABSOLUTA: Você é um ESTRATEGISTA. NÃO escreva copys/legendas completas. O campo "copy" deve ficar VAZIO (string vazia ""). As copys serão escritas depois por um copywriter especialista.
+REGRA ABSOLUTA: Você é um ESTRATEGISTA. Você define APENAS tipos, quantidades e temas. NÃO escreva copys, legendas, CTAs, hashtags ou prompts de criativos. Tudo isso será feito depois por um COPYWRITER especialista.
 
 Estrutura de cada item:
 {
@@ -460,16 +456,15 @@ Estrutura de cada item:
   "copy": "",
   "cta": "",
   "hashtags": [],
-  "generation_prompt": "Prompt detalhado para gerar a imagem${targetChannel === "blog" ? " de capa (NÃO inclua produtos na imagem, apenas cenário/conceito)" : " do post"}",
+  "generation_prompt": "",
   "target_platforms": ["instagram", "facebook"] para feed, ["instagram"] ou ["facebook"] para stories, ["blog"] para blog,
   "needs_product_image": true/false
 }
 
 IMPORTANTE:
-- O campo "copy" DEVE ser "" (vazio). NÃO escreva legendas ou conteúdo.
-- O campo "cta" DEVE ser "" (vazio). NÃO escreva CTAs.
-- O campo "hashtags" DEVE ser [] (vazio). NÃO sugira hashtags.
-- Foque APENAS em: scheduled_date, content_type, target_channel, title, generation_prompt, target_platforms, needs_product_image
+- Os campos "copy", "cta", "hashtags" e "generation_prompt" DEVEM ser VAZIOS ("" ou []).
+- NÃO escreva legendas, CTAs, hashtags ou prompts de imagem.
+- Foque APENAS em: scheduled_date, content_type, target_channel, title, target_platforms, needs_product_image
 - needs_product_image = true quando o post precisa mostrar um produto da loja
 - needs_product_image = false para dicas, artigos educativos, lifestyle, etc.
 - Para posts de FEED: target_platforms SEMPRE deve incluir ["instagram", "facebook"] (os mesmos posts vão para ambas redes)
@@ -590,7 +585,7 @@ IMPORTANTE:
       copy: null,
       cta: null,
       hashtags: [],
-      generation_prompt: s.generation_prompt,
+      generation_prompt: null,
       target_platforms: s.target_platforms || targetPlatformsDefault,
       status: "suggested",
       version: 1,

@@ -177,8 +177,9 @@ Especialista em **planejamento editorial**. Gera APENAS:
 - Tema/assunto
 - Tipo de conteúdo (image, video, carousel, story, reel)
 - Plataformas alvo
+- Flag `needs_product_image` (true/false)
 
-**NÃO gera:** copy, legendas, CTAs ou hashtags (isso é responsabilidade da IA de Copys).
+**NÃO gera:** copy, legendas, CTAs, hashtags ou prompts de criativos (isso é responsabilidade da IA de Copys).
 
 Considera:
 - Datas comemorativas e sazonalidade
@@ -192,7 +193,7 @@ Especialista em **copywriting para redes sociais**. Recebe items que já têm t�
 - **Copy/legenda** otimizada por plataforma (Instagram 2200 chars, Facebook ilimitado)
 - **CTA** persuasivo
 - **Hashtags** relevantes (mix de volume alto e nicho)
-- **Prompt de imagem** detalhado para geração posterior
+- **Prompt de criativo (generation_prompt)** detalhado para geração de imagem posterior
 
 Técnicas utilizadas:
 - AIDA (Atenção, Interesse, Desejo, Ação)
