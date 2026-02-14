@@ -216,7 +216,7 @@ export function MetaUnifiedSettings() {
             </div>
             <div className="flex-1">
               <CardTitle className="flex items-center gap-2">
-                Meta (Facebook/Instagram/WhatsApp)
+                Meta
                 {isConnected && (
                   <Badge variant="default" className="bg-green-500">
                     <CheckCircle className="h-3 w-3 mr-1" />
@@ -365,38 +365,6 @@ export function MetaUnifiedSettings() {
                   </AlertDescription>
                 </Alert>
               )}
-
-              <Separator />
-
-              {/* Test Message Section */}
-              <div className="space-y-3">
-                <h4 className="font-medium text-sm flex items-center gap-2">
-                  <Send className="h-4 w-4" />
-                  Enviar Mensagem de Teste (WhatsApp)
-                </h4>
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <Input
-                      placeholder="(11) 99999-9999"
-                      value={testPhone}
-                      onChange={(e) => setTestPhone(e.target.value)}
-                    />
-                  </div>
-                  <Button 
-                    onClick={() => testMutation.mutate()}
-                    disabled={testMutation.isPending || !testPhone.trim()}
-                  >
-                    {testMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <>
-                        <Send className="h-4 w-4 mr-2" />
-                        Enviar
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
 
               <Separator />
 
