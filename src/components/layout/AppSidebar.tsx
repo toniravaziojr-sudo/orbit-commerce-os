@@ -141,7 +141,7 @@ const fullNavigation: NavGroup[] = [
     moduleKey: "central_conteudo",
     collapsible: true,
     items: [
-      { title: "Calendário de Conteúdo (IA)", href: "/media", icon: Image },
+      { title: "Calendário de Conteúdo", href: "/media", icon: Image },
       { title: "Estúdio de Criativos", href: "/creatives", icon: Sparkles },
     ],
   },
