@@ -559,6 +559,7 @@ Hub centralizado Google na aba "Google" de `/integrations`. Uma conexão por ten
 |--------|-----------|
 | `google_connections` | Conexão OAuth por tenant (UNIQUE), tokens, scope_packs, assets descobertos |
 | `google_oauth_states` | Estados temporários do OAuth (expira em 10min) |
+| `google_merchant_products` | Cache de status de sincronização com Merchant Center |
 
 ### Credenciais
 
@@ -577,12 +578,15 @@ Hub centralizado Google na aba "Google" de `/integrations`. Uma conexão por ten
 | `google-oauth-start` | Gera URL OAuth com escopos por pack, salva state |
 | `google-oauth-callback` | Troca code por tokens, descobre ativos, upsert em `google_connections` |
 | `google-token-refresh` | Renova `access_token` usando `refresh_token` |
+| `google-merchant-sync` | Sincroniza produtos com Google Merchant Center (Content API for Shopping) |
+| `google-merchant-status` | Consulta status de aprovação dos produtos no Merchant Center |
 
 ### Hooks e Componentes
 
 | Arquivo | Descrição |
 |---------|-----------|
 | `src/hooks/useGoogleConnection.ts` | Hook com tipos `GoogleScopePack` e `GoogleAssets` |
+| `src/hooks/useMerchantSync.ts` | Hook para sincronização e status do Merchant Center |
 | `src/components/integrations/GoogleUnifiedSettings.tsx` | UI principal com scope packs + consentimento incremental |
 
 ### Tipos TypeScript
@@ -622,7 +626,7 @@ https://ojssezfjhdvvncsqyhyq.supabase.co/functions/v1/google-oauth-callback
 |------|-----------|--------|
 | 1 | Hub Base (OAuth + DB + UI) | ✅ Concluída |
 | 2 | Migração YouTube → Hub Google | ✅ Concluída |
-| 3 | Google Merchant Center | 🟧 Pendente |
+| 3 | Google Merchant Center | ✅ Concluída |
 | 4 | Google Ads Manager | 🟧 Pendente |
 | 5 | Google Analytics (GA4) | 🟧 Pendente |
 | 6 | Search Console | 🟧 Pendente |
