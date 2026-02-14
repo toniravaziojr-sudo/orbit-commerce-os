@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-type TargetChannel = "all" | "blog" | "facebook" | "instagram";
+type TargetChannel = "all" | "facebook" | "instagram";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -333,20 +333,7 @@ serve(async (req) => {
     // STRATEGY-FOCUSED PROMPTS (sem copy completa)
     // ====================================
 
-    if (targetChannel === "blog") {
-      systemPrompt = `Você é um ESTRATEGISTA DE CONTEÚDO especialista em planejamento editorial para blogs.
-Sua tarefa é criar um calendário editorial ESTRATÉGICO de artigos para blog.
-
-## SEU FOCO É ESTRATÉGIA — DEFINA APENAS TIPOS, QUANTIDADES E TEMAS:
-1. Defina TÍTULOS atrativos e otimizados para SEO
-2. Defina o TEMA e ÂNGULO de cada artigo
-3. NÃO escreva copys, legendas, CTAs, hashtags ou prompts de criativos — um copywriter fará isso depois
-4. Deixe os campos copy, cta, hashtags e generation_prompt VAZIOS
-5. Considere datas comemorativas e sazonalidade
-6. Equilibre conteúdo educativo, promocional e de engajamento`;
-      contentTypes = '"image" (artigo de blog com imagem de capa)';
-      targetPlatformsDefault = ["blog"];
-    } else if (targetChannel === "facebook") {
+    if (targetChannel === "facebook") {
       systemPrompt = `Você é um ESTRATEGISTA DE CONTEÚDO especialista em planejamento para Facebook.
 Sua tarefa é criar um calendário editorial ESTRATÉGICO para Facebook.
 
@@ -371,9 +358,9 @@ Sua tarefa é criar um calendário editorial ESTRATÉGICO para Instagram.
       contentTypes = '"image" (post 1:1) ou "carousel" (carrossel)';
       targetPlatformsDefault = ["instagram"];
     } else {
-      // "all" - multiplataforma
+      // "all" - multiplataforma (redes sociais apenas, SEM blog)
       systemPrompt = `Você é um ESTRATEGISTA DE CONTEÚDO DIGITAL multiplataforma.
-Sua tarefa é criar um calendário editorial ESTRATÉGICO para Blog, Facebook, Instagram e Stories.
+Sua tarefa é criar um calendário editorial ESTRATÉGICO para Facebook, Instagram e Stories.
 
 ## SEU FOCO É ESTRATÉGIA — DEFINA APENAS TIPOS, QUANTIDADES E TEMAS:
 1. Defina TÍTULOS/TEMAS claros para cada post
@@ -394,17 +381,13 @@ Sua tarefa é criar um calendário editorial ESTRATÉGICO para Blog, Facebook, I
 - target_platforms SEMPRE deve ser ["instagram", "facebook"] para posts de feed
 - content_type: "image" ou "carousel"
 
-### BLOG - OBRIGATÓRIO TODOS OS DIAS:
-- 1 artigo de blog POR DIA (content_type: "image", target_channel: "blog")
-- target_platforms: ["blog"]
-
 ## REGRAS GERAIS:
-1. SEMPRE use TODOS os canais: Instagram, Facebook, Blog e Stories
+1. Use APENAS redes sociais: Instagram, Facebook e Stories. NÃO gere posts de Blog.
 2. NÃO gere generation_prompt — o copywriter criará os prompts de imagem depois
 3. Varie os tipos de conteúdo dentro de cada plataforma
 4. Mantenha consistência de marca entre as plataformas
 5. Se o cliente especificar quantidades diferentes no prompt, use as dele`;
-      contentTypes = '"image" ou "carousel" para feed, "story" para stories, "image" para blog';
+      contentTypes = '"image" ou "carousel" para feed, "story" para stories';
       targetPlatformsDefault = ["instagram", "facebook"];
     }
 
@@ -420,13 +403,12 @@ Sua tarefa é criar um calendário editorial ESTRATÉGICO para Blog, Facebook, I
 Para CADA dia listado, você DEVE gerar:
 - 1 a 3 STORIES por dia (content_type: "story", target_platforms: ["instagram"] ou ["facebook"] ou ambos)
 - 1 POST DE FEED a cada 2 dias (content_type: "image" ou "carousel", target_platforms: ["instagram", "facebook"] - AMBOS SEMPRE)
-- 1 ARTIGO DE BLOG por dia (target_channel: "blog", target_platforms: ["blog"])
 
 Para ${validDates.length} dias, gere EXATAMENTE:
-- ${validDates.length} artigos de blog (1 por dia)
 - ${Math.max(1, Math.ceil(validDates.length / 2))} a ${Math.ceil(validDates.length / 2) + 2} posts de FEED (Instagram + Facebook juntos)
 - ${validDates.length * 2} a ${validDates.length * 3} stories (média de 2-3 por dia)
 
+⚠️ IMPORTANTE: NÃO gere posts de Blog! Este módulo é EXCLUSIVO para redes sociais.
 ⚠️ IMPORTANTE: NÃO esqueça os posts de FEED! Eles são obrigatórios e devem ir para ["instagram", "facebook"] simultaneamente.
 ` : "";
 
@@ -436,7 +418,7 @@ ${holidaysSection}
 ## Direcionamento da campanha:
 ${campaign.prompt}
 
-## Canal alvo: ${targetChannel === "all" ? "Blog, Facebook, Instagram e Stories" : targetChannel}
+## Canal alvo: ${targetChannel === "all" ? "Facebook, Instagram e Stories" : targetChannel}
 
 ## Período: ${campaign.start_date} até ${campaign.end_date}
 
@@ -451,13 +433,13 @@ Estrutura de cada item:
 {
   "scheduled_date": "YYYY-MM-DD",
   "content_type": ${contentTypes},
-  "target_channel": "instagram" | "facebook" | "blog",
+  "target_channel": "instagram" | "facebook",
   "title": "Título/tema do post ou artigo",
   "copy": "",
   "cta": "",
   "hashtags": [],
   "generation_prompt": "",
-  "target_platforms": ["instagram", "facebook"] para feed, ["instagram"] ou ["facebook"] para stories, ["blog"] para blog,
+  "target_platforms": ["instagram", "facebook"] para feed, ["instagram"] ou ["facebook"] para stories,
   "needs_product_image": true/false
 }
 
@@ -574,7 +556,18 @@ IMPORTANTE:
     // ====================================
     // INSERT NEW CALENDAR ITEMS
     // ====================================
-    const itemsToInsert = suggestions.map((s: any) => ({
+    // Filter out any blog items the AI might have generated despite instructions
+    const filteredSuggestions = suggestions.filter((s: any) => {
+      if (s.target_channel === "blog" || (s.target_platforms && s.target_platforms.includes("blog"))) {
+        console.log(`[media-generate-suggestions] Filtering out blog item: ${s.title}`);
+        return false;
+      }
+      return true;
+    });
+
+    console.log(`[media-generate-suggestions] ${suggestions.length} total, ${filteredSuggestions.length} after filtering blog items`);
+
+    const itemsToInsert = filteredSuggestions.map((s: any) => ({
       tenant_id,
       campaign_id,
       scheduled_date: s.scheduled_date,
