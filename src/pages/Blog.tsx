@@ -435,11 +435,11 @@ export default function Blog() {
               <DialogTrigger asChild>
                 <Button><Plus className="mr-2 h-4 w-4" />Novo Post</Button>
               </DialogTrigger>
-              <DialogContent className="max-w-lg">
+              <DialogContent className="max-w-lg flex flex-col max-h-[90vh]">
                 <DialogHeader>
                   <DialogTitle>{editingPost ? 'Editar Post do Blog' : 'Criar Novo Post'}</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
+                <div className="flex-1 overflow-y-auto space-y-4 py-4">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Título *</Label>
                     <Input 
