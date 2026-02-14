@@ -41,7 +41,7 @@ import {
 } from './blocks/content';
 
 // Interactive blocks (refactored)
-import { FAQBlock, TestimonialsBlock, NewsletterBlock, ContactFormBlock, MapBlock, SocialFeedBlock, PersonalizedProductsBlock, LivePurchasesBlock, PricingTableBlock, PopupModalBlock, NewsletterFormBlock, NewsletterPopupBlock, QuizEmbedBlock } from './blocks/interactive';
+import { FAQBlock, TestimonialsBlock, NewsletterBlock, ContactFormBlock, MapBlock, SocialFeedBlock, PersonalizedProductsBlock, LivePurchasesBlock, PricingTableBlock, PopupModalBlock, NewsletterFormBlock, NewsletterPopupBlock, QuizEmbedBlock, EmbedSocialPostBlock } from './blocks/interactive';
 
 // E-commerce components (refactored)
 import { ProductCTAs, ProductRatingSummary } from './blocks/ecommerce';
@@ -521,6 +521,7 @@ function getBlockComponent(type: string): React.ComponentType<any> {
     NewsletterForm: NewsletterFormBlock,
     NewsletterPopup: NewsletterPopupBlock,
     QuizEmbed: QuizEmbedBlock,
+    EmbedSocialPost: EmbedSocialPostBlock,
     
     // Header / Footer
     Header: HeaderBlock,
