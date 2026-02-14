@@ -174,14 +174,19 @@ export function DriveFilePicker({
     };
   }, [selectedFile, getFileUrl]);
 
-  const handleSelect = async () => {
-    if (!selectedFile || selectedFile.is_folder) return;
+  const handleSelectFile = async (file: FileItem) => {
+    if (!file || file.is_folder) return;
 
-    const url = previewUrl || (await getFileUrl(selectedFile));
+    const url = previewUrl || (await getFileUrl(file));
     if (url) {
-      onSelect(url, selectedFile.id);
+      onSelect(url, file.id);
       onOpenChange(false);
     }
+  };
+
+  const handleSelect = async () => {
+    if (!selectedFile) return;
+    await handleSelectFile(selectedFile);
   };
 
   const handleItemClick = (item: FileItem) => {
@@ -197,10 +202,8 @@ export function DriveFilePicker({
     if (item.is_folder) {
       navigateTo(item.id);
     } else {
-      // Double-click on file = select it immediately
-      setSelectedFile(item);
-      // Trigger selection after a short delay to ensure URL is loaded
-      setTimeout(() => handleSelect(), 100);
+      // Double-click on file = select it immediately, resolving URL directly
+      handleSelectFile(item);
     }
   };
 
