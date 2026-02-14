@@ -618,3 +618,12 @@ verify_jwt = false
 
 [functions.meta-page-insights]
 verify_jwt = false
+
+[functions.google-oauth-start]
+verify_jwt = false
+
+[functions.google-oauth-callback]
+verify_jwt = false
+
+[functions.google-token-refresh]
+verify_jwt = false
