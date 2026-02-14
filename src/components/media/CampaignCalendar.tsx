@@ -445,9 +445,49 @@ export function CampaignCalendar() {
   const currentStep = getCurrentStep();
 
   const workflowSteps: StepConfig[] = [
-    // Step "Selecionar Dias" hidden for video recording (AI-only feature)
     {
       number: 1,
+      label: "Selecionar Dias",
+      icon: <MousePointer2 className="h-3.5 w-3.5" />,
+      action: () => setIsSelectMode(true),
+      isActive: true,
+      isLoading: false,
+      isCurrent: currentStep === 1,
+    },
+    {
+      number: 2,
+      label: isGenerating ? "Gerando..." : "Estratégia IA",
+      icon: <Sparkles className="h-3.5 w-3.5" />,
+      action: handleOpenStrategyPrompt,
+      isActive: selectedDays.size > 0 || hasSuggestions === true,
+      isLoading: isGenerating,
+      isAI: true,
+      isCurrent: currentStep === 2,
+    },
+    {
+      number: 3,
+      label: isGeneratingCopys ? "Gerando..." : "Copys IA",
+      icon: <PenTool className="h-3.5 w-3.5" />,
+      action: handleGenerateCopys,
+      isActive: hasSuggestions === true && stats.needsCopy > 0,
+      isLoading: isGeneratingCopys,
+      isAI: true,
+      count: stats.needsCopy,
+      isCurrent: currentStep === 3,
+    },
+    ...(!isBlog ? [{
+      number: 4,
+      label: isGeneratingAssets ? "Gerando..." : "Criativos IA",
+      icon: <Image className="h-3.5 w-3.5" />,
+      action: handleGenerateCreatives,
+      isActive: hasSuggestions === true && stats.needsCreative > 0,
+      isLoading: isGeneratingAssets,
+      isAI: true,
+      count: stats.needsCreative,
+      isCurrent: currentStep === 4,
+    } as StepConfig] : []),
+    {
+      number: isBlog ? 4 : 5,
       label: isApproving ? "Aprovando..." : "Aprovar",
       icon: <Check className="h-3.5 w-3.5" />,
       action: handleApproveCampaign,
@@ -458,7 +498,7 @@ export function CampaignCalendar() {
       className: stats.readyToApprove > 0 && currentStep !== (isBlog ? 4 : 5) ? "bg-green-600 hover:bg-green-700 text-white" : "",
     },
     {
-      number: 2,
+      number: isBlog ? 5 : 6,
       label: isScheduling ? "Finalizando..." : "Finalizar Campanha",
       icon: <Send className="h-3.5 w-3.5" />,
       action: handlePublish,
