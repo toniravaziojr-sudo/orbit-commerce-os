@@ -7,8 +7,8 @@ export default function Media() {
   return (
     <div className="space-y-8 animate-fade-in">
       <PageHeader
-        title="Calendário de Conteúdo (IA)"
-        description="Crie campanhas de conteúdo para Facebook e Instagram com calendário editorial gerado por IA"
+        title="Calendário de Conteúdo"
+        description="Crie campanhas de conteúdo para Facebook e Instagram com calendário editorial completo"
       />
       
       <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">

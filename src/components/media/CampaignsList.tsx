@@ -75,7 +75,7 @@ export function CampaignsList() {
             <EmptyState
               icon={Calendar}
               title="Nenhuma campanha criada"
-              description="Crie sua primeira campanha de conteúdo e deixe a IA gerar um calendário editorial completo para suas redes sociais."
+              description="Crie sua primeira campanha de conteúdo e organize um calendário editorial completo para suas redes sociais."
               action={{
                 label: "Criar Campanha",
                 onClick: () => setCreateDialogOpen(true),
