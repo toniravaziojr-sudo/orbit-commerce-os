@@ -27,10 +27,8 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   '/abandoned-checkouts': 'ready',
   '/menus': 'ready',
   '/pages': 'ready',
-  '/blog': 'ready',
-  '/blog/campaigns': 'ready',
-  
   // Marketing Básico
+  '/blog': 'ready',
   '/marketing': 'pending',
   '/marketing/atribuicao': 'pending',
   '/discounts': 'ready',
