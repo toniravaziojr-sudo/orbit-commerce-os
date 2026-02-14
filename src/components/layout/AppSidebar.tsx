@@ -115,19 +115,11 @@ const fullNavigation: NavGroup[] = [
     ],
   },
   {
-    label: "Blog",
-    moduleKey: "blog",
-    collapsible: true,
-    items: [
-      { title: "Posts do Blog", href: "/blog", icon: BookOpen },
-      { title: "Campanhas IA", href: "/blog/campaigns", icon: Sparkles, blockedFeature: "ai_campaigns" },
-    ],
-  },
-  {
     label: "Marketing Básico",
     moduleKey: "marketing_basico",
     collapsible: true,
     items: [
+      { title: "Blog", href: "/blog", icon: BookOpen },
       { title: "Integrações Marketing", href: "/marketing", icon: TrendingUp },
       { title: "Atribuição de venda", href: "/marketing/atribuicao", icon: TrendingUp, blockedFeature: "attribution" },
       { title: "Descontos", href: "/discounts", icon: Percent },

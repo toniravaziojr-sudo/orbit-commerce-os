@@ -356,8 +356,7 @@ const App = () => {
                   <Route path="/landing-pages" element={<LandingPages />} />
                   <Route path="/landing-pages/:id" element={<LandingPageEditor />} />
                   <Route path="/blog" element={<Blog />} />
-                  <Route path="/blog/campaigns" element={<FeatureGatedRoute moduleKey="blog" featureKey="ai_campaigns" featureName="Campanhas IA" featureDescription="Crie campanhas de blog com IA"><BlogCampaigns /></FeatureGatedRoute>} />
-                  <Route path="/blog/campaigns/:campaignId" element={<FeatureGatedRoute moduleKey="blog" featureKey="ai_campaigns" featureName="Campanhas IA"><BlogCampaignDetail /></FeatureGatedRoute>} />
+                  <Route path="/blog/campaigns/:campaignId" element={<BlogCampaignDetail />} />
                   <Route path="/customers" element={<Customers />} />
                   <Route path="/customers/:id" element={<CustomerDetail />} />
                   <Route path="/notifications" element={<FeatureGatedRoute moduleKey="crm" featureKey="whatsapp_notifications" featureName="Notificações WhatsApp" featureDescription="Envie notificações via WhatsApp"><Notifications /></FeatureGatedRoute>} />

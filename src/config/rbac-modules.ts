@@ -33,9 +33,9 @@ export const ROUTE_TO_PERMISSION: Record<string, { module: string; submodule?: s
   '/pages': { module: 'storefront', submodule: 'pages' },
   '/page-templates': { module: 'storefront', submodule: 'pages' },
   
-  // Blog
-  '/blog': { module: 'blog', submodule: 'posts' },
-  '/blog/campaigns': { module: 'blog', submodule: 'campaigns' },
+  // Blog (under Marketing Básico)
+  '/blog': { module: 'marketing', submodule: 'blog' },
+  '/blog/campaigns': { module: 'marketing', submodule: 'blog' },
   
   // Marketing
   '/marketing': { module: 'marketing', submodule: 'integrations' },
@@ -120,19 +120,11 @@ export const MODULES: ModuleConfig[] = [
     ],
   },
   {
-    key: 'blog',
-    label: 'Blog',
-    description: 'Posts do blog e campanhas de conteúdo com IA',
-    submodules: [
-      { key: 'posts', label: 'Posts do Blog', route: '/blog' },
-      { key: 'campaigns', label: 'Campanhas IA', route: '/blog/campaigns' },
-    ],
-  },
-  {
     key: 'marketing-basic',
     label: 'Marketing Básico',
-    description: 'Integrações, atribuição, descontos e ofertas',
+    description: 'Blog, integrações, atribuição, descontos e ofertas',
     submodules: [
+      { key: 'blog', label: 'Blog', route: '/blog' },
       { key: 'integrations', label: 'Integrações Marketing', route: '/marketing' },
       { key: 'attribution', label: 'Atribuição de Venda', route: '/marketing/atribuicao' },
       { key: 'discounts', label: 'Descontos', route: '/discounts' },
