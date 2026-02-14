@@ -27,6 +27,7 @@ import Support from "@/pages/Support";
 import Media from "@/pages/Media";
 import MediaCampaignDetail from "@/pages/MediaCampaignDetail";
 import Campaigns from "@/pages/Campaigns";
+import AdsManager from "@/pages/AdsManager";
 import Creatives from "@/pages/Creatives";
 import Integrations from "@/pages/Integrations";
 import Marketing from "@/pages/Marketing";
@@ -365,6 +366,7 @@ const App = () => {
                   <Route path="/media/campaign/:campaignId" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado"><MediaCampaignDetail /></GatedRoute>} />
                   <Route path="/campaigns" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado" moduleDescription="Gestor de Tráfego IA para campanhas"><Campaigns /></GatedRoute>} />
                   <Route path="/creatives" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado" moduleDescription="Gestão de Criativos IA"><Creatives /></GatedRoute>} />
+                  <Route path="/ads" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado" moduleDescription="Gestor de Tráfego Meta Ads"><AdsManager /></GatedRoute>} />
                   <Route path="/offers" element={<Offers />} />
                   <Route path="/buy-together" element={<Navigate to="/offers" replace />} />
                   <Route path="/reviews" element={<Reviews />} />

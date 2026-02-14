@@ -604,7 +604,7 @@ interface MetaAssets {
 - [x] ~~Meta Atendimento: Messenger + Instagram DM + Comentários~~ (Fase 2 concluída)
 - [ ] Meta Catálogo: Sincronização de produtos (Fase 5)
 - [ ] Meta Threads: Publicação no Calendário (Fase 6)
-- [ ] Meta Ads Manager: Gestor de Tráfego (Fase 3)
+- [x] ~~Meta Ads Manager: Gestor de Tráfego~~ (Fase 3 concluída)
 - [ ] Meta Lead Ads: Captura automática (Fase 4)
 - [ ] Meta oEmbed: Bloco no Builder (Fase 7)
 - [ ] Meta Lives: Módulo de transmissões (Fase 8)
