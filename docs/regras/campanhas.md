@@ -391,6 +391,34 @@ POST /meta-publish-post
 | **Facebook** | Pages API (`/{page-id}/feed`, `/{page-id}/photos`, `/{page-id}/videos`) | feed (texto, imagem, vídeo, link) |
 | **Instagram** | Instagram Graph API (`/{ig-user-id}/media`, `/{ig-user-id}/media_publish`) | feed, story, reel, carousel |
 
+### Lógica de Publicação Multi-Plataforma (v2.4.0)
+
+A Edge Function `meta-publish-post` avalia **AMBOS** `target_channel` e `target_platforms` para decidir onde publicar:
+
+```
+shouldPublishInstagram = target_channel inclui "instagram" OU target_platforms contém "instagram_*"
+shouldPublishFacebook  = target_channel inclui "facebook" OU target_platforms contém "facebook"
+```
+
+**Registro em `social_posts`:** Um registro separado é criado para CADA plataforma (Instagram e Facebook), permitindo rastreio independente de status e evidências para App Review.
+
+### Lógica de Agendamento vs. Publicação Imediata
+
+| Condição | Comportamento | Status do Item |
+|----------|---------------|----------------|
+| `scheduled_at` > 2 min no futuro (Facebook) | Se > 10 min: agendamento nativo Meta. Se 2-10 min: status `scheduled`, delegado ao cron. | `scheduled` (Azul) |
+| `scheduled_at` > 2 min no futuro (Instagram) | Status `scheduled`, delegado ao cron `media-auto-publish-scheduler` | `scheduled` (Azul) |
+| `scheduled_at` ≤ 2 min no futuro ou passado | Publicação imediata | `published` (Verde) |
+
+**REGRA CRÍTICA:** Itens agendados para o futuro **NUNCA** devem ficar com status `published` (Verde) antes do horário. Devem permanecer `scheduled` (Azul) até a publicação efetiva pelo cron job.
+
+### Facebook: Gap de Agendamento Nativo
+
+O Facebook exige mínimo de **10 minutos** para agendamento nativo via API. Para itens entre 2-10 minutos no futuro:
+- Status é marcado como `scheduled`
+- Publicação é delegada ao cron job `media-auto-publish-scheduler`
+- Isso evita rejeição pela API da Meta
+
 ### Fluxo Instagram (Container Flow)
 
 ```
@@ -659,6 +687,9 @@ Usa técnicas AIDA, PAS e storytelling.
 | Publicar sem criar registro em social_posts | Toda publicação Meta deve ter registro para evidência App Review |
 | Gerar copys na IA de Estratégia | Estratégia gera apenas título/tema; Copys são geradas pela IA Copywriter |
 | IA Copywriter gerar estratégia | Copywriter só preenche copy/CTA/hashtags de items existentes |
+| Marcar item como `published` antes do horário | Item agendado para futuro deve ficar `scheduled` (Azul) até publicação efetiva |
+| Publicar apenas no Instagram quando Facebook está selecionado | Avaliar `target_channel` + `target_platforms` para publicar em AMBAS plataformas |
+| Criar apenas 1 registro `social_posts` para multi-plataforma | Criar registro separado para CADA plataforma (Instagram e Facebook) |
 
 ---
 
