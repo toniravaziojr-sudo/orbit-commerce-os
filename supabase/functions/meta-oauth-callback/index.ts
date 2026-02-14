@@ -150,6 +150,22 @@ serve(async (req) => {
     // Calcular expires_at
     const expiresAt = new Date(Date.now() + (expiresIn * 1000)).toISOString();
 
+    // Merge de scope_packs: buscar packs anteriores e unir com novos (consentimento incremental)
+    let mergedScopePacks = [...scope_packs];
+    const { data: existingConnection } = await supabase
+      .from("marketplace_connections")
+      .select("metadata")
+      .eq("tenant_id", tenant_id)
+      .eq("marketplace", "meta")
+      .maybeSingle();
+
+    if (existingConnection?.metadata) {
+      const existingMeta = existingConnection.metadata as { scope_packs?: string[] };
+      if (existingMeta.scope_packs) {
+        mergedScopePacks = [...new Set([...existingMeta.scope_packs, ...scope_packs])];
+      }
+    }
+
     // Upsert na tabela marketplace_connections
     const { error: upsertError } = await supabase
       .from("marketplace_connections")
@@ -159,16 +175,16 @@ serve(async (req) => {
         external_user_id: metaUserId,
         external_username: metaUserName,
         access_token: accessToken,
-        refresh_token: null, // Meta não usa refresh token padrão
+        refresh_token: null,
         token_type: "Bearer",
         expires_at: expiresAt,
-        scopes: scope_packs,
+        scopes: mergedScopePacks,
         is_active: true,
         last_error: null,
         metadata: {
           connected_by: user_id,
           connected_at: new Date().toISOString(),
-          scope_packs: scope_packs,
+          scope_packs: mergedScopePacks,
           assets: assets,
         },
       }, {
@@ -222,16 +238,21 @@ async function discoverMetaAssets(accessToken: string, scopePacks: string[]) {
     instagram_accounts: Array<{ id: string; username: string; page_id: string }>;
     whatsapp_business_accounts: Array<{ id: string; name: string }>;
     ad_accounts: Array<{ id: string; name: string }>;
+    catalogs: Array<{ id: string; name: string }>;
+    threads_profile: { id: string; username: string } | null;
   } = {
     pages: [],
     instagram_accounts: [],
     whatsapp_business_accounts: [],
     ad_accounts: [],
+    catalogs: [],
+    threads_profile: null,
   };
 
   try {
+    const graphVersion = "v21.0";
+    
     // Buscar páginas do usuário
-    const graphVersion = "v21.0"; // Fallback - idealmente receber como parâmetro
     const pagesResponse = await fetch(
       `https://graph.facebook.com/${graphVersion}/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${accessToken}`
     );
@@ -249,7 +270,6 @@ async function discoverMetaAssets(accessToken: string, scopePacks: string[]) {
           // Verificar se página tem IG Business conectado
           if (page.instagram_business_account) {
             const igId = page.instagram_business_account.id;
-            // Buscar detalhes do IG
             const igResponse = await fetch(
               `https://graph.facebook.com/${graphVersion}/${igId}?fields=id,username&access_token=${accessToken}`
             );
@@ -266,19 +286,16 @@ async function discoverMetaAssets(accessToken: string, scopePacks: string[]) {
       }
     }
 
-    // Buscar WhatsApp Business Accounts (se escopo concedido)
+    // Buscar WhatsApp Business Accounts
     if (scopePacks.includes("whatsapp")) {
       try {
-        // Primeiro precisamos do Business Manager ID
         const businessResponse = await fetch(
           `https://graph.facebook.com/${graphVersion}/me/businesses?access_token=${accessToken}`
         );
-        
         if (businessResponse.ok) {
           const businessData = await businessResponse.json();
           if (businessData.data) {
             for (const business of businessData.data) {
-              // Buscar WABAs do business
               const wabaResponse = await fetch(
                 `https://graph.facebook.com/${graphVersion}/${business.id}/owned_whatsapp_business_accounts?access_token=${accessToken}`
               );
@@ -301,13 +318,12 @@ async function discoverMetaAssets(accessToken: string, scopePacks: string[]) {
       }
     }
 
-    // Buscar Ad Accounts (se escopo concedido)
+    // Buscar Ad Accounts
     if (scopePacks.includes("ads")) {
       try {
         const adAccountsResponse = await fetch(
           `https://graph.facebook.com/${graphVersion}/me/adaccounts?fields=id,name&access_token=${accessToken}`
         );
-        
         if (adAccountsResponse.ok) {
           const adAccountsData = await adAccountsResponse.json();
           if (adAccountsData.data) {
@@ -321,6 +337,58 @@ async function discoverMetaAssets(accessToken: string, scopePacks: string[]) {
         }
       } catch (adsError) {
         console.warn("[meta-oauth-callback] Erro ao buscar Ad Accounts:", adsError);
+      }
+    }
+
+    // Buscar Catálogos
+    if (scopePacks.includes("catalogo")) {
+      try {
+        const businessResponse = await fetch(
+          `https://graph.facebook.com/${graphVersion}/me/businesses?access_token=${accessToken}`
+        );
+        if (businessResponse.ok) {
+          const businessData = await businessResponse.json();
+          if (businessData.data) {
+            for (const business of businessData.data) {
+              const catalogResponse = await fetch(
+                `https://graph.facebook.com/${graphVersion}/${business.id}/owned_product_catalogs?fields=id,name&access_token=${accessToken}`
+              );
+              if (catalogResponse.ok) {
+                const catalogData = await catalogResponse.json();
+                if (catalogData.data) {
+                  for (const catalog of catalogData.data) {
+                    assets.catalogs.push({
+                      id: catalog.id,
+                      name: catalog.name || `Catálogo ${catalog.id}`,
+                    });
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (catalogError) {
+        console.warn("[meta-oauth-callback] Erro ao buscar catálogos:", catalogError);
+      }
+    }
+
+    // Buscar Threads Profile
+    if (scopePacks.includes("threads")) {
+      try {
+        const threadsResponse = await fetch(
+          `https://graph.threads.net/v1.0/me?fields=id,username&access_token=${accessToken}`
+        );
+        if (threadsResponse.ok) {
+          const threadsData = await threadsResponse.json();
+          if (threadsData.id) {
+            assets.threads_profile = {
+              id: threadsData.id,
+              username: threadsData.username || threadsData.id,
+            };
+          }
+        }
+      } catch (threadsError) {
+        console.warn("[meta-oauth-callback] Erro ao buscar Threads profile:", threadsError);
       }
     }
 
