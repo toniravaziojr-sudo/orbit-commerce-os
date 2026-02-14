@@ -431,28 +431,7 @@ export function CalendarItemDialog({
               </div>
               
 
-              {/* Prompt para criativo IA */}
-              
-                <FormField
-                  control={form.control}
-                  name="generation_prompt"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Prompt para criativo IA (opcional)</FormLabel>
-                      <FormControl>
-                        <Textarea 
-                          placeholder="Descreva o visual desejado para geração com IA..."
-                          className="min-h-[40px]"
-                          {...field} 
-                        />
-                      </FormControl>
-                      <FormDescription className="text-xs">
-                        Este prompt será usado pela IA para gerar o criativo
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              {/* Prompt para criativo IA - hidden from UI, only used internally by AI generation */}
 
               {/* Tipo + Status compactos */}
               <div className="grid grid-cols-2 gap-4">
