@@ -571,6 +571,7 @@ O callback OAuth descobre automaticamente:
 | `supabase/functions/meta-instagram-webhook/index.ts` | Webhook para Instagram DM + comentários IG |
 | `supabase/functions/meta-send-message/index.ts` | Envio unificado Messenger/IG DM via Graph API |
 | `supabase/functions/support-send-message/index.ts` | Roteamento de canais (inclui fb_messenger, ig_dm) |
+| `supabase/functions/meta-leads-webhook/index.ts` | Webhook para Lead Ads → customers + tag + notificação |
 
 ### Tipos TypeScript
 
@@ -605,7 +606,7 @@ interface MetaAssets {
 - [ ] Meta Catálogo: Sincronização de produtos (Fase 5)
 - [ ] Meta Threads: Publicação no Calendário (Fase 6)
 - [x] ~~Meta Ads Manager: Gestor de Tráfego~~ (Fase 3 concluída)
-- [ ] Meta Lead Ads: Captura automática (Fase 4)
+- [x] ~~Meta Lead Ads: Captura automática~~ (Fase 4 concluída)
 - [ ] Meta oEmbed: Bloco no Builder (Fase 7)
 - [ ] Meta Lives: Módulo de transmissões (Fase 8)
 - [ ] Meta Page Insights: Métricas agregadas (Fase 9)
