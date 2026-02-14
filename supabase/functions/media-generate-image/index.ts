@@ -247,11 +247,14 @@ serve(async (req) => {
     // Regras base anti-alucinação
     const baseRules = [
       "Fotografia profissional em alta resolução, qualidade editorial de revista",
+      "PRODUTO IMUTÁVEL: o produto é SAGRADO — NÃO redesenhe, recrie, reimagine ou altere de nenhuma forma",
+      "NÃO crie variações do produto (frascos diferentes, tamanhos diferentes, embalagens fictícias)",
       "NÃO inclua NENHUM texto, letras, números ou logotipos sobrepostos na imagem",
       "NÃO invente, altere ou recrie rótulos, embalagens ou designs de produtos",
       "NÃO distorça cores, proporções ou identidade visual do produto",
       "NÃO adicione selos, certificações, claims ou promessas",
-      "NÃO duplique o produto (evitar múltiplas cópias do mesmo item)",
+      "NÃO duplique o produto sem instrução explícita do briefing",
+      "PERMITIDO: mudar ambiente, cenário, iluminação, fundo — NUNCA o produto em si",
       "Iluminação profissional de estúdio, suave e premium",
       "Evite claims médicos, antes/depois ou promessas de resultado",
     ];

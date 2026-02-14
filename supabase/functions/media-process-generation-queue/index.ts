@@ -294,11 +294,13 @@ async function scoreImageForRealism(
     const content: any[] = [
       {
         type: "text",
-        text: `Você é um juiz especialista em avaliar REALISMO de imagens geradas por IA.
+        text: `Você é um juiz especialista em avaliar FIDELIDADE de imagens de produto geradas por IA.
 
-TAREFA: Avaliar se a IMAGEM GERADA parece uma FOTO REAL (não gerada por IA).
+TAREFA: Avaliar se a IMAGEM GERADA mantém o produto IDÊNTICO ao original e se parece uma FOTO REAL.
 
 PRODUTO ESPERADO: "${productName}"
+
+REGRA CRÍTICA: Se o produto foi ALTERADO, REDESENHADO ou tem VARIAÇÕES que não existem na referência, a nota de LABEL deve ser 0-2.
 
 Avalie de 0 a 10 cada critério:
 
@@ -316,9 +318,11 @@ Avalie de 0 a 10 cada critério:
    - 10 = Composição perfeita
    - 0 = Composição ruim
 
-4. LABEL (Fidelidade do rótulo/produto):
-   - 10 = Produto idêntico ao original
-   - 0 = Produto diferente ou texto inventado
+4. LABEL (Fidelidade do produto — CRITÉRIO MAIS IMPORTANTE):
+   - 10 = Produto 100% idêntico ao original (mesma embalagem, rótulo, cores)
+   - 5 = Produto similar mas com pequenas diferenças
+   - 2 = Produto foi redesenhado ou alterado significativamente
+   - 0 = Produto completamente diferente, inventado, ou criou variações que não existem
 
 Responda APENAS em JSON:
 {
@@ -326,7 +330,7 @@ Responda APENAS em JSON:
   "quality": <0-10>,
   "composition": <0-10>,
   "label": <0-10>,
-  "reasoning": "<breve explicação>"
+  "reasoning": "<breve explicação, mencione se o produto foi alterado>"
 }`,
       },
     ];
@@ -497,18 +501,35 @@ serve(async (req) => {
 - Pode mostrar modelo segurando de forma natural
 - Máximo 1 produto por mão, pose elegante`;
 
-          finalPrompt = `A imagem anexada mostra o produto REAL "${productWithImage.name}".
-Crie uma CENA/CONTEXTO profissional com este produto EXATO.
-O produto DEVE ser IDÊNTICO à referência (mesma embalagem, rótulo, cores).
+          finalPrompt = `REGRA ABSOLUTA — PRODUTO IMUTÁVEL:
+A imagem anexada é a foto REAL do produto "${productWithImage.name}".
+O produto NÃO PODE ser alterado de NENHUMA forma. Ele é SAGRADO e IMUTÁVEL.
+- NÃO redesenhe, recrie ou reimagine o produto
+- NÃO mude a embalagem, rótulo, formato, cores ou proporções
+- NÃO crie variações do produto (ex: frascos diferentes, tamanhos diferentes)
+- NÃO invente produtos que não existem na imagem de referência
+- NÃO multiplique o produto além do que o briefing pede
+- O produto na imagem gerada DEVE ser PIXEL-PERFECT idêntico ao da referência
+
+VOCÊ PODE APENAS:
+- Mudar o AMBIENTE/CENÁRIO ao redor do produto (fundo, superfície, iluminação)
+- Adicionar CONTEXTO (mãos segurando, bancada, flatlay)
+- Aplicar efeitos leves de iluminação/sombra NO AMBIENTE (nunca no produto)
+- Posicionar o produto em diferentes ângulos (mantendo fidelidade total)
 
 ${kitInstruction}
 
 ESTILO: Fotografia profissional editorial/UGC, iluminação premium.
 FORMATO: ${contentType === "story" || contentType === "reel" ? "Vertical 9:16" : "Quadrado 1:1"}
 
-PROIBIÇÕES: NÃO inventar rótulos/logos, NÃO alterar cores/design, NÃO duplicar produto, NÃO adicionar texto sobreposto.
+PROIBIÇÕES ABSOLUTAS:
+- NÃO inventar rótulos/logos
+- NÃO alterar cores/design do produto
+- NÃO duplicar produto sem instrução explícita
+- NÃO adicionar texto sobreposto
+- NÃO criar embalagens fictícias ou variações do produto
 
-BRIEFING: ${generation.prompt_final}`;
+BRIEFING DO CRIATIVO: ${generation.prompt_final}`;
         }
 
         // Generate with both providers in parallel
