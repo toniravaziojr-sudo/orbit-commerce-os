@@ -214,6 +214,15 @@ import { DriveFilePicker } from '@/components/ui/DriveFilePicker';
 />
 ```
 
+#### Regras Críticas de Estabilidade do DriveFilePicker
+
+| Regra | Motivo |
+|-------|--------|
+| `DialogContent` DEVE ter `onPointerDownOutside={e => e.stopPropagation()}` e `onInteractOutside={e => e.stopPropagation()}` | Impede que fechar o DriveFilePicker feche também o dialog pai (ex: CalendarItemDialog) |
+| O botão "Escolher do Meu Drive" no `UniversalImageUploader` DEVE ter `type="button"` | Sem isso, o botão dispara submit do formulário pai, fechando/enviando o dialog |
+| Processar seleção de arquivos via argumentos de função, não via state | Evita race conditions no double-click (state do React pode estar desatualizado) |
+| Preview de imagem limitado a `max-h-[300px]` com `min-h-0` e `overflow-hidden` | Garante layout estável dentro de modais |
+
 ---
 
 ## Criativos com IA — Armazenamento Automático
@@ -333,6 +342,7 @@ Todas as previews de criativos (gerados ou uploaded) devem usar `object-contain`
 
 | Data | Alteração |
 |------|-----------|
+| 2026-02-14 | Adicionadas regras de estabilidade do DriveFilePicker: `stopPropagation` no DialogContent e `type="button"` no botão do Drive |
 | 2026-02-14 | Adicionada seção de Visibilidade de Criativos — regras de `object-contain` vs `object-cover` |
 | 2026-02-14 | Corrigido `CalendarItemDialog` e `AssetVariantsGallery` para não cortar imagens |
 | 2025-02-13 | Integrado UniversalImageUploader no PublicationDialog (Feed + Stories) e CalendarItemDialog |
