@@ -132,7 +132,7 @@ export function CampaignCalendar() {
   const [isApproving, setIsApproving] = useState(false);
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [selectedDays, setSelectedDays] = useState<Set<string>>(new Set());
-  const [isSelectMode, setIsSelectMode] = useState(true);
+  const [isSelectMode, setIsSelectMode] = useState(false);
   const [isGeneratingCopys, setIsGeneratingCopys] = useState(false);
   const [generationProgress, setGenerationProgress] = useState<{ total: number; completed: number } | null>(null);
   const [strategyPromptOpen, setStrategyPromptOpen] = useState(false);
