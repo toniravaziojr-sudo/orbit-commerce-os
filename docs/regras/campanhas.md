@@ -162,7 +162,7 @@ Os botões seguem ordem sequencial e só ficam ativos quando o passo anterior es
 | Passo | Botão | Condição de Ativação |
 |-------|-------|---------------------|
 | 1 | Selecionar Dias | Calendário interativo |
-| 2 | Gerar Estratégia IA | Dias selecionados no calendário |
+| 2 | Gerar Estratégia IA | Dias selecionados no calendário → abre dialog de prompt de direcionamento |
 | 3 | Gerar Copys IA | Items existem com título mas sem copy |
 | 4 | Gerar Criativos IA | Items têm copy preenchida |
 | 5 | Aprovar | Items com copy e/ou criativo prontos → abre `ApprovalDialog` com resumo visual |
@@ -236,7 +236,7 @@ O módulo Gestor de Mídias IA **NÃO** importa componentes do módulo Gestão d
 | `id` | UUID | PK |
 | `tenant_id` | UUID | FK tenants |
 | `name` | TEXT | Nome da campanha |
-| `prompt` | TEXT | Prompt base para IA |
+| `prompt` | TEXT | Prompt de direcionamento (preenchido no Passo 2 — Estratégia IA, NÃO na criação) |
 | `start_date` | DATE | Início |
 | `end_date` | DATE | Fim |
 | `days_of_week` | INT[] | Dias ativos (0-6) |
@@ -309,12 +309,12 @@ CREATE TYPE media_content_type AS ENUM (
 
 ```
 1. Admin cria campanha com:
-   - Nome, período, dias da semana
-   - Prompt base (tema/tom)
+   - Nome e mês (período)
    - Canal alvo (Instagram, Facebook, YouTube)
+   - **NÃO inclui prompt** — prompt é exclusivo do Passo 2
    ↓
 2. Fluxo IA (sequencial):
-   a. "Gerar Estratégia IA" → cria items com título, tema, content_type
+   a. "Gerar Estratégia IA" → abre dialog de prompt de direcionamento → cria items com título, tema, content_type
    b. "Gerar Copys IA" → preenche copy, CTA, hashtags, generation_prompt
    c. "Gerar Criativos IA" → gera imagens
    d. "Aprovar" → marca items como aprovados
@@ -602,7 +602,8 @@ POST /media-generate-suggestions
 {
   "campaign_id": "...",
   "tenant_id": "...",
-  "selected_dates": ["2026-03-01", "2026-03-03", ...]
+  "selected_dates": ["2026-03-01", "2026-03-03", ...],
+  "prompt": "Direcionamento opcional da estratégia (capturado no dialog do Passo 2)"
 }
 ```
 
