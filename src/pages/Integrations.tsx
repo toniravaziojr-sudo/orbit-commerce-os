@@ -83,7 +83,7 @@ export default function Integrations() {
                 <Share2 className="h-6 w-6 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Redes Sociais</p>
+                <p className="text-sm text-muted-foreground">Meta</p>
                 <p className="text-2xl font-bold">
                   {socialAccountsCount}
                   <span className="text-sm font-normal text-muted-foreground ml-1">
@@ -121,7 +121,7 @@ export default function Integrations() {
           </TabsTrigger>
           <TabsTrigger value="social" className="gap-2">
             <Share2 className="h-4 w-4" />
-            <span className="hidden sm:inline">Redes Sociais</span>
+            <span className="hidden sm:inline">Meta</span>
           </TabsTrigger>
           {showYouTube && (
             <TabsTrigger value="youtube" className="gap-2">
