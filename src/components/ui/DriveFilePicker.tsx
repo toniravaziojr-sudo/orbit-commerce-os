@@ -331,17 +331,17 @@ export function DriveFilePicker({
           </ScrollArea>
 
           {/* Preview panel */}
-          <div className="w-72 shrink-0 flex flex-col">
+          <div className="w-72 shrink-0 flex flex-col min-h-0">
             {selectedFile ? (
               <>
-                <div className="flex-1 flex items-center justify-center p-4 bg-muted/30">
+                <div className="flex-1 flex items-center justify-center p-4 bg-muted/30 min-h-0 overflow-hidden">
                   {isLoadingPreview ? (
                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                   ) : isImage && previewUrl ? (
                     <img
                       src={previewUrl}
                       alt={selectedFile.original_name}
-                      className="max-w-full max-h-full object-contain rounded-md"
+                      className="max-w-full max-h-[300px] object-contain rounded-md"
                     />
                   ) : (
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
