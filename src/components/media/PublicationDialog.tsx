@@ -95,7 +95,7 @@ const ALL_CHANNELS = [
 ];
 
 const feedFormSchema = z.object({
-  title: z.string().min(1, "Título é obrigatório"),
+  title: z.string().optional(),
   copy: z.string().optional(),
   cta: z.string().optional(),
   hashtags: z.string().optional(),
@@ -104,19 +104,19 @@ const feedFormSchema = z.object({
 });
 
 const storyFormSchema = z.object({
-  title: z.string().min(1, "Título é obrigatório"),
+  title: z.string().optional(),
   scheduled_time: z.string().optional(),
   generation_prompt: z.string().optional(),
 });
 
 const blogFormSchema = z.object({
-  title: z.string().min(1, "Título é obrigatório"),
+  title: z.string().optional(),
   copy: z.string().optional(),
   scheduled_time: z.string().optional(),
 });
 
 const youtubeFormSchema = z.object({
-  title: z.string().min(1, "Título é obrigatório"),
+  title: z.string().optional(),
   copy: z.string().optional(),
   tags: z.string().optional(),
   scheduled_time: z.string().optional(),

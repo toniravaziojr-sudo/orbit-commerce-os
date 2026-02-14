@@ -48,7 +48,7 @@ type MediaContentType = Database["public"]["Enums"]["media_content_type"];
 type MediaItemStatus = Database["public"]["Enums"]["media_item_status"];
 
 const formSchema = z.object({
-  title: z.string().min(1, "Título é obrigatório"),
+  title: z.string().optional(),
   copy: z.string().optional(),
   cta: z.string().optional(),
   content_type: z.string(),
