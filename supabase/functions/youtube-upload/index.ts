@@ -1,5 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// ===== VERSION =====
+const VERSION = "v2.0.0"; // Phase 2: read from google_connections with legacy fallback
+// ===================
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -12,8 +16,8 @@ interface UploadRequest {
   tags: string[];
   categoryId: string;
   privacyStatus: 'private' | 'unlisted' | 'public';
-  publishAt?: string; // ISO date for scheduled publishing
-  videoUrl: string; // URL of the video file to upload
+  publishAt?: string;
+  videoUrl: string;
   thumbnailUrl?: string;
   enableCaptions?: boolean;
 }
@@ -24,7 +28,8 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Validate auth
+    console.log(`[youtube-upload][${VERSION}] Request received`);
+
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -37,7 +42,6 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Validate user
     const token = authHeader.replace('Bearer ', '');
     const { data: claims, error: claimsError } = await supabase.auth.getClaims(token);
     if (claimsError || !claims?.claims) {
@@ -50,31 +54,89 @@ Deno.serve(async (req) => {
     const userId = claims.claims.sub as string;
     const body: UploadRequest = await req.json();
 
-    // Get YouTube connection with decrypted tokens
-    const { data: connection, error: connError } = await supabase
-      .from('youtube_connections')
-      .select('*')
-      .eq('id', body.connectionId)
-      .single();
+    // === PHASE 2: Try google_connections first, fallback to youtube_connections ===
+    let connection: any = null;
+    let connectionSource = "legacy";
 
-    if (connError || !connection) {
+    if (body.connectionId === "google-hub") {
+      // Frontend signals this is from Google Hub — resolve by tenant
+      // Find tenant from user roles
+      const { data: userRoles } = await supabase
+        .from('user_roles')
+        .select('tenant_id')
+        .eq('user_id', userId)
+        .limit(1)
+        .single();
+
+      if (userRoles?.tenant_id) {
+        const { data: gc } = await supabase
+          .from('google_connections')
+          .select('*')
+          .eq('tenant_id', userRoles.tenant_id)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (gc && (gc as any).scope_packs?.includes('youtube')) {
+          connection = gc;
+          connectionSource = "google_hub";
+        }
+      }
+    }
+
+    // Fallback: try youtube_connections by ID
+    if (!connection) {
+      const { data: ytConn, error: connError } = await supabase
+        .from('youtube_connections')
+        .select('*')
+        .eq('id', body.connectionId)
+        .single();
+
+      if (!connError && ytConn) {
+        connection = ytConn;
+        connectionSource = "legacy";
+      }
+    }
+
+    // Fallback: try google_connections by tenant (auto-resolve)
+    if (!connection) {
+      const { data: userRoles } = await supabase
+        .from('user_roles')
+        .select('tenant_id')
+        .eq('user_id', userId)
+        .limit(1)
+        .single();
+
+      if (userRoles?.tenant_id) {
+        const { data: gc } = await supabase
+          .from('google_connections')
+          .select('*')
+          .eq('tenant_id', userRoles.tenant_id)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (gc && (gc as any).scope_packs?.includes('youtube')) {
+          connection = gc;
+          connectionSource = "google_hub";
+        }
+      }
+    }
+
+    if (!connection) {
       return new Response(JSON.stringify({ error: 'YouTube connection not found' }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
+    console.log(`[youtube-upload][${VERSION}] Using connection source: ${connectionSource}`);
+
     const tenantId = connection.tenant_id;
 
-    // Calculate credits needed
-    // Base: 16 credits (1600 quota units = 1 upload)
-    // +1 credit per GB of video file
-    // +1 for thumbnail, +2 for captions
-    let creditsNeeded = 16; // Base upload cost
+    // Calculate credits
+    let creditsNeeded = 16;
     if (body.thumbnailUrl) creditsNeeded += 1;
     if (body.enableCaptions) creditsNeeded += 2;
 
-    // Check credit balance
     const { data: balanceCheck } = await supabase.rpc('check_credit_balance', {
       p_tenant_id: tenantId,
       p_credits_needed: creditsNeeded,
@@ -91,7 +153,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Reserve credits for the upload
     const idempotencyKey = `youtube_upload_${tenantId}_${Date.now()}`;
     const { data: reserveResult } = await supabase.rpc('reserve_credits', {
       p_tenant_id: tenantId,
@@ -108,12 +169,14 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Create upload job in queue
+    // Use connection.id or generate a ref for the upload job
+    const connectionRef = connectionSource === "google_hub" ? connection.id : body.connectionId;
+
     const { data: uploadJob, error: jobError } = await supabase
       .from('youtube_uploads')
       .insert({
         tenant_id: tenantId,
-        connection_id: body.connectionId,
+        connection_id: connectionRef,
         title: body.title,
         description: body.description,
         tags: body.tags,
@@ -128,26 +191,23 @@ Deno.serve(async (req) => {
           enable_captions: body.enableCaptions || false,
           idempotency_key: idempotencyKey,
           created_by: userId,
+          connection_source: connectionSource,
         },
       })
       .select()
       .single();
 
     if (jobError) {
-      // Release reserved credits on failure
-      console.error('Failed to create upload job:', jobError);
+      console.error(`[youtube-upload][${VERSION}] Failed to create upload job:`, jobError);
       return new Response(JSON.stringify({ error: 'Falha ao criar job de upload' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Start async upload process using Deno's background task pattern
-    // Note: In Deno Deploy, we use queueMicrotask for lightweight background work
-    // For heavy work, the job is already queued in youtube_uploads table
     queueMicrotask(() => {
-      processYouTubeUpload(supabase, uploadJob, connection).catch(err => {
-        console.error('Background upload failed:', err);
+      processYouTubeUpload(supabase, uploadJob, connection, connectionSource).catch(err => {
+        console.error(`[youtube-upload][${VERSION}] Background upload failed:`, err);
       });
     });
 
@@ -156,6 +216,7 @@ Deno.serve(async (req) => {
       upload_id: uploadJob.id,
       status: 'pending',
       credits_reserved: creditsNeeded,
+      connection_source: connectionSource,
       message: 'Upload iniciado. Você será notificado quando concluir.',
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -163,7 +224,7 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-    console.error('YouTube upload error:', errorMessage);
+    console.error(`[youtube-upload][${VERSION}] Error:`, errorMessage);
     return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -171,23 +232,20 @@ Deno.serve(async (req) => {
   }
 });
 
-async function processYouTubeUpload(supabase: any, uploadJob: any, connection: any) {
+async function processYouTubeUpload(supabase: any, uploadJob: any, connection: any, connectionSource: string) {
   const jobId = uploadJob.id;
   const tenantId = uploadJob.tenant_id;
 
   try {
-    // Update status to processing
     await supabase
       .from('youtube_uploads')
       .update({ status: 'processing', started_at: new Date().toISOString() })
       .eq('id', jobId);
 
-    // Check if access token needs refresh
     let accessToken = connection.access_token;
     const tokenExpiry = new Date(connection.token_expires_at);
     
     if (tokenExpiry < new Date()) {
-      // Refresh token
       const refreshResult = await refreshYouTubeToken(connection.refresh_token);
       if (!refreshResult.success) {
         throw new Error('Failed to refresh YouTube token');
@@ -195,38 +253,42 @@ async function processYouTubeUpload(supabase: any, uploadJob: any, connection: a
       
       accessToken = refreshResult.accessToken!;
       
-      // Update connection with new tokens
-      await supabase
-        .from('youtube_connections')
-        .update({
-          access_token: refreshResult.accessToken,
-          token_expires_at: new Date(Date.now() + (refreshResult.expiresIn || 3600) * 1000).toISOString(),
-        })
-        .eq('id', connection.id);
+      // Update the correct table based on source
+      if (connectionSource === "google_hub") {
+        await supabase
+          .from('google_connections')
+          .update({
+            access_token: refreshResult.accessToken,
+            token_expires_at: new Date(Date.now() + (refreshResult.expiresIn || 3600) * 1000).toISOString(),
+          })
+          .eq('id', connection.id);
+      } else {
+        await supabase
+          .from('youtube_connections')
+          .update({
+            access_token: refreshResult.accessToken,
+            token_expires_at: new Date(Date.now() + (refreshResult.expiresIn || 3600) * 1000).toISOString(),
+          })
+          .eq('id', connection.id);
+      }
     }
 
-    // Step 1: Download video from URL
-    console.log(`[YouTube Upload] Downloading video from: ${uploadJob.video_url}`);
+    // Download video
+    console.log(`[youtube-upload][${VERSION}] Downloading video from: ${uploadJob.video_url}`);
     const videoResponse = await fetch(uploadJob.video_url);
-    if (!videoResponse.ok) {
-      throw new Error('Failed to download video file');
-    }
+    if (!videoResponse.ok) throw new Error('Failed to download video file');
     const videoBuffer = await videoResponse.arrayBuffer();
     const videoBlob = new Blob([videoBuffer], { type: 'video/mp4' });
 
-    // Step 2: Validate publishAt if scheduling
+    // Validate publishAt
     if (uploadJob.publish_at) {
       const publishDate = new Date(uploadJob.publish_at);
       const now = new Date();
-      const minFutureMs = 60 * 60 * 1000; // 1 hour minimum
-      
-      if (publishDate.getTime() < now.getTime() + minFutureMs) {
+      if (publishDate.getTime() < now.getTime() + 60 * 60 * 1000) {
         throw new Error('invalidPublishAt: A data de publicação deve ser pelo menos 1 hora no futuro.');
       }
     }
 
-    // Step 3: Create YouTube video resource
-    // IMPORTANT: For scheduling to work, privacyStatus MUST be 'private'
     const effectivePrivacy = uploadJob.publish_at ? 'private' : (uploadJob.privacy_status || 'private');
     
     const videoMetadata = {
@@ -234,7 +296,7 @@ async function processYouTubeUpload(supabase: any, uploadJob: any, connection: a
         title: uploadJob.title,
         description: uploadJob.description,
         tags: uploadJob.tags || [],
-        categoryId: uploadJob.category_id || '22', // Default: People & Blogs
+        categoryId: uploadJob.category_id || '22',
       },
       status: {
         privacyStatus: effectivePrivacy,
@@ -243,8 +305,7 @@ async function processYouTubeUpload(supabase: any, uploadJob: any, connection: a
       },
     };
 
-    // Step 3: Upload to YouTube using resumable upload
-    // First, initiate the resumable upload
+    // Resumable upload
     const initResponse = await fetch(
       'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',
       {
@@ -261,16 +322,13 @@ async function processYouTubeUpload(supabase: any, uploadJob: any, connection: a
 
     if (!initResponse.ok) {
       const errorText = await initResponse.text();
-      console.error('[YouTube Upload] Init failed:', errorText);
+      console.error(`[youtube-upload][${VERSION}] Init failed:`, errorText);
       throw new Error(`YouTube API error: ${initResponse.status}`);
     }
 
     const uploadUrl = initResponse.headers.get('Location');
-    if (!uploadUrl) {
-      throw new Error('No upload URL received from YouTube');
-    }
+    if (!uploadUrl) throw new Error('No upload URL received from YouTube');
 
-    // Step 4: Upload the video content
     const uploadResponse = await fetch(uploadUrl, {
       method: 'PUT',
       headers: {
@@ -282,16 +340,16 @@ async function processYouTubeUpload(supabase: any, uploadJob: any, connection: a
 
     if (!uploadResponse.ok) {
       const errorText = await uploadResponse.text();
-      console.error('[YouTube Upload] Upload failed:', errorText);
+      console.error(`[youtube-upload][${VERSION}] Upload failed:`, errorText);
       throw new Error(`Video upload failed: ${uploadResponse.status}`);
     }
 
     const uploadResult = await uploadResponse.json();
     const videoId = uploadResult.id;
 
-    console.log(`[YouTube Upload] Video uploaded successfully: ${videoId}`);
+    console.log(`[youtube-upload][${VERSION}] Video uploaded successfully: ${videoId}`);
 
-    // Step 5: Upload thumbnail if provided
+    // Upload thumbnail if provided
     if (uploadJob.thumbnail_url) {
       try {
         const thumbResponse = await fetch(uploadJob.thumbnail_url);
@@ -308,14 +366,13 @@ async function processYouTubeUpload(supabase: any, uploadJob: any, connection: a
             body: thumbBuffer,
           }
         );
-        console.log(`[YouTube Upload] Thumbnail uploaded for: ${videoId}`);
+        console.log(`[youtube-upload][${VERSION}] Thumbnail uploaded for: ${videoId}`);
       } catch (thumbError) {
-        console.error('[YouTube Upload] Thumbnail upload failed:', thumbError);
-        // Continue even if thumbnail fails
+        console.error(`[youtube-upload][${VERSION}] Thumbnail upload failed:`, thumbError);
       }
     }
 
-    // Step 6: Consume the reserved credits
+    // Consume credits
     const creditsUsed = uploadJob.credits_reserved;
     const idempotencyKey = uploadJob.metadata?.idempotency_key || `youtube_consume_${jobId}`;
     
@@ -328,11 +385,10 @@ async function processYouTubeUpload(supabase: any, uploadJob: any, connection: a
       p_model: 'upload',
       p_feature: 'youtube_upload',
       p_units_json: JSON.stringify({ uploads: 1, has_thumbnail: !!uploadJob.thumbnail_url }),
-      p_cost_usd: creditsUsed * 0.01, // 1 credit = $0.01
+      p_cost_usd: creditsUsed * 0.01,
       p_from_reserve: true,
     });
 
-    // Step 7: Update job as completed
     await supabase
       .from('youtube_uploads')
       .update({
@@ -344,15 +400,11 @@ async function processYouTubeUpload(supabase: any, uploadJob: any, connection: a
       })
       .eq('id', jobId);
 
-    console.log(`[YouTube Upload] Job ${jobId} completed successfully`);
+    console.log(`[youtube-upload][${VERSION}] Job ${jobId} completed successfully`);
 
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-    console.error(`[YouTube Upload] Job ${jobId} failed:`, errorMessage);
-
-    // Release reserved credits on failure
-    // Note: We'd need a release_credits function for this
-    // For now, we'll just mark the job as failed
+    console.error(`[youtube-upload][${VERSION}] Job ${jobId} failed:`, errorMessage);
 
     await supabase
       .from('youtube_uploads')
@@ -386,7 +438,7 @@ async function refreshYouTubeToken(refreshToken: string): Promise<{
     });
 
     if (!response.ok) {
-      console.error('Token refresh failed:', await response.text());
+      console.error(`[youtube-upload][${VERSION}] Token refresh failed:`, await response.text());
       return { success: false };
     }
 
@@ -397,7 +449,7 @@ async function refreshYouTubeToken(refreshToken: string): Promise<{
       expiresIn: data.expires_in,
     };
   } catch (error) {
-    console.error('Token refresh error:', error);
+    console.error(`[youtube-upload][${VERSION}] Token refresh error:`, error);
     return { success: false };
   }
 }
