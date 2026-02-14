@@ -70,6 +70,8 @@ Hub central de integrações com serviços externos: pagamentos, redes sociais, 
 |-----|-------|------------|-----------|
 | Pagamentos | `payments` | `PaymentGatewaySettings` | Gateways de pagamento |
 | Meta | `social` | `MetaUnifiedSettings` | Meta (WhatsApp + Publicação FB/IG) |
+| YouTube (legado) | `youtube` | `YouTubeSettings` | Apenas para platform operators (será removida) |
+| **Google** | `google` | `GoogleUnifiedSettings` | Hub centralizado Google (YouTube, Ads, Analytics, etc.) |
 | Marketplaces | `marketplaces` | `MarketplacesIntegrationTab` | Mercado Livre, etc |
 | **Domínio/Email** | `domain-email` | `DomainAndEmailSettings` | Domínio da loja + Email |
 | Outros | `outros` | Cards ERP | Integrações ERP (em breve) |
@@ -116,9 +118,9 @@ A aba `domain-email` unifica duas seções:
 |------------|--------|-----------|
 | Meta (FB/IG) | ✅ Ready | Publicação Feed/Stories/Reels, WhatsApp, Catálogo, Pixel |
 | Instagram | ✅ Ready | Via Meta Graph API (container flow) |
-| **YouTube** | ✅ Ready | Upload, agendamento, analytics (via Gestor de Mídias IA) |
+| **YouTube** | ✅ Ready | Upload, agendamento, analytics (via Hub Google) |
 | TikTok Ads | 🟧 Pending | Pixel/Conversions |
-| Google | 🟧 Pending | Merchant Center |
+| **Google Hub** | ✅ Ready | YouTube, Ads, Merchant, Analytics, Search Console, Business, Tag Manager |
 
 ### 3. Marketplaces
 | Marketplace | Status | Descrição |
@@ -492,6 +494,140 @@ https://ojssezfjhdvvncsqyhyq.supabase.co/functions/v1/youtube-oauth-callback
 https://www.googleapis.com/auth/youtube.upload
 https://www.googleapis.com/auth/youtube.readonly
 ```
+
+---
+
+## Google — Hub Centralizado (Scope Packs + OAuth Incremental)
+
+> **STATUS:** ✅ Ready (Fase 1)  
+> **Adicionado em:** 2026-02-14
+
+### Visão Geral
+
+Hub centralizado Google na aba "Google" de `/integrations`. Uma conexão por tenant (admin-driven) com consentimento incremental via Scope Packs. O admin conecta e todos os usuários do tenant usam a mesma conexão.
+
+### Arquitetura
+
+- **1 conexão por tenant** — `google_connections` com `UNIQUE(tenant_id)`
+- **OAuth incremental** — `include_granted_scopes=true`, `access_type=offline`, `prompt=consent`
+- **refresh_token é o ativo real** — nunca perdê-lo; `access_token` renovado via `google-token-refresh`
+- **Cache híbrido** — tabelas locais + fallback API em tempo real
+- **Feature flag por pack** — cada pack funciona isolado
+
+### Scope Packs
+
+| Pack | Label | Escopos OAuth | Módulo | Sensibilidade |
+|------|-------|---------------|--------|---------------|
+| `youtube` | YouTube | `youtube.upload`, `youtube`, `youtube.force-ssl`, `youtube.readonly`, `yt-analytics.readonly` | Mídias `/media` | Sensível |
+| `ads` | Google Ads | `adwords` | Tráfego `/ads` | Sensível + Dev Token |
+| `merchant` | Merchant Center | `content` | Catálogos `/products` | Normal |
+| `analytics` | Analytics GA4 | `analytics.readonly` | Relatórios `/analytics` | Normal |
+| `search_console` | Search Console | `webmasters.readonly` | SEO `/seo` | Normal |
+| `business` | Meu Negócio | `business.manage` | CRM `/reviews` | Sensível |
+| `tag_manager` | Tag Manager | `tagmanager.edit.containers`, `tagmanager.readonly` | Utilidades `/integrations` | Normal |
+
+**Escopos base** (sempre incluídos): `openid`, `userinfo.email`, `userinfo.profile`
+
+### Consentimento Incremental
+
+```text
+1. Tenant conecta com packs ["youtube"]
+2. Token salvo com scope_packs: ["youtube"]
+3. Tenant quer adicionar "analytics"
+4. UI mostra "Adicionar permissões"
+5. google-oauth-start recebe scopePacks: ["youtube", "analytics"] (união)
+6. Google pede autorização APENAS dos novos escopos
+7. google-oauth-callback faz merge: scope_packs finais = ["youtube", "analytics"]
+8. Novo token substitui o anterior (com todos os escopos)
+```
+
+### Descoberta de Ativos (Callback)
+
+| Ativo | API | Campo em `assets` |
+|-------|-----|-------------------|
+| Canais YouTube | YouTube Data API v3 | `youtube_channels[]` |
+| Contas Ads | Google Ads API | `ad_accounts[]` |
+| Merchant Center | Content API | `merchant_accounts[]` |
+| Propriedades GA4 | Analytics Admin API | `analytics_properties[]` |
+| Sites Search Console | Search Console API | `search_console_sites[]` |
+| Localizações Business | Business Profile API | `business_locations[]` |
+| Contas Tag Manager | Tag Manager API | `tag_manager_accounts[]` |
+
+### Tabelas do Banco
+
+| Tabela | Descrição |
+|--------|-----------|
+| `google_connections` | Conexão OAuth por tenant (UNIQUE), tokens, scope_packs, assets descobertos |
+| `google_oauth_states` | Estados temporários do OAuth (expira em 10min) |
+
+### Credenciais
+
+| Credencial | Tipo | Onde fica |
+|------------|------|-----------|
+| `GOOGLE_CLIENT_ID` | Plataforma | Secrets |
+| `GOOGLE_CLIENT_SECRET` | Plataforma | Secrets |
+| `GOOGLE_ADS_DEVELOPER_TOKEN` | Plataforma | `platform_credentials` |
+| `login_customer_id` (MCC) | Plataforma (opcional) | `platform_credentials` |
+| OAuth tokens | Tenant | `google_connections` |
+
+### Edge Functions
+
+| Function | Descrição |
+|----------|-----------|
+| `google-oauth-start` | Gera URL OAuth com escopos por pack, salva state |
+| `google-oauth-callback` | Troca code por tokens, descobre ativos, upsert em `google_connections` |
+| `google-token-refresh` | Renova `access_token` usando `refresh_token` |
+
+### Hooks e Componentes
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/hooks/useGoogleConnection.ts` | Hook com tipos `GoogleScopePack` e `GoogleAssets` |
+| `src/components/integrations/GoogleUnifiedSettings.tsx` | UI principal com scope packs + consentimento incremental |
+
+### Tipos TypeScript
+
+```typescript
+type GoogleScopePack = "youtube" | "ads" | "merchant" | "analytics" | "search_console" | "business" | "tag_manager";
+
+interface GoogleAssets {
+  youtube_channels?: Array<{ id: string; title: string; thumbnail_url?: string; subscriber_count?: number }>;
+  ad_accounts?: Array<{ id: string; name: string }>;
+  merchant_accounts?: Array<{ id: string; name: string }>;
+  analytics_properties?: Array<{ id: string; name: string; measurement_id?: string | null }>;
+  search_console_sites?: Array<{ url: string; permission_level?: string }>;
+  business_locations?: Array<{ name: string; location_id: string }>;
+  tag_manager_accounts?: Array<{ id: string; name: string }>;
+}
+```
+
+### URLs de Integração
+
+| Tipo | URL | Edge Function |
+|------|-----|---------------|
+| OAuth Callback | `{SUPABASE_URL}/functions/v1/google-oauth-callback` | `google-oauth-callback` |
+
+### Configuração no Google Cloud Console
+
+**Redirect URIs obrigatórias:**
+```
+https://ojssezfjhdvvncsqyhyq.supabase.co/functions/v1/google-oauth-callback
+```
+
+**APIs a ativar:** YouTube Data API v3, Google Ads API, Content API for Shopping, Analytics Admin API, Search Console API, Business Profile API, Tag Manager API.
+
+### Fases de Implementação
+
+| Fase | Descrição | Status |
+|------|-----------|--------|
+| 1 | Hub Base (OAuth + DB + UI) | ✅ Concluída |
+| 2 | Migração YouTube → Hub Google | ✅ Concluída |
+| 3 | Google Merchant Center | 🟧 Pendente |
+| 4 | Google Ads Manager | 🟧 Pendente |
+| 5 | Google Analytics (GA4) | 🟧 Pendente |
+| 6 | Search Console | 🟧 Pendente |
+| 7 | Google Meu Negócio | 🟧 Pendente |
+| 8 | Google Tag Manager | 🟧 Pendente |
 
 ---
 
@@ -923,3 +1059,11 @@ const {
 - [x] ~~Meta oEmbed: Bloco no Builder~~ (Fase 7 concluída)
 - [x] ~~Meta Lives: Módulo de transmissões~~ (Fase 8 concluída)
 - [x] ~~Meta Page Insights: Métricas agregadas~~ (Fase 9 concluída)
+- [x] ~~Google Hub Base: OAuth + DB + UI~~ (Fase 1 concluída)
+- [x] ~~Google Hub: Migração YouTube~~ (Fase 2 concluída)
+- [ ] Google Merchant Center (Fase 3)
+- [ ] Google Ads Manager (Fase 4)
+- [ ] Google Analytics GA4 (Fase 5)
+- [ ] Google Search Console (Fase 6)
+- [ ] Google Meu Negócio (Fase 7)
+- [ ] Google Tag Manager (Fase 8)
