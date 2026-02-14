@@ -133,9 +133,16 @@ const fullNavigation: NavGroup[] = [
     items: [
       { title: "Email Marketing", href: "/email-marketing", icon: Mail, blockedFeature: "email_marketing" },
       { title: "Quizzes", href: "/quizzes", icon: FileText, blockedFeature: "quizzes" },
-      { title: "Gestor de Mídias IA", href: "/media", icon: Image },
       { title: "Gestor de Tráfego IA", href: "/campaigns", icon: Megaphone },
-      { title: "Gestão de Criativos", href: "/creatives", icon: Sparkles },
+    ],
+  },
+  {
+    label: "Central de Conteúdo",
+    moduleKey: "central_conteudo",
+    collapsible: true,
+    items: [
+      { title: "Calendário de Conteúdo (IA)", href: "/media", icon: Image },
+      { title: "Estúdio de Criativos", href: "/creatives", icon: Sparkles },
     ],
   },
   {
