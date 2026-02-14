@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Newspaper, Instagram, Facebook, Image, Check, Clock, Square, CheckSquare, Youtube, Video, Upload, X, Loader2, ExternalLink } from "lucide-react";
+import { Newspaper, Instagram, Facebook, Image, Check, Clock, Square, CheckSquare, Youtube, Video, Upload, X, Loader2, ExternalLink, Sparkles } from "lucide-react";
 import { UniversalImageUploader } from "@/components/ui/UniversalImageUploader";
 import { Button } from "@/components/ui/button";
 import {
@@ -808,7 +808,23 @@ export function PublicationDialog({
                   />
                 </div>
 
-                {/* Prompt para criativo IA - hidden from UI */}
+                {/* Prompt para criativo IA */}
+                <FormField
+                  control={feedForm.control}
+                  name="generation_prompt"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+                        Prompt para Criativo IA (opcional)
+                      </FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Descreva como o criativo deve ser gerado pela IA..." className="min-h-[60px]" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 </div>
                 <DialogFooter className="flex-shrink-0 gap-2 px-5 py-3 border-t">
@@ -914,7 +930,23 @@ export function PublicationDialog({
                   />
                 </div>
 
-                {/* Prompt para criativo IA - hidden from UI */}
+                {/* Prompt para criativo IA */}
+                <FormField
+                  control={storyForm.control}
+                  name="generation_prompt"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+                        Prompt para Criativo IA (opcional)
+                      </FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Descreva como o criativo deve ser gerado pela IA..." className="min-h-[60px]" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 </div>
                 <DialogFooter className="flex-shrink-0 gap-2 px-5 py-3 border-t">

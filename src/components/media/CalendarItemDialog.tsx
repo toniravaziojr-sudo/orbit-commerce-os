@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ExternalLink, Upload, Loader2, X } from "lucide-react";
+import { ExternalLink, Upload, Loader2, X, Sparkles } from "lucide-react";
 import { UniversalImageUploader } from "@/components/ui/UniversalImageUploader";
 import { Button } from "@/components/ui/button";
 import {
@@ -431,7 +431,23 @@ export function CalendarItemDialog({
               </div>
               
 
-              {/* Prompt para criativo IA - hidden from UI, only used internally by AI generation */}
+              {/* Prompt para criativo IA */}
+              <FormField
+                control={form.control}
+                name="generation_prompt"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+                      Prompt para Criativo IA (opcional)
+                    </FormLabel>
+                    <FormControl>
+                      <Textarea placeholder="Descreva como o criativo deve ser gerado pela IA..." className="min-h-[60px]" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               {/* Tipo + Status compactos */}
               <div className="grid grid-cols-2 gap-4">
