@@ -606,3 +606,6 @@ verify_jwt = false
 
 [functions.meta-threads-insights]
 verify_jwt = false
+
+[functions.meta-oembed]
+verify_jwt = false
