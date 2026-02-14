@@ -6,16 +6,31 @@
 
 Sistema de blog integrado ao storefront para SEO e marketing de conteúdo. Utiliza o Visual Builder para edição visual de posts.
 
+**Localização na Sidebar:** Submenu de **Marketing Básico** (não é seção independente).
+
+**RBAC:** Rotas `/blog` e `/blog/campaigns` mapeiam para `module: 'marketing', submodule: 'blog'`.
+
 ---
 
 ## Rotas
 
 | Rota | Descrição |
 |------|-----------|
-| **Admin:** `/blog` | Gerenciamento de posts |
+| **Admin:** `/blog` | Página unificada com abas (Posts + Campanhas IA) |
+| **Admin:** `/blog?tab=posts` | Aba de posts manuais |
+| **Admin:** `/blog?tab=campaigns` | Aba de campanhas IA |
 | **Admin:** `/blog/:postId/editor` | Editor visual do post |
+| **Admin:** `/blog/campaigns/:campaignId` | Detalhe da campanha com calendário |
 | **Storefront:** `/loja/:slug/blog` | Listagem de posts |
 | **Storefront:** `/loja/:slug/blog/:postSlug` | Post individual |
+
+### Estrutura de Abas (página `/blog`)
+
+A página Blog usa `Tabs` com duas abas:
+- **Posts** (`?tab=posts`): Listagem e CRUD de posts manuais
+- **Campanhas IA** (`?tab=campaigns`): Listagem e CRUD de campanhas de blog com IA
+
+> **IMPORTANTE:** Não existe mais rota `/blog/campaigns` como página separada. O conteúdo foi integrado na aba "Campanhas IA" dentro de `/blog`.
 
 ---
 
@@ -53,10 +68,13 @@ Sistema de blog integrado ao storefront para SEO e marketing de conteúdo. Utili
 
 | Componente | Arquivo | Função |
 |------------|---------|--------|
-| `Blog` | `src/pages/Blog.tsx` | Listagem no admin |
+| `Blog` | `src/pages/Blog.tsx` | Página unificada com abas (Posts + Campanhas IA) |
 | `BlogPostEditor` | `src/pages/BlogPostEditor.tsx` | Editor visual (VisualBuilder) |
+| `BlogCampaignDetail` | `src/pages/BlogCampaignDetail.tsx` | Calendário de campanha |
 | `StorefrontBlog` | `src/pages/storefront/StorefrontBlog.tsx` | Listagem pública |
 | `StorefrontBlogPost` | `src/pages/storefront/StorefrontBlogPost.tsx` | Post público |
+
+> **NOTA:** `BlogCampaigns.tsx` ainda existe mas NÃO é mais acessada via rota direta. O conteúdo foi integrado em `Blog.tsx` (aba Campanhas IA).
 
 ---
 
@@ -139,13 +157,14 @@ Ao criar um post, ele é inicializado com dois blocos RichText separados:
 
 ## Fluxo de Criação
 
-1. Usuário clica "Novo Post" no admin (`/blog`)
-2. Preenche título, excerpt e SEO no dialog
-3. Sistema cria `blog_posts` com `createBlogPostTemplateWithTitle(title)`
-4. Redireciona para `/blog/:postId/editor`
-5. Editor visual carrega com título no bloco H1 + bloco de conteúdo vazio
-6. Usuário edita conteúdo visualmente
-7. Pode salvar ou publicar
+1. Usuário acessa `/blog` (aba Posts)
+2. Clica "Novo Post"
+3. Preenche título, excerpt e SEO no dialog
+4. Sistema cria `blog_posts` com `createBlogPostTemplateWithTitle(title)`
+5. Redireciona para `/blog/:postId/editor`
+6. Editor visual carrega com título no bloco H1 + bloco de conteúdo vazio
+7. Usuário edita conteúdo visualmente
+8. Pode salvar ou publicar
 
 ---
 
@@ -195,7 +214,6 @@ const context: BlockRenderContext = {
   settings: {
     store_name: storeSettings?.store_name,
     logo_url: storeSettings?.logo_url,
-    primary_color: storeSettings?.primary_color,
   },
   headerMenu: [...], // Menu items para preview
 };
@@ -219,31 +237,34 @@ const context: BlockRenderContext = {
 
 ## Campanhas IA para Blog
 
-O módulo de blog possui integração com o sistema de campanhas de IA para geração automática de posts.
-
-### Rotas
-
-| Rota | Descrição |
-|------|-----------|
-| `/blog/campaigns` | Lista de campanhas de blog |
-| `/blog/campaigns/:campaignId` | Detalhe da campanha com calendário |
+O módulo de blog possui integração com o sistema de campanhas de IA para geração automática de posts, acessível via aba "Campanhas IA" em `/blog?tab=campaigns`.
 
 ### Arquivos
 
 | Arquivo | Propósito |
 |---------|-----------|
-| `src/pages/BlogCampaigns.tsx` | Lista de campanhas (target_channel = "blog") |
+| `src/pages/Blog.tsx` | Aba Campanhas IA (integrada) |
 | `src/pages/BlogCampaignDetail.tsx` | Calendário + publicação |
 | `src/components/media/CampaignCalendar.tsx` | Calendário visual (reutilizado) |
 | `supabase/functions/media-publish-blog/` | Publica item em blog_posts |
 
 ### Fluxo
 
-1. Admin acessa Blog > Campanhas IA
+1. Admin acessa `/blog` > aba "Campanhas IA"
 2. Cria campanha com `target_channel: "blog"`
 3. Gera sugestões com IA
-4. Revisa/aprova no calendário
+4. Revisa/aprova no calendário (`/blog/campaigns/:campaignId`)
 5. Publica como post de blog
+
+---
+
+## Anti-Patterns (Proibido)
+
+| ❌ Proibido | Motivo |
+|-------------|--------|
+| Criar rota `/blog/campaigns` como página separada | Campanhas estão integradas como aba em `/blog` |
+| Usar módulo RBAC `blog` independente | Blog pertence a `module: 'marketing', submodule: 'blog'` |
+| Criar seção "Blog" separada na sidebar | Blog é item dentro de "Marketing Básico" |
 
 ---
 
