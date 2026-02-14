@@ -7,7 +7,7 @@
 | Fase | Descrição | Status |
 |------|-----------|--------|
 | 1 | Scope Packs + OAuth Incremental + Descoberta de Ativos | ✅ Concluída |
-| 2 | Atendimento Unificado (Messenger + IG DM + Comentários) | 🟧 Próxima |
+| 2 | Atendimento Unificado (Messenger + IG DM + Comentários) | ✅ Concluída |
 | 3 | Gestor de Tráfego IA (Ads Manager) | ⬜ Pendente |
 | 4 | Lead Ads (Captura de Leads) | ⬜ Pendente |
 | 5 | Catálogo de Produtos | ⬜ Pendente |

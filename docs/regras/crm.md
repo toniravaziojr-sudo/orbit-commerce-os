@@ -65,7 +65,9 @@ Módulo de relacionamento com cliente: notificações, atendimento/suporte, gest
 | Inbox unificado | ✅ Ready | Todas as conversas |
 | WhatsApp (Meta) | ✅ Ready | Via Meta Cloud API |
 | WhatsApp (Z-API) | ✅ Ready | Via Z-API |
-| Instagram DM | 🟧 Pending | Via Meta |
+| Messenger (FB) | ✅ Ready | Via Meta Graph API |
+| Instagram DM | ✅ Ready | Via Meta Graph API |
+| Comentários FB/IG | ✅ Ready | Via Meta Webhooks |
 | Email | ✅ Ready | Recebimento via Resend |
 | Chat ao vivo | ✅ Ready | Widget na loja |
 | IA Atendente | ✅ Ready | OpenAI GPT-5.2 |
@@ -204,6 +206,10 @@ Cada canal possui seu próprio webhook que:
 |-------|---------------|-----------|
 | WhatsApp (Meta) | `meta-whatsapp-webhook` | ✅ Sim |
 | WhatsApp (Z-API) | `support-webhook` | ✅ Sim |
+| Messenger (FB) | `meta-page-webhook` | ✅ Sim |
+| Instagram DM | `meta-instagram-webhook` | ✅ Sim |
+| Comentários FB | `meta-page-webhook` | ❌ Não |
+| Comentários IG | `meta-instagram-webhook` | ❌ Não |
 | Email | `support-email-inbound` | ✅ Sim |
 | Chat Widget | `SupportChatWidget.tsx` → `ai-support-chat` | ✅ Sim |
 
