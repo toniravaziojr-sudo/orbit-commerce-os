@@ -237,6 +237,40 @@ serve(async (req) => {
         break;
       }
 
+      case "facebook_messenger":
+      case "instagram_dm": {
+        // Send via Meta Send Message API (unified for Messenger + IG DM)
+        // Get recipient_id from conversation metadata or external_thread_id
+        const recipientId = conversation.external_thread_id || conversation.metadata?.sender_id;
+
+        if (!recipientId) {
+          error = "Recipient ID não encontrado na conversa";
+          break;
+        }
+
+        // Determine page_id from conversation metadata
+        const metaPageId = conversation.metadata?.page_id;
+
+        const { data: metaSendResult, error: metaSendError } = await supabase.functions.invoke("meta-send-message", {
+          body: {
+            tenant_id: message.tenant_id,
+            channel: channelToUse,
+            recipient_id: recipientId,
+            message: message.content,
+            page_id: metaPageId,
+          },
+        });
+
+        if (metaSendError || !metaSendResult?.success) {
+          error = metaSendError?.message || metaSendResult?.error || `Failed to send via ${channelToUse}`;
+        } else {
+          success = true;
+          externalMessageId = metaSendResult.data?.message_id || null;
+          deliveryStatus = "sent";
+        }
+        break;
+      }
+
       default:
         error = `Channel ${channelToUse} not supported yet`;
     }

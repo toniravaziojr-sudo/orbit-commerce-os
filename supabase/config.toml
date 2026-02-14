@@ -328,6 +328,15 @@ verify_jwt = true
 [functions.meta-whatsapp-webhook]
 verify_jwt = false
 
+[functions.meta-page-webhook]
+verify_jwt = false
+
+[functions.meta-instagram-webhook]
+verify_jwt = false
+
+[functions.meta-send-message]
+verify_jwt = false
+
 [functions.meta-whatsapp-onboarding-start]
 verify_jwt = false
 
