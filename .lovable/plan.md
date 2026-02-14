@@ -1,119 +1,137 @@
 
-# Reestruturar o Gestor de Midias IA
 
-## Problema Atual
+# Fase 1 — Scope Packs + OAuth Incremental + Descoberta de Ativos
 
-A pagina `/media` tem abas desconectadas (Estrategia, Publicar, Conexoes) e o fluxo real acontece dentro do calendario (`CampaignCalendar`), onde todos os botoes de acao (Criar Estrategia IA, Gerar Criativos, Aprovar, Agendar) estao acumulados numa barra horizontal. Nao existe separacao clara entre fluxo manual e fluxo com IA, e as IAs nao sao especializadas o suficiente.
+## Objetivo
 
-## Nova Arquitetura
+Desbloquear todos os pacotes de permissoes na tela Integracoes > Meta, implementar consentimento incremental (re-auth para novos packs sem quebrar tokens existentes), e descobrir/exibir todos os ativos conectados (Pages, IG, WhatsApp, Ad Accounts, Catalogos, Threads).
 
-### Fluxo Principal (simplificado)
+Uma vez conectado aqui, as funcionalidades ficam automaticamente disponiveis nos modulos correspondentes (Atendimento, Calendario de Conteudo, Gestor de Trafego, etc).
+
+---
+
+## O Que Muda
+
+### 1. Tipo `MetaScopePack` (useMetaConnection.ts)
+
+Adicionar dois novos packs ao tipo:
 
 ```text
-/media (lista de campanhas)
-  |
-  v
-Criar Campanha (dialog: nome, mes, prompt de direcionamento)
-  |
-  v
-/media/campaign/:id (calendario editorial)
-  |
-  +-- Manual: clicar no dia -> criar item (copy + upload de criativo)
-  |
-  +-- Com IA: selecionar dias -> botoes de acao sequenciais
-       |
-       1. "Gerar Estrategia IA" -> cria items no calendario (titulo, tema, tipo)
-       2. "Gerar Copys IA" -> preenche copy, CTA, hashtags dos items
-       3. "Gerar Criativos IA" -> gera imagens para os items
-       4. "Aprovar" -> marca items como aprovados
-       5. "Publicar" -> publica/agenda nas redes
+ANTES: "atendimento" | "publicacao" | "ads" | "leads" | "catalogo" | "whatsapp"
+DEPOIS: "atendimento" | "publicacao" | "ads" | "leads" | "catalogo" | "whatsapp" | "threads" | "live_video"
 ```
 
-### Mudancas na pagina /media (Media.tsx)
+Adicionar novos campos ao `MetaAssets`:
+- `catalogs: Array<{ id: string; name: string }>`
+- `threads_profile: { id: string; username: string } | null`
 
-- **Remover as abas** (Estrategia, Publicar, Conexoes) - sao confusas e sem funcao real
-- A pagina mostra apenas a **lista de campanhas** (`CampaignsList`) diretamente, sem Tabs
-- O fluxo completo acontece dentro do calendario de cada campanha
+### 2. UI de Scope Packs (MetaUnifiedSettings.tsx)
 
-### Mudancas no Calendario (CampaignCalendar.tsx)
+**Desbloquear packs existentes** — mudar `available: true` para:
+- `atendimento` (Messenger + Instagram DM + Comentarios)
+- `ads` (Campanhas e metricas)
+- `leads` (Lead Ads)
+- `catalogo` (Catalogo de Produtos)
 
-**Barra de acoes redesenhada** com fluxo progressivo claro:
+**Adicionar novos packs:**
+- `threads` — Publicacao e gestao no Threads
+- `live_video` — Transmissoes ao vivo (Lives)
 
-1. **Selecionar Dias** (ja existe) - seleciona dias no calendario
-2. **Gerar Estrategia IA** (ja existe) - gera titulos/temas para os dias selecionados
-3. **Gerar Copys IA** (NOVO) - preenche copy, CTA, hashtags dos items ja criados
-4. **Gerar Criativos** (ja existe) - gera imagens
-5. **Aprovar** (ja existe) - aprova items prontos
-6. **Publicar/Agendar** (ja existe) - publica nas redes
+**Consentimento incremental:** Quando ja conectado, mostrar botao "Adicionar permissoes" que dispara re-auth pedindo APENAS os novos scopes selecionados (uniao dos atuais + novos).
 
-Para o **fluxo manual**, o usuario clica no dia e preenche tudo manualmente (ja funciona via CalendarItemDialog), incluindo upload de criativo proprio.
+**Ativos conectados:** Adicionar cards para:
+- Catalogos (icone ShoppingBag)
+- Threads (icone AtSign ou similar)
 
-### Nova Edge Function: `media-generate-copys`
+### 3. MetaConnectionSettings.tsx
 
-Edge function especialista em copywriting para redes sociais. Recebe os items do calendario que ja tem titulo/tema e gera:
-- **Copy/legenda** otimizada para cada plataforma
-- **CTA** persuasivo
-- **Hashtags** relevantes
-- **Prompt de imagem** detalhado para geracao posterior
+Atualizar o `SCOPE_PACK_INFO` para incluir os mesmos novos packs (`threads`, `live_video`). Sincronizar com MetaUnifiedSettings.
 
-**Prompt especialista:**
-- Tom de voz adaptado ao nicho da loja
-- Tecnicas de copywriting (AIDA, PAS, storytelling)
-- Limite de caracteres por plataforma (Instagram 2200, Facebook ilimitado)
-- Emojis estrategicos
-- Hashtags pesquisadas por relevancia
+### 4. Edge Function `meta-oauth-start`
 
-### Melhoria da Edge Function existente: `media-generate-suggestions`
+Atualizar `SCOPE_PACKS` com os novos mapeamentos:
 
-Tornar a IA mais especialista em **estrategia de conteudo**:
-- Foco em **planejamento editorial** (temas, tipos de conteudo, datas estrategicas)
-- Nao gerar copys longas - apenas titulo, tema e tipo de conteudo
-- Considerar datas comemorativas, sazonalidade, tendencias
-- Equilibrar conteudo educativo, promocional e de engajamento
-- Definir melhor a distribuicao entre stories, feed e blog
+```text
+atendimento:
+  pages_messaging
+  instagram_manage_messages (ou instagram_business_manage_messages)
+  pages_manage_engagement
+  pages_read_user_content
+  pages_read_engagement
 
-## Detalhes Tecnicos
+ads:
+  ads_management
+  ads_read
+  pages_manage_ads
+  leads_retrieval
 
-### 1. Media.tsx - Simplificar
+catalogo:
+  catalog_management
 
-Remover todo o sistema de Tabs. Manter apenas:
-- PageHeader
-- Badges das redes (Facebook, Instagram, YouTube)
-- CampaignsList diretamente
+threads:
+  threads_content_publish
+  threads_manage_replies
+  threads_manage_insights
+  threads_basic
+  threads_read_replies
 
-### 2. CampaignCalendar.tsx - Barra de acoes progressiva
+live_video:
+  publish_video
+  pages_manage_posts (necessario para criar live na pagina)
+```
 
-Redesenhar a Card de acoes para mostrar botoes em sequencia logica:
-- Numerar ou agrupar visualmente: "1. Estrategia" | "2. Copys" | "3. Criativos" | "4. Aprovar" | "5. Publicar"
-- Cada botao so aparece/ativa quando o passo anterior esta concluido
-- Adicionar botao "Gerar Copys IA" que chama a nova edge function
+Manter a logica existente de uniao de escopos (Set) — isso garante que re-auth inclui escopos anteriores + novos.
 
-### 3. Nova Edge Function `media-generate-copys/index.ts`
+### 5. Edge Function `meta-oauth-callback`
 
-- Recebe `campaign_id` e `tenant_id`
-- Busca items com status draft/suggested que tem titulo mas nao tem copy
-- Usa Lovable AI (`google/gemini-2.5-flash`) com prompt especialista em copywriting
-- Atualiza os items com copy, CTA, hashtags e generation_prompt
+Expandir `discoverMetaAssets` para:
 
-### 4. Melhorar `media-generate-suggestions/index.ts`
+1. **Catalogos** (quando pack `catalogo` ativo):
+   - `GET /{version}/me/businesses` -> para cada business: `GET /{business_id}/owned_product_catalogs?fields=id,name`
+   - Salvar em `assets.catalogs`
 
-- Simplificar o output: gerar apenas titulo, tema, content_type, target_platforms
-- Nao gerar copy completa (isso agora e responsabilidade de `media-generate-copys`)
-- Melhorar o prompt de estrategia para ser mais inteligente sobre distribuicao de conteudo
+2. **Threads** (quando pack `threads` ativo):
+   - `GET /{version}/me/threads?fields=id,username` (Threads API)
+   - Salvar em `assets.threads_profile`
 
-### 5. CalendarItemDialog.tsx - Upload manual de criativo
+3. **Merge de scope_packs:** Na hora do upsert em `marketplace_connections`, fazer uniao dos packs anteriores com os novos (nao substituir), preservando o consentimento incremental.
 
-Ja suporta edicao manual de copy/hashtags/CTA. Adicionar:
-- Campo de upload de imagem/criativo (usando o sistema de upload existente)
-- Quando o usuario faz upload manual, preenche `asset_url` diretamente
+---
 
-### Arquivos Afetados
+## Logica de Consentimento Incremental
 
-| Arquivo | Acao |
-|---------|------|
-| `src/pages/Media.tsx` | Remover Tabs, simplificar para lista direta |
-| `src/components/media/CampaignCalendar.tsx` | Redesenhar barra de acoes, adicionar botao "Gerar Copys IA" |
-| `src/components/media/CalendarItemDialog.tsx` | Adicionar upload manual de criativo |
-| `supabase/functions/media-generate-copys/index.ts` | CRIAR - Edge function especialista em copys |
-| `supabase/functions/media-generate-suggestions/index.ts` | Simplificar para foco em estrategia (sem copys) |
-| `docs/regras/campanhas.md` | Atualizar documentacao |
+```text
+1. Tenant conecta com packs ["publicacao", "whatsapp"]
+2. Token salvo com scope_packs: ["publicacao", "whatsapp"]
+3. Tenant quer adicionar "ads"
+4. UI mostra botao "Adicionar permissoes"
+5. meta-oauth-start recebe scopePacks: ["publicacao", "whatsapp", "ads"]
+   (uniao dos atuais + novos)
+6. Meta pede autorizacao APENAS dos novos escopos
+7. meta-oauth-callback faz merge: scope_packs finais = ["publicacao", "whatsapp", "ads"]
+8. Novo token substitui o anterior (com todos os escopos)
+```
+
+---
+
+## Arquivos Afetados
+
+| Arquivo | Tipo de Alteracao |
+|---------|-------------------|
+| `src/hooks/useMetaConnection.ts` | Adicionar tipos `threads`, `live_video` + campos `catalogs`, `threads_profile` ao MetaAssets |
+| `src/components/integrations/MetaUnifiedSettings.tsx` | Desbloquear packs + adicionar novos + botao re-auth + cards de ativos |
+| `src/components/integrations/MetaConnectionSettings.tsx` | Sincronizar SCOPE_PACK_INFO com novos packs |
+| `supabase/functions/meta-oauth-start/index.ts` | Adicionar mapeamento de escopos para novos packs |
+| `supabase/functions/meta-oauth-callback/index.ts` | Expandir discoverMetaAssets + merge de scope_packs |
+
+---
+
+## Criterios de Aceite
+
+1. Todos os 8 packs aparecem na UI e podem ser selecionados
+2. Cada pack pede somente seus escopos especificos
+3. Re-auth (adicionar novo pack) nao quebra token/packs existentes
+4. Assets conectados aparecem na UI: Pages, IG, WhatsApp, Ad Accounts, Catalogos, Threads
+5. Multi-tenant seguro: tokens server-side, logs com tenant_id
+6. WhatsApp existente continua funcionando sem alteracoes
+
