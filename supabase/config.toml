@@ -615,3 +615,6 @@ verify_jwt = false
 
 [functions.meta-live-manage]
 verify_jwt = false
+
+[functions.meta-page-insights]
+verify_jwt = false

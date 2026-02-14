@@ -14,7 +14,7 @@
 | 6 | Threads (Publicação) | ✅ Concluída |
 | 7 | oEmbed (Bloco no Builder) | ✅ Concluída |
 | 8 | Lives (Novo Módulo) | ✅ Concluída |
-| 9 | Page Insights | ⬜ Pendente |
+| 9 | Page Insights | ✅ Concluída |
 
 ---
 
@@ -160,12 +160,18 @@
 
 ---
 
-## Fase 9 — Page Insights
+## Fase 9 — ✅ Concluída (2026-02-14)
 
-### Edge Function
-| Function | Descrição |
-|---|---|
-| `meta-page-insights` | Insights das páginas |
+### O que foi implementado
 
-### Frontend
-- Aba de métricas em `/media`
+1. **Edge Function `meta-page-insights`** — Insights de páginas FB e contas IG via Graph API v21.0
+2. **Ações suportadas**: `page_overview` (impressões, alcance, fãs), `page_demographics` (idade/gênero/cidade/país), `ig_overview` (impressões, alcance, engajamento IG), `ig_demographics` (demográficos IG), `list_pages` (listar ativos)
+3. **Hook `useMetaPageInsights`** — Queries para todos os tipos de insights com staleTime otimizado
+
+### Arquivos criados
+- `supabase/functions/meta-page-insights/index.ts` (novo)
+- `src/hooks/useMetaPageInsights.ts` (novo)
+
+---
+
+## ✅ TODAS AS 9 FASES CONCLUÍDAS

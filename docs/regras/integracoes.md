@@ -853,6 +853,50 @@ Pack `live_video` requer:
 | `/{live_video_id}` | POST | Atualizar status (LIVE_NOW / end) |
 | `/{live_video_id}?fields=status,live_views,embed_html` | GET | Verificar status e métricas |
 
+### Fase 9 — Page Insights
+
+#### Edge Function: `meta-page-insights`
+
+| Action | Descrição | Métricas |
+|--------|-----------|----------|
+| `page_overview` | Insights da página FB | `page_impressions`, `page_engaged_users`, `page_fans`, `page_views_total` |
+| `page_demographics` | Demográficos FB (lifetime) | `page_fans_gender_age`, `page_fans_city`, `page_fans_country` |
+| `ig_overview` | Insights da conta IG | `impressions`, `reach`, `accounts_engaged`, `total_interactions` |
+| `ig_demographics` | Demográficos IG (lifetime) | `engaged_audience_demographics` (breakdown: age, gender, city, country) |
+| `list_pages` | Listar páginas e contas IG | — |
+
+#### Parâmetros
+
+| Param | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `tenantId` | UUID | ✅ | ID do tenant |
+| `action` | string | ✅ | Ação a executar |
+| `pageId` | string | ❌ | ID da página (default: primeira) |
+| `period` | string | ❌ | `day`, `week`, `days_28` (default: `day`) |
+| `metric` | string | ❌ | Override de métricas separadas por vírgula |
+| `since` | string | ❌ | Data início (Unix timestamp) |
+| `until` | string | ❌ | Data fim (Unix timestamp) |
+
+#### Hook: `useMetaPageInsights`
+
+```typescript
+import { useMetaPageInsights } from "@/hooks/useMetaPageInsights";
+
+const {
+  pages, igAccounts,
+  pageOverview, pageDemographics,
+  igOverview, igDemographics,
+  refetchAll
+} = useMetaPageInsights(selectedPageId);
+```
+
+#### Endpoints Graph API v21.0
+
+| Endpoint | Método | Descrição |
+|----------|--------|-----------|
+| `/{page_id}/insights` | GET | Métricas da página FB |
+| `/{ig_user_id}/insights` | GET | Métricas da conta IG |
+
 ---
 
 ## Pendências
@@ -874,4 +918,4 @@ Pack `live_video` requer:
 - [x] ~~Meta Lead Ads: Captura automática~~ (Fase 4 concluída)
 - [x] ~~Meta oEmbed: Bloco no Builder~~ (Fase 7 concluída)
 - [x] ~~Meta Lives: Módulo de transmissões~~ (Fase 8 concluída)
-- [ ] Meta Page Insights: Métricas agregadas (Fase 9)
+- [x] ~~Meta Page Insights: Métricas agregadas~~ (Fase 9 concluída)
