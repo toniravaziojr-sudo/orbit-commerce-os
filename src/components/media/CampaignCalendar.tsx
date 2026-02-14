@@ -55,6 +55,7 @@ interface StepConfig {
   isActive: boolean;
   isCurrent?: boolean;
   isLoading: boolean;
+  isAI?: boolean;
   count?: number;
   variant?: "default" | "outline" | "destructive";
   className?: string;
@@ -66,6 +67,7 @@ function WorkflowStepper({ steps }: { steps: StepConfig[] }) {
       {steps.map((step, index) => {
         const showConnector = index < steps.length - 1;
         const isCurrent = step.isCurrent || false;
+        const isAIStep = step.isAI || false;
         return (
           <div key={step.number} className="flex items-center gap-1 shrink-0">
             <Button
@@ -74,20 +76,25 @@ function WorkflowStepper({ steps }: { steps: StepConfig[] }) {
               onClick={step.action}
               disabled={!step.isActive || step.isLoading}
               className={cn(
-                "gap-1.5 h-9 text-xs font-medium transition-all",
+                "gap-1.5 h-9 text-xs font-medium transition-all relative",
                 isCurrent && "shadow-sm",
                 !step.isActive && "opacity-50",
+                isAIStep && !isCurrent && "border-violet-300 dark:border-violet-700 bg-violet-50/50 dark:bg-violet-950/20 hover:bg-violet-100/80 dark:hover:bg-violet-950/40",
+                isAIStep && isCurrent && "bg-gradient-to-r from-violet-600 to-primary shadow-md",
                 step.className,
               )}
             >
               <span className={cn(
                 "flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold shrink-0",
-                isCurrent ? "bg-background/20 text-inherit" : "bg-muted text-muted-foreground"
+                isCurrent ? "bg-background/20 text-inherit" : isAIStep ? "bg-violet-200 dark:bg-violet-800 text-violet-700 dark:text-violet-200" : "bg-muted text-muted-foreground"
               )}>
                 {step.isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : step.number}
               </span>
               {step.icon}
               {step.label}
+              {isAIStep && !isCurrent && (
+                <Sparkles className="h-2.5 w-2.5 text-violet-500 dark:text-violet-400" />
+              )}
               {step.count !== undefined && step.count > 0 && (
                 <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-bold">
                   {step.count}
@@ -457,6 +464,7 @@ export function CampaignCalendar() {
       isActive: selectedDays.size > 0 || stats.total === 0,
       isLoading: isGenerating,
       isCurrent: currentStep === 2,
+      isAI: true,
     },
     {
       number: 3, label: isGeneratingCopys ? "Gerando..." : "Copys IA",
@@ -466,6 +474,7 @@ export function CampaignCalendar() {
       isLoading: isGeneratingCopys,
       count: stats.needsCopy,
       isCurrent: currentStep === 3,
+      isAI: true,
     },
     ...(!isBlog ? [{
       number: 4, 
@@ -476,6 +485,7 @@ export function CampaignCalendar() {
       isLoading: isGeneratingAssets,
       count: stats.needsCreative,
       isCurrent: currentStep === 4,
+      isAI: true,
     }] : []),
     {
       number: isBlog ? 4 : 5,
@@ -594,7 +604,7 @@ export function CampaignCalendar() {
         <CardContent className="pt-4 pb-3">
           <div className="flex items-center justify-between gap-4 mb-3">
             <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-              {isSelectMode ? "Modo Seleção — clique nos dias" : "Fluxo de Trabalho"}
+              {isSelectMode ? "Modo Seleção — clique nos dias" : "Calendário Editorial Inteligente"}
             </h3>
             <div className="flex gap-3 text-xs text-muted-foreground">
               <span className="font-medium">{stats.total} itens</span>
