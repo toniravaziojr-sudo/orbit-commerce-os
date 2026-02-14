@@ -24,7 +24,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useMediaCampaigns, MediaCampaign } from "@/hooks/useMediaCampaigns";
 
@@ -57,7 +56,6 @@ const getAvailableMonths = () => {
 
 const formSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
-  prompt: z.string().min(10, "Descreva o objetivo da campanha com pelo menos 10 caracteres"),
   selectedMonth: z.string().min(1, "Selecione um mês"),
 });
 
@@ -79,7 +77,6 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
-      prompt: "",
       selectedMonth: availableMonths[0]?.value || "",
     },
   });
@@ -95,7 +92,7 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
     try {
       const result = await createCampaign.mutateAsync({
         name: values.name,
-        prompt: values.prompt,
+        prompt: "",
         start_date: format(monthData.start, "yyyy-MM-dd"),
         end_date: format(monthData.end, "yyyy-MM-dd"),
         days_of_week: [0, 1, 2, 3, 4, 5, 6],
@@ -103,7 +100,6 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
       });
       form.reset({
         name: "",
-        prompt: "",
         selectedMonth: availableMonths[0]?.value || "",
       });
       onOpenChange(false);
@@ -117,7 +113,6 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
     if (!open) {
       form.reset({
         name: "",
-        prompt: "",
         selectedMonth: availableMonths[0]?.value || "",
       });
     }
@@ -130,7 +125,7 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
         <DialogHeader>
           <DialogTitle>Nova Campanha de Conteúdo</DialogTitle>
           <DialogDescription>
-            Defina o nome, objetivo e o mês da campanha. A IA vai gerar sugestões de conteúdo.
+            Defina o nome e o mês da campanha.
           </DialogDescription>
         </DialogHeader>
 
@@ -145,27 +140,6 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
                   <FormControl>
                     <Input placeholder="Ex: Campanha de Janeiro" {...field} />
                   </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="prompt"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Direcionamento da campanha</FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder="Ex: Campanha de Natal com foco em presentes masculinos, tom premium, destacar produtos X e Y, CTA para WhatsApp..."
-                      className="min-h-[100px]"
-                      {...field} 
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    A IA vai usar as informações da sua loja (produtos, categorias, promoções) automaticamente. Aqui você define o direcionamento específico desta campanha.
-                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

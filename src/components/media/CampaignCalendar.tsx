@@ -20,6 +20,16 @@ import { useMetaConnection } from "@/hooks/useMetaConnection";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { getHolidayForDate } from "@/lib/brazilian-holidays";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 
 // Status colors
 const statusColors: Record<string, string> = {
@@ -123,6 +133,8 @@ export function CampaignCalendar() {
   const [isSelectMode, setIsSelectMode] = useState(true);
   const [isGeneratingCopys, setIsGeneratingCopys] = useState(false);
   const [generationProgress, setGenerationProgress] = useState<{ total: number; completed: number } | null>(null);
+  const [strategyPromptOpen, setStrategyPromptOpen] = useState(false);
+  const [strategyPrompt, setStrategyPrompt] = useState("");
 
   // ========== MEMOS ==========
   const days = useMemo(() => {
@@ -216,23 +228,36 @@ export function CampaignCalendar() {
     } catch { toast.error("Erro ao duplicar"); }
   };
 
-  // Step 1: Generate Strategy
-  const handleGenerateStrategy = async () => {
+  // Step 1: Open strategy prompt dialog
+  const handleOpenStrategyPrompt = () => {
     if (!currentTenant || !campaignId) return;
     if (selectedDays.size === 0) {
       toast.info("Selecione os dias no calendário antes de gerar");
       setIsSelectMode(true);
       return;
     }
+    setStrategyPromptOpen(true);
+  };
+
+  // Step 1b: Generate Strategy (after prompt confirmation)
+  const handleGenerateStrategy = async () => {
+    if (!currentTenant || !campaignId) return;
+    setStrategyPromptOpen(false);
     setIsGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke("media-generate-suggestions", {
-        body: { campaign_id: campaignId, tenant_id: currentTenant.id, target_dates: Array.from(selectedDays) },
+        body: { 
+          campaign_id: campaignId, 
+          tenant_id: currentTenant.id, 
+          target_dates: Array.from(selectedDays),
+          prompt: strategyPrompt || undefined,
+        },
       });
       if (error) throw error;
       if (data?.success) {
         toast.success(data.message || "Estratégia gerada!");
         setSelectedDays(new Set()); setIsSelectMode(false);
+        setStrategyPrompt("");
         await refetchItems();
       } else toast.error(data?.error || "Erro ao gerar estratégia");
     } catch { toast.error("Erro ao gerar estratégia"); }
@@ -428,7 +453,7 @@ export function CampaignCalendar() {
     {
       number: 2, label: isGenerating ? "Gerando..." : "Estratégia IA",
       icon: <Sparkles className="h-3.5 w-3.5" />,
-      action: handleGenerateStrategy,
+      action: handleOpenStrategyPrompt,
       isActive: selectedDays.size > 0 || stats.total === 0,
       isLoading: isGenerating,
       isCurrent: currentStep === 2,
@@ -882,6 +907,50 @@ export function CampaignCalendar() {
         onApprove={handleApproveSelected}
         isApproving={isApproving}
       />
+
+      {/* Strategy Prompt Dialog */}
+      <Dialog open={strategyPromptOpen} onOpenChange={setStrategyPromptOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Direcionamento da Estratégia
+            </DialogTitle>
+            <DialogDescription>
+              Descreva o direcionamento para a IA gerar a estratégia de conteúdo dos {selectedDays.size} dia(s) selecionado(s). Este campo é opcional.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="strategy-prompt">Direcionamento (opcional)</Label>
+              <Textarea
+                id="strategy-prompt"
+                placeholder="Ex: Campanha de Natal com foco em presentes masculinos, tom premium, destacar produtos X e Y, CTA para WhatsApp..."
+                className="min-h-[120px] mt-1.5"
+                value={strategyPrompt}
+                onChange={(e) => setStrategyPrompt(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">
+                A IA vai usar as informações da sua loja (produtos, categorias, promoções) automaticamente. Aqui você define o direcionamento específico.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setStrategyPromptOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleGenerateStrategy} disabled={isGenerating}>
+              {isGenerating ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Gerando...</>
+              ) : (
+                <><Sparkles className="h-4 w-4 mr-2" />Gerar Estratégia</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
