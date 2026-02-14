@@ -579,3 +579,15 @@ verify_jwt = true
 
 [functions.media-generate-copys]
 verify_jwt = true
+
+[functions.meta-ads-campaigns]
+verify_jwt = false
+
+[functions.meta-ads-insights]
+verify_jwt = false
+
+[functions.meta-ads-audiences]
+verify_jwt = false
+
+[functions.meta-ads-creatives]
+verify_jwt = false

@@ -8,7 +8,7 @@
 |------|-----------|--------|
 | 1 | Scope Packs + OAuth Incremental + Descoberta de Ativos | ✅ Concluída |
 | 2 | Atendimento Unificado (Messenger + IG DM + Comentários) | ✅ Concluída |
-| 3 | Gestor de Tráfego IA (Ads Manager) | ⬜ Pendente |
+| 3 | Gestor de Tráfego IA (Ads Manager) | ✅ Concluída |
 | 4 | Lead Ads (Captura de Leads) | ⬜ Pendente |
 | 5 | Catálogo de Produtos | ⬜ Pendente |
 | 6 | Threads (Publicação) | ⬜ Pendente |
@@ -58,19 +58,24 @@
 
 ---
 
-## Fase 3 — Gestor de Tráfego IA (Ads Manager)
+## Fase 3 — ✅ Concluída (2026-02-14)
 
-### Edge Functions
-| Function | Descrição |
-|---|---|
-| `meta-ads-campaigns` | CRUD de campanhas |
-| `meta-ads-insights` | Métricas |
-| `meta-ads-audiences` | Públicos |
-| `meta-ads-creatives` | Criativos |
+### O que foi implementado
 
-### Novas tabelas
-- `meta_ad_campaigns`
-- `meta_ad_insights`
+1. **Tabelas** — `meta_ad_campaigns`, `meta_ad_insights`, `meta_ad_audiences`, `meta_ad_creatives` com RLS tenant-scoped
+2. **Edge Functions** — `meta-ads-campaigns` (CRUD + sync), `meta-ads-insights` (sync + summary), `meta-ads-audiences` (sync + list), `meta-ads-creatives` (sync + list)
+3. **Hook** — `useMetaAds` com queries, mutations e syncAll
+4. **UI** — Página `/ads` (AdsManager) com dashboard de métricas, tabelas de campanhas/insights, cards de públicos/criativos
+5. **Armazenamento híbrido** — Cache local com sync sob demanda via Graph API
+
+### Arquivos criados/alterados
+- `supabase/functions/meta-ads-campaigns/index.ts` (novo)
+- `supabase/functions/meta-ads-insights/index.ts` (novo)
+- `supabase/functions/meta-ads-audiences/index.ts` (novo)
+- `supabase/functions/meta-ads-creatives/index.ts` (novo)
+- `src/hooks/useMetaAds.ts` (novo)
+- `src/pages/AdsManager.tsx` (novo)
+- `src/App.tsx` (rota /ads adicionada)
 
 ---
 
