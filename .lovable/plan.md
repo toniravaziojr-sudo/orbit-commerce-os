@@ -111,13 +111,19 @@
 
 ---
 
-## Fase 6 — Threads
+## Fase 6 — ✅ Concluída (2026-02-14)
 
-### Edge Functions
-| Function | Descrição |
-|---|---|
-| `meta-threads-publish` | Publicar no Threads |
-| `meta-threads-insights` | Métricas de posts |
+### O que foi implementado
+
+1. **Edge Functions** — `meta-threads-publish` (criar post texto/imagem/vídeo, listar posts) e `meta-threads-insights` (insights por post e perfil)
+2. **Hook** — `useMetaThreads` com queries para posts/insights e mutation para publicar
+3. **Container flow** — Polling de status para vídeos com retry + backoff
+4. **Threads API v21.0** — Endpoints: `/{user_id}/threads`, `/{user_id}/threads_publish`, `/{post_id}/insights`, `/{user_id}/threads_insights`
+
+### Arquivos criados
+- `supabase/functions/meta-threads-publish/index.ts` (novo)
+- `supabase/functions/meta-threads-insights/index.ts` (novo)
+- `src/hooks/useMetaThreads.ts` (novo)
 
 ---
 

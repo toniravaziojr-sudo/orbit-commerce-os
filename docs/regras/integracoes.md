@@ -603,8 +603,8 @@ interface MetaAssets {
 - [ ] YouTube: sync job para verificar status de vídeos agendados
 - [x] ~~Meta Scope Packs + OAuth Incremental~~ (Fase 1 concluída)
 - [x] ~~Meta Atendimento: Messenger + Instagram DM + Comentários~~ (Fase 2 concluída)
-- [ ] Meta Catálogo: Sincronização de produtos (Fase 5)
-- [ ] Meta Threads: Publicação no Calendário (Fase 6)
+- [x] ~~Meta Catálogo: Sincronização de produtos~~ (Fase 5 concluída)
+- [x] ~~Meta Threads: Publicação + Insights~~ (Fase 6 concluída)
 - [x] ~~Meta Ads Manager: Gestor de Tráfego~~ (Fase 3 concluída)
 - [x] ~~Meta Lead Ads: Captura automática~~ (Fase 4 concluída)
 - [ ] Meta oEmbed: Bloco no Builder (Fase 7)
