@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const VERSION = "2.3.0"; // Fix: items with future schedule_time stay as 'scheduled' until published
+const VERSION = "2.4.0"; // Fix: use target_platforms to publish to both Instagram AND Facebook
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -129,7 +129,15 @@ serve(async (req) => {
     for (const item of sortedItems) {
       try {
         const targetChannel = item.target_channel || "facebook";
+        const targetPlatforms = (item.target_platforms as string[]) || [];
         const contentType = item.content_type || "image";
+        
+        // Determine which platforms to publish to based on target_platforms array
+        // target_platforms contains entries like "feed_instagram", "feed_facebook", "story_instagram", "story_facebook"
+        const shouldPublishInstagram = targetChannel === "instagram" || targetChannel === "all" ||
+          targetPlatforms.some((p: string) => p.includes("instagram"));
+        const shouldPublishFacebook = targetChannel === "facebook" || targetChannel === "all" ||
+          targetPlatforms.some((p: string) => p.includes("facebook"));
         
         // Build scheduled datetime from item
         const scheduledAt = buildScheduledAt(item.scheduled_date, item.scheduled_time);
@@ -153,32 +161,32 @@ serve(async (req) => {
           await new Promise(resolve => setTimeout(resolve, waitMs));
         }
 
-        if (targetChannel === "instagram" || targetChannel === "all") {
+        let igResult: any = null;
+        let fbResult: any = null;
+
+        if (shouldPublishInstagram) {
           const igAccount = assets.instagram_accounts?.[0];
           if (igAccount) {
             if (isFutureSchedule) {
-              // Instagram não suporta agendamento nativo via API
-              // Salvamos como 'scheduled' e um cron publicará no horário
               finalStatus = "scheduled";
-              result = { scheduled: true, scheduled_at: scheduledAt };
+              igResult = { scheduled: true, scheduled_at: scheduledAt };
             } else {
-              result = await publishToInstagram(
+              igResult = await publishToInstagram(
                 igAccount.id,
                 userAccessToken,
                 item,
                 contentType
               );
-              if (!isFutureSchedule) immediatePublishIndex++;
+              immediatePublishIndex++;
             }
           } else {
-            throw new Error("Nenhuma conta Instagram conectada");
+            console.warn(`[meta-publish-post] No Instagram account connected, skipping IG for item ${item.id}`);
           }
         }
         
-        if (targetChannel === "facebook" || targetChannel === "all") {
+        if (shouldPublishFacebook) {
           if (isFutureSchedule && isFacebookSchedulable) {
-            // Facebook suporta agendamento nativo via scheduled_publish_time (min 10min)
-            result = await scheduleToFacebook(
+            fbResult = await scheduleToFacebook(
               page.id,
               pageAccessToken,
               item,
@@ -187,40 +195,74 @@ serve(async (req) => {
             );
             finalStatus = "scheduled";
           } else if (isFutureSchedule && !isFacebookSchedulable) {
-            // Future but <10min — save as scheduled, cron will handle it
             finalStatus = "scheduled";
-            result = { scheduled: true, scheduled_at: scheduledAt, reason: "facebook_too_close_for_native" };
+            fbResult = { scheduled: true, scheduled_at: scheduledAt, reason: "facebook_too_close_for_native" };
           } else {
-            result = await publishToFacebook(
+            fbResult = await publishToFacebook(
               page.id,
               pageAccessToken,
               item,
               contentType
             );
-            if (targetChannel === "facebook") immediatePublishIndex++;
+            if (!shouldPublishInstagram) immediatePublishIndex++;
           }
         }
 
-        // Save to social_posts for audit/App Review
-        await supabase.from("social_posts").insert({
-          tenant_id,
-          calendar_item_id: item.id,
-          platform: targetChannel === "all" ? "facebook" : targetChannel,
-          post_type: mapContentType(contentType),
-          page_id: page.id,
-          page_name: page.name,
-          instagram_account_id: assets.instagram_accounts?.[0]?.id || null,
-          caption: item.copy || item.title,
-          media_urls: item.asset_url ? [item.asset_url] : null,
-          hashtags: item.hashtags,
-          meta_post_id: result?.id || result?.post_id || null,
-          meta_container_id: result?.container_id || null,
-          status: finalStatus,
-          scheduled_at: isFutureSchedule ? scheduledAt : null,
-          published_at: finalStatus === "published" ? new Date().toISOString() : null,
-          api_response: result,
-          created_by: user.id,
-        });
+        // Combine results
+        result = {
+          instagram: igResult,
+          facebook: fbResult,
+          ...(igResult?.id ? { id: igResult.id } : {}),
+          ...(igResult?.container_id ? { container_id: igResult.container_id } : {}),
+          ...(fbResult?.id ? { fb_id: fbResult.id } : {}),
+          ...(fbResult?.post_id ? { fb_post_id: fbResult.post_id } : {}),
+        };
+
+        // Save Instagram social_post
+        if (shouldPublishInstagram && igResult) {
+          await supabase.from("social_posts").insert({
+            tenant_id,
+            calendar_item_id: item.id,
+            platform: "instagram",
+            post_type: mapContentType(contentType),
+            page_id: page.id,
+            page_name: page.name,
+            instagram_account_id: assets.instagram_accounts?.[0]?.id || null,
+            caption: item.copy || item.title,
+            media_urls: item.asset_url ? [item.asset_url] : null,
+            hashtags: item.hashtags,
+            meta_post_id: igResult?.id || null,
+            meta_container_id: igResult?.container_id || null,
+            status: finalStatus,
+            scheduled_at: isFutureSchedule ? scheduledAt : null,
+            published_at: finalStatus === "published" ? new Date().toISOString() : null,
+            api_response: igResult,
+            created_by: user.id,
+          });
+        }
+
+        // Save Facebook social_post
+        if (shouldPublishFacebook && fbResult) {
+          await supabase.from("social_posts").insert({
+            tenant_id,
+            calendar_item_id: item.id,
+            platform: "facebook",
+            post_type: mapContentType(contentType),
+            page_id: page.id,
+            page_name: page.name,
+            instagram_account_id: null,
+            caption: item.copy || item.title,
+            media_urls: item.asset_url ? [item.asset_url] : null,
+            hashtags: item.hashtags,
+            meta_post_id: fbResult?.id || fbResult?.post_id || null,
+            meta_container_id: null,
+            status: finalStatus,
+            scheduled_at: isFutureSchedule ? scheduledAt : null,
+            published_at: finalStatus === "published" ? new Date().toISOString() : null,
+            api_response: fbResult,
+            created_by: user.id,
+          });
+        }
 
         // Update calendar item status + published_at
         const updateData: Record<string, any> = { status: finalStatus };
