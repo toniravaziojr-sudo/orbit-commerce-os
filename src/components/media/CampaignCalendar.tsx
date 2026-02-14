@@ -852,7 +852,13 @@ export function CampaignCalendar() {
                           {isSelectMode ? "Selecionar" : "Adicionar"}
                         </div>
                       )}
-                      {/* "Selecionado" indicator hidden for video recording */}
+                      {isSelectMode && isSelected && (
+                        <div className="absolute top-1 right-1">
+                          <Badge variant="default" className="text-[9px] px-1 py-0 h-4 bg-primary">
+                            ✓
+                          </Badge>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
