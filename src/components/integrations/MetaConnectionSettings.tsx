@@ -106,7 +106,7 @@ export function MetaConnectionSettings() {
           </div>
           <div className="flex-1">
             <CardTitle className="flex items-center gap-2">
-              Meta (Facebook/Instagram/WhatsApp)
+              Meta
               {isConnected && (
                 <Badge variant="default" className="bg-green-500">
                   <CheckCircle className="h-3 w-3 mr-1" />
