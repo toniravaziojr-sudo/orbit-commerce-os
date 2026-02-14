@@ -8,6 +8,7 @@ export interface SystemUploadOptions {
   source: string; // e.g., 'storefront_logo', 'category_banner', 'product_image'
   subPath?: string; // Optional subfolder within system folder path, e.g., 'branding', 'products'
   customFilename?: string; // If you want to override the generated filename
+  folderId?: string; // Optional: specify a custom folder ID instead of system folder
 }
 
 export interface SystemUploadResult {
@@ -26,13 +27,16 @@ export interface SystemUploadResult {
 export async function uploadAndRegisterToSystemDrive(
   options: SystemUploadOptions
 ): Promise<SystemUploadResult | null> {
-  const { tenantId, userId, file, source, subPath, customFilename } = options;
+  const { tenantId, userId, file, source, subPath, customFilename, folderId } = options;
 
-  // Get or create the system folder
-  const systemFolderId = await ensureSystemFolderAndGetId(tenantId, userId);
-  if (!systemFolderId) {
-    console.error('Could not get/create system folder');
-    return null;
+  // Use custom folder or fall back to system folder
+  let targetFolderId = folderId || null;
+  if (!targetFolderId) {
+    targetFolderId = await ensureSystemFolderAndGetId(tenantId, userId);
+    if (!targetFolderId) {
+      console.error('Could not get/create system folder');
+      return null;
+    }
   }
 
   // Generate UNIQUE storage path with UUID to avoid cache issues
@@ -83,7 +87,7 @@ export async function uploadAndRegisterToSystemDrive(
     .from('files')
     .insert({
       tenant_id: tenantId,
-      folder_id: systemFolderId,
+      folder_id: targetFolderId,
       filename,
       original_name: file.name,
       storage_path: storagePath,

@@ -887,6 +887,7 @@ export function CampaignCalendar() {
         open={dialogOpen} onOpenChange={setDialogOpen}
         date={selectedDate} campaignId={campaignId!}
         existingItems={currentDateItems} editItem={editItem}
+        campaignStartDate={campaign?.start_date}
         campaignType={campaign?.target_channel === "blog" ? "blog" : campaign?.target_channel === "youtube" ? "youtube" : "social"}
         onBackToList={() => { if (selectedDate) { setDayListDate(selectedDate); setDayListOpen(true); } }}
       />
