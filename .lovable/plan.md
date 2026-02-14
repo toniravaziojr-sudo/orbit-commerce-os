@@ -1,137 +1,149 @@
 
 
-# Fase 1 — Scope Packs + OAuth Incremental + Descoberta de Ativos
+# Hub Centralizado Meta — Plano de Implementação
 
-## Objetivo
+## Status das Fases
 
-Desbloquear todos os pacotes de permissoes na tela Integracoes > Meta, implementar consentimento incremental (re-auth para novos packs sem quebrar tokens existentes), e descobrir/exibir todos os ativos conectados (Pages, IG, WhatsApp, Ad Accounts, Catalogos, Threads).
-
-Uma vez conectado aqui, as funcionalidades ficam automaticamente disponiveis nos modulos correspondentes (Atendimento, Calendario de Conteudo, Gestor de Trafego, etc).
-
----
-
-## O Que Muda
-
-### 1. Tipo `MetaScopePack` (useMetaConnection.ts)
-
-Adicionar dois novos packs ao tipo:
-
-```text
-ANTES: "atendimento" | "publicacao" | "ads" | "leads" | "catalogo" | "whatsapp"
-DEPOIS: "atendimento" | "publicacao" | "ads" | "leads" | "catalogo" | "whatsapp" | "threads" | "live_video"
-```
-
-Adicionar novos campos ao `MetaAssets`:
-- `catalogs: Array<{ id: string; name: string }>`
-- `threads_profile: { id: string; username: string } | null`
-
-### 2. UI de Scope Packs (MetaUnifiedSettings.tsx)
-
-**Desbloquear packs existentes** — mudar `available: true` para:
-- `atendimento` (Messenger + Instagram DM + Comentarios)
-- `ads` (Campanhas e metricas)
-- `leads` (Lead Ads)
-- `catalogo` (Catalogo de Produtos)
-
-**Adicionar novos packs:**
-- `threads` — Publicacao e gestao no Threads
-- `live_video` — Transmissoes ao vivo (Lives)
-
-**Consentimento incremental:** Quando ja conectado, mostrar botao "Adicionar permissoes" que dispara re-auth pedindo APENAS os novos scopes selecionados (uniao dos atuais + novos).
-
-**Ativos conectados:** Adicionar cards para:
-- Catalogos (icone ShoppingBag)
-- Threads (icone AtSign ou similar)
-
-### 3. MetaConnectionSettings.tsx
-
-Atualizar o `SCOPE_PACK_INFO` para incluir os mesmos novos packs (`threads`, `live_video`). Sincronizar com MetaUnifiedSettings.
-
-### 4. Edge Function `meta-oauth-start`
-
-Atualizar `SCOPE_PACKS` com os novos mapeamentos:
-
-```text
-atendimento:
-  pages_messaging
-  instagram_manage_messages (ou instagram_business_manage_messages)
-  pages_manage_engagement
-  pages_read_user_content
-  pages_read_engagement
-
-ads:
-  ads_management
-  ads_read
-  pages_manage_ads
-  leads_retrieval
-
-catalogo:
-  catalog_management
-
-threads:
-  threads_content_publish
-  threads_manage_replies
-  threads_manage_insights
-  threads_basic
-  threads_read_replies
-
-live_video:
-  publish_video
-  pages_manage_posts (necessario para criar live na pagina)
-```
-
-Manter a logica existente de uniao de escopos (Set) — isso garante que re-auth inclui escopos anteriores + novos.
-
-### 5. Edge Function `meta-oauth-callback`
-
-Expandir `discoverMetaAssets` para:
-
-1. **Catalogos** (quando pack `catalogo` ativo):
-   - `GET /{version}/me/businesses` -> para cada business: `GET /{business_id}/owned_product_catalogs?fields=id,name`
-   - Salvar em `assets.catalogs`
-
-2. **Threads** (quando pack `threads` ativo):
-   - `GET /{version}/me/threads?fields=id,username` (Threads API)
-   - Salvar em `assets.threads_profile`
-
-3. **Merge de scope_packs:** Na hora do upsert em `marketplace_connections`, fazer uniao dos packs anteriores com os novos (nao substituir), preservando o consentimento incremental.
+| Fase | Descrição | Status |
+|------|-----------|--------|
+| 1 | Scope Packs + OAuth Incremental + Descoberta de Ativos | ✅ Concluída |
+| 2 | Atendimento Unificado (Messenger + IG DM + Comentários) | 🟧 Próxima |
+| 3 | Gestor de Tráfego IA (Ads Manager) | ⬜ Pendente |
+| 4 | Lead Ads (Captura de Leads) | ⬜ Pendente |
+| 5 | Catálogo de Produtos | ⬜ Pendente |
+| 6 | Threads (Publicação) | ⬜ Pendente |
+| 7 | oEmbed (Bloco no Builder) | ⬜ Pendente |
+| 8 | Lives (Novo Módulo) | ⬜ Pendente |
+| 9 | Page Insights | ⬜ Pendente |
 
 ---
 
-## Logica de Consentimento Incremental
+## Fase 1 — ✅ Concluída (2026-02-14)
 
-```text
-1. Tenant conecta com packs ["publicacao", "whatsapp"]
-2. Token salvo com scope_packs: ["publicacao", "whatsapp"]
-3. Tenant quer adicionar "ads"
-4. UI mostra botao "Adicionar permissoes"
-5. meta-oauth-start recebe scopePacks: ["publicacao", "whatsapp", "ads"]
-   (uniao dos atuais + novos)
-6. Meta pede autorizacao APENAS dos novos escopos
-7. meta-oauth-callback faz merge: scope_packs finais = ["publicacao", "whatsapp", "ads"]
-8. Novo token substitui o anterior (com todos os escopos)
-```
+### O que foi implementado
 
----
+1. **Tipos atualizados** — `MetaScopePack` com 8 packs: `atendimento`, `publicacao`, `ads`, `leads`, `catalogo`, `whatsapp`, `threads`, `live_video`
+2. **MetaAssets expandido** — Adicionados `catalogs[]` e `threads_profile`
+3. **UI completa** — Todos os 8 packs desbloqueados em MetaUnifiedSettings e MetaConnectionSettings
+4. **Consentimento incremental** — Componente `IncrementalConsentSection` para adicionar packs sem perder token
+5. **Edge Function `meta-oauth-start`** — Mapeamento completo de escopos por pack
+6. **Edge Function `meta-oauth-callback`** — Descoberta de catálogos e Threads + merge de scope_packs
 
-## Arquivos Afetados
-
-| Arquivo | Tipo de Alteracao |
-|---------|-------------------|
-| `src/hooks/useMetaConnection.ts` | Adicionar tipos `threads`, `live_video` + campos `catalogs`, `threads_profile` ao MetaAssets |
-| `src/components/integrations/MetaUnifiedSettings.tsx` | Desbloquear packs + adicionar novos + botao re-auth + cards de ativos |
-| `src/components/integrations/MetaConnectionSettings.tsx` | Sincronizar SCOPE_PACK_INFO com novos packs |
-| `supabase/functions/meta-oauth-start/index.ts` | Adicionar mapeamento de escopos para novos packs |
-| `supabase/functions/meta-oauth-callback/index.ts` | Expandir discoverMetaAssets + merge de scope_packs |
+### Arquivos alterados
+- `src/hooks/useMetaConnection.ts`
+- `src/components/integrations/MetaUnifiedSettings.tsx`
+- `src/components/integrations/MetaConnectionSettings.tsx`
+- `supabase/functions/meta-oauth-start/index.ts`
+- `supabase/functions/meta-oauth-callback/index.ts`
 
 ---
 
-## Criterios de Aceite
+## Fase 2 — Atendimento Unificado (Próxima)
 
-1. Todos os 8 packs aparecem na UI e podem ser selecionados
-2. Cada pack pede somente seus escopos especificos
-3. Re-auth (adicionar novo pack) nao quebra token/packs existentes
-4. Assets conectados aparecem na UI: Pages, IG, WhatsApp, Ad Accounts, Catalogos, Threads
-5. Multi-tenant seguro: tokens server-side, logs com tenant_id
-6. WhatsApp existente continua funcionando sem alteracoes
+### Objetivo
+Adicionar Messenger, Instagram DM e comentários FB/IG como canais no inbox de Atendimento.
 
+### Edge Functions necessárias
+| Function | Descrição |
+|---|---|
+| `meta-messenger-webhook` | Recebe mensagens do Messenger |
+| `meta-instagram-dm-webhook` | Recebe DMs do Instagram |
+| `meta-comments-webhook` | Recebe comentários (FB + IG) |
+
+### Alterações necessárias
+- `support-send-message` — Roteamento para Messenger e Instagram DM
+- `src/pages/Support.tsx` — Filtro por canal
+- `src/hooks/useConversations.ts` — Novos `channel_type`
+- Nova tabela `meta_comment_threads`
+
+---
+
+## Fase 3 — Gestor de Tráfego IA (Ads Manager)
+
+### Edge Functions
+| Function | Descrição |
+|---|---|
+| `meta-ads-campaigns` | CRUD de campanhas |
+| `meta-ads-insights` | Métricas |
+| `meta-ads-audiences` | Públicos |
+| `meta-ads-creatives` | Criativos |
+
+### Novas tabelas
+- `meta_ad_campaigns`
+- `meta_ad_insights`
+
+---
+
+## Fase 4 — Lead Ads
+
+### Edge Functions
+| Function | Descrição |
+|---|---|
+| `meta-leads-webhook` | Recebe leads via webhook |
+
+### Fluxo
+Lead → `customers` + tag automática + notificação
+
+---
+
+## Fase 5 — Catálogo
+
+### Edge Functions
+| Function | Descrição |
+|---|---|
+| `meta-catalog-sync` | Push produtos para Meta |
+| `meta-catalog-create` | Criar catálogo |
+
+### Nova tabela
+- `meta_catalog_items`
+
+---
+
+## Fase 6 — Threads
+
+### Edge Functions
+| Function | Descrição |
+|---|---|
+| `meta-threads-publish` | Publicar no Threads |
+| `meta-threads-insights` | Métricas de posts |
+
+---
+
+## Fase 7 — oEmbed
+
+### Edge Function
+| Function | Descrição |
+|---|---|
+| `meta-oembed` | HTML de incorporação por URL |
+
+### Frontend
+- Novo bloco `EmbedSocialPost` no Builder
+
+---
+
+## Fase 8 — Lives
+
+### Edge Functions
+| Function | Descrição |
+|---|---|
+| `meta-live-create` | Criar transmissão |
+| `meta-live-manage` | Gerenciar live |
+
+### Frontend
+- `src/pages/Lives.tsx` — Nova página em Marketing Avançado
+- Rota: `/lives`
+
+### Nova tabela
+- `meta_live_streams`
+
+---
+
+## Fase 9 — Page Insights
+
+### Edge Function
+| Function | Descrição |
+|---|---|
+| `meta-page-insights` | Insights das páginas |
+
+### Frontend
+- Aba de métricas em `/media`
