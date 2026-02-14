@@ -204,6 +204,13 @@ A IA consulta o catálogo de produtos ativos do tenant (`products` table, `statu
 - Deve usar os **nomes exatos** dos produtos cadastrados
 - Se o catálogo estiver vazio, gera conteúdo genérico sem mencionar produtos específicos
 
+**Produto Imutável na Geração de Criativos:**
+O pipeline de geração de imagens (`media-process-generation-queue`) trata o produto como **SAGRADO e IMUTÁVEL**:
+- A IA **NÃO PODE** redesenhar, recriar ou alterar a embalagem/rótulo/formato do produto
+- A IA **NÃO PODE** criar variações fictícias do produto (frascos diferentes, tamanhos diferentes)
+- A IA **PODE APENAS** mudar ambiente, cenário, iluminação e contexto ao redor do produto
+- O QA Scorer penaliza severamente (LABEL 0-2) qualquer alteração no produto
+
 Técnicas utilizadas:
 - AIDA (Atenção, Interesse, Desejo, Ação)
 - PAS (Problema, Agitação, Solução)

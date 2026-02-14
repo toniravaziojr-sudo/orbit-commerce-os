@@ -102,11 +102,23 @@ Imagem publicitária de alto impacto visual.
 
 ---
 
-## Princípio Fundamental: Label Lock
+## Princípio Fundamental: Produto Imutável + Label Lock
 
-**REGRA CRÍTICA:** Modelos de geração de imagem distorcem texto quando tentam "desenhar letras". O rótulo do produto **NUNCA** deve ser gerado pela IA.
+**REGRA CRÍTICA — PRODUTO IMUTÁVEL:**
+O produto cadastrado no catálogo é **SAGRADO e IMUTÁVEL**. A IA **NUNCA** pode:
+- Redesenhar, recriar ou reimaginar o produto
+- Mudar embalagem, rótulo, formato, cores ou proporções
+- Criar variações do produto (frascos diferentes, tamanhos diferentes, embalagens fictícias)
+- Inventar produtos que não existem na imagem de referência
+- Multiplicar o produto além do que o briefing pede
 
-**Solução:** O pipeline **Label Lock** compõe o produto real (recortado) sobre a cena gerada, garantindo texto/rótulo 100% fiel.
+A IA **PODE APENAS**:
+- Mudar o AMBIENTE/CENÁRIO ao redor do produto (fundo, superfície, iluminação)
+- Adicionar CONTEXTO (mãos segurando, bancada, flatlay)
+- Aplicar efeitos leves de iluminação/sombra NO AMBIENTE (nunca no produto)
+- Posicionar o produto em diferentes ângulos (mantendo fidelidade total)
+
+**Label Lock:** Modelos de geração de imagem distorcem texto quando tentam "desenhar letras". O rótulo do produto **NUNCA** deve ser gerado pela IA. O pipeline **Label Lock** compõe o produto real (recortado) sobre a cena gerada, garantindo texto/rótulo 100% fiel.
 
 ---
 
