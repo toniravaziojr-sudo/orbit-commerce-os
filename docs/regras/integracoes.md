@@ -495,6 +495,96 @@ https://www.googleapis.com/auth/youtube.readonly
 
 ---
 
+## Meta — Scope Packs e OAuth Incremental (Fase 1)
+
+> **STATUS:** ✅ Ready  
+> **Adicionado em:** 2026-02-14
+
+### Visão Geral
+
+A integração Meta usa **Scope Packs** para consentimento incremental. O tenant conecta apenas os packs que precisa e pode adicionar novos depois sem perder o token existente.
+
+### Scope Packs Disponíveis
+
+| Pack | Label | Escopos Graph API |
+|------|-------|-------------------|
+| `whatsapp` | WhatsApp | `whatsapp_business_management`, `whatsapp_business_messaging` |
+| `publicacao` | Publicação | `pages_manage_posts`, `pages_read_engagement`, `instagram_basic`, `instagram_content_publish` |
+| `atendimento` | Atendimento | `pages_messaging`, `instagram_manage_messages`, `pages_manage_engagement`, `pages_read_user_content`, `pages_read_engagement` |
+| `ads` | Anúncios | `ads_management`, `ads_read`, `pages_manage_ads`, `leads_retrieval` |
+| `leads` | Leads | `leads_retrieval`, `pages_manage_ads` |
+| `catalogo` | Catálogo | `catalog_management` |
+| `threads` | Threads | `threads_content_publish`, `threads_manage_replies`, `threads_manage_insights`, `threads_basic`, `threads_read_replies` |
+| `live_video` | Lives | `publish_video`, `pages_manage_posts` |
+
+**Escopos base** (sempre incluídos): `public_profile`, `pages_show_list`
+
+### Consentimento Incremental
+
+```text
+1. Tenant conecta com packs ["publicacao", "whatsapp"]
+2. Token salvo com scope_packs: ["publicacao", "whatsapp"]
+3. Tenant quer adicionar "ads"
+4. UI mostra botão "Adicionar permissões"
+5. meta-oauth-start recebe scopePacks: ["publicacao", "whatsapp", "ads"] (união)
+6. Meta pede autorização APENAS dos novos escopos
+7. meta-oauth-callback faz merge: scope_packs finais = ["publicacao", "whatsapp", "ads"]
+8. Novo token substitui o anterior (com todos os escopos)
+```
+
+### Descoberta de Ativos
+
+O callback OAuth descobre automaticamente:
+
+| Ativo | Endpoint | Campo em `metadata.assets` |
+|-------|----------|---------------------------|
+| Páginas | `GET /me/accounts` | `pages[]` |
+| Instagram | `GET /{page_id}?fields=instagram_business_account` | `instagram_accounts[]` |
+| WhatsApp | `GET /me/businesses` → `/{biz_id}/owned_whatsapp_business_accounts` | `whatsapp_business_accounts[]` |
+| Contas de Anúncio | `GET /me/adaccounts` | `ad_accounts[]` |
+| Catálogos | `GET /me/businesses` → `/{biz_id}/owned_product_catalogs` | `catalogs[]` |
+| Threads | `GET /me/threads?fields=id,username` | `threads_profile` |
+
+### Mapeamento: Pack → Módulo do Sistema
+
+| Pack | Módulo | Rota |
+|------|--------|------|
+| `whatsapp` | Atendimento | `/support` |
+| `atendimento` | Atendimento | `/support` |
+| `publicacao` | Gestor de Mídias IA | `/media` |
+| `threads` | Gestor de Mídias IA | `/media` |
+| `ads` | Gestor de Tráfego IA | `/campaigns` |
+| `leads` | CRM / Clientes | `/customers` |
+| `catalogo` | Marketing / Integrações | `/marketing` |
+| `live_video` | Lives | `/lives` |
+
+### Arquivos
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/hooks/useMetaConnection.ts` | Hook com tipos `MetaScopePack` e `MetaAssets` |
+| `src/components/integrations/MetaUnifiedSettings.tsx` | UI principal com scope packs + consentimento incremental |
+| `src/components/integrations/MetaConnectionSettings.tsx` | Card alternativo de conexão |
+| `supabase/functions/meta-oauth-start/index.ts` | Gera URL OAuth com escopos por pack |
+| `supabase/functions/meta-oauth-callback/index.ts` | Callback com descoberta de ativos + merge de packs |
+
+### Tipos TypeScript
+
+```typescript
+type MetaScopePack = "atendimento" | "publicacao" | "ads" | "leads" | "catalogo" | "whatsapp" | "threads" | "live_video";
+
+interface MetaAssets {
+  pages: Array<{ id: string; name: string; access_token?: string }>;
+  instagram_accounts: Array<{ id: string; username: string; page_id: string }>;
+  whatsapp_business_accounts: Array<{ id: string; name: string }>;
+  ad_accounts: Array<{ id: string; name: string }>;
+  catalogs: Array<{ id: string; name: string }>;
+  threads_profile: { id: string; username: string } | null;
+}
+```
+
+---
+
 ## Pendências
 
 - [ ] Implementar integrações ERP (Bling)
@@ -506,3 +596,12 @@ https://www.googleapis.com/auth/youtube.readonly
 - [ ] YouTube Analytics sync
 - [ ] YouTube auto-captions
 - [ ] YouTube: sync job para verificar status de vídeos agendados
+- [x] ~~Meta Scope Packs + OAuth Incremental~~ (Fase 1 concluída)
+- [ ] Meta Atendimento: Messenger + Instagram DM + Comentários (Fase 2)
+- [ ] Meta Catálogo: Sincronização de produtos (Fase 5)
+- [ ] Meta Threads: Publicação no Calendário (Fase 6)
+- [ ] Meta Ads Manager: Gestor de Tráfego (Fase 3)
+- [ ] Meta Lead Ads: Captura automática (Fase 4)
+- [ ] Meta oEmbed: Bloco no Builder (Fase 7)
+- [ ] Meta Lives: Módulo de transmissões (Fase 8)
+- [ ] Meta Page Insights: Métricas agregadas (Fase 9)
