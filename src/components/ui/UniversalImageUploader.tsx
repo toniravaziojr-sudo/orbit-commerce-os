@@ -193,6 +193,7 @@ export function UniversalImageUploader({
 
         <TabsContent value="drive" className="mt-3">
           <Button
+            type="button"
             variant="outline"
             className="w-full h-24 flex-col gap-2"
             onClick={() => setShowDrivePicker(true)}
