@@ -10,10 +10,10 @@
 | 2 | Atendimento Unificado (Messenger + IG DM + Comentários) | ✅ Concluída |
 | 3 | Gestor de Tráfego IA (Ads Manager) | ✅ Concluída |
 | 4 | Lead Ads (Captura de Leads) | ✅ Concluída |
-| 5 | Catálogo de Produtos | ⬜ Pendente |
-| 6 | Threads (Publicação) | ⬜ Pendente |
-| 7 | oEmbed (Bloco no Builder) | ⬜ Pendente |
-| 8 | Lives (Novo Módulo) | ⬜ Pendente |
+| 5 | Catálogo de Produtos | ✅ Concluída |
+| 6 | Threads (Publicação) | ✅ Concluída |
+| 7 | oEmbed (Bloco no Builder) | ✅ Concluída |
+| 8 | Lives (Novo Módulo) | ✅ Concluída |
 | 9 | Page Insights | ⬜ Pendente |
 
 ---
@@ -127,32 +127,36 @@
 
 ---
 
-## Fase 7 — oEmbed
+## Fase 7 — ✅ Concluída (2026-02-14)
 
-### Edge Function
-| Function | Descrição |
-|---|---|
-| `meta-oembed` | HTML de incorporação por URL |
+### O que foi implementado
 
-### Frontend
-- Novo bloco `EmbedSocialPost` no Builder
+1. **Edge Function `meta-oembed`** — Retorna HTML de incorporação para posts públicos do FB/IG/Threads via oEmbed API v21.0
+2. **Bloco `EmbedSocialPost`** — Novo bloco no Builder que aceita URL e renderiza embed com auto-reload de scripts
+3. **Detecção automática** — Identifica plataforma (Facebook/Instagram/Threads) pela URL
+
+### Arquivos criados/alterados
+- `supabase/functions/meta-oembed/index.ts` (novo)
+- `src/components/builder/blocks/interactive/EmbedSocialPostBlock.tsx` (novo)
+- `src/components/builder/blocks/interactive/index.ts` (atualizado)
+- `src/components/builder/BlockRenderer.tsx` (atualizado — bloco registrado)
+- `supabase/config.toml` (atualizado)
 
 ---
 
-## Fase 8 — Lives
+## Fase 8 — ✅ Concluída (2026-02-14)
 
-### Edge Functions
-| Function | Descrição |
-|---|---|
-| `meta-live-create` | Criar transmissão |
-| `meta-live-manage` | Gerenciar live |
+### O que foi implementado
 
-### Frontend
-- `src/pages/Lives.tsx` — Nova página em Marketing Avançado
-- Rota: `/lives`
+1. **Tabela `meta_live_streams`** — Armazena transmissões com RLS tenant-scoped
+2. **Edge Function `meta-live-create`** — Criar transmissão via Live Video API + listar transmissões
+3. **Edge Function `meta-live-manage`** — Gerenciar live (go_live, end, status + métricas)
+4. **Hook `useMetaLives`** — Queries e mutations para criar, iniciar, encerrar e verificar status
 
-### Nova tabela
-- `meta_live_streams`
+### Arquivos criados
+- `supabase/functions/meta-live-create/index.ts` (novo)
+- `supabase/functions/meta-live-manage/index.ts` (novo)
+- `src/hooks/useMetaLives.ts` (novo)
 
 ---
 

@@ -756,6 +756,105 @@ Pack `threads` requer:
 
 ---
 
+## Meta — oEmbed (Fase 7)
+
+> **STATUS:** ✅ Ready  
+> **Adicionado em:** 2026-02-14
+
+### Visão Geral
+
+Incorpora posts públicos do Facebook, Instagram e Threads diretamente nas páginas da loja via oEmbed API oficial da Meta.
+
+### Edge Function
+
+| Function | Descrição |
+|----------|-----------|
+| `meta-oembed` | Busca HTML de incorporação por URL (detecção automática de plataforma) |
+
+### Bloco no Builder
+
+| Bloco | Tipo | Props |
+|-------|------|-------|
+| `EmbedSocialPost` | Interactive | `url` (URL do post), `maxWidth` (default: 550) |
+
+### Plataformas Suportadas
+
+| Plataforma | Endpoint oEmbed |
+|------------|-----------------|
+| Instagram | `graph.facebook.com/v21.0/instagram_oembed` |
+| Facebook | `graph.facebook.com/v21.0/oembed_post` |
+| Threads | `graph.facebook.com/v21.0/threads_oembed` |
+
+### Autenticação
+
+Usa **App Token** (`APP_ID|APP_SECRET`) para maior taxa de requisições. Funciona sem token para posts públicos.
+
+### Arquivos
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `supabase/functions/meta-oembed/index.ts` | Edge function oEmbed |
+| `src/components/builder/blocks/interactive/EmbedSocialPostBlock.tsx` | Bloco do Builder |
+
+---
+
+## Meta — Lives (Fase 8)
+
+> **STATUS:** ✅ Ready  
+> **Adicionado em:** 2026-02-14
+
+### Visão Geral
+
+Gerenciamento de transmissões ao vivo via Facebook Live Video API. O lojista cria/agenda a live pela plataforma e usa software externo (OBS, StreamYard) para transmitir o sinal via RTMP.
+
+### Tabela
+
+| Tabela | Descrição |
+|--------|-----------|
+| `meta_live_streams` | Transmissões com status, stream URL, métricas e metadata |
+
+**Status possíveis:** `scheduled`, `live`, `ended`
+
+### Edge Functions
+
+| Function | Ações | Descrição |
+|----------|-------|-----------|
+| `meta-live-create` | `create`, `list` | Criar transmissão + listar existentes |
+| `meta-live-manage` | `go_live`, `end`, `status` | Iniciar, encerrar e verificar métricas |
+
+### Fluxo Completo
+
+```text
+1. Lojista seleciona página e cria transmissão (título, descrição, horário)
+2. Graph API retorna: live_video_id, stream_url (RTMP), secure_stream_url
+3. Lojista configura OBS/StreamYard com a stream URL + key
+4. Quando pronto, clica "Iniciar" → go_live muda status para LIVE_NOW
+5. Durante a live: status verifica métricas (viewers, embed_html)
+6. Ao finalizar: end encerra a transmissão
+```
+
+### Hook Frontend
+
+| Hook | Descrição |
+|------|-----------|
+| `useMetaLives` | Queries: `streams`. Mutations: `create`, `goLive`, `endStream`, `checkStatus` |
+
+### Escopos Necessários
+
+Pack `live_video` requer:
+- `publish_video`
+- `pages_manage_posts`
+
+### Endpoints da API
+
+| Endpoint | Método | Descrição |
+|----------|--------|-----------|
+| `/{page_id}/live_videos` | POST | Criar transmissão |
+| `/{live_video_id}` | POST | Atualizar status (LIVE_NOW / end) |
+| `/{live_video_id}?fields=status,live_views,embed_html` | GET | Verificar status e métricas |
+
+---
+
 ## Pendências
 
 - [ ] Implementar integrações ERP (Bling)
@@ -773,6 +872,6 @@ Pack `threads` requer:
 - [x] ~~Meta Threads: Publicação + Insights~~ (Fase 6 concluída)
 - [x] ~~Meta Ads Manager: Gestor de Tráfego~~ (Fase 3 concluída)
 - [x] ~~Meta Lead Ads: Captura automática~~ (Fase 4 concluída)
-- [ ] Meta oEmbed: Bloco no Builder (Fase 7)
-- [ ] Meta Lives: Módulo de transmissões (Fase 8)
+- [x] ~~Meta oEmbed: Bloco no Builder~~ (Fase 7 concluída)
+- [x] ~~Meta Lives: Módulo de transmissões~~ (Fase 8 concluída)
 - [ ] Meta Page Insights: Métricas agregadas (Fase 9)
