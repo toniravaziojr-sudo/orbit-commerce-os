@@ -1,177 +1,236 @@
 
 
-# Hub Centralizado Meta — Plano de Implementação
+# Hub Google Centralizado — Plano Refinado (com ajustes do review)
 
-## Status das Fases
+## Resumo
 
-| Fase | Descrição | Status |
-|------|-----------|--------|
-| 1 | Scope Packs + OAuth Incremental + Descoberta de Ativos | ✅ Concluída |
-| 2 | Atendimento Unificado (Messenger + IG DM + Comentários) | ✅ Concluída |
-| 3 | Gestor de Tráfego IA (Ads Manager) | ✅ Concluída |
-| 4 | Lead Ads (Captura de Leads) | ✅ Concluída |
-| 5 | Catálogo de Produtos | ✅ Concluída |
-| 6 | Threads (Publicação) | ✅ Concluída |
-| 7 | oEmbed (Bloco no Builder) | ✅ Concluída |
-| 8 | Lives (Novo Módulo) | ✅ Concluída |
-| 9 | Page Insights | ✅ Concluída |
+Criar aba **"Google"** em `/integrations` com OAuth centralizado, Scope Packs incrementais e descoberta de ativos. Migrar YouTube existente para dentro do Hub. Incorpora todos os ajustes sugeridos no review.
 
 ---
 
-## Fase 1 — ✅ Concluída (2026-02-14)
+## Decisoes Arquiteturais (ajustes incorporados)
 
-### O que foi implementado
+### 1. Uma conexao por tenant (Opcao A)
 
-1. **Tipos atualizados** — `MetaScopePack` com 8 packs: `atendimento`, `publicacao`, `ads`, `leads`, `catalogo`, `whatsapp`, `threads`, `live_video`
-2. **MetaAssets expandido** — Adicionados `catalogs[]` e `threads_profile`
-3. **UI completa** — Todos os 8 packs desbloqueados em MetaUnifiedSettings e MetaConnectionSettings
-4. **Consentimento incremental** — Componente `IncrementalConsentSection` para adicionar packs sem perder token
-5. **Edge Function `meta-oauth-start`** — Mapeamento completo de escopos por pack
-6. **Edge Function `meta-oauth-callback`** — Descoberta de catálogos e Threads + merge de scope_packs
+- **1 registro** em `google_connections` por tenant (nao por usuario)
+- O admin que conecta e o "dono da conexao" (`connected_by`)
+- Todos os usuarios do tenant usam essa conexao
+- Evita conflitos de multiplos admins conectando contas diferentes
+- Mesmo modelo usado na Meta (`marketplace_connections` com 1 row por tenant+marketplace)
 
-### Arquivos alterados
-- `src/hooks/useMetaConnection.ts`
-- `src/components/integrations/MetaUnifiedSettings.tsx`
-- `src/components/integrations/MetaConnectionSettings.tsx`
-- `supabase/functions/meta-oauth-start/index.ts`
-- `supabase/functions/meta-oauth-callback/index.ts`
+### 2. OAuth incremental com refresh_token como ativo real
 
----
+- Sempre `access_type=offline` + `prompt=consent` na primeira conexao
+- `include_granted_scopes=true` para consentimento incremental
+- Quando ativar novo pack: re-OAuth pedindo escopos adicionais
+- `refresh_token` e o campo critico (nunca perde-lo)
+- `access_token` renovado automaticamente via `google-token-refresh`
 
-## Fase 2 — ✅ Concluída (2026-02-14)
+### 3. Credencial de plataforma vs tenant
 
-### O que foi implementado
+| Credencial | Tipo | Onde fica |
+|------------|------|-----------|
+| `GOOGLE_CLIENT_ID` | Plataforma | Secrets (ja existe) |
+| `GOOGLE_CLIENT_SECRET` | Plataforma | Secrets (ja existe) |
+| `GOOGLE_ADS_DEVELOPER_TOKEN` | Plataforma | `platform_credentials` |
+| `login_customer_id` (MCC) | Plataforma (opcional) | `platform_credentials` |
+| OAuth tokens | Tenant | `google_connections` |
 
-1. **`meta-page-webhook`** — Webhook unificado para Messenger + comentários do Facebook
-2. **`meta-instagram-webhook`** — Webhook unificado para Instagram DM + comentários do IG
-3. **`meta-send-message`** — Envio de mensagens via Graph API (Messenger + IG DM)
-4. **`support-send-message`** atualizado — Roteamento para canais `facebook_messenger` e `instagram_dm`
-5. **Documentação** — `docs/regras/crm.md` atualizado com status dos canais
+### 4. Cache hibrido (todos os modulos)
 
-### Arquivos criados/alterados
-- `supabase/functions/meta-page-webhook/index.ts` (novo)
-- `supabase/functions/meta-instagram-webhook/index.ts` (novo)
-- `supabase/functions/meta-send-message/index.ts` (novo)
-- `supabase/functions/support-send-message/index.ts` (atualizado)
-- `supabase/config.toml` (atualizado)
-- `docs/regras/crm.md` (atualizado)
+- Tabelas locais para dados historicos (campanhas, metricas, produtos)
+- Fallback via API em tempo real quando cache esta stale
+- Evita rate limiting e garante consultas rapidas
+- Mesmo padrao do `meta_ad_campaigns` / `meta_ad_insights`
 
----
+### 5. Feature flag por pack
 
-## Fase 3 — ✅ Concluída (2026-02-14)
-
-### O que foi implementado
-
-1. **Tabelas** — `meta_ad_campaigns`, `meta_ad_insights`, `meta_ad_audiences`, `meta_ad_creatives` com RLS tenant-scoped
-2. **Edge Functions** — `meta-ads-campaigns` (CRUD + sync), `meta-ads-insights` (sync + summary), `meta-ads-audiences` (sync + list), `meta-ads-creatives` (sync + list)
-3. **Hook** — `useMetaAds` com queries, mutations e syncAll
-4. **UI** — Página `/ads` (AdsManager) com dashboard de métricas, tabelas de campanhas/insights, cards de públicos/criativos
-5. **Armazenamento híbrido** — Cache local com sync sob demanda via Graph API
-
-### Arquivos criados/alterados
-- `supabase/functions/meta-ads-campaigns/index.ts` (novo)
-- `supabase/functions/meta-ads-insights/index.ts` (novo)
-- `supabase/functions/meta-ads-audiences/index.ts` (novo)
-- `supabase/functions/meta-ads-creatives/index.ts` (novo)
-- `src/hooks/useMetaAds.ts` (novo)
-- `src/pages/AdsManager.tsx` (novo)
-- `src/App.tsx` (rota /ads adicionada)
+- Cada pack funciona isolado
+- UI mostra todos os packs, mas com cadeado/badge nos que dependem de aprovacao de escopos sensiveis (ex: `business`)
+- Sistema funciona sem packs nao aprovados
 
 ---
 
-## Fase 4 — ✅ Concluída (2026-02-14)
+## Banco de Dados
 
-### O que foi implementado
+### Tabela `google_connections` (nova)
 
-1. **`meta-leads-webhook`** — Webhook que recebe leads do Meta Lead Ads via Graph API
-2. **Fluxo completo**: Lead → busca dados via Graph API → upsert `customers` → tag "Lead Ads" → notificação → sync subscriber email marketing
-3. **Parsing inteligente** — Suporta campos em PT-BR e EN (email, nome, telefone, cidade, estado)
+```text
+google_connections
+  id              UUID PK
+  tenant_id       UUID FK tenants (UNIQUE - 1 por tenant)
+  connected_by    UUID (user_id do admin que conectou)
+  google_user_id  TEXT
+  google_email    TEXT
+  display_name    TEXT
+  avatar_url      TEXT
+  access_token    TEXT (criptografado)
+  refresh_token   TEXT (criptografado - ATIVO REAL)
+  token_expires_at TIMESTAMPTZ
+  scope_packs     TEXT[] (packs habilitados)
+  granted_scopes  TEXT[] (escopos OAuth concedidos)
+  is_active       BOOLEAN DEFAULT true
+  connection_status TEXT DEFAULT 'connected'
+  last_error      TEXT
+  last_sync_at    TIMESTAMPTZ
+  assets          JSONB (ativos descobertos por pack)
+  metadata        JSONB (dados extras)
+  created_at      TIMESTAMPTZ
+  updated_at      TIMESTAMPTZ
+```
 
-### Arquivos criados/alterados
-- `supabase/functions/meta-leads-webhook/index.ts` (novo)
-- `supabase/config.toml` (atualizado)
-- `docs/regras/integracoes.md` (atualizado)
+### Tabela `google_oauth_states` (nova)
 
----
+```text
+google_oauth_states
+  id            UUID PK
+  tenant_id     UUID FK tenants
+  user_id       UUID
+  state         TEXT UNIQUE
+  scope_packs   TEXT[]
+  return_path   TEXT
+  expires_at    TIMESTAMPTZ DEFAULT now() + 10min
+  created_at    TIMESTAMPTZ
+```
 
-## Fase 5 — ✅ Concluída (2026-02-14)
+### Migracao YouTube
 
-### O que foi implementado
-
-1. **Tabela** — `meta_catalog_items` com RLS tenant-scoped e service_role bypass
-2. **Edge Functions** — `meta-catalog-sync` (push produtos para Meta Commerce API) e `meta-catalog-create` (criar/listar catálogos via Business Manager)
-3. **Hook** — `useMetaCatalog` com queries para catálogos/items e mutations para criar e sincronizar
-4. **Formato Commerce API** — Produtos enviados com retailer_id, price em centavos, currency BRL, imagens, GTIN, sale_price
-
-### Arquivos criados/alterados
-- `supabase/functions/meta-catalog-sync/index.ts` (novo)
-- `supabase/functions/meta-catalog-create/index.ts` (novo)
-- `src/hooks/useMetaCatalog.ts` (novo)
-- `supabase/config.toml` (atualizado)
-
----
-
-## Fase 6 — ✅ Concluída (2026-02-14)
-
-### O que foi implementado
-
-1. **Edge Functions** — `meta-threads-publish` (criar post texto/imagem/vídeo, listar posts) e `meta-threads-insights` (insights por post e perfil)
-2. **Hook** — `useMetaThreads` com queries para posts/insights e mutation para publicar
-3. **Container flow** — Polling de status para vídeos com retry + backoff
-4. **Threads API v21.0** — Endpoints: `/{user_id}/threads`, `/{user_id}/threads_publish`, `/{post_id}/insights`, `/{user_id}/threads_insights`
-
-### Arquivos criados
-- `supabase/functions/meta-threads-publish/index.ts` (novo)
-- `supabase/functions/meta-threads-insights/index.ts` (novo)
-- `src/hooks/useMetaThreads.ts` (novo)
-
----
-
-## Fase 7 — ✅ Concluída (2026-02-14)
-
-### O que foi implementado
-
-1. **Edge Function `meta-oembed`** — Retorna HTML de incorporação para posts públicos do FB/IG/Threads via oEmbed API v21.0
-2. **Bloco `EmbedSocialPost`** — Novo bloco no Builder que aceita URL e renderiza embed com auto-reload de scripts
-3. **Detecção automática** — Identifica plataforma (Facebook/Instagram/Threads) pela URL
-
-### Arquivos criados/alterados
-- `supabase/functions/meta-oembed/index.ts` (novo)
-- `src/components/builder/blocks/interactive/EmbedSocialPostBlock.tsx` (novo)
-- `src/components/builder/blocks/interactive/index.ts` (atualizado)
-- `src/components/builder/BlockRenderer.tsx` (atualizado — bloco registrado)
-- `supabase/config.toml` (atualizado)
+- Copiar dados de `youtube_connections` para `google_connections` com `scope_packs = ['youtube']`
+- Manter `youtube_connections` como view ou tabela legada (nao deletar)
+- `youtube_uploads` continua referenciando por `connection_id` (atualizar FK para `google_connections`)
 
 ---
 
-## Fase 8 — ✅ Concluída (2026-02-14)
+## Scope Packs
 
-### O que foi implementado
-
-1. **Tabela `meta_live_streams`** — Armazena transmissões com RLS tenant-scoped
-2. **Edge Function `meta-live-create`** — Criar transmissão via Live Video API + listar transmissões
-3. **Edge Function `meta-live-manage`** — Gerenciar live (go_live, end, status + métricas)
-4. **Hook `useMetaLives`** — Queries e mutations para criar, iniciar, encerrar e verificar status
-
-### Arquivos criados
-- `supabase/functions/meta-live-create/index.ts` (novo)
-- `supabase/functions/meta-live-manage/index.ts` (novo)
-- `src/hooks/useMetaLives.ts` (novo)
+| Pack | Label | Escopos OAuth | Modulo | Sensibilidade |
+|------|-------|---------------|--------|---------------|
+| `youtube` | YouTube | `youtube.upload`, `youtube`, `youtube.force-ssl`, `youtube.readonly`, `yt-analytics.readonly` | Midias `/media` | Sensivel |
+| `ads` | Google Ads | `adwords` | Trafego `/ads` | Sensivel + Dev Token |
+| `merchant` | Merchant Center | `content` | Catalogos `/products` | Normal |
+| `analytics` | Analytics GA4 | `analytics.readonly` | Relatorios `/analytics` | Normal |
+| `search_console` | Search Console | `webmasters.readonly` | SEO `/seo` | Normal |
+| `business` | Meu Negocio | `business.manage` | CRM `/reviews` | Sensivel (review chato) |
+| `tag_manager` | Tag Manager | `tagmanager.edit.containers`, `tagmanager.readonly` | Utilidades `/integrations` | Normal |
 
 ---
 
-## Fase 9 — ✅ Concluída (2026-02-14)
+## Fases de Implementacao
 
-### O que foi implementado
+### Fase 1: Hub Base (OAuth + DB + UI)
 
-1. **Edge Function `meta-page-insights`** — Insights de páginas FB e contas IG via Graph API v21.0
-2. **Ações suportadas**: `page_overview` (impressões, alcance, fãs), `page_demographics` (idade/gênero/cidade/país), `ig_overview` (impressões, alcance, engajamento IG), `ig_demographics` (demográficos IG), `list_pages` (listar ativos)
-3. **Hook `useMetaPageInsights`** — Queries para todos os tipos de insights com staleTime otimizado
+**Banco:**
+- Criar `google_connections` e `google_oauth_states`
+- RLS: `user_has_tenant_access(tenant_id)`
+- Constraint UNIQUE em `(tenant_id)` para garantir 1 conexao por tenant
 
-### Arquivos criados
-- `supabase/functions/meta-page-insights/index.ts` (novo)
-- `src/hooks/useMetaPageInsights.ts` (novo)
+**Edge Functions:**
+- `google-oauth-start`: Recebe `tenant_id` + `scopePacks[]`, gera URL OAuth com escopos correspondentes, salva state
+- `google-oauth-callback`: Troca code por tokens (sempre captura `refresh_token`), descobre ativos por pack, upsert em `google_connections`
+- `google-token-refresh`: Renova `access_token` usando `refresh_token`, atualiza `token_expires_at`
+
+**Frontend:**
+- `src/hooks/useGoogleConnection.ts` — Hook espelhando `useMetaConnection`
+- `src/components/integrations/GoogleUnifiedSettings.tsx` — UI com grid de packs, status, ativos descobertos
+- Aba "Google" em `Integrations.tsx`
+
+**Descoberta de ativos (callback):**
+- YouTube: listar canais
+- Ads: listar contas (se `GOOGLE_ADS_DEVELOPER_TOKEN` existir)
+- Merchant: listar contas (tolerar "sem merchant")
+- Analytics: listar propriedades GA4
+- Search Console: listar sites verificados
+- Business: listar localizacoes (tolerar falha se escopo nao aprovado)
+- Tag Manager: listar contas/containers
+
+### Fase 2: Migracao YouTube
+
+- Edge functions `youtube-oauth-callback` e `youtube-upload` passam a ler/escrever em `google_connections`
+- `useYouTubeConnection` le de `google_connections` filtrado por `'youtube' = ANY(scope_packs)`
+- `YouTubeSettings` vira um card dentro do Hub Google (nao mais aba separada)
+- Retrocompatibilidade: se `youtube_connections` tiver dados e `google_connections` nao, migrar automaticamente
+
+### Fase 3: Google Merchant Center
+
+- Edge function `google-merchant-sync` (Content API for Shopping)
+- Edge function `google-merchant-status`
+- Tabela `google_merchant_products` (cache status de sincronizacao)
+- Destino: modulo Catalogos/Produtos
+
+### Fase 4: Google Ads Manager
+
+- Edge functions: `google-ads-campaigns`, `google-ads-insights`, `google-ads-audiences`
+- Tabelas: `google_ad_campaigns`, `google_ad_insights` (cache hibrido)
+- Requer `GOOGLE_ADS_DEVELOPER_TOKEN` em `platform_credentials`
+- Suporte a `login_customer_id` (MCC) se aplicavel
+- Destino: Gestor de Trafego IA
+
+### Fase 5: Google Analytics (GA4)
+
+- Edge functions: `google-analytics-report`, `google-analytics-realtime`
+- Destino: Relatorios e atribuicao de vendas
+
+### Fase 6: Search Console
+
+- Edge functions: `google-search-console-performance`, `google-search-console-indexing`
+- Integra com IA de SEO (blog, paginas institucionais)
+
+### Fase 7: Google Meu Negocio
+
+- Edge functions: `google-business-reviews`, `google-business-posts`
+- Feature flag: funciona sem esse pack se escopo nao aprovado
+- Destino: CRM/Avaliacoes
+
+### Fase 8: Google Tag Manager
+
+- Edge functions: `google-tag-manager-containers`, `google-tag-manager-scripts`
+- UI para gerenciar scripts customizados
+- Destino: Utilidades em `/integrations`
 
 ---
 
-## ✅ TODAS AS 9 FASES CONCLUÍDAS
+## Arquivos Criados/Modificados
+
+### Novos (Fase 1):
+- `src/hooks/useGoogleConnection.ts`
+- `src/components/integrations/GoogleUnifiedSettings.tsx`
+- `supabase/functions/google-oauth-start/index.ts`
+- `supabase/functions/google-oauth-callback/index.ts`
+- `supabase/functions/google-token-refresh/index.ts`
+
+### Modificados (Fase 1-2):
+- `src/pages/Integrations.tsx` — Nova aba "Google"
+- `src/hooks/useYouTubeConnection.ts` — Migrar para `google_connections`
+- `supabase/functions/youtube-oauth-callback/index.ts` — Gravar em `google_connections`
+- `supabase/functions/youtube-upload/index.ts` — Ler de `google_connections`
+- `docs/regras/integracoes.md` — Documentar Hub Google
+
+---
+
+## O que voce (integrador) precisa fazer
+
+1. **Google Cloud Console** (mesmo projeto existente):
+   - Ativar APIs: Ads, Content (Merchant), Analytics Data, Search Console, Business Profile, Tag Manager
+   - Adicionar redirect URI do callback: `{SUPABASE_URL}/functions/v1/google-oauth-callback`
+   - Atualizar OAuth Consent Screen com todos os escopos
+
+2. **Google Ads Developer Token**:
+   - Solicitar em Google Ads > Ferramentas > API Center
+   - Nivel Basic para comecar
+   - Salvar como `GOOGLE_ADS_DEVELOPER_TOKEN` em `platform_credentials`
+
+3. **Verificacao OAuth**:
+   - Submeter app para verificacao de escopos sensiveis
+   - YouTube, Ads e Business Profile sao sensiveis
+   - Analytics e Search Console sao normais
+
+4. **O cliente final**: So clica "Conectar" e autoriza. Identico a Meta.
+
+---
+
+## Ordem de execucao
+
+Fase 1 (Hub Base) -> Fase 2 (Migrar YouTube) -> Fases 3-8 (independentes entre si)
+
+Vamos comecar pela Fase 1?
+
