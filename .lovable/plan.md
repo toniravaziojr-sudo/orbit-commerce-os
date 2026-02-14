@@ -38,23 +38,23 @@
 
 ---
 
-## Fase 2 — Atendimento Unificado (Próxima)
+## Fase 2 — ✅ Concluída (2026-02-14)
 
-### Objetivo
-Adicionar Messenger, Instagram DM e comentários FB/IG como canais no inbox de Atendimento.
+### O que foi implementado
 
-### Edge Functions necessárias
-| Function | Descrição |
-|---|---|
-| `meta-messenger-webhook` | Recebe mensagens do Messenger |
-| `meta-instagram-dm-webhook` | Recebe DMs do Instagram |
-| `meta-comments-webhook` | Recebe comentários (FB + IG) |
+1. **`meta-page-webhook`** — Webhook unificado para Messenger + comentários do Facebook
+2. **`meta-instagram-webhook`** — Webhook unificado para Instagram DM + comentários do IG
+3. **`meta-send-message`** — Envio de mensagens via Graph API (Messenger + IG DM)
+4. **`support-send-message`** atualizado — Roteamento para canais `facebook_messenger` e `instagram_dm`
+5. **Documentação** — `docs/regras/crm.md` atualizado com status dos canais
 
-### Alterações necessárias
-- `support-send-message` — Roteamento para Messenger e Instagram DM
-- `src/pages/Support.tsx` — Filtro por canal
-- `src/hooks/useConversations.ts` — Novos `channel_type`
-- Nova tabela `meta_comment_threads`
+### Arquivos criados/alterados
+- `supabase/functions/meta-page-webhook/index.ts` (novo)
+- `supabase/functions/meta-instagram-webhook/index.ts` (novo)
+- `supabase/functions/meta-send-message/index.ts` (novo)
+- `supabase/functions/support-send-message/index.ts` (atualizado)
+- `supabase/config.toml` (atualizado)
+- `docs/regras/crm.md` (atualizado)
 
 ---
 

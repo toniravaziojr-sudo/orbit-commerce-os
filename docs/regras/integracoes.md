@@ -567,6 +567,10 @@ O callback OAuth descobre automaticamente:
 | `src/components/integrations/MetaConnectionSettings.tsx` | Card alternativo de conexão |
 | `supabase/functions/meta-oauth-start/index.ts` | Gera URL OAuth com escopos por pack |
 | `supabase/functions/meta-oauth-callback/index.ts` | Callback com descoberta de ativos + merge de packs |
+| `supabase/functions/meta-page-webhook/index.ts` | Webhook para Messenger + comentários FB |
+| `supabase/functions/meta-instagram-webhook/index.ts` | Webhook para Instagram DM + comentários IG |
+| `supabase/functions/meta-send-message/index.ts` | Envio unificado Messenger/IG DM via Graph API |
+| `supabase/functions/support-send-message/index.ts` | Roteamento de canais (inclui fb_messenger, ig_dm) |
 
 ### Tipos TypeScript
 
@@ -597,7 +601,7 @@ interface MetaAssets {
 - [ ] YouTube auto-captions
 - [ ] YouTube: sync job para verificar status de vídeos agendados
 - [x] ~~Meta Scope Packs + OAuth Incremental~~ (Fase 1 concluída)
-- [ ] Meta Atendimento: Messenger + Instagram DM + Comentários (Fase 2)
+- [x] ~~Meta Atendimento: Messenger + Instagram DM + Comentários~~ (Fase 2 concluída)
 - [ ] Meta Catálogo: Sincronização de produtos (Fase 5)
 - [ ] Meta Threads: Publicação no Calendário (Fase 6)
 - [ ] Meta Ads Manager: Gestor de Tráfego (Fase 3)
