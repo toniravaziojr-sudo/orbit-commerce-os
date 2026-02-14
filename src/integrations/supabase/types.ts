@@ -8091,6 +8091,63 @@ export type Database = {
           },
         ]
       }
+      meta_catalog_items: {
+        Row: {
+          catalog_id: string
+          created_at: string
+          id: string
+          last_error: string | null
+          last_synced_at: string | null
+          meta_product_id: string | null
+          metadata: Json | null
+          product_id: string
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          catalog_id: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          last_synced_at?: string | null
+          meta_product_id?: string | null
+          metadata?: Json | null
+          product_id: string
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          catalog_id?: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          last_synced_at?: string | null
+          meta_product_id?: string | null
+          metadata?: Json | null
+          product_id?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_catalog_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_catalog_items_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meta_oauth_states: {
         Row: {
           created_at: string

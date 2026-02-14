@@ -94,16 +94,20 @@
 
 ---
 
-## Fase 5 — Catálogo
+## Fase 5 — ✅ Concluída (2026-02-14)
 
-### Edge Functions
-| Function | Descrição |
-|---|---|
-| `meta-catalog-sync` | Push produtos para Meta |
-| `meta-catalog-create` | Criar catálogo |
+### O que foi implementado
 
-### Nova tabela
-- `meta_catalog_items`
+1. **Tabela** — `meta_catalog_items` com RLS tenant-scoped e service_role bypass
+2. **Edge Functions** — `meta-catalog-sync` (push produtos para Meta Commerce API) e `meta-catalog-create` (criar/listar catálogos via Business Manager)
+3. **Hook** — `useMetaCatalog` com queries para catálogos/items e mutations para criar e sincronizar
+4. **Formato Commerce API** — Produtos enviados com retailer_id, price em centavos, currency BRL, imagens, GTIN, sale_price
+
+### Arquivos criados/alterados
+- `supabase/functions/meta-catalog-sync/index.ts` (novo)
+- `supabase/functions/meta-catalog-create/index.ts` (novo)
+- `src/hooks/useMetaCatalog.ts` (novo)
+- `supabase/config.toml` (atualizado)
 
 ---
 

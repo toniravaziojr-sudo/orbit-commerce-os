@@ -594,3 +594,9 @@ verify_jwt = false
 
 [functions.meta-leads-webhook]
 verify_jwt = false
+
+[functions.meta-catalog-sync]
+verify_jwt = false
+
+[functions.meta-catalog-create]
+verify_jwt = false
