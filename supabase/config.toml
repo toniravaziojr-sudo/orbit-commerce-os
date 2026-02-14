@@ -609,3 +609,9 @@ verify_jwt = false
 
 [functions.meta-oembed]
 verify_jwt = false
+
+[functions.meta-live-create]
+verify_jwt = false
+
+[functions.meta-live-manage]
+verify_jwt = false

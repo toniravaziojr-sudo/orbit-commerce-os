@@ -8148,6 +8148,71 @@ export type Database = {
           },
         ]
       }
+      meta_live_streams: {
+        Row: {
+          created_at: string
+          description: string | null
+          ended_at: string | null
+          id: string
+          live_video_id: string | null
+          metadata: Json | null
+          page_id: string
+          planned_start_time: string | null
+          secure_stream_url: string | null
+          started_at: string | null
+          status: string
+          stream_url: string | null
+          tenant_id: string
+          title: string | null
+          updated_at: string
+          viewer_count: number | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          ended_at?: string | null
+          id?: string
+          live_video_id?: string | null
+          metadata?: Json | null
+          page_id: string
+          planned_start_time?: string | null
+          secure_stream_url?: string | null
+          started_at?: string | null
+          status?: string
+          stream_url?: string | null
+          tenant_id: string
+          title?: string | null
+          updated_at?: string
+          viewer_count?: number | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          ended_at?: string | null
+          id?: string
+          live_video_id?: string | null
+          metadata?: Json | null
+          page_id?: string
+          planned_start_time?: string | null
+          secure_stream_url?: string | null
+          started_at?: string | null
+          status?: string
+          stream_url?: string | null
+          tenant_id?: string
+          title?: string | null
+          updated_at?: string
+          viewer_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_live_streams_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meta_oauth_states: {
         Row: {
           created_at: string
