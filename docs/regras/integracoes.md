@@ -590,6 +590,172 @@ interface MetaAssets {
 
 ---
 
+## Meta — Catálogo de Produtos (Fase 5)
+
+> **STATUS:** ✅ Ready  
+> **Adicionado em:** 2026-02-14
+
+### Visão Geral
+
+Sincroniza produtos locais com catálogos do Meta Commerce Manager via Graph API v21.0. Permite criar novos catálogos e enviar produtos em lote.
+
+### Tabela
+
+| Tabela | Descrição |
+|--------|-----------|
+| `meta_catalog_items` | Rastreia status de sincronização por produto/catálogo |
+
+**Colunas principais:**
+- `tenant_id` — Isolamento multi-tenant
+- `product_id` — FK para `products`
+- `catalog_id` — ID do catálogo Meta
+- `meta_product_id` — ID retornado pela Meta após sync
+- `status` — `pending`, `synced`, `error`
+- `last_synced_at` — Timestamp do último sync
+- `last_error` — Mensagem de erro (se houver)
+- **Unique:** `(tenant_id, product_id, catalog_id)`
+
+### Edge Functions
+
+| Function | Ações | Descrição |
+|----------|-------|-----------|
+| `meta-catalog-sync` | `sync` | Envia produtos ativos para o catálogo Meta |
+| `meta-catalog-create` | `list`, `create` | Lista catálogos existentes / Cria novo catálogo |
+
+### Formato de Produto (Commerce API)
+
+```json
+{
+  "retailer_id": "product-uuid",
+  "name": "Nome do Produto",
+  "description": "Descrição",
+  "url": "https://loja.com/produto/slug",
+  "image_url": "https://...",
+  "additional_image_urls": ["https://..."],
+  "price": 9990,
+  "currency": "BRL",
+  "availability": "in stock",
+  "brand": "Nome da Loja",
+  "sale_price": 7990,
+  "gtin": "7891234567890"
+}
+```
+
+**Notas:**
+- Preço em **centavos** (ex: R$ 99,90 → `9990`)
+- `sale_price` só incluído se `compare_at_price > price`
+- `gtin` só incluído se produto tiver GTIN/EAN cadastrado
+- Imagens adicionais vindas de `product_images` (até 10)
+
+### Hook Frontend
+
+| Hook | Descrição |
+|------|-----------|
+| `useMetaCatalog` | Queries: `catalogs`, `syncStatus`. Mutations: `createCatalog`, `syncProducts` |
+
+### Fluxo de Sincronização
+
+```text
+1. Tenant seleciona catálogo (ou cria novo)
+2. Clica "Sincronizar Produtos"
+3. meta-catalog-sync busca produtos ativos do tenant
+4. Converte para formato Commerce API
+5. POST /{catalog_id}/batch para Meta
+6. Registra resultado em meta_catalog_items
+7. Produtos com erro ficam com status 'error' + mensagem
+```
+
+---
+
+## Meta — Threads (Fase 6)
+
+> **STATUS:** ✅ Ready  
+> **Adicionado em:** 2026-02-14
+
+### Visão Geral
+
+Publicação de conteúdo e consulta de métricas no Threads (Meta) via Threads API v21.0.
+
+### Edge Functions
+
+| Function | Ações | Descrição |
+|----------|-------|-----------|
+| `meta-threads-publish` | `publish`, `list` | Publica texto/imagem/vídeo + lista posts recentes |
+| `meta-threads-insights` | `post`, `profile` | Métricas por post ou do perfil |
+
+### Tipos de Post Suportados
+
+| Tipo | `media_type` | Campos obrigatórios |
+|------|-------------|---------------------|
+| Texto | `TEXT` | `text` |
+| Imagem | `IMAGE` | `image_url`, `text` (opcional) |
+| Vídeo | `VIDEO` | `video_url`, `text` (opcional) |
+
+### Container Flow (Vídeos)
+
+Para vídeos, a Threads API usa um fluxo assíncrono:
+
+```text
+1. POST /{user_id}/threads → cria container (status: IN_PROGRESS)
+2. Polling: GET /{container_id}?fields=status
+3. Aguarda status = FINISHED (retry com backoff: 5s, 10s, 20s)
+4. POST /{user_id}/threads_publish → publica container
+5. Retorna creation_id do post publicado
+```
+
+**Timeout:** 3 retries, máximo ~35 segundos de polling.
+
+### Métricas Disponíveis
+
+**Por Post:**
+
+| Métrica | Descrição |
+|---------|-----------|
+| `views` | Visualizações |
+| `likes` | Curtidas |
+| `replies` | Respostas |
+| `reposts` | Repostagens |
+| `quotes` | Citações |
+
+**Por Perfil (Período):**
+
+| Métrica | Descrição |
+|---------|-----------|
+| `views` | Views no período |
+| `likes` | Curtidas no período |
+| `replies` | Respostas no período |
+| `reposts` | Repostagens no período |
+| `quotes` | Citações no período |
+| `followers_count` | Total de seguidores |
+
+### Hook Frontend
+
+| Hook | Descrição |
+|------|-----------|
+| `useMetaThreads` | Queries: `posts`, `profileInsights`. Mutation: `publish` |
+
+### Escopos Necessários
+
+Pack `threads` requer:
+- `threads_content_publish`
+- `threads_manage_replies`
+- `threads_manage_insights`
+- `threads_basic`
+- `threads_read_replies`
+
+### Endpoints da API Utilizados
+
+| Endpoint | Método | Descrição |
+|----------|--------|-----------|
+| `/{user_id}/threads` | POST | Criar container de mídia |
+| `/{user_id}/threads_publish` | POST | Publicar container |
+| `/{user_id}/threads` | GET | Listar posts recentes |
+| `/{container_id}` | GET | Verificar status do container |
+| `/{post_id}/insights` | GET | Métricas de um post |
+| `/{user_id}/threads_insights` | GET | Métricas do perfil |
+
+---
+
 ## Pendências
 
 - [ ] Implementar integrações ERP (Bling)
