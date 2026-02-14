@@ -269,12 +269,12 @@ export function CalendarItemDialog({
 
               {/* Asset Preview */}
               {item?.asset_url && (
-                <div className="rounded-lg border overflow-hidden bg-muted/50">
-                  <img 
-                    src={item.asset_url} 
-                    alt={item.title || "Asset"} 
-                    className="w-full h-48 object-cover"
-                  />
+              <div className="rounded-lg border overflow-hidden bg-muted/50">
+                <img 
+                  src={item.asset_url} 
+                  alt={item.title || "Asset"} 
+                  className="w-full max-h-64 object-contain bg-black/5"
+                />
                   <div className="p-2 flex items-center justify-between">
                     <Badge variant="outline" className="bg-green-500/10 text-green-600">
                       ✓ Criativo aprovado

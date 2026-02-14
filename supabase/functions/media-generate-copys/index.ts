@@ -84,12 +84,11 @@ serve(async (req) => {
     }
 
     // ====================================
-    // BUILD BUSINESS CONTEXT
+    // BUILD BUSINESS CONTEXT + REAL PRODUCTS
     // ====================================
     let businessContext = campaign.business_context || "";
 
     if (!businessContext) {
-      // Fallback: build minimal context
       const { data: tenant } = await supabase
         .from("tenants")
         .select("name, slug")
@@ -106,6 +105,21 @@ serve(async (req) => {
       if (storeSettings?.store_description) businessContext += `\nDescrição: ${storeSettings.store_description}`;
       if (storeSettings?.whatsapp_number) businessContext += `\nWhatsApp: ${storeSettings.whatsapp_number}`;
     }
+
+    // ALWAYS fetch real products to prevent hallucination
+    const { data: realProducts } = await supabase
+      .from("products")
+      .select("name, price, slug, image_url")
+      .eq("tenant_id", tenant_id)
+      .eq("status", "active")
+      .order("is_featured", { ascending: false })
+      .limit(50);
+
+    const productCatalog = realProducts?.length
+      ? realProducts.map(p => `- "${p.name}" (R$ ${p.price?.toFixed(2)})${p.image_url ? ` [tem imagem]` : ""}`).join("\n")
+      : "Nenhum produto cadastrado";
+
+    console.log(`[media-generate-copys][${VERSION}] ${realProducts?.length || 0} real products found`);
 
     // ====================================
     // SPECIALIST COPYWRITING PROMPT
@@ -156,6 +170,13 @@ Seu trabalho é criar copys PERSUASIVAS e OTIMIZADAS para cada plataforma.
 4. Para generation_prompt: descreva a imagem de forma DETALHADA (composição, cores, estilo, elementos, mood)
 5. Retorne APENAS JSON puro, sem markdown code blocks
 
+## ⚠️ REGRA CRÍTICA SOBRE PRODUTOS:
+- Você SOMENTE pode mencionar produtos que existem no CATÁLOGO REAL abaixo
+- NUNCA invente, crie ou mencione produtos que NÃO estão na lista
+- Se o tema pede um produto específico que não existe no catálogo, adapte para o produto mais próximo disponível
+- No generation_prompt, descreva APENAS os produtos reais da loja com seus nomes EXATOS
+- Se a loja tem poucos produtos, foque neles e varie os ângulos/cenários
+
 ## FORMATO DE RESPOSTA:
 Retorne um array JSON com objetos contendo:
 {
@@ -178,6 +199,9 @@ Retorne um array JSON com objetos contendo:
 
     const userPrompt = `${businessContext}
 
+## 🛍️ CATÁLOGO REAL DE PRODUTOS (USE SOMENTE ESTES):
+${productCatalog}
+
 ## Direcionamento da campanha:
 ${campaign.prompt}
 
@@ -186,7 +210,8 @@ ${campaign.prompt}
 ${JSON.stringify(itemsContext, null, 2)}
 
 CRÍTICO: Responda APENAS com JSON puro. NÃO use \`\`\`json ou \`\`\`. Comece diretamente com [ e termine com ].
-Gere copy, CTA, hashtags e generation_prompt para CADA item listado acima.`;
+Gere copy, CTA, hashtags e generation_prompt para CADA item listado acima.
+⚠️ NO generation_prompt: mencione APENAS produtos que existem no catálogo acima. Use os nomes EXATOS.`;
 
     console.log(`[media-generate-copys][${VERSION}] Generating copys for ${itemsNeedingCopy.length} items`);
 
