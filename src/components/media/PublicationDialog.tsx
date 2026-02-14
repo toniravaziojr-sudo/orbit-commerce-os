@@ -808,19 +808,7 @@ export function PublicationDialog({
                   />
                 </div>
 
-                <FormField
-                  control={feedForm.control}
-                  name="generation_prompt"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Prompt para criativo IA (opcional)</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Descreva o visual desejado para geração com IA..." className="min-h-[60px]" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {/* Prompt para criativo IA - hidden from UI */}
 
                 </div>
                 <DialogFooter className="flex-shrink-0 gap-2 px-5 py-3 border-t">
@@ -926,19 +914,7 @@ export function PublicationDialog({
                   />
                 </div>
 
-                <FormField
-                  control={storyForm.control}
-                  name="generation_prompt"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Prompt para criativo IA (opcional)</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Descreva o visual do story..." className="min-h-[40px]" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {/* Prompt para criativo IA - hidden from UI */}
 
                 </div>
                 <DialogFooter className="flex-shrink-0 gap-2 px-5 py-3 border-t">
