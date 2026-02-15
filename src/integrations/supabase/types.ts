@@ -8712,6 +8712,90 @@ export type Database = {
           },
         ]
       }
+      meta_ad_adsets: {
+        Row: {
+          ad_account_id: string
+          bid_amount_cents: number | null
+          billing_event: string | null
+          campaign_id: string | null
+          created_at: string
+          daily_budget_cents: number | null
+          end_time: string | null
+          id: string
+          lifetime_budget_cents: number | null
+          meta_adset_id: string
+          meta_campaign_id: string
+          metadata: Json | null
+          name: string
+          optimization_goal: string | null
+          start_time: string | null
+          status: string
+          synced_at: string | null
+          targeting: Json | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          ad_account_id: string
+          bid_amount_cents?: number | null
+          billing_event?: string | null
+          campaign_id?: string | null
+          created_at?: string
+          daily_budget_cents?: number | null
+          end_time?: string | null
+          id?: string
+          lifetime_budget_cents?: number | null
+          meta_adset_id: string
+          meta_campaign_id: string
+          metadata?: Json | null
+          name: string
+          optimization_goal?: string | null
+          start_time?: string | null
+          status?: string
+          synced_at?: string | null
+          targeting?: Json | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          ad_account_id?: string
+          bid_amount_cents?: number | null
+          billing_event?: string | null
+          campaign_id?: string | null
+          created_at?: string
+          daily_budget_cents?: number | null
+          end_time?: string | null
+          id?: string
+          lifetime_budget_cents?: number | null
+          meta_adset_id?: string
+          meta_campaign_id?: string
+          metadata?: Json | null
+          name?: string
+          optimization_goal?: string | null
+          start_time?: string | null
+          status?: string
+          synced_at?: string | null
+          targeting?: Json | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_ad_adsets_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "meta_ad_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_ad_adsets_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meta_ad_audiences: {
         Row: {
           ad_account_id: string

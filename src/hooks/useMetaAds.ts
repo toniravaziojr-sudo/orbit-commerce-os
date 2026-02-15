@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 // ============================================
 // Hook: useMetaAds
-// Manages Meta Ads campaigns, insights, audiences, creatives
+// Manages Meta Ads campaigns, insights, audiences, creatives, adsets, balance
 // ============================================
 
 export interface MetaAdCampaign {
@@ -60,6 +60,37 @@ export interface MetaAdsSummary {
   conversion_value_cents: number;
   ctr: number;
   roas: number;
+}
+
+export interface MetaAdAdset {
+  id: string;
+  tenant_id: string;
+  meta_adset_id: string;
+  meta_campaign_id: string;
+  campaign_id: string | null;
+  ad_account_id: string;
+  name: string;
+  status: string;
+  optimization_goal: string | null;
+  billing_event: string | null;
+  bid_amount_cents: number | null;
+  daily_budget_cents: number | null;
+  lifetime_budget_cents: number | null;
+  targeting: Record<string, any>;
+  start_time: string | null;
+  end_time: string | null;
+  synced_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MetaAdAccountBalance {
+  id: string;
+  name: string;
+  balance_cents: number;
+  amount_spent_cents: number;
+  currency: string;
+  account_status: number;
 }
 
 export function useMetaAds() {
@@ -130,6 +161,51 @@ export function useMetaAds() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  // ============ AD SETS ============
+  const adsetsQuery = useQuery({
+    queryKey: ["meta-ads-adsets", tenantId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("meta_ad_adsets" as any)
+        .select("*")
+        .eq("tenant_id", tenantId!)
+        .order("updated_at", { ascending: false });
+      return (data || []) as unknown as MetaAdAdset[];
+    },
+    enabled: !!tenantId,
+  });
+
+  const syncAdsets = useMutation({
+    mutationFn: (params?: { meta_campaign_id?: string }) =>
+      invoke("meta-ads-adsets", { action: "sync", ...params }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["meta-ads-adsets"] });
+      toast.success(`${data.data?.synced || 0} conjuntos sincronizados`);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const updateAdset = useMutation({
+    mutationFn: (params: { meta_adset_id: string; name?: string; status?: string; daily_budget_cents?: number }) =>
+      invoke("meta-ads-adsets", { action: "update", ...params }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["meta-ads-adsets"] });
+      toast.success("Conjunto atualizado");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  // ============ ACCOUNT BALANCE ============
+  const balanceQuery = useQuery({
+    queryKey: ["meta-ads-balance", tenantId],
+    queryFn: async () => {
+      const result = await invoke("meta-ads-adsets", { action: "balance" });
+      return (result.data || []) as MetaAdAccountBalance[];
+    },
+    enabled: !!tenantId,
+    staleTime: 5 * 60 * 1000, // 5 minutes cache
+  });
+
   // ============ INSIGHTS ============
   const insightsQuery = useQuery({
     queryKey: ["meta-ads-insights", tenantId],
@@ -139,7 +215,7 @@ export function useMetaAds() {
         .select("*, meta_ad_campaigns(name, status, objective)")
         .eq("tenant_id", tenantId!)
         .order("date_start", { ascending: false })
-        .limit(100);
+        .limit(500);
       return (data || []) as MetaAdInsight[];
     },
     enabled: !!tenantId,
@@ -209,6 +285,7 @@ export function useMetaAds() {
         invoke("meta-ads-insights", { action: "sync" }),
         invoke("meta-ads-audiences", { action: "sync" }),
         invoke("meta-ads-creatives", { action: "sync" }),
+        invoke("meta-ads-adsets", { action: "sync" }),
       ]);
     },
     onSuccess: () => {
@@ -216,6 +293,7 @@ export function useMetaAds() {
       queryClient.invalidateQueries({ queryKey: ["meta-ads-insights"] });
       queryClient.invalidateQueries({ queryKey: ["meta-ads-audiences"] });
       queryClient.invalidateQueries({ queryKey: ["meta-ads-creatives"] });
+      queryClient.invalidateQueries({ queryKey: ["meta-ads-adsets"] });
       toast.success("Dados sincronizados com a Meta");
     },
     onError: (err: Error) => toast.error(err.message),
@@ -230,13 +308,19 @@ export function useMetaAds() {
     audiencesLoading: audiencesQuery.isLoading,
     creatives: creativesQuery.data || [],
     creativesLoading: creativesQuery.isLoading,
+    adsets: adsetsQuery.data || [],
+    adsetsLoading: adsetsQuery.isLoading,
+    accountBalances: balanceQuery.data || [],
+    balanceLoading: balanceQuery.isLoading,
     syncCampaigns,
     syncInsights,
     syncAudiences,
     syncCreatives,
+    syncAdsets,
     syncAll,
     createCampaign,
     updateCampaign,
+    updateAdset,
     deleteCampaign,
   };
 }
