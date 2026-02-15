@@ -67,6 +67,18 @@ export default function AdsManager() {
     }
   };
 
+  const handleUpdateCampaignBudget = (campaignId: string, dailyBudgetCents: number) => {
+    if (activeChannel === "meta") {
+      meta.updateCampaign.mutate({ meta_campaign_id: campaignId, daily_budget_cents: dailyBudgetCents });
+    }
+  };
+
+  const handleUpdateAdset = (adsetId: string, updates: { status?: string; daily_budget_cents?: number }) => {
+    if (activeChannel === "meta") {
+      meta.updateAdset.mutate({ meta_adset_id: adsetId, ...updates });
+    }
+  };
+
   const handleSyncCampaigns = useCallback(() => {
     if (activeChannel === "meta") {
       meta.syncCampaigns.mutate();
@@ -78,11 +90,25 @@ export default function AdsManager() {
   const getChannelData = () => {
     switch (activeChannel) {
       case "meta":
-        return { campaigns: meta.campaigns, campaignsLoading: meta.campaignsLoading || meta.syncCampaigns.isPending, insights: meta.insights, insightsLoading: meta.insightsLoading };
+        return {
+          campaigns: meta.campaigns,
+          campaignsLoading: meta.campaignsLoading || meta.syncCampaigns.isPending,
+          insights: meta.insights,
+          insightsLoading: meta.insightsLoading,
+          adsets: meta.adsets,
+          accountBalances: meta.accountBalances,
+        };
       case "tiktok":
-        return { campaigns: tiktok.campaigns, campaignsLoading: tiktok.campaignsLoading || tiktok.syncCampaigns.isPending, insights: tiktok.insights, insightsLoading: tiktok.insightsLoading };
+        return {
+          campaigns: tiktok.campaigns,
+          campaignsLoading: tiktok.campaignsLoading || tiktok.syncCampaigns.isPending,
+          insights: tiktok.insights,
+          insightsLoading: tiktok.insightsLoading,
+          adsets: [],
+          accountBalances: [],
+        };
       default:
-        return { campaigns: [], campaignsLoading: false, insights: [], insightsLoading: false };
+        return { campaigns: [], campaignsLoading: false, insights: [], insightsLoading: false, adsets: [], accountBalances: [] };
     }
   };
 
@@ -206,11 +232,16 @@ export default function AdsManager() {
                     isLoading={channelData.campaignsLoading}
                     channel={channel}
                     onUpdateCampaign={handleUpdateCampaign}
+                    onUpdateCampaignBudget={handleUpdateCampaignBudget}
+                    onUpdateAdset={handleUpdateAdset}
                     selectedAccountIds={channelSelectedAccounts}
                     adAccounts={integration.adAccounts}
                     isConnected={integration.isConnected}
                     onSync={handleSyncCampaigns}
                     isSyncing={activeChannel === "meta" ? meta.syncCampaigns.isPending : activeChannel === "tiktok" ? tiktok.syncCampaigns.isPending : false}
+                    insights={channelData.insights}
+                    adsets={channelData.adsets}
+                    accountBalances={channelData.accountBalances}
                   />
                 </TabsContent>
 
