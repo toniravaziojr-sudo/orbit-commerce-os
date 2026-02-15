@@ -120,7 +120,7 @@ A aba `domain-email` unifica duas seções:
 | Meta (FB/IG) | ✅ Ready | Publicação Feed/Stories/Reels, WhatsApp, Catálogo, Pixel |
 | Instagram | ✅ Ready | Via Meta Graph API (container flow) |
 | **YouTube** | ✅ Ready | Upload, agendamento, analytics (via Hub Google) |
-| **TikTok Hub** | ✅ Ready (Fase 6) | Hub multi-conexão: Ads (Pixel/CAPI) ✅, Shop (OAuth+Catálogo+Pedidos) ✅, Content (Login Kit) ✅ |
+| **TikTok Hub** | ✅ Ready (Fase 6) | Hub multi-conexão: Ads (Pixel/CAPI) ✅, Shop (OAuth+Catálogo+Pedidos+Fulfillment) ✅, Content (Login Kit) ✅ |
 | **Google Hub** | ✅ Ready | YouTube, Ads, Merchant, Analytics, Search Console, Business, Tag Manager |
 
 ### 3. Marketplaces
@@ -1325,8 +1325,8 @@ const {
 - [x] ~~TikTok: Pixel/CAPI migração completa + remoção dual-write~~ (Fase 2 concluída)
 - [x] ~~TikTok Shop: Tabela Base + OAuth~~ (Fase 3 concluída)
 - [x] ~~TikTok Content: Tabela Base + OAuth (Login Kit)~~ (Fase 4 concluída)
-- [ ] TikTok Shop: Catálogo (Fase 5)
-- [ ] TikTok Shop: Pedidos (Fase 6)
+- [x] ~~TikTok Shop: Catálogo~~ (Fase 5 concluída)
+- [x] ~~TikTok Shop: Pedidos~~ (Fase 6 concluída)
 - [ ] TikTok Ads: Campanhas e Insights (Fase 10)
 - [ ] TikTok Content: Publicação Orgânica (Fase 11)
 
@@ -1676,7 +1676,7 @@ https://app.comandocentral.com.br/integrations/tiktok/callback
 | 3 | TikTok Shop: `tiktok_shop_connections` + OAuth | ✅ Concluída |
 | 4 | TikTok Content: `tiktok_content_connections` + OAuth (Login Kit) | ✅ Concluída |
 | 5 | TikTok Shop: Catálogo de Produtos | ✅ Concluída |
-| 6 | TikTok Shop: Pedidos | 🟧 Pendente |
+| 6 | TikTok Shop: Pedidos | ✅ Concluída |
 | 7 | TikTok Shop: Fulfillment e Logística | 🟧 Pendente |
 | 8 | TikTok Shop: Devoluções e Pós-venda | 🟧 Pendente |
 | 9 | TikTok Shop: Atendimento (Inbox Unificado) | 🟧 Pendente |
@@ -1720,3 +1720,62 @@ https://app.comandocentral.com.br/integrations/tiktok/callback
 | Tabela | Edge Functions |
 |--------|----------------|
 | `tiktok_shop_products` | `tiktok-shop-catalog-sync`, `tiktok-shop-catalog-status` |
+
+### Fase 6: TikTok Shop Pedidos
+
+#### Tabela: `tiktok_shop_orders`
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | UUID PK | ID interno |
+| `tenant_id` | UUID FK | Tenant |
+| `tiktok_order_id` | TEXT | ID do pedido no TikTok Shop |
+| `order_id` | UUID FK (nullable) | Pedido local mapeado |
+| `status` | TEXT | `pending`, `confirmed`, `shipped`, `delivered`, `cancelled` |
+| `tiktok_status` | TEXT | Status original retornado pela API TikTok |
+| `buyer_name` | TEXT | Nome do comprador |
+| `buyer_email` | TEXT | Email do comprador |
+| `buyer_phone` | TEXT | Telefone do comprador |
+| `shipping_address` | JSONB | Endereço de entrega |
+| `order_total_cents` | INTEGER | Total em centavos |
+| `currency` | TEXT | Moeda (default: BRL) |
+| `items` | JSONB | Snapshot dos itens |
+| `order_data` | JSONB | Dados completos da API TikTok |
+| `synced_at` | TIMESTAMPTZ | Último sync |
+| `last_error` | TEXT | Último erro |
+
+**UNIQUE**: `(tenant_id, tiktok_order_id)`
+
+#### Edge Functions
+
+| Function | Actions | Descrição |
+|----------|---------|-----------|
+| `tiktok-shop-orders-sync` | `sync`, `list` | Sincroniza pedidos da API TikTok e lista cache local |
+| `tiktok-shop-orders-detail` | — | Busca detalhes completos de um pedido e atualiza cache |
+
+#### Mapeamento de Status TikTok → Local
+
+| Status TikTok | Status Local |
+|---------------|-------------|
+| `AWAITING_SHIPMENT` | `confirmed` |
+| `AWAITING_COLLECTION` | `confirmed` |
+| `PARTIALLY_SHIPPING` | `shipped` |
+| `IN_TRANSIT` | `shipped` |
+| `DELIVERED` | `delivered` |
+| `COMPLETED` | `delivered` |
+| `CANCELLED` | `cancelled` |
+| Outros | `pending` |
+
+#### Hook: `useTikTokOrders`
+
+| Retorno | Descrição |
+|---------|-----------|
+| `orders` | Lista de pedidos sincronizados |
+| `syncOrders(filters?)` | Sincronizar pedidos (com filtro de data) |
+| `getOrderDetail(tiktokOrderId)` | Buscar detalhes completos de um pedido |
+
+#### Mapeamento Tabela → Edge Functions
+
+| Tabela | Edge Functions |
+|--------|----------------|
+| `tiktok_shop_orders` | `tiktok-shop-orders-sync`, `tiktok-shop-orders-detail` |
