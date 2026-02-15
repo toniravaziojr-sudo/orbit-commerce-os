@@ -1504,6 +1504,11 @@ const TIKTOK_SCOPE_REGISTRY = {
 | `tiktok-shop-oauth-callback` | Troca code, salva em `tiktok_shop_connections` | ✅ Ready |
 | `tiktok-content-oauth-start` | Gera URL OAuth Content (Login Kit v2) | ✅ Ready |
 | `tiktok-content-oauth-callback` | Troca code, salva em `tiktok_content_connections` | ✅ Ready |
+| `tiktok-shop-catalog-sync` | Sincroniza catálogo de produtos com TikTok Shop | ✅ Ready |
+| `tiktok-shop-catalog-status` | Verifica status de aprovação de produtos | ✅ Ready |
+| `tiktok-shop-orders-sync` | Sincroniza pedidos do TikTok Shop | ✅ Ready |
+| `tiktok-shop-orders-detail` | Detalhes de pedido individual | ✅ Ready |
+| `tiktok-shop-fulfillment` | Fulfillment: submit rastreio, listar, transportadoras | ✅ Ready |
 
 ### Retrocompatibilidade (ENCERRADA — Fase 2)
 
@@ -1677,7 +1682,7 @@ https://app.comandocentral.com.br/integrations/tiktok/callback
 | 4 | TikTok Content: `tiktok_content_connections` + OAuth (Login Kit) | ✅ Concluída |
 | 5 | TikTok Shop: Catálogo de Produtos | ✅ Concluída |
 | 6 | TikTok Shop: Pedidos | ✅ Concluída |
-| 7 | TikTok Shop: Fulfillment e Logística | 🟧 Pendente |
+| 7 | TikTok Shop: Fulfillment e Logística | ✅ Concluída |
 | 8 | TikTok Shop: Devoluções e Pós-venda | 🟧 Pendente |
 | 9 | TikTok Shop: Atendimento (Inbox Unificado) | 🟧 Pendente |
 | 10 | TikTok Ads: Campanhas e Insights | 🟧 Pendente |
@@ -1779,3 +1784,50 @@ https://app.comandocentral.com.br/integrations/tiktok/callback
 | Tabela | Edge Functions |
 |--------|----------------|
 | `tiktok_shop_orders` | `tiktok-shop-orders-sync`, `tiktok-shop-orders-detail` |
+
+### Fase 7: TikTok Shop Fulfillment e Logística
+
+#### Tabela: `tiktok_shop_fulfillments`
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | UUID PK | ID interno |
+| `tenant_id` | UUID FK | Tenant |
+| `tiktok_order_id` | TEXT | ID do pedido no TikTok Shop |
+| `tiktok_shop_order_id` | UUID FK (nullable) | Referência ao registro local em `tiktok_shop_orders` |
+| `shipment_id` | UUID FK (nullable) | Referência ao envio local em `shipments` |
+| `tracking_code` | TEXT | Código de rastreio |
+| `carrier_code` | TEXT | Código da transportadora |
+| `carrier_name` | TEXT | Nome da transportadora |
+| `status` | TEXT | `pending`, `submitted`, `error` |
+| `tiktok_package_id` | TEXT | ID do pacote retornado pela API TikTok |
+| `tiktok_fulfillment_status` | TEXT | Status retornado pela API |
+| `shipping_provider_id` | TEXT | ID do provider no TikTok |
+| `pickup_slot` | JSONB | Dados de coleta (se aplicável) |
+| `fulfillment_data` | JSONB | Dados completos retornados pela API |
+| `submitted_at` | TIMESTAMPTZ | Data de submissão |
+| `last_error` | TEXT | Último erro |
+
+**UNIQUE**: `(tenant_id, tiktok_order_id, tracking_code)`
+
+#### Edge Function: `tiktok-shop-fulfillment`
+
+| Action | Descrição |
+|--------|-----------|
+| `submit` | Envia informações de rastreio para o TikTok Shop (ship order) |
+| `list` | Lista fulfillments do cache local |
+| `shipping_providers` | Lista transportadoras disponíveis no TikTok Shop |
+
+#### Hook: `useTikTokFulfillment`
+
+| Retorno | Descrição |
+|---------|-----------|
+| `fulfillments` | Lista de fulfillments |
+| `shippingProviders` | Transportadoras disponíveis no TikTok Shop |
+| `submitFulfillment(data)` | Enviar rastreio para o TikTok Shop |
+
+#### Mapeamento Tabela → Edge Functions
+
+| Tabela | Edge Functions |
+|--------|----------------|
+| `tiktok_shop_fulfillments` | `tiktok-shop-fulfillment` |
