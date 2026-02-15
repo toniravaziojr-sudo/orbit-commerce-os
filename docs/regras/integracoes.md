@@ -72,6 +72,7 @@ Hub central de integrações com serviços externos: pagamentos, redes sociais, 
 | Meta | `social` | `MetaUnifiedSettings` | Meta (WhatsApp + Publicação FB/IG) |
 | YouTube (legado) | `youtube` | `YouTubeSettings` | Apenas para platform operators (será removida) |
 | **Google** | `google` | `GoogleUnifiedSettings` | Hub centralizado Google (YouTube, Ads, Analytics, etc.) |
+| **TikTok** | `tiktok` | `TikTokUnifiedSettings` | Hub TikTok multi-conexão (Ads, Shop, Content) |
 | Marketplaces | `marketplaces` | `MarketplacesIntegrationTab` | Mercado Livre, etc |
 | **Domínio/Email** | `domain-email` | `DomainAndEmailSettings` | Domínio da loja + Email |
 | Outros | `outros` | Cards ERP | Integrações ERP (em breve) |
@@ -119,7 +120,7 @@ A aba `domain-email` unifica duas seções:
 | Meta (FB/IG) | ✅ Ready | Publicação Feed/Stories/Reels, WhatsApp, Catálogo, Pixel |
 | Instagram | ✅ Ready | Via Meta Graph API (container flow) |
 | **YouTube** | ✅ Ready | Upload, agendamento, analytics (via Hub Google) |
-| TikTok Ads | 🟧 Pending | Pixel/Conversions |
+| **TikTok Hub** | ✅ Ready (Fase 1) | Hub multi-conexão: Ads (Pixel/CAPI), Shop (em breve), Content (em breve) |
 | **Google Hub** | ✅ Ready | YouTube, Ads, Merchant, Analytics, Search Console, Business, Tag Manager |
 
 ### 3. Marketplaces
@@ -128,7 +129,7 @@ A aba `domain-email` unifica duas seções:
 | Mercado Livre | ✅ Ready | Sincronização de produtos |
 | Shopee | ✅ Ready | Sincronização de pedidos e OAuth |
 | Olist | ✅ Ready | ERP (Tiny) + E-commerce (Vnda) via token |
-| TikTok Shop | 🟧 Em Cadastro | Marketplace integrado |
+| TikTok Shop | 🟧 Em Cadastro | Marketplace integrado (via Hub TikTok) |
 | Amazon | 🟧 Pending | Planejado |
 
 ### 4. WhatsApp
@@ -1320,6 +1321,13 @@ const {
 - [x] ~~Google Search Console~~ (Fase 6 concluída)
 - [x] ~~Google Meu Negócio~~ (Fase 7 concluída)
 - [x] ~~Google Tag Manager~~ (Fase 8 concluída)
+- [x] ~~TikTok Hub Base: Ads Connection + OAuth + UI + dual-write~~ (Fase 1 concluída)
+- [ ] TikTok: Pixel/CAPI migração completa (Fase 2)
+- [ ] TikTok Shop: Tabela Base + OAuth (Fase 3)
+- [ ] TikTok Shop: Catálogo (Fase 4)
+- [ ] TikTok Shop: Pedidos (Fase 5)
+- [ ] TikTok Ads: Campanhas e Insights (Fase 10)
+- [ ] TikTok Content: Publicação Orgânica (Fase 11)
 
 ---
 
@@ -1367,3 +1375,220 @@ const {
 | Tabela | Edge Functions |
 |--------|----------------|
 | `google_tag_manager_containers` | `google-tag-manager` |
+
+---
+
+## TikTok — Hub Multi-Conexão (Ads / Shop / Content)
+
+> **STATUS:** ✅ Ready (Fase 1 — Ads Base)  
+> **Adicionado em:** 2026-02-15
+
+### Visão Geral
+
+Hub centralizado TikTok na aba "TikTok" de `/integrations`. Diferente de Meta e Google, o TikTok opera com **3 conexões independentes** por tenant porque cada produto (Ads, Shop, Content) requer apps/credenciais/tokens separados.
+
+### Arquitetura: Hub Único na UI, Multi-Connection no Backend
+
+```text
+/integrations > TikTok
+  +----------------------------+
+  | TikTok Ads (Marketing API) |  <-- tiktok_ads_connections
+  | [Conectado] Pixel/CAPI     |
+  +----------------------------+
+  | TikTok Shop (Seller API)   |  <-- tiktok_shop_connections
+  | [Em breve]                 |
+  +----------------------------+
+  | TikTok Content (Login Kit) |  <-- tiktok_content_connections
+  | [Em breve]                 |
+  +----------------------------+
+```
+
+**Por que 3 tabelas e não 1:**
+- Google: 1 tabela → 1 conta Google, 1 par de credenciais
+- Meta: 1 tabela → 1 Meta App, 1 par de credenciais
+- TikTok: 3 tabelas → 3 apps distintos, 3 pares de credenciais, 3 portais de aprovação
+
+### Tabelas do Banco
+
+| Tabela | Fase | Descrição | Status |
+|--------|------|-----------|--------|
+| `tiktok_ads_connections` | 1 | Conexão Ads (UNIQUE por `tenant_id`) | ✅ Ready |
+| `tiktok_shop_connections` | 3 | Conexão Shop (UNIQUE por `tenant_id`) | 🟧 Pending |
+| `tiktok_content_connections` | 11 | Conexão Content (UNIQUE por `tenant_id`) | 🟧 Pending |
+| `tiktok_oauth_states` | 1 | Anti-CSRF com coluna `product` | ✅ Ready |
+
+### Tabela `tiktok_ads_connections`
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `id` | UUID PK | ID interno |
+| `tenant_id` | UUID UNIQUE FK | Tenant (1 por tenant) |
+| `connected_by` | UUID FK | Usuário que conectou |
+| `advertiser_id` | TEXT | ID do advertiser TikTok |
+| `advertiser_name` | TEXT | Nome do advertiser |
+| `tiktok_user_id` | TEXT | ID do usuário TikTok |
+| `access_token` | TEXT | Token de acesso |
+| `refresh_token` | TEXT | Token de renovação |
+| `token_expires_at` | TIMESTAMPTZ | Validade do token |
+| `scope_packs` | TEXT[] | Packs concedidos (ex: `['pixel', 'ads_read']`) |
+| `granted_scopes` | TEXT[] | Escopos reais retornados pela API |
+| `is_active` | BOOLEAN | Conexão ativa |
+| `connection_status` | TEXT | `connected`, `error`, `disconnected` |
+| `last_error` | TEXT | Último erro |
+| `last_sync_at` | TIMESTAMPTZ | Última sincronização |
+| `assets` | JSONB | `{ advertiser_ids: [...], pixels: [...] }` |
+
+### Scope Packs (Ads — Marketing API)
+
+| Pack | Escopos TikTok | Sensível |
+|------|----------------|----------|
+| `pixel` | `event.track.create`, `event.track.view` | Não |
+| `ads_read` | `advertiser.data.readonly` | Não |
+| `ads_manage` | `advertiser.data.manage`, `campaign.manage`, `creative.manage` | Não |
+| `reporting` | `report.read` | Não |
+| `audience` | `audience.manage` | Não |
+
+### Scope Packs (Shop — futuro)
+
+| Pack | Escopos TikTok Shop | Sensível |
+|------|---------------------|----------|
+| `shop_catalog` | `product.read`, `product.edit` | Não |
+| `shop_orders` | `order.read`, `order.edit` | Não |
+| `shop_fulfill` | `fulfillment.read`, `fulfillment.edit` | Não |
+| `shop_chat` | `customer_service.read`, `customer_service.write` | **Sim** |
+| `shop_finance` | `finance.read` | **Sim** |
+| `shop_returns` | `return.read`, `return.edit` | Não |
+
+### Scope Packs (Content — futuro)
+
+| Pack | Escopos TikTok Login Kit | Sensível |
+|------|--------------------------|----------|
+| `content_publish` | `video.publish`, `video.list` | Não |
+| `content_analytics` | `video.insights` | Não |
+
+### Scope Pack Registry (Backend)
+
+```typescript
+const TIKTOK_SCOPE_REGISTRY = {
+  // Ads (Marketing API)
+  ads_pixel:    { product: 'ads', scopes: ['event.track.create', 'event.track.view'], sensitive: false },
+  ads_read:     { product: 'ads', scopes: ['advertiser.data.readonly'], sensitive: false },
+  ads_manage:   { product: 'ads', scopes: ['advertiser.data.manage', 'campaign.manage'], sensitive: false },
+  ads_report:   { product: 'ads', scopes: ['report.read'], sensitive: false },
+  ads_audience: { product: 'ads', scopes: ['audience.manage'], sensitive: false },
+  
+  // Shop (Partner Center)
+  shop_catalog:  { product: 'shop', scopes: ['product.read', 'product.edit'], sensitive: false },
+  shop_orders:   { product: 'shop', scopes: ['order.read', 'order.edit'], sensitive: false },
+  shop_fulfill:  { product: 'shop', scopes: ['fulfillment.read', 'fulfillment.edit'], sensitive: false },
+  shop_chat:     { product: 'shop', scopes: ['customer_service.read', 'customer_service.write'], sensitive: true },
+  shop_finance:  { product: 'shop', scopes: ['finance.read'], sensitive: true },
+  shop_returns:  { product: 'shop', scopes: ['return.read', 'return.edit'], sensitive: false },
+  
+  // Content (Login Kit)
+  content_publish:   { product: 'content', scopes: ['video.publish', 'video.list'], sensitive: false },
+  content_analytics: { product: 'content', scopes: ['video.insights'], sensitive: false },
+};
+```
+
+### Edge Functions
+
+| Function | Descrição | Status |
+|----------|-----------|--------|
+| `tiktok-oauth-start` | Gera URL OAuth (v2 com scope packs) | ✅ Ready |
+| `tiktok-oauth-callback` | Troca code, salva em `tiktok_ads_connections` + dual-write legado | ✅ Ready |
+| `tiktok-token-refresh` | Renova `access_token` usando `refresh_token` | ✅ Ready |
+| `marketing-send-tiktok` | Events API (CAPI), lê de `tiktok_ads_connections` com fallback legado | ✅ Ready |
+
+### Retrocompatibilidade (Dual-Write)
+
+A migração do TikTok de `marketing_integrations` para `tiktok_ads_connections` usa um modelo de dual-write temporário:
+
+```text
+1. tiktok-oauth-callback v2 escreve em tiktok_ads_connections (fonte de verdade)
+2. Simultaneamente, preenche marketing_integrations.tiktok_* (compatibilidade)
+3. marketing-send-tiktok lê de tiktok_ads_connections com fallback para marketing_integrations
+4. Após 30 dias (2026-03-17): remover fallback e deprecar colunas tiktok_* do legado
+```
+
+**Colunas legadas em `marketing_integrations` (deprecated):**
+- `tiktok_access_token`, `tiktok_refresh_token`, `tiktok_token_expires_at`
+- `tiktok_advertiser_id`, `tiktok_advertiser_name`, `tiktok_connected_at`
+- `tiktok_connected_by`, `tiktok_pixel_id`, `tiktok_events_api_enabled`
+- `tiktok_enabled`, `tiktok_status`
+
+### Credenciais
+
+| Trilha | Credencial | Tipo | Onde fica |
+|--------|------------|------|-----------|
+| Ads | `TIKTOK_APP_ID` | Plataforma | Secrets |
+| Ads | `TIKTOK_APP_SECRET` | Plataforma | Secrets |
+| Shop | `TIKTOK_SHOP_APP_KEY` | Plataforma | Secrets (futuro) |
+| Shop | `TIKTOK_SHOP_APP_SECRET` | Plataforma | Secrets (futuro) |
+| Content | `TIKTOK_CONTENT_CLIENT_KEY` | Plataforma | Secrets (futuro) |
+| Content | `TIKTOK_CONTENT_CLIENT_SECRET` | Plataforma | Secrets (futuro) |
+| Todas | OAuth tokens | Tenant | Tabela de conexão respectiva |
+
+### Hooks e Componentes
+
+| Arquivo | Descrição | Status |
+|---------|-----------|--------|
+| `src/hooks/useTikTokAdsConnection.ts` | Hook para conexão Ads (lê de `tiktok_ads_connections`) | ✅ Ready |
+| `src/hooks/useTikTokConnection.ts` | Hook legado (lê de `marketing_integrations`) — **deprecated** | ⚠️ Deprecated |
+| `src/components/integrations/TikTokUnifiedSettings.tsx` | UI Hub com 3 cards (Ads ativo, Shop/Content em breve) | ✅ Ready |
+| `src/components/integrations/TikTokIntegrationCard.tsx` | Card legado em Marketing — **deprecated** | ⚠️ Deprecated |
+| `src/pages/TikTokOAuthCallback.tsx` | Página de callback OAuth | ✅ Ready |
+
+### Tipos TypeScript
+
+```typescript
+type TikTokProduct = 'ads' | 'shop' | 'content';
+
+interface TikTokAdsConnectionStatus {
+  isConnected: boolean;
+  connectionStatus: 'connected' | 'error' | 'disconnected';
+  advertiserId: string | null;
+  advertiserName: string | null;
+  connectedAt: string | null;
+  tokenExpiresAt: string | null;
+  isExpired: boolean;
+  scopePacks: string[];
+  grantedScopes: string[];
+  assets: {
+    advertiser_ids?: string[];
+    pixels?: string[];
+  };
+  lastError: string | null;
+}
+```
+
+### URLs de Integração
+
+| Tipo | URL Pública | Edge Function |
+|------|-------------|---------------|
+| OAuth Callback (Ads) | `https://app.comandocentral.com.br/integrations/tiktok/callback` | `tiktok-oauth-callback` |
+| Webhook (Shop, futuro) | `https://app.comandocentral.com.br/integrations/tiktok/webhook` | `tiktok-webhook` |
+
+### Configuração no TikTok Developer Portal
+
+**Redirect URI obrigatória:**
+```
+https://app.comandocentral.com.br/integrations/tiktok/callback
+```
+
+### Fases de Implementação
+
+| Fase | Descrição | Status |
+|------|-----------|--------|
+| 1 | Hub Base: `tiktok_ads_connections` + OAuth + UI + dual-write | ✅ Concluída |
+| 2 | Pixel/CAPI migração completa (remover fallback legado) | 🟧 Pendente |
+| 3 | TikTok Shop: Tabela Base + OAuth | 🟧 Pendente |
+| 4 | TikTok Shop: Catálogo de Produtos | 🟧 Pendente |
+| 5 | TikTok Shop: Pedidos | 🟧 Pendente |
+| 6 | TikTok Shop: Fulfillment e Logística | 🟧 Pendente |
+| 7 | TikTok Shop: Devoluções e Pós-venda | 🟧 Pendente |
+| 8 | TikTok Shop: Atendimento (Inbox Unificado) | 🟧 Pendente |
+| 9 | TikTok Shop: Financeiro | 🟧 Pendente |
+| 10 | TikTok Ads: Campanhas e Insights | 🟧 Pendente |
+| 11 | TikTok Content: Publicação Orgânica | 🟧 Pendente |
+| 12 | Webhooks e Analytics Agregados | 🟧 Pendente |
