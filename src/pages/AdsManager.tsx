@@ -79,14 +79,19 @@ export default function AdsManager() {
     }
   };
 
-  const handleSyncCampaigns = useCallback(() => {
+  const handleSyncCampaigns = useCallback(async () => {
     if (activeChannel === "meta") {
-      // Sync campaigns, insights and adsets together for full data refresh
-      meta.syncCampaigns.mutate();
+      // Sync campaigns FIRST, then insights+adsets (insights auto-create missing campaigns)
+      try {
+        await meta.syncCampaigns.mutateAsync();
+      } catch {}
+      // Now sync insights and adsets in parallel
       meta.syncInsights.mutate({});
       meta.syncAdsets.mutate({});
     } else if (activeChannel === "tiktok") {
-      tiktok.syncCampaigns.mutate();
+      try {
+        await tiktok.syncCampaigns.mutateAsync();
+      } catch {}
       tiktok.syncInsights.mutate({});
     }
   }, [activeChannel, meta, tiktok]);
