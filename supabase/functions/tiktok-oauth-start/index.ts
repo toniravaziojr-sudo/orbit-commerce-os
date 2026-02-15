@@ -2,32 +2,38 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 
+// ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
+const VERSION = "v2.0.0"; // Hub TikTok: scope packs + product type
+// ===========================================================
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 /**
- * TikTok OAuth Start
+ * TikTok OAuth Start (Hub v2)
  * 
- * Gera a URL de autorização para o cliente conectar sua conta TikTok for Business.
- * Usa as credenciais de integrador (TIKTOK_APP_ID e TIKTOK_APP_SECRET).
+ * Gera URL de autorização para conectar conta TikTok Ads (Marketing API).
+ * Suporta scope packs incrementais.
  * 
- * Contrato:
- * - Erro de negócio = HTTP 200 + { success: false, error, code? }
- * - Sucesso = HTTP 200 + { success: true, authUrl, state }
- * 
- * TikTok OAuth Docs: https://business-api.tiktok.com/portal/docs?id=1738373141733378
+ * Body: { tenantId, scopePacks?: string[], returnPath? }
+ * Resposta: { success: true, authUrl, state }
  */
 
-// Escopos necessários para TikTok Marketing API
-const TIKTOK_SCOPES = [
-  "advertiser.data.readonly", // Ler dados de anunciantes
-  "event.track.create",       // Criar eventos de conversão
-  "event.track.view",         // Ver eventos de conversão
-];
+// Scope Pack Registry (Ads only for Phase 1)
+const TIKTOK_ADS_SCOPE_PACKS: Record<string, string[]> = {
+  pixel: ["event.track.create", "event.track.view"],
+  ads_read: ["advertiser.data.readonly"],
+  ads_manage: ["advertiser.data.manage", "campaign.manage", "creative.manage"],
+  reporting: ["report.read"],
+  audience: ["audience.manage"],
+};
 
 serve(async (req) => {
+  console.log(`[tiktok-oauth-start][${VERSION}] Request received`);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -47,7 +53,6 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
-    // Verificar usuário
     const token = authHeader.replace("Bearer ", "");
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
@@ -58,9 +63,12 @@ serve(async (req) => {
       );
     }
 
-    // Obter parâmetros do body
     const body = await req.json();
-    const { tenantId, returnPath = "/marketing" } = body;
+    const { 
+      tenantId, 
+      scopePacks = ["pixel", "ads_read"], 
+      returnPath = "/integrations" 
+    } = body;
 
     if (!tenantId) {
       return new Response(
@@ -69,7 +77,7 @@ serve(async (req) => {
       );
     }
 
-    // Verificar se usuário tem acesso ao tenant
+    // Verificar acesso ao tenant
     const { data: userRole, error: roleError } = await supabase
       .from("user_roles")
       .select("role")
@@ -84,9 +92,8 @@ serve(async (req) => {
       );
     }
 
-    // Buscar credenciais do TikTok (integrador)
+    // Buscar credenciais do TikTok
     const appId = await getCredential(supabaseUrl, supabaseServiceKey, "TIKTOK_APP_ID");
-    const appSecret = await getCredential(supabaseUrl, supabaseServiceKey, "TIKTOK_APP_SECRET");
 
     if (!appId) {
       return new Response(
@@ -99,11 +106,24 @@ serve(async (req) => {
       );
     }
 
-    // Gerar state único (anti-CSRF)
-    const stateRaw = crypto.randomUUID();
-    const stateHash = stateRaw; // Para TikTok usamos o state diretamente na URL
+    // Resolver escopos a partir dos packs
+    const resolvedScopes = new Set<string>();
+    const validPacks: string[] = [];
+    
+    for (const pack of scopePacks) {
+      const scopes = TIKTOK_ADS_SCOPE_PACKS[pack];
+      if (scopes) {
+        scopes.forEach(s => resolvedScopes.add(s));
+        validPacks.push(pack);
+      } else {
+        console.warn(`[tiktok-oauth-start] Pack desconhecido: ${pack}`);
+      }
+    }
 
-    // Salvar state no banco com expiração
+    // Gerar state único (anti-CSRF)
+    const stateHash = crypto.randomUUID();
+
+    // Salvar state no banco
     const { error: stateError } = await supabase
       .from("tiktok_oauth_states")
       .insert({
@@ -111,7 +131,8 @@ serve(async (req) => {
         user_id: user.id,
         state_hash: stateHash,
         return_path: returnPath,
-        scope_packs: ["marketing"],
+        scope_packs: validPacks,
+        product: "ads",
       });
 
     if (stateError) {
@@ -127,14 +148,13 @@ serve(async (req) => {
     const redirectUri = `${appBaseUrl}/integrations/tiktok/callback`;
 
     // Construir URL de autorização TikTok
-    // Docs: https://business-api.tiktok.com/portal/docs?id=1738373141733378
     const authUrl = new URL("https://business-api.tiktok.com/portal/auth");
     authUrl.searchParams.set("app_id", appId);
     authUrl.searchParams.set("state", stateHash);
     authUrl.searchParams.set("redirect_uri", redirectUri);
-    authUrl.searchParams.set("rid", crypto.randomUUID().slice(0, 8)); // Request ID opcional
+    authUrl.searchParams.set("rid", crypto.randomUUID().slice(0, 8));
 
-    console.log(`[tiktok-oauth-start] URL gerada para tenant ${tenantId}`);
+    console.log(`[tiktok-oauth-start][${VERSION}] URL gerada para tenant ${tenantId}, packs: ${validPacks.join(",")}`);
 
     return new Response(
       JSON.stringify({
@@ -146,7 +166,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error("[tiktok-oauth-start] Erro:", error);
+    console.error(`[tiktok-oauth-start][${VERSION}] Erro:`, error);
     return new Response(
       JSON.stringify({ 
         success: false, 

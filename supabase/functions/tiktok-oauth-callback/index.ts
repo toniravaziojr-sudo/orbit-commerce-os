@@ -2,25 +2,19 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 
+// ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
+const VERSION = "v2.0.0"; // Hub TikTok: salva em tiktok_ads_connections + dual-write
+// ===========================================================
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-/**
- * TikTok OAuth Callback
- * 
- * Recebe o auth_code do TikTok via POST (do frontend), valida state (anti-CSRF), 
- * troca por tokens, descobre advertiser accounts e salva no banco por tenant.
- * 
- * Contrato:
- * - Erro de negócio = HTTP 200 + { success: false, error, code }
- * - Sucesso = HTTP 200 + { success: true, ... }
- * 
- * TikTok Token Exchange Docs: https://business-api.tiktok.com/portal/docs?id=1738373164380162
- */
 serve(async (req) => {
-  // CORS preflight
+  console.log(`[tiktok-oauth-callback][${VERSION}] Request received`);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -30,19 +24,17 @@ serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
-    // Espera body JSON com auth_code e state
     const body = await req.json();
     const { auth_code, state } = body;
 
     if (!auth_code || !state) {
-      console.log("[tiktok-oauth-callback] auth_code ou state ausente no body");
       return new Response(
         JSON.stringify({ success: false, error: "Parâmetros ausentes", code: "MISSING_PARAMS" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Validar state no banco (anti-CSRF)
+    // Validar state (anti-CSRF)
     const { data: stateRecord, error: stateError } = await supabase
       .from("tiktok_oauth_states")
       .select("*")
@@ -52,7 +44,7 @@ serve(async (req) => {
       .single();
 
     if (stateError || !stateRecord) {
-      console.error("[tiktok-oauth-callback] State inválido ou expirado:", stateError);
+      console.error(`[tiktok-oauth-callback][${VERSION}] State inválido:`, stateError);
       return new Response(
         JSON.stringify({ success: false, error: "Sessão de autorização expirada ou inválida", code: "INVALID_STATE" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -65,15 +57,14 @@ serve(async (req) => {
       .update({ used_at: new Date().toISOString() })
       .eq("id", stateRecord.id);
 
-    const { tenant_id, user_id, return_path } = stateRecord;
-    console.log(`[tiktok-oauth-callback] Processando para tenant ${tenant_id}`);
+    const { tenant_id, user_id, return_path, scope_packs } = stateRecord;
+    console.log(`[tiktok-oauth-callback][${VERSION}] Processando tenant ${tenant_id}, packs: ${scope_packs}`);
 
-    // Buscar credenciais do app TikTok
+    // Buscar credenciais
     const appId = await getCredential(supabaseUrl, supabaseServiceKey, "TIKTOK_APP_ID");
     const appSecret = await getCredential(supabaseUrl, supabaseServiceKey, "TIKTOK_APP_SECRET");
 
     if (!appId || !appSecret) {
-      console.error("[tiktok-oauth-callback] Credenciais TikTok não configuradas");
       return new Response(
         JSON.stringify({ success: false, error: "Integração TikTok não configurada", code: "NOT_CONFIGURED" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -81,12 +72,9 @@ serve(async (req) => {
     }
 
     // Trocar auth_code por access_token
-    // Docs: https://business-api.tiktok.com/portal/docs?id=1738373164380162
     const tokenResponse = await fetch("https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         app_id: appId,
         secret: appSecret,
@@ -96,18 +84,17 @@ serve(async (req) => {
     
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.text();
-      console.error("[tiktok-oauth-callback] Erro ao trocar token:", errorData);
+      console.error(`[tiktok-oauth-callback][${VERSION}] Token exchange failed:`, errorData);
       return new Response(
-        JSON.stringify({ success: false, error: "Erro ao obter tokens de acesso", code: "TOKEN_EXCHANGE_FAILED", details: errorData }),
+        JSON.stringify({ success: false, error: "Erro ao obter tokens de acesso", code: "TOKEN_EXCHANGE_FAILED" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const tokenData = await tokenResponse.json();
     
-    // TikTok retorna: { code: 0, message: "OK", data: { access_token, advertiser_ids, scope } }
     if (tokenData.code !== 0) {
-      console.error("[tiktok-oauth-callback] Erro da API TikTok:", tokenData);
+      console.error(`[tiktok-oauth-callback][${VERSION}] API error:`, tokenData);
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -120,26 +107,26 @@ serve(async (req) => {
 
     const accessToken = tokenData.data.access_token;
     const advertiserIds = tokenData.data.advertiser_ids || [];
-    const scopes = tokenData.data.scope || [];
-
-    // Calcular expiração (TikTok tokens expiram em 24 horas, mas podem ser refreshed)
+    const grantedScopes = tokenData.data.scope || [];
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
-    // Buscar detalhes dos advertisers
+    // Asset discovery: buscar detalhes dos advertisers
     let advertiserName = "";
     let advertiserId = "";
+    const discoveredAssets: Record<string, unknown> = {
+      advertiser_ids: advertiserIds,
+      pixels: [],
+    };
     
     if (advertiserIds.length > 0) {
-      advertiserId = advertiserIds[0]; // Usar o primeiro advertiser
+      advertiserId = advertiserIds[0];
       
       try {
         const advertiserResponse = await fetch(
           `https://business-api.tiktok.com/open_api/v1.3/advertiser/info/?advertiser_ids=["${advertiserId}"]`,
           {
             method: "GET",
-            headers: {
-              "Access-Token": accessToken,
-            },
+            headers: { "Access-Token": accessToken },
           }
         );
         
@@ -150,75 +137,100 @@ serve(async (req) => {
           }
         }
       } catch (advError) {
-        console.warn("[tiktok-oauth-callback] Erro ao buscar detalhes do advertiser:", advError);
+        console.warn(`[tiktok-oauth-callback][${VERSION}] Advertiser info error:`, advError);
       }
     }
 
-    // Upsert na tabela marketing_integrations
-    // Primeiro, verificar se já existe um registro
-    const { data: existingConfig } = await supabase
-      .from("marketing_integrations")
-      .select("id")
-      .eq("tenant_id", tenant_id)
-      .maybeSingle();
-
-    const updateData = {
-      tiktok_access_token: accessToken,
-      tiktok_token_expires_at: expiresAt,
-      tiktok_advertiser_id: advertiserId,
-      tiktok_advertiser_name: advertiserName,
-      tiktok_connected_at: new Date().toISOString(),
-      tiktok_connected_by: user_id,
-      tiktok_enabled: true,
-      tiktok_events_api_enabled: true,
-      tiktok_status: "active",
-      tiktok_last_error: null,
+    // ========== FONTE DE VERDADE: tiktok_ads_connections ==========
+    const connectionData = {
+      tenant_id,
+      connected_by: user_id,
+      tiktok_user_id: tokenData.data.creator_id || null,
+      advertiser_id: advertiserId || null,
+      advertiser_name: advertiserName || null,
+      access_token: accessToken,
+      refresh_token: tokenData.data.refresh_token || null,
+      token_expires_at: expiresAt,
+      scope_packs: scope_packs || ["pixel"],
+      granted_scopes: grantedScopes,
+      is_active: true,
+      connection_status: "connected",
+      last_error: null,
+      connected_at: new Date().toISOString(),
+      assets: discoveredAssets,
     };
 
-    let upsertError;
-    if (existingConfig?.id) {
-      const { error } = await supabase
-        .from("marketing_integrations")
-        .update(updateData)
-        .eq("id", existingConfig.id);
-      upsertError = error;
-    } else {
-      const { error } = await supabase
-        .from("marketing_integrations")
-        .insert({
-          tenant_id,
-          ...updateData,
-        });
-      upsertError = error;
-    }
+    const { error: upsertError } = await supabase
+      .from("tiktok_ads_connections")
+      .upsert(connectionData, { onConflict: "tenant_id" });
 
     if (upsertError) {
-      console.error("[tiktok-oauth-callback] Erro ao salvar conexão:", upsertError);
+      console.error(`[tiktok-oauth-callback][${VERSION}] Save to tiktok_ads_connections failed:`, upsertError);
       return new Response(
         JSON.stringify({ success: false, error: "Erro ao salvar a conexão", code: "SAVE_FAILED" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`[tiktok-oauth-callback] Conexão TikTok salva com sucesso para tenant ${tenant_id}`);
+    // ========== DUAL-WRITE: marketing_integrations (retrocompatibilidade) ==========
+    try {
+      const { data: existingMi } = await supabase
+        .from("marketing_integrations")
+        .select("id")
+        .eq("tenant_id", tenant_id)
+        .maybeSingle();
+
+      const dualWriteData = {
+        tiktok_access_token: accessToken,
+        tiktok_refresh_token: tokenData.data.refresh_token || null,
+        tiktok_token_expires_at: expiresAt,
+        tiktok_advertiser_id: advertiserId,
+        tiktok_advertiser_name: advertiserName,
+        tiktok_connected_at: new Date().toISOString(),
+        tiktok_connected_by: user_id,
+        tiktok_enabled: true,
+        tiktok_events_api_enabled: true,
+        tiktok_status: "active",
+        tiktok_last_error: null,
+      };
+
+      if (existingMi?.id) {
+        await supabase
+          .from("marketing_integrations")
+          .update(dualWriteData)
+          .eq("id", existingMi.id);
+      } else {
+        await supabase
+          .from("marketing_integrations")
+          .insert({ tenant_id, ...dualWriteData });
+      }
+
+      console.log(`[tiktok-oauth-callback][${VERSION}] Dual-write to marketing_integrations OK`);
+    } catch (dualWriteErr) {
+      // Dual-write failure is non-fatal
+      console.warn(`[tiktok-oauth-callback][${VERSION}] Dual-write failed (non-fatal):`, dualWriteErr);
+    }
+
+    console.log(`[tiktok-oauth-callback][${VERSION}] Conexão TikTok Ads salva para tenant ${tenant_id}`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        returnPath: return_path || "/marketing",
+        returnPath: return_path || "/integrations",
         connection: {
           advertiserId,
           advertiserName,
           expiresAt,
-          scopes,
+          scopes: grantedScopes,
           advertiserCount: advertiserIds.length,
+          scopePacks: scope_packs,
         },
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
   } catch (error) {
-    console.error("[tiktok-oauth-callback] Erro:", error);
+    console.error(`[tiktok-oauth-callback][${VERSION}] Erro:`, error);
     return new Response(
       JSON.stringify({ 
         success: false, 

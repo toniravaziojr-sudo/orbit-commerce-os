@@ -6,6 +6,7 @@ import {
   Globe,
   MoreHorizontal,
   Youtube,
+  Music2,
 } from "lucide-react";
 // Google icon inline SVG used in tab
 import { PageHeader } from "@/components/ui/page-header";
@@ -16,12 +17,14 @@ import { MetaUnifiedSettings } from "@/components/integrations/MetaUnifiedSettin
 import { YouTubeSettings } from "@/components/integrations/YouTubeSettings";
 import { MarketplacesIntegrationTab } from "@/components/integrations/MarketplacesIntegrationTab";
 import { DomainAndEmailSettings } from "@/components/integrations/DomainAndEmailSettings";
+import { TikTokUnifiedSettings } from "@/components/integrations/TikTokUnifiedSettings";
 import { GoogleUnifiedSettings } from "@/components/integrations/GoogleUnifiedSettings";
 import { useGoogleConnection } from "@/hooks/useGoogleConnection";
 import { usePaymentProviders } from "@/hooks/usePaymentProviders";
 import { useMetaConnection } from "@/hooks/useMetaConnection";
 import { useMeliConnection } from "@/hooks/useMeliConnection";
 import { useYouTubeConnection } from "@/hooks/useYouTubeConnection";
+import { useTikTokAdsConnection } from "@/hooks/useTikTokAdsConnection";
 import { usePlatformOperator } from "@/hooks/usePlatformOperator";
 import { useAdminModeSafe } from "@/contexts/AdminModeContext";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -43,6 +46,7 @@ export default function Integrations() {
   const { isConnected: meliConnected } = useMeliConnection();
   const { isConnected: youtubeConnected } = useYouTubeConnection();
   const { isConnected: googleConnected } = useGoogleConnection();
+  const { connectionStatus: tiktokStatus } = useTikTokAdsConnection();
   const { isPlatformOperator } = usePlatformOperator();
   const { isStoreMode } = useAdminModeSafe();
   const [activeTab, setActiveTab] = useState("payments");
@@ -143,6 +147,10 @@ export default function Integrations() {
             </svg>
             <span className="hidden sm:inline">Google</span>
           </TabsTrigger>
+          <TabsTrigger value="tiktok" className="gap-2">
+            <Music2 className="h-4 w-4" />
+            <span className="hidden sm:inline">TikTok</span>
+          </TabsTrigger>
           <TabsTrigger value="marketplaces" className="gap-2">
             <Boxes className="h-4 w-4" />
             <span className="hidden sm:inline">Marketplaces</span>
@@ -173,6 +181,10 @@ export default function Integrations() {
 
         <TabsContent value="google" className="space-y-6">
           <GoogleUnifiedSettings />
+        </TabsContent>
+
+        <TabsContent value="tiktok" className="space-y-6">
+          <TikTokUnifiedSettings />
         </TabsContent>
 
         <TabsContent value="marketplaces" className="space-y-6">

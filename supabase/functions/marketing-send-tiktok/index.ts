@@ -1,12 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
+const VERSION = "v2.0.0"; // Hub TikTok: reads from tiktok_ads_connections with fallback
+// ===========================================================
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Hash for TikTok Events API (SHA-256, lowercase)
 async function hashForTikTok(value: string | null): Promise<string | null> {
   if (!value) return null;
   const normalized = value.toLowerCase().trim();
@@ -18,6 +21,8 @@ async function hashForTikTok(value: string | null): Promise<string | null> {
 }
 
 serve(async (req) => {
+  console.log(`[marketing-send-tiktok][${VERSION}] Request received`);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -30,15 +35,8 @@ serve(async (req) => {
 
     const body = await req.json();
     const {
-      tenant_id,
-      event_name,
-      event_id,
-      event_time,
-      page_url,
-      page_referrer,
-      user_data,
-      properties,
-      test_event_code,
+      tenant_id, event_name, event_id, event_time,
+      page_url, page_referrer, user_data, properties, test_event_code,
     } = body;
 
     if (!tenant_id || !event_name) {
@@ -48,29 +46,72 @@ serve(async (req) => {
       });
     }
 
-    // Get marketing config
-    const { data: config, error: configError } = await supabase
-      .from('marketing_integrations')
-      .select('tiktok_pixel_id, tiktok_access_token, tiktok_events_api_enabled, tiktok_enabled')
-      .eq('tenant_id', tenant_id)
-      .single();
+    // ========== SOURCE OF TRUTH: tiktok_ads_connections ==========
+    let pixelId: string | null = null;
+    let accessToken: string | null = null;
+    let isEnabled = false;
+    let eventsApiEnabled = false;
+    let source = "unknown";
 
-    if (configError || !config) {
-      console.error('Config not found:', configError);
-      return new Response(JSON.stringify({ error: 'Marketing config not found' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    // Try new table first
+    const { data: adsConn, error: adsConnError } = await supabase
+      .from('tiktok_ads_connections')
+      .select('access_token, advertiser_id, is_active, connection_status, assets')
+      .eq('tenant_id', tenant_id)
+      .eq('connection_status', 'connected')
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (!adsConnError && adsConn?.access_token) {
+      accessToken = adsConn.access_token;
+      // Get pixel from assets
+      const pixels = (adsConn.assets as any)?.pixels || [];
+      pixelId = pixels[0] || null;
+      isEnabled = true;
+      eventsApiEnabled = true;
+      source = "tiktok_ads_connections";
     }
 
-    if (!config.tiktok_enabled || !config.tiktok_events_api_enabled) {
+    // Fallback: marketing_integrations (legacy, will be removed in 30 days)
+    if (!accessToken) {
+      const { data: config, error: configError } = await supabase
+        .from('marketing_integrations')
+        .select('tiktok_pixel_id, tiktok_access_token, tiktok_events_api_enabled, tiktok_enabled')
+        .eq('tenant_id', tenant_id)
+        .single();
+
+      if (!configError && config) {
+        pixelId = config.tiktok_pixel_id;
+        accessToken = (config as any).tiktok_access_token;
+        isEnabled = config.tiktok_enabled;
+        eventsApiEnabled = (config as any).tiktok_events_api_enabled || false;
+        source = "marketing_integrations (legacy)";
+      }
+    }
+
+    // If pixel not found in ads connection, try marketing_integrations for pixel_id
+    if (!pixelId && source === "tiktok_ads_connections") {
+      const { data: miConfig } = await supabase
+        .from('marketing_integrations')
+        .select('tiktok_pixel_id')
+        .eq('tenant_id', tenant_id)
+        .maybeSingle();
+      
+      if (miConfig?.tiktok_pixel_id) {
+        pixelId = miConfig.tiktok_pixel_id;
+      }
+    }
+
+    console.log(`[marketing-send-tiktok][${VERSION}] Source: ${source}, enabled: ${isEnabled}, eventsApi: ${eventsApiEnabled}`);
+
+    if (!isEnabled || !eventsApiEnabled) {
       return new Response(JSON.stringify({ skipped: true, reason: 'TikTok Events API not enabled' }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    if (!config.tiktok_pixel_id || !config.tiktok_access_token) {
+    if (!pixelId || !accessToken) {
       return new Response(JSON.stringify({ error: 'TikTok Pixel ID or Access Token not configured' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -88,7 +129,6 @@ serve(async (req) => {
       if (user_data.ttclid) hashedUserData.ttclid = user_data.ttclid;
     }
 
-    // Build event payload
     const eventPayload: Record<string, any> = {
       event: event_name,
       event_id: event_id || crypto.randomUUID(),
@@ -106,28 +146,27 @@ serve(async (req) => {
     }
 
     const requestBody = {
-      pixel_code: config.tiktok_pixel_id,
+      pixel_code: pixelId,
       data: [eventPayload],
       test_event_code: test_event_code || undefined,
     };
 
-    // Send to TikTok Events API
     const tiktokUrl = 'https://business-api.tiktok.com/open_api/v1.3/event/track/';
     
-    console.log(`[marketing-send-tiktok] Sending ${event_name} to TikTok Events API for tenant ${tenant_id}`);
+    console.log(`[marketing-send-tiktok][${VERSION}] Sending ${event_name} for tenant ${tenant_id}`);
 
     const response = await fetch(tiktokUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Access-Token': config.tiktok_access_token,
+        'Access-Token': accessToken,
       },
       body: JSON.stringify(requestBody),
     });
 
     const responseData = await response.json();
 
-    // Log the event
+    // Log event
     await supabase.from('marketing_events_log').insert({
       tenant_id,
       provider: 'tiktok',
@@ -142,8 +181,18 @@ serve(async (req) => {
     });
 
     if (responseData.code !== 0) {
-      console.error('[marketing-send-tiktok] Error:', responseData);
+      console.error(`[marketing-send-tiktok][${VERSION}] Error:`, responseData);
       
+      // Update error in tiktok_ads_connections
+      await supabase
+        .from('tiktok_ads_connections')
+        .update({ 
+          last_error: JSON.stringify(responseData),
+          connection_status: 'error',
+        })
+        .eq('tenant_id', tenant_id);
+
+      // Also update legacy
       await supabase
         .from('marketing_integrations')
         .update({ 
@@ -158,7 +207,17 @@ serve(async (req) => {
       });
     }
 
-    // Update success status
+    // Update success in tiktok_ads_connections
+    await supabase
+      .from('tiktok_ads_connections')
+      .update({ 
+        last_error: null,
+        connection_status: 'connected',
+        last_sync_at: new Date().toISOString(),
+      })
+      .eq('tenant_id', tenant_id);
+
+    // Also update legacy
     await supabase
       .from('marketing_integrations')
       .update({ 
@@ -168,14 +227,14 @@ serve(async (req) => {
       })
       .eq('tenant_id', tenant_id);
 
-    console.log(`[marketing-send-tiktok] Success:`, responseData);
+    console.log(`[marketing-send-tiktok][${VERSION}] Success`);
 
     return new Response(JSON.stringify({ success: true, data: responseData }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error: unknown) {
-    console.error('[marketing-send-tiktok] Exception:', error);
+    console.error(`[marketing-send-tiktok][${VERSION}] Exception:`, error);
     const message = error instanceof Error ? error.message : 'Unknown error';
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
