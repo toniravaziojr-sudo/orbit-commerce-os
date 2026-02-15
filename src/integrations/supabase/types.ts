@@ -8712,6 +8712,72 @@ export type Database = {
           },
         ]
       }
+      meta_ad_ads: {
+        Row: {
+          ad_account_id: string
+          adset_id: string | null
+          created_at: string
+          creative_id: string | null
+          id: string
+          meta_ad_id: string
+          meta_adset_id: string
+          meta_campaign_id: string
+          name: string
+          status: string
+          synced_at: string
+          tenant_id: string
+          tracking_specs: Json | null
+          updated_at: string
+        }
+        Insert: {
+          ad_account_id: string
+          adset_id?: string | null
+          created_at?: string
+          creative_id?: string | null
+          id?: string
+          meta_ad_id: string
+          meta_adset_id: string
+          meta_campaign_id: string
+          name: string
+          status?: string
+          synced_at?: string
+          tenant_id: string
+          tracking_specs?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          ad_account_id?: string
+          adset_id?: string | null
+          created_at?: string
+          creative_id?: string | null
+          id?: string
+          meta_ad_id?: string
+          meta_adset_id?: string
+          meta_campaign_id?: string
+          name?: string
+          status?: string
+          synced_at?: string
+          tenant_id?: string
+          tracking_specs?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_ad_ads_adset_id_fkey"
+            columns: ["adset_id"]
+            isOneToOne: false
+            referencedRelation: "meta_ad_adsets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_ad_ads_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meta_ad_adsets: {
         Row: {
           ad_account_id: string

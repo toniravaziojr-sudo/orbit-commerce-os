@@ -212,6 +212,7 @@ Lojista (Orçamento Total + Instruções)
 | `ads_autopilot_sessions` | Histórico de sessões de análise |
 | `ads_autopilot_actions` | Ações da IA com reasoning, rollback_data e action_hash |
 | `meta_ad_adsets` | Cache local de conjuntos de anúncios (ad sets) sincronizados da Meta |
+| `meta_ad_ads` | Cache local de anúncios individuais sincronizados da Meta |
 
 ### Config Global (`channel='global'`)
 
@@ -270,6 +271,7 @@ Lojista (Orçamento Total + Instruções)
 | `ads-autopilot-analyze` | Orquestrador principal (pipeline 5 etapas) |
 | `ads-autopilot-creative` | Geração de criativos para campanhas via autopilot |
 | `meta-ads-adsets` | Sync, update e balance de ad sets e contas Meta (v1.0.0) |
+| `meta-ads-ads` | Sync e update de anúncios individuais Meta (v1.0.0) |
 
 ### Tabela `meta_ad_adsets`
 
@@ -329,16 +331,19 @@ Se falhar → status `BLOCKED`, gera `report_insight` com o que falta.
 | **Filtro por status** | ToggleGroup com 3 opções: Todas (total), Ativas (ACTIVE/ENABLE), Pausadas (PAUSED/DISABLE/ARCHIVED) — cada uma com badge de contagem |
 | **Filtro por datas** | DateRange picker com presets (7d, 14d, 30d, 90d) para filtrar métricas de performance |
 | **Conjuntos expandíveis** | Campanhas Meta expandem para mostrar ad sets com status, orçamento e métricas individuais |
+| **Anúncios expandíveis** | Ad sets expandem para mostrar anúncios individuais com status e botão de pausar/ativar (3 níveis: Campanha > Conjunto > Anúncio) |
 | **Métricas por objetivo** | Campanhas de vendas mostram ROI/ROAS; outras mostram métrica mais relevante (Leads, Cliques, Impressões, etc.) baseado no `objective` |
-| **Gestão manual** | Botões de Pausar (⏸) e Ativar (▶) por campanha e ad set, chamam APIs respectivas em tempo real |
+| **Gestão manual** | Botões de Pausar (⏸) e Ativar (▶) por campanha, ad set e anúncio individual, chamam APIs respectivas em tempo real |
 | **Saldo da plataforma** | Botão mostra saldo atual via API (Meta `balance` action) + link direto para gerenciador externo |
+| **Persistência de seleção** | Contas de anúncio selecionadas são salvas em `localStorage` e restauradas ao recarregar |
 
-### Edge Function `meta-ads-campaigns` (v1.1.0)
+### Edge Function `meta-ads-campaigns` (v1.3.0)
 
 | Item | Descrição |
 |------|-----------|
 | **Query de conexão** | Usa `marketplace_connections` com filtro `marketplace='meta'` e `is_active=true` |
 | **Multi-account** | Itera por **todas** as contas de anúncio do tenant (não apenas a primeira) |
+| **Paginação** | `graphApi` suporta URLs absolutas no campo `paging.next` para paginação completa (100+ campanhas) |
 | **Ações** | `sync` (todas as contas), `create` / `update` / `delete` (requerem `ad_account_id` no body) |
 | **Upsert** | Campanhas sincronizadas via `meta_campaign_id` como chave de conflito |
 
@@ -602,7 +607,7 @@ CREATE TYPE creative_job_status AS ENUM (
 - [x] Gestor de Tráfego IA — Fase 10.1: Correção de sync (marketplace/is_active), extração de action_values, colunas Alcance/Frequência/Custo por resultado, balance com funding_source_details
 - [x] Gestor de Tráfego IA — Fase 10.2: Colunas personalizáveis (até 7 métricas selecionáveis pelo usuário via Column Selector), botão "Atualizar" (sync unificado de campanhas+insights+adsets), métricas disponíveis: Resultados, Alcance, Impressões, Frequência, Cliques, CTR, Custo por Resultado, CPC, CPM, Gasto, Orçamento, ROAS, Conversões, Valor de Conversão
 - [x] Gestor de Tráfego IA — Fase 10.3: Correção de paginação na edge function `meta-ads-campaigns` v1.3.0 — `graphApi` agora suporta URLs absolutas no campo `paging.next` da Meta Graph API, garantindo sync completo de contas com 100+ campanhas. Biblioteca de métricas expandida para 28 métricas em 4 categorias (Desempenho, Custo, Conversão, Engajamento) com extração de actions JSONB. Deep-link "Abrir Meta Ads" aponta para a campanha de maior investimento.
-- [ ] Gestor de Tráfego IA — Fase 11: Scheduler (cron automático)
+- [x] Gestor de Tráfego IA — Fase 10.4: Persistência de seleção de contas via localStorage, sync de métricas do dia atual (dual preset), refresh de saldo via API, trigger automático do Autopilot ao ativar canal, anúncios individuais (tabela `meta_ad_ads` + edge function `meta-ads-ads` v1.0.0 + UI expandível 3 níveis: Campanha > Conjunto > Anúncio com pause/play)
 - [ ] Relatórios de ROI
 - [x] Gestão de Criativos (UI básica)
 - [x] Gestão de Criativos (Tabela creative_jobs)
