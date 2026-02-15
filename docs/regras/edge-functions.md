@@ -256,10 +256,10 @@ Edge function para geração de landing pages via IA usando Lovable AI Gateway (
 
 ## AI Ads Autopilot (`ads-autopilot-analyze`)
 
-### Versão Atual: v2.1.0
+### Versão Atual: v3.0.0
 
 ### Visão Geral
-Edge Function autônoma de gestão de tráfego pago multi-canal (Meta, Google, TikTok). Opera como media buyer sênior com pipeline de 5 etapas, camada de segurança determinística e **conhecimento específico por plataforma**.
+Edge Function autônoma de gestão de tráfego pago multi-canal (Meta, Google, TikTok). Opera como media buyer sênior com pipeline de 5 etapas, camada de segurança determinística, **conhecimento específico por plataforma** e **metas de ROAS por canal definidas pelo usuário**.
 
 ### Agendamento
 - **Cron**: `0 */6 * * *` (a cada 6 horas — 4 ciclos/dia)
@@ -287,37 +287,58 @@ Edge Function autônoma de gestão de tráfego pago multi-canal (Meta, Google, T
 Calcula deltas percentuais para: spend, impressions, clicks, conversions, CPA, ROAS, CTR.
 Classifica tendência como `improving`, `declining` ou `stable`.
 
-### Regras de Segurança (Safety Rules)
+### Metas de ROAS por Canal (v3.0.0)
+**IMPORTANTE**: As metas de ROAS são definidas **pelo usuário por canal**, pois cada negócio tem margens diferentes por plataforma. Armazenadas em `ads_autopilot_configs.safety_rules` de cada canal (não global).
+
+| Campo | Default | Descrição |
+|-------|---------|-----------|
+| `target_roas_cold` | 2.0 | ROAS ideal para público frio (prospecção) — definido pelo lojista |
+| `target_roas_remarketing` | 4.0 | ROAS ideal para remarketing — definido pelo lojista |
+| `min_roas_pause_cold` | 0.8 | ROAS mínimo para público frio — abaixo disso, pausar após 5d |
+| `min_roas_pause_remarketing` | 1.5 | ROAS mínimo para remarketing — abaixo disso, pausar após 5d |
+
+**UI**: Componente `AdsChannelRoasConfig` em cada aba de canal (Meta, Google, TikTok) permite ao usuário definir as 4 metas. Salvas em `safety_rules` da config do canal correspondente.
+
+### Regras de Segurança (Safety Rules — Globais)
 | Regra | Default | Descrição |
 |-------|---------|-----------|
 | `max_budget_change_pct_day` | 10% | Máximo genérico (sobreescrito por regra da plataforma) |
 | `max_actions_per_session` | 10 | Limite de ações por ciclo de análise |
-| `min_data_days_for_action` | 3 | Dias mínimos de dados para executar ações (abaixo = recommendation-only) |
+| `min_data_days_for_action` | 3 | Dias mínimos de dados para executar ações |
 | `ramp_up_max_pct` | 10% | Aumento acima disso requer confidence ≥ 0.7 |
 | `max_new_campaigns_per_day` | 2 | Limite de campanhas novas criadas por dia |
 | `gross_margin_pct` | 50% | Margem bruta para cálculo do CPA máximo |
-| `min_roas` | 2.0 | ROAS mínimo geral (referência quando tipo de audiência não identificado) |
-| `target_roas_cold` | 2.0 | ROAS ideal para campanhas de público frio (prospecção) |
-| `target_roas_remarketing` | 4.0 | ROAS ideal para campanhas de remarketing (público quente) |
-| `min_roas_pause_cold` | 0.8 | ROAS mínimo para público frio — abaixo disso, pausar |
-| `min_roas_pause_remarketing` | 1.5 | ROAS mínimo para remarketing — abaixo disso, pausar |
 
-### Limites de Budget por Plataforma (v2.1.0)
+### Limites de Budget por Plataforma
 | Plataforma | Máx. por ciclo (6h) | Regra da plataforma | Learning Phase |
 |------------|---------------------|---------------------|----------------|
 | **Meta** | ±10% | ±20% a cada 48h | ~50 conversões em 7 dias |
 | **Google** | ±15% | ±30% a cada 48-72h | ~30 conversões em 14 dias |
 | **TikTok** | ±7% | ±15% a cada 48h | ~50 conversões em 7 dias |
 
-### Conhecimento de Audiência (v2.1.0)
-A IA diferencia campanhas por tipo de público:
+### Conhecimento de Audiência e Gestão de Públicos (v3.0.0)
+
+#### Tipos de Audiência
 | Tipo | Descrição | CPA esperado | Budget recomendado |
 |------|-----------|-------------|-------------------|
 | **Frio (TOF)** | Lookalike, interesses, broad | 1.5x-3x maior | 60-70% (Meta), 50-60% (Google), 70-80% (TikTok) |
 | **Quente (MOF)** | Visitantes, engajadores | Médio | 20-30% |
 | **Hot (BOF)** | Carrinhos, compradores | Menor, ROAS alto | 10-20% |
 
-### Investimento Inicial Mínimo por Plataforma (v2.1.0)
+#### Gestão de Públicos
+A IA **NÃO cria públicos automaticamente** via API. Quando identifica necessidade, emite `report_insight` com recomendações:
+- Criação de Lookalike (1%, 3%, 5%) baseado em compradores
+- Custom Audiences (visitantes, engajadores, abandonadores de carrinho)
+- Exclusões (ex: compradores dos últimos 30d em campanhas de prospecção)
+
+#### Orçamento × Tamanho de Público
+| Plataforma | Audiência < 10k | Audiência 10k-100k | Audiência > 100k |
+|------------|----------------|-------------------|-----------------|
+| **Meta** | Máx R$15/dia | R$15-50/dia | Sem limite rígido |
+| **Google** | CPC × estimativa cliques | — | — |
+| **TikTok** | Prefere > 500k broad | R$30-50/dia mín | Sem limite rígido |
+
+### Investimento Inicial Mínimo por Plataforma
 | Plataforma | Conversão | Tráfego | Reconhecimento |
 |------------|-----------|---------|----------------|
 | **Meta** | R$30/dia (10x CPA) | R$20/dia | R$15/dia |
@@ -325,10 +346,10 @@ A IA diferencia campanhas por tipo de público:
 | **Google Shopping/PMax** | R$50/dia | — | — |
 | **TikTok** | R$50/dia | R$30/dia | — |
 
-### Critérios de Pausa por Plataforma (v2.1.0)
+### Critérios de Pausa por Plataforma
 | Plataforma | Critério de pausa |
 |------------|-------------------|
-| **Meta** | CPA > 2x alvo por 3+ dias (pós-learning), ROAS < 50% mín por 5d, Freq > 3.0, CTR < 0.5% |
+| **Meta** | CPA > 2x alvo por 3+ dias (pós-learning), ROAS < min_roas_pause do canal por 5d, Freq > 3.0, CTR < 0.5% |
 | **Google Search** | CPA > 2x alvo por 7+ dias com 30+ cliques |
 | **Google Shopping** | ROAS < 1.5x por 7+ dias |
 | **TikTok** | CPA > 2.5x alvo por 5+ dias (pós-learning), CTR < 0.3%, NÃO pausar com < 7 dias |
@@ -340,11 +361,11 @@ A IA diferencia campanhas por tipo de público:
 | Fase 2 (Semana 2) | + `create_campaign` |
 | Fase 3 (Semana 3) | + `generate_creative` |
 
-### Checklist do Planner (7 pontos obrigatórios — v2.1.0)
+### Checklist do Planner (7 pontos obrigatórios)
 1. **Learning Phase** — A campanha está em aprendizado? Se sim, apenas report_insight
 2. **Tipo de Audiência** — Público frio vs quente (CPA relativo, não absoluto)
 3. **Eficiência (CPA)** — CPA vs teto de margem (contextualizado por tipo de público)
-4. **Retorno (ROAS)** — Acima ou abaixo do mín. configurado
+4. **Retorno (ROAS)** — Acima ou abaixo do mín. configurado **para o canal específico**
 5. **Engajamento (CTR/Frequência)** — Fadiga criativa, saturação
 6. **Escala** — Potencial de aumento respeitando limites da plataforma
 7. **Inventário** — Produtos com estoque ≤ 5 unidades
