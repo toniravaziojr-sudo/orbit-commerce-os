@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.1.0"; // Platform-specific rules: Meta 20%/48h, learning phase, cold/warm audiences, initial budget, pause criteria
+const VERSION = "v2.2.0"; // Customer-defined ROI targets per audience type + min ROAS pause threshold
 // ===========================================================
 
 const corsHeaders = {
@@ -18,13 +18,16 @@ interface SafetyRules {
   gross_margin_pct: number;
   max_cpa_cents: number | null;
   min_roas: number;
+  target_roas_cold: number;        // ROAS ideal para público frio (prospecção)
+  target_roas_remarketing: number;  // ROAS ideal para remarketing (público quente)
+  min_roas_pause: number;           // ROAS mínimo — abaixo disso, pausar campanha
   max_budget_change_pct_day: number;
   max_actions_per_session: number;
   allowed_actions: string[];
   // v2: novos campos
-  min_data_days_for_action: number; // mín. dias de dados para executar (default 3)
-  ramp_up_max_pct: number; // max aumento % sem histórico longo (default 10)
-  max_new_campaigns_per_day: number; // limite de novas campanhas/dia (default 2)
+  min_data_days_for_action: number;
+  ramp_up_max_pct: number;
+  max_new_campaigns_per_day: number;
 }
 
 interface AutopilotConfig {
@@ -81,8 +84,11 @@ interface TrendComparison {
 
 const DEFAULT_SAFETY_RULES: SafetyRules = {
   gross_margin_pct: 50,
-  max_cpa_cents: null, // auto-calculado: ticket médio × (1 - margem)
+  max_cpa_cents: null,
   min_roas: 2.0,
+  target_roas_cold: 2.0,
+  target_roas_remarketing: 4.0,
+  min_roas_pause: 1.0,
   max_budget_change_pct_day: 10,
   max_actions_per_session: 10,
   allowed_actions: ["pause_campaign", "adjust_budget", "report_insight", "allocate_budget"],
@@ -498,14 +504,14 @@ function validateAction(
       google: 15,
       tiktok: 7,
     };
-    const channelKey = channelConfig?.channel || "meta";
-    const platformMax = platformMaxPerCycle[channelKey] || rules.max_budget_change_pct_day;
+    const budgetChannelKey = channelConfig?.channel || "meta";
+    const platformMax = platformMaxPerCycle[budgetChannelKey] || rules.max_budget_change_pct_day;
     const effectiveMax = Math.min(platformMax, rules.max_budget_change_pct_day);
 
     if (absChange > effectiveMax) {
       return {
         valid: false,
-        reason: `Alteração de ${changePct}% excede limite de ±${effectiveMax}%/ciclo para ${channelKey}. (Regra da plataforma: max ±${platformMax}% por 6h para respeitar limite de 48h.)`,
+        reason: `Alteração de ${changePct}% excede limite de ±${effectiveMax}%/ciclo para ${budgetChannelKey}. (Regra da plataforma: max ±${platformMax}% por 6h para respeitar limite de 48h.)`,
       };
     }
 
@@ -530,7 +536,6 @@ function validateAction(
         };
       }
     }
-  }
   }
 
   // Allocate budget - validate shares
@@ -704,7 +709,10 @@ function buildAllocatorPrompt(globalConfig: AutopilotConfig, context: any) {
 - ORÇAMENTO TOTAL: R$ ${(globalConfig.budget_cents / 100).toFixed(2)} / ${globalConfig.budget_mode === "daily" ? "dia" : "mês"}
 - OBJETIVO: ${globalConfig.objective}
 - MARGEM BRUTA: ${rules.gross_margin_pct}%
-- ROAS MÍNIMO: ${rules.min_roas}
+- ROAS MÍNIMO GERAL: ${rules.min_roas}
+- ROAS IDEAL PÚBLICO FRIO: ${rules.target_roas_cold}
+- ROAS IDEAL REMARKETING: ${rules.target_roas_remarketing}
+- ROAS MÍNIMO P/ PAUSAR: ${rules.min_roas_pause}
 - CPA MÁXIMO CALCULADO: R$ ${(maxCpaCents / 100).toFixed(2)}
 - TICKET MÉDIO: R$ ${(context.orderStats.avg_ticket_cents / 100).toFixed(2)}
 - PEDIDOS (30d): ${context.orderStats.paid_orders} pagos / ${context.orderStats.cancelled_orders} cancelados (${context.orderStats.cancellation_rate_pct}% cancel.)
@@ -777,7 +785,7 @@ function buildPlannerPrompt(channel: string, globalConfig: AutopilotConfig, chan
 
 ### QUANDO PAUSAR NO META
 - CPA > 2x do CPA alvo por 3+ dias APÓS sair da Learning Phase
-- ROAS < 50% do mín. configurado por 5+ dias consecutivos
+- ROAS < ${rules.min_roas_pause} (mín. definido pelo lojista) por 5+ dias consecutivos → PAUSAR
 - Frequência > 3.0 (indica saturação de audiência/criativo)
 - CTR < 0.5% por 3+ dias (indica criativo ou targeting ineficaz)
 - NÃO pausar durante Learning Phase a menos que o gasto esteja completamente fora de controle
@@ -785,17 +793,20 @@ function buildPlannerPrompt(channel: string, globalConfig: AutopilotConfig, chan
 ### PÚBLICO FRIO vs QUENTE
 - **Público Frio (Prospecção/TOF)**: Lookalike, interesses amplos, broad targeting
   - CPA esperado: 1.5x a 3x maior que remarketing — ISSO É NORMAL
+  - ROAS IDEAL (definido pelo lojista): ${rules.target_roas_cold}
   - Objetivo: volume e aprendizado, não ROAS imediato
   - Orçamento recomendado: 60-70% do total do canal
   - Métrica-chave: CPM, CTR, custo por lead/ATC (métricas de topo de funil)
   - NÃO pausar por CPA alto se CPM e CTR estiverem saudáveis — está alimentando o funil
+  - Pausar SOMENTE se ROAS < ${rules.min_roas_pause} por 5+ dias
 
 - **Público Quente (Remarketing/MOF-BOF)**: Visitantes do site, carrinhos abandonados, engajaram com conteúdo
   - CPA esperado: menor, mas volume limitado
   - Objetivo: conversão direta, ROAS alto
+  - ROAS IDEAL (definido pelo lojista): ${rules.target_roas_remarketing}
   - Orçamento recomendado: 20-30% do total do canal
   - Métrica-chave: ROAS, CPA, taxa de conversão
-  - Pausar se ROAS cair abaixo de ${rules.min_roas} por 5+ dias
+  - Pausar se ROAS cair abaixo de ${rules.min_roas_pause} por 5+ dias
 
 - **Público Hot (Retargeting Agressivo)**: Compradores anteriores, carrinhos < 7 dias
   - Orçamento recomendado: 10% do total
@@ -905,7 +916,10 @@ function buildPlannerPrompt(channel: string, globalConfig: AutopilotConfig, chan
 - ORÇAMENTO DESTE CANAL: R$ ${(channelBudgetCents / 100).toFixed(2)} / ${globalConfig.budget_mode === "daily" ? "dia" : "mês"}
 - OBJETIVO: ${globalConfig.objective}
 - MARGEM BRUTA: ${rules.gross_margin_pct}%
-- ROAS MÍNIMO: ${rules.min_roas}
+- ROAS MÍNIMO GERAL: ${rules.min_roas}
+- ROAS IDEAL PÚBLICO FRIO: ${rules.target_roas_cold}
+- ROAS IDEAL REMARKETING: ${rules.target_roas_remarketing}
+- ROAS MÍNIMO P/ PAUSAR: ${rules.min_roas_pause} (abaixo disso → pausar campanha)
 - CPA MÁXIMO: R$ ${(maxCpaCents / 100).toFixed(2)}
 - TICKET MÉDIO: R$ ${(context.orderStats.avg_ticket_cents / 100).toFixed(2)}
 ${trendSection}
@@ -937,10 +951,11 @@ Antes de qualquer ação, analise CADA campanha ativa com este checklist:
 - CPA entre 1x e 1.5x do máximo? → ATENÇÃO, monitore sem escalar
 - CPA > 1.5x do máximo por período suficiente (ver regras da plataforma)? → REDUZIR budget ou PAUSAR
 
-### 4. RETORNO (ROAS)
-- ROAS > ${rules.min_roas}? → OK, pode escalar
-- ROAS entre ${(rules.min_roas * 0.7).toFixed(1)} e ${rules.min_roas}? → REDUZIR budget gradualmente
-- ROAS < ${(rules.min_roas * 0.7).toFixed(1)} por período suficiente? → PAUSAR (respeitando regras da plataforma)
+### 4. RETORNO (ROAS) — METAS DO LOJISTA
+- Público Frio: ROAS ideal = ${rules.target_roas_cold}. Acima = escalar. Abaixo = monitorar (esperado ser menor que remarketing)
+- Remarketing: ROAS ideal = ${rules.target_roas_remarketing}. Acima = escalar agressivamente. Abaixo = otimizar
+- ROAS < ${rules.min_roas_pause} (mínimo absoluto) por período suficiente? → PAUSAR campanha (respeitando regras da plataforma)
+- ROAS entre ${rules.min_roas_pause} e ${rules.min_roas}? → REDUZIR budget gradualmente
 
 ### 5. ENGAJAMENTO (CTR/CPC/Frequência)
 - CTR caindo + CPC subindo? → Fadiga de criativo, sinalize
