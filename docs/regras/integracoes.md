@@ -1831,3 +1831,73 @@ https://app.comandocentral.com.br/integrations/tiktok/callback
 | Tabela | Edge Functions |
 |--------|----------------|
 | `tiktok_shop_fulfillments` | `tiktok-shop-fulfillment` |
+
+### Fase 8: TikTok Shop Devoluções e Pós-venda ✅
+
+#### Tabela: `tiktok_shop_returns`
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | UUID PK | ID interno |
+| `tenant_id` | UUID FK | Tenant |
+| `tiktok_order_id` | TEXT | ID do pedido no TikTok |
+| `tiktok_return_id` | TEXT | ID da devolução no TikTok |
+| `tiktok_shop_order_id` | UUID FK (nullable) | Referência ao registro local em `tiktok_shop_orders` |
+| `order_id` | UUID FK (nullable) | Pedido local mapeado |
+| `return_type` | TEXT | `return`, `refund`, `replacement` |
+| `status` | TEXT | `pending`, `approved`, `rejected`, `completed`, `cancelled` |
+| `tiktok_status` | TEXT | Status original retornado pela API TikTok |
+| `reason` | TEXT | Motivo da devolução |
+| `buyer_comments` | TEXT | Comentários do comprador |
+| `seller_comments` | TEXT | Comentários do vendedor |
+| `refund_amount_cents` | INTEGER | Valor do reembolso em centavos |
+| `currency` | TEXT | Moeda (default: BRL) |
+| `return_tracking_code` | TEXT | Código de rastreio da devolução |
+| `return_carrier` | TEXT | Transportadora da devolução |
+| `return_shipping_status` | TEXT | `awaiting_shipment`, `shipped`, `delivered` |
+| `items` | JSONB | Itens da devolução |
+| `return_data` | JSONB | Dados completos da API TikTok |
+| `requested_at` | TIMESTAMPTZ | Data da solicitação |
+| `resolved_at` | TIMESTAMPTZ | Data da resolução |
+
+**UNIQUE**: `(tenant_id, tiktok_return_id)`
+
+#### Mapeamento de Status TikTok → Local
+
+| Status TikTok | Status Local |
+|---------------|-------------|
+| `RETURN_OR_REFUND_REQUEST_PENDING` | `pending` |
+| `RETURN_OR_REFUND_REQUEST_REJECT` | `rejected` |
+| `RETURN_OR_REFUND_REQUEST_APPROVE` | `approved` |
+| `BUYER_RETURN_OR_REFUND_REQUEST_CANCEL` | `cancelled` |
+| `AWAITING_BUYER_SHIP` | `approved` |
+| `BUYER_SHIPPED_ITEM` | `approved` |
+| `SELLER_REJECT_RETURN` | `rejected` |
+| `REFUND_OR_RETURN_COMPLETE` | `completed` |
+| `REPLACE_COMPLETE` | `completed` |
+| `REFUND_COMPLETE` | `completed` |
+| Outros | `pending` |
+
+#### Edge Function: `tiktok-shop-returns`
+
+| Action | Descrição |
+|--------|-----------|
+| `list` | Lista devoluções do cache local |
+| `sync` | Sincroniza devoluções da API TikTok (Reverse Orders) |
+| `approve` | Aprova uma devolução via API TikTok |
+| `reject` | Rejeita uma devolução via API TikTok |
+
+#### Hook: `useTikTokReturns`
+
+| Retorno | Descrição |
+|---------|-----------|
+| `returns` | Lista de devoluções |
+| `syncReturns(filters?)` | Sincronizar devoluções da API TikTok |
+| `approveReturn({ returnId, sellerComments? })` | Aprovar devolução |
+| `rejectReturn({ returnId, reason? })` | Rejeitar devolução |
+
+#### Mapeamento Tabela → Edge Functions
+
+| Tabela | Edge Functions |
+|--------|----------------|
+| `tiktok_shop_returns` | `tiktok-shop-returns` |
