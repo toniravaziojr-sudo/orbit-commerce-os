@@ -303,7 +303,7 @@ start_time, end_time, synced_at
 | `src/components/ads/AdsGlobalConfig.tsx` | Card config global (orçamento + ROI ideal + prompt) |
 | `src/components/ads/AdsChannelIntegrationAlert.tsx` | Alerta de integração por canal (não conectado → link para /integrations; conectado → chips de seleção de contas de anúncio com toggle) |
 | `src/components/ads/AdsChannelRoasConfig.tsx` | Config de ROI por canal (frio/quente) + toggle IA |
-| `src/components/ads/AdsCampaignsTab.tsx` | Campanhas por canal com: filtro por status, filtro de datas, conjuntos expandíveis (ad sets), métricas dinâmicas por objetivo (ROI/ROAS para vendas, resultados para outros), gestão manual de orçamento e status, botão de saldo e link externo para plataforma |
+| `src/components/ads/AdsCampaignsTab.tsx` | Campanhas por canal com: filtro por status, filtro de datas, conjuntos expandíveis (ad sets), métricas dinâmicas por objetivo (ROI/ROAS para vendas, resultados para outros), gestão manual de orçamento e status, botão de saldo e link externo para plataforma. Colunas: Status, Campanha, Investido, Resultados, Custo por resultado, ROI, Alcance, Frequência, CTR |
 | `src/components/ads/AdsActionsTab.tsx` | Timeline de ações da IA |
 | `src/components/ads/AdsReportsTab.tsx` | Cards resumo + gráficos |
 
@@ -341,6 +341,24 @@ Se falhar → status `BLOCKED`, gera `report_insight` com o que falta.
 | **Multi-account** | Itera por **todas** as contas de anúncio do tenant (não apenas a primeira) |
 | **Ações** | `sync` (todas as contas), `create` / `update` / `delete` (requerem `ad_account_id` no body) |
 | **Upsert** | Campanhas sincronizadas via `meta_campaign_id` como chave de conflito |
+
+### Edge Function `meta-ads-insights` (v1.1.0)
+
+| Item | Descrição |
+|------|-----------|
+| **Query de conexão** | Usa `marketplace_connections` com filtro `marketplace='meta'` e `is_active=true` |
+| **Multi-account** | Itera por **todas** as contas de anúncio (não apenas a primeira) |
+| **Campos da API** | `campaign_id, campaign_name, impressions, clicks, spend, reach, cpc, cpm, ctr, actions, action_values, cost_per_action_type, frequency` |
+| **Conversões** | Extrai `actions[purchase/omni_purchase]` para contagem e `action_values[purchase]` para valor monetário (`conversion_value_cents`) |
+| **ROAS** | Calculado como `conversion_value_cents / spend_cents` |
+| **Ações** | `sync` (pull insights da Meta), `list` (cache local), `summary` (métricas agregadas) |
+
+### Edge Function `meta-ads-adsets` (v1.1.0)
+
+| Item | Descrição |
+|------|-----------|
+| **Ações** | `sync` (com filtro opcional por `meta_campaign_id`), `update` (status/orçamento), `balance` (saldo da conta via `funding_source_details`) |
+| **Balance** | Retorna `balance`, `currency`, `amount_spent`, `spend_cap` e `funding_source_details` para cálculo preciso do saldo |
 
 ---
 
@@ -580,6 +598,7 @@ CREATE TYPE creative_job_status AS ENUM (
 - [x] Gestor de Tráfego IA — Fase 5-8: UI completa
 - [x] Gestor de Tráfego IA — Fase 9: Ad Sets (tabela `meta_ad_adsets` + edge function `meta-ads-adsets` + UI expandível)
 - [x] Gestor de Tráfego IA — Fase 10: Métricas por objetivo + filtro de datas + saldo + link externo
+- [x] Gestor de Tráfego IA — Fase 10.1: Correção de sync (marketplace/is_active), extração de action_values, colunas Alcance/Frequência/Custo por resultado, balance com funding_source_details
 - [ ] Gestor de Tráfego IA — Fase 11: Scheduler (cron automático)
 - [ ] Relatórios de ROI
 - [x] Gestão de Criativos (UI básica)
