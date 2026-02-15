@@ -66,6 +66,13 @@ const SCHEDULERS: SchedulerConfig[] = [
     schedule: '0 3 * * *',
     expectedIntervalMinutes: 1500, // ~25h (daily job)
     description: 'Escaneia URLs de conteúdo diariamente'
+  },
+  {
+    name: 'ads-autopilot-analyze',
+    displayName: 'Autopilot Ads',
+    schedule: '0 */6 * * *',
+    expectedIntervalMinutes: 400, // ~6.5h
+    description: 'Análise autônoma de tráfego pago (Meta/Google/TikTok)'
   }
 ];
 
@@ -128,6 +135,13 @@ export function SchedulerStatusCard() {
             .order('created_at', { ascending: false })
             .limit(1);
           lastRun = data?.[0]?.created_at || null;
+        } else if (scheduler.name === 'ads-autopilot-analyze') {
+          const { data } = await supabase
+            .from('ads_autopilot_sessions' as any)
+            .select('created_at')
+            .order('created_at', { ascending: false })
+            .limit(1);
+          lastRun = (data as any)?.[0]?.created_at || null;
         }
 
         let status: 'ok' | 'stale' | 'unknown' = 'unknown';
