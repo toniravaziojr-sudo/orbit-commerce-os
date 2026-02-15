@@ -24,6 +24,7 @@ import { useTikTokContentConnection } from '@/hooks/useTikTokContentConnection';
 import { useMarketingIntegrations } from '@/hooks/useMarketingIntegrations';
 import { TikTokShopPanel } from './tiktok/TikTokShopPanel';
 import { TikTokAdsPanel } from './tiktok/TikTokAdsPanel';
+import { TikTokContentPanel } from './tiktok/TikTokContentPanel';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -430,6 +431,10 @@ export function TikTokUnifiedSettings() {
                   Desconectar
                 </Button>
               </div>
+
+              {/* Content Operational Panel */}
+              <Separator />
+              <TikTokContentPanel />
             </div>
           ) : (
             <div className="space-y-3">

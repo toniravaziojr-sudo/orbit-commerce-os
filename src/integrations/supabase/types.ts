@@ -14971,6 +14971,87 @@ export type Database = {
           },
         ]
       }
+      tiktok_content_analytics: {
+        Row: {
+          audience_territories: Json | null
+          average_time_watched: number | null
+          comments: number | null
+          created_at: string
+          date: string
+          full_video_watched_rate: number | null
+          id: string
+          impression_sources: Json | null
+          likes: number | null
+          metadata: Json | null
+          open_id: string | null
+          reach: number | null
+          shares: number | null
+          synced_at: string | null
+          tenant_id: string
+          tiktok_video_id: string
+          total_time_watched: number | null
+          video_id: string | null
+          views: number | null
+        }
+        Insert: {
+          audience_territories?: Json | null
+          average_time_watched?: number | null
+          comments?: number | null
+          created_at?: string
+          date: string
+          full_video_watched_rate?: number | null
+          id?: string
+          impression_sources?: Json | null
+          likes?: number | null
+          metadata?: Json | null
+          open_id?: string | null
+          reach?: number | null
+          shares?: number | null
+          synced_at?: string | null
+          tenant_id: string
+          tiktok_video_id: string
+          total_time_watched?: number | null
+          video_id?: string | null
+          views?: number | null
+        }
+        Update: {
+          audience_territories?: Json | null
+          average_time_watched?: number | null
+          comments?: number | null
+          created_at?: string
+          date?: string
+          full_video_watched_rate?: number | null
+          id?: string
+          impression_sources?: Json | null
+          likes?: number | null
+          metadata?: Json | null
+          open_id?: string | null
+          reach?: number | null
+          shares?: number | null
+          synced_at?: string | null
+          tenant_id?: string
+          tiktok_video_id?: string
+          total_time_watched?: number | null
+          video_id?: string | null
+          views?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiktok_content_analytics_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tiktok_content_analytics_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "tiktok_content_videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tiktok_content_connections: {
         Row: {
           access_token: string | null
@@ -15043,6 +15124,89 @@ export type Database = {
             foreignKeyName: "tiktok_content_connections_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tiktok_content_videos: {
+        Row: {
+          cover_url: string | null
+          created_at: string
+          description: string | null
+          duration_seconds: number | null
+          error_message: string | null
+          height: number | null
+          id: string
+          metadata: Json | null
+          open_id: string | null
+          privacy_level: string | null
+          publish_id: string | null
+          published_at: string | null
+          scheduled_at: string | null
+          share_url: string | null
+          status: string
+          tenant_id: string
+          tiktok_video_id: string | null
+          title: string
+          updated_at: string
+          upload_status: string | null
+          video_url: string | null
+          width: number | null
+        }
+        Insert: {
+          cover_url?: string | null
+          created_at?: string
+          description?: string | null
+          duration_seconds?: number | null
+          error_message?: string | null
+          height?: number | null
+          id?: string
+          metadata?: Json | null
+          open_id?: string | null
+          privacy_level?: string | null
+          publish_id?: string | null
+          published_at?: string | null
+          scheduled_at?: string | null
+          share_url?: string | null
+          status?: string
+          tenant_id: string
+          tiktok_video_id?: string | null
+          title: string
+          updated_at?: string
+          upload_status?: string | null
+          video_url?: string | null
+          width?: number | null
+        }
+        Update: {
+          cover_url?: string | null
+          created_at?: string
+          description?: string | null
+          duration_seconds?: number | null
+          error_message?: string | null
+          height?: number | null
+          id?: string
+          metadata?: Json | null
+          open_id?: string | null
+          privacy_level?: string | null
+          publish_id?: string | null
+          published_at?: string | null
+          scheduled_at?: string | null
+          share_url?: string | null
+          status?: string
+          tenant_id?: string
+          tiktok_video_id?: string | null
+          title?: string
+          updated_at?: string
+          upload_status?: string | null
+          video_url?: string | null
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiktok_content_videos_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },

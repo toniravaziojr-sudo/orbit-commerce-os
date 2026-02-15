@@ -2012,3 +2012,98 @@ O `TikTokShopPanel` é renderizado dentro do card "TikTok Shop" em `TikTokUnifie
 |--------|----------------|
 | `tiktok_ad_campaigns` | `tiktok-ads-campaigns` |
 | `tiktok_ad_insights` | `tiktok-ads-insights` |
+
+### Fase 11: UI Operacional do TikTok Ads ✅
+
+#### Componentes
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/components/integrations/tiktok/TikTokAdsPanel.tsx` | Painel com abas (Campanhas, Insights) |
+| `src/components/integrations/tiktok/TikTokAdsCampaignsTab.tsx` | Tab Campanhas — listagem e sync |
+| `src/components/integrations/tiktok/TikTokAdsInsightsTab.tsx` | Tab Insights — métricas diárias |
+
+### Fase 12: TikTok Content — Publicação Orgânica ✅
+
+#### Tabela: `tiktok_content_videos`
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | UUID PK | ID interno |
+| `tenant_id` | UUID FK | Tenant |
+| `tiktok_video_id` | TEXT | ID do vídeo no TikTok |
+| `open_id` | TEXT | Open ID do criador |
+| `title` | TEXT | Título do vídeo |
+| `description` | TEXT | Descrição |
+| `cover_url` | TEXT | URL da capa |
+| `video_url` | TEXT | URL do vídeo |
+| `share_url` | TEXT | URL de compartilhamento |
+| `status` | TEXT | Status (draft, uploading, published, failed) |
+| `privacy_level` | TEXT | Nível de privacidade |
+| `duration_seconds` | INTEGER | Duração em segundos |
+| `publish_id` | TEXT | ID de publicação do TikTok |
+| `upload_status` | TEXT | Status do upload |
+| `error_message` | TEXT | Mensagem de erro |
+| `scheduled_at` | TIMESTAMPTZ | Agendamento |
+| `published_at` | TIMESTAMPTZ | Data de publicação |
+| `metadata` | JSONB | Dados extras (views, likes, etc.) |
+
+**UNIQUE**: `(tenant_id, tiktok_video_id)` WHERE `tiktok_video_id IS NOT NULL`
+
+#### Tabela: `tiktok_content_analytics`
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | UUID PK | ID interno |
+| `tenant_id` | UUID FK | Tenant |
+| `video_id` | UUID FK (nullable) | Referência local |
+| `tiktok_video_id` | TEXT | ID do vídeo no TikTok |
+| `open_id` | TEXT | Open ID do criador |
+| `date` | DATE | Data do registro |
+| `views` | INTEGER | Visualizações |
+| `likes` | INTEGER | Curtidas |
+| `comments` | INTEGER | Comentários |
+| `shares` | INTEGER | Compartilhamentos |
+| `reach` | INTEGER | Alcance |
+| `full_video_watched_rate` | NUMERIC(5,2) | Taxa de vídeo completo |
+| `total_time_watched` | INTEGER | Tempo total assistido |
+| `average_time_watched` | INTEGER | Tempo médio assistido |
+| `impression_sources` | JSONB | Fontes de impressão |
+| `audience_territories` | JSONB | Territórios do público |
+
+**UNIQUE**: `(tenant_id, tiktok_video_id, date)`
+
+#### Edge Functions
+
+| Function | Actions | Descrição |
+|----------|---------|-----------|
+| `tiktok-content-publish` | `list`, `sync`, `init_upload`, `check_status`, `delete` | Gestão de vídeos + upload via Content Posting API |
+| `tiktok-content-analytics` | `list`, `sync` | Sync de analytics via Video Query API |
+
+#### Hook: `useTikTokContent`
+
+| Retorno | Descrição |
+|---------|-----------|
+| `videos` | Lista de vídeos do TikTok |
+| `analytics` | Lista de analytics |
+| `syncVideos` | Sincronizar vídeos da API |
+| `syncAnalytics` | Sincronizar analytics |
+| `syncAll` | Sincronizar tudo |
+| `initUpload` | Iniciar upload de vídeo |
+| `checkStatus` | Verificar status de publicação |
+| `deleteVideo` | Remover registro de vídeo |
+
+#### Componentes UI
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/components/integrations/tiktok/TikTokContentPanel.tsx` | Painel com abas (Vídeos, Analytics) |
+| `src/components/integrations/tiktok/TikTokContentVideosTab.tsx` | Tab Vídeos — listagem, sync, delete |
+| `src/components/integrations/tiktok/TikTokContentAnalyticsTab.tsx` | Tab Analytics — métricas agregadas e tabela |
+
+#### Mapeamento Tabela → Edge Functions
+
+| Tabela | Edge Functions |
+|--------|----------------|
+| `tiktok_content_videos` | `tiktok-content-publish` |
+| `tiktok_content_analytics` | `tiktok-content-analytics` |
