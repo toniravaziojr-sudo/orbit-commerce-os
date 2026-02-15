@@ -302,6 +302,15 @@ Se falhar → status `BLOCKED`, gera `report_insight` com o que falta.
 | **Sync manual** | Botão "Sincronizar campanhas" exibido **apenas** no `EmptyState` da `AdsCampaignsTab` quando `isConnected=true` e não há campanhas sincronizadas |
 | **Sem botão global** | Não existe botão de sync na barra principal — apenas contextual no estado vazio |
 
+### Edge Function `meta-ads-campaigns` (v1.1.0)
+
+| Item | Descrição |
+|------|-----------|
+| **Query de conexão** | Usa `marketplace_connections` com filtro `marketplace='meta'` e `is_active=true` |
+| **Multi-account** | Itera por **todas** as contas de anúncio do tenant (não apenas a primeira) |
+| **Ações** | `sync` (todas as contas), `create` / `update` / `delete` (requerem `ad_account_id` no body) |
+| **Upsert** | Campanhas sincronizadas via `meta_campaign_id` como chave de conflito |
+
 ---
 
 ## 6. Gestão de Criativos
