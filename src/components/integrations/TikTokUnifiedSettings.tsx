@@ -1,7 +1,7 @@
 // =============================================
-// TIKTOK UNIFIED SETTINGS (Hub v2)
+// TIKTOK UNIFIED SETTINGS (Hub v3)
 // Hub centralizado TikTok em /integrations
-// 3 cards: Ads (ativo), Shop (em breve), Content (em breve)
+// 3 cards: Ads (ativo), Shop (ativo), Content (em breve)
 // =============================================
 
 import { useState, useEffect } from 'react';
@@ -19,6 +19,7 @@ import {
   ShoppingBag, Video, Lock
 } from 'lucide-react';
 import { useTikTokAdsConnection } from '@/hooks/useTikTokAdsConnection';
+import { useTikTokShopConnection } from '@/hooks/useTikTokShopConnection';
 import { useMarketingIntegrations } from '@/hooks/useMarketingIntegrations';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -51,9 +52,14 @@ function ConnectionStatusBadge({ status }: { status: string }) {
 
 export function TikTokUnifiedSettings() {
   const { 
-    connectionStatus, isLoading, isConnecting, isDisconnecting, 
-    connect, disconnect 
+    connectionStatus: adsStatus, isLoading: adsLoading, isConnecting: adsConnecting, 
+    isDisconnecting: adsDisconnecting, connect: adsConnect, disconnect: adsDisconnect 
   } = useTikTokAdsConnection();
+
+  const {
+    connectionStatus: shopStatus, isLoading: shopLoading, isConnecting: shopConnecting,
+    isDisconnecting: shopDisconnecting, connect: shopConnect, disconnect: shopDisconnect
+  } = useTikTokShopConnection();
 
   const { config: marketingConfig, upsertConfig } = useMarketingIntegrations();
 
@@ -79,7 +85,7 @@ export function TikTokUnifiedSettings() {
     });
   };
 
-  if (isLoading) {
+  if (adsLoading || shopLoading) {
     return (
       <div className="flex items-center justify-center p-12">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -116,26 +122,26 @@ export function TikTokUnifiedSettings() {
                 Pixel, Events API (CAPI) e gestão de campanhas
               </CardDescription>
             </div>
-            <ConnectionStatusBadge status={connectionStatus.connectionStatus} />
+            <ConnectionStatusBadge status={adsStatus.connectionStatus} />
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Connection section */}
-          {connectionStatus.isConnected ? (
+          {adsStatus.isConnected ? (
             <div className="space-y-4">
               <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20">
                 <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
                 <AlertDescription className="text-green-700 dark:text-green-300">
                   <div className="flex flex-col gap-1">
                     <span className="font-medium">
-                      {connectionStatus.advertiserName || connectionStatus.advertiserId || 'Conta conectada'}
+                      {adsStatus.advertiserName || adsStatus.advertiserId || 'Conta conectada'}
                     </span>
-                    {connectionStatus.connectedAt && (
+                    {adsStatus.connectedAt && (
                       <span className="text-xs opacity-75">
-                        Conectado em {format(new Date(connectionStatus.connectedAt), "dd 'de' MMM 'de' yyyy", { locale: ptBR })}
+                        Conectado em {format(new Date(adsStatus.connectedAt), "dd 'de' MMM 'de' yyyy", { locale: ptBR })}
                       </span>
                     )}
-                    {connectionStatus.isExpired && (
+                    {adsStatus.isExpired && (
                       <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
                         ⚠️ Token expirado — reconecte para continuar
                       </span>
@@ -145,11 +151,11 @@ export function TikTokUnifiedSettings() {
               </Alert>
 
               {/* Scope Packs */}
-              {connectionStatus.scopePacks.length > 0 && (
+              {adsStatus.scopePacks.length > 0 && (
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Packs habilitados</Label>
                   <div className="flex flex-wrap gap-1.5">
-                    {connectionStatus.scopePacks.map(pack => (
+                    {adsStatus.scopePacks.map(pack => (
                       <Badge key={pack} variant="secondary" className="text-xs">
                         {pack}
                       </Badge>
@@ -159,21 +165,21 @@ export function TikTokUnifiedSettings() {
               )}
 
               {/* Assets */}
-              {connectionStatus.assets.advertiser_ids && connectionStatus.assets.advertiser_ids.length > 0 && (
+              {adsStatus.assets.advertiser_ids && adsStatus.assets.advertiser_ids.length > 0 && (
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Advertisers</Label>
-                  <p className="text-sm font-mono">{connectionStatus.assets.advertiser_ids.join(', ')}</p>
+                  <p className="text-sm font-mono">{adsStatus.assets.advertiser_ids.join(', ')}</p>
                 </div>
               )}
 
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => connect()} disabled={isConnecting} size="sm">
-                  {isConnecting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Link2 className="h-4 w-4 mr-2" />}
+                <Button variant="outline" onClick={() => adsConnect()} disabled={adsConnecting} size="sm">
+                  {adsConnecting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Link2 className="h-4 w-4 mr-2" />}
                   Reconectar
                 </Button>
-                <Button variant="ghost" onClick={disconnect} disabled={isDisconnecting} size="sm"
+                <Button variant="ghost" onClick={adsDisconnect} disabled={adsDisconnecting} size="sm"
                   className="text-destructive hover:text-destructive">
-                  {isDisconnecting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Unlink className="h-4 w-4 mr-2" />}
+                  {adsDisconnecting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Unlink className="h-4 w-4 mr-2" />}
                   Desconectar
                 </Button>
               </div>
@@ -183,17 +189,17 @@ export function TikTokUnifiedSettings() {
               <p className="text-sm text-muted-foreground">
                 Conecte sua conta TikTok for Business para habilitar rastreamento de conversões e gestão de campanhas.
               </p>
-              <Button onClick={() => connect()} disabled={isConnecting} className="gap-2">
-                {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Music2 className="h-4 w-4" />}
+              <Button onClick={() => adsConnect()} disabled={adsConnecting} className="gap-2">
+                {adsConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Music2 className="h-4 w-4" />}
                 Conectar TikTok Ads
               </Button>
             </div>
           )}
 
-          {connectionStatus.lastError && (
+          {adsStatus.lastError && (
             <Alert variant="destructive">
               <XCircle className="h-4 w-4" />
-              <AlertDescription>{connectionStatus.lastError}</AlertDescription>
+              <AlertDescription>{adsStatus.lastError}</AlertDescription>
             </Alert>
           )}
 
@@ -220,11 +226,11 @@ export function TikTokUnifiedSettings() {
               <div>
                 <Label htmlFor="tiktok-events-api">Events API (Server-side)</Label>
                 <p className="text-xs text-muted-foreground">
-                  {connectionStatus.isConnected ? "Habilitado via OAuth" : "Requer conexão OAuth"}
+                  {adsStatus.isConnected ? "Habilitado via OAuth" : "Requer conexão OAuth"}
                 </p>
               </div>
               <Switch id="tiktok-events-api" checked={eventsApiEnabled} onCheckedChange={setEventsApiEnabled}
-                disabled={!connectionStatus.isConnected} />
+                disabled={!adsStatus.isConnected} />
             </div>
 
             <Button onClick={handleSavePixel} disabled={upsertConfig.isPending} size="sm">
@@ -235,8 +241,8 @@ export function TikTokUnifiedSettings() {
         </CardContent>
       </Card>
 
-      {/* Card 2: TikTok Shop — Em breve */}
-      <Card className="opacity-60">
+      {/* Card 2: TikTok Shop — Ativo */}
+      <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -249,14 +255,97 @@ export function TikTokUnifiedSettings() {
                 Catálogo, pedidos, fulfillment e atendimento
               </CardDescription>
             </div>
-            <StatusBadge variant="default">Em breve</StatusBadge>
+            <ConnectionStatusBadge status={shopStatus.connectionStatus} />
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Lock className="h-4 w-4" />
-            Requer credenciais separadas (TikTok Shop Partner Center)
-          </div>
+        <CardContent className="space-y-4">
+          {shopStatus.isConnected ? (
+            <div className="space-y-4">
+              <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20">
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                <AlertDescription className="text-green-700 dark:text-green-300">
+                  <div className="flex flex-col gap-1">
+                    <span className="font-medium">
+                      {shopStatus.shopName || shopStatus.shopId || 'Loja conectada'}
+                    </span>
+                    {shopStatus.shopRegion && (
+                      <span className="text-xs opacity-75">
+                        Região: {shopStatus.shopRegion}
+                      </span>
+                    )}
+                    {shopStatus.connectedAt && (
+                      <span className="text-xs opacity-75">
+                        Conectado em {format(new Date(shopStatus.connectedAt), "dd 'de' MMM 'de' yyyy", { locale: ptBR })}
+                      </span>
+                    )}
+                    {shopStatus.isExpired && (
+                      <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                        ⚠️ Token expirado — reconecte para continuar
+                      </span>
+                    )}
+                  </div>
+                </AlertDescription>
+              </Alert>
+
+              {/* Scope Packs */}
+              {shopStatus.scopePacks.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Packs habilitados</Label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {shopStatus.scopePacks.map(pack => (
+                      <Badge key={pack} variant="secondary" className="text-xs">
+                        {pack}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Shops */}
+              {shopStatus.assets.shops && Array.isArray(shopStatus.assets.shops) && shopStatus.assets.shops.length > 0 && (
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Lojas autorizadas</Label>
+                  <div className="space-y-1">
+                    {(shopStatus.assets.shops as any[]).map((shop: any, i: number) => (
+                      <p key={i} className="text-sm">
+                        <span className="font-medium">{shop.name}</span>
+                        {shop.region && <span className="text-muted-foreground ml-1">({shop.region})</span>}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => shopConnect()} disabled={shopConnecting} size="sm">
+                  {shopConnecting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Link2 className="h-4 w-4 mr-2" />}
+                  Reconectar
+                </Button>
+                <Button variant="ghost" onClick={shopDisconnect} disabled={shopDisconnecting} size="sm"
+                  className="text-destructive hover:text-destructive">
+                  {shopDisconnecting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Unlink className="h-4 w-4 mr-2" />}
+                  Desconectar
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Conecte sua loja TikTok Shop para sincronizar catálogo, pedidos e fulfillment.
+              </p>
+              <Button onClick={() => shopConnect()} disabled={shopConnecting} className="gap-2">
+                {shopConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}
+                Conectar TikTok Shop
+              </Button>
+            </div>
+          )}
+
+          {shopStatus.lastError && (
+            <Alert variant="destructive">
+              <XCircle className="h-4 w-4" />
+              <AlertDescription>{shopStatus.lastError}</AlertDescription>
+            </Alert>
+          )}
         </CardContent>
       </Card>
 

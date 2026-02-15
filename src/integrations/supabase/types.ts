@@ -14836,6 +14836,80 @@ export type Database = {
           },
         ]
       }
+      tiktok_shop_connections: {
+        Row: {
+          access_token: string | null
+          assets: Json | null
+          connected_at: string | null
+          connected_by: string | null
+          connection_status: string
+          created_at: string
+          granted_scopes: string[] | null
+          id: string
+          is_active: boolean
+          last_error: string | null
+          refresh_token: string | null
+          scope_packs: string[] | null
+          seller_id: string | null
+          shop_id: string | null
+          shop_name: string | null
+          shop_region: string | null
+          tenant_id: string
+          token_expires_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token?: string | null
+          assets?: Json | null
+          connected_at?: string | null
+          connected_by?: string | null
+          connection_status?: string
+          created_at?: string
+          granted_scopes?: string[] | null
+          id?: string
+          is_active?: boolean
+          last_error?: string | null
+          refresh_token?: string | null
+          scope_packs?: string[] | null
+          seller_id?: string | null
+          shop_id?: string | null
+          shop_name?: string | null
+          shop_region?: string | null
+          tenant_id: string
+          token_expires_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string | null
+          assets?: Json | null
+          connected_at?: string | null
+          connected_by?: string | null
+          connection_status?: string
+          created_at?: string
+          granted_scopes?: string[] | null
+          id?: string
+          is_active?: boolean
+          last_error?: string | null
+          refresh_token?: string | null
+          scope_packs?: string[] | null
+          seller_id?: string | null
+          shop_id?: string | null
+          shop_name?: string | null
+          shop_region?: string | null
+          tenant_id?: string
+          token_expires_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiktok_shop_connections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string

@@ -1,7 +1,7 @@
 // =============================================
-// USE TIKTOK ADS CONNECTION (Hub v2)
-// Hook for managing TikTok Ads connection per tenant
-// Source of truth: tiktok_ads_connections table
+// USE TIKTOK SHOP CONNECTION (Hub v3)
+// Hook for managing TikTok Shop connection per tenant
+// Source of truth: tiktok_shop_connections table
 // =============================================
 
 import { useState, useCallback, useEffect } from 'react';
@@ -10,28 +10,29 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
-export interface TikTokAdsConnectionStatus {
+export interface TikTokShopConnectionStatus {
   isConnected: boolean;
   connectionStatus: 'connected' | 'error' | 'disconnected';
-  advertiserId: string | null;
-  advertiserName: string | null;
+  shopId: string | null;
+  shopName: string | null;
+  shopRegion: string | null;
+  sellerId: string | null;
   connectedAt: string | null;
   tokenExpiresAt: string | null;
   isExpired: boolean;
   scopePacks: string[];
   grantedScopes: string[];
-  assets: {
-    advertiser_ids?: string[];
-    pixels?: string[];
-  };
+  assets: Record<string, unknown>;
   lastError: string | null;
 }
 
-const EMPTY_STATUS: TikTokAdsConnectionStatus = {
+const EMPTY_STATUS: TikTokShopConnectionStatus = {
   isConnected: false,
   connectionStatus: 'disconnected',
-  advertiserId: null,
-  advertiserName: null,
+  shopId: null,
+  shopName: null,
+  shopRegion: null,
+  sellerId: null,
   connectedAt: null,
   tokenExpiresAt: null,
   isExpired: false,
@@ -41,45 +42,48 @@ const EMPTY_STATUS: TikTokAdsConnectionStatus = {
   lastError: null,
 };
 
-export function useTikTokAdsConnection() {
+export function useTikTokShopConnection() {
   const { currentTenant, session } = useAuth();
   const queryClient = useQueryClient();
   const [isConnecting, setIsConnecting] = useState(false);
 
   const { data: connectionStatus, isLoading, refetch } = useQuery({
-    queryKey: ['tiktok-ads-connection', currentTenant?.id],
-    queryFn: async (): Promise<TikTokAdsConnectionStatus> => {
+    queryKey: ['tiktok-shop-connection', currentTenant?.id],
+    queryFn: async (): Promise<TikTokShopConnectionStatus> => {
       if (!currentTenant?.id) return EMPTY_STATUS;
 
       const { data, error } = await supabase
-        .from('tiktok_ads_connections' as any)
+        .from('tiktok_shop_connections' as any)
         .select('*')
         .eq('tenant_id', currentTenant.id)
         .maybeSingle();
 
       if (error) {
-        console.error('[useTikTokAdsConnection] Error:', error);
+        console.error('[useTikTokShopConnection] Error:', error);
         throw error;
       }
 
       if (!data) return EMPTY_STATUS;
 
-      const expiresAt = (data as any).token_expires_at;
+      const rec = data as any;
+      const expiresAt = rec.token_expires_at;
       const isExpired = expiresAt ? new Date(expiresAt) < new Date() : false;
-      const connStatus = (data as any).connection_status || 'disconnected';
+      const connStatus = rec.connection_status || 'disconnected';
 
       return {
         isConnected: connStatus === 'connected' && !isExpired,
         connectionStatus: connStatus,
-        advertiserId: (data as any).advertiser_id || null,
-        advertiserName: (data as any).advertiser_name || null,
-        connectedAt: (data as any).connected_at || null,
+        shopId: rec.shop_id || null,
+        shopName: rec.shop_name || null,
+        shopRegion: rec.shop_region || null,
+        sellerId: rec.seller_id || null,
+        connectedAt: rec.connected_at || null,
         tokenExpiresAt: expiresAt || null,
         isExpired,
-        scopePacks: (data as any).scope_packs || [],
-        grantedScopes: (data as any).granted_scopes || [],
-        assets: (data as any).assets || {},
-        lastError: (data as any).last_error || null,
+        scopePacks: rec.scope_packs || [],
+        grantedScopes: rec.granted_scopes || [],
+        assets: rec.assets || {},
+        lastError: rec.last_error || null,
       };
     },
     enabled: !!currentTenant?.id,
@@ -93,10 +97,10 @@ export function useTikTokAdsConnection() {
         throw new Error("Tenant não selecionado");
       }
 
-      const { data, error } = await supabase.functions.invoke("tiktok-oauth-start", {
-        body: { 
+      const { data, error } = await supabase.functions.invoke("tiktok-shop-oauth-start", {
+        body: {
           tenantId: currentTenant.id,
-          scopePacks: scopePacks || ["pixel", "ads_read"],
+          scopePacks: scopePacks || ["catalog", "orders"],
           returnPath: "/integrations",
         },
       });
@@ -113,13 +117,13 @@ export function useTikTokAdsConnection() {
         const top = window.screenY + (window.outerHeight - height) / 2;
         window.open(
           data.authUrl,
-          'tiktok-oauth',
+          'tiktok-shop-oauth',
           `width=${width},height=${height},left=${left},top=${top},popup=yes`
         );
       }
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Erro ao conectar TikTok");
+      toast.error(error.message || "Erro ao conectar TikTok Shop");
     },
   });
 
@@ -129,7 +133,7 @@ export function useTikTokAdsConnection() {
       if (!currentTenant?.id) throw new Error("Tenant não selecionado");
 
       const { error } = await supabase
-        .from('tiktok_ads_connections' as any)
+        .from('tiktok_shop_connections' as any)
         .update({
           access_token: null,
           refresh_token: null,
@@ -142,9 +146,8 @@ export function useTikTokAdsConnection() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tiktok-ads-connection'] });
-      queryClient.invalidateQueries({ queryKey: ['marketing-integrations'] });
-      toast.success("TikTok Ads desconectado");
+      queryClient.invalidateQueries({ queryKey: ['tiktok-shop-connection'] });
+      toast.success("TikTok Shop desconectado");
     },
     onError: (error: Error) => {
       toast.error(error.message || "Erro ao desconectar");
@@ -154,10 +157,9 @@ export function useTikTokAdsConnection() {
   // Listener popup
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'tiktok:connected') {
+      if (event.data?.type === 'tiktok-shop:connected') {
         if (event.data.success) {
-          queryClient.invalidateQueries({ queryKey: ['tiktok-ads-connection'] });
-          queryClient.invalidateQueries({ queryKey: ['marketing-integrations'] });
+          queryClient.invalidateQueries({ queryKey: ['tiktok-shop-connection'] });
         }
       }
     };

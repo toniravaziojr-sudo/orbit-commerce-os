@@ -1,6 +1,6 @@
 // =============================================
-// TIKTOK OAUTH CALLBACK PAGE
-// Handles the OAuth redirect from TikTok
+// TIKTOK OAUTH CALLBACK PAGE (v2 - Multi-product)
+// Handles OAuth redirect for TikTok Ads AND Shop
 // =============================================
 
 import { useEffect, useState, useRef } from 'react';
@@ -16,16 +16,12 @@ export default function TikTokOAuthCallback() {
   const [errorMessage, setErrorMessage] = useState<string>("");
   const processedRef = useRef(false);
 
-  // Função para redirecionar de forma robusta
-  // IMPORTANTE: O Google Tradutor pode quebrar window.opener e postMessage
-  // Por isso, SEMPRE fazemos redirect direto após um breve delay
   const notifyParentAndClose = (success: boolean, error?: string) => {
     const baseUrl = window.location.origin;
     const redirectUrl = success
       ? `${baseUrl}/marketing?tiktok_connected=true`
       : `${baseUrl}/marketing?tiktok_error=${encodeURIComponent(error || 'Erro')}`;
 
-    // Tentar notificar janela pai (pode falhar com Google Tradutor)
     try {
       if (window.opener && !window.opener.closed) {
         window.opener.postMessage({
@@ -33,13 +29,17 @@ export default function TikTokOAuthCallback() {
           success,
           error,
         }, "*");
-        console.log("[TikTokOAuthCallback] postMessage enviado");
+        // Also send shop-specific event
+        window.opener.postMessage({
+          type: "tiktok-shop:connected",
+          success,
+          error,
+        }, "*");
       }
     } catch (e) {
       console.warn("[TikTokOAuthCallback] postMessage falhou:", e);
     }
 
-    // SEMPRE redirecionar após delay - não depender de window.close()
     setTimeout(() => {
       try {
         if (window.opener && !window.opener.closed) {
@@ -50,22 +50,18 @@ export default function TikTokOAuthCallback() {
       }
       
       setTimeout(() => {
-        console.log("[TikTokOAuthCallback] Forçando redirect para:", redirectUrl);
         window.location.href = redirectUrl;
       }, 300);
     }, 1200);
   };
 
   useEffect(() => {
-    // Evitar processamento duplo (React StrictMode)
     if (processedRef.current) return;
 
     const authCode = searchParams.get("auth_code");
     const state = searchParams.get("state");
     const error = searchParams.get("error");
     const errorDescription = searchParams.get("error_description");
-    
-    // Se veio com success=true (redirect antigo), tratar como sucesso
     const successParam = searchParams.get("success");
 
     if (successParam === "true") {
@@ -74,7 +70,6 @@ export default function TikTokOAuthCallback() {
       return;
     }
 
-    // Se veio com erro do TikTok
     if (error) {
       processedRef.current = true;
       const errMsg = errorDescription || getErrorMessage(error);
@@ -84,29 +79,59 @@ export default function TikTokOAuthCallback() {
       return;
     }
 
-    // Se tem auth_code e state, processar OAuth
     if (authCode && state) {
       processedRef.current = true;
       processOAuthCallback(authCode, state);
       return;
     }
 
-    // Se não tem nenhum parâmetro válido
     processedRef.current = true;
-    const errMsg = "Acesso inválido. Inicie a conexão pelo módulo de Marketing.";
+    const errMsg = "Acesso inválido. Inicie a conexão pelo Hub TikTok em Integrações.";
     setStatus("error");
     setErrorMessage(errMsg);
     notifyParentAndClose(false, errMsg);
   }, [searchParams]);
 
   async function processOAuthCallback(authCode: string, state: string) {
+    // Try Ads callback first
     try {
       const { data, error } = await supabase.functions.invoke("tiktok-oauth-callback", {
         body: { auth_code: authCode, state },
       });
 
+      if (!error && data?.success) {
+        console.log("[TikTokOAuthCallback] Ads connection success:", data.connection);
+        setStatus("success");
+        notifyParentAndClose(true);
+        return;
+      }
+
+      // If state is invalid (INVALID_STATE), it might be a Shop OAuth
+      if (data?.code === "INVALID_STATE") {
+        console.log("[TikTokOAuthCallback] Ads state invalid, trying Shop callback...");
+        await processShopCallback(authCode, state);
+        return;
+      }
+
+      // Other ads error
+      const errMsg = data?.error || error?.message || "Erro ao processar autorização";
+      setStatus("error");
+      setErrorMessage(errMsg);
+      notifyParentAndClose(false, errMsg);
+    } catch (err) {
+      // Network error — try Shop as fallback
+      console.warn("[TikTokOAuthCallback] Ads callback failed, trying Shop...", err);
+      await processShopCallback(authCode, state);
+    }
+  }
+
+  async function processShopCallback(authCode: string, state: string) {
+    try {
+      const { data, error } = await supabase.functions.invoke("tiktok-shop-oauth-callback", {
+        body: { auth_code: authCode, state },
+      });
+
       if (error || !data?.success) {
-        console.error("[TikTokOAuthCallback] Erro:", error || data);
         const errMsg = data?.error || error?.message || "Erro ao processar autorização";
         setStatus("error");
         setErrorMessage(errMsg);
@@ -114,12 +139,10 @@ export default function TikTokOAuthCallback() {
         return;
       }
 
-      console.log("[TikTokOAuthCallback] Conexão realizada:", data.connection);
+      console.log("[TikTokOAuthCallback] Shop connection success:", data.connection);
       setStatus("success");
       notifyParentAndClose(true);
-      
     } catch (err) {
-      console.error("[TikTokOAuthCallback] Exceção:", err);
       const errMsg = err instanceof Error ? err.message : "Erro inesperado";
       setStatus("error");
       setErrorMessage(errMsg);
