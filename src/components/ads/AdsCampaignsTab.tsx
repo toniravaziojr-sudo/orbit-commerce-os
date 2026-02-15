@@ -4,20 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { AdsChannelRoasConfig } from "@/components/ads/AdsChannelRoasConfig";
-import type { AutopilotConfig } from "@/hooks/useAdsAutopilot";
 
 interface AdsCampaignsTabProps {
   campaigns: any[];
   isLoading: boolean;
   channel: string;
-  channelConfig: AutopilotConfig | null;
-  onToggleChannel: (channel: string, enabled: boolean) => void;
   onUpdateCampaign: (id: string, status: string) => void;
-  onSaveChannelConfig: (config: Partial<AutopilotConfig> & { channel: string }) => void;
-  isSavingConfig: boolean;
 }
 
 function formatCurrency(cents: number) {
@@ -37,34 +29,9 @@ function StatusBadge({ status }: { status: string }) {
   return <Badge variant={info.variant}>{info.label}</Badge>;
 }
 
-export function AdsCampaignsTab({ campaigns, isLoading, channel, channelConfig, onToggleChannel, onUpdateCampaign, onSaveChannelConfig, isSavingConfig }: AdsCampaignsTabProps) {
-  const isChannelEnabled = channelConfig?.is_enabled || false;
-
+export function AdsCampaignsTab({ campaigns, isLoading, channel, onUpdateCampaign }: AdsCampaignsTabProps) {
   return (
     <div className="space-y-4">
-      {/* Channel AI toggle */}
-      <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
-        <div className="flex items-center gap-3">
-          <Label className="text-sm font-medium">IA ativa neste canal</Label>
-          {isChannelEnabled && (
-            <Badge variant="default" className="text-xs">IA Ativa</Badge>
-          )}
-        </div>
-        <Switch
-          checked={isChannelEnabled}
-          onCheckedChange={(checked) => onToggleChannel(channel, checked)}
-        />
-      </div>
-
-      {/* Per-channel ROAS targets */}
-      <AdsChannelRoasConfig
-        channel={channel}
-        channelConfig={channelConfig}
-        onSave={onSaveChannelConfig}
-        isSaving={isSavingConfig}
-      />
-
-      {/* Campaigns table */}
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}
@@ -73,7 +40,7 @@ export function AdsCampaignsTab({ campaigns, isLoading, channel, channelConfig, 
         <EmptyState
           icon={Megaphone}
           title="Nenhuma campanha"
-          description="Sincronize suas campanhas ou crie uma nova"
+          description="Conecte sua conta e a IA sincronizará suas campanhas automaticamente"
         />
       ) : (
         <Table>
