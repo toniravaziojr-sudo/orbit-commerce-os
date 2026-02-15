@@ -1141,6 +1141,60 @@ const {
 
 ---
 
+## Google Hub — Fase 5: Google Analytics GA4
+
+### Tabela
+
+| Tabela | Descrição | UNIQUE |
+|--------|-----------|--------|
+| `google_analytics_reports` | Cache de métricas diárias GA4 | `(tenant_id, property_id, report_type, date, dimensions)` |
+
+### Campos: `google_analytics_reports`
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `property_id` | TEXT | ID da propriedade GA4 (sem prefixo `properties/`) |
+| `report_type` | TEXT | `daily_overview` (padrão) |
+| `date` | DATE | Data da métrica |
+| `dimensions` | JSONB | Dimensões do relatório |
+| `metrics` | JSONB | `sessions`, `totalUsers`, `newUsers`, `screenPageViews`, `bounceRate`, `averageSessionDuration`, `conversions`, `totalRevenue` |
+
+### Edge Function: `google-analytics-report`
+
+| Action | Descrição | API |
+|--------|-----------|-----|
+| `sync` | Puxa métricas diárias via GA4 Data API | `runReport` |
+| `realtime` | Usuários ativos em tempo real | `runRealtimeReport` |
+| `list` | Lista do cache com filtros | Supabase |
+| `summary` | Agregação (sessões, users, conversões, receita) | Supabase |
+
+**Parâmetros sync:** `tenant_id`, `property_id` (opcional), `date_from`, `date_to`
+
+**Métricas realtime:** `activeUsers`, `screenPageViews`, `conversions`
+
+### Hook: `useGoogleAnalytics`
+
+```typescript
+import { useGoogleAnalytics } from "@/hooks/useGoogleAnalytics";
+
+const {
+  summary, summaryLoading,
+  realtime, realtimeLoading,
+  reports, reportsLoading,
+  sync, isSyncing,
+} = useGoogleAnalytics(selectedPropertyId);
+```
+
+**Nota:** `realtimeQuery` auto-refetch a cada 60s com staleTime de 30s.
+
+### Mapeamento Tabela → Edge Function
+
+| Tabela | Edge Functions |
+|--------|----------------|
+| `google_analytics_reports` | `google-analytics-report` |
+
+---
+
 ## Pendências
 
 - [ ] Implementar integrações ERP (Bling)
@@ -1165,7 +1219,7 @@ const {
 - [x] ~~Google Hub: Migração YouTube~~ (Fase 2 concluída)
 - [x] ~~Google Merchant Center~~ (Fase 3 concluída)
 - [x] ~~Google Ads Manager~~ (Fase 4 concluída)
-- [ ] Google Analytics GA4 (Fase 5)
+- [x] ~~Google Analytics GA4~~ (Fase 5 concluída)
 - [ ] Google Search Console (Fase 6)
 - [ ] Google Meu Negócio (Fase 7)
 - [ ] Google Tag Manager (Fase 8)

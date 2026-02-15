@@ -5805,6 +5805,50 @@ export type Database = {
           },
         ]
       }
+      google_analytics_reports: {
+        Row: {
+          created_at: string
+          date: string
+          dimensions: Json | null
+          id: string
+          metrics: Json | null
+          property_id: string
+          report_type: string
+          synced_at: string | null
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          dimensions?: Json | null
+          id?: string
+          metrics?: Json | null
+          property_id: string
+          report_type?: string
+          synced_at?: string | null
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          dimensions?: Json | null
+          id?: string
+          metrics?: Json | null
+          property_id?: string
+          report_type?: string
+          synced_at?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_analytics_reports_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_connections: {
         Row: {
           access_token: string | null
