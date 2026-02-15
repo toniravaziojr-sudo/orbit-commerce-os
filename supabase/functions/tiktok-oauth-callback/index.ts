@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.0.0"; // Hub TikTok: salva em tiktok_ads_connections + dual-write
+const VERSION = "v3.0.0"; // Fase 2: removido dual-write legado
 // ===========================================================
 
 const corsHeaders = {
@@ -170,45 +170,6 @@ serve(async (req) => {
         JSON.stringify({ success: false, error: "Erro ao salvar a conexão", code: "SAVE_FAILED" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
-    }
-
-    // ========== DUAL-WRITE: marketing_integrations (retrocompatibilidade) ==========
-    try {
-      const { data: existingMi } = await supabase
-        .from("marketing_integrations")
-        .select("id")
-        .eq("tenant_id", tenant_id)
-        .maybeSingle();
-
-      const dualWriteData = {
-        tiktok_access_token: accessToken,
-        tiktok_refresh_token: tokenData.data.refresh_token || null,
-        tiktok_token_expires_at: expiresAt,
-        tiktok_advertiser_id: advertiserId,
-        tiktok_advertiser_name: advertiserName,
-        tiktok_connected_at: new Date().toISOString(),
-        tiktok_connected_by: user_id,
-        tiktok_enabled: true,
-        tiktok_events_api_enabled: true,
-        tiktok_status: "active",
-        tiktok_last_error: null,
-      };
-
-      if (existingMi?.id) {
-        await supabase
-          .from("marketing_integrations")
-          .update(dualWriteData)
-          .eq("id", existingMi.id);
-      } else {
-        await supabase
-          .from("marketing_integrations")
-          .insert({ tenant_id, ...dualWriteData });
-      }
-
-      console.log(`[tiktok-oauth-callback][${VERSION}] Dual-write to marketing_integrations OK`);
-    } catch (dualWriteErr) {
-      // Dual-write failure is non-fatal
-      console.warn(`[tiktok-oauth-callback][${VERSION}] Dual-write failed (non-fatal):`, dualWriteErr);
     }
 
     console.log(`[tiktok-oauth-callback][${VERSION}] Conexão TikTok Ads salva para tenant ${tenant_id}`);
