@@ -657,3 +657,6 @@ verify_jwt = false
 
 [functions.google-tag-manager]
 verify_jwt = false
+
+[functions.ads-autopilot-analyze]
+verify_jwt = false
