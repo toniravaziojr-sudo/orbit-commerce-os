@@ -133,7 +133,7 @@ const fullNavigation: NavGroup[] = [
     items: [
       { title: "Email Marketing", href: "/email-marketing", icon: Mail, blockedFeature: "email_marketing" },
       { title: "Quizzes", href: "/quizzes", icon: FileText, blockedFeature: "quizzes" },
-      { title: "Gestor de Tráfego IA", href: "/campaigns", icon: Megaphone },
+      { title: "Gestor de Tráfego IA", href: "/ads", icon: Megaphone },
     ],
   },
   {
@@ -390,7 +390,7 @@ export function AppSidebar() {
   };
 
   // Modules that should be locked for non-admin users
-  const COMING_SOON_MODULES = ['/marketplaces/shopee', '/campaigns'];
+  const COMING_SOON_MODULES = ['/marketplaces/shopee'];
   
   const renderNavItem = (item: NavItem, groupModuleKey?: string) => {
     // Owner-only items visibility check
