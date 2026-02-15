@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.2.0"; // Fix: pagination support for accounts with 100+ campaigns
+const VERSION = "v1.3.0"; // Fix: pagination using absolute next URL from Meta Graph API
 // ===========================================================
 
 const corsHeaders = {
@@ -34,16 +34,24 @@ async function getMetaConnection(supabase: any, tenantId: string): Promise<MetaC
   return data;
 }
 
-async function graphApi(path: string, token: string, method = "GET", body?: any) {
-  const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${path}`;
+async function graphApi(pathOrUrl: string, token: string, method = "GET", body?: any) {
   const options: RequestInit = {
     method,
     headers: { "Content-Type": "application/json" },
   };
   
   if (method === "GET") {
-    const separator = path.includes("?") ? "&" : "?";
-    const fullUrl = `${url}${separator}access_token=${token}`;
+    // Support absolute URLs (pagination next) or relative paths
+    const isAbsolute = pathOrUrl.startsWith("https://");
+    let fullUrl: string;
+    if (isAbsolute) {
+      // Already has access_token from Meta pagination
+      fullUrl = pathOrUrl;
+    } else {
+      const base = `https://graph.facebook.com/${GRAPH_API_VERSION}/${pathOrUrl}`;
+      const separator = pathOrUrl.includes("?") ? "&" : "?";
+      fullUrl = `${base}${separator}access_token=${token}`;
+    }
     const res = await fetch(fullUrl, options);
     return res.json();
   }
@@ -51,6 +59,7 @@ async function graphApi(path: string, token: string, method = "GET", body?: any)
   if (body) {
     options.body = JSON.stringify({ ...body, access_token: token });
   }
+  const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${pathOrUrl}`;
   const res = await fetch(url, options);
   return res.json();
 }
@@ -158,8 +167,8 @@ Deno.serve(async (req) => {
             }
           }
 
-          // Check for next page
-          nextUrl = result.paging?.next ? result.paging.next.replace(`https://graph.facebook.com/${GRAPH_API_VERSION}/`, '').replace(`&access_token=${conn.access_token}`, '') : null;
+          // Check for next page — use absolute URL directly
+          nextUrl = result.paging?.next || null;
         }
       }
 
