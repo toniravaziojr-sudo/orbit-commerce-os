@@ -3,7 +3,7 @@ import {
   Play, Pause, Megaphone, RefreshCw, Loader2, Filter,
   ChevronDown, ChevronRight, ExternalLink, Wallet, DollarSign,
   CalendarDays, TrendingUp, Eye, MousePointerClick, ShoppingCart,
-  MessageCircle, Video, Target, Users, BarChart3
+  MessageCircle, Video, Target, Users, BarChart3, Columns3, Check
 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -111,6 +111,43 @@ function matchesStatusFilter(status: string, filter: StatusFilter): boolean {
   return true;
 }
 
+// ========== CUSTOMIZABLE COLUMNS ==========
+
+type MetricColumnKey =
+  | "results" | "reach" | "frequency" | "cost_per_result" | "ctr"
+  | "impressions" | "clicks" | "spend" | "budget" | "roas"
+  | "conversions" | "conversion_value" | "cpc" | "cpm";
+
+interface MetricColumnDef {
+  key: MetricColumnKey;
+  label: string;
+  shortLabel: string;
+  group: string;
+}
+
+const ALL_METRIC_COLUMNS: MetricColumnDef[] = [
+  { key: "results", label: "Resultados", shortLabel: "Resultados", group: "Desempenho" },
+  { key: "reach", label: "Alcance", shortLabel: "Alcance", group: "Desempenho" },
+  { key: "impressions", label: "Impressões", shortLabel: "Impressões", group: "Desempenho" },
+  { key: "frequency", label: "Frequência", shortLabel: "Frequência", group: "Desempenho" },
+  { key: "clicks", label: "Cliques no link", shortLabel: "Cliques", group: "Desempenho" },
+  { key: "ctr", label: "CTR (taxa de cliques)", shortLabel: "CTR", group: "Desempenho" },
+  { key: "cost_per_result", label: "Custo por resultado", shortLabel: "Custo/resultado", group: "Custo" },
+  { key: "cpc", label: "CPC (custo por clique)", shortLabel: "CPC", group: "Custo" },
+  { key: "cpm", label: "CPM (custo por mil)", shortLabel: "CPM", group: "Custo" },
+  { key: "spend", label: "Valor usado", shortLabel: "Valor usado", group: "Custo" },
+  { key: "budget", label: "Orçamento", shortLabel: "Orçamento", group: "Custo" },
+  { key: "roas", label: "ROAS (retorno)", shortLabel: "ROAS", group: "Conversão" },
+  { key: "conversions", label: "Compras no site", shortLabel: "Compras", group: "Conversão" },
+  { key: "conversion_value", label: "Valor de conversão", shortLabel: "Valor conv.", group: "Conversão" },
+];
+
+const DEFAULT_COLUMNS: MetricColumnKey[] = [
+  "results", "reach", "frequency", "cost_per_result", "budget", "spend", "roas",
+];
+
+const MAX_COLUMNS = 7;
+
 // Map objective to the most relevant metric label
 function getObjectiveMetric(objective: string | null): { label: string; key: string; icon: any } {
   const o = objective?.toUpperCase() || "";
@@ -173,6 +210,85 @@ const DATE_PRESETS = [
   { label: "90 dias", days: 90 },
 ];
 
+// ========== COLUMN SELECTOR COMPONENT ==========
+
+function ColumnSelector({
+  selected,
+  onChange,
+}: {
+  selected: MetricColumnKey[];
+  onChange: (cols: MetricColumnKey[]) => void;
+}) {
+  const groups = useMemo(() => {
+    const g = new Map<string, MetricColumnDef[]>();
+    for (const col of ALL_METRIC_COLUMNS) {
+      const list = g.get(col.group) || [];
+      list.push(col);
+      g.set(col.group, list);
+    }
+    return g;
+  }, []);
+
+  const toggle = (key: MetricColumnKey) => {
+    if (selected.includes(key)) {
+      onChange(selected.filter(k => k !== key));
+    } else if (selected.length < MAX_COLUMNS) {
+      onChange([...selected, key]);
+    }
+  };
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-2 text-xs h-8">
+          <Columns3 className="h-3.5 w-3.5" />
+          Colunas
+          <Badge variant="secondary" className="h-5 min-w-5 px-1.5 text-[10px]">{selected.length}/{MAX_COLUMNS}</Badge>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-0" align="end">
+        <div className="p-3 border-b">
+          <p className="text-xs font-medium text-muted-foreground">
+            Selecione até {MAX_COLUMNS} métricas
+          </p>
+        </div>
+        <div className="max-h-[300px] overflow-y-auto p-1">
+          {Array.from(groups.entries()).map(([groupName, cols]) => (
+            <div key={groupName}>
+              <div className="px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                {groupName}
+              </div>
+              {cols.map(col => {
+                const isSelected = selected.includes(col.key);
+                const isDisabled = !isSelected && selected.length >= MAX_COLUMNS;
+                return (
+                  <button
+                    key={col.key}
+                    className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs rounded-sm transition-colors ${
+                      isSelected ? "bg-primary/10 text-primary" : isDisabled ? "opacity-40 cursor-not-allowed" : "hover:bg-muted"
+                    }`}
+                    onClick={() => !isDisabled && toggle(col.key)}
+                    disabled={isDisabled}
+                  >
+                    <div className={`h-3.5 w-3.5 rounded border flex items-center justify-center ${
+                      isSelected ? "bg-primary border-primary" : "border-muted-foreground/30"
+                    }`}>
+                      {isSelected && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
+                    </div>
+                    {col.label}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ========== MAIN COMPONENT ==========
+
 export function AdsCampaignsTab({
   campaigns, isLoading, channel, onUpdateCampaign, onUpdateCampaignBudget,
   onUpdateAdset, selectedAccountIds, adAccounts, isConnected, onSync, isSyncing,
@@ -187,6 +303,7 @@ export function AdsCampaignsTab({
     from: subDays(new Date(), 30),
     to: new Date(),
   });
+  const [visibleColumns, setVisibleColumns] = useState<MetricColumnKey[]>(DEFAULT_COLUMNS);
 
   // Filter campaigns by selected accounts
   const accountFiltered = selectedAccountIds && selectedAccountIds.length > 0
@@ -205,7 +322,7 @@ export function AdsCampaignsTab({
     const map = new Map<string, {
       impressions: number; clicks: number; spend_cents: number; reach: number;
       conversions: number; conversion_value_cents: number; roas: number; ctr: number;
-      frequency: number; cost_per_result_cents: number;
+      frequency: number; cost_per_result_cents: number; cpc_cents: number; cpm_cents: number;
     }>();
     
     for (const i of insights) {
@@ -220,7 +337,7 @@ export function AdsCampaignsTab({
       const existing = map.get(campaignId) || {
         impressions: 0, clicks: 0, spend_cents: 0, reach: 0,
         conversions: 0, conversion_value_cents: 0, roas: 0, ctr: 0,
-        frequency: 0, cost_per_result_cents: 0,
+        frequency: 0, cost_per_result_cents: 0, cpc_cents: 0, cpm_cents: 0,
       };
       existing.impressions += i.impressions || 0;
       existing.clicks += i.clicks || 0;
@@ -228,7 +345,6 @@ export function AdsCampaignsTab({
       existing.reach += i.reach || 0;
       existing.conversions += i.conversions || 0;
       existing.conversion_value_cents += i.conversion_value_cents || 0;
-      // Frequency is averaged, not summed - we'll recalculate
       map.set(campaignId, existing);
     }
 
@@ -238,6 +354,8 @@ export function AdsCampaignsTab({
       val.roas = val.spend_cents > 0 ? val.conversion_value_cents / val.spend_cents : 0;
       val.frequency = val.reach > 0 ? val.impressions / val.reach : 0;
       val.cost_per_result_cents = val.conversions > 0 ? Math.round(val.spend_cents / val.conversions) : 0;
+      val.cpc_cents = val.clicks > 0 ? Math.round(val.spend_cents / val.clicks) : 0;
+      val.cpm_cents = val.impressions > 0 ? Math.round((val.spend_cents / val.impressions) * 1000) : 0;
     }
 
     return map;
@@ -288,43 +406,106 @@ export function AdsCampaignsTab({
     onUpdateAdset(adsetId, { status: newStatus });
   };
 
+  // Render a single metric cell based on column key
+  const renderMetricCell = (colKey: MetricColumnKey, campaign: any, metrics: any | undefined) => {
+    const objective = campaign.objective || campaign.advertising_channel_type || campaign.objective_type || null;
+    const metricInfo = getObjectiveMetric(objective);
+    const isSalesCampaign = objective?.toUpperCase()?.includes("SALES") || objective?.toUpperCase()?.includes("CONVERSIONS") || objective?.toUpperCase()?.includes("OUTCOME_SALES");
+    const campaignId = campaign.meta_campaign_id || campaign.google_campaign_id || campaign.tiktok_campaign_id;
+    const budget = campaign.daily_budget_cents || campaign.budget_cents || 0;
+
+    switch (colKey) {
+      case "results": {
+        if (!metrics) return "—";
+        const value = (metrics as any)[metricInfo.key];
+        return (
+          <div className="flex items-center justify-end gap-1">
+            <metricInfo.icon className="h-3.5 w-3.5 text-muted-foreground" />
+            <span>{typeof value === "number" && value > 0 ? formatNumber(value) : "—"}</span>
+          </div>
+        );
+      }
+      case "reach":
+        return metrics && metrics.reach > 0 ? formatNumber(metrics.reach) : "—";
+      case "frequency":
+        return metrics && metrics.frequency > 0 ? metrics.frequency.toFixed(2) : "—";
+      case "impressions":
+        return metrics && metrics.impressions > 0 ? formatNumber(metrics.impressions) : "—";
+      case "clicks":
+        return metrics && metrics.clicks > 0 ? formatNumber(metrics.clicks) : "—";
+      case "ctr":
+        return metrics && metrics.ctr > 0 ? `${metrics.ctr.toFixed(2)}%` : "—";
+      case "cost_per_result": {
+        if (!metrics) return "—";
+        if (isSalesCampaign) {
+          return metrics.conversions > 0 ? formatCurrency(metrics.cost_per_result_cents) : "—";
+        }
+        const resultValue = (metrics as any)[metricInfo.key] as number;
+        if (resultValue > 0 && metrics.spend_cents > 0) {
+          return formatCurrency(Math.round(metrics.spend_cents / resultValue));
+        }
+        return "—";
+      }
+      case "cpc":
+        return metrics && metrics.cpc_cents > 0 ? formatCurrency(metrics.cpc_cents) : "—";
+      case "cpm":
+        return metrics && metrics.cpm_cents > 0 ? formatCurrency(metrics.cpm_cents) : "—";
+      case "spend":
+        return metrics && metrics.spend_cents > 0 ? formatCurrency(metrics.spend_cents) : "—";
+      case "budget":
+        return (
+          editingBudget === campaignId ? (
+            <div className="flex items-center gap-1 justify-end" onClick={e => e.stopPropagation()}>
+              <Input
+                type="number"
+                value={budgetValue}
+                onChange={e => setBudgetValue(e.target.value)}
+                className="w-24 h-7 text-xs"
+                placeholder="R$"
+                autoFocus
+                onKeyDown={e => { if (e.key === "Enter") handleSaveBudget(campaignId); if (e.key === "Escape") setEditingBudget(null); }}
+              />
+              <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => handleSaveBudget(campaignId)}>OK</Button>
+            </div>
+          ) : (
+            <span
+              className={onUpdateCampaignBudget ? "cursor-pointer hover:underline" : ""}
+              onClick={onUpdateCampaignBudget ? (e) => {
+                e.stopPropagation();
+                setEditingBudget(campaignId);
+                setBudgetValue(budget ? (budget / 100).toString() : "");
+              } : undefined}
+            >
+              {budget ? formatCurrency(budget) : "—"}
+            </span>
+          )
+        );
+      case "roas":
+        if (isSalesCampaign && metrics && metrics.roas > 0) {
+          return (
+            <span className={metrics.roas >= 1 ? "text-green-600" : "text-red-500"}>
+              {metrics.roas.toFixed(2)}x
+            </span>
+          );
+        }
+        return "—";
+      case "conversions":
+        return metrics && metrics.conversions > 0 ? formatNumber(metrics.conversions) : "—";
+      case "conversion_value":
+        return metrics && metrics.conversion_value_cents > 0 ? formatCurrency(metrics.conversion_value_cents) : "—";
+      default:
+        return "—";
+    }
+  };
+
   const renderCampaignRow = (c: any) => {
-    const name = c.name;
     const status = c.status;
-    const objective = c.objective || c.advertising_channel_type || c.objective_type || null;
-    const budget = c.daily_budget_cents || c.budget_cents || 0;
     const campaignId = c.meta_campaign_id || c.google_campaign_id || c.tiktok_campaign_id;
     const isUpdating = updatingId === campaignId;
     const isExpanded = expandedCampaigns.has(campaignId);
     const campaignAdsetList = campaignAdsets.get(campaignId) || [];
     const hasAdsets = channel === "meta" && campaignAdsetList.length > 0;
     const metrics = campaignInsights.get(campaignId);
-    const metricInfo = getObjectiveMetric(objective);
-    const isSalesCampaign = objective?.toUpperCase()?.includes("SALES") || objective?.toUpperCase()?.includes("CONVERSIONS") || objective?.toUpperCase()?.includes("OUTCOME_SALES");
-
-    // Get result count based on objective
-    const getResultCount = () => {
-      if (!metrics) return "—";
-      const value = (metrics as any)[metricInfo.key];
-      if (typeof value === "number" && value > 0) {
-        return formatNumber(value);
-      }
-      return "—";
-    };
-
-    // Cost per result
-    const getCostPerResult = () => {
-      if (!metrics) return "—";
-      if (isSalesCampaign) {
-        return metrics.conversions > 0 ? formatCurrency(metrics.cost_per_result_cents) : "—";
-      }
-      // For non-sales, calculate based on the metric key
-      const resultValue = (metrics as any)[metricInfo.key] as number;
-      if (resultValue > 0 && metrics.spend_cents > 0) {
-        return formatCurrency(Math.round(metrics.spend_cents / resultValue));
-      }
-      return "—";
-    };
 
     return (
       <>
@@ -337,70 +518,17 @@ export function AdsCampaignsTab({
                   ? <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   : <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               )}
-              <span className="truncate">{name}</span>
+              <span className="truncate">{c.name}</span>
             </div>
           </TableCell>
           {/* Status */}
           <TableCell><StatusBadge status={status} /></TableCell>
-          {/* Resultados */}
-          <TableCell className="text-right tabular-nums">
-            <div className="flex items-center justify-end gap-1">
-              <metricInfo.icon className="h-3.5 w-3.5 text-muted-foreground" />
-              <span>{getResultCount()}</span>
-            </div>
-          </TableCell>
-          {/* Alcance */}
-          <TableCell className="text-right tabular-nums text-sm">
-            {metrics && metrics.reach > 0 ? formatNumber(metrics.reach) : "—"}
-          </TableCell>
-          {/* Frequência */}
-          <TableCell className="text-right tabular-nums text-sm">
-            {metrics && metrics.frequency > 0 ? metrics.frequency.toFixed(2) : "—"}
-          </TableCell>
-          {/* Custo por resultado */}
-          <TableCell className="text-right tabular-nums text-sm">
-            {getCostPerResult()}
-          </TableCell>
-          {/* Orçamento */}
-          <TableCell className="text-right tabular-nums">
-            {editingBudget === campaignId ? (
-              <div className="flex items-center gap-1 justify-end" onClick={e => e.stopPropagation()}>
-                <Input
-                  type="number"
-                  value={budgetValue}
-                  onChange={e => setBudgetValue(e.target.value)}
-                  className="w-24 h-7 text-xs"
-                  placeholder="R$"
-                  autoFocus
-                  onKeyDown={e => { if (e.key === "Enter") handleSaveBudget(campaignId); if (e.key === "Escape") setEditingBudget(null); }}
-                />
-                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => handleSaveBudget(campaignId)}>OK</Button>
-              </div>
-            ) : (
-              <span
-                className={onUpdateCampaignBudget ? "cursor-pointer hover:underline" : ""}
-                onClick={onUpdateCampaignBudget ? (e) => {
-                  e.stopPropagation();
-                  setEditingBudget(campaignId);
-                  setBudgetValue(budget ? (budget / 100).toString() : "");
-                } : undefined}
-              >
-                {budget ? formatCurrency(budget) : "—"}
-              </span>
-            )}
-          </TableCell>
-          {/* Valor usado (investido) */}
-          <TableCell className="text-right tabular-nums">
-            {metrics && metrics.spend_cents > 0 ? formatCurrency(metrics.spend_cents) : "—"}
-          </TableCell>
-          {/* ROAS (only for sales campaigns) */}
-          <TableCell className="text-right tabular-nums font-semibold">
-            {isSalesCampaign && metrics && metrics.roas > 0 ? (
-              <span className={metrics.roas >= 1 ? "text-green-600" : "text-red-500"}>
-                {metrics.roas.toFixed(2)}x
-              </span>
-            ) : "—"}
-          </TableCell>
+          {/* Dynamic metric columns */}
+          {visibleColumns.map(colKey => (
+            <TableCell key={colKey} className="text-right tabular-nums text-sm">
+              {renderMetricCell(colKey, c, metrics)}
+            </TableCell>
+          ))}
           {/* Ações */}
           <TableCell className="text-right" onClick={e => e.stopPropagation()}>
             <div className="flex justify-end gap-1">
@@ -426,15 +554,12 @@ export function AdsCampaignsTab({
               <span className="text-muted-foreground">↳</span> {as.name}
             </TableCell>
             <TableCell><StatusBadge status={as.status} /></TableCell>
-            <TableCell className="text-xs text-muted-foreground capitalize">{as.optimization_goal?.replace(/_/g, " ").toLowerCase() || "—"}</TableCell>
-            <TableCell />
-            <TableCell />
-            <TableCell />
-            <TableCell className="text-right tabular-nums text-sm">
-              {as.daily_budget_cents ? formatCurrency(as.daily_budget_cents) : "—"}
-            </TableCell>
-            <TableCell />
-            <TableCell />
+            {visibleColumns.map((colKey, idx) => (
+              <TableCell key={colKey} className="text-right tabular-nums text-sm">
+                {idx === 0 ? (as.optimization_goal?.replace(/_/g, " ").toLowerCase() || "—") :
+                 colKey === "budget" ? (as.daily_budget_cents ? formatCurrency(as.daily_budget_cents) : "—") : ""}
+              </TableCell>
+            ))}
             <TableCell className="text-right">
               {onUpdateAdset && (
                 <div className="flex justify-end gap-1">
@@ -456,6 +581,8 @@ export function AdsCampaignsTab({
     );
   };
 
+  const colDefs = ALL_METRIC_COLUMNS.filter(c => visibleColumns.includes(c.key));
+
   const renderTable = (campaignsList: any[]) => (
     <div className="rounded-md border overflow-x-auto">
       <Table>
@@ -463,13 +590,14 @@ export function AdsCampaignsTab({
           <TableRow>
             <TableHead>Campanha</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead className="text-right">Resultados</TableHead>
-            <TableHead className="text-right">Alcance</TableHead>
-            <TableHead className="text-right">Frequência</TableHead>
-            <TableHead className="text-right">Custo/resultado</TableHead>
-            <TableHead className="text-right">Orçamento</TableHead>
-            <TableHead className="text-right">Valor usado</TableHead>
-            <TableHead className="text-right">ROAS</TableHead>
+            {visibleColumns.map(colKey => {
+              const def = ALL_METRIC_COLUMNS.find(c => c.key === colKey);
+              return (
+                <TableHead key={colKey} className="text-right">
+                  {def?.shortLabel || colKey}
+                </TableHead>
+              );
+            })}
             <TableHead className="text-right">Ações</TableHead>
           </TableRow>
         </TableHeader>
@@ -499,11 +627,11 @@ export function AdsCampaignsTab({
           icon={Megaphone}
           title={isConnected ? "Nenhuma campanha sincronizada" : "Nenhuma campanha"}
           description={isConnected
-            ? "Clique em sincronizar para importar as campanhas das contas selecionadas"
+            ? "Clique em atualizar para importar as campanhas das contas selecionadas"
             : "Conecte sua conta e a IA sincronizará suas campanhas automaticamente"
           }
           action={isConnected && onSync ? {
-            label: isSyncing ? "Sincronizando..." : "Sincronizar campanhas",
+            label: isSyncing ? "Atualizando..." : "Atualizar campanhas",
             onClick: onSync,
           } : undefined}
         />
@@ -550,7 +678,7 @@ export function AdsCampaignsTab({
             </div>
           </div>
 
-          {/* Toolbar: filters + date + sync */}
+          {/* Toolbar: filters + date + columns + sync */}
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2">
@@ -613,12 +741,17 @@ export function AdsCampaignsTab({
               </Popover>
             </div>
 
-            {isConnected && onSync && (
-              <Button variant="outline" size="sm" onClick={onSync} disabled={isSyncing} className="gap-2">
-                {isSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                Sincronizar
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {/* Column selector */}
+              <ColumnSelector selected={visibleColumns} onChange={setVisibleColumns} />
+
+              {isConnected && onSync && (
+                <Button variant="outline" size="sm" onClick={onSync} disabled={isSyncing} className="gap-2">
+                  {isSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                  Atualizar
+                </Button>
+              )}
+            </div>
           </div>
 
           {filteredCampaigns.length === 0 ? (
