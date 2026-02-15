@@ -50,82 +50,43 @@ A divisão reflete nas permissões:
 |------------|--------|-----------------|
 | Meta (FB/IG) | ✅ Ready | Pixel, Catálogo, CAPI, OAuth integrador |
 | Google Ads | 🟧 Pending | Conversions, Merchant |
-| TikTok | ✅ Ready | Pixel, Events API, OAuth integrador |
+| TikTok | ✅ Ready | Pixel, Events API, OAuth integrador → **Migrado para Hub TikTok em `/integrations`** |
 | Pinterest | 🟧 Pending | Tag, Catálogo |
 
-### TikTok OAuth (Integrador)
+### TikTok OAuth (MIGRADO para Hub TikTok)
 
-> **STATUS:** ✅ Ready  
-> **Adicionado em:** 2026-01-28
+> **STATUS:** ⚠️ MIGRADO — Fonte de verdade agora é `tiktok_ads_connections`  
+> **Migrado em:** 2026-02-15  
+> **Documentação completa:** `docs/regras/integracoes.md` → seção "TikTok — Hub Multi-Conexão"
 
-Integração OAuth2 em nível de integrador (plataforma), onde o Comando Central atua como aplicativo autorizado no TikTok Business.
+A integração TikTok foi migrada de `marketing_integrations` para o Hub TikTok centralizado em `/integrations`.
 
-#### Fluxo de Conexão
-```
-1. Usuário clica "Conectar TikTok" no painel
-2. Frontend chama Edge Function `tiktok-oauth-start`
-3. Edge Function gera state CSRF e redireciona para TikTok
-4. Usuário autoriza no TikTok
-5. TikTok redireciona para `/integrations/tiktok/callback`
-6. Callback page chama `tiktok-oauth-callback`
-7. Edge Function troca auth_code por tokens
-8. Tokens salvos em `marketing_integrations`
-9. Popup fecha e UI atualiza
-```
+#### O que mudou
 
-#### Edge Functions
+| Antes | Depois |
+|-------|--------|
+| Tokens em `marketing_integrations.tiktok_*` | Tokens em `tiktok_ads_connections` |
+| Hook `useTikTokConnection` | Hook `useTikTokAdsConnection` |
+| Card em Marketing > TikTok | Hub em Integrações > TikTok |
+| 1 conexão genérica | 3 conexões por produto (Ads/Shop/Content) |
 
-| Function | Descrição | JWT |
-|----------|-----------|-----|
-| `tiktok-oauth-start` | Gera URL de autorização OAuth | Requer |
-| `tiktok-oauth-callback` | Troca código por tokens e salva | Não requer |
+#### Retrocompatibilidade (30 dias)
 
-#### Tabelas
+- O `tiktok-oauth-callback` v2 faz **dual-write** nas duas tabelas
+- O `marketing-send-tiktok` lê de `tiktok_ads_connections` com **fallback** para `marketing_integrations`
+- **Deadline para remover fallback:** 2026-03-17
 
-**`tiktok_oauth_states`** (anti-CSRF)
-```sql
-id UUID PK
-tenant_id UUID NOT NULL
-state TEXT UNIQUE NOT NULL
-redirect_uri TEXT NOT NULL
-created_at TIMESTAMPTZ
-expires_at TIMESTAMPTZ
-```
+#### Arquivos Deprecados
 
-**`marketing_integrations`** (campos adicionados)
-```sql
-tiktok_access_token TEXT
-tiktok_refresh_token TEXT  
-tiktok_token_expires_at TIMESTAMPTZ
-tiktok_advertiser_id TEXT
-tiktok_connected_at TIMESTAMPTZ
-```
+| Arquivo | Status | Substituído por |
+|---------|--------|-----------------|
+| `src/hooks/useTikTokConnection.ts` | ⚠️ Deprecated | `useTikTokAdsConnection.ts` |
+| `src/components/integrations/TikTokIntegrationCard.tsx` | ⚠️ Deprecated | `TikTokUnifiedSettings.tsx` |
 
-#### Secrets Requeridos
-| Secret | Descrição |
-|--------|-----------|
-| `TIKTOK_APP_ID` | App ID do TikTok Developer Portal |
-| `TIKTOK_APP_SECRET` | App Secret do TikTok Developer Portal |
+#### Referência Completa
 
-#### Arquivos
-
-| Arquivo | Descrição |
-|---------|-----------|
-| `supabase/functions/tiktok-oauth-start/index.ts` | Inicia fluxo OAuth |
-| `supabase/functions/tiktok-oauth-callback/index.ts` | Processa callback |
-| `src/hooks/useTikTokConnection.ts` | Hook de estado da conexão |
-| `src/pages/TikTokOAuthCallback.tsx` | Página de callback |
-| `src/components/integrations/TikTokIntegrationCard.tsx` | Card de integração |
-
-#### Redirect URI (Configurar no TikTok Developer Portal)
-```
-https://app.comandocentral.com.br/integrations/tiktok/callback
-```
-
-#### Escopos Solicitados
-```
-advertiser.basic.read,advertiser.pixel.read,advertiser.pixel.write
-```
+Para detalhes da nova arquitetura (scope packs, tabelas, edge functions, fases), consulte:
+- `docs/regras/integracoes.md` → seção "TikTok — Hub Multi-Conexão"
 
 ### Meta Pixel & CAPI
 ```typescript
