@@ -278,7 +278,7 @@ Lojista (Orçamento Total + Instruções)
 | `src/components/ads/AdsGlobalConfig.tsx` | Card config global (orçamento + ROI ideal + prompt) |
 | `src/components/ads/AdsChannelIntegrationAlert.tsx` | Alerta de integração por canal (não conectado → link para /integrations; conectado → chips de seleção de contas de anúncio com toggle) |
 | `src/components/ads/AdsChannelRoasConfig.tsx` | Config de ROI por canal (frio/quente) + toggle IA |
-| `src/components/ads/AdsCampaignsTab.tsx` | Campanhas por canal com filtro por contas selecionadas, agrupamento por conta quando múltiplas estão ativas, e botão de sincronização manual no estado vazio |
+| `src/components/ads/AdsCampaignsTab.tsx` | Campanhas por canal com: filtro por status (Todas/Ativas/Pausadas via ToggleGroup com contadores), filtro por contas selecionadas, agrupamento por conta, gestão manual (pausar/ativar via Meta API), botão de sync permanente |
 | `src/components/ads/AdsActionsTab.tsx` | Timeline de ações da IA |
 | `src/components/ads/AdsReportsTab.tsx` | Cards resumo + gráficos |
 
@@ -299,8 +299,9 @@ Se falhar → status `BLOCKED`, gera `report_insight` com o que falta.
 | Comportamento | Descrição |
 |---------------|-----------|
 | **Auto-sync** | Na primeira visualização de um canal conectado, se a lista de campanhas estiver vazia, dispara `syncCampaigns.mutate()` automaticamente (controlado por `syncedChannelsRef` para evitar re-trigger) |
-| **Sync manual** | Botão "Sincronizar campanhas" exibido **apenas** no `EmptyState` da `AdsCampaignsTab` quando `isConnected=true` e não há campanhas sincronizadas |
-| **Sem botão global** | Não existe botão de sync na barra principal — apenas contextual no estado vazio |
+| **Sync manual** | Botão "Sincronizar" exibido **permanentemente** na toolbar da `AdsCampaignsTab` quando há campanhas e `isConnected=true`; também no `EmptyState` quando não há campanhas |
+| **Filtro por status** | ToggleGroup com 3 opções: Todas (total), Ativas (ACTIVE/ENABLE), Pausadas (PAUSED/DISABLE/ARCHIVED) — cada uma com badge de contagem |
+| **Gestão manual** | Botões de Pausar (⏸) e Ativar (▶) por campanha, chamam `onUpdateCampaign` que dispara update na API da plataforma (Meta/TikTok) em tempo real |
 
 ### Edge Function `meta-ads-campaigns` (v1.1.0)
 
