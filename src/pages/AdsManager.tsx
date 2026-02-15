@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Bot } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -40,6 +40,25 @@ export default function AdsManager() {
     });
   }, []);
 
+  // Auto-sync campaigns when a connected channel is viewed for the first time
+  const syncedChannelsRef = useRef<Set<string>>(new Set());
+  
+  useEffect(() => {
+    const integration = getChannelIntegration(activeChannel);
+    if (!integration.isConnected || integration.isLoading) return;
+    if (syncedChannelsRef.current.has(activeChannel)) return;
+    
+    // Mark as synced to avoid re-triggering
+    syncedChannelsRef.current.add(activeChannel);
+    
+    // Trigger sync based on channel
+    if (activeChannel === "meta" && meta.campaigns.length === 0) {
+      meta.syncCampaigns.mutate();
+    } else if (activeChannel === "tiktok" && tiktok.campaigns.length === 0) {
+      tiktok.syncCampaigns.mutate();
+    }
+  }, [activeChannel, meta, tiktok]);
+
   const handleUpdateCampaign = (campaignId: string, status: string) => {
     if (activeChannel === "meta") {
       meta.updateCampaign.mutate({ meta_campaign_id: campaignId, status });
@@ -48,12 +67,20 @@ export default function AdsManager() {
     }
   };
 
+  const handleSyncCampaigns = useCallback(() => {
+    if (activeChannel === "meta") {
+      meta.syncCampaigns.mutate();
+    } else if (activeChannel === "tiktok") {
+      tiktok.syncCampaigns.mutate();
+    }
+  }, [activeChannel, meta, tiktok]);
+
   const getChannelData = () => {
     switch (activeChannel) {
       case "meta":
-        return { campaigns: meta.campaigns, campaignsLoading: meta.campaignsLoading, insights: meta.insights, insightsLoading: meta.insightsLoading };
+        return { campaigns: meta.campaigns, campaignsLoading: meta.campaignsLoading || meta.syncCampaigns.isPending, insights: meta.insights, insightsLoading: meta.insightsLoading };
       case "tiktok":
-        return { campaigns: tiktok.campaigns, campaignsLoading: tiktok.campaignsLoading, insights: tiktok.insights, insightsLoading: tiktok.insightsLoading };
+        return { campaigns: tiktok.campaigns, campaignsLoading: tiktok.campaignsLoading || tiktok.syncCampaigns.isPending, insights: tiktok.insights, insightsLoading: tiktok.insightsLoading };
       default:
         return { campaigns: [], campaignsLoading: false, insights: [], insightsLoading: false };
     }
@@ -181,6 +208,9 @@ export default function AdsManager() {
                     onUpdateCampaign={handleUpdateCampaign}
                     selectedAccountIds={channelSelectedAccounts}
                     adAccounts={integration.adAccounts}
+                    isConnected={integration.isConnected}
+                    onSync={handleSyncCampaigns}
+                    isSyncing={activeChannel === "meta" ? meta.syncCampaigns.isPending : activeChannel === "tiktok" ? tiktok.syncCampaigns.isPending : false}
                   />
                 </TabsContent>
 
