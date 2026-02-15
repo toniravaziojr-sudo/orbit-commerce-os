@@ -287,17 +287,23 @@ Edge Function autônoma de gestão de tráfego pago multi-canal (Meta, Google, T
 Calcula deltas percentuais para: spend, impressions, clicks, conversions, CPA, ROAS, CTR.
 Classifica tendência como `improving`, `declining` ou `stable`.
 
-### Metas de ROAS por Canal (v3.0.0)
-**IMPORTANTE**: As metas de ROAS são definidas **pelo usuário por canal**, pois cada negócio tem margens diferentes por plataforma. Armazenadas em `ads_autopilot_configs.safety_rules` de cada canal (não global).
+### Metas de ROI por Canal (v3.1.0)
+**IMPORTANTE**: O objetivo é sempre **VENDAS** (e-commerce). As metas de ROI são definidas **pelo usuário por canal**, pois cada negócio tem margens diferentes por plataforma. Armazenadas em `ads_autopilot_configs.safety_rules` de cada canal (não global).
+
+ROI = Retorno sobre Investimento. Ex: ROI 2 = R$2 de retorno para cada R$1 investido em anúncios.
 
 | Campo | Default | Descrição |
 |-------|---------|-----------|
-| `target_roas_cold` | 2.0 | ROAS ideal para público frio (prospecção) — definido pelo lojista |
-| `target_roas_remarketing` | 4.0 | ROAS ideal para remarketing — definido pelo lojista |
-| `min_roas_pause_cold` | 0.8 | ROAS mínimo para público frio — abaixo disso, pausar após 5d |
-| `min_roas_pause_remarketing` | 1.5 | ROAS mínimo para remarketing — abaixo disso, pausar após 5d |
+| `min_roi_cold` | 2 | ROI mínimo para público frio — abaixo disso, pausar campanha |
+| `min_roi_warm` | 3 | ROI mínimo para público quente (remarketing) — abaixo disso, pausar campanha |
 
-**UI**: Componente `AdsChannelRoasConfig` em cada aba de canal (Meta, Google, TikTok) permite ao usuário definir as 4 metas. Salvas em `safety_rules` da config do canal correspondente.
+**UI**: Componente `AdsChannelRoasConfig` em cada aba de canal (Meta, Google, TikTok) exibe:
+- Toggle de ativação da IA **por canal** (não global)
+- Botão "Executar Análise" por canal
+- Config de ROI mínimo para pausar (frio e quente)
+- Salvas em `safety_rules` da config do canal correspondente.
+
+**Config Global** (`AdsGlobalConfig`): Apenas orçamento total, margem bruta, CPA máximo e prompt de direcionamento. Sem seletor de objetivo (sempre vendas).
 
 ### Regras de Segurança (Safety Rules — Globais)
 | Regra | Default | Descrição |
@@ -349,9 +355,9 @@ A IA **NÃO cria públicos automaticamente** via API. Quando identifica necessid
 ### Critérios de Pausa por Plataforma
 | Plataforma | Critério de pausa |
 |------------|-------------------|
-| **Meta** | CPA > 2x alvo por 3+ dias (pós-learning), ROAS < min_roas_pause do canal por 5d, Freq > 3.0, CTR < 0.5% |
+| **Meta** | CPA > 2x alvo por 3+ dias (pós-learning), ROI < `min_roi_cold`/`min_roi_warm` do canal por 5d, Freq > 3.0, CTR < 0.5% |
 | **Google Search** | CPA > 2x alvo por 7+ dias com 30+ cliques |
-| **Google Shopping** | ROAS < 1.5x por 7+ dias |
+| **Google Shopping** | ROI < `min_roi_cold` do canal por 7+ dias |
 | **TikTok** | CPA > 2.5x alvo por 5+ dias (pós-learning), CTR < 0.3%, NÃO pausar com < 7 dias |
 
 ### Rollout Progressivo (Phased)
@@ -365,7 +371,7 @@ A IA **NÃO cria públicos automaticamente** via API. Quando identifica necessid
 1. **Learning Phase** — A campanha está em aprendizado? Se sim, apenas report_insight
 2. **Tipo de Audiência** — Público frio vs quente (CPA relativo, não absoluto)
 3. **Eficiência (CPA)** — CPA vs teto de margem (contextualizado por tipo de público)
-4. **Retorno (ROAS)** — Acima ou abaixo do mín. configurado **para o canal específico**
+4. **Retorno (ROI)** — Acima ou abaixo do `min_roi_cold`/`min_roi_warm` configurado **para o canal específico**
 5. **Engajamento (CTR/Frequência)** — Fadiga criativa, saturação
 6. **Escala** — Potencial de aumento respeitando limites da plataforma
 7. **Inventário** — Produtos com estoque ≤ 5 unidades
