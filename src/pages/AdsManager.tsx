@@ -9,8 +9,7 @@ import { useAdsAutopilot } from "@/hooks/useAdsAutopilot";
 import { useMetaConnection } from "@/hooks/useMetaConnection";
 import { useGoogleConnection } from "@/hooks/useGoogleConnection";
 import { useTikTokAdsConnection } from "@/hooks/useTikTokAdsConnection";
-import { AdsGlobalConfig } from "@/components/ads/AdsGlobalConfig";
-import { AdsChannelRoasConfig } from "@/components/ads/AdsChannelRoasConfig";
+import { AdsAccountConfig } from "@/components/ads/AdsAccountConfig";
 import { AdsChannelIntegrationAlert } from "@/components/ads/AdsChannelIntegrationAlert";
 import { AdsCampaignsTab } from "@/components/ads/AdsCampaignsTab";
 import { AdsActionsTab } from "@/components/ads/AdsActionsTab";
@@ -201,11 +200,7 @@ export default function AdsManager() {
         description="Gerencie campanhas com IA autônoma em todos os canais"
       />
 
-      <AdsGlobalConfig
-        globalConfig={autopilot.globalConfig}
-        onSave={(config) => autopilot.saveConfig.mutate(config)}
-        isSaving={autopilot.saveConfig.isPending}
-      />
+      {/* Global config removed — now per-account inside each channel tab */}
 
       <Tabs value={activeChannel} onValueChange={setActiveChannel}>
         <TabsList>
@@ -275,12 +270,13 @@ export default function AdsManager() {
                 onToggleAI={handleToggleAI}
               />
 
-              <AdsChannelRoasConfig
+              <AdsAccountConfig
                 channel={channel}
                 channelConfig={channelConfig}
+                aiEnabledAccountIds={aiEnabledAccounts}
+                adAccounts={integration.adAccounts}
                 onSave={(config) => autopilot.saveConfig.mutate(config)}
                 isSaving={autopilot.saveConfig.isPending}
-                aiAccountCount={aiEnabledAccounts.length}
               />
 
               <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
