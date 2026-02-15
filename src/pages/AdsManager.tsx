@@ -328,6 +328,9 @@ export default function AdsManager() {
                     insights={channelData.insights}
                     actions={autopilot.actions}
                     channel={channel}
+                    selectedAccountIds={channelSelectedAccounts}
+                    adAccounts={integration.adAccounts}
+                    campaigns={channelData.campaigns}
                   />
                 </TabsContent>
               </Tabs>
