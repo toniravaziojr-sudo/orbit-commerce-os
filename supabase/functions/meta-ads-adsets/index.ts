@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.1.0"; // Fix: balance uses funding_source_details for prepaid balance
+const VERSION = "v1.2.0"; // Balance: add funding_source_type for credit card detection
 // ===========================================================
 
 const corsHeaders = {
@@ -33,12 +33,14 @@ async function getMetaConnection(supabase: any, tenantId: string): Promise<MetaC
 }
 
 async function graphApi(path: string, token: string, method = "GET", body?: any) {
-  const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${path}`;
+  // Support absolute URLs (e.g. pagination links from Meta)
+  const isAbsolute = path.startsWith("https://");
+  const baseUrl = isAbsolute ? path : `https://graph.facebook.com/${GRAPH_API_VERSION}/${path}`;
   const options: RequestInit = { method, headers: { "Content-Type": "application/json" } };
 
   if (method === "GET") {
-    const separator = path.includes("?") ? "&" : "?";
-    const fullUrl = `${url}${separator}access_token=${token}`;
+    const separator = baseUrl.includes("?") ? "&" : "?";
+    const fullUrl = isAbsolute ? `${baseUrl}&access_token=${token}` : `${baseUrl}${separator}access_token=${token}`;
     const res = await fetch(fullUrl, options);
     return res.json();
   }
@@ -46,7 +48,7 @@ async function graphApi(path: string, token: string, method = "GET", body?: any)
   if (body) {
     options.body = JSON.stringify({ ...body, access_token: token });
   }
-  const res = await fetch(url, options);
+  const res = await fetch(baseUrl, options);
   return res.json();
 }
 
@@ -214,18 +216,18 @@ Deno.serve(async (req) => {
         const accountId = account.id.replace("act_", "");
         // Fetch balance + funding_source_details for accurate prepaid balance
         const result = await graphApi(
-          `act_${accountId}?fields=balance,amount_spent,spend_cap,currency,account_status,name,funding_source_details`,
+          `act_${accountId}?fields=balance,amount_spent,spend_cap,currency,account_status,name,funding_source_details,funding_source`,
           conn.access_token
         );
         if (!result.error) {
-          // For prepaid accounts: balance = remaining spending limit (in cents, negative = credit)
-          // The Meta API "balance" field shows remaining credit (negative = has credit)
-          // funding_source_details.current_balance is the actual prepaid balance
           const fundingBalance = result.funding_source_details?.current_balance;
           const apiBalance = result.balance ? parseInt(result.balance) : 0;
           
-          // Use funding source balance if available, otherwise use account balance
-          // Meta returns balance as negative for credit remaining
+          // Detect funding source type: CREDIT_CARD, PREPAID, LINE_OF_CREDIT, etc
+          const fundingType = result.funding_source_details?.type || 
+            (result.funding_source ? "CREDIT_CARD" : "UNKNOWN");
+          
+          // For credit card accounts, balance may be 0 or irrelevant
           const balanceCents = fundingBalance != null 
             ? parseInt(fundingBalance) 
             : Math.abs(apiBalance);
@@ -237,6 +239,7 @@ Deno.serve(async (req) => {
             amount_spent_cents: result.amount_spent ? parseInt(result.amount_spent) : 0,
             currency: result.currency || "BRL",
             account_status: result.account_status,
+            funding_source_type: fundingType,
           });
         } else {
           console.error(`[meta-ads-adsets][${traceId}] Balance error for ${account.id}:`, result.error);

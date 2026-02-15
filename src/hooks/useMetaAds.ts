@@ -93,6 +93,7 @@ export interface MetaAdAccountBalance {
   amount_spent_cents: number;
   currency: string;
   account_status: number;
+  funding_source_type?: string;
 }
 
 export interface MetaAdAd {

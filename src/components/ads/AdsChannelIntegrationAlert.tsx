@@ -18,7 +18,7 @@ interface AdsChannelIntegrationAlertProps {
   selectedAccountIds: string[];
   onToggleAccount: (accountId: string) => void;
   aiEnabledAccountIds: string[];
-  onToggleAI: (accountId: string) => void;
+  onOpenAIConfig: (accountId: string) => void;
 }
 
 const CHANNEL_INFO: Record<string, { label: string; integrationPath: string; description: string }> = {
@@ -39,7 +39,7 @@ const CHANNEL_INFO: Record<string, { label: string; integrationPath: string; des
   },
 };
 
-export function AdsChannelIntegrationAlert({ channel, isConnected, isLoading, adAccounts, selectedAccountIds, onToggleAccount, aiEnabledAccountIds, onToggleAI }: AdsChannelIntegrationAlertProps) {
+export function AdsChannelIntegrationAlert({ channel, isConnected, isLoading, adAccounts, selectedAccountIds, onToggleAccount, aiEnabledAccountIds, onOpenAIConfig }: AdsChannelIntegrationAlertProps) {
   const navigate = useNavigate();
   const info = CHANNEL_INFO[channel] || CHANNEL_INFO.meta;
 
@@ -73,7 +73,7 @@ export function AdsChannelIntegrationAlert({ channel, isConnected, isLoading, ad
         <AlertTitle className="font-semibold text-sm">Contas de anúncio conectadas</AlertTitle>
         <AlertDescription className="mt-2">
           <p className="text-xs text-muted-foreground mb-2">
-            Selecione as contas para visualizar e clique no ícone <Bot className="h-3 w-3 inline" /> para ativar a IA:
+            Selecione as contas para visualizar e clique no ícone <Bot className="h-3 w-3 inline" /> para configurar a IA:
           </p>
           <div className="flex flex-wrap gap-1.5">
             {adAccounts.map((acc) => {
@@ -96,19 +96,19 @@ export function AdsChannelIntegrationAlert({ channel, isConnected, isLoading, ad
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
-                        onClick={() => onToggleAI(acc.id)}
+                        onClick={() => onOpenAIConfig(acc.id)}
                         className={cn(
                           "inline-flex items-center justify-center rounded-r-md border px-1.5 py-1 transition-colors cursor-pointer h-full",
                           isAI
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-border bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                            ? "border-blue-500 bg-blue-500 text-white"
+                            : "border-yellow-500/50 bg-yellow-500/10 text-yellow-600 hover:bg-yellow-500/20"
                         )}
                       >
                         <Bot className="h-3.5 w-3.5" />
                       </button>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="text-xs">
-                      {isAI ? "IA ativa nesta conta — clique para desativar" : "Clique para ativar a IA nesta conta"}
+                      {isAI ? "IA ativa — clique para configurar" : "Clique para configurar a IA"}
                     </TooltipContent>
                   </Tooltip>
                 </div>

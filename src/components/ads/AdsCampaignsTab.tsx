@@ -32,6 +32,7 @@ interface AccountBalance {
   balance_cents: number;
   amount_spent_cents: number;
   currency: string;
+  funding_source_type?: string;
 }
 
 interface AdSetData {
@@ -123,13 +124,16 @@ function isStatusPaused(status: string, effectiveStatus?: string): boolean {
   return s === "PAUSED" || s === "DISABLE" || s === "ARCHIVED" || s === "CAMPAIGN_PAUSED" || s === "ADSET_PAUSED";
 }
 
-// A campaign is truly active only if it's ACTIVE AND has at least 1 active adset
+// A campaign is truly active if effective_status is ACTIVE.
+// If adsets are synced, also require at least 1 active adset.
+// If adsets are NOT synced for this campaign, trust the campaign effective_status alone.
 function isCampaignTrulyActive(campaign: any, adsets: AdSetData[]): boolean {
   if (!isStatusActive(campaign.status, campaign.effective_status)) return false;
   const campaignId = campaign.meta_campaign_id || campaign.google_campaign_id || campaign.tiktok_campaign_id;
-  if (!campaignId) return false;
+  if (!campaignId) return true; // no ID means we can't check adsets, trust campaign status
   const campaignAdsets = adsets.filter(a => a.meta_campaign_id === campaignId);
-  if (campaignAdsets.length === 0) return false;
+  // If no adsets synced yet for this campaign, trust campaign effective_status
+  if (campaignAdsets.length === 0) return true;
   return campaignAdsets.some(a => isStatusActive(a.status, a.effective_status));
 }
 
@@ -791,7 +795,9 @@ export function AdsCampaignsTab({
                   onClick={() => window.open(getChannelBalanceUrl(channel), "_blank")}
                 >
                   <Wallet className="h-3 w-3" />
-                  Saldo: {formatCurrency(totalBalance)}
+                  {filteredBalances.some(b => b.funding_source_type === "CREDIT_CARD")
+                    ? "Cartão de crédito"
+                    : `Saldo: ${formatCurrency(totalBalance)}`}
                   <ExternalLink className="h-2.5 w-2.5 text-muted-foreground/60" />
                 </Button>
               )}

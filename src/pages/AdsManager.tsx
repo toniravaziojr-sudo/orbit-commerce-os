@@ -25,6 +25,7 @@ export default function AdsManager() {
 
   const [activeChannel, setActiveChannel] = useState("meta");
   const [activeSubTab, setActiveSubTab] = useState("campaigns");
+  const [openAIConfigAccountId, setOpenAIConfigAccountId] = useState<string | null>(null);
 
   // Selected ad accounts per channel — persisted in localStorage
   const STORAGE_KEY = "ads-selected-accounts";
@@ -234,15 +235,14 @@ export default function AdsManager() {
           const channelSelectedAccounts = selectedAccounts[channel] || integration.adAccounts.map(a => a.id);
           const aiEnabledAccounts: string[] = (channelConfig?.safety_rules as any)?.ai_enabled_accounts || [];
 
-          const handleToggleAI = (accountId: string) => {
+          const handleToggleAI = (accountId: string, enabled: boolean) => {
             const current = [...aiEnabledAccounts];
-            const idx = current.indexOf(accountId);
-            if (idx >= 0) {
-              current.splice(idx, 1);
-            } else {
+            if (enabled && !current.includes(accountId)) {
               current.push(accountId);
+            } else if (!enabled) {
+              const idx = current.indexOf(accountId);
+              if (idx >= 0) current.splice(idx, 1);
             }
-            // Save to channel config safety_rules
             autopilot.saveConfig.mutate({
               channel,
               is_enabled: current.length > 0,
@@ -251,10 +251,13 @@ export default function AdsManager() {
                 ai_enabled_accounts: current,
               },
             });
-            // Trigger first analysis if enabling
-            if (current.length > 0 && aiEnabledAccounts.length === 0) {
+            if (enabled && aiEnabledAccounts.length === 0) {
               setTimeout(() => autopilot.triggerAnalysis.mutate(), 1000);
             }
+          };
+
+          const handleOpenAIConfig = (accountId: string) => {
+            setOpenAIConfigAccountId(prev => prev === accountId ? null : accountId);
           };
 
           return (
@@ -267,17 +270,20 @@ export default function AdsManager() {
                 selectedAccountIds={channelSelectedAccounts}
                 onToggleAccount={(accountId) => toggleAccount(channel, accountId)}
                 aiEnabledAccountIds={aiEnabledAccounts}
-                onToggleAI={handleToggleAI}
+                onOpenAIConfig={handleOpenAIConfig}
               />
 
-              <AdsAccountConfig
-                channel={channel}
-                channelConfig={channelConfig}
-                aiEnabledAccountIds={aiEnabledAccounts}
-                adAccounts={integration.adAccounts}
-                onSave={(config) => autopilot.saveConfig.mutate(config)}
-                isSaving={autopilot.saveConfig.isPending}
-              />
+              {openAIConfigAccountId && (
+                <AdsAccountConfig
+                  channel={channel}
+                  channelConfig={channelConfig}
+                  aiEnabledAccountIds={aiEnabledAccounts}
+                  adAccounts={integration.adAccounts.filter(a => a.id === openAIConfigAccountId)}
+                  onSave={(config) => autopilot.saveConfig.mutate(config)}
+                  isSaving={autopilot.saveConfig.isPending}
+                  onToggleAI={handleToggleAI}
+                />
+              )}
 
               <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
                 <TabsList>
