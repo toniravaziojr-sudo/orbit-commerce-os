@@ -14987,6 +14987,84 @@ export type Database = {
           },
         ]
       }
+      tiktok_shop_orders: {
+        Row: {
+          buyer_email: string | null
+          buyer_name: string | null
+          buyer_phone: string | null
+          created_at: string
+          currency: string | null
+          id: string
+          items: Json | null
+          last_error: string | null
+          order_data: Json | null
+          order_id: string | null
+          order_total_cents: number | null
+          shipping_address: Json | null
+          status: string
+          synced_at: string | null
+          tenant_id: string
+          tiktok_order_id: string
+          tiktok_status: string | null
+          updated_at: string
+        }
+        Insert: {
+          buyer_email?: string | null
+          buyer_name?: string | null
+          buyer_phone?: string | null
+          created_at?: string
+          currency?: string | null
+          id?: string
+          items?: Json | null
+          last_error?: string | null
+          order_data?: Json | null
+          order_id?: string | null
+          order_total_cents?: number | null
+          shipping_address?: Json | null
+          status?: string
+          synced_at?: string | null
+          tenant_id: string
+          tiktok_order_id: string
+          tiktok_status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          buyer_email?: string | null
+          buyer_name?: string | null
+          buyer_phone?: string | null
+          created_at?: string
+          currency?: string | null
+          id?: string
+          items?: Json | null
+          last_error?: string | null
+          order_data?: Json | null
+          order_id?: string | null
+          order_total_cents?: number | null
+          shipping_address?: Json | null
+          status?: string
+          synced_at?: string | null
+          tenant_id?: string
+          tiktok_order_id?: string
+          tiktok_status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiktok_shop_orders_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tiktok_shop_orders_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tiktok_shop_products: {
         Row: {
           created_at: string

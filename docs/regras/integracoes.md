@@ -120,7 +120,7 @@ A aba `domain-email` unifica duas seções:
 | Meta (FB/IG) | ✅ Ready | Publicação Feed/Stories/Reels, WhatsApp, Catálogo, Pixel |
 | Instagram | ✅ Ready | Via Meta Graph API (container flow) |
 | **YouTube** | ✅ Ready | Upload, agendamento, analytics (via Hub Google) |
-| **TikTok Hub** | ✅ Ready (Fase 4) | Hub multi-conexão: Ads (Pixel/CAPI) ✅, Shop (OAuth) ✅, Content (Login Kit) ✅ |
+| **TikTok Hub** | ✅ Ready (Fase 6) | Hub multi-conexão: Ads (Pixel/CAPI) ✅, Shop (OAuth+Catálogo+Pedidos) ✅, Content (Login Kit) ✅ |
 | **Google Hub** | ✅ Ready | YouTube, Ads, Merchant, Analytics, Search Console, Business, Tag Manager |
 
 ### 3. Marketplaces
