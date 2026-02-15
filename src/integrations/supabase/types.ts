@@ -15216,6 +15216,112 @@ export type Database = {
           },
         ]
       }
+      tiktok_shop_returns: {
+        Row: {
+          buyer_comments: string | null
+          created_at: string
+          currency: string
+          id: string
+          items: Json | null
+          last_error: string | null
+          order_id: string | null
+          reason: string | null
+          refund_amount_cents: number | null
+          requested_at: string | null
+          resolved_at: string | null
+          return_carrier: string | null
+          return_data: Json | null
+          return_shipping_status: string | null
+          return_tracking_code: string | null
+          return_type: string
+          seller_comments: string | null
+          status: string
+          synced_at: string | null
+          tenant_id: string
+          tiktok_order_id: string
+          tiktok_return_id: string | null
+          tiktok_shop_order_id: string | null
+          tiktok_status: string | null
+          updated_at: string
+        }
+        Insert: {
+          buyer_comments?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          items?: Json | null
+          last_error?: string | null
+          order_id?: string | null
+          reason?: string | null
+          refund_amount_cents?: number | null
+          requested_at?: string | null
+          resolved_at?: string | null
+          return_carrier?: string | null
+          return_data?: Json | null
+          return_shipping_status?: string | null
+          return_tracking_code?: string | null
+          return_type?: string
+          seller_comments?: string | null
+          status?: string
+          synced_at?: string | null
+          tenant_id: string
+          tiktok_order_id: string
+          tiktok_return_id?: string | null
+          tiktok_shop_order_id?: string | null
+          tiktok_status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          buyer_comments?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          items?: Json | null
+          last_error?: string | null
+          order_id?: string | null
+          reason?: string | null
+          refund_amount_cents?: number | null
+          requested_at?: string | null
+          resolved_at?: string | null
+          return_carrier?: string | null
+          return_data?: Json | null
+          return_shipping_status?: string | null
+          return_tracking_code?: string | null
+          return_type?: string
+          seller_comments?: string | null
+          status?: string
+          synced_at?: string | null
+          tenant_id?: string
+          tiktok_order_id?: string
+          tiktok_return_id?: string | null
+          tiktok_shop_order_id?: string | null
+          tiktok_status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiktok_shop_returns_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tiktok_shop_returns_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tiktok_shop_returns_tiktok_shop_order_id_fkey"
+            columns: ["tiktok_shop_order_id"]
+            isOneToOne: false
+            referencedRelation: "tiktok_shop_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
