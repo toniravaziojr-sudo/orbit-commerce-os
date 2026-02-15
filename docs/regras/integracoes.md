@@ -1683,8 +1683,8 @@ https://app.comandocentral.com.br/integrations/tiktok/callback
 | 5 | TikTok Shop: Catálogo de Produtos | ✅ Concluída |
 | 6 | TikTok Shop: Pedidos | ✅ Concluída |
 | 7 | TikTok Shop: Fulfillment e Logística | ✅ Concluída |
-| 8 | TikTok Shop: Devoluções e Pós-venda | 🟧 Pendente |
-| 9 | TikTok Shop: Atendimento (Inbox Unificado) | 🟧 Pendente |
+| 8 | TikTok Shop: Devoluções e Pós-venda | ✅ Concluída |
+| 9 | TikTok Shop: UI Operacional (Catálogo, Pedidos, Envios, Devoluções) | ✅ Concluída |
 | 10 | TikTok Ads: Campanhas e Insights | 🟧 Pendente |
 | 11 | TikTok Content: Publicação Orgânica | 🟧 Pendente |
 | 12 | Webhooks e Analytics Agregados | 🟧 Pendente |
@@ -1901,3 +1901,28 @@ https://app.comandocentral.com.br/integrations/tiktok/callback
 | Tabela | Edge Functions |
 |--------|----------------|
 | `tiktok_shop_returns` | `tiktok-shop-returns` |
+
+### Fase 9: UI Operacional do TikTok Shop ✅
+
+#### Componentes
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/components/integrations/tiktok/TikTokShopPanel.tsx` | Painel com abas (Catálogo, Pedidos, Envios, Devoluções) |
+| `src/components/integrations/tiktok/TikTokShopCatalogTab.tsx` | Tab Catálogo — sync e status de produtos |
+| `src/components/integrations/tiktok/TikTokShopOrdersTab.tsx` | Tab Pedidos — listagem e sync de pedidos |
+| `src/components/integrations/tiktok/TikTokShopFulfillmentTab.tsx` | Tab Envios — fulfillments e transportadoras |
+| `src/components/integrations/tiktok/TikTokShopReturnsTab.tsx` | Tab Devoluções — devoluções com ações aprovar/rejeitar |
+
+#### Integração
+
+O `TikTokShopPanel` é renderizado dentro do card "TikTok Shop" em `TikTokUnifiedSettings.tsx`, visível apenas quando a conexão Shop está ativa (`shopStatus.isConnected`).
+
+#### Abas
+
+| Tab | Hook | Ações |
+|-----|------|-------|
+| Catálogo | `useTikTokCatalog` | Sincronizar produtos, verificar status |
+| Pedidos | `useTikTokOrders` | Sincronizar pedidos, atualizar lista |
+| Envios | `useTikTokFulfillment` | Listar fulfillments, ver transportadoras |
+| Devoluções | `useTikTokReturns` | Sincronizar, aprovar, rejeitar devoluções |
