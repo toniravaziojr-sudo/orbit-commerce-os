@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.0.0"; // Initial: Fetch + cache campaign insights
+const VERSION = "v1.1.0"; // Fix: marketplace/is_active columns, extract conversion_value, multi-account, frequency
 // ===========================================================
 
 const corsHeaders = {
@@ -38,20 +38,21 @@ Deno.serve(async (req) => {
     }
 
     // ========================
-    // SYNC — Pull insights from Meta for all campaigns
+    // SYNC — Pull insights from Meta for all campaigns (ALL accounts)
     // ========================
     if (action === "sync") {
+      // FIX: use correct column names (marketplace, is_active)
       const { data: conn } = await supabase
         .from("marketplace_connections")
         .select("access_token, metadata")
         .eq("tenant_id", tenantId)
-        .eq("platform", "meta")
-        .eq("status", "active")
+        .eq("marketplace", "meta")
+        .eq("is_active", true)
         .maybeSingle();
 
       if (!conn) {
         return new Response(
-          JSON.stringify({ success: false, error: "Meta não conectada" }),
+          JSON.stringify({ success: false, error: "Meta não conectada", code: "META_NOT_CONNECTED" }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -59,85 +60,108 @@ Deno.serve(async (req) => {
       const adAccounts = conn.metadata?.assets?.ad_accounts || [];
       if (adAccounts.length === 0) {
         return new Response(
-          JSON.stringify({ success: false, error: "Nenhuma conta de anúncios" }),
+          JSON.stringify({ success: false, error: "Nenhuma conta de anúncios", code: "NO_AD_ACCOUNT" }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      const adAccountId = body.ad_account_id || adAccounts[0].id;
       const datePreset = body.date_preset || "last_30d";
-      const timeRange = body.time_range; // { since: "YYYY-MM-DD", until: "YYYY-MM-DD" }
+      const timeRange = body.time_range;
+      let totalSynced = 0;
+      let totalErrors = 0;
 
-      let insightsUrl = `act_${adAccountId.replace("act_", "")}/insights?fields=campaign_id,campaign_name,impressions,clicks,spend,reach,cpc,cpm,ctr,actions,cost_per_action_type,frequency&level=campaign&limit=500`;
+      // Iterate ALL ad accounts (not just the first)
+      for (const account of adAccounts) {
+        const accountId = account.id.replace("act_", "");
+        
+        let insightsUrl = `act_${accountId}/insights?fields=campaign_id,campaign_name,impressions,clicks,spend,reach,cpc,cpm,ctr,actions,action_values,cost_per_action_type,frequency&level=campaign&limit=500`;
 
-      if (timeRange) {
-        insightsUrl += `&time_range=${JSON.stringify(timeRange)}`;
-      } else {
-        insightsUrl += `&date_preset=${datePreset}`;
-      }
-
-      const res = await fetch(
-        `https://graph.facebook.com/${GRAPH_API_VERSION}/${insightsUrl}&access_token=${conn.access_token}`
-      );
-      const result = await res.json();
-
-      if (result.error) {
-        return new Response(
-          JSON.stringify({ success: false, error: result.error.message }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      const insights = result.data || [];
-      let synced = 0;
-
-      for (const i of insights) {
-        // Find local campaign
-        const { data: localCampaign } = await supabase
-          .from("meta_ad_campaigns")
-          .select("id")
-          .eq("tenant_id", tenantId)
-          .eq("meta_campaign_id", i.campaign_id)
-          .maybeSingle();
-
-        // Extract conversions from actions
-        const purchaseAction = (i.actions || []).find((a: any) => a.action_type === "purchase" || a.action_type === "offsite_conversion.fb_pixel_purchase");
-        const conversions = purchaseAction ? parseInt(purchaseAction.value || "0") : 0;
-
-        const spendCents = Math.round(parseFloat(i.spend || "0") * 100);
-        const cpcCents = Math.round(parseFloat(i.cpc || "0") * 100);
-        const cpmCents = Math.round(parseFloat(i.cpm || "0") * 100);
-
-        const { error } = await supabase
-          .from("meta_ad_insights")
-          .upsert({
-            tenant_id: tenantId,
-            campaign_id: localCampaign?.id || null,
-            meta_campaign_id: i.campaign_id,
-            date_start: i.date_start,
-            date_stop: i.date_stop,
-            impressions: parseInt(i.impressions || "0"),
-            clicks: parseInt(i.clicks || "0"),
-            spend_cents: spendCents,
-            reach: parseInt(i.reach || "0"),
-            cpc_cents: cpcCents,
-            cpm_cents: cpmCents,
-            ctr: parseFloat(i.ctr || "0"),
-            conversions,
-            frequency: parseFloat(i.frequency || "0"),
-            actions: i.actions || [],
-            synced_at: new Date().toISOString(),
-          }, { onConflict: "tenant_id,meta_campaign_id,date_start,date_stop" });
-
-        if (error) {
-          console.error(`[meta-ads-insights][${traceId}] Upsert error:`, error);
+        if (timeRange) {
+          insightsUrl += `&time_range=${JSON.stringify(timeRange)}`;
         } else {
-          synced++;
+          insightsUrl += `&date_preset=${datePreset}`;
+        }
+
+        const res = await fetch(
+          `https://graph.facebook.com/${GRAPH_API_VERSION}/${insightsUrl}&access_token=${conn.access_token}`
+        );
+        const result = await res.json();
+
+        if (result.error) {
+          console.error(`[meta-ads-insights][${traceId}] Graph API error for ${account.id}:`, result.error);
+          totalErrors++;
+          continue;
+        }
+
+        const insights = result.data || [];
+        console.log(`[meta-ads-insights][${traceId}] Account ${account.id}: ${insights.length} insights`);
+
+        for (const i of insights) {
+          // Find local campaign
+          const { data: localCampaign } = await supabase
+            .from("meta_ad_campaigns")
+            .select("id")
+            .eq("tenant_id", tenantId)
+            .eq("meta_campaign_id", i.campaign_id)
+            .maybeSingle();
+
+          // Extract conversions count from actions
+          const purchaseAction = (i.actions || []).find((a: any) => 
+            a.action_type === "purchase" || 
+            a.action_type === "offsite_conversion.fb_pixel_purchase" ||
+            a.action_type === "omni_purchase"
+          );
+          const conversions = purchaseAction ? parseInt(purchaseAction.value || "0") : 0;
+
+          // Extract conversion VALUE from action_values (revenue)
+          const purchaseValue = (i.action_values || []).find((a: any) => 
+            a.action_type === "purchase" || 
+            a.action_type === "offsite_conversion.fb_pixel_purchase" ||
+            a.action_type === "omni_purchase"
+          );
+          const conversionValueCents = purchaseValue 
+            ? Math.round(parseFloat(purchaseValue.value || "0") * 100) 
+            : 0;
+
+          const spendCents = Math.round(parseFloat(i.spend || "0") * 100);
+          const cpcCents = Math.round(parseFloat(i.cpc || "0") * 100);
+          const cpmCents = Math.round(parseFloat(i.cpm || "0") * 100);
+          const roas = spendCents > 0 ? conversionValueCents / spendCents : 0;
+
+          const { error } = await supabase
+            .from("meta_ad_insights")
+            .upsert({
+              tenant_id: tenantId,
+              campaign_id: localCampaign?.id || null,
+              meta_campaign_id: i.campaign_id,
+              date_start: i.date_start,
+              date_stop: i.date_stop,
+              impressions: parseInt(i.impressions || "0"),
+              clicks: parseInt(i.clicks || "0"),
+              spend_cents: spendCents,
+              reach: parseInt(i.reach || "0"),
+              cpc_cents: cpcCents,
+              cpm_cents: cpmCents,
+              ctr: parseFloat(i.ctr || "0"),
+              conversions,
+              conversion_value_cents: conversionValueCents,
+              roas,
+              frequency: parseFloat(i.frequency || "0"),
+              actions: i.actions || [],
+              synced_at: new Date().toISOString(),
+            }, { onConflict: "tenant_id,meta_campaign_id,date_start,date_stop" });
+
+          if (error) {
+            console.error(`[meta-ads-insights][${traceId}] Upsert error:`, error);
+            totalErrors++;
+          } else {
+            totalSynced++;
+          }
         }
       }
 
       return new Response(
-        JSON.stringify({ success: true, data: { synced, total: insights.length } }),
+        JSON.stringify({ success: true, data: { synced: totalSynced, errors: totalErrors } }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
