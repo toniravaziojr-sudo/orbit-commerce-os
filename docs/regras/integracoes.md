@@ -1322,10 +1322,11 @@ const {
 - [x] ~~Google Meu Negócio~~ (Fase 7 concluída)
 - [x] ~~Google Tag Manager~~ (Fase 8 concluída)
 - [x] ~~TikTok Hub Base: Ads Connection + OAuth + UI + dual-write~~ (Fase 1 concluída)
-- [ ] TikTok: Pixel/CAPI migração completa (Fase 2)
-- [ ] TikTok Shop: Tabela Base + OAuth (Fase 3)
-- [ ] TikTok Shop: Catálogo (Fase 4)
-- [ ] TikTok Shop: Pedidos (Fase 5)
+- [x] ~~TikTok: Pixel/CAPI migração completa + remoção dual-write~~ (Fase 2 concluída)
+- [x] ~~TikTok Shop: Tabela Base + OAuth~~ (Fase 3 concluída)
+- [x] ~~TikTok Content: Tabela Base + OAuth (Login Kit)~~ (Fase 4 concluída)
+- [ ] TikTok Shop: Catálogo (Fase 5)
+- [ ] TikTok Shop: Pedidos (Fase 6)
 - [ ] TikTok Ads: Campanhas e Insights (Fase 10)
 - [ ] TikTok Content: Publicação Orgânica (Fase 11)
 
@@ -1380,7 +1381,7 @@ const {
 
 ## TikTok — Hub Multi-Conexão (Ads / Shop / Content)
 
-> **STATUS:** ✅ Ready (Fase 1 — Ads Base)  
+> **STATUS:** ✅ Ready (Fase 4 — Ads + Shop + Content)  
 > **Adicionado em:** 2026-02-15
 
 ### Visão Geral
@@ -1396,10 +1397,10 @@ Hub centralizado TikTok na aba "TikTok" de `/integrations`. Diferente de Meta e 
   | [Conectado] Pixel/CAPI     |
   +----------------------------+
   | TikTok Shop (Seller API)   |  <-- tiktok_shop_connections
-  | [Em breve]                 |
+  | [Conectar/Desconectar]     |
   +----------------------------+
   | TikTok Content (Login Kit) |  <-- tiktok_content_connections
-  | [Em breve]                 |
+  | [Conectar/Desconectar]     |
   +----------------------------+
 ```
 
@@ -1413,9 +1414,9 @@ Hub centralizado TikTok na aba "TikTok" de `/integrations`. Diferente de Meta e 
 | Tabela | Fase | Descrição | Status |
 |--------|------|-----------|--------|
 | `tiktok_ads_connections` | 1 | Conexão Ads (UNIQUE por `tenant_id`) | ✅ Ready |
-| `tiktok_shop_connections` | 3 | Conexão Shop (UNIQUE por `tenant_id`) | 🟧 Pending |
-| `tiktok_content_connections` | 11 | Conexão Content (UNIQUE por `tenant_id`) | 🟧 Pending |
-| `tiktok_oauth_states` | 1 | Anti-CSRF com coluna `product` | ✅ Ready |
+| `tiktok_shop_connections` | 3 | Conexão Shop (UNIQUE por `tenant_id`) | ✅ Ready |
+| `tiktok_content_connections` | 4 | Conexão Content (UNIQUE por `tenant_id`) | ✅ Ready |
+| `tiktok_oauth_states` | 1 | Anti-CSRF com coluna `product` (ads/shop/content) | ✅ Ready |
 
 ### Tabela `tiktok_ads_connections`
 
@@ -1495,10 +1496,14 @@ const TIKTOK_SCOPE_REGISTRY = {
 
 | Function | Descrição | Status |
 |----------|-----------|--------|
-| `tiktok-oauth-start` | Gera URL OAuth (v2 com scope packs) | ✅ Ready |
+| `tiktok-oauth-start` | Gera URL OAuth Ads (v2 com scope packs) | ✅ Ready |
 | `tiktok-oauth-callback` | Troca code, salva em `tiktok_ads_connections` (v3 — sem dual-write) | ✅ Ready |
 | `tiktok-token-refresh` | Renova `access_token` usando `refresh_token` (v2 — sem dual-write) | ✅ Ready |
 | `marketing-send-tiktok` | Events API (CAPI), lê exclusivamente de `tiktok_ads_connections` (v3) | ✅ Ready |
+| `tiktok-shop-oauth-start` | Gera URL OAuth Shop (Seller API) | ✅ Ready |
+| `tiktok-shop-oauth-callback` | Troca code, salva em `tiktok_shop_connections` | ✅ Ready |
+| `tiktok-content-oauth-start` | Gera URL OAuth Content (Login Kit v2) | ✅ Ready |
+| `tiktok-content-oauth-callback` | Troca code, salva em `tiktok_content_connections` | ✅ Ready |
 
 ### Retrocompatibilidade (ENCERRADA — Fase 2)
 
@@ -1517,10 +1522,10 @@ A fonte de verdade exclusiva é `tiktok_ads_connections`.
 |--------|------------|------|-----------|
 | Ads | `TIKTOK_APP_ID` | Plataforma | Secrets |
 | Ads | `TIKTOK_APP_SECRET` | Plataforma | Secrets |
-| Shop | `TIKTOK_SHOP_APP_KEY` | Plataforma | Secrets (futuro) |
-| Shop | `TIKTOK_SHOP_APP_SECRET` | Plataforma | Secrets (futuro) |
-| Content | `TIKTOK_CONTENT_CLIENT_KEY` | Plataforma | Secrets (futuro) |
-| Content | `TIKTOK_CONTENT_CLIENT_SECRET` | Plataforma | Secrets (futuro) |
+| Shop | `TIKTOK_SHOP_APP_KEY` | Plataforma | `platform_credentials` |
+| Shop | `TIKTOK_SHOP_APP_SECRET` | Plataforma | `platform_credentials` |
+| Content | `TIKTOK_CONTENT_CLIENT_KEY` | Plataforma | `platform_credentials` |
+| Content | `TIKTOK_CONTENT_CLIENT_SECRET` | Plataforma | `platform_credentials` |
 | Todas | OAuth tokens | Tenant | Tabela de conexão respectiva |
 
 ### Hooks e Componentes
@@ -1528,8 +1533,10 @@ A fonte de verdade exclusiva é `tiktok_ads_connections`.
 | Arquivo | Descrição | Status |
 |---------|-----------|--------|
 | `src/hooks/useTikTokAdsConnection.ts` | Hook para conexão Ads (lê de `tiktok_ads_connections`) | ✅ Ready |
+| `src/hooks/useTikTokShopConnection.ts` | Hook para conexão Shop (lê de `tiktok_shop_connections`) | ✅ Ready |
+| `src/hooks/useTikTokContentConnection.ts` | Hook para conexão Content (lê de `tiktok_content_connections`) | ✅ Ready |
 | `src/hooks/useTikTokConnection.ts` | ~~Hook legado~~ — **DELETADO na Fase 2** | ❌ Deletado |
-| `src/components/integrations/TikTokUnifiedSettings.tsx` | UI Hub com 3 cards (Ads ativo, Shop/Content em breve) | ✅ Ready |
+| `src/components/integrations/TikTokUnifiedSettings.tsx` | UI Hub com 3 cards (Ads, Shop, Content — todos ativos) | ✅ Ready |
 | `src/components/integrations/TikTokIntegrationCard.tsx` | ~~Card legado~~ — **DELETADO na Fase 2** | ❌ Deletado |
 | `src/pages/TikTokOAuthCallback.tsx` | Página de callback OAuth | ✅ Ready |
 
@@ -1554,18 +1561,108 @@ interface TikTokAdsConnectionStatus {
   };
   lastError: string | null;
 }
+
+interface TikTokShopConnectionStatus {
+  isConnected: boolean;
+  connectionStatus: string;
+  shopId: string;
+  shopName: string;
+  shopRegion: string;
+  sellerId: string;
+  scopePacks: string[];
+  connectedAt: string | null;
+  isExpired: boolean;
+  lastError: string | null;
+  assets: Record<string, unknown>;
+}
+
+interface TikTokContentConnectionStatus {
+  isConnected: boolean;
+  connectionStatus: string;
+  openId: string;
+  displayName: string;
+  avatarUrl: string;
+  scopePacks: string[];
+  connectedAt: string | null;
+  isExpired: boolean;
+  lastError: string | null;
+  assets: Record<string, unknown>;
+}
 ```
+
+### Tabela `tiktok_shop_connections`
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `id` | UUID PK | ID interno |
+| `tenant_id` | UUID UNIQUE FK | Tenant (1 por tenant) |
+| `connected_by` | UUID FK | Usuário que conectou |
+| `shop_id` | TEXT | ID da loja TikTok Shop |
+| `shop_name` | TEXT | Nome da loja |
+| `shop_region` | TEXT | Região da loja (ex: `BR`) |
+| `seller_id` | TEXT | ID do seller |
+| `access_token` | TEXT | Token de acesso |
+| `refresh_token` | TEXT | Token de renovação |
+| `token_expires_at` | TIMESTAMPTZ | Validade do token |
+| `refresh_expires_at` | TIMESTAMPTZ | Validade do refresh token |
+| `scope_packs` | TEXT[] | Packs concedidos |
+| `granted_scopes` | TEXT[] | Escopos reais retornados |
+| `is_active` | BOOLEAN | Conexão ativa |
+| `connection_status` | TEXT | `connected`, `error`, `disconnected` |
+| `last_error` | TEXT | Último erro |
+| `connected_at` | TIMESTAMPTZ | Data da conexão |
+| `assets` | JSONB | Ativos descobertos |
+
+### Tabela `tiktok_content_connections`
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `id` | UUID PK | ID interno |
+| `tenant_id` | UUID UNIQUE FK | Tenant (1 por tenant) |
+| `connected_by` | UUID FK | Usuário que conectou |
+| `open_id` | TEXT | ID do usuário TikTok |
+| `union_id` | TEXT | Union ID (cross-app) |
+| `display_name` | TEXT | Nome de exibição |
+| `avatar_url` | TEXT | URL do avatar |
+| `access_token` | TEXT | Token de acesso |
+| `refresh_token` | TEXT | Token de renovação |
+| `token_expires_at` | TIMESTAMPTZ | Validade do token |
+| `refresh_expires_at` | TIMESTAMPTZ | Validade do refresh token |
+| `scope_packs` | TEXT[] | Packs concedidos |
+| `granted_scopes` | TEXT[] | Escopos reais retornados |
+| `is_active` | BOOLEAN | Conexão ativa |
+| `connection_status` | TEXT | `connected`, `error`, `disconnected` |
+| `last_error` | TEXT | Último erro |
+| `connected_at` | TIMESTAMPTZ | Data da conexão |
+| `assets` | JSONB | Ativos descobertos |
+
+### OAuth Callback Routing (Multi-Product)
+
+O `TikTokOAuthCallback.tsx` utiliza roteamento sequencial para identificar qual produto está sendo autenticado:
+
+```text
+1. Recebe ?code=XXX&state=YYY
+2. Tenta tiktok-oauth-callback (Ads) → valida state com product='ads'
+3. Se INVALID_STATE → tenta tiktok-shop-oauth-callback → product='shop'
+4. Se INVALID_STATE → tenta tiktok-content-oauth-callback → product='content'
+5. Primeiro sucesso → conexão salva, postMessage para tab pai
+```
+
+**Nota:** Todos os 3 produtos compartilham a mesma redirect URI (`/integrations/tiktok/callback`) e a mesma tabela `tiktok_oauth_states` (diferenciados pela coluna `product`).
 
 ### URLs de Integração
 
 | Tipo | URL Pública | Edge Function |
 |------|-------------|---------------|
-| OAuth Callback (Ads) | `https://app.comandocentral.com.br/integrations/tiktok/callback` | `tiktok-oauth-callback` |
+| OAuth Callback (todos) | `https://app.comandocentral.com.br/integrations/tiktok/callback` | Roteado no frontend |
+| Ads OAuth (backend) | — | `tiktok-oauth-start` / `tiktok-oauth-callback` |
+| Shop OAuth (backend) | — | `tiktok-shop-oauth-start` / `tiktok-shop-oauth-callback` |
+| Content OAuth (backend) | — | `tiktok-content-oauth-start` / `tiktok-content-oauth-callback` |
 | Webhook (Shop, futuro) | `https://app.comandocentral.com.br/integrations/tiktok/webhook` | `tiktok-webhook` |
 
-### Configuração no TikTok Developer Portal
+### Configuração nos TikTok Developer Portals
 
-**Redirect URI obrigatória:**
+**Redirect URI obrigatória (para os 3 apps):**
 ```
 https://app.comandocentral.com.br/integrations/tiktok/callback
 ```
@@ -1575,10 +1672,13 @@ https://app.comandocentral.com.br/integrations/tiktok/callback
 | Fase | Descrição | Status |
 |------|-----------|--------|
 | 1 | Hub Base: `tiktok_ads_connections` + OAuth + UI + dual-write | ✅ Concluída |
-| 2 | Pixel/CAPI migração completa (removido fallback legado) | ✅ Concluída |
-| 3 | TikTok Shop: Tabela Base + OAuth | 🟧 Pendente |
-| 4 | TikTok Shop: Catálogo de Produtos | 🟧 Pendente |
-| 5 | TikTok Shop: Pedidos | 🟧 Pendente |
+| 2 | Pixel/CAPI migração completa (removido fallback legado + dual-write) | ✅ Concluída |
+| 3 | TikTok Shop: `tiktok_shop_connections` + OAuth | ✅ Concluída |
+| 4 | TikTok Content: `tiktok_content_connections` + OAuth (Login Kit) | ✅ Concluída |
+| 5 | TikTok Shop: Catálogo de Produtos | 🟧 Pendente |
+| 6 | TikTok Shop: Pedidos | 🟧 Pendente |
+| 10 | TikTok Ads: Campanhas e Insights | 🟧 Pendente |
+| 11 | TikTok Content: Publicação Orgânica | 🟧 Pendente |
 | 6 | TikTok Shop: Fulfillment e Logística | 🟧 Pendente |
 | 7 | TikTok Shop: Devoluções e Pós-venda | 🟧 Pendente |
 | 8 | TikTok Shop: Atendimento (Inbox Unificado) | 🟧 Pendente |
