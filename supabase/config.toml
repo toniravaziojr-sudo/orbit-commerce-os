@@ -654,3 +654,6 @@ verify_jwt = false
 
 [functions.google-business-posts]
 verify_jwt = false
+
+[functions.google-tag-manager]
+verify_jwt = false

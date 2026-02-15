@@ -6237,6 +6237,71 @@ export type Database = {
           },
         ]
       }
+      google_tag_manager_containers: {
+        Row: {
+          account_id: string
+          account_name: string | null
+          container_id: string
+          container_name: string
+          container_public_id: string | null
+          created_at: string
+          domain_name: string[] | null
+          fingerprint: string | null
+          id: string
+          is_active: boolean | null
+          last_sync_at: string | null
+          metadata: Json | null
+          tag_manager_url: string | null
+          tenant_id: string
+          updated_at: string
+          usage_context: string[] | null
+        }
+        Insert: {
+          account_id: string
+          account_name?: string | null
+          container_id: string
+          container_name: string
+          container_public_id?: string | null
+          created_at?: string
+          domain_name?: string[] | null
+          fingerprint?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          metadata?: Json | null
+          tag_manager_url?: string | null
+          tenant_id: string
+          updated_at?: string
+          usage_context?: string[] | null
+        }
+        Update: {
+          account_id?: string
+          account_name?: string | null
+          container_id?: string
+          container_name?: string
+          container_public_id?: string | null
+          created_at?: string
+          domain_name?: string[] | null
+          fingerprint?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          metadata?: Json | null
+          tag_manager_url?: string | null
+          tenant_id?: string
+          updated_at?: string
+          usage_context?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_tag_manager_containers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ibge_municipios: {
         Row: {
           codigo: string
