@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.2.0"; // Balance: add funding_source_type for credit card detection
+const VERSION = "v1.3.0"; // Balance: proper funding_source_type mapping (numeric→string) + business billing
 // ===========================================================
 
 const corsHeaders = {
@@ -220,17 +220,27 @@ Deno.serve(async (req) => {
           conn.access_token
         );
         if (!result.error) {
+          // Map numeric funding_source_details.type to string
+          // Meta types: 1=credit_card, 2=coupon, 4=bank_account, 12=paypal, 20=prepaid
+          const rawType = result.funding_source_details?.type;
+          let fundingType = "UNKNOWN";
+          if (rawType === 1 || rawType === "1") fundingType = "CREDIT_CARD";
+          else if (rawType === 20 || rawType === "20") fundingType = "PREPAID";
+          else if (rawType === 4 || rawType === "4") fundingType = "BANK_ACCOUNT";
+          else if (rawType === 12 || rawType === "12") fundingType = "PAYPAL";
+          else if (rawType === 2 || rawType === "2") fundingType = "COUPON";
+          else if (rawType != null) fundingType = `TYPE_${rawType}`;
+          else if (result.funding_source) fundingType = "CREDIT_CARD"; // fallback
+
           const fundingBalance = result.funding_source_details?.current_balance;
           const apiBalance = result.balance ? parseInt(result.balance) : 0;
-          
-          // Detect funding source type: CREDIT_CARD, PREPAID, LINE_OF_CREDIT, etc
-          const fundingType = result.funding_source_details?.type || 
-            (result.funding_source ? "CREDIT_CARD" : "UNKNOWN");
-          
-          // For credit card accounts, balance may be 0 or irrelevant
-          const balanceCents = fundingBalance != null 
-            ? parseInt(fundingBalance) 
-            : Math.abs(apiBalance);
+
+          // For credit card accounts, balance is irrelevant (post-paid)
+          const balanceCents = fundingType === "CREDIT_CARD" 
+            ? 0 
+            : (fundingBalance != null ? parseInt(fundingBalance) : Math.abs(apiBalance));
+
+          console.log(`[meta-ads-adsets][${traceId}] Balance ${account.id}: type=${fundingType} rawType=${rawType} balance=${balanceCents} fundingBalance=${fundingBalance} apiBalance=${apiBalance}`);
 
           results.push({
             id: account.id,
