@@ -66,7 +66,9 @@ export function AdsChannelRoasConfig({ channel, channelConfig, onSave, onToggleC
               </CardTitle>
               <p className="text-xs text-muted-foreground">
                 {isEnabled
-                  ? `ROI mín. frio: ${(channelConfig?.safety_rules as any)?.min_roi_cold || 2}x · quente: ${(channelConfig?.safety_rules as any)?.min_roi_warm || 3}x`
+                  ? (channelConfig?.safety_rules as any)?.min_roi_cold
+                    ? `ROI mín. frio: ${(channelConfig.safety_rules as any).min_roi_cold}x · quente: ${(channelConfig.safety_rules as any).min_roi_warm}x`
+                    : "Configure as metas de ROI abaixo"
                   : "Ative a IA para gerenciar este canal"}
               </p>
             </div>
