@@ -46,8 +46,10 @@ export interface MetaAdInsight {
   ctr: number;
   conversions: number;
   conversion_value_cents: number;
+  cost_per_conversion_cents: number;
   roas: number;
   frequency: number;
+  actions: Record<string, any>[] | null;
   meta_ad_campaigns?: { name: string; status: string; objective: string };
 }
 
@@ -215,7 +217,7 @@ export function useMetaAds() {
         .select("*, meta_ad_campaigns(name, status, objective)")
         .eq("tenant_id", tenantId!)
         .order("date_start", { ascending: false })
-        .limit(500);
+        .limit(1000);
       return (data || []) as MetaAdInsight[];
     },
     enabled: !!tenantId,
