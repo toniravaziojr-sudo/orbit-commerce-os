@@ -96,6 +96,11 @@ interface AdsCampaignsTabProps {
 
 // ========== UTILS ==========
 
+// Meta funding_source_details.type: 1=credit card, 2=coupon, 4=bank, 12=paypal, 20=prepaid
+function isCreditCardFunding(fundingType: string | number | undefined): boolean {
+  return fundingType === 1 || fundingType === "1" || fundingType === "CREDIT_CARD";
+}
+
 function formatCurrency(cents: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
 }
@@ -124,17 +129,32 @@ function isStatusPaused(status: string, effectiveStatus?: string): boolean {
   return s === "PAUSED" || s === "DISABLE" || s === "ARCHIVED" || s === "CAMPAIGN_PAUSED" || s === "ADSET_PAUSED";
 }
 
-// A campaign is truly active if effective_status is ACTIVE.
-// If adsets are synced, also require at least 1 active adset.
-// If adsets are NOT synced for this campaign, trust the campaign effective_status alone.
+// A campaign is truly active if:
+// 1. effective_status is ACTIVE
+// 2. stop_time is NOT in the past (otherwise it's "Concluída")
+// 3. Has at least 1 active adset (or adsets not synced yet)
 function isCampaignTrulyActive(campaign: any, adsets: AdSetData[]): boolean {
   if (!isStatusActive(campaign.status, campaign.effective_status)) return false;
+  // Check if campaign has ended (stop_time in the past)
+  if (campaign.stop_time) {
+    try {
+      const stopDate = new Date(campaign.stop_time);
+      if (stopDate < new Date()) return false; // Campaign completed
+    } catch { /* ignore parse errors */ }
+  }
   const campaignId = campaign.meta_campaign_id || campaign.google_campaign_id || campaign.tiktok_campaign_id;
-  if (!campaignId) return true; // no ID means we can't check adsets, trust campaign status
+  if (!campaignId) return true;
   const campaignAdsets = adsets.filter(a => a.meta_campaign_id === campaignId);
-  // If no adsets synced yet for this campaign, trust campaign effective_status
   if (campaignAdsets.length === 0) return true;
   return campaignAdsets.some(a => isStatusActive(a.status, a.effective_status));
+}
+
+// Check if a campaign is completed (had an end date that passed)
+function isCampaignCompleted(campaign: any): boolean {
+  if (!campaign.stop_time) return false;
+  try {
+    return new Date(campaign.stop_time) < new Date();
+  } catch { return false; }
 }
 
 function matchesStatus(campaign: any, adsets: AdSetData[], filter: StatusFilter): boolean {
@@ -144,18 +164,20 @@ function matchesStatus(campaign: any, adsets: AdSetData[], filter: StatusFilter)
   return !isCampaignTrulyActive(campaign, adsets);
 }
 
-function StatusDot({ status, effectiveStatus }: { status: string; effectiveStatus?: string }) {
+function StatusDot({ status, effectiveStatus, stopTime }: { status: string; effectiveStatus?: string; stopTime?: string | null }) {
   const displayStatus = effectiveStatus || status;
   const isActive = displayStatus === "ACTIVE" || displayStatus === "ENABLE";
   const isPaused = displayStatus === "PAUSED" || displayStatus === "DISABLE" || displayStatus === "CAMPAIGN_PAUSED" || displayStatus === "ADSET_PAUSED";
+  // Check if completed (end date passed)
+  const isCompleted = isActive && stopTime ? (() => { try { return new Date(stopTime) < new Date(); } catch { return false; } })() : false;
   return (
     <div className="flex items-center gap-2">
       <span className={cn(
         "h-2 w-2 rounded-full flex-shrink-0",
-        isActive ? "bg-green-500" : isPaused ? "bg-muted-foreground/40" : "bg-destructive/50"
+        isCompleted ? "bg-muted-foreground/40" : isActive ? "bg-green-500" : isPaused ? "bg-muted-foreground/40" : "bg-destructive/50"
       )} />
       <span className="text-xs text-muted-foreground">
-        {isActive ? "Ativo" : isPaused ? "Pausada" : displayStatus}
+        {isCompleted ? "Concluída" : isActive ? "Ativo" : isPaused ? "Pausada" : displayStatus}
       </span>
     </div>
   );
@@ -514,7 +536,11 @@ export function AdsCampaignsTab({
     return accountBalances.filter(b => selectedAccountSet.has(b.id));
   }, [accountBalances, selectedAccountIds, selectedAccountSet]);
 
-  const totalBalance = filteredBalances.reduce((sum, a) => sum + a.balance_cents, 0);
+  // Only sum prepaid accounts for total balance (exclude credit card)
+  const totalBalance = filteredBalances
+    .filter(a => !isCreditCardFunding(a.funding_source_type))
+    .reduce((sum, a) => sum + a.balance_cents, 0);
+  const allCreditCard = filteredBalances.length > 0 && filteredBalances.every(b => isCreditCardFunding(b.funding_source_type));
 
   const [expandedAdsets, setExpandedAdsets] = useState<Set<string>>(new Set());
 
@@ -795,7 +821,7 @@ export function AdsCampaignsTab({
                   onClick={() => window.open(getChannelBalanceUrl(channel), "_blank")}
                 >
                   <Wallet className="h-3 w-3" />
-                  {filteredBalances.some(b => b.funding_source_type === "CREDIT_CARD")
+                  {allCreditCard
                     ? "Cartão de crédito"
                     : `Saldo: ${formatCurrency(totalBalance)}`}
                   <ExternalLink className="h-2.5 w-2.5 text-muted-foreground/60" />
@@ -909,7 +935,7 @@ export function AdsCampaignsTab({
 
                           {/* Status */}
                           <TableCell className="w-20">
-                            <StatusDot status={status} effectiveStatus={effectiveStatus} />
+                            <StatusDot status={status} effectiveStatus={effectiveStatus} stopTime={c.stop_time} />
                           </TableCell>
 
                           {/* Metrics */}
