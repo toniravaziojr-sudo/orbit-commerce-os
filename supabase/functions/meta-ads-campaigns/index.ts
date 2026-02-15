@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.0.0"; // Initial: CRUD campaigns + sync from Meta
+const VERSION = "v1.1.0"; // Fix: correct column names (marketplace, is_active) + sync all ad accounts
 // ===========================================================
 
 const corsHeaders = {
@@ -28,8 +28,8 @@ async function getMetaConnection(supabase: any, tenantId: string): Promise<MetaC
     .from("marketplace_connections")
     .select("access_token, metadata")
     .eq("tenant_id", tenantId)
-    .eq("platform", "meta")
-    .eq("status", "active")
+    .eq("marketplace", "meta")
+    .eq("is_active", true)
     .maybeSingle();
   return data;
 }
@@ -96,58 +96,67 @@ Deno.serve(async (req) => {
       );
     }
 
-    const adAccountId = body.ad_account_id || adAccounts[0].id;
-    console.log(`[meta-ads-campaigns][${traceId}] action=${action} adAccount=${adAccountId}`);
+    const targetAccountId = body.ad_account_id;
+    console.log(`[meta-ads-campaigns][${traceId}] action=${action} targetAccount=${targetAccountId || 'all'}`);
 
     // ========================
-    // SYNC — Pull campaigns from Meta into local cache
+    // SYNC — Pull campaigns from Meta into local cache (all accounts or specific)
     // ========================
     if (action === "sync") {
-      const result = await graphApi(
-        `act_${adAccountId.replace("act_", "")}/campaigns?fields=id,name,status,objective,buying_type,daily_budget,lifetime_budget,bid_strategy,start_time,stop_time,special_ad_categories&limit=100`,
-        conn.access_token
-      );
+      const accountsToSync = targetAccountId 
+        ? adAccounts.filter((a: any) => a.id === targetAccountId)
+        : adAccounts;
+      
+      let totalSynced = 0;
+      let totalCampaigns = 0;
 
-      if (result.error) {
-        console.error(`[meta-ads-campaigns][${traceId}] Graph API error:`, result.error);
-        return new Response(
-          JSON.stringify({ success: false, error: result.error.message, code: "GRAPH_API_ERROR" }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      for (const account of accountsToSync) {
+        const accountId = account.id.replace("act_", "");
+        console.log(`[meta-ads-campaigns][${traceId}] Syncing account: ${account.name} (act_${accountId})`);
+        
+        const result = await graphApi(
+          `act_${accountId}/campaigns?fields=id,name,status,objective,buying_type,daily_budget,lifetime_budget,bid_strategy,start_time,stop_time,special_ad_categories&limit=100`,
+          conn.access_token
         );
-      }
 
-      const campaigns = result.data || [];
-      let synced = 0;
+        if (result.error) {
+          console.error(`[meta-ads-campaigns][${traceId}] Graph API error for ${account.id}:`, result.error);
+          continue; // Skip this account but continue with others
+        }
 
-      for (const c of campaigns) {
-        const { error } = await supabase
-          .from("meta_ad_campaigns")
-          .upsert({
-            tenant_id: tenantId,
-            meta_campaign_id: c.id,
-            ad_account_id: adAccountId,
-            name: c.name,
-            status: c.status || "PAUSED",
-            objective: c.objective,
-            buying_type: c.buying_type,
-            daily_budget_cents: c.daily_budget ? parseInt(c.daily_budget) : null,
-            lifetime_budget_cents: c.lifetime_budget ? parseInt(c.lifetime_budget) : null,
-            bid_strategy: c.bid_strategy,
-            start_time: c.start_time || null,
-            stop_time: c.stop_time || null,
-            special_ad_categories: c.special_ad_categories || [],
-            synced_at: new Date().toISOString(),
-          }, { onConflict: "tenant_id,meta_campaign_id" });
+        const campaigns = result.data || [];
+        totalCampaigns += campaigns.length;
 
-        if (error) {
-          console.error(`[meta-ads-campaigns][${traceId}] Upsert error for ${c.id}:`, error);
-        } else {
-          synced++;
+        for (const c of campaigns) {
+          const { error } = await supabase
+            .from("meta_ad_campaigns")
+            .upsert({
+              tenant_id: tenantId,
+              meta_campaign_id: c.id,
+              ad_account_id: account.id,
+              name: c.name,
+              status: c.status || "PAUSED",
+              objective: c.objective,
+              buying_type: c.buying_type,
+              daily_budget_cents: c.daily_budget ? parseInt(c.daily_budget) : null,
+              lifetime_budget_cents: c.lifetime_budget ? parseInt(c.lifetime_budget) : null,
+              bid_strategy: c.bid_strategy,
+              start_time: c.start_time || null,
+              stop_time: c.stop_time || null,
+              special_ad_categories: c.special_ad_categories || [],
+              synced_at: new Date().toISOString(),
+            }, { onConflict: "tenant_id,meta_campaign_id" });
+
+          if (error) {
+            console.error(`[meta-ads-campaigns][${traceId}] Upsert error for ${c.id}:`, error);
+          } else {
+            totalSynced++;
+          }
         }
       }
 
       return new Response(
-        JSON.stringify({ success: true, data: { synced, total: campaigns.length } }),
+        JSON.stringify({ success: true, data: { synced: totalSynced, total: totalCampaigns } }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -181,6 +190,7 @@ Deno.serve(async (req) => {
     // ========================
     if (action === "create") {
       const { name, objective, status: campaignStatus, daily_budget_cents, lifetime_budget_cents, special_ad_categories } = body;
+      const adAccountId = targetAccountId || adAccounts[0].id;
 
       if (!name || !objective) {
         return new Response(
