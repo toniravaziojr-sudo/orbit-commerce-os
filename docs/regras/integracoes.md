@@ -1193,6 +1193,48 @@ const {
 |--------|----------------|
 | `google_analytics_reports` | `google-analytics-report` |
 
+### Fase 6: Google Search Console (✅ Concluída)
+
+#### Tabela: `google_search_console_data`
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `site_url` | TEXT | URL do site verificado |
+| `report_type` | TEXT | Tipo de relatório (`search_analytics`) |
+| `date` | DATE | Data do dado |
+| `query` | TEXT | Termo de busca |
+| `page` | TEXT | URL da página |
+| `country` | TEXT | País |
+| `device` | TEXT | Dispositivo (DESKTOP, MOBILE, TABLET) |
+| `clicks` | INTEGER | Cliques |
+| `impressions` | INTEGER | Impressões |
+| `ctr` | NUMERIC(6,4) | Taxa de cliques |
+| `position` | NUMERIC(6,2) | Posição média |
+
+#### Edge Function: `google-search-console`
+
+| Action | Descrição | API |
+|--------|-----------|-----|
+| `sync` | Busca dados via Search Analytics API e upsert | `searchAnalytics/query` |
+| `list` | Lista dados do cache local | DB |
+| `summary` | Resumo agregado (cliques, impressões, CTR, posição, top queries/pages) | DB |
+| `sites` | Lista sites verificados | `webmasters/v3/sites` |
+
+#### Hook: `useGoogleSearchConsole(siteUrl?, dateRange?)`
+
+| Query | Descrição |
+|-------|-----------|
+| `summaryQuery` | Resumo agregado |
+| `dataQuery` | Dados detalhados |
+| `sitesQuery` | Sites verificados |
+| `syncMutation` | Sincroniza dados da API |
+
+#### Mapeamento Tabela → Edge Functions
+
+| Tabela | Edge Functions |
+|--------|----------------|
+| `google_search_console_data` | `google-search-console` |
+
 ---
 
 ## Pendências
@@ -1220,6 +1262,6 @@ const {
 - [x] ~~Google Merchant Center~~ (Fase 3 concluída)
 - [x] ~~Google Ads Manager~~ (Fase 4 concluída)
 - [x] ~~Google Analytics GA4~~ (Fase 5 concluída)
-- [ ] Google Search Console (Fase 6)
+- [x] ~~Google Search Console~~ (Fase 6 concluída)
 - [ ] Google Meu Negócio (Fase 7)
 - [ ] Google Tag Manager (Fase 8)

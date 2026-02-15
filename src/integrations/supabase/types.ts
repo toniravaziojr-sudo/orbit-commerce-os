@@ -6039,6 +6039,68 @@ export type Database = {
           },
         ]
       }
+      google_search_console_data: {
+        Row: {
+          clicks: number
+          country: string | null
+          created_at: string
+          ctr: number
+          date: string
+          device: string | null
+          id: string
+          impressions: number
+          page: string | null
+          position: number
+          query: string | null
+          report_type: string
+          site_url: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          clicks?: number
+          country?: string | null
+          created_at?: string
+          ctr?: number
+          date: string
+          device?: string | null
+          id?: string
+          impressions?: number
+          page?: string | null
+          position?: number
+          query?: string | null
+          report_type?: string
+          site_url: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          clicks?: number
+          country?: string | null
+          created_at?: string
+          ctr?: number
+          date?: string
+          device?: string | null
+          id?: string
+          impressions?: number
+          page?: string | null
+          position?: number
+          query?: string | null
+          report_type?: string
+          site_url?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_search_console_data_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ibge_municipios: {
         Row: {
           codigo: string
