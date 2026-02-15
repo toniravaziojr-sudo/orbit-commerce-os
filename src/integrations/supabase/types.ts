@@ -14987,6 +14987,91 @@ export type Database = {
           },
         ]
       }
+      tiktok_shop_fulfillments: {
+        Row: {
+          carrier_code: string | null
+          carrier_name: string | null
+          created_at: string
+          fulfillment_data: Json | null
+          id: string
+          last_error: string | null
+          pickup_slot: Json | null
+          shipment_id: string | null
+          shipping_provider_id: string | null
+          status: string
+          submitted_at: string | null
+          tenant_id: string
+          tiktok_fulfillment_status: string | null
+          tiktok_order_id: string
+          tiktok_package_id: string | null
+          tiktok_shop_order_id: string | null
+          tracking_code: string | null
+          updated_at: string
+        }
+        Insert: {
+          carrier_code?: string | null
+          carrier_name?: string | null
+          created_at?: string
+          fulfillment_data?: Json | null
+          id?: string
+          last_error?: string | null
+          pickup_slot?: Json | null
+          shipment_id?: string | null
+          shipping_provider_id?: string | null
+          status?: string
+          submitted_at?: string | null
+          tenant_id: string
+          tiktok_fulfillment_status?: string | null
+          tiktok_order_id: string
+          tiktok_package_id?: string | null
+          tiktok_shop_order_id?: string | null
+          tracking_code?: string | null
+          updated_at?: string
+        }
+        Update: {
+          carrier_code?: string | null
+          carrier_name?: string | null
+          created_at?: string
+          fulfillment_data?: Json | null
+          id?: string
+          last_error?: string | null
+          pickup_slot?: Json | null
+          shipment_id?: string | null
+          shipping_provider_id?: string | null
+          status?: string
+          submitted_at?: string | null
+          tenant_id?: string
+          tiktok_fulfillment_status?: string | null
+          tiktok_order_id?: string
+          tiktok_package_id?: string | null
+          tiktok_shop_order_id?: string | null
+          tracking_code?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiktok_shop_fulfillments_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "shipments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tiktok_shop_fulfillments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tiktok_shop_fulfillments_tiktok_shop_order_id_fkey"
+            columns: ["tiktok_shop_order_id"]
+            isOneToOne: false
+            referencedRelation: "tiktok_shop_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tiktok_shop_orders: {
         Row: {
           buyer_email: string | null
