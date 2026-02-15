@@ -214,36 +214,51 @@ Lojista (Orçamento Total + Instruções)
 | `meta_ad_adsets` | Cache local de conjuntos de anúncios (ad sets) sincronizados da Meta |
 | `meta_ad_ads` | Cache local de anúncios individuais sincronizados da Meta |
 
-### Config Global (`channel='global'`)
+### Config Global (`channel='global'`) — DEPRECADA
+
+> **DEPRECADA na Fase 10.6.** Configs agora são por conta de anúncios (ver abaixo). O registro `channel='global'` pode existir para `ai_model` e `lock_session_id`, mas orçamento, ROI e prompt migraram para per-account.
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
-| `budget_mode` | text | `daily` / `monthly` |
-| `budget_cents` | integer | Orçamento total cross-channel |
-| `allocation_mode` | text | `auto` (IA decide) / `manual` |
-| `objective` | text | Fixo em `sales` (hardcoded no frontend) |
-| `user_instructions` | text | Prompt livre do lojista (direcionamento estratégico) |
 | `ai_model` | text | Default `openai/gpt-5.2` |
-| `safety_rules` | jsonb | Ver tabela abaixo |
 | `lock_session_id` | uuid | Sessão que detém o lock (nullable) |
 
-### Safety Rules — Config Global (JSONB)
+### Config por Conta de Anúncios (dentro de `safety_rules` do channel config)
 
-| Campo | Tipo | Default | Descrição |
-|-------|------|---------|-----------|
-| `target_roi` | number | null | **ROI Ideal** — Meta de retorno global que a IA busca alcançar somando todo investimento × todas as campanhas em todos os canais |
-| `max_budget_change_pct_day` | number | 10 | Limite de alteração diária ±% |
-| `max_actions_per_session` | number | 10 | Máximo de ações por sessão |
-| `allowed_actions` | string[] | `["pause_campaign","adjust_budget","report_insight","allocate_budget"]` | Faseamento do rollout |
+A ativação e configuração da IA é **por conta de anúncios**, armazenada no `safety_rules` JSONB da config de canal:
 
-### Safety Rules — Config por Canal (JSONB)
+```jsonc
+// ads_autopilot_configs WHERE channel = 'meta'
+{
+  "safety_rules": {
+    "ai_enabled_accounts": ["act_123", "act_456"],
+    "account_configs": {
+      "act_123": {
+        "budget_mode": "monthly",     // daily | monthly
+        "budget_cents": 100000,       // Orçamento da conta
+        "target_roi": 5,              // ROI ideal (meta aspiracional)
+        "min_roi_cold": 2,            // ROI mín. para pausar (público frio)
+        "min_roi_warm": 3,            // ROI mín. para pausar (público quente)
+        "user_instructions": "..."    // Prompt estratégico
+      }
+    },
+    "max_budget_change_pct_day": 10,
+    "max_actions_per_session": 10,
+    "allowed_actions": ["pause_campaign", "adjust_budget", "report_insight", "allocate_budget"]
+  }
+}
+```
 
-| Campo | Tipo | Default | Descrição |
-|-------|------|---------|-----------|
-| `min_roi_cold` | number | null | ROI mínimo para pausar campanhas de público frio (prospecção) |
-| `min_roi_warm` | number | null | ROI mínimo para pausar campanhas de público quente (remarketing) |
+| Campo (per-account) | Tipo | Default | Descrição |
+|---------------------|------|---------|-----------|
+| `budget_mode` | string | `monthly` | Período do orçamento |
+| `budget_cents` | number | 0 | Limite máximo da IA nesta conta |
+| `target_roi` | number | null | ROI ideal — meta de retorno |
+| `min_roi_cold` | number | 2 | ROI mínimo para pausar público frio |
+| `min_roi_warm` | number | 3 | ROI mínimo para pausar público quente |
+| `user_instructions` | string | "" | Prompt estratégico da conta |
 
-> **Nota:** Os campos `gross_margin_pct`, `max_cpa_cents` e `min_roas` foram removidos da config global (v3.1). O ROI é agora gerido em dois níveis: ROI Ideal (global, meta aspiracional) e ROI Mínimo para Pausar (por canal, frio vs quente).
+> **UI:** Cada conta com IA ativa exibe um card colapsável com esses campos (`AdsAccountConfig.tsx`). O botão 🤖 nos chips de conta ativa/desativa a IA individualmente.
 
 ### Tipos de Ação
 
@@ -338,9 +353,8 @@ Caso contrário, a campanha aparece como **pausada**, mesmo que seu toggle estej
 | `src/pages/AdsManager.tsx` | Página principal com hooks de conexão por canal |
 | `src/hooks/useAdsAutopilot.ts` | Hook para configs, actions, sessions |
 | `src/hooks/useMetaAds.ts` | Hook para campanhas, ad sets, insights, saldo e sync (Meta) |
-| `src/components/ads/AdsGlobalConfig.tsx` | Card config global (orçamento + ROI ideal + prompt) |
-| `src/components/ads/AdsChannelIntegrationAlert.tsx` | Alerta de integração por canal (não conectado → link para /integrations; conectado → chips de seleção de contas de anúncio com toggle) |
-| `src/components/ads/AdsChannelRoasConfig.tsx` | Config de ROI por canal (frio/quente) + toggle IA |
+| `src/components/ads/AdsAccountConfig.tsx` | Config por conta de anúncios com IA ativa (orçamento, ROI ideal, ROI mín frio/quente, prompt estratégico). Renderiza um card colapsável por conta. |
+| `src/components/ads/AdsChannelIntegrationAlert.tsx` | Alerta de integração por canal (não conectado → link para /integrations; conectado → chips de seleção de contas com botão Bot para ativar/desativar IA por conta) |
 | `src/components/ads/AdsCampaignsTab.tsx` | Campanhas por canal com: filtro por status, filtro de datas, conjuntos expandíveis (ad sets), métricas dinâmicas por objetivo, gestão manual de orçamento e status, botão de saldo e deep link para campanha no gerenciador nativo. **28 métricas disponíveis** em 4 grupos (Desempenho, Custo, Conversão, Engajamento) selecionáveis via Column Selector (até 7 simultâneas). Métricas de ações extraídas do campo `actions` JSONB (link_clicks, landing_page_views, add_to_cart, initiate_checkout, video_views, post_engagement, etc.) |
 | `src/components/ads/AdsActionsTab.tsx` | Timeline de ações da IA |
 | `src/components/ads/AdsReportsTab.tsx` | Cards resumo + gráficos |
@@ -645,6 +659,8 @@ CREATE TYPE creative_job_status AS ENUM (
 - [x] Gestor de Tráfego IA — Fase 10.3: Correção de paginação na edge function `meta-ads-campaigns` v1.3.0 — `graphApi` agora suporta URLs absolutas no campo `paging.next` da Meta Graph API, garantindo sync completo de contas com 100+ campanhas. Biblioteca de métricas expandida para 28 métricas em 4 categorias (Desempenho, Custo, Conversão, Engajamento) com extração de actions JSONB. Deep-link "Abrir Meta Ads" aponta para a campanha de maior investimento.
 - [x] Gestor de Tráfego IA — Fase 10.4: Persistência de seleção de contas via localStorage, sync de métricas do dia atual (dual preset), refresh de saldo via API, trigger automático do Autopilot ao ativar canal, anúncios individuais (tabela `meta_ad_ads` + edge function `meta-ads-ads` v1.0.0 + UI expandível 3 níveis: Campanha > Conjunto > Anúncio com pause/play)
 - [x] Gestor de Tráfego IA — Fase 10.5: Suporte a `effective_status` em campanhas, conjuntos e anúncios. Coluna adicionada nas tabelas `meta_ad_campaigns`, `meta_ad_adsets` e `meta_ad_ads`. Edge functions (`meta-ads-campaigns` v1.4.0, `meta-ads-adsets` v1.1.0, `meta-ads-ads` v1.1.0) agora extraem `effective_status` da Meta Graph API. UI filtra e conta por `effective_status` (estado real de entrega) em vez de `status` (toggle). Permite identificar campanhas ACTIVE mas não entregando (ex: `CAMPAIGN_PAUSED`, `ADSET_PAUSED`, `WITH_ISSUES`).
+- [x] Gestor de Tráfego IA — Fase 10.6: Ativação da IA por conta de anúncios (não mais por canal). Cada conta tem toggle de Bot independente nos chips de seleção. Configurações (orçamento, ROI ideal, ROI mín frio/quente, prompt estratégico) são individuais por conta, armazenadas em `safety_rules.account_configs[account_id]`. Lista de contas com IA ativa em `safety_rules.ai_enabled_accounts[]`. Removido `AdsGlobalConfig` e `AdsChannelRoasConfig`, substituídos por `AdsAccountConfig`.
+- [x] Gestor de Tráfego IA — Fase 10.6b: Regra de campanha ativa = campaign ACTIVE + pelo menos 1 adset ACTIVE.
 - [ ] Relatórios de ROI
 - [x] Gestão de Criativos (UI básica)
 - [x] Gestão de Criativos (Tabela creative_jobs)
