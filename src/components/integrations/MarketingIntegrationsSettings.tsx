@@ -31,7 +31,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { useMarketingIntegrations, MarketingIntegration } from '@/hooks/useMarketingIntegrations';
-import { TikTokIntegrationCard } from './TikTokIntegrationCard';
+// TikTokIntegrationCard removido — migrado para Hub TikTok em /integrations
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -441,12 +441,15 @@ export function MarketingIntegrationsSettings() {
           </Card>
         </TabsContent>
 
-        {/* TikTok Tab */}
+        {/* TikTok Tab - Migrado para Hub TikTok em /integrations */}
         <TabsContent value="tiktok">
-          <TikTokIntegrationCard 
-            config={config}
-            upsertConfig={upsertConfig}
-          />
+          <Card>
+            <CardContent className="p-6 text-center">
+              <p className="text-muted-foreground">
+                A integração TikTok foi migrada para <strong>Integrações → TikTok</strong>.
+              </p>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

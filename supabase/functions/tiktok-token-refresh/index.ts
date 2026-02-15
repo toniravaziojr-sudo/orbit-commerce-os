@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.0.0"; // Initial: refresh TikTok Ads tokens
+const VERSION = "v2.0.0"; // Fase 2: removido dual-write para marketing_integrations
 // ===========================================================
 
 const corsHeaders = {
@@ -107,7 +107,7 @@ serve(async (req) => {
         const newRefreshToken = refreshData.data.refresh_token;
         const newExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
-        // Update tiktok_ads_connections
+        // Update tiktok_ads_connections (única fonte de verdade)
         await supabase
           .from("tiktok_ads_connections")
           .update({
@@ -118,16 +118,6 @@ serve(async (req) => {
             last_sync_at: new Date().toISOString(),
           })
           .eq("id", conn.id);
-
-        // Dual-write to marketing_integrations
-        await supabase
-          .from("marketing_integrations")
-          .update({
-            tiktok_access_token: newAccessToken,
-            tiktok_refresh_token: newRefreshToken || conn.refresh_token,
-            tiktok_token_expires_at: newExpiresAt,
-          })
-          .eq("tenant_id", conn.tenant_id);
 
         refreshed++;
         console.log(`[tiktok-token-refresh][${VERSION}] Refreshed tenant ${conn.tenant_id}`);

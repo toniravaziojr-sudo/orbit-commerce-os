@@ -1496,22 +1496,16 @@ const TIKTOK_SCOPE_REGISTRY = {
 | Function | Descrição | Status |
 |----------|-----------|--------|
 | `tiktok-oauth-start` | Gera URL OAuth (v2 com scope packs) | ✅ Ready |
-| `tiktok-oauth-callback` | Troca code, salva em `tiktok_ads_connections` + dual-write legado | ✅ Ready |
-| `tiktok-token-refresh` | Renova `access_token` usando `refresh_token` | ✅ Ready |
-| `marketing-send-tiktok` | Events API (CAPI), lê de `tiktok_ads_connections` com fallback legado | ✅ Ready |
+| `tiktok-oauth-callback` | Troca code, salva em `tiktok_ads_connections` (v3 — sem dual-write) | ✅ Ready |
+| `tiktok-token-refresh` | Renova `access_token` usando `refresh_token` (v2 — sem dual-write) | ✅ Ready |
+| `marketing-send-tiktok` | Events API (CAPI), lê exclusivamente de `tiktok_ads_connections` (v3) | ✅ Ready |
 
-### Retrocompatibilidade (Dual-Write)
+### Retrocompatibilidade (ENCERRADA — Fase 2)
 
-A migração do TikTok de `marketing_integrations` para `tiktok_ads_connections` usa um modelo de dual-write temporário:
+O dual-write para `marketing_integrations` foi **removido** na Fase 2 (2026-02-15).  
+A fonte de verdade exclusiva é `tiktok_ads_connections`.
 
-```text
-1. tiktok-oauth-callback v2 escreve em tiktok_ads_connections (fonte de verdade)
-2. Simultaneamente, preenche marketing_integrations.tiktok_* (compatibilidade)
-3. marketing-send-tiktok lê de tiktok_ads_connections com fallback para marketing_integrations
-4. Após 30 dias (2026-03-17): remover fallback e deprecar colunas tiktok_* do legado
-```
-
-**Colunas legadas em `marketing_integrations` (deprecated):**
+**Colunas legadas em `marketing_integrations` (não mais escritas pelo TikTok Hub):**
 - `tiktok_access_token`, `tiktok_refresh_token`, `tiktok_token_expires_at`
 - `tiktok_advertiser_id`, `tiktok_advertiser_name`, `tiktok_connected_at`
 - `tiktok_connected_by`, `tiktok_pixel_id`, `tiktok_events_api_enabled`
@@ -1534,9 +1528,9 @@ A migração do TikTok de `marketing_integrations` para `tiktok_ads_connections`
 | Arquivo | Descrição | Status |
 |---------|-----------|--------|
 | `src/hooks/useTikTokAdsConnection.ts` | Hook para conexão Ads (lê de `tiktok_ads_connections`) | ✅ Ready |
-| `src/hooks/useTikTokConnection.ts` | Hook legado (lê de `marketing_integrations`) — **deprecated** | ⚠️ Deprecated |
+| `src/hooks/useTikTokConnection.ts` | ~~Hook legado~~ — **DELETADO na Fase 2** | ❌ Deletado |
 | `src/components/integrations/TikTokUnifiedSettings.tsx` | UI Hub com 3 cards (Ads ativo, Shop/Content em breve) | ✅ Ready |
-| `src/components/integrations/TikTokIntegrationCard.tsx` | Card legado em Marketing — **deprecated** | ⚠️ Deprecated |
+| `src/components/integrations/TikTokIntegrationCard.tsx` | ~~Card legado~~ — **DELETADO na Fase 2** | ❌ Deletado |
 | `src/pages/TikTokOAuthCallback.tsx` | Página de callback OAuth | ✅ Ready |
 
 ### Tipos TypeScript
@@ -1581,7 +1575,7 @@ https://app.comandocentral.com.br/integrations/tiktok/callback
 | Fase | Descrição | Status |
 |------|-----------|--------|
 | 1 | Hub Base: `tiktok_ads_connections` + OAuth + UI + dual-write | ✅ Concluída |
-| 2 | Pixel/CAPI migração completa (remover fallback legado) | 🟧 Pendente |
+| 2 | Pixel/CAPI migração completa (removido fallback legado) | ✅ Concluída |
 | 3 | TikTok Shop: Tabela Base + OAuth | 🟧 Pendente |
 | 4 | TikTok Shop: Catálogo de Produtos | 🟧 Pendente |
 | 5 | TikTok Shop: Pedidos | 🟧 Pendente |

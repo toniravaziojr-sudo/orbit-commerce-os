@@ -53,40 +53,29 @@ A divisão reflete nas permissões:
 | TikTok | ✅ Ready | Pixel, Events API, OAuth integrador → **Migrado para Hub TikTok em `/integrations`** |
 | Pinterest | 🟧 Pending | Tag, Catálogo |
 
-### TikTok OAuth (MIGRADO para Hub TikTok)
+### TikTok OAuth (MIGRADO E LIMPO — Fase 2 Concluída)
 
-> **STATUS:** ⚠️ MIGRADO — Fonte de verdade agora é `tiktok_ads_connections`  
-> **Migrado em:** 2026-02-15  
+> **STATUS:** ✅ MIGRAÇÃO COMPLETA — Sem dual-write, sem fallback  
+> **Fase 1 concluída em:** 2026-02-15  
+> **Fase 2 concluída em:** 2026-02-15  
 > **Documentação completa:** `docs/regras/integracoes.md` → seção "TikTok — Hub Multi-Conexão"
 
-A integração TikTok foi migrada de `marketing_integrations` para o Hub TikTok centralizado em `/integrations`.
+A integração TikTok foi completamente migrada de `marketing_integrations` para o Hub TikTok.
 
-#### O que mudou
+#### O que mudou na Fase 2
 
-| Antes | Depois |
-|-------|--------|
-| Tokens em `marketing_integrations.tiktok_*` | Tokens em `tiktok_ads_connections` |
-| Hook `useTikTokConnection` | Hook `useTikTokAdsConnection` |
-| Card em Marketing > TikTok | Hub em Integrações > TikTok |
-| 1 conexão genérica | 3 conexões por produto (Ads/Shop/Content) |
+| Item | Antes (Fase 1) | Depois (Fase 2) |
+|------|-----------------|------------------|
+| `tiktok-oauth-callback` | v2 dual-write | v3 só `tiktok_ads_connections` |
+| `tiktok-token-refresh` | v1 dual-write | v2 só `tiktok_ads_connections` |
+| `marketing-send-tiktok` | v2 fallback legado | v3 só `tiktok_ads_connections` |
+| `useTikTokConnection.ts` | Deprecated | **Deletado** |
+| `TikTokIntegrationCard.tsx` | Deprecated | **Deletado** |
 
-#### Retrocompatibilidade (30 dias)
+#### Colunas legadas em `marketing_integrations`
 
-- O `tiktok-oauth-callback` v2 faz **dual-write** nas duas tabelas
-- O `marketing-send-tiktok` lê de `tiktok_ads_connections` com **fallback** para `marketing_integrations`
-- **Deadline para remover fallback:** 2026-03-17
-
-#### Arquivos Deprecados
-
-| Arquivo | Status | Substituído por |
-|---------|--------|-----------------|
-| `src/hooks/useTikTokConnection.ts` | ⚠️ Deprecated | `useTikTokAdsConnection.ts` |
-| `src/components/integrations/TikTokIntegrationCard.tsx` | ⚠️ Deprecated | `TikTokUnifiedSettings.tsx` |
-
-#### Referência Completa
-
-Para detalhes da nova arquitetura (scope packs, tabelas, edge functions, fases), consulte:
-- `docs/regras/integracoes.md` → seção "TikTok — Hub Multi-Conexão"
+As colunas `tiktok_*` em `marketing_integrations` **não são mais escritas** por nenhuma edge function.  
+Podem ser removidas em uma futura migração de limpeza.
 
 ### Meta Pixel & CAPI
 ```typescript
