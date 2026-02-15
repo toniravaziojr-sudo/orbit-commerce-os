@@ -185,25 +185,105 @@ Podem ser removidas em uma futura migração de limpeza.
 
 ---
 
-## 5. Gestor de Tráfego IA
+## 5. Gestor de Tráfego IA (Autopilot)
 
-> **Antigo nome:** Criador de Campanhas
+> **STATUS:** ✅ Ready (Fase 1-8 implementadas)  
+> **Rota:** `/ads`
 
-### Tipos de Campanha
-| Tipo | Descrição |
-|------|-----------|
-| `flash_sale` | Venda relâmpago |
-| `seasonal` | Sazonal |
-| `launch` | Lançamento |
-| `clearance` | Queima de estoque |
+### Arquitetura
 
-### Elementos de Campanha
-| Elemento | Descrição |
+Pipeline autônomo de 5 etapas que gerencia tráfego pago cross-channel:
+
+```text
+Lojista (Orçamento Total + Instruções)
+  → Etapa 0: Pre-check de Integrações (canal conectado? pixel ativo? dev token?)
+  → Etapa 1: Lock (evitar sessões concorrentes)
+  → Etapa 2: Context Collector (produtos top 20, pedidos 30d, campanhas, insights 7d)
+  → Etapa 3: Allocator (GPT-5.2 decide split Meta/Google/TikTok por ROAS marginal)
+  → Etapa 4: Planner (GPT-5.2 propõe ações por canal) + Policy Layer (validação determinística)
+  → Etapa 5: Executor (executa ações validadas via edge functions de cada canal)
+```
+
+### Tabelas
+
+| Tabela | Descrição |
+|--------|-----------|
+| `ads_autopilot_configs` | Config global (`channel='global'`) + configs por canal |
+| `ads_autopilot_sessions` | Histórico de sessões de análise |
+| `ads_autopilot_actions` | Ações da IA com reasoning, rollback_data e action_hash |
+
+### Config Global (`channel='global'`)
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `budget_mode` | text | `daily` / `monthly` |
+| `budget_cents` | integer | Orçamento total |
+| `allocation_mode` | text | `auto` (IA decide) / `manual` |
+| `objective` | text | `sales`, `traffic`, `leads` |
+| `user_instructions` | text | Prompt livre do lojista |
+| `ai_model` | text | Default `openai/gpt-5.2` |
+| `safety_rules` | jsonb | `{ gross_margin_pct, max_cpa_cents, min_roas, max_budget_change_pct_day, max_actions_per_session, allowed_actions }` |
+| `lock_session_id` | uuid | Sessão que detém o lock (nullable) |
+
+### Safety Rules (JSONB)
+
+| Campo | Tipo | Default | Descrição |
+|-------|------|---------|-----------|
+| `gross_margin_pct` | number | 30 | Margem bruta para cálculo de CPA máximo |
+| `max_cpa_cents` | number | null | CPA máximo em centavos (baseado em margem) |
+| `min_roas` | number | 2.0 | ROAS mínimo aceitável |
+| `max_budget_change_pct_day` | number | 10 | Limite de alteração diária ±% |
+| `max_actions_per_session` | number | 10 | Máximo de ações por sessão |
+| `allowed_actions` | string[] | `["pause_campaign","adjust_budget","report_insight","allocate_budget"]` | Faseamento do rollout |
+
+### Tipos de Ação
+
+| Ação | Semana | Descrição |
+|------|--------|-----------|
+| `allocate_budget` | 1 | Distribuição cross-channel |
+| `pause_campaign` | 1 | Pausar campanha de baixo desempenho |
+| `adjust_budget` | 1 | Ajustar orçamento de campanha |
+| `report_insight` | 1 | Insight sem execução |
+| `create_campaign` | 2 | Criar campanha com templates fixos |
+| `generate_creative` | 3 | Gerar criativos via `ads-autopilot-creative` |
+
+### Guardrails
+
+- **Lock por tenant:** `lock_session_id` impede sessões concorrentes (expira em 10 min)
+- **Idempotência:** `action_hash` UNIQUE (`session_id + action_type + target_id`)
+- **Policy Layer:** Validação determinística antes de qualquer execução
+- **Nunca deletar:** Só pausar campanhas
+- **CPA baseado em margem:** Não em ticket médio
+
+### Edge Functions
+
+| Function | Descrição |
 |----------|-----------|
-| Landing page | Página específica |
-| Cupom | Desconto vinculado |
-| Timer | Contagem regressiva |
-| Banner | Visual da campanha |
+| `ads-autopilot-analyze` | Orquestrador principal (pipeline 5 etapas) |
+| `ads-autopilot-creative` | Geração de criativos para campanhas via autopilot |
+
+### Arquivos Frontend
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/pages/AdsManager.tsx` | Página principal redesenhada |
+| `src/hooks/useAdsAutopilot.ts` | Hook para configs, actions, sessions |
+| `src/components/ads/AdsGlobalConfig.tsx` | Card config global + toggle master |
+| `src/components/ads/AdsCampaignsTab.tsx` | Campanhas por canal |
+| `src/components/ads/AdsActionsTab.tsx` | Timeline de ações da IA |
+| `src/components/ads/AdsReportsTab.tsx` | Cards resumo + gráficos |
+
+### Pre-check de Integrações
+
+Antes de executar, o autopilot verifica automaticamente:
+
+| Canal | Verificação |
+|-------|-------------|
+| Meta | Conexão ativa em `marketplace_connections` |
+| Google | Conexão ativa em `google_connections` + Developer Token em `platform_credentials` |
+| TikTok | Conexão ativa em `tiktok_ads_connections` |
+
+Se falhar → status `BLOCKED`, gera `report_insight` com o que falta.
 
 ---
 
@@ -433,10 +513,15 @@ CREATE TYPE creative_job_status AS ENUM (
 ## Pendências
 
 - [ ] Dashboard de atribuição
-- [ ] Integração Google Ads
+- [ ] Integração Google Ads (campanhas manuais)
 - [ ] Módulo de email marketing completo
 - [ ] Automações de marketing
-- [ ] Gestão de tráfego IA completa
+- [x] Gestor de Tráfego IA — Fase 1: DB (3 tabelas + RLS)
+- [x] Gestor de Tráfego IA — Fase 2: Edge Function `ads-autopilot-analyze`
+- [x] Gestor de Tráfego IA — Fase 3: Edge Function `ads-autopilot-creative`
+- [x] Gestor de Tráfego IA — Fase 4: Hook `useAdsAutopilot`
+- [x] Gestor de Tráfego IA — Fase 5-8: UI completa
+- [ ] Gestor de Tráfego IA — Fase 9: Scheduler (cron automático)
 - [ ] Relatórios de ROI
 - [x] Gestão de Criativos (UI básica)
 - [x] Gestão de Criativos (Tabela creative_jobs)
