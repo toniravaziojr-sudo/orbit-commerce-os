@@ -106,10 +106,14 @@ export default function TikTokOAuthCallback() {
         return;
       }
 
-      // If state is invalid (INVALID_STATE), it might be a Shop OAuth
+      // If state is invalid (INVALID_STATE), try Shop then Content
       if (data?.code === "INVALID_STATE") {
         console.log("[TikTokOAuthCallback] Ads state invalid, trying Shop callback...");
-        await processShopCallback(authCode, state);
+        const shopSuccess = await processShopCallback(authCode, state);
+        if (!shopSuccess) {
+          console.log("[TikTokOAuthCallback] Shop state invalid, trying Content callback...");
+          await processContentCallback(authCode, state);
+        }
         return;
       }
 
@@ -119,16 +123,43 @@ export default function TikTokOAuthCallback() {
       setErrorMessage(errMsg);
       notifyParentAndClose(false, errMsg);
     } catch (err) {
-      // Network error — try Shop as fallback
+      // Network error — try Shop then Content as fallback
       console.warn("[TikTokOAuthCallback] Ads callback failed, trying Shop...", err);
-      await processShopCallback(authCode, state);
+      const shopSuccess = await processShopCallback(authCode, state);
+      if (!shopSuccess) {
+        await processContentCallback(authCode, state);
+      }
     }
   }
 
-  async function processShopCallback(authCode: string, state: string) {
+  async function processShopCallback(authCode: string, state: string): Promise<boolean> {
     try {
       const { data, error } = await supabase.functions.invoke("tiktok-shop-oauth-callback", {
         body: { auth_code: authCode, state },
+      });
+
+      if (error || !data?.success) {
+        if (data?.code === "INVALID_STATE") return false;
+        const errMsg = data?.error || error?.message || "Erro ao processar autorização";
+        setStatus("error");
+        setErrorMessage(errMsg);
+        notifyParentAndClose(false, errMsg);
+        return true; // handled (even if error)
+      }
+
+      console.log("[TikTokOAuthCallback] Shop connection success:", data.connection);
+      setStatus("success");
+      notifyParentAndClose(true);
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  async function processContentCallback(authCode: string, state: string) {
+    try {
+      const { data, error } = await supabase.functions.invoke("tiktok-content-oauth-callback", {
+        body: { code: authCode, state },
       });
 
       if (error || !data?.success) {
@@ -139,8 +170,14 @@ export default function TikTokOAuthCallback() {
         return;
       }
 
-      console.log("[TikTokOAuthCallback] Shop connection success:", data.connection);
+      console.log("[TikTokOAuthCallback] Content connection success:", data.connection);
       setStatus("success");
+      // Send content-specific event
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({ type: "tiktok-content:connected", success: true }, "*");
+        }
+      } catch (e) { /* ignore */ }
       notifyParentAndClose(true);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : "Erro inesperado";

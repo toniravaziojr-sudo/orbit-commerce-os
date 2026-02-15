@@ -16,14 +16,14 @@ import { Separator } from '@/components/ui/separator';
 import { 
   Loader2, CheckCircle2, XCircle, AlertCircle,
   Music2, Link2, Unlink, Globe, Server,
-  ShoppingBag, Video, Lock
+  ShoppingBag, Video
 } from 'lucide-react';
 import { useTikTokAdsConnection } from '@/hooks/useTikTokAdsConnection';
 import { useTikTokShopConnection } from '@/hooks/useTikTokShopConnection';
+import { useTikTokContentConnection } from '@/hooks/useTikTokContentConnection';
 import { useMarketingIntegrations } from '@/hooks/useMarketingIntegrations';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { StatusBadge } from '@/components/ui/status-badge';
 
 function ConnectionStatusBadge({ status }: { status: string }) {
   if (status === 'connected') {
@@ -61,6 +61,11 @@ export function TikTokUnifiedSettings() {
     isDisconnecting: shopDisconnecting, connect: shopConnect, disconnect: shopDisconnect
   } = useTikTokShopConnection();
 
+  const {
+    connectionStatus: contentStatus, isLoading: contentLoading, isConnecting: contentConnecting,
+    isDisconnecting: contentDisconnecting, connect: contentConnect, disconnect: contentDisconnect
+  } = useTikTokContentConnection();
+
   const { config: marketingConfig, upsertConfig } = useMarketingIntegrations();
 
   // Local state for Pixel (can be configured independently)
@@ -85,7 +90,7 @@ export function TikTokUnifiedSettings() {
     });
   };
 
-  if (adsLoading || shopLoading) {
+  if (adsLoading || shopLoading || contentLoading) {
     return (
       <div className="flex items-center justify-center p-12">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -349,8 +354,8 @@ export function TikTokUnifiedSettings() {
         </CardContent>
       </Card>
 
-      {/* Card 3: TikTok Content — Em breve */}
-      <Card className="opacity-60">
+      {/* Card 3: TikTok Content — Ativo */}
+      <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -363,14 +368,77 @@ export function TikTokUnifiedSettings() {
                 Publicação orgânica de vídeos e analytics
               </CardDescription>
             </div>
-            <StatusBadge variant="default">Em breve</StatusBadge>
+            <ConnectionStatusBadge status={contentStatus.connectionStatus} />
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Lock className="h-4 w-4" />
-            Requer credenciais separadas (TikTok for Developers)
-          </div>
+        <CardContent className="space-y-4">
+          {contentStatus.isConnected ? (
+            <div className="space-y-4">
+              <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20">
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                <AlertDescription className="text-green-700 dark:text-green-300">
+                  <div className="flex flex-col gap-1">
+                    <span className="font-medium">
+                      {contentStatus.displayName || contentStatus.openId || 'Conta conectada'}
+                    </span>
+                    {contentStatus.connectedAt && (
+                      <span className="text-xs opacity-75">
+                        Conectado em {format(new Date(contentStatus.connectedAt), "dd 'de' MMM 'de' yyyy", { locale: ptBR })}
+                      </span>
+                    )}
+                    {contentStatus.isExpired && (
+                      <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                        ⚠️ Token expirado — reconecte para continuar
+                      </span>
+                    )}
+                  </div>
+                </AlertDescription>
+              </Alert>
+
+              {/* Scope Packs */}
+              {contentStatus.scopePacks.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Packs habilitados</Label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {contentStatus.scopePacks.map(pack => (
+                      <Badge key={pack} variant="secondary" className="text-xs">
+                        {pack}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => contentConnect()} disabled={contentConnecting} size="sm">
+                  {contentConnecting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Link2 className="h-4 w-4 mr-2" />}
+                  Reconectar
+                </Button>
+                <Button variant="ghost" onClick={contentDisconnect} disabled={contentDisconnecting} size="sm"
+                  className="text-destructive hover:text-destructive">
+                  {contentDisconnecting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Unlink className="h-4 w-4 mr-2" />}
+                  Desconectar
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Conecte sua conta TikTok para publicar vídeos orgânicos e acompanhar analytics.
+              </p>
+              <Button onClick={() => contentConnect()} disabled={contentConnecting} className="gap-2">
+                {contentConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
+                Conectar TikTok Content
+              </Button>
+            </div>
+          )}
+
+          {contentStatus.lastError && (
+            <Alert variant="destructive">
+              <XCircle className="h-4 w-4" />
+              <AlertDescription>{contentStatus.lastError}</AlertDescription>
+            </Alert>
+          )}
         </CardContent>
       </Card>
     </div>
