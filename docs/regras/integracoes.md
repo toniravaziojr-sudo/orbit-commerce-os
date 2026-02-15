@@ -1675,14 +1675,48 @@ https://app.comandocentral.com.br/integrations/tiktok/callback
 | 2 | Pixel/CAPI migração completa (removido fallback legado + dual-write) | ✅ Concluída |
 | 3 | TikTok Shop: `tiktok_shop_connections` + OAuth | ✅ Concluída |
 | 4 | TikTok Content: `tiktok_content_connections` + OAuth (Login Kit) | ✅ Concluída |
-| 5 | TikTok Shop: Catálogo de Produtos | 🟧 Pendente |
+| 5 | TikTok Shop: Catálogo de Produtos | ✅ Concluída |
 | 6 | TikTok Shop: Pedidos | 🟧 Pendente |
-| 10 | TikTok Ads: Campanhas e Insights | 🟧 Pendente |
-| 11 | TikTok Content: Publicação Orgânica | 🟧 Pendente |
-| 6 | TikTok Shop: Fulfillment e Logística | 🟧 Pendente |
-| 7 | TikTok Shop: Devoluções e Pós-venda | 🟧 Pendente |
-| 8 | TikTok Shop: Atendimento (Inbox Unificado) | 🟧 Pendente |
-| 9 | TikTok Shop: Financeiro | 🟧 Pendente |
+| 7 | TikTok Shop: Fulfillment e Logística | 🟧 Pendente |
+| 8 | TikTok Shop: Devoluções e Pós-venda | 🟧 Pendente |
+| 9 | TikTok Shop: Atendimento (Inbox Unificado) | 🟧 Pendente |
 | 10 | TikTok Ads: Campanhas e Insights | 🟧 Pendente |
 | 11 | TikTok Content: Publicação Orgânica | 🟧 Pendente |
 | 12 | Webhooks e Analytics Agregados | 🟧 Pendente |
+
+### Fase 5: TikTok Shop Catálogo
+
+#### Tabela: `tiktok_shop_products`
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `product_id` | UUID FK | Produto local |
+| `tiktok_product_id` | TEXT | ID do produto no TikTok Shop |
+| `tiktok_sku_id` | TEXT | ID do SKU no TikTok |
+| `status` | TEXT | `pending`, `synced`, `error`, `paused` |
+| `sync_action` | TEXT | `create`, `update` |
+| `tiktok_status` | TEXT | Status retornado pela API TikTok |
+| `tiktok_category_id` | TEXT | Categoria no TikTok |
+
+**UNIQUE**: `(tenant_id, product_id)`
+
+#### Edge Functions
+
+| Function | Actions | Descrição |
+|----------|---------|-----------|
+| `tiktok-shop-catalog-sync` | `sync`, `list` | Sincroniza produtos e lista cache local |
+| `tiktok-shop-catalog-status` | — | Verifica status de aprovação na API TikTok |
+
+#### Hook: `useTikTokCatalog`
+
+| Retorno | Descrição |
+|---------|-----------|
+| `syncedProducts` | Lista de produtos sincronizados |
+| `syncProducts(productIds?)` | Sincronizar produtos (todos ou selecionados) |
+| `checkStatus(productIds?)` | Verificar status de aprovação |
+
+#### Mapeamento Tabela → Edge Functions
+
+| Tabela | Edge Functions |
+|--------|----------------|
+| `tiktok_shop_products` | `tiktok-shop-catalog-sync`, `tiktok-shop-catalog-status` |

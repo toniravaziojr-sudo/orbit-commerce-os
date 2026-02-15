@@ -14987,6 +14987,72 @@ export type Database = {
           },
         ]
       }
+      tiktok_shop_products: {
+        Row: {
+          created_at: string
+          id: string
+          last_error: string | null
+          last_synced_at: string | null
+          metadata: Json | null
+          product_id: string
+          status: string
+          sync_action: string
+          tenant_id: string
+          tiktok_category_id: string | null
+          tiktok_product_id: string | null
+          tiktok_sku_id: string | null
+          tiktok_status: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          last_synced_at?: string | null
+          metadata?: Json | null
+          product_id: string
+          status?: string
+          sync_action?: string
+          tenant_id: string
+          tiktok_category_id?: string | null
+          tiktok_product_id?: string | null
+          tiktok_sku_id?: string | null
+          tiktok_status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          last_synced_at?: string | null
+          metadata?: Json | null
+          product_id?: string
+          status?: string
+          sync_action?: string
+          tenant_id?: string
+          tiktok_category_id?: string | null
+          tiktok_product_id?: string | null
+          tiktok_sku_id?: string | null
+          tiktok_status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiktok_shop_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tiktok_shop_products_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
