@@ -30,15 +30,33 @@ export default function AdsManager() {
   // Selected ad accounts per channel
   const [selectedAccounts, setSelectedAccounts] = useState<Record<string, string[]>>({});
 
+  const getAdAccountIds = useCallback((channel: string): string[] => {
+    switch (channel) {
+      case "meta": {
+        const adAccounts = metaConn.status?.connection?.assets?.ad_accounts || [];
+        return adAccounts.map((a: any) => a.id);
+      }
+      case "google": {
+        const adAccounts = googleConn.status?.connection?.assets?.ad_accounts || [];
+        return adAccounts.map((a: any) => a.id);
+      }
+      case "tiktok": {
+        const advertiserIds = tiktokConn.connectionStatus?.assets?.advertiser_ids || [];
+        return advertiserIds as string[];
+      }
+      default: return [];
+    }
+  }, [metaConn.status, googleConn.status, tiktokConn.connectionStatus]);
+
   const toggleAccount = useCallback((channel: string, accountId: string) => {
     setSelectedAccounts(prev => {
-      const current = prev[channel] || [];
+      const current = prev[channel] ?? getAdAccountIds(channel);
       const next = current.includes(accountId)
         ? current.filter(id => id !== accountId)
         : [...current, accountId];
       return { ...prev, [channel]: next };
     });
-  }, []);
+  }, [getAdAccountIds]);
 
   // Auto-sync campaigns when a connected channel is viewed for the first time
   const syncedChannelsRef = useRef<Set<string>>(new Set());
