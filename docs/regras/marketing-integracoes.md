@@ -217,24 +217,31 @@ Lojista (Orçamento Total + Instruções)
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
 | `budget_mode` | text | `daily` / `monthly` |
-| `budget_cents` | integer | Orçamento total |
+| `budget_cents` | integer | Orçamento total cross-channel |
 | `allocation_mode` | text | `auto` (IA decide) / `manual` |
-| `objective` | text | `sales`, `traffic`, `leads` |
-| `user_instructions` | text | Prompt livre do lojista |
+| `objective` | text | Fixo em `sales` (hardcoded no frontend) |
+| `user_instructions` | text | Prompt livre do lojista (direcionamento estratégico) |
 | `ai_model` | text | Default `openai/gpt-5.2` |
-| `safety_rules` | jsonb | `{ gross_margin_pct, max_cpa_cents, min_roas, max_budget_change_pct_day, max_actions_per_session, allowed_actions }` |
+| `safety_rules` | jsonb | Ver tabela abaixo |
 | `lock_session_id` | uuid | Sessão que detém o lock (nullable) |
 
-### Safety Rules (JSONB)
+### Safety Rules — Config Global (JSONB)
 
 | Campo | Tipo | Default | Descrição |
 |-------|------|---------|-----------|
-| `gross_margin_pct` | number | 30 | Margem bruta para cálculo de CPA máximo |
-| `max_cpa_cents` | number | null | CPA máximo em centavos (baseado em margem) |
-| `min_roas` | number | 2.0 | ROAS mínimo aceitável |
+| `target_roi` | number | null | **ROI Ideal** — Meta de retorno global que a IA busca alcançar somando todo investimento × todas as campanhas em todos os canais |
 | `max_budget_change_pct_day` | number | 10 | Limite de alteração diária ±% |
 | `max_actions_per_session` | number | 10 | Máximo de ações por sessão |
 | `allowed_actions` | string[] | `["pause_campaign","adjust_budget","report_insight","allocate_budget"]` | Faseamento do rollout |
+
+### Safety Rules — Config por Canal (JSONB)
+
+| Campo | Tipo | Default | Descrição |
+|-------|------|---------|-----------|
+| `min_roi_cold` | number | null | ROI mínimo para pausar campanhas de público frio (prospecção) |
+| `min_roi_warm` | number | null | ROI mínimo para pausar campanhas de público quente (remarketing) |
+
+> **Nota:** Os campos `gross_margin_pct`, `max_cpa_cents` e `min_roas` foram removidos da config global (v3.1). O ROI é agora gerido em dois níveis: ROI Ideal (global, meta aspiracional) e ROI Mínimo para Pausar (por canal, frio vs quente).
 
 ### Tipos de Ação
 
@@ -268,7 +275,7 @@ Lojista (Orçamento Total + Instruções)
 |---------|-----------|
 | `src/pages/AdsManager.tsx` | Página principal redesenhada |
 | `src/hooks/useAdsAutopilot.ts` | Hook para configs, actions, sessions |
-| `src/components/ads/AdsGlobalConfig.tsx` | Card config global + toggle master |
+| `src/components/ads/AdsGlobalConfig.tsx` | Card config global (orçamento + ROI ideal + prompt) |
 | `src/components/ads/AdsCampaignsTab.tsx` | Campanhas por canal |
 | `src/components/ads/AdsActionsTab.tsx` | Timeline de ações da IA |
 | `src/components/ads/AdsReportsTab.tsx` | Cards resumo + gráficos |
