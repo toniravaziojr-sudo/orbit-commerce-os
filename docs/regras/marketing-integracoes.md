@@ -324,7 +324,7 @@ Se falhar → status `BLOCKED`, gera `report_insight` com o que falta.
 | Comportamento | Descrição |
 |---------------|-----------|
 | **Auto-sync** | Na primeira visualização de um canal conectado, se a lista de campanhas estiver vazia, dispara `syncCampaigns.mutate()` automaticamente (controlado por `syncedChannelsRef` para evitar re-trigger) |
-| **Sync manual** | Botão "Sincronizar" exibido **permanentemente** na toolbar da `AdsCampaignsTab` quando há campanhas e `isConnected=true`; também no `EmptyState` quando não há campanhas |
+| **Sync sequencial** | Botão "Atualizar" executa sync **sequencial**: primeiro `syncCampaigns` (await), depois `syncInsights` + `syncAdsets` em paralelo — garante que campanhas existam antes de processar insights |
 | **Sync de ad sets** | Ao expandir uma campanha, sincroniza os ad sets automaticamente via `meta-ads-adsets` edge function (ação `sync` com filtro por `meta_campaign_id`) |
 | **Filtro por status** | ToggleGroup com 3 opções: Todas (total), Ativas (ACTIVE/ENABLE), Pausadas (PAUSED/DISABLE/ARCHIVED) — cada uma com badge de contagem |
 | **Filtro por datas** | DateRange picker com presets (7d, 14d, 30d, 90d) para filtrar métricas de performance |
@@ -342,15 +342,16 @@ Se falhar → status `BLOCKED`, gera `report_insight` com o que falta.
 | **Ações** | `sync` (todas as contas), `create` / `update` / `delete` (requerem `ad_account_id` no body) |
 | **Upsert** | Campanhas sincronizadas via `meta_campaign_id` como chave de conflito |
 
-### Edge Function `meta-ads-insights` (v1.1.0)
+### Edge Function `meta-ads-insights` (v1.2.0)
 
 | Item | Descrição |
 |------|-----------|
 | **Query de conexão** | Usa `marketplace_connections` com filtro `marketplace='meta'` e `is_active=true` |
 | **Multi-account** | Itera por **todas** as contas de anúncio (não apenas a primeira) |
 | **Campos da API** | `campaign_id, campaign_name, impressions, clicks, spend, reach, cpc, cpm, ctr, actions, action_values, cost_per_action_type, frequency` |
-| **Conversões** | Extrai `actions[purchase/omni_purchase]` para contagem e `action_values[purchase]` para valor monetário (`conversion_value_cents`) |
+| **Conversões** | Extrai `actions[purchase/omni_purchase/offsite_conversion.fb_pixel_purchase]` para contagem e `action_values[purchase/omni_purchase]` para valor monetário (`conversion_value_cents`) |
 | **ROAS** | Calculado como `conversion_value_cents / spend_cents` |
+| **Auto-create campaigns** | Se um insight referencia uma `meta_campaign_id` que não existe localmente, cria automaticamente um registro placeholder com `status: UNKNOWN` (corrigido na próxima sincronização de campanhas) — evita dados órfãos |
 | **Ações** | `sync` (pull insights da Meta), `list` (cache local), `summary` (métricas agregadas) |
 
 ### Edge Function `meta-ads-adsets` (v1.1.0)
