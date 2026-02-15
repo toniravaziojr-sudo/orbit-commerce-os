@@ -1327,8 +1327,9 @@ const {
 - [x] ~~TikTok Content: Tabela Base + OAuth (Login Kit)~~ (Fase 4 concluída)
 - [x] ~~TikTok Shop: Catálogo~~ (Fase 5 concluída)
 - [x] ~~TikTok Shop: Pedidos~~ (Fase 6 concluída)
-- [ ] TikTok Ads: Campanhas e Insights (Fase 10)
-- [ ] TikTok Content: Publicação Orgânica (Fase 11)
+- [x] ~~TikTok Ads: Campanhas e Insights~~ (Fase 10 concluída)
+- [x] ~~TikTok Ads: UI Gestor de Tráfego~~ (Fase 11 concluída)
+- [ ] TikTok Content: Publicação Orgânica (Fase 12)
 
 ---
 
@@ -1544,6 +1545,10 @@ A fonte de verdade exclusiva é `tiktok_ads_connections`.
 | `src/components/integrations/TikTokUnifiedSettings.tsx` | UI Hub com 3 cards (Ads, Shop, Content — todos ativos) | ✅ Ready |
 | `src/components/integrations/TikTokIntegrationCard.tsx` | ~~Card legado~~ — **DELETADO na Fase 2** | ❌ Deletado |
 | `src/pages/TikTokOAuthCallback.tsx` | Página de callback OAuth | ✅ Ready |
+| `src/hooks/useTikTokAds.ts` | Hook para campanhas e insights (lê de `tiktok_ad_campaigns` e `tiktok_ad_insights`) | ✅ Ready |
+| `src/components/integrations/tiktok/TikTokAdsPanel.tsx` | Painel operacional Ads (Campanhas + Insights) | ✅ Ready |
+| `src/components/integrations/tiktok/TikTokAdsCampaignsTab.tsx` | Tab de campanhas com tabela e sync | ✅ Ready |
+| `src/components/integrations/tiktok/TikTokAdsInsightsTab.tsx` | Tab de métricas diárias com tabela e sync | ✅ Ready |
 
 ### Tipos TypeScript
 
