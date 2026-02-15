@@ -303,7 +303,7 @@ start_time, end_time, synced_at
 | `src/components/ads/AdsGlobalConfig.tsx` | Card config global (orçamento + ROI ideal + prompt) |
 | `src/components/ads/AdsChannelIntegrationAlert.tsx` | Alerta de integração por canal (não conectado → link para /integrations; conectado → chips de seleção de contas de anúncio com toggle) |
 | `src/components/ads/AdsChannelRoasConfig.tsx` | Config de ROI por canal (frio/quente) + toggle IA |
-| `src/components/ads/AdsCampaignsTab.tsx` | Campanhas por canal com: filtro por status, filtro de datas, conjuntos expandíveis (ad sets), métricas dinâmicas por objetivo (ROI/ROAS para vendas, resultados para outros), gestão manual de orçamento e status, botão de saldo e link externo para plataforma. Colunas: Status, Campanha, Investido, Resultados, Custo por resultado, ROI, Alcance, Frequência, CTR |
+| `src/components/ads/AdsCampaignsTab.tsx` | Campanhas por canal com: filtro por status, filtro de datas, conjuntos expandíveis (ad sets), métricas dinâmicas por objetivo, gestão manual de orçamento e status, botão de saldo e deep link para campanha no gerenciador nativo. **28 métricas disponíveis** em 4 grupos (Desempenho, Custo, Conversão, Engajamento) selecionáveis via Column Selector (até 7 simultâneas). Métricas de ações extraídas do campo `actions` JSONB (link_clicks, landing_page_views, add_to_cart, initiate_checkout, video_views, post_engagement, etc.) |
 | `src/components/ads/AdsActionsTab.tsx` | Timeline de ações da IA |
 | `src/components/ads/AdsReportsTab.tsx` | Cards resumo + gráficos |
 

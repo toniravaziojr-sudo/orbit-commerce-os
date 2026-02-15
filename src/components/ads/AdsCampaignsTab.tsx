@@ -56,9 +56,11 @@ interface InsightData {
   reach: number;
   conversions: number;
   conversion_value_cents: number;
+  cost_per_conversion_cents?: number;
   roas: number;
   ctr: number;
   frequency: number;
+  actions?: Record<string, any>[] | null;
 }
 
 interface AdsCampaignsTabProps {
@@ -125,7 +127,11 @@ function StatusDot({ status }: { status: string }) {
 type MetricColumnKey =
   | "results" | "reach" | "frequency" | "cost_per_result" | "ctr"
   | "impressions" | "clicks" | "spend" | "budget" | "roas"
-  | "conversions" | "conversion_value" | "cpc" | "cpm";
+  | "conversions" | "conversion_value" | "cpc" | "cpm"
+  | "link_clicks" | "landing_page_views" | "add_to_cart" | "initiate_checkout"
+  | "add_payment_info" | "view_content" | "video_views" | "post_engagement"
+  | "post_reactions" | "comments" | "shares" | "page_likes"
+  | "cost_per_add_to_cart" | "cost_per_initiate_checkout" | "cost_per_landing_page_view";
 
 interface MetricColumnDef {
   key: MetricColumnKey;
@@ -135,20 +141,39 @@ interface MetricColumnDef {
 }
 
 const ALL_METRIC_COLUMNS: MetricColumnDef[] = [
+  // Desempenho
   { key: "results", label: "Resultados", shortLabel: "Resultados", group: "Desempenho" },
   { key: "reach", label: "Alcance", shortLabel: "Alcance", group: "Desempenho" },
   { key: "impressions", label: "Impressões", shortLabel: "Impressões", group: "Desempenho" },
   { key: "frequency", label: "Frequência", shortLabel: "Frequência", group: "Desempenho" },
-  { key: "clicks", label: "Cliques no link", shortLabel: "Cliques", group: "Desempenho" },
+  { key: "link_clicks", label: "Cliques no link", shortLabel: "Cliques link", group: "Desempenho" },
+  { key: "clicks", label: "Todos os cliques", shortLabel: "Cliques", group: "Desempenho" },
   { key: "ctr", label: "CTR (taxa de cliques)", shortLabel: "CTR", group: "Desempenho" },
+  { key: "landing_page_views", label: "Visualiz. pág. destino", shortLabel: "LP views", group: "Desempenho" },
+  // Custo
   { key: "cost_per_result", label: "Custo por resultado", shortLabel: "Custo/resultado", group: "Custo" },
   { key: "cpc", label: "CPC (custo por clique)", shortLabel: "CPC", group: "Custo" },
   { key: "cpm", label: "CPM (custo por mil)", shortLabel: "CPM", group: "Custo" },
   { key: "spend", label: "Valor usado", shortLabel: "Valor usado", group: "Custo" },
   { key: "budget", label: "Orçamento", shortLabel: "Orçamento", group: "Custo" },
+  { key: "cost_per_add_to_cart", label: "Custo por carrinho", shortLabel: "Custo/carrinho", group: "Custo" },
+  { key: "cost_per_initiate_checkout", label: "Custo por checkout", shortLabel: "Custo/checkout", group: "Custo" },
+  { key: "cost_per_landing_page_view", label: "Custo por LP view", shortLabel: "Custo/LP", group: "Custo" },
+  // Conversão
   { key: "roas", label: "ROAS (retorno)", shortLabel: "ROAS", group: "Conversão" },
   { key: "conversions", label: "Compras no site", shortLabel: "Compras", group: "Conversão" },
   { key: "conversion_value", label: "Valor de conversão", shortLabel: "Valor conv.", group: "Conversão" },
+  { key: "add_to_cart", label: "Adições ao carrinho", shortLabel: "Carrinhos", group: "Conversão" },
+  { key: "initiate_checkout", label: "Checkouts iniciados", shortLabel: "Checkouts", group: "Conversão" },
+  { key: "add_payment_info", label: "Info. pagamento", shortLabel: "Pgto info", group: "Conversão" },
+  { key: "view_content", label: "Visualiz. conteúdo", shortLabel: "View content", group: "Conversão" },
+  // Engajamento
+  { key: "video_views", label: "Visualiz. de vídeo", shortLabel: "Video views", group: "Engajamento" },
+  { key: "post_engagement", label: "Engajamento publicação", shortLabel: "Engajamento", group: "Engajamento" },
+  { key: "post_reactions", label: "Reações", shortLabel: "Reações", group: "Engajamento" },
+  { key: "comments", label: "Comentários", shortLabel: "Comentários", group: "Engajamento" },
+  { key: "shares", label: "Compartilhamentos", shortLabel: "Compartilh.", group: "Engajamento" },
+  { key: "page_likes", label: "Curtidas na página", shortLabel: "Page likes", group: "Engajamento" },
 ];
 
 const DEFAULT_COLUMNS: MetricColumnKey[] = [
@@ -160,10 +185,10 @@ const MAX_COLUMNS = 7;
 function getObjectiveMetric(objective: string | null): { label: string; key: string; icon: any } {
   const o = objective?.toUpperCase() || "";
   if (o.includes("SALES") || o.includes("CONVERSIONS") || o.includes("OUTCOME_SALES")) return { label: "Compras", key: "conversions", icon: ShoppingCart };
-  if (o.includes("TRAFFIC") || o.includes("LINK_CLICKS")) return { label: "Cliques", key: "clicks", icon: MousePointerClick };
+  if (o.includes("TRAFFIC") || o.includes("LINK_CLICKS")) return { label: "Cliques link", key: "link_clicks", icon: MousePointerClick };
   if (o.includes("AWARENESS") || o.includes("REACH") || o.includes("BRAND")) return { label: "Alcance", key: "reach", icon: Eye };
-  if (o.includes("ENGAGEMENT") || o.includes("POST_ENGAGEMENT")) return { label: "Engajamento", key: "clicks", icon: MessageCircle };
-  if (o.includes("VIDEO") || o.includes("VIDEO_VIEWS")) return { label: "Views", key: "impressions", icon: Video };
+  if (o.includes("ENGAGEMENT") || o.includes("POST_ENGAGEMENT")) return { label: "Engajamento", key: "post_engagement", icon: MessageCircle };
+  if (o.includes("VIDEO") || o.includes("VIDEO_VIEWS")) return { label: "Views", key: "video_views", icon: Video };
   if (o.includes("LEAD") || o.includes("LEAD_GENERATION")) return { label: "Leads", key: "conversions", icon: Users };
   if (o.includes("APP")) return { label: "Instalações", key: "conversions", icon: Target };
   return { label: "Resultados", key: "conversions", icon: ShoppingCart };
@@ -326,18 +351,35 @@ export function AdsCampaignsTab({
   const activeCount = accountFiltered.filter(c => c.status === "ACTIVE" || c.status === "ENABLE").length;
   const pausedCount = accountFiltered.filter(c => c.status === "PAUSED" || c.status === "DISABLE" || c.status === "ARCHIVED").length;
 
-  // ===== CRITICAL FIX: Filter insights by selected accounts + date range =====
+  // ===== Filter insights by selected accounts + date range =====
   const campaignInsights = useMemo(() => {
     const map = new Map<string, {
       impressions: number; clicks: number; spend_cents: number; reach: number;
       conversions: number; conversion_value_cents: number; roas: number; ctr: number;
       frequency: number; cost_per_result_cents: number; cpc_cents: number; cpm_cents: number;
+      // Action-based metrics
+      link_clicks: number; landing_page_views: number; add_to_cart: number;
+      initiate_checkout: number; add_payment_info: number; view_content: number;
+      video_views: number; post_engagement: number; post_reactions: number;
+      comments: number; shares: number; page_likes: number;
+      // Cost per action
+      cost_per_add_to_cart_cents: number; cost_per_initiate_checkout_cents: number;
+      cost_per_landing_page_view_cents: number;
     }>();
+
+    const extractAction = (actions: any[] | null | undefined, ...types: string[]): number => {
+      if (!actions || !Array.isArray(actions)) return 0;
+      for (const t of types) {
+        const found = actions.find((a: any) => a.action_type === t);
+        if (found) return parseInt(found.value) || 0;
+      }
+      return 0;
+    };
 
     for (const i of insights) {
       const campaignId = i.meta_campaign_id || i.tiktok_campaign_id || "";
 
-      // Filter by selected accounts: only include insights for campaigns in selected accounts
+      // Filter by selected accounts
       if (selectedAccountIds && selectedAccountIds.length > 0) {
         const accountId = campaignAccountMap.get(campaignId);
         if (!accountId || !selectedAccountSet.has(accountId)) continue;
@@ -354,10 +396,18 @@ export function AdsCampaignsTab({
         } catch { continue; }
       }
 
+      const acts = (i as any).actions;
+
       const existing = map.get(campaignId) || {
         impressions: 0, clicks: 0, spend_cents: 0, reach: 0,
         conversions: 0, conversion_value_cents: 0, roas: 0, ctr: 0,
         frequency: 0, cost_per_result_cents: 0, cpc_cents: 0, cpm_cents: 0,
+        link_clicks: 0, landing_page_views: 0, add_to_cart: 0,
+        initiate_checkout: 0, add_payment_info: 0, view_content: 0,
+        video_views: 0, post_engagement: 0, post_reactions: 0,
+        comments: 0, shares: 0, page_likes: 0,
+        cost_per_add_to_cart_cents: 0, cost_per_initiate_checkout_cents: 0,
+        cost_per_landing_page_view_cents: 0,
       };
       existing.impressions += i.impressions || 0;
       existing.clicks += i.clicks || 0;
@@ -365,6 +415,19 @@ export function AdsCampaignsTab({
       existing.reach += i.reach || 0;
       existing.conversions += i.conversions || 0;
       existing.conversion_value_cents += i.conversion_value_cents || 0;
+      // Extract from actions JSONB
+      existing.link_clicks += extractAction(acts, "link_click");
+      existing.landing_page_views += extractAction(acts, "landing_page_view", "omni_landing_page_view");
+      existing.add_to_cart += extractAction(acts, "add_to_cart", "omni_add_to_cart");
+      existing.initiate_checkout += extractAction(acts, "initiate_checkout", "omni_initiated_checkout");
+      existing.add_payment_info += extractAction(acts, "add_payment_info");
+      existing.view_content += extractAction(acts, "view_content", "omni_view_content");
+      existing.video_views += extractAction(acts, "video_view");
+      existing.post_engagement += extractAction(acts, "post_engagement", "page_engagement");
+      existing.post_reactions += extractAction(acts, "post_reaction");
+      existing.comments += extractAction(acts, "comment");
+      existing.shares += extractAction(acts, "post");
+      existing.page_likes += extractAction(acts, "like");
       map.set(campaignId, existing);
     }
 
@@ -376,6 +439,9 @@ export function AdsCampaignsTab({
       val.cost_per_result_cents = val.conversions > 0 ? Math.round(val.spend_cents / val.conversions) : 0;
       val.cpc_cents = val.clicks > 0 ? Math.round(val.spend_cents / val.clicks) : 0;
       val.cpm_cents = val.impressions > 0 ? Math.round((val.spend_cents / val.impressions) * 1000) : 0;
+      val.cost_per_add_to_cart_cents = val.add_to_cart > 0 ? Math.round(val.spend_cents / val.add_to_cart) : 0;
+      val.cost_per_initiate_checkout_cents = val.initiate_checkout > 0 ? Math.round(val.spend_cents / val.initiate_checkout) : 0;
+      val.cost_per_landing_page_view_cents = val.landing_page_views > 0 ? Math.round(val.spend_cents / val.landing_page_views) : 0;
     }
 
     return map;
@@ -494,6 +560,38 @@ export function AdsCampaignsTab({
         return metrics?.conversions > 0 ? formatNumber(metrics.conversions) : <span className="text-muted-foreground">—</span>;
       case "conversion_value":
         return metrics?.conversion_value_cents > 0 ? formatCurrency(metrics.conversion_value_cents) : <span className="text-muted-foreground">—</span>;
+      // Action-based metrics
+      case "link_clicks":
+        return metrics?.link_clicks > 0 ? formatNumber(metrics.link_clicks) : <span className="text-muted-foreground">—</span>;
+      case "landing_page_views":
+        return metrics?.landing_page_views > 0 ? formatNumber(metrics.landing_page_views) : <span className="text-muted-foreground">—</span>;
+      case "add_to_cart":
+        return metrics?.add_to_cart > 0 ? formatNumber(metrics.add_to_cart) : <span className="text-muted-foreground">—</span>;
+      case "initiate_checkout":
+        return metrics?.initiate_checkout > 0 ? formatNumber(metrics.initiate_checkout) : <span className="text-muted-foreground">—</span>;
+      case "add_payment_info":
+        return metrics?.add_payment_info > 0 ? formatNumber(metrics.add_payment_info) : <span className="text-muted-foreground">—</span>;
+      case "view_content":
+        return metrics?.view_content > 0 ? formatNumber(metrics.view_content) : <span className="text-muted-foreground">—</span>;
+      case "video_views":
+        return metrics?.video_views > 0 ? formatNumber(metrics.video_views) : <span className="text-muted-foreground">—</span>;
+      case "post_engagement":
+        return metrics?.post_engagement > 0 ? formatNumber(metrics.post_engagement) : <span className="text-muted-foreground">—</span>;
+      case "post_reactions":
+        return metrics?.post_reactions > 0 ? formatNumber(metrics.post_reactions) : <span className="text-muted-foreground">—</span>;
+      case "comments":
+        return metrics?.comments > 0 ? formatNumber(metrics.comments) : <span className="text-muted-foreground">—</span>;
+      case "shares":
+        return metrics?.shares > 0 ? formatNumber(metrics.shares) : <span className="text-muted-foreground">—</span>;
+      case "page_likes":
+        return metrics?.page_likes > 0 ? formatNumber(metrics.page_likes) : <span className="text-muted-foreground">—</span>;
+      // Cost per action
+      case "cost_per_add_to_cart":
+        return metrics?.cost_per_add_to_cart_cents > 0 ? formatCurrency(metrics.cost_per_add_to_cart_cents) : <span className="text-muted-foreground">—</span>;
+      case "cost_per_initiate_checkout":
+        return metrics?.cost_per_initiate_checkout_cents > 0 ? formatCurrency(metrics.cost_per_initiate_checkout_cents) : <span className="text-muted-foreground">—</span>;
+      case "cost_per_landing_page_view":
+        return metrics?.cost_per_landing_page_view_cents > 0 ? formatCurrency(metrics.cost_per_landing_page_view_cents) : <span className="text-muted-foreground">—</span>;
       default:
         return <span className="text-muted-foreground">—</span>;
     }
@@ -635,7 +733,30 @@ export function AdsCampaignsTab({
                 </Button>
               )}
               <Button variant="ghost" size="sm" className="gap-1.5 text-xs h-7 font-normal"
-                onClick={() => window.open(getChannelManagerUrl(channel), "_blank")}
+                onClick={() => {
+                  // Deep link: open the top-spending campaign in the native ads manager
+                  if (channel === "meta") {
+                    // Find campaign with highest spend
+                    let topCampaign: any = null;
+                    let topSpend = 0;
+                    for (const c of accountFiltered) {
+                      const cid = c.meta_campaign_id;
+                      const m = campaignInsights.get(cid);
+                      if (m && m.spend_cents > topSpend) {
+                        topSpend = m.spend_cents;
+                        topCampaign = c;
+                      }
+                    }
+                    if (topCampaign) {
+                      const actId = topCampaign.ad_account_id?.replace("act_", "") || "";
+                      window.open(`https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${actId}&selected_campaign_ids=${topCampaign.meta_campaign_id}`, "_blank");
+                    } else {
+                      window.open(getChannelManagerUrl(channel), "_blank");
+                    }
+                  } else {
+                    window.open(getChannelManagerUrl(channel), "_blank");
+                  }
+                }}
               >
                 Abrir {getChannelLabel(channel)} Ads
                 <ExternalLink className="h-2.5 w-2.5 text-muted-foreground/60" />
