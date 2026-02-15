@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.1.0"; // Fix: correct column names (marketplace, is_active) + sync all ad accounts
+const VERSION = "v1.2.0"; // Fix: pagination support for accounts with 100+ campaigns
 // ===========================================================
 
 const corsHeaders = {
@@ -114,44 +114,52 @@ Deno.serve(async (req) => {
         const accountId = account.id.replace("act_", "");
         console.log(`[meta-ads-campaigns][${traceId}] Syncing account: ${account.name} (act_${accountId})`);
         
-        const result = await graphApi(
-          `act_${accountId}/campaigns?fields=id,name,status,objective,buying_type,daily_budget,lifetime_budget,bid_strategy,start_time,stop_time,special_ad_categories&limit=100`,
-          conn.access_token
-        );
+        // Paginate through ALL campaigns (Meta returns max 100 per page)
+        let nextUrl: string | null = `act_${accountId}/campaigns?fields=id,name,status,objective,buying_type,daily_budget,lifetime_budget,bid_strategy,start_time,stop_time,special_ad_categories&limit=100`;
+        let pageCount = 0;
 
-        if (result.error) {
-          console.error(`[meta-ads-campaigns][${traceId}] Graph API error for ${account.id}:`, result.error);
-          continue; // Skip this account but continue with others
-        }
+        while (nextUrl && pageCount < 10) { // Safety: max 10 pages (1000 campaigns per account)
+          pageCount++;
+          const result = await graphApi(nextUrl, conn.access_token);
 
-        const campaigns = result.data || [];
-        totalCampaigns += campaigns.length;
-
-        for (const c of campaigns) {
-          const { error } = await supabase
-            .from("meta_ad_campaigns")
-            .upsert({
-              tenant_id: tenantId,
-              meta_campaign_id: c.id,
-              ad_account_id: account.id,
-              name: c.name,
-              status: c.status || "PAUSED",
-              objective: c.objective,
-              buying_type: c.buying_type,
-              daily_budget_cents: c.daily_budget ? parseInt(c.daily_budget) : null,
-              lifetime_budget_cents: c.lifetime_budget ? parseInt(c.lifetime_budget) : null,
-              bid_strategy: c.bid_strategy,
-              start_time: c.start_time || null,
-              stop_time: c.stop_time || null,
-              special_ad_categories: c.special_ad_categories || [],
-              synced_at: new Date().toISOString(),
-            }, { onConflict: "tenant_id,meta_campaign_id" });
-
-          if (error) {
-            console.error(`[meta-ads-campaigns][${traceId}] Upsert error for ${c.id}:`, error);
-          } else {
-            totalSynced++;
+          if (result.error) {
+            console.error(`[meta-ads-campaigns][${traceId}] Graph API error for ${account.id}:`, result.error);
+            break;
           }
+
+          const campaigns = result.data || [];
+          totalCampaigns += campaigns.length;
+          console.log(`[meta-ads-campaigns][${traceId}] Account ${account.id} page ${pageCount}: ${campaigns.length} campaigns`);
+
+          for (const c of campaigns) {
+            const { error } = await supabase
+              .from("meta_ad_campaigns")
+              .upsert({
+                tenant_id: tenantId,
+                meta_campaign_id: c.id,
+                ad_account_id: account.id,
+                name: c.name,
+                status: c.status || "PAUSED",
+                objective: c.objective,
+                buying_type: c.buying_type,
+                daily_budget_cents: c.daily_budget ? parseInt(c.daily_budget) : null,
+                lifetime_budget_cents: c.lifetime_budget ? parseInt(c.lifetime_budget) : null,
+                bid_strategy: c.bid_strategy,
+                start_time: c.start_time || null,
+                stop_time: c.stop_time || null,
+                special_ad_categories: c.special_ad_categories || [],
+                synced_at: new Date().toISOString(),
+              }, { onConflict: "tenant_id,meta_campaign_id" });
+
+            if (error) {
+              console.error(`[meta-ads-campaigns][${traceId}] Upsert error for ${c.id}:`, error);
+            } else {
+              totalSynced++;
+            }
+          }
+
+          // Check for next page
+          nextUrl = result.paging?.next ? result.paging.next.replace(`https://graph.facebook.com/${GRAPH_API_VERSION}/`, '').replace(`&access_token=${conn.access_token}`, '') : null;
         }
       }
 
