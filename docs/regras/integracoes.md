@@ -1926,3 +1926,84 @@ O `TikTokShopPanel` é renderizado dentro do card "TikTok Shop" em `TikTokUnifie
 | Pedidos | `useTikTokOrders` | Sincronizar pedidos, atualizar lista |
 | Envios | `useTikTokFulfillment` | Listar fulfillments, ver transportadoras |
 | Devoluções | `useTikTokReturns` | Sincronizar, aprovar, rejeitar devoluções |
+
+### Fase 10: TikTok Ads — Campanhas e Insights ✅
+
+#### Tabela: `tiktok_ad_campaigns`
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | UUID PK | ID interno |
+| `tenant_id` | UUID FK | Tenant |
+| `tiktok_campaign_id` | TEXT | ID da campanha no TikTok |
+| `advertiser_id` | TEXT | ID do anunciante |
+| `name` | TEXT | Nome da campanha |
+| `status` | TEXT | Status de operação TikTok |
+| `objective_type` | TEXT | Objetivo (TRAFFIC, CONVERSIONS, etc.) |
+| `budget_mode` | TEXT | Modo de orçamento |
+| `budget_cents` | INTEGER | Orçamento em centavos |
+| `bid_type` | TEXT | Tipo de lance |
+| `optimize_goal` | TEXT | Meta de otimização |
+| `campaign_type` | TEXT | Tipo de campanha |
+| `special_industries` | TEXT[] | Indústrias especiais |
+| `metadata` | JSONB | Dados extras |
+| `synced_at` | TIMESTAMPTZ | Último sync |
+
+**UNIQUE**: `(tenant_id, tiktok_campaign_id)`
+
+#### Tabela: `tiktok_ad_insights`
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | UUID PK | ID interno |
+| `tenant_id` | UUID FK | Tenant |
+| `campaign_id` | UUID FK (nullable) | Referência local em `tiktok_ad_campaigns` |
+| `tiktok_campaign_id` | TEXT | ID da campanha no TikTok |
+| `advertiser_id` | TEXT | ID do anunciante |
+| `date_start` | DATE | Início do período |
+| `date_stop` | DATE | Fim do período |
+| `impressions` | BIGINT | Impressões |
+| `clicks` | BIGINT | Cliques |
+| `spend_cents` | INTEGER | Gasto em centavos |
+| `reach` | BIGINT | Alcance |
+| `cpc_cents` | INTEGER | CPC em centavos |
+| `cpm_cents` | INTEGER | CPM em centavos |
+| `ctr` | NUMERIC | CTR |
+| `conversions` | INTEGER | Conversões |
+| `roas` | NUMERIC | ROAS |
+| `video_views` | INTEGER | Visualizações de vídeo |
+| `video_watched_2s` | INTEGER | Vídeo assistido 2s |
+| `video_watched_6s` | INTEGER | Vídeo assistido 6s |
+| `likes` | INTEGER | Curtidas |
+| `comments` | INTEGER | Comentários |
+| `shares` | INTEGER | Compartilhamentos |
+| `follows` | INTEGER | Seguidores |
+
+**UNIQUE**: `(tenant_id, tiktok_campaign_id, date_start)`
+
+#### Edge Functions
+
+| Function | Actions | Descrição |
+|----------|---------|-----------|
+| `tiktok-ads-campaigns` | `sync`, `list`, `create`, `update`, `delete` | CRUD de campanhas + sync da API TikTok |
+| `tiktok-ads-insights` | `sync`, `list` | Sync de métricas da Reporting API TikTok |
+
+#### Hook: `useTikTokAds`
+
+| Retorno | Descrição |
+|---------|-----------|
+| `campaigns` | Lista de campanhas |
+| `insights` | Lista de insights/métricas |
+| `syncCampaigns` | Sincronizar campanhas da API TikTok |
+| `syncInsights` | Sincronizar métricas da API TikTok |
+| `syncAll` | Sincronizar tudo (campanhas + insights) |
+| `createCampaign` | Criar campanha no TikTok |
+| `updateCampaign` | Atualizar campanha |
+| `deleteCampaign` | Remover/arquivar campanha |
+
+#### Mapeamento Tabela → Edge Functions
+
+| Tabela | Edge Functions |
+|--------|----------------|
+| `tiktok_ad_campaigns` | `tiktok-ads-campaigns` |
+| `tiktok_ad_insights` | `tiktok-ads-insights` |

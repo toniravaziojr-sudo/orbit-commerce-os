@@ -14715,6 +14715,188 @@ export type Database = {
         }
         Relationships: []
       }
+      tiktok_ad_campaigns: {
+        Row: {
+          advertiser_id: string
+          bid_type: string | null
+          budget_cents: number | null
+          budget_mode: string | null
+          campaign_type: string | null
+          created_at: string | null
+          end_time: string | null
+          id: string
+          metadata: Json | null
+          name: string
+          objective_type: string | null
+          optimize_goal: string | null
+          special_industries: string[] | null
+          start_time: string | null
+          status: string
+          synced_at: string | null
+          tenant_id: string
+          tiktok_campaign_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          advertiser_id: string
+          bid_type?: string | null
+          budget_cents?: number | null
+          budget_mode?: string | null
+          campaign_type?: string | null
+          created_at?: string | null
+          end_time?: string | null
+          id?: string
+          metadata?: Json | null
+          name: string
+          objective_type?: string | null
+          optimize_goal?: string | null
+          special_industries?: string[] | null
+          start_time?: string | null
+          status?: string
+          synced_at?: string | null
+          tenant_id: string
+          tiktok_campaign_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          advertiser_id?: string
+          bid_type?: string | null
+          budget_cents?: number | null
+          budget_mode?: string | null
+          campaign_type?: string | null
+          created_at?: string | null
+          end_time?: string | null
+          id?: string
+          metadata?: Json | null
+          name?: string
+          objective_type?: string | null
+          optimize_goal?: string | null
+          special_industries?: string[] | null
+          start_time?: string | null
+          status?: string
+          synced_at?: string | null
+          tenant_id?: string
+          tiktok_campaign_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiktok_ad_campaigns_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tiktok_ad_insights: {
+        Row: {
+          advertiser_id: string
+          campaign_id: string | null
+          clicks: number | null
+          comments: number | null
+          conversion_value_cents: number | null
+          conversions: number | null
+          cpc_cents: number | null
+          cpm_cents: number | null
+          created_at: string | null
+          ctr: number | null
+          date_start: string
+          date_stop: string
+          follows: number | null
+          frequency: number | null
+          id: string
+          impressions: number | null
+          likes: number | null
+          metadata: Json | null
+          reach: number | null
+          roas: number | null
+          shares: number | null
+          spend_cents: number | null
+          synced_at: string | null
+          tenant_id: string
+          tiktok_campaign_id: string
+          video_views: number | null
+          video_watched_2s: number | null
+          video_watched_6s: number | null
+        }
+        Insert: {
+          advertiser_id: string
+          campaign_id?: string | null
+          clicks?: number | null
+          comments?: number | null
+          conversion_value_cents?: number | null
+          conversions?: number | null
+          cpc_cents?: number | null
+          cpm_cents?: number | null
+          created_at?: string | null
+          ctr?: number | null
+          date_start: string
+          date_stop: string
+          follows?: number | null
+          frequency?: number | null
+          id?: string
+          impressions?: number | null
+          likes?: number | null
+          metadata?: Json | null
+          reach?: number | null
+          roas?: number | null
+          shares?: number | null
+          spend_cents?: number | null
+          synced_at?: string | null
+          tenant_id: string
+          tiktok_campaign_id: string
+          video_views?: number | null
+          video_watched_2s?: number | null
+          video_watched_6s?: number | null
+        }
+        Update: {
+          advertiser_id?: string
+          campaign_id?: string | null
+          clicks?: number | null
+          comments?: number | null
+          conversion_value_cents?: number | null
+          conversions?: number | null
+          cpc_cents?: number | null
+          cpm_cents?: number | null
+          created_at?: string | null
+          ctr?: number | null
+          date_start?: string
+          date_stop?: string
+          follows?: number | null
+          frequency?: number | null
+          id?: string
+          impressions?: number | null
+          likes?: number | null
+          metadata?: Json | null
+          reach?: number | null
+          roas?: number | null
+          shares?: number | null
+          spend_cents?: number | null
+          synced_at?: string | null
+          tenant_id?: string
+          tiktok_campaign_id?: string
+          video_views?: number | null
+          video_watched_2s?: number | null
+          video_watched_6s?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiktok_ad_insights_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "tiktok_ad_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tiktok_ad_insights_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tiktok_ads_connections: {
         Row: {
           access_token: string | null
