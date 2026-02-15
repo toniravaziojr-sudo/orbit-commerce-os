@@ -1319,4 +1319,51 @@ const {
 - [x] ~~Google Analytics GA4~~ (Fase 5 concluída)
 - [x] ~~Google Search Console~~ (Fase 6 concluída)
 - [x] ~~Google Meu Negócio~~ (Fase 7 concluída)
-- [ ] Google Tag Manager (Fase 8)
+- [x] ~~Google Tag Manager~~ (Fase 8 concluída)
+
+---
+
+### Fase 8: Google Tag Manager
+
+#### Tabela `google_tag_manager_containers`
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | UUID PK | ID interno |
+| `tenant_id` | UUID FK | Tenant |
+| `account_id` | TEXT | ID da conta GTM |
+| `account_name` | TEXT | Nome da conta |
+| `container_id` | TEXT | ID do container |
+| `container_name` | TEXT | Nome do container |
+| `container_public_id` | TEXT | ID público (GTM-XXXX) |
+| `domain_name` | TEXT[] | Domínios associados |
+| `usage_context` | TEXT[] | Contextos (web, amp, etc) |
+| `tag_manager_url` | TEXT | URL do container no GTM |
+| `fingerprint` | TEXT | Fingerprint do container |
+| `is_active` | BOOLEAN | Ativo |
+| `last_sync_at` | TIMESTAMPTZ | Último sync |
+| `metadata` | JSONB | Dados extras |
+
+**UNIQUE**: `(tenant_id, account_id, container_id)`
+
+#### Edge Function: `google-tag-manager`
+
+| Ação | Descrição |
+|------|-----------|
+| `sync` | Busca accounts + containers da API GTM e faz upsert |
+| `list` | Retorna containers do cache (banco) |
+| `scripts` | Gera snippets de instalação (head + body) para um container |
+
+#### Hook: `useGoogleTagManager`
+
+| Retorno | Descrição |
+|---------|-----------|
+| `containersQuery` | Lista de containers do cache |
+| `syncMutation` | Sincroniza containers da API |
+| `scriptsMutation` | Gera snippets para instalação |
+
+#### Mapeamento Tabela → Edge Functions
+
+| Tabela | Edge Functions |
+|--------|----------------|
+| `google_tag_manager_containers` | `google-tag-manager` |
