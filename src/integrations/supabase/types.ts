@@ -5849,6 +5849,142 @@ export type Database = {
           },
         ]
       }
+      google_business_posts: {
+        Row: {
+          call_to_action_type: string | null
+          call_to_action_url: string | null
+          create_time: string | null
+          created_at: string
+          event_end: string | null
+          event_start: string | null
+          event_title: string | null
+          id: string
+          location_id: string
+          media_url: string | null
+          offer_coupon_code: string | null
+          offer_redeem_url: string | null
+          post_id: string | null
+          search_url: string | null
+          state: string | null
+          summary: string | null
+          tenant_id: string
+          topic_type: string
+          update_time: string | null
+          updated_at: string
+        }
+        Insert: {
+          call_to_action_type?: string | null
+          call_to_action_url?: string | null
+          create_time?: string | null
+          created_at?: string
+          event_end?: string | null
+          event_start?: string | null
+          event_title?: string | null
+          id?: string
+          location_id: string
+          media_url?: string | null
+          offer_coupon_code?: string | null
+          offer_redeem_url?: string | null
+          post_id?: string | null
+          search_url?: string | null
+          state?: string | null
+          summary?: string | null
+          tenant_id: string
+          topic_type?: string
+          update_time?: string | null
+          updated_at?: string
+        }
+        Update: {
+          call_to_action_type?: string | null
+          call_to_action_url?: string | null
+          create_time?: string | null
+          created_at?: string
+          event_end?: string | null
+          event_start?: string | null
+          event_title?: string | null
+          id?: string
+          location_id?: string
+          media_url?: string | null
+          offer_coupon_code?: string | null
+          offer_redeem_url?: string | null
+          post_id?: string | null
+          search_url?: string | null
+          state?: string | null
+          summary?: string | null
+          tenant_id?: string
+          topic_type?: string
+          update_time?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_business_posts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_business_reviews: {
+        Row: {
+          comment: string | null
+          create_time: string | null
+          created_at: string
+          id: string
+          location_id: string
+          reply_updated_at: string | null
+          review_id: string
+          review_reply: string | null
+          reviewer_name: string | null
+          reviewer_photo_url: string | null
+          star_rating: number | null
+          tenant_id: string
+          update_time: string | null
+          updated_at: string
+        }
+        Insert: {
+          comment?: string | null
+          create_time?: string | null
+          created_at?: string
+          id?: string
+          location_id: string
+          reply_updated_at?: string | null
+          review_id: string
+          review_reply?: string | null
+          reviewer_name?: string | null
+          reviewer_photo_url?: string | null
+          star_rating?: number | null
+          tenant_id: string
+          update_time?: string | null
+          updated_at?: string
+        }
+        Update: {
+          comment?: string | null
+          create_time?: string | null
+          created_at?: string
+          id?: string
+          location_id?: string
+          reply_updated_at?: string | null
+          review_id?: string
+          review_reply?: string | null
+          reviewer_name?: string | null
+          reviewer_photo_url?: string | null
+          star_rating?: number | null
+          tenant_id?: string
+          update_time?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_business_reviews_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_connections: {
         Row: {
           access_token: string | null
