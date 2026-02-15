@@ -296,7 +296,11 @@ Classifica tendência como `improving`, `declining` ou `stable`.
 | `ramp_up_max_pct` | 10% | Aumento acima disso requer confidence ≥ 0.7 |
 | `max_new_campaigns_per_day` | 2 | Limite de campanhas novas criadas por dia |
 | `gross_margin_pct` | 50% | Margem bruta para cálculo do CPA máximo |
-| `min_roas` | 2.0 | ROAS mínimo aceitável |
+| `min_roas` | 2.0 | ROAS mínimo geral (referência quando tipo de audiência não identificado) |
+| `target_roas_cold` | 2.0 | ROAS ideal para campanhas de público frio (prospecção) |
+| `target_roas_remarketing` | 4.0 | ROAS ideal para campanhas de remarketing (público quente) |
+| `min_roas_pause_cold` | 0.8 | ROAS mínimo para público frio — abaixo disso, pausar |
+| `min_roas_pause_remarketing` | 1.5 | ROAS mínimo para remarketing — abaixo disso, pausar |
 
 ### Limites de Budget por Plataforma (v2.1.0)
 | Plataforma | Máx. por ciclo (6h) | Regra da plataforma | Learning Phase |
