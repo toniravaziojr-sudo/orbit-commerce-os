@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
         console.log(`[meta-ads-campaigns][${traceId}] Syncing account: ${account.name} (act_${accountId})`);
         
         // Paginate through ALL campaigns (Meta returns max 100 per page)
-        let nextUrl: string | null = `act_${accountId}/campaigns?fields=id,name,status,objective,buying_type,daily_budget,lifetime_budget,bid_strategy,start_time,stop_time,special_ad_categories&limit=100`;
+        let nextUrl: string | null = `act_${accountId}/campaigns?fields=id,name,status,effective_status,objective,buying_type,daily_budget,lifetime_budget,bid_strategy,start_time,stop_time,special_ad_categories&limit=100`;
         let pageCount = 0;
 
         while (nextUrl && pageCount < 10) { // Safety: max 10 pages (1000 campaigns per account)
@@ -149,6 +149,7 @@ Deno.serve(async (req) => {
                 ad_account_id: account.id,
                 name: c.name,
                 status: c.status || "PAUSED",
+                effective_status: c.effective_status || c.status || "PAUSED",
                 objective: c.objective,
                 buying_type: c.buying_type,
                 daily_budget_cents: c.daily_budget ? parseInt(c.daily_budget) : null,

@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
 
       for (const account of adAccounts) {
         const accountId = account.id.replace("act_", "");
-        let apiPath = `act_${accountId}/ads?fields=id,name,status,adset_id,campaign_id,creative{id}&limit=200`;
+        let apiPath = `act_${accountId}/ads?fields=id,name,status,effective_status,adset_id,campaign_id,creative{id}&limit=200`;
 
         if (filterAdsetId) {
           apiPath += `&filtering=[{"field":"adset.id","operator":"EQUAL","value":"${filterAdsetId}"}]`;
@@ -152,6 +152,7 @@ Deno.serve(async (req) => {
                 ad_account_id: account.id,
                 name: ad.name,
                 status: ad.status || "PAUSED",
+                effective_status: ad.effective_status || ad.status || "PAUSED",
                 creative_id: ad.creative?.id || null,
                 synced_at: new Date().toISOString(),
               }, { onConflict: "tenant_id,meta_ad_id" });

@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
 
       for (const account of adAccounts) {
         const accountId = account.id.replace("act_", "");
-        let apiPath = `act_${accountId}/adsets?fields=id,name,status,campaign_id,optimization_goal,billing_event,bid_amount,daily_budget,lifetime_budget,targeting,start_time,end_time&limit=200`;
+        let apiPath = `act_${accountId}/adsets?fields=id,name,status,effective_status,campaign_id,optimization_goal,billing_event,bid_amount,daily_budget,lifetime_budget,targeting,start_time,end_time&limit=200`;
 
         if (campaignId) {
           apiPath += `&filtering=[{"field":"campaign.id","operator":"EQUAL","value":"${campaignId}"}]`;
@@ -134,6 +134,7 @@ Deno.serve(async (req) => {
               ad_account_id: account.id,
               name: as.name,
               status: as.status || "PAUSED",
+              effective_status: as.effective_status || as.status || "PAUSED",
               optimization_goal: as.optimization_goal,
               billing_event: as.billing_event,
               bid_amount_cents: as.bid_amount ? parseInt(as.bid_amount) : null,
