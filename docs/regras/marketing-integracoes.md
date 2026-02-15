@@ -281,19 +281,48 @@ meta_adset_id TEXT UNIQUE (por tenant)
 meta_campaign_id TEXT (FK lógica)
 campaign_id UUID (FK para meta_ad_campaigns)
 ad_account_id TEXT
-name, status, optimization_goal, billing_event
+name, status, effective_status, optimization_goal, billing_event
 bid_amount_cents, daily_budget_cents, lifetime_budget_cents
 targeting JSONB
 start_time, end_time, synced_at
 ```
 
-### Edge Function `meta-ads-adsets` (v1.0.0)
+### Edge Function `meta-ads-adsets` (v1.1.0)
 
 | Ação | Método | Descrição |
 |------|--------|-----------|
-| `sync` | POST | Puxa ad sets da Meta Graph API para todas as contas (ou filtrado por `meta_campaign_id`) |
+| `sync` | POST | Puxa ad sets da Meta Graph API para todas as contas (ou filtrado por `meta_campaign_id`). Inclui `effective_status`. |
 | `update` | POST | Atualiza nome, status ou budget no Meta + local |
 | `balance` | POST/GET | Retorna saldo, gasto e moeda de cada conta de anúncios |
+
+### Tabela `meta_ad_ads`
+
+```sql
+-- Campos principais
+meta_ad_id TEXT UNIQUE (por tenant)
+meta_adset_id TEXT (FK lógica)
+meta_campaign_id TEXT (FK lógica)
+adset_id UUID (FK para meta_ad_adsets)
+ad_account_id TEXT
+name, status, effective_status
+creative_id TEXT
+synced_at
+```
+
+### Edge Function `meta-ads-ads` (v1.1.0)
+
+| Ação | Método | Descrição |
+|------|--------|-----------|
+| `sync` | POST | Puxa anúncios da Meta Graph API (filtro por `meta_adset_id` ou `meta_campaign_id`). Inclui `effective_status`. |
+| `update` | POST | Atualiza nome ou status no Meta + local |
+
+### Padrão `effective_status`
+
+O sistema prioriza `effective_status` sobre `status` para representar o estado real de entrega:
+- `status` = toggle do usuário (ACTIVE/PAUSED)
+- `effective_status` = estado real considerando hierarquia (ex: CAMPAIGN_PAUSED, ADSET_PAUSED, WITH_ISSUES, DISAPPROVED)
+- Filtros e contadores na UI usam `effective_status`
+- Controles de pause/play alteram o `status` via API
 
 ### Arquivos Frontend
 
@@ -608,6 +637,7 @@ CREATE TYPE creative_job_status AS ENUM (
 - [x] Gestor de Tráfego IA — Fase 10.2: Colunas personalizáveis (até 7 métricas selecionáveis pelo usuário via Column Selector), botão "Atualizar" (sync unificado de campanhas+insights+adsets), métricas disponíveis: Resultados, Alcance, Impressões, Frequência, Cliques, CTR, Custo por Resultado, CPC, CPM, Gasto, Orçamento, ROAS, Conversões, Valor de Conversão
 - [x] Gestor de Tráfego IA — Fase 10.3: Correção de paginação na edge function `meta-ads-campaigns` v1.3.0 — `graphApi` agora suporta URLs absolutas no campo `paging.next` da Meta Graph API, garantindo sync completo de contas com 100+ campanhas. Biblioteca de métricas expandida para 28 métricas em 4 categorias (Desempenho, Custo, Conversão, Engajamento) com extração de actions JSONB. Deep-link "Abrir Meta Ads" aponta para a campanha de maior investimento.
 - [x] Gestor de Tráfego IA — Fase 10.4: Persistência de seleção de contas via localStorage, sync de métricas do dia atual (dual preset), refresh de saldo via API, trigger automático do Autopilot ao ativar canal, anúncios individuais (tabela `meta_ad_ads` + edge function `meta-ads-ads` v1.0.0 + UI expandível 3 níveis: Campanha > Conjunto > Anúncio com pause/play)
+- [x] Gestor de Tráfego IA — Fase 10.5: Suporte a `effective_status` em campanhas, conjuntos e anúncios. Coluna adicionada nas tabelas `meta_ad_campaigns`, `meta_ad_adsets` e `meta_ad_ads`. Edge functions (`meta-ads-campaigns` v1.4.0, `meta-ads-adsets` v1.1.0, `meta-ads-ads` v1.1.0) agora extraem `effective_status` da Meta Graph API. UI filtra e conta por `effective_status` (estado real de entrega) em vez de `status` (toggle). Permite identificar campanhas ACTIVE mas não entregando (ex: `CAMPAIGN_PAUSED`, `ADSET_PAUSED`, `WITH_ISSUES`).
 - [ ] Relatórios de ROI
 - [x] Gestão de Criativos (UI básica)
 - [x] Gestão de Criativos (Tabela creative_jobs)
