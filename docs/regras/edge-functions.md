@@ -251,3 +251,85 @@ Edge function para geração de landing pages via IA usando Lovable AI Gateway (
 | `products` | `ai-landing-page-generate` |
 | `product_images` | `ai-landing-page-generate` |
 | `store_settings` | `ai-landing-page-generate` |
+
+---
+
+## AI Ads Autopilot (`ads-autopilot-analyze`)
+
+### Versão Atual: v2.0.0
+
+### Visão Geral
+Edge Function autônoma de gestão de tráfego pago multi-canal (Meta, Google, TikTok). Opera como media buyer sênior com pipeline de 5 etapas e camada de segurança determinística.
+
+### Agendamento
+- **Cron**: `0 */6 * * *` (a cada 6 horas — 4 ciclos/dia)
+- **Gatilho**: `scheduled` (automático) ou `manual` (botão na UI)
+- A IA **não altera campanhas em todos os ciclos** — só age quando KPIs indicam necessidade
+
+### Pipeline de 5 Etapas
+1. **Pre-check**: Validação de tokens/conexões por canal
+2. **Context Collector**: Coleta de métricas 7d + 7d anterior, produtos top 20, pedidos 30d, alertas de estoque
+3. **Allocator**: Split orçamentário cross-channel baseado em ROAS marginal e tendências
+4. **Planner**: Decisões por campanha via tool calling (pausar, ajustar budget, reportar insight)
+5. **Policy & Constraints**: Validação determinística de todas as ações antes da execução
+
+### Métricas Pré-calculadas (por canal)
+| Métrica | Descrição |
+|---------|-----------|
+| `real_cpa_cents` | Custo real por aquisição (spend / conversions) |
+| `real_roas` | ROAS real (revenue / spend) |
+| `avg_cpc_cents` | Custo por clique médio |
+| `avg_cpm_cents` | Custo por mil impressões |
+| `avg_ctr_pct` | Taxa de cliques |
+| `days_with_data` | Dias com dados na janela |
+
+### Comparação de Tendências (7d vs 7d anterior)
+Calcula deltas percentuais para: spend, impressions, clicks, conversions, CPA, ROAS, CTR.
+Classifica tendência como `improving`, `declining` ou `stable`.
+
+### Regras de Segurança (Safety Rules)
+| Regra | Default | Descrição |
+|-------|---------|-----------|
+| `max_budget_change_pct_day` | 10% | Máximo de alteração de budget por dia |
+| `max_actions_per_session` | 10 | Limite de ações por ciclo de análise |
+| `min_data_days_for_action` | 3 | Dias mínimos de dados para executar ações (abaixo = recommendation-only) |
+| `ramp_up_max_pct` | 10% | Aumento acima disso requer confidence ≥ 0.7 |
+| `max_new_campaigns_per_day` | 2 | Limite de campanhas novas criadas por dia |
+| `gross_margin_pct` | 50% | Margem bruta para cálculo do CPA máximo |
+| `min_roas` | 2.0 | ROAS mínimo aceitável |
+
+### Rollout Progressivo (Phased)
+| Fase | Ações Permitidas (`allowed_actions`) |
+|------|--------------------------------------|
+| Fase 1 (Semana 1) | `pause_campaign`, `adjust_budget`, `report_insight`, `allocate_budget` |
+| Fase 2 (Semana 2) | + `create_campaign` |
+| Fase 3 (Semana 3) | + `generate_creative` |
+
+### Checklist do Planner (5 pontos obrigatórios)
+1. **Eficiência (CPA)** — CPA vs teto de margem
+2. **Retorno (ROAS)** — Acima ou abaixo do mín. configurado
+3. **Engajamento (CTR)** — Fadiga criativa, relevância
+4. **Escala** — Potencial de aumento sem degradar CPA
+5. **Inventário** — Produtos com estoque ≤ 5 unidades
+
+### Mecanismos de Integridade
+- **Session Locking**: Impede execuções concorrentes (`lock_session_id`)
+- **Idempotência**: `action_hash` único por ação
+- **Rollback**: `rollback_data` salvo para todas as ações executadas
+- **CPA Ceiling**: Bloqueia aumento de budget se CPA > margem
+- **Ramp-up Logic**: Aumentos > 10% exigem confidence ≥ 0.7
+
+### Mapeamento Tabela → Edge Function
+| Tabela | Edge Function |
+|--------|---------------|
+| `ads_autopilot_configs` | `ads-autopilot-analyze` |
+| `ads_autopilot_sessions` | `ads-autopilot-analyze` |
+| `ads_autopilot_actions` | `ads-autopilot-analyze` |
+| `meta_ad_campaigns` | `ads-autopilot-analyze` |
+| `meta_ad_insights` | `ads-autopilot-analyze` |
+| `google_ad_campaigns` | `ads-autopilot-analyze` |
+| `google_ad_insights` | `ads-autopilot-analyze` |
+| `tiktok_ad_campaigns` | `ads-autopilot-analyze` |
+| `tiktok_ad_insights` | `ads-autopilot-analyze` |
+| `products` | `ads-autopilot-analyze` |
+| `orders` | `ads-autopilot-analyze` |
