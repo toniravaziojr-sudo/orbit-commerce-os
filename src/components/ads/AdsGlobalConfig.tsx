@@ -28,6 +28,9 @@ export function AdsGlobalConfig({ globalConfig, onSave, onToggle, onTriggerAnaly
   const [instructions, setInstructions] = useState(globalConfig?.user_instructions || "");
   const [marginPct, setMarginPct] = useState(String(globalConfig?.safety_rules?.gross_margin_pct || 50));
   const [minRoas, setMinRoas] = useState(String(globalConfig?.safety_rules?.min_roas || 2));
+  const [targetRoasCold, setTargetRoasCold] = useState(String(globalConfig?.safety_rules?.target_roas_cold || 2));
+  const [targetRoasRemarketing, setTargetRoasRemarketing] = useState(String(globalConfig?.safety_rules?.target_roas_remarketing || 4));
+  const [minRoasPause, setMinRoasPause] = useState(String(globalConfig?.safety_rules?.min_roas_pause || 1));
   const [maxCpa, setMaxCpa] = useState(globalConfig?.safety_rules?.max_cpa_cents ? (globalConfig.safety_rules.max_cpa_cents / 100).toString() : "");
 
   useEffect(() => {
@@ -38,6 +41,9 @@ export function AdsGlobalConfig({ globalConfig, onSave, onToggle, onTriggerAnaly
       setInstructions(globalConfig.user_instructions || "");
       setMarginPct(String(globalConfig.safety_rules?.gross_margin_pct || 50));
       setMinRoas(String(globalConfig.safety_rules?.min_roas || 2));
+      setTargetRoasCold(String(globalConfig.safety_rules?.target_roas_cold || 2));
+      setTargetRoasRemarketing(String(globalConfig.safety_rules?.target_roas_remarketing || 4));
+      setMinRoasPause(String(globalConfig.safety_rules?.min_roas_pause || 1));
       setMaxCpa(globalConfig.safety_rules?.max_cpa_cents ? (globalConfig.safety_rules.max_cpa_cents / 100).toString() : "");
     }
   }, [globalConfig]);
@@ -54,6 +60,9 @@ export function AdsGlobalConfig({ globalConfig, onSave, onToggle, onTriggerAnaly
         ...(globalConfig?.safety_rules || {}),
         gross_margin_pct: parseFloat(marginPct) || 50,
         min_roas: parseFloat(minRoas) || 2,
+        target_roas_cold: parseFloat(targetRoasCold) || 2,
+        target_roas_remarketing: parseFloat(targetRoasRemarketing) || 4,
+        min_roas_pause: parseFloat(minRoasPause) || 1,
         max_cpa_cents: maxCpa ? Math.round(parseFloat(maxCpa) * 100) : null,
       },
     });
@@ -165,10 +174,76 @@ export function AdsGlobalConfig({ globalConfig, onSave, onToggle, onTriggerAnaly
               </div>
             </div>
 
+            {/* Prompt de Direcionamento */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold flex items-center gap-2">
+                <Bot className="h-4 w-4 text-primary" />
+                Prompt de Direcionamento
+              </Label>
+              <Textarea
+                value={instructions}
+                onChange={(e) => setInstructions(e.target.value)}
+                rows={5}
+                placeholder={`Descreva como a IA deve gerenciar suas campanhas. Exemplos:\n\n• "Priorize campanhas de remarketing, nosso forte é reconversão"\n• "O produto carro-chefe é o Shampoo X, foque nele para público frio"\n• "Nunca pause campanhas de branding, mesmo com ROAS baixo"\n• "Nosso público principal são homens 25-45 anos, classe B"`}
+              />
+              <p className="text-xs text-muted-foreground">
+                Este é o direcionamento estratégico que a IA seguirá ao tomar decisões sobre suas campanhas.
+              </p>
+            </div>
+
+            {/* ROI por Tipo de Audiência */}
+            <div className="space-y-3">
+              <Label className="text-sm font-semibold">Metas de ROAS por Audiência</Label>
+              <p className="text-xs text-muted-foreground -mt-1">
+                Defina o retorno esperado para cada tipo de campanha. A IA usará esses valores para otimizar e decidir quando pausar.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
+                  <Label className="text-xs text-blue-600 dark:text-blue-400">🧊 Público Frio (Prospecção)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={targetRoasCold}
+                    onChange={(e) => setTargetRoasCold(e.target.value)}
+                    placeholder="2.0"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    ROAS ideal para campanhas de aquisição de novos clientes
+                  </p>
+                </div>
+                <div className="space-y-2 p-3 rounded-lg bg-orange-500/5 border border-orange-500/20">
+                  <Label className="text-xs text-orange-600 dark:text-orange-400">🔥 Remarketing (Reconversão)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={targetRoasRemarketing}
+                    onChange={(e) => setTargetRoasRemarketing(e.target.value)}
+                    placeholder="4.0"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    ROAS ideal para campanhas de público quente / retargeting
+                  </p>
+                </div>
+                <div className="space-y-2 p-3 rounded-lg bg-red-500/5 border border-red-500/20">
+                  <Label className="text-xs text-red-600 dark:text-red-400">⛔ ROAS Mínimo (Pausar)</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={minRoasPause}
+                    onChange={(e) => setMinRoasPause(e.target.value)}
+                    placeholder="1.0"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Abaixo desse valor a IA pausará a campanha automaticamente
+                  </p>
+                </div>
+              </div>
+            </div>
+
             {/* Safety Rules */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label>ROAS Mínimo</Label>
+                <Label>ROAS Mínimo Geral</Label>
                 <Input
                   type="number"
                   step="0.1"
@@ -176,30 +251,22 @@ export function AdsGlobalConfig({ globalConfig, onSave, onToggle, onTriggerAnaly
                   onChange={(e) => setMinRoas(e.target.value)}
                   placeholder="2.0"
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  Usado como referência geral quando a IA não identifica o tipo de audiência
+                </p>
               </div>
               <div className="space-y-2">
-                <Label>CPA Máximo (R$) — opcional</Label>
+                <Label>CPA Máximo (R$)</Label>
                 <Input
                   type="number"
                   value={maxCpa}
                   onChange={(e) => setMaxCpa(e.target.value)}
                   placeholder="Automático"
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  Opcional — se vazio, será calculado pela margem bruta
+                </p>
               </div>
-            </div>
-
-            {/* Instructions */}
-            <div className="space-y-2">
-              <Label>Instruções para a IA</Label>
-              <Textarea
-                value={instructions}
-                onChange={(e) => setInstructions(e.target.value)}
-                rows={4}
-                placeholder="Descreva seu negócio, produtos que mais vendem, público-alvo, diferenciais. Exemplo: O produto de entrada mais forte é o Shampoo Calvície Zero, ele tem ótima conversão. Nosso público principal são homens 25-45 anos..."
-              />
-              <p className="text-xs text-muted-foreground">
-                A IA usará essas instruções junto com os dados da sua loja para tomar decisões.
-              </p>
             </div>
 
             <Button onClick={handleSave} disabled={isSaving} className="w-full">
