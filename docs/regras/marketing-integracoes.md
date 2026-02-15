@@ -321,8 +321,15 @@ synced_at
 O sistema prioriza `effective_status` sobre `status` para representar o estado real de entrega:
 - `status` = toggle do usuário (ACTIVE/PAUSED)
 - `effective_status` = estado real considerando hierarquia (ex: CAMPAIGN_PAUSED, ADSET_PAUSED, WITH_ISSUES, DISAPPROVED)
-- Filtros e contadores na UI usam `effective_status`
 - Controles de pause/play alteram o `status` via API
+
+### Regra de Campanha Ativa (contagem e filtro)
+
+Uma campanha só é considerada **ativa** na UI se:
+1. A campanha tem `effective_status` = ACTIVE
+2. **E** possui pelo menos 1 conjunto de anúncios (adset) com `effective_status` = ACTIVE
+
+Caso contrário, a campanha aparece como **pausada**, mesmo que seu toggle esteja ACTIVE. Isso garante que campanhas sem conjuntos entregando não inflem a contagem de ativas.
 
 ### Arquivos Frontend
 
