@@ -5601,6 +5601,210 @@ export type Database = {
           },
         ]
       }
+      google_ad_audiences: {
+        Row: {
+          ad_account_id: string
+          audience_type: string | null
+          created_at: string
+          description: string | null
+          google_audience_id: string
+          id: string
+          membership_status: string | null
+          metadata: Json | null
+          name: string
+          size_estimate: number | null
+          synced_at: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          ad_account_id: string
+          audience_type?: string | null
+          created_at?: string
+          description?: string | null
+          google_audience_id: string
+          id?: string
+          membership_status?: string | null
+          metadata?: Json | null
+          name: string
+          size_estimate?: number | null
+          synced_at?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          ad_account_id?: string
+          audience_type?: string | null
+          created_at?: string
+          description?: string | null
+          google_audience_id?: string
+          id?: string
+          membership_status?: string | null
+          metadata?: Json | null
+          name?: string
+          size_estimate?: number | null
+          synced_at?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_ad_audiences_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_ad_campaigns: {
+        Row: {
+          ad_account_id: string
+          bidding_strategy_type: string | null
+          budget_amount_micros: number | null
+          budget_type: string | null
+          campaign_type: string | null
+          created_at: string
+          end_date: string | null
+          google_campaign_id: string
+          id: string
+          metadata: Json | null
+          name: string
+          optimization_score: number | null
+          start_date: string | null
+          status: string | null
+          synced_at: string | null
+          target_cpa_micros: number | null
+          target_roas: number | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          ad_account_id: string
+          bidding_strategy_type?: string | null
+          budget_amount_micros?: number | null
+          budget_type?: string | null
+          campaign_type?: string | null
+          created_at?: string
+          end_date?: string | null
+          google_campaign_id: string
+          id?: string
+          metadata?: Json | null
+          name: string
+          optimization_score?: number | null
+          start_date?: string | null
+          status?: string | null
+          synced_at?: string | null
+          target_cpa_micros?: number | null
+          target_roas?: number | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          ad_account_id?: string
+          bidding_strategy_type?: string | null
+          budget_amount_micros?: number | null
+          budget_type?: string | null
+          campaign_type?: string | null
+          created_at?: string
+          end_date?: string | null
+          google_campaign_id?: string
+          id?: string
+          metadata?: Json | null
+          name?: string
+          optimization_score?: number | null
+          start_date?: string | null
+          status?: string | null
+          synced_at?: string | null
+          target_cpa_micros?: number | null
+          target_roas?: number | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_ad_campaigns_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_ad_insights: {
+        Row: {
+          ad_account_id: string
+          average_cpc_micros: number | null
+          average_cpm_micros: number | null
+          clicks: number | null
+          conversions: number | null
+          conversions_value: number | null
+          cost_micros: number | null
+          created_at: string
+          ctr: number | null
+          date: string
+          google_campaign_id: string
+          id: string
+          impressions: number | null
+          interaction_rate: number | null
+          metadata: Json | null
+          synced_at: string | null
+          tenant_id: string
+          video_views: number | null
+          view_rate: number | null
+        }
+        Insert: {
+          ad_account_id: string
+          average_cpc_micros?: number | null
+          average_cpm_micros?: number | null
+          clicks?: number | null
+          conversions?: number | null
+          conversions_value?: number | null
+          cost_micros?: number | null
+          created_at?: string
+          ctr?: number | null
+          date: string
+          google_campaign_id: string
+          id?: string
+          impressions?: number | null
+          interaction_rate?: number | null
+          metadata?: Json | null
+          synced_at?: string | null
+          tenant_id: string
+          video_views?: number | null
+          view_rate?: number | null
+        }
+        Update: {
+          ad_account_id?: string
+          average_cpc_micros?: number | null
+          average_cpm_micros?: number | null
+          clicks?: number | null
+          conversions?: number | null
+          conversions_value?: number | null
+          cost_micros?: number | null
+          created_at?: string
+          ctr?: number | null
+          date?: string
+          google_campaign_id?: string
+          id?: string
+          impressions?: number | null
+          interaction_rate?: number | null
+          metadata?: Json | null
+          synced_at?: string | null
+          tenant_id?: string
+          video_views?: number | null
+          view_rate?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_ad_insights_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_connections: {
         Row: {
           access_token: string | null

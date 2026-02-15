@@ -633,3 +633,12 @@ verify_jwt = false
 
 [functions.google-merchant-status]
 verify_jwt = false
+
+[functions.google-ads-campaigns]
+verify_jwt = false
+
+[functions.google-ads-insights]
+verify_jwt = false
+
+[functions.google-ads-audiences]
+verify_jwt = false
