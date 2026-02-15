@@ -211,6 +211,7 @@ Lojista (Orçamento Total + Instruções)
 | `ads_autopilot_configs` | Config global (`channel='global'`) + configs por canal |
 | `ads_autopilot_sessions` | Histórico de sessões de análise |
 | `ads_autopilot_actions` | Ações da IA com reasoning, rollback_data e action_hash |
+| `meta_ad_adsets` | Cache local de conjuntos de anúncios (ad sets) sincronizados da Meta |
 
 ### Config Global (`channel='global'`)
 
@@ -268,6 +269,29 @@ Lojista (Orçamento Total + Instruções)
 |----------|-----------|
 | `ads-autopilot-analyze` | Orquestrador principal (pipeline 5 etapas) |
 | `ads-autopilot-creative` | Geração de criativos para campanhas via autopilot |
+| `meta-ads-adsets` | Sync, update e balance de ad sets e contas Meta (v1.0.0) |
+
+### Tabela `meta_ad_adsets`
+
+```sql
+-- Campos principais
+meta_adset_id TEXT UNIQUE (por tenant)
+meta_campaign_id TEXT (FK lógica)
+campaign_id UUID (FK para meta_ad_campaigns)
+ad_account_id TEXT
+name, status, optimization_goal, billing_event
+bid_amount_cents, daily_budget_cents, lifetime_budget_cents
+targeting JSONB
+start_time, end_time, synced_at
+```
+
+### Edge Function `meta-ads-adsets` (v1.0.0)
+
+| Ação | Método | Descrição |
+|------|--------|-----------|
+| `sync` | POST | Puxa ad sets da Meta Graph API para todas as contas (ou filtrado por `meta_campaign_id`) |
+| `update` | POST | Atualiza nome, status ou budget no Meta + local |
+| `balance` | POST/GET | Retorna saldo, gasto e moeda de cada conta de anúncios |
 
 ### Arquivos Frontend
 
@@ -275,10 +299,11 @@ Lojista (Orçamento Total + Instruções)
 |---------|-----------|
 | `src/pages/AdsManager.tsx` | Página principal com hooks de conexão por canal |
 | `src/hooks/useAdsAutopilot.ts` | Hook para configs, actions, sessions |
+| `src/hooks/useMetaAds.ts` | Hook para campanhas, ad sets, insights, saldo e sync (Meta) |
 | `src/components/ads/AdsGlobalConfig.tsx` | Card config global (orçamento + ROI ideal + prompt) |
 | `src/components/ads/AdsChannelIntegrationAlert.tsx` | Alerta de integração por canal (não conectado → link para /integrations; conectado → chips de seleção de contas de anúncio com toggle) |
 | `src/components/ads/AdsChannelRoasConfig.tsx` | Config de ROI por canal (frio/quente) + toggle IA |
-| `src/components/ads/AdsCampaignsTab.tsx` | Campanhas por canal com: filtro por status (Todas/Ativas/Pausadas via ToggleGroup com contadores), filtro por contas selecionadas, agrupamento por conta, gestão manual (pausar/ativar via Meta API), botão de sync permanente |
+| `src/components/ads/AdsCampaignsTab.tsx` | Campanhas por canal com: filtro por status, filtro de datas, conjuntos expandíveis (ad sets), métricas dinâmicas por objetivo (ROI/ROAS para vendas, resultados para outros), gestão manual de orçamento e status, botão de saldo e link externo para plataforma |
 | `src/components/ads/AdsActionsTab.tsx` | Timeline de ações da IA |
 | `src/components/ads/AdsReportsTab.tsx` | Cards resumo + gráficos |
 
@@ -300,8 +325,13 @@ Se falhar → status `BLOCKED`, gera `report_insight` com o que falta.
 |---------------|-----------|
 | **Auto-sync** | Na primeira visualização de um canal conectado, se a lista de campanhas estiver vazia, dispara `syncCampaigns.mutate()` automaticamente (controlado por `syncedChannelsRef` para evitar re-trigger) |
 | **Sync manual** | Botão "Sincronizar" exibido **permanentemente** na toolbar da `AdsCampaignsTab` quando há campanhas e `isConnected=true`; também no `EmptyState` quando não há campanhas |
+| **Sync de ad sets** | Ao expandir uma campanha, sincroniza os ad sets automaticamente via `meta-ads-adsets` edge function (ação `sync` com filtro por `meta_campaign_id`) |
 | **Filtro por status** | ToggleGroup com 3 opções: Todas (total), Ativas (ACTIVE/ENABLE), Pausadas (PAUSED/DISABLE/ARCHIVED) — cada uma com badge de contagem |
-| **Gestão manual** | Botões de Pausar (⏸) e Ativar (▶) por campanha, chamam `onUpdateCampaign` que dispara update na API da plataforma (Meta/TikTok) em tempo real |
+| **Filtro por datas** | DateRange picker com presets (7d, 14d, 30d, 90d) para filtrar métricas de performance |
+| **Conjuntos expandíveis** | Campanhas Meta expandem para mostrar ad sets com status, orçamento e métricas individuais |
+| **Métricas por objetivo** | Campanhas de vendas mostram ROI/ROAS; outras mostram métrica mais relevante (Leads, Cliques, Impressões, etc.) baseado no `objective` |
+| **Gestão manual** | Botões de Pausar (⏸) e Ativar (▶) por campanha e ad set, chamam APIs respectivas em tempo real |
+| **Saldo da plataforma** | Botão mostra saldo atual via API (Meta `balance` action) + link direto para gerenciador externo |
 
 ### Edge Function `meta-ads-campaigns` (v1.1.0)
 
@@ -548,7 +578,9 @@ CREATE TYPE creative_job_status AS ENUM (
 - [x] Gestor de Tráfego IA — Fase 3: Edge Function `ads-autopilot-creative`
 - [x] Gestor de Tráfego IA — Fase 4: Hook `useAdsAutopilot`
 - [x] Gestor de Tráfego IA — Fase 5-8: UI completa
-- [ ] Gestor de Tráfego IA — Fase 9: Scheduler (cron automático)
+- [x] Gestor de Tráfego IA — Fase 9: Ad Sets (tabela `meta_ad_adsets` + edge function `meta-ads-adsets` + UI expandível)
+- [x] Gestor de Tráfego IA — Fase 10: Métricas por objetivo + filtro de datas + saldo + link externo
+- [ ] Gestor de Tráfego IA — Fase 11: Scheduler (cron automático)
 - [ ] Relatórios de ROI
 - [x] Gestão de Criativos (UI básica)
 - [x] Gestão de Criativos (Tabela creative_jobs)
