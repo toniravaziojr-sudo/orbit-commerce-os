@@ -237,6 +237,30 @@ export default function AdsManager() {
           const channelConfig = autopilot.channelConfigs.find(c => c.channel === channel) || null;
           const integration = getChannelIntegration(channel);
           const channelSelectedAccounts = selectedAccounts[channel] || integration.adAccounts.map(a => a.id);
+          const aiEnabledAccounts: string[] = (channelConfig?.safety_rules as any)?.ai_enabled_accounts || [];
+
+          const handleToggleAI = (accountId: string) => {
+            const current = [...aiEnabledAccounts];
+            const idx = current.indexOf(accountId);
+            if (idx >= 0) {
+              current.splice(idx, 1);
+            } else {
+              current.push(accountId);
+            }
+            // Save to channel config safety_rules
+            autopilot.saveConfig.mutate({
+              channel,
+              is_enabled: current.length > 0,
+              safety_rules: {
+                ...(channelConfig?.safety_rules || {}),
+                ai_enabled_accounts: current,
+              },
+            });
+            // Trigger first analysis if enabling
+            if (current.length > 0 && aiEnabledAccounts.length === 0) {
+              setTimeout(() => autopilot.triggerAnalysis.mutate(), 1000);
+            }
+          };
 
           return (
             <TabsContent key={channel} value={channel} className="space-y-4">
@@ -247,16 +271,16 @@ export default function AdsManager() {
                 adAccounts={integration.adAccounts}
                 selectedAccountIds={channelSelectedAccounts}
                 onToggleAccount={(accountId) => toggleAccount(channel, accountId)}
+                aiEnabledAccountIds={aiEnabledAccounts}
+                onToggleAI={handleToggleAI}
               />
 
               <AdsChannelRoasConfig
                 channel={channel}
                 channelConfig={channelConfig}
                 onSave={(config) => autopilot.saveConfig.mutate(config)}
-                onToggleChannel={(ch, enabled) => {
-                  autopilot.toggleChannel.mutate({ channel: ch, enabled });
-                }}
                 isSaving={autopilot.saveConfig.isPending}
+                aiAccountCount={aiEnabledAccounts.length}
               />
 
               <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>

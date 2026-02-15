@@ -3,7 +3,6 @@ import { Bot } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -14,8 +13,8 @@ interface AdsChannelRoasConfigProps {
   channel: string;
   channelConfig: AutopilotConfig | null;
   onSave: (config: Partial<AutopilotConfig> & { channel: string }) => void;
-  onToggleChannel: (channel: string, enabled: boolean) => void;
   isSaving: boolean;
+  aiAccountCount: number;
 }
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -24,10 +23,9 @@ const CHANNEL_LABELS: Record<string, string> = {
   tiktok: "TikTok Ads",
 };
 
-export function AdsChannelRoasConfig({ channel, channelConfig, onSave, onToggleChannel, isSaving }: AdsChannelRoasConfigProps) {
+export function AdsChannelRoasConfig({ channel, channelConfig, onSave, isSaving, aiAccountCount }: AdsChannelRoasConfigProps) {
   const [isOpen, setIsOpen] = useState(false);
   const rules = channelConfig?.safety_rules || ({} as Record<string, any>);
-  const isEnabled = channelConfig?.is_enabled || false;
 
   const [minRoiCold, setMinRoiCold] = useState(String(rules.min_roi_cold || 2));
   const [minRoiWarm, setMinRoiWarm] = useState(String(rules.min_roi_warm || 3));
@@ -39,6 +37,9 @@ export function AdsChannelRoasConfig({ channel, channelConfig, onSave, onToggleC
       setMinRoiWarm(String(r.min_roi_warm || 3));
     }
   }, [channelConfig]);
+
+  // Don't render if no accounts have AI enabled
+  if (aiAccountCount === 0) return null;
 
   const handleSave = () => {
     onSave({
@@ -52,110 +53,102 @@ export function AdsChannelRoasConfig({ channel, channelConfig, onSave, onToggleC
   };
 
   return (
-    <Card className={`border ${isEnabled ? "border-primary/30 bg-primary/5" : "border-dashed"}`}>
+    <Card className="border border-primary/30 bg-primary/5">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-lg ${isEnabled ? "bg-primary/10" : "bg-muted"}`}>
-              <Bot className={`h-5 w-5 ${isEnabled ? "text-primary" : "text-muted-foreground"}`} />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Bot className="h-5 w-5 text-primary" />
             </div>
             <div>
               <CardTitle className="text-base flex items-center gap-2">
                 IA {CHANNEL_LABELS[channel] || channel}
-                {isEnabled && <Badge variant="default" className="text-[10px] px-1.5 py-0">Ativa</Badge>}
+                <Badge variant="default" className="text-[10px] px-1.5 py-0">
+                  {aiAccountCount} conta{aiAccountCount > 1 ? "s" : ""}
+                </Badge>
               </CardTitle>
               <p className="text-xs text-muted-foreground">
-                {isEnabled
-                  ? (channelConfig?.safety_rules as any)?.min_roi_cold
-                    ? `ROI mín. frio: ${(channelConfig.safety_rules as any).min_roi_cold}x · quente: ${(channelConfig.safety_rules as any).min_roi_warm}x`
-                    : "Configure as metas de ROI abaixo"
-                  : "Ative a IA para gerenciar este canal"}
+                {(channelConfig?.safety_rules as any)?.min_roi_cold
+                  ? `ROI mín. frio: ${(channelConfig!.safety_rules as any).min_roi_cold}x · quente: ${(channelConfig!.safety_rules as any).min_roi_warm}x`
+                  : "Configure as metas de ROI abaixo"}
               </p>
             </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <Switch
-              checked={isEnabled}
-              onCheckedChange={(checked) => onToggleChannel(channel, checked)}
-            />
           </div>
         </div>
       </CardHeader>
 
-      {isEnabled && (
-        <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" size="sm" className="w-full gap-2 text-muted-foreground">
-              <Settings2 className="h-4 w-4" />
-              {isOpen ? "Fechar metas de ROI" : "Configurar metas de ROI"}
-            </Button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <CardContent className="pt-3 space-y-4">
-              <p className="text-xs text-muted-foreground">
-                Defina o ROI mínimo para que a IA <strong>pause campanhas</strong> que não atingem o retorno esperado. 
-                Ex: ROI 2 = R$ 2 de retorno para cada R$ 1 investido.
-              </p>
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <CollapsibleTrigger asChild>
+          <Button variant="ghost" size="sm" className="w-full gap-2 text-muted-foreground">
+            <Settings2 className="h-4 w-4" />
+            {isOpen ? "Fechar metas de ROI" : "Configurar metas de ROI"}
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <CardContent className="pt-3 space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Defina o ROI mínimo para que a IA <strong>pause campanhas</strong> que não atingem o retorno esperado. 
+              Ex: ROI 2 = R$ 2 de retorno para cada R$ 1 investido.
+            </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Público Frio */}
-                <div className="space-y-3 p-4 rounded-lg bg-background border">
-                  <Label className="text-sm font-semibold flex items-center gap-2">
-                    🧊 Público Frio (Prospecção)
-                  </Label>
-                  <div className="space-y-1">
-                    <span className="text-xs text-muted-foreground">ROI Mínimo para Pausar</span>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        value={minRoiCold}
-                        onChange={(e) => setMinRoiCold(e.target.value)}
-                        placeholder="2"
-                        className="max-w-24"
-                      />
-                      <span className="text-sm text-muted-foreground font-medium">x</span>
-                    </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Público Frio */}
+              <div className="space-y-3 p-4 rounded-lg bg-background border">
+                <Label className="text-sm font-semibold flex items-center gap-2">
+                  🧊 Público Frio (Prospecção)
+                </Label>
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground">ROI Mínimo para Pausar</span>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={minRoiCold}
+                      onChange={(e) => setMinRoiCold(e.target.value)}
+                      placeholder="2"
+                      className="max-w-24"
+                    />
+                    <span className="text-sm text-muted-foreground font-medium">x</span>
                   </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Lookalike, interesses amplos, broad targeting
-                  </p>
                 </div>
-
-                {/* Público Quente */}
-                <div className="space-y-3 p-4 rounded-lg bg-background border">
-                  <Label className="text-sm font-semibold flex items-center gap-2">
-                    🔥 Público Quente (Remarketing)
-                  </Label>
-                  <div className="space-y-1">
-                    <span className="text-xs text-muted-foreground">ROI Mínimo para Pausar</span>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        value={minRoiWarm}
-                        onChange={(e) => setMinRoiWarm(e.target.value)}
-                        placeholder="3"
-                        className="max-w-24"
-                      />
-                      <span className="text-sm text-muted-foreground font-medium">x</span>
-                    </div>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Retargeting, visitantes, carrinhos abandonados
-                  </p>
-                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Lookalike, interesses amplos, broad targeting
+                </p>
               </div>
 
-              <Button onClick={handleSave} disabled={isSaving} size="sm" className="w-full">
-                {isSaving ? "Salvando..." : `Salvar Metas de ${CHANNEL_LABELS[channel]}`}
-              </Button>
-            </CardContent>
-          </CollapsibleContent>
-        </Collapsible>
-      )}
+              {/* Público Quente */}
+              <div className="space-y-3 p-4 rounded-lg bg-background border">
+                <Label className="text-sm font-semibold flex items-center gap-2">
+                  🔥 Público Quente (Remarketing)
+                </Label>
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground">ROI Mínimo para Pausar</span>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={minRoiWarm}
+                      onChange={(e) => setMinRoiWarm(e.target.value)}
+                      placeholder="3"
+                      className="max-w-24"
+                    />
+                    <span className="text-sm text-muted-foreground font-medium">x</span>
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Retargeting, visitantes, carrinhos abandonados
+                </p>
+              </div>
+            </div>
+
+            <Button onClick={handleSave} disabled={isSaving} size="sm" className="w-full">
+              {isSaving ? "Salvando..." : `Salvar Metas de ${CHANNEL_LABELS[channel]}`}
+            </Button>
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
     </Card>
   );
 }
