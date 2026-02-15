@@ -40,6 +40,7 @@ interface AdSetData {
   meta_campaign_id: string;
   name: string;
   status: string;
+  effective_status?: string;
   optimization_goal: string | null;
   daily_budget_cents: number | null;
   lifetime_budget_cents: number | null;
@@ -52,6 +53,7 @@ interface AdData {
   meta_campaign_id: string;
   name: string;
   status: string;
+  effective_status?: string;
 }
 
 interface InsightData {
@@ -111,15 +113,17 @@ function getAccountId(campaign: any): string {
 
 type StatusFilter = "all" | "active" | "paused";
 
-function matchesStatus(status: string, filter: StatusFilter): boolean {
+function matchesStatus(status: string, effectiveStatus: string | undefined, filter: StatusFilter): boolean {
   if (filter === "all") return true;
-  if (filter === "active") return status === "ACTIVE" || status === "ENABLE";
-  return status === "PAUSED" || status === "DISABLE" || status === "ARCHIVED";
+  const s = effectiveStatus || status;
+  if (filter === "active") return s === "ACTIVE" || s === "ENABLE";
+  return s === "PAUSED" || s === "DISABLE" || s === "ARCHIVED" || s === "CAMPAIGN_PAUSED" || s === "ADSET_PAUSED";
 }
 
-function StatusDot({ status }: { status: string }) {
-  const isActive = status === "ACTIVE" || status === "ENABLE";
-  const isPaused = status === "PAUSED" || status === "DISABLE";
+function StatusDot({ status, effectiveStatus }: { status: string; effectiveStatus?: string }) {
+  const displayStatus = effectiveStatus || status;
+  const isActive = displayStatus === "ACTIVE" || displayStatus === "ENABLE";
+  const isPaused = displayStatus === "PAUSED" || displayStatus === "DISABLE" || displayStatus === "CAMPAIGN_PAUSED" || displayStatus === "ADSET_PAUSED";
   return (
     <div className="flex items-center gap-2">
       <span className={cn(
@@ -127,7 +131,7 @@ function StatusDot({ status }: { status: string }) {
         isActive ? "bg-green-500" : isPaused ? "bg-muted-foreground/40" : "bg-destructive/50"
       )} />
       <span className="text-xs text-muted-foreground">
-        {isActive ? "Ativo" : isPaused ? "Pausada" : status}
+        {isActive ? "Ativo" : isPaused ? "Pausada" : displayStatus}
       </span>
     </div>
   );
@@ -349,7 +353,7 @@ export function AdsCampaignsTab({
   // Filter campaigns by search + status
   const filteredCampaigns = useMemo(() => {
     return accountFiltered.filter(c => {
-      if (!matchesStatus(c.status, statusFilter)) return false;
+      if (!matchesStatus(c.status, c.effective_status, statusFilter)) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         if (!c.name?.toLowerCase().includes(q)) return false;
@@ -358,9 +362,15 @@ export function AdsCampaignsTab({
     });
   }, [accountFiltered, statusFilter, searchQuery]);
 
-  // Count by status
-  const activeCount = accountFiltered.filter(c => c.status === "ACTIVE" || c.status === "ENABLE").length;
-  const pausedCount = accountFiltered.filter(c => c.status === "PAUSED" || c.status === "DISABLE" || c.status === "ARCHIVED").length;
+  // Count by status using effective_status
+  const activeCount = accountFiltered.filter(c => {
+    const s = c.effective_status || c.status;
+    return s === "ACTIVE" || s === "ENABLE";
+  }).length;
+  const pausedCount = accountFiltered.filter(c => {
+    const s = c.effective_status || c.status;
+    return s === "PAUSED" || s === "DISABLE" || s === "ARCHIVED" || s === "CAMPAIGN_PAUSED" || s === "ADSET_PAUSED";
+  }).length;
 
   // ===== Filter insights by selected accounts + date range =====
   const campaignInsights = useMemo(() => {
@@ -842,6 +852,7 @@ export function AdsCampaignsTab({
                 </TableHeader>
                 <TableBody>
                   {paginatedCampaigns.map(c => {
+                    const effectiveStatus = c.effective_status || c.status;
                     const status = c.status;
                     const campaignId = c.meta_campaign_id || c.google_campaign_id || c.tiktok_campaign_id;
                     const isUpdating = updatingId === campaignId;
@@ -878,7 +889,7 @@ export function AdsCampaignsTab({
 
                           {/* Status */}
                           <TableCell className="w-20">
-                            <StatusDot status={status} />
+                            <StatusDot status={status} effectiveStatus={effectiveStatus} />
                           </TableCell>
 
                           {/* Metrics */}
@@ -892,12 +903,12 @@ export function AdsCampaignsTab({
                           <TableCell className="w-10 text-right" onClick={e => e.stopPropagation()}>
                             {isUpdating ? (
                               <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground inline" />
-                            ) : (status === "ACTIVE" || status === "ENABLE") ? (
+                            ) : (effectiveStatus === "ACTIVE" || effectiveStatus === "ENABLE") ? (
                               <Button size="icon" variant="ghost" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
                                 onClick={() => handleToggleStatus(campaignId, status)} title="Pausar">
                                 <Pause className="h-3 w-3" />
                               </Button>
-                            ) : (status === "PAUSED" || status === "DISABLE") ? (
+                            ) : (effectiveStatus === "PAUSED" || effectiveStatus === "DISABLE" || effectiveStatus === "CAMPAIGN_PAUSED") ? (
                               <Button size="icon" variant="ghost" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
                                 onClick={() => handleToggleStatus(campaignId, status)} title="Ativar">
                                 <Play className="h-3 w-3" />
@@ -925,7 +936,7 @@ export function AdsCampaignsTab({
                                   <span className="text-muted-foreground mr-1.5">↳</span>
                                   <span className="text-muted-foreground">{as.name}</span>
                                 </TableCell>
-                                <TableCell><StatusDot status={as.status} /></TableCell>
+                                <TableCell><StatusDot status={as.status} effectiveStatus={(as as any).effective_status} /></TableCell>
                                 {visibleColumns.map((colKey, idx) => (
                                   <TableCell key={colKey} className="text-right tabular-nums text-xs">
                                     {idx === 0 ? (
@@ -960,7 +971,7 @@ export function AdsCampaignsTab({
                                     <span className="text-muted-foreground/60 mr-1.5">↳</span>
                                     <span className="text-muted-foreground/80 text-[11px]">{ad.name}</span>
                                   </TableCell>
-                                  <TableCell><StatusDot status={ad.status} /></TableCell>
+                                  <TableCell><StatusDot status={ad.status} effectiveStatus={(ad as any).effective_status} /></TableCell>
                                   {visibleColumns.map(colKey => (
                                     <TableCell key={colKey} className="text-right tabular-nums text-xs">
                                       {""}

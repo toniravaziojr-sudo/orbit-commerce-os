@@ -8718,6 +8718,7 @@ export type Database = {
           adset_id: string | null
           created_at: string
           creative_id: string | null
+          effective_status: string | null
           id: string
           meta_ad_id: string
           meta_adset_id: string
@@ -8734,6 +8735,7 @@ export type Database = {
           adset_id?: string | null
           created_at?: string
           creative_id?: string | null
+          effective_status?: string | null
           id?: string
           meta_ad_id: string
           meta_adset_id: string
@@ -8750,6 +8752,7 @@ export type Database = {
           adset_id?: string | null
           created_at?: string
           creative_id?: string | null
+          effective_status?: string | null
           id?: string
           meta_ad_id?: string
           meta_adset_id?: string
@@ -8786,6 +8789,7 @@ export type Database = {
           campaign_id: string | null
           created_at: string
           daily_budget_cents: number | null
+          effective_status: string | null
           end_time: string | null
           id: string
           lifetime_budget_cents: number | null
@@ -8808,6 +8812,7 @@ export type Database = {
           campaign_id?: string | null
           created_at?: string
           daily_budget_cents?: number | null
+          effective_status?: string | null
           end_time?: string | null
           id?: string
           lifetime_budget_cents?: number | null
@@ -8830,6 +8835,7 @@ export type Database = {
           campaign_id?: string | null
           created_at?: string
           daily_budget_cents?: number | null
+          effective_status?: string | null
           end_time?: string | null
           id?: string
           lifetime_budget_cents?: number | null
@@ -8931,6 +8937,7 @@ export type Database = {
           buying_type: string | null
           created_at: string
           daily_budget_cents: number | null
+          effective_status: string | null
           id: string
           lifetime_budget_cents: number | null
           meta_campaign_id: string
@@ -8951,6 +8958,7 @@ export type Database = {
           buying_type?: string | null
           created_at?: string
           daily_budget_cents?: number | null
+          effective_status?: string | null
           id?: string
           lifetime_budget_cents?: number | null
           meta_campaign_id: string
@@ -8971,6 +8979,7 @@ export type Database = {
           buying_type?: string | null
           created_at?: string
           daily_budget_cents?: number | null
+          effective_status?: string | null
           id?: string
           lifetime_budget_cents?: number | null
           meta_campaign_id?: string
