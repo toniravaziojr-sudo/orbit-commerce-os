@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Bot } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,6 +26,19 @@ export default function AdsManager() {
 
   const [activeChannel, setActiveChannel] = useState("meta");
   const [activeSubTab, setActiveSubTab] = useState("campaigns");
+
+  // Selected ad accounts per channel
+  const [selectedAccounts, setSelectedAccounts] = useState<Record<string, string[]>>({});
+
+  const toggleAccount = useCallback((channel: string, accountId: string) => {
+    setSelectedAccounts(prev => {
+      const current = prev[channel] || [];
+      const next = current.includes(accountId)
+        ? current.filter(id => id !== accountId)
+        : [...current, accountId];
+      return { ...prev, [channel]: next };
+    });
+  }, []);
 
   const handleUpdateCampaign = (campaignId: string, status: string) => {
     if (activeChannel === "meta") {
@@ -89,14 +102,12 @@ export default function AdsManager() {
         description="Gerencie campanhas com IA autônoma em todos os canais"
       />
 
-      {/* Global Config (budget + ROI ideal + instructions) */}
       <AdsGlobalConfig
         globalConfig={autopilot.globalConfig}
         onSave={(config) => autopilot.saveConfig.mutate(config)}
         isSaving={autopilot.saveConfig.isPending}
       />
 
-      {/* Channel Tabs */}
       <Tabs value={activeChannel} onValueChange={setActiveChannel}>
         <TabsList>
           <TabsTrigger value="meta" className="gap-2">
@@ -126,18 +137,19 @@ export default function AdsManager() {
         {["meta", "google", "tiktok"].map(channel => {
           const channelConfig = autopilot.channelConfigs.find(c => c.channel === channel) || null;
           const integration = getChannelIntegration(channel);
+          const channelSelectedAccounts = selectedAccounts[channel] || integration.adAccounts.map(a => a.id);
 
           return (
             <TabsContent key={channel} value={channel} className="space-y-4">
-              {/* Integration Status Alert */}
               <AdsChannelIntegrationAlert
                 channel={channel}
                 isConnected={integration.isConnected}
                 isLoading={integration.isLoading}
                 adAccounts={integration.adAccounts}
+                selectedAccountIds={channelSelectedAccounts}
+                onToggleAccount={(accountId) => toggleAccount(channel, accountId)}
               />
 
-              {/* Per-channel AI activation + ROI config */}
               <AdsChannelRoasConfig
                 channel={channel}
                 channelConfig={channelConfig}
@@ -146,7 +158,6 @@ export default function AdsManager() {
                 isSaving={autopilot.saveConfig.isPending}
               />
 
-              {/* Sub-tabs */}
               <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
                 <TabsList>
                   <TabsTrigger value="campaigns">Campanhas</TabsTrigger>
@@ -168,6 +179,8 @@ export default function AdsManager() {
                     isLoading={channelData.campaignsLoading}
                     channel={channel}
                     onUpdateCampaign={handleUpdateCampaign}
+                    selectedAccountIds={channelSelectedAccounts}
+                    adAccounts={integration.adAccounts}
                   />
                 </TabsContent>
 
