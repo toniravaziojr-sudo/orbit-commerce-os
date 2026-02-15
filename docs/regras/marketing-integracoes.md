@@ -276,9 +276,9 @@ Lojista (Orçamento Total + Instruções)
 | `src/pages/AdsManager.tsx` | Página principal com hooks de conexão por canal |
 | `src/hooks/useAdsAutopilot.ts` | Hook para configs, actions, sessions |
 | `src/components/ads/AdsGlobalConfig.tsx` | Card config global (orçamento + ROI ideal + prompt) |
-| `src/components/ads/AdsChannelIntegrationAlert.tsx` | Alerta de integração por canal (não conectado → link para /integrations; conectado → badges das contas de anúncio) |
+| `src/components/ads/AdsChannelIntegrationAlert.tsx` | Alerta de integração por canal (não conectado → link para /integrations; conectado → chips de seleção de contas de anúncio com toggle) |
 | `src/components/ads/AdsChannelRoasConfig.tsx` | Config de ROI por canal (frio/quente) + toggle IA |
-| `src/components/ads/AdsCampaignsTab.tsx` | Campanhas por canal |
+| `src/components/ads/AdsCampaignsTab.tsx` | Campanhas por canal com filtro por contas selecionadas e agrupamento por conta quando múltiplas estão ativas |
 | `src/components/ads/AdsActionsTab.tsx` | Timeline de ações da IA |
 | `src/components/ads/AdsReportsTab.tsx` | Cards resumo + gráficos |
 
