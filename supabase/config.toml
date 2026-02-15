@@ -642,3 +642,6 @@ verify_jwt = false
 
 [functions.google-ads-audiences]
 verify_jwt = false
+
+[functions.google-analytics-report]
+verify_jwt = false
