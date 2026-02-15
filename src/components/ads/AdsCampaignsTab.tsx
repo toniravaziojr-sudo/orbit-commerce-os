@@ -1,4 +1,4 @@
-import { Play, Pause, Megaphone } from "lucide-react";
+import { Play, Pause, Megaphone, RefreshCw } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,9 @@ interface AdsCampaignsTabProps {
   onUpdateCampaign: (id: string, status: string) => void;
   selectedAccountIds?: string[];
   adAccounts?: AdAccount[];
+  isConnected?: boolean;
+  onSync?: () => void;
+  isSyncing?: boolean;
 }
 
 function formatCurrency(cents: number) {
@@ -40,7 +43,7 @@ function getAccountId(campaign: any): string {
   return campaign.ad_account_id || campaign.advertiser_id || campaign.customer_id || "unknown";
 }
 
-export function AdsCampaignsTab({ campaigns, isLoading, channel, onUpdateCampaign, selectedAccountIds, adAccounts }: AdsCampaignsTabProps) {
+export function AdsCampaignsTab({ campaigns, isLoading, channel, onUpdateCampaign, selectedAccountIds, adAccounts, isConnected, onSync, isSyncing }: AdsCampaignsTabProps) {
   // Filter campaigns by selected accounts
   const filteredCampaigns = selectedAccountIds && selectedAccountIds.length > 0
     ? campaigns.filter(c => selectedAccountIds.includes(getAccountId(c)))
@@ -124,11 +127,20 @@ export function AdsCampaignsTab({ campaigns, isLoading, channel, onUpdateCampaig
           description="Selecione ao menos uma conta de anúncio acima para ver as campanhas"
         />
       ) : filteredCampaigns.length === 0 ? (
-        <EmptyState
-          icon={Megaphone}
-          title="Nenhuma campanha"
-          description="Conecte sua conta e a IA sincronizará suas campanhas automaticamente"
-        />
+        <div className="space-y-1">
+          <EmptyState
+            icon={Megaphone}
+            title={isConnected ? "Nenhuma campanha sincronizada" : "Nenhuma campanha"}
+            description={isConnected 
+              ? "Clique em sincronizar para importar as campanhas das contas selecionadas" 
+              : "Conecte sua conta e a IA sincronizará suas campanhas automaticamente"
+            }
+            action={isConnected && onSync ? {
+              label: isSyncing ? "Sincronizando..." : "Sincronizar campanhas",
+              onClick: onSync,
+            } : undefined}
+          />
+        </div>
       ) : groupedCampaigns ? (
         groupedCampaigns.map(group => (
           <div key={group.accountId} className="space-y-2">
