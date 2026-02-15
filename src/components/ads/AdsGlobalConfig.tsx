@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bot, Settings2, DollarSign } from "lucide-react";
+import { Bot, Settings2, DollarSign, Target } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -20,12 +20,16 @@ export function AdsGlobalConfig({ globalConfig, onSave, isSaving }: AdsGlobalCon
   const [budgetMode, setBudgetMode] = useState(globalConfig?.budget_mode || "monthly");
   const [budgetValue, setBudgetValue] = useState(globalConfig?.budget_cents ? (globalConfig.budget_cents / 100).toString() : "");
   const [instructions, setInstructions] = useState(globalConfig?.user_instructions || "");
+  const [targetRoi, setTargetRoi] = useState(
+    (globalConfig?.safety_rules as any)?.target_roi?.toString() || ""
+  );
 
   useEffect(() => {
     if (globalConfig) {
       setBudgetMode(globalConfig.budget_mode);
       setBudgetValue((globalConfig.budget_cents / 100).toString());
       setInstructions(globalConfig.user_instructions || "");
+      setTargetRoi((globalConfig.safety_rules as any)?.target_roi?.toString() || "");
     }
   }, [globalConfig]);
 
@@ -36,6 +40,10 @@ export function AdsGlobalConfig({ globalConfig, onSave, isSaving }: AdsGlobalCon
       budget_cents: Math.round(parseFloat(budgetValue || "0") * 100),
       objective: "sales",
       user_instructions: instructions || null,
+      safety_rules: {
+        ...(globalConfig?.safety_rules as any || {}),
+        target_roi: parseFloat(targetRoi || "0") || null,
+      },
     });
   };
 
@@ -53,7 +61,7 @@ export function AdsGlobalConfig({ globalConfig, onSave, isSaving }: AdsGlobalCon
                   <CardTitle className="text-lg">Configuração Global</CardTitle>
                   <p className="text-sm text-muted-foreground">
                     {globalConfig?.budget_cents
-                      ? `Orçamento: R$ ${(globalConfig.budget_cents / 100).toLocaleString("pt-BR")} / ${globalConfig.budget_mode === "daily" ? "dia" : "mês"}`
+                      ? `Orçamento: R$ ${(globalConfig.budget_cents / 100).toLocaleString("pt-BR")} / ${globalConfig.budget_mode === "daily" ? "dia" : "mês"}${(globalConfig.safety_rules as any)?.target_roi ? ` · ROI ideal: ${(globalConfig.safety_rules as any).target_roi}x` : ""}`
                       : "Defina o orçamento total e direcionamento estratégico"}
                   </p>
                 </div>
@@ -91,6 +99,29 @@ export function AdsGlobalConfig({ globalConfig, onSave, isSaving }: AdsGlobalCon
               </div>
               <p className="text-[11px] text-muted-foreground">
                 Limite máximo que a IA pode distribuir entre todos os canais
+              </p>
+            </div>
+
+            {/* ROI Ideal */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold flex items-center gap-2">
+                <Target className="h-4 w-4 text-primary" />
+                ROI Ideal (Meta Global)
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  value={targetRoi}
+                  onChange={(e) => setTargetRoi(e.target.value)}
+                  placeholder="5"
+                  className="w-24"
+                />
+                <span className="text-sm text-muted-foreground font-medium">x</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Meta de retorno global que a IA buscará alcançar somando todo investimento × todas as campanhas em todos os canais. Ex: ROI 5 = R$ 5 de retorno para cada R$ 1 investido.
               </p>
             </div>
 
