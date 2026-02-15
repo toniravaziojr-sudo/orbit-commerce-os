@@ -342,9 +342,9 @@ O sistema prioriza `effective_status` sobre `status` para representar o estado r
 
 Uma campanha só é considerada **ativa** na UI se:
 1. A campanha tem `effective_status` = ACTIVE
-2. **E** possui pelo menos 1 conjunto de anúncios (adset) com `effective_status` = ACTIVE
+2. **E** possui pelo menos 1 conjunto de anúncios (adset) com `effective_status` = ACTIVE, **OU** os ad sets ainda não foram sincronizados (sem registros locais)
 
-Caso contrário, a campanha aparece como **pausada**, mesmo que seu toggle esteja ACTIVE. Isso garante que campanhas sem conjuntos entregando não inflem a contagem de ativas.
+A segunda condição evita que campanhas genuinamente ativas apareçam como pausadas antes da primeira sincronização de ad sets. Após o sync, a regra hierárquica se aplica normalmente.
 
 ### Arquivos Frontend
 
@@ -353,8 +353,8 @@ Caso contrário, a campanha aparece como **pausada**, mesmo que seu toggle estej
 | `src/pages/AdsManager.tsx` | Página principal com hooks de conexão por canal |
 | `src/hooks/useAdsAutopilot.ts` | Hook para configs, actions, sessions |
 | `src/hooks/useMetaAds.ts` | Hook para campanhas, ad sets, insights, saldo e sync (Meta) |
-| `src/components/ads/AdsAccountConfig.tsx` | Config por conta de anúncios com IA ativa (orçamento, ROI ideal, ROI mín frio/quente, prompt estratégico). Renderiza um card colapsável por conta. |
-| `src/components/ads/AdsChannelIntegrationAlert.tsx` | Alerta de integração por canal (não conectado → link para /integrations; conectado → chips de seleção de contas com botão Bot para ativar/desativar IA por conta) |
+| `src/components/ads/AdsAccountConfig.tsx` | Config por conta de anúncios com Switch de ativação da IA dentro do card (orçamento, ROI ideal, ROI mín frio/quente, prompt estratégico). O toggle de IA fica **dentro** das configurações, não no chip externo. |
+| `src/components/ads/AdsChannelIntegrationAlert.tsx` | Alerta de integração por canal (não conectado → link para /integrations; conectado → chips de seleção de contas com ícone Bot 🤖 que **abre configurações** em vez de ativar/desativar diretamente. Azul = IA ativa, Amarelo = IA inativa). |
 | `src/components/ads/AdsCampaignsTab.tsx` | Campanhas por canal com: filtro por status, filtro de datas, conjuntos expandíveis (ad sets), métricas dinâmicas por objetivo, gestão manual de orçamento e status, botão de saldo e deep link para campanha no gerenciador nativo. **28 métricas disponíveis** em 4 grupos (Desempenho, Custo, Conversão, Engajamento) selecionáveis via Column Selector (até 7 simultâneas). Métricas de ações extraídas do campo `actions` JSONB (link_clicks, landing_page_views, add_to_cart, initiate_checkout, video_views, post_engagement, etc.) |
 | `src/components/ads/AdsActionsTab.tsx` | Timeline de ações da IA |
 | `src/components/ads/AdsReportsTab.tsx` | Relatórios por conta de anúncios. Agrupa insights por account_id (via mapeamento campaign→account) e renderiza cards de métricas (Investimento, Impressões, Cliques, Conversões, ROAS) individuais para cada conta selecionada. |
@@ -409,12 +409,13 @@ Se falhar → status `BLOCKED`, gera `report_insight` com o que falta.
 | **Auto-create campaigns** | Se um insight referencia uma `meta_campaign_id` que não existe localmente, cria automaticamente um registro placeholder com `status: UNKNOWN` (corrigido na próxima sincronização de campanhas) — evita dados órfãos |
 | **Ações** | `sync` (pull insights da Meta), `list` (cache local), `summary` (métricas agregadas) |
 
-### Edge Function `meta-ads-adsets` (v1.1.0)
+### Edge Function `meta-ads-adsets` (v1.2.0)
 
 | Item | Descrição |
 |------|-----------|
 | **Ações** | `sync` (com filtro opcional por `meta_campaign_id`), `update` (status/orçamento), `balance` (saldo da conta via `funding_source_details`) |
-| **Balance** | Retorna `balance`, `currency`, `amount_spent`, `spend_cap` e `funding_source_details` para cálculo preciso do saldo |
+| **Balance** | Retorna `balance`, `currency`, `amount_spent`, `spend_cap`, `funding_source` e `funding_source_details` para cálculo preciso do saldo |
+| **Cartão de crédito** | Quando `funding_source_type` = `CREDIT_CARD` (ou sem saldo numérico), a UI exibe **"Cartão de crédito"** em vez de valor monetário |
 
 ---
 
@@ -660,8 +661,9 @@ CREATE TYPE creative_job_status AS ENUM (
 - [x] Gestor de Tráfego IA — Fase 10.4: Persistência de seleção de contas via localStorage, sync de métricas do dia atual (dual preset), refresh de saldo via API, trigger automático do Autopilot ao ativar canal, anúncios individuais (tabela `meta_ad_ads` + edge function `meta-ads-ads` v1.0.0 + UI expandível 3 níveis: Campanha > Conjunto > Anúncio com pause/play)
 - [x] Gestor de Tráfego IA — Fase 10.5: Suporte a `effective_status` em campanhas, conjuntos e anúncios. Coluna adicionada nas tabelas `meta_ad_campaigns`, `meta_ad_adsets` e `meta_ad_ads`. Edge functions (`meta-ads-campaigns` v1.4.0, `meta-ads-adsets` v1.1.0, `meta-ads-ads` v1.1.0) agora extraem `effective_status` da Meta Graph API. UI filtra e conta por `effective_status` (estado real de entrega) em vez de `status` (toggle). Permite identificar campanhas ACTIVE mas não entregando (ex: `CAMPAIGN_PAUSED`, `ADSET_PAUSED`, `WITH_ISSUES`).
 - [x] Gestor de Tráfego IA — Fase 10.6: Ativação da IA por conta de anúncios (não mais por canal). Cada conta tem toggle de Bot independente nos chips de seleção. Configurações (orçamento, ROI ideal, ROI mín frio/quente, prompt estratégico) são individuais por conta, armazenadas em `safety_rules.account_configs[account_id]`. Lista de contas com IA ativa em `safety_rules.ai_enabled_accounts[]`. Removido `AdsGlobalConfig` e `AdsChannelRoasConfig`, substituídos por `AdsAccountConfig`.
-- [x] Gestor de Tráfego IA — Fase 10.6b: Regra de campanha ativa = campaign ACTIVE + pelo menos 1 adset ACTIVE.
+- [x] Gestor de Tráfego IA — Fase 10.6b: Regra de campanha ativa = campaign ACTIVE + pelo menos 1 adset ACTIVE (ou ad sets não sincronizados).
 - [x] Gestor de Tráfego IA — Fase 10.7: Relatórios por conta de anúncios. `AdsReportsTab` agrupa insights por `account_id` (mapeamento campaign→account via `campaignAccountMap`) e exibe cards de métricas individuais por conta selecionada. Dados (campanhas, configurações, métricas, saldos, relatórios) são todos segregados por conta de anúncios.
+- [x] Gestor de Tráfego IA — Fase 10.8: UX do ícone Bot (🤖 abre configurações, não toggle direto; ativação via Switch interno no card). Detecção de `funding_source_type` para exibir "Cartão de crédito" quando aplicável. Edge function `meta-ads-adsets` v1.2.0 com `funding_source` + `funding_source_details`.
 - [ ] Relatórios de ROI
 - [x] Gestão de Criativos (UI básica)
 - [x] Gestão de Criativos (Tabela creative_jobs)
