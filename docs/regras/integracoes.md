@@ -120,7 +120,7 @@ A aba `domain-email` unifica duas seções:
 | Meta (FB/IG) | ✅ Ready | Publicação Feed/Stories/Reels, WhatsApp, Catálogo, Pixel |
 | Instagram | ✅ Ready | Via Meta Graph API (container flow) |
 | **YouTube** | ✅ Ready | Upload, agendamento, analytics (via Hub Google) |
-| **TikTok Hub** | ✅ Ready (Fase 1) | Hub multi-conexão: Ads (Pixel/CAPI), Shop (em breve), Content (em breve) |
+| **TikTok Hub** | ✅ Ready (Fase 3) | Hub multi-conexão: Ads (Pixel/CAPI) ✅, Shop (OAuth) ✅, Content (em breve) |
 | **Google Hub** | ✅ Ready | YouTube, Ads, Merchant, Analytics, Search Console, Business, Tag Manager |
 
 ### 3. Marketplaces
@@ -129,7 +129,7 @@ A aba `domain-email` unifica duas seções:
 | Mercado Livre | ✅ Ready | Sincronização de produtos |
 | Shopee | ✅ Ready | Sincronização de pedidos e OAuth |
 | Olist | ✅ Ready | ERP (Tiny) + E-commerce (Vnda) via token |
-| TikTok Shop | 🟧 Em Cadastro | Marketplace integrado (via Hub TikTok) |
+| TikTok Shop | ✅ Ready | Marketplace integrado (via Hub TikTok, tabela `tiktok_shop_connections`) |
 | Amazon | 🟧 Pending | Planejado |
 
 ### 4. WhatsApp
