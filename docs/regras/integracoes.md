@@ -1235,6 +1235,61 @@ const {
 |--------|----------------|
 | `google_search_console_data` | `google-search-console` |
 
+### Fase 7: Google Meu Negócio / Business Profile (✅ Concluída)
+
+> **Nota:** Este pack requer escopos sensíveis (`business.manage`) que podem exigir aprovação do Google. O sistema funciona sem este pack se o escopo não for aprovado.
+
+#### Tabela: `google_business_reviews`
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `location_id` | TEXT | ID da localização (ex: `accounts/123/locations/456`) |
+| `review_id` | TEXT | ID da avaliação |
+| `reviewer_name` | TEXT | Nome do avaliador |
+| `star_rating` | INTEGER | 1-5 estrelas |
+| `comment` | TEXT | Texto da avaliação |
+| `review_reply` | TEXT | Resposta do lojista |
+
+#### Tabela: `google_business_posts`
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `location_id` | TEXT | ID da localização |
+| `post_id` | TEXT | ID do post |
+| `topic_type` | TEXT | `STANDARD`, `EVENT`, `OFFER` |
+| `summary` | TEXT | Texto do post |
+| `media_url` | TEXT | URL da mídia |
+| `call_to_action_type` | TEXT | Tipo de CTA |
+| `state` | TEXT | `LIVE`, `DELETED`, etc. |
+
+#### Edge Functions
+
+| Função | Actions | API |
+|--------|---------|-----|
+| `google-business-reviews` | `sync`, `list`, `reply`, `locations` | My Business API v4 |
+| `google-business-posts` | `sync`, `list`, `create`, `delete` | My Business API v4 |
+
+#### Hook: `useGoogleBusiness(locationId?)`
+
+| Query/Mutation | Descrição |
+|----------------|-----------|
+| `locationsQuery` | Lista localizações vinculadas |
+| `reviewsQuery` | Avaliações do cache |
+| `syncReviewsMutation` | Sincroniza avaliações da API |
+| `replyMutation` | Responde a avaliação |
+| `postsQuery` | Posts do cache |
+| `syncPostsMutation` | Sincroniza posts da API |
+| `createPostMutation` | Cria post no Business Profile |
+| `deletePostMutation` | Deleta post |
+| `syncAllMutation` | Sincroniza reviews + posts |
+
+#### Mapeamento Tabela → Edge Functions
+
+| Tabela | Edge Functions |
+|--------|----------------|
+| `google_business_reviews` | `google-business-reviews` |
+| `google_business_posts` | `google-business-posts` |
+
 ---
 
 ## Pendências
@@ -1263,5 +1318,5 @@ const {
 - [x] ~~Google Ads Manager~~ (Fase 4 concluída)
 - [x] ~~Google Analytics GA4~~ (Fase 5 concluída)
 - [x] ~~Google Search Console~~ (Fase 6 concluída)
-- [ ] Google Meu Negócio (Fase 7)
+- [x] ~~Google Meu Negócio~~ (Fase 7 concluída)
 - [ ] Google Tag Manager (Fase 8)

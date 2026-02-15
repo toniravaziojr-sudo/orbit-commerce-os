@@ -648,3 +648,9 @@ verify_jwt = false
 
 [functions.google-search-console]
 verify_jwt = false
+
+[functions.google-business-reviews]
+verify_jwt = false
+
+[functions.google-business-posts]
+verify_jwt = false
