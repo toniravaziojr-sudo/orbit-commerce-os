@@ -645,3 +645,6 @@ verify_jwt = false
 
 [functions.google-analytics-report]
 verify_jwt = false
+
+[functions.google-search-console]
+verify_jwt = false
