@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.0.0"; // Initial: sync, update ad sets from Meta Graph API
+const VERSION = "v1.1.0"; // Fix: balance uses funding_source_details for prepaid balance
 // ===========================================================
 
 const corsHeaders = {
@@ -211,19 +211,34 @@ Deno.serve(async (req) => {
       const results: any[] = [];
       for (const account of adAccounts) {
         const accountId = account.id.replace("act_", "");
+        // Fetch balance + funding_source_details for accurate prepaid balance
         const result = await graphApi(
-          `act_${accountId}?fields=balance,amount_spent,currency,account_status,name`,
+          `act_${accountId}?fields=balance,amount_spent,spend_cap,currency,account_status,name,funding_source_details`,
           conn.access_token
         );
         if (!result.error) {
+          // For prepaid accounts: balance = remaining spending limit (in cents, negative = credit)
+          // The Meta API "balance" field shows remaining credit (negative = has credit)
+          // funding_source_details.current_balance is the actual prepaid balance
+          const fundingBalance = result.funding_source_details?.current_balance;
+          const apiBalance = result.balance ? parseInt(result.balance) : 0;
+          
+          // Use funding source balance if available, otherwise use account balance
+          // Meta returns balance as negative for credit remaining
+          const balanceCents = fundingBalance != null 
+            ? parseInt(fundingBalance) 
+            : Math.abs(apiBalance);
+
           results.push({
             id: account.id,
             name: result.name || account.name,
-            balance_cents: result.balance ? parseInt(result.balance) : 0,
+            balance_cents: balanceCents,
             amount_spent_cents: result.amount_spent ? parseInt(result.amount_spent) : 0,
             currency: result.currency || "BRL",
             account_status: result.account_status,
           });
+        } else {
+          console.error(`[meta-ads-adsets][${traceId}] Balance error for ${account.id}:`, result.error);
         }
       }
 

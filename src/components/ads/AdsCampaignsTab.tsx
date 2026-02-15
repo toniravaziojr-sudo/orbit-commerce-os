@@ -3,7 +3,7 @@ import {
   Play, Pause, Megaphone, RefreshCw, Loader2, Filter,
   ChevronDown, ChevronRight, ExternalLink, Wallet, DollarSign,
   CalendarDays, TrendingUp, Eye, MousePointerClick, ShoppingCart,
-  MessageCircle, Video, Target, Users
+  MessageCircle, Video, Target, Users, BarChart3
 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -55,6 +55,7 @@ interface InsightData {
   conversion_value_cents: number;
   roas: number;
   ctr: number;
+  frequency: number;
 }
 
 interface AdsCampaignsTabProps {
@@ -76,6 +77,12 @@ interface AdsCampaignsTabProps {
 
 function formatCurrency(cents: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+}
+
+function formatNumber(n: number) {
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+  return n.toLocaleString("pt-BR");
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -108,7 +115,7 @@ function matchesStatusFilter(status: string, filter: StatusFilter): boolean {
 function getObjectiveMetric(objective: string | null): { label: string; key: string; icon: any } {
   const o = objective?.toUpperCase() || "";
   if (o.includes("SALES") || o.includes("CONVERSIONS") || o.includes("OUTCOME_SALES")) {
-    return { label: "ROAS", key: "roas", icon: TrendingUp };
+    return { label: "Compras", key: "conversions", icon: ShoppingCart };
   }
   if (o.includes("TRAFFIC") || o.includes("LINK_CLICKS")) {
     return { label: "Cliques", key: "clicks", icon: MousePointerClick };
@@ -128,7 +135,6 @@ function getObjectiveMetric(objective: string | null): { label: string; key: str
   if (o.includes("APP")) {
     return { label: "Instalações", key: "conversions", icon: Target };
   }
-  // Default: conversions
   return { label: "Resultados", key: "conversions", icon: ShoppingCart };
 }
 
@@ -159,7 +165,6 @@ function getChannelLabel(channel: string): string {
   }
 }
 
-// Date range presets
 const DATE_PRESETS = [
   { label: "Hoje", days: 0 },
   { label: "7 dias", days: 7 },
@@ -197,10 +202,13 @@ export function AdsCampaignsTab({
 
   // Aggregate insights per campaign, filtered by date range
   const campaignInsights = useMemo(() => {
-    const map = new Map<string, { impressions: number; clicks: number; spend_cents: number; reach: number; conversions: number; conversion_value_cents: number; roas: number; ctr: number }>();
+    const map = new Map<string, {
+      impressions: number; clicks: number; spend_cents: number; reach: number;
+      conversions: number; conversion_value_cents: number; roas: number; ctr: number;
+      frequency: number; cost_per_result_cents: number;
+    }>();
     
     for (const i of insights) {
-      // Date filter
       if (dateRange?.from && dateRange?.to) {
         try {
           const d = parseISO(i.date_start);
@@ -212,6 +220,7 @@ export function AdsCampaignsTab({
       const existing = map.get(campaignId) || {
         impressions: 0, clicks: 0, spend_cents: 0, reach: 0,
         conversions: 0, conversion_value_cents: 0, roas: 0, ctr: 0,
+        frequency: 0, cost_per_result_cents: 0,
       };
       existing.impressions += i.impressions || 0;
       existing.clicks += i.clicks || 0;
@@ -219,13 +228,16 @@ export function AdsCampaignsTab({
       existing.reach += i.reach || 0;
       existing.conversions += i.conversions || 0;
       existing.conversion_value_cents += i.conversion_value_cents || 0;
+      // Frequency is averaged, not summed - we'll recalculate
       map.set(campaignId, existing);
     }
 
     // Calculate derived metrics
-    for (const [key, val] of map.entries()) {
+    for (const [, val] of map.entries()) {
       val.ctr = val.impressions > 0 ? (val.clicks / val.impressions) * 100 : 0;
       val.roas = val.spend_cents > 0 ? val.conversion_value_cents / val.spend_cents : 0;
+      val.frequency = val.reach > 0 ? val.impressions / val.reach : 0;
+      val.cost_per_result_cents = val.conversions > 0 ? Math.round(val.spend_cents / val.conversions) : 0;
     }
 
     return map;
@@ -276,20 +288,6 @@ export function AdsCampaignsTab({
     onUpdateAdset(adsetId, { status: newStatus });
   };
 
-  const getMetricValue = (campaignId: string, objective: string | null) => {
-    const metrics = campaignInsights.get(campaignId);
-    if (!metrics) return null;
-    const metricInfo = getObjectiveMetric(objective);
-    const value = (metrics as any)[metricInfo.key];
-    if (metricInfo.key === "roas") {
-      return value > 0 ? `${value.toFixed(2)}x` : "—";
-    }
-    if (typeof value === "number") {
-      return value.toLocaleString("pt-BR");
-    }
-    return "—";
-  };
-
   const renderCampaignRow = (c: any) => {
     const name = c.name;
     const status = c.status;
@@ -302,13 +300,37 @@ export function AdsCampaignsTab({
     const hasAdsets = channel === "meta" && campaignAdsetList.length > 0;
     const metrics = campaignInsights.get(campaignId);
     const metricInfo = getObjectiveMetric(objective);
-    const metricValue = getMetricValue(campaignId, objective);
     const isSalesCampaign = objective?.toUpperCase()?.includes("SALES") || objective?.toUpperCase()?.includes("CONVERSIONS") || objective?.toUpperCase()?.includes("OUTCOME_SALES");
+
+    // Get result count based on objective
+    const getResultCount = () => {
+      if (!metrics) return "—";
+      const value = (metrics as any)[metricInfo.key];
+      if (typeof value === "number" && value > 0) {
+        return formatNumber(value);
+      }
+      return "—";
+    };
+
+    // Cost per result
+    const getCostPerResult = () => {
+      if (!metrics) return "—";
+      if (isSalesCampaign) {
+        return metrics.conversions > 0 ? formatCurrency(metrics.cost_per_result_cents) : "—";
+      }
+      // For non-sales, calculate based on the metric key
+      const resultValue = (metrics as any)[metricInfo.key] as number;
+      if (resultValue > 0 && metrics.spend_cents > 0) {
+        return formatCurrency(Math.round(metrics.spend_cents / resultValue));
+      }
+      return "—";
+    };
 
     return (
       <>
         <TableRow key={c.id} className={hasAdsets ? "cursor-pointer hover:bg-muted/50" : ""} onClick={hasAdsets ? () => toggleExpand(campaignId) : undefined}>
-          <TableCell className="font-medium max-w-[260px]">
+          {/* Campanha */}
+          <TableCell className="font-medium max-w-[240px]">
             <div className="flex items-center gap-2">
               {hasAdsets && (
                 isExpanded
@@ -318,8 +340,28 @@ export function AdsCampaignsTab({
               <span className="truncate">{name}</span>
             </div>
           </TableCell>
+          {/* Status */}
           <TableCell><StatusBadge status={status} /></TableCell>
-          <TableCell className="capitalize text-sm text-muted-foreground">{objective?.replace(/_/g, " ").toLowerCase() || "—"}</TableCell>
+          {/* Resultados */}
+          <TableCell className="text-right tabular-nums">
+            <div className="flex items-center justify-end gap-1">
+              <metricInfo.icon className="h-3.5 w-3.5 text-muted-foreground" />
+              <span>{getResultCount()}</span>
+            </div>
+          </TableCell>
+          {/* Alcance */}
+          <TableCell className="text-right tabular-nums text-sm">
+            {metrics && metrics.reach > 0 ? formatNumber(metrics.reach) : "—"}
+          </TableCell>
+          {/* Frequência */}
+          <TableCell className="text-right tabular-nums text-sm">
+            {metrics && metrics.frequency > 0 ? metrics.frequency.toFixed(2) : "—"}
+          </TableCell>
+          {/* Custo por resultado */}
+          <TableCell className="text-right tabular-nums text-sm">
+            {getCostPerResult()}
+          </TableCell>
+          {/* Orçamento */}
           <TableCell className="text-right tabular-nums">
             {editingBudget === campaignId ? (
               <div className="flex items-center gap-1 justify-end" onClick={e => e.stopPropagation()}>
@@ -347,25 +389,19 @@ export function AdsCampaignsTab({
               </span>
             )}
           </TableCell>
+          {/* Valor usado (investido) */}
           <TableCell className="text-right tabular-nums">
-            {metrics ? formatCurrency(metrics.spend_cents) : "—"}
+            {metrics && metrics.spend_cents > 0 ? formatCurrency(metrics.spend_cents) : "—"}
           </TableCell>
-          <TableCell className="text-right tabular-nums">
-            <div className="flex items-center justify-end gap-1">
-              <metricInfo.icon className="h-3.5 w-3.5 text-muted-foreground" />
-              <span>{metricValue || "—"}</span>
-            </div>
+          {/* ROAS (only for sales campaigns) */}
+          <TableCell className="text-right tabular-nums font-semibold">
+            {isSalesCampaign && metrics && metrics.roas > 0 ? (
+              <span className={metrics.roas >= 1 ? "text-green-600" : "text-red-500"}>
+                {metrics.roas.toFixed(2)}x
+              </span>
+            ) : "—"}
           </TableCell>
-          {isSalesCampaign && (
-            <TableCell className="text-right tabular-nums font-semibold">
-              {metrics && metrics.roas > 0 ? (
-                <span className={metrics.roas >= 1 ? "text-green-600" : "text-red-500"}>
-                  {metrics.roas.toFixed(2)}x
-                </span>
-              ) : "—"}
-            </TableCell>
-          )}
-          {!isSalesCampaign && <TableCell />}
+          {/* Ações */}
           <TableCell className="text-right" onClick={e => e.stopPropagation()}>
             <div className="flex justify-end gap-1">
               {isUpdating ? (
@@ -391,10 +427,12 @@ export function AdsCampaignsTab({
             </TableCell>
             <TableCell><StatusBadge status={as.status} /></TableCell>
             <TableCell className="text-xs text-muted-foreground capitalize">{as.optimization_goal?.replace(/_/g, " ").toLowerCase() || "—"}</TableCell>
+            <TableCell />
+            <TableCell />
+            <TableCell />
             <TableCell className="text-right tabular-nums text-sm">
               {as.daily_budget_cents ? formatCurrency(as.daily_budget_cents) : "—"}
             </TableCell>
-            <TableCell />
             <TableCell />
             <TableCell />
             <TableCell className="text-right">
@@ -425,11 +463,13 @@ export function AdsCampaignsTab({
           <TableRow>
             <TableHead>Campanha</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>Objetivo</TableHead>
-            <TableHead className="text-right">Orçamento</TableHead>
-            <TableHead className="text-right">Investido</TableHead>
             <TableHead className="text-right">Resultados</TableHead>
-            <TableHead className="text-right">ROI</TableHead>
+            <TableHead className="text-right">Alcance</TableHead>
+            <TableHead className="text-right">Frequência</TableHead>
+            <TableHead className="text-right">Custo/resultado</TableHead>
+            <TableHead className="text-right">Orçamento</TableHead>
+            <TableHead className="text-right">Valor usado</TableHead>
+            <TableHead className="text-right">ROAS</TableHead>
             <TableHead className="text-right">Ações</TableHead>
           </TableRow>
         </TableHeader>
@@ -567,6 +607,7 @@ export function AdsCampaignsTab({
                     numberOfMonths={2}
                     locale={ptBR}
                     initialFocus
+                    className="p-3 pointer-events-auto"
                   />
                 </PopoverContent>
               </Popover>
