@@ -1043,6 +1043,104 @@ const {
 
 ---
 
+## Google Hub — Fase 4: Google Ads Manager
+
+### Tabelas
+
+| Tabela | Descrição | UNIQUE |
+|--------|-----------|--------|
+| `google_ad_campaigns` | Cache local de campanhas | `(tenant_id, google_campaign_id)` |
+| `google_ad_insights` | Métricas diárias por campanha | `(tenant_id, google_campaign_id, date)` |
+| `google_ad_audiences` | Listas de público/remarketing | `(tenant_id, google_audience_id)` |
+
+### Campos: `google_ad_campaigns`
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `google_campaign_id` | TEXT | ID da campanha no Google Ads |
+| `ad_account_id` | TEXT | Customer ID (sem hífens) |
+| `name` | TEXT | Nome da campanha |
+| `status` | TEXT | `ENABLED`, `PAUSED`, `REMOVED` |
+| `campaign_type` | TEXT | `SEARCH`, `DISPLAY`, `VIDEO`, `SHOPPING`, `PERFORMANCE_MAX` |
+| `bidding_strategy_type` | TEXT | `TARGET_CPA`, `TARGET_ROAS`, `MAXIMIZE_CONVERSIONS`, etc. |
+| `budget_amount_micros` | BIGINT | Orçamento em micros (÷ 1.000.000 = valor real) |
+| `budget_type` | TEXT | `DAILY` ou `TOTAL` |
+| `optimization_score` | NUMERIC | Score 0-1 de otimização |
+
+### Campos: `google_ad_insights`
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `date` | DATE | Data da métrica |
+| `impressions` | BIGINT | Total de impressões |
+| `clicks` | BIGINT | Total de cliques |
+| `cost_micros` | BIGINT | Custo em micros |
+| `conversions` | NUMERIC | Total de conversões |
+| `conversions_value` | NUMERIC | Valor das conversões |
+| `ctr` | NUMERIC | Click-through rate |
+| `average_cpc_micros` | BIGINT | CPC médio em micros |
+| `video_views` | BIGINT | Visualizações de vídeo |
+
+### Edge Functions
+
+#### `google-ads-campaigns`
+
+| Action | Descrição | API |
+|--------|-----------|-----|
+| `sync` | Puxa campanhas via GAQL searchStream | Google Ads API v18 |
+| `list` | Lista do cache local | Supabase |
+
+**Parâmetros sync:** `tenant_id` (obrigatório), `customer_id` (opcional, default primeiro da lista de assets)
+
+#### `google-ads-insights`
+
+| Action | Descrição | API |
+|--------|-----------|-----|
+| `sync` | Puxa métricas diárias via GAQL | Google Ads API v18 |
+| `list` | Lista do cache com filtros | Supabase |
+| `summary` | Agregação (impressões, cliques, gasto, ROAS) | Supabase |
+
+**Parâmetros sync:** `tenant_id`, `customer_id`, `date_from`, `date_to` (default últimos 30 dias)
+
+#### `google-ads-audiences`
+
+| Action | Descrição | API |
+|--------|-----------|-----|
+| `sync` | Puxa user lists via GAQL | Google Ads API v18 |
+| `list` | Lista do cache local | Supabase |
+
+### Credenciais necessárias
+
+| Credencial | Onde | Obrigatória |
+|------------|------|-------------|
+| `GOOGLE_ADS_DEVELOPER_TOKEN` | `platform_credentials` | ✅ |
+| `GOOGLE_ADS_LOGIN_CUSTOMER_ID` | `platform_credentials` | ❌ (só MCC) |
+| `GOOGLE_CLIENT_ID` | Secrets | ✅ (já existe) |
+| `GOOGLE_CLIENT_SECRET` | Secrets | ✅ (já existe) |
+
+### Hook: `useGoogleAds`
+
+```typescript
+import { useGoogleAds } from "@/hooks/useGoogleAds";
+
+const {
+  campaigns, campaignsLoading, syncCampaigns, isSyncingCampaigns,
+  summary, summaryLoading, syncInsights, isSyncingInsights,
+  audiences, audiencesLoading, syncAudiences, isSyncingAudiences,
+  syncAll, isSyncingAll,
+} = useGoogleAds();
+```
+
+### Mapeamento Tabela → Edge Function
+
+| Tabela | Edge Functions |
+|--------|----------------|
+| `google_ad_campaigns` | `google-ads-campaigns` |
+| `google_ad_insights` | `google-ads-insights` |
+| `google_ad_audiences` | `google-ads-audiences` |
+
+---
+
 ## Pendências
 
 - [ ] Implementar integrações ERP (Bling)
