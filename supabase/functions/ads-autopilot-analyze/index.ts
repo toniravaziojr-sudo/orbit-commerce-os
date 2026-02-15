@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.0.0"; // Initial: Full pipeline with allocator + planner + policy layer
+const VERSION = "v2.0.0"; // Pipeline robusta: métricas agregadas, tendências 7d vs 7d, prompts profissionais, policy layer forte
 // ===========================================================
 
 const corsHeaders = {
@@ -21,6 +21,10 @@ interface SafetyRules {
   max_budget_change_pct_day: number;
   max_actions_per_session: number;
   allowed_actions: string[];
+  // v2: novos campos
+  min_data_days_for_action: number; // mín. dias de dados para executar (default 3)
+  ramp_up_max_pct: number; // max aumento % sem histórico longo (default 10)
+  max_new_campaigns_per_day: number; // limite de novas campanhas/dia (default 2)
 }
 
 interface AutopilotConfig {
@@ -39,9 +43,59 @@ interface AutopilotConfig {
   safety_rules: SafetyRules;
   lock_session_id: string | null;
   lock_expires_at: string | null;
+  total_actions_executed?: number;
+  total_credits_consumed?: number;
 }
 
-// ============ HELPER FUNCTIONS ============
+interface ChannelAggregates {
+  total_spend_cents: number;
+  total_impressions: number;
+  total_clicks: number;
+  total_conversions: number;
+  total_revenue_cents: number;
+  avg_cpc_cents: number;
+  avg_cpm_cents: number;
+  avg_ctr_pct: number;
+  real_cpa_cents: number;
+  real_roas: number;
+  active_campaigns: number;
+  days_with_data: number;
+}
+
+interface TrendComparison {
+  current_period: ChannelAggregates;
+  previous_period: ChannelAggregates;
+  delta: {
+    spend_pct: number;
+    impressions_pct: number;
+    clicks_pct: number;
+    conversions_pct: number;
+    cpa_pct: number;
+    roas_pct: number;
+    ctr_pct: number;
+  };
+  trend_direction: "improving" | "declining" | "stable";
+}
+
+// ============ DEFAULTS ============
+
+const DEFAULT_SAFETY_RULES: SafetyRules = {
+  gross_margin_pct: 50,
+  max_cpa_cents: null, // auto-calculado: ticket médio × (1 - margem)
+  min_roas: 2.0,
+  max_budget_change_pct_day: 10,
+  max_actions_per_session: 10,
+  allowed_actions: ["pause_campaign", "adjust_budget", "report_insight", "allocate_budget"],
+  min_data_days_for_action: 3,
+  ramp_up_max_pct: 10,
+  max_new_campaigns_per_day: 2,
+};
+
+function getSafetyRules(config: AutopilotConfig): SafetyRules {
+  return { ...DEFAULT_SAFETY_RULES, ...config.safety_rules };
+}
+
+// ============ HELPERS ============
 
 function ok(data: any) {
   return new Response(JSON.stringify({ success: true, data }), {
@@ -55,6 +109,15 @@ function fail(error: string, code?: string) {
     status: 200,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+function pctChange(current: number, previous: number): number {
+  if (previous === 0) return current > 0 ? 100 : 0;
+  return Math.round(((current - previous) / previous) * 100 * 10) / 10;
+}
+
+function safeDivide(a: number, b: number, fallback = 0): number {
+  return b > 0 ? Math.round((a / b) * 100) / 100 : fallback;
 }
 
 // ============ PRE-CHECK INTEGRATIONS ============
@@ -71,7 +134,9 @@ async function preCheckIntegrations(supabase: any, tenantId: string, enabledChan
         .eq("platform", "meta")
         .eq("status", "active")
         .maybeSingle();
-      status.meta = data ? { connected: true } : { connected: false, reason: "Meta não conectada. Vá em Integrações para conectar." };
+      status.meta = data
+        ? { connected: true }
+        : { connected: false, reason: "Meta não conectada. Vá em Integrações para conectar." };
     }
 
     if (channel === "google") {
@@ -82,9 +147,8 @@ async function preCheckIntegrations(supabase: any, tenantId: string, enabledChan
         .eq("status", "active")
         .maybeSingle();
       if (!data) {
-        status.google = { connected: false, reason: "Google não conectado. Vá em Integrações para conectar." };
+        status.google = { connected: false, reason: "Google não conectado." };
       } else {
-        // Check developer token
         const { data: cred } = await supabase
           .from("platform_credentials")
           .select("credential_value")
@@ -103,14 +167,70 @@ async function preCheckIntegrations(supabase: any, tenantId: string, enabledChan
         .eq("tenant_id", tenantId)
         .eq("status", "active")
         .maybeSingle();
-      status.tiktok = data ? { connected: true } : { connected: false, reason: "TikTok Ads não conectado." };
+      status.tiktok = data
+        ? { connected: true }
+        : { connected: false, reason: "TikTok Ads não conectado." };
     }
   }
 
   return status;
 }
 
-// ============ CONTEXT COLLECTOR ============
+// ============ AGGREGATE METRICS ============
+
+function aggregateInsights(insights: any[], spendField: string, conversionsField: string, revenueField?: string): ChannelAggregates {
+  const totalSpend = insights.reduce((s, i) => s + (i[spendField] || 0), 0);
+  const totalImpressions = insights.reduce((s, i) => s + (i.impressions || 0), 0);
+  const totalClicks = insights.reduce((s, i) => s + (i.clicks || 0), 0);
+  const totalConversions = insights.reduce((s, i) => s + (i[conversionsField] || 0), 0);
+  const totalRevenue = revenueField ? insights.reduce((s, i) => s + (i[revenueField] || 0), 0) : 0;
+
+  // Count unique dates for days_with_data
+  const dateField = insights[0]?.date_start ? "date_start" : "date_range_start";
+  const uniqueDates = new Set(insights.map((i) => i[dateField]).filter(Boolean));
+
+  return {
+    total_spend_cents: totalSpend,
+    total_impressions: totalImpressions,
+    total_clicks: totalClicks,
+    total_conversions: totalConversions,
+    total_revenue_cents: totalRevenue,
+    avg_cpc_cents: safeDivide(totalSpend, totalClicks),
+    avg_cpm_cents: safeDivide(totalSpend * 1000, totalImpressions),
+    avg_ctr_pct: safeDivide(totalClicks * 100, totalImpressions),
+    real_cpa_cents: safeDivide(totalSpend, totalConversions),
+    real_roas: safeDivide(totalRevenue, totalSpend),
+    active_campaigns: 0, // set externally
+    days_with_data: uniqueDates.size,
+  };
+}
+
+function computeTrend(current: ChannelAggregates, previous: ChannelAggregates): TrendComparison {
+  const delta = {
+    spend_pct: pctChange(current.total_spend_cents, previous.total_spend_cents),
+    impressions_pct: pctChange(current.total_impressions, previous.total_impressions),
+    clicks_pct: pctChange(current.total_clicks, previous.total_clicks),
+    conversions_pct: pctChange(current.total_conversions, previous.total_conversions),
+    cpa_pct: pctChange(current.real_cpa_cents, previous.real_cpa_cents),
+    roas_pct: pctChange(current.real_roas, previous.real_roas),
+    ctr_pct: pctChange(current.avg_ctr_pct, previous.avg_ctr_pct),
+  };
+
+  // Direction: improving if ROAS up OR CPA down; declining if opposite
+  let score = 0;
+  if (delta.roas_pct > 5) score++;
+  if (delta.roas_pct < -5) score--;
+  if (delta.cpa_pct < -5) score++;
+  if (delta.cpa_pct > 5) score--;
+  if (delta.conversions_pct > 5) score++;
+  if (delta.conversions_pct < -5) score--;
+
+  const trend_direction = score > 0 ? "improving" : score < 0 ? "declining" : "stable";
+
+  return { current_period: current, previous_period: previous, delta, trend_direction };
+}
+
+// ============ ENHANCED CONTEXT COLLECTOR ============
 
 async function collectContext(supabase: any, tenantId: string, enabledChannels: string[]) {
   // Products - top 20 by sales
@@ -122,109 +242,277 @@ async function collectContext(supabase: any, tenantId: string, enabledChannels: 
     .order("updated_at", { ascending: false })
     .limit(20);
 
-  // Orders - last 30 days summary
+  // Orders - last 30 days
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const { data: orders } = await supabase
     .from("orders")
-    .select("id, total, status, created_at")
+    .select("id, total, status, payment_status, created_at")
     .eq("tenant_id", tenantId)
     .gte("created_at", thirtyDaysAgo)
     .limit(500);
 
+  const paidOrders = orders?.filter((o: any) => o.payment_status === "paid" || o.status === "delivered") || [];
+  const cancelledOrders = orders?.filter((o: any) => o.status === "cancelled" || o.status === "returned") || [];
+
   const orderStats = {
     total_orders: orders?.length || 0,
-    total_revenue_cents: orders?.reduce((s: number, o: any) => s + (o.total || 0), 0) || 0,
-    avg_ticket_cents: orders?.length ? Math.round(orders.reduce((s: number, o: any) => s + (o.total || 0), 0) / orders.length) : 0,
-    paid_orders: orders?.filter((o: any) => o.status === "paid" || o.status === "delivered")?.length || 0,
+    paid_orders: paidOrders.length,
+    cancelled_orders: cancelledOrders.length,
+    cancellation_rate_pct: orders?.length ? Math.round((cancelledOrders.length / orders.length) * 100 * 10) / 10 : 0,
+    total_revenue_cents: paidOrders.reduce((s: number, o: any) => s + (o.total || 0), 0),
+    avg_ticket_cents: paidOrders.length
+      ? Math.round(paidOrders.reduce((s: number, o: any) => s + (o.total || 0), 0) / paidOrders.length)
+      : 0,
   };
 
-  // Meta campaigns + insights (if enabled)
-  let metaCampaigns: any[] = [];
-  let metaInsights: any[] = [];
-  if (enabledChannels.includes("meta")) {
-    const { data: mc } = await supabase
-      .from("meta_ad_campaigns")
-      .select("meta_campaign_id, name, status, objective, daily_budget_cents")
-      .eq("tenant_id", tenantId)
-      .limit(50);
-    metaCampaigns = mc || [];
+  // Stock alerts - products with low stock
+  const lowStockProducts = (products || []).filter((p: any) => p.stock_quantity !== null && p.stock_quantity <= 5);
 
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-    const { data: mi } = await supabase
-      .from("meta_ad_insights")
-      .select("meta_campaign_id, impressions, clicks, spend_cents, reach, ctr, conversions, roas, date_start")
-      .eq("tenant_id", tenantId)
-      .gte("date_start", sevenDaysAgo)
-      .limit(200);
-    metaInsights = mi || [];
-  }
+  // Time windows
+  const now = Date.now();
+  const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  const fourteenDaysAgo = new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
-  // Google campaigns + insights (if enabled)
-  let googleCampaigns: any[] = [];
-  let googleInsights: any[] = [];
-  if (enabledChannels.includes("google")) {
-    const { data: gc } = await supabase
-      .from("google_ad_campaigns")
-      .select("google_campaign_id, name, status, advertising_channel_type, budget_amount_micros")
-      .eq("tenant_id", tenantId)
-      .limit(50);
-    googleCampaigns = gc || [];
+  const channelData: Record<string, any> = {};
 
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-    const { data: gi } = await supabase
-      .from("google_ad_insights")
-      .select("google_campaign_id, impressions, clicks, cost_micros, conversions, conversions_value_micros, ctr, date_range_start")
-      .eq("tenant_id", tenantId)
-      .gte("date_range_start", sevenDaysAgo)
-      .limit(200);
-    googleInsights = gi || [];
-  }
+  for (const ch of enabledChannels) {
+    if (ch === "meta") {
+      const { data: campaigns } = await supabase
+        .from("meta_ad_campaigns")
+        .select("meta_campaign_id, name, status, objective, daily_budget_cents")
+        .eq("tenant_id", tenantId)
+        .limit(50);
 
-  // TikTok campaigns + insights (if enabled)
-  let tiktokCampaigns: any[] = [];
-  let tiktokInsights: any[] = [];
-  if (enabledChannels.includes("tiktok")) {
-    const { data: tc } = await supabase
-      .from("tiktok_ad_campaigns")
-      .select("tiktok_campaign_id, name, status, objective_type, budget_cents")
-      .eq("tenant_id", tenantId)
-      .limit(50);
-    tiktokCampaigns = tc || [];
+      // Current 7 days
+      const { data: insightsCurrent } = await supabase
+        .from("meta_ad_insights")
+        .select("meta_campaign_id, impressions, clicks, spend_cents, reach, ctr, conversions, roas, date_start")
+        .eq("tenant_id", tenantId)
+        .gte("date_start", sevenDaysAgo)
+        .limit(500);
 
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-    const { data: ti } = await supabase
-      .from("tiktok_ad_insights")
-      .select("tiktok_campaign_id, impressions, clicks, spend_cents, conversions, roas, ctr, date_start")
-      .eq("tenant_id", tenantId)
-      .gte("date_start", sevenDaysAgo)
-      .limit(200);
-    tiktokInsights = ti || [];
+      // Previous 7 days
+      const { data: insightsPrevious } = await supabase
+        .from("meta_ad_insights")
+        .select("meta_campaign_id, impressions, clicks, spend_cents, reach, ctr, conversions, roas, date_start")
+        .eq("tenant_id", tenantId)
+        .gte("date_start", fourteenDaysAgo)
+        .lt("date_start", sevenDaysAgo)
+        .limit(500);
+
+      const currentAgg = aggregateInsights(insightsCurrent || [], "spend_cents", "conversions");
+      currentAgg.active_campaigns = (campaigns || []).filter((c: any) => c.status === "ACTIVE").length;
+
+      const previousAgg = aggregateInsights(insightsPrevious || [], "spend_cents", "conversions");
+      const trend = computeTrend(currentAgg, previousAgg);
+
+      // Per-campaign performance for the planner
+      const campaignPerf: Record<string, any> = {};
+      for (const ins of insightsCurrent || []) {
+        const cid = ins.meta_campaign_id;
+        if (!campaignPerf[cid]) campaignPerf[cid] = { spend: 0, impressions: 0, clicks: 0, conversions: 0, days: new Set() };
+        campaignPerf[cid].spend += ins.spend_cents || 0;
+        campaignPerf[cid].impressions += ins.impressions || 0;
+        campaignPerf[cid].clicks += ins.clicks || 0;
+        campaignPerf[cid].conversions += ins.conversions || 0;
+        campaignPerf[cid].days.add(ins.date_start);
+      }
+      // Convert Sets to counts
+      for (const cid of Object.keys(campaignPerf)) {
+        const p = campaignPerf[cid];
+        campaignPerf[cid] = {
+          ...p,
+          days: p.days.size,
+          cpa_cents: safeDivide(p.spend, p.conversions),
+          cpc_cents: safeDivide(p.spend, p.clicks),
+          ctr_pct: safeDivide(p.clicks * 100, p.impressions),
+        };
+      }
+
+      channelData.meta = { campaigns: campaigns || [], trend, campaignPerf, rawInsights7d: (insightsCurrent || []).length };
+    }
+
+    if (ch === "google") {
+      const { data: campaigns } = await supabase
+        .from("google_ad_campaigns")
+        .select("google_campaign_id, name, status, advertising_channel_type, budget_amount_micros")
+        .eq("tenant_id", tenantId)
+        .limit(50);
+
+      const { data: insightsCurrent } = await supabase
+        .from("google_ad_insights")
+        .select("google_campaign_id, impressions, clicks, cost_micros, conversions, conversions_value_micros, ctr, date_range_start")
+        .eq("tenant_id", tenantId)
+        .gte("date_range_start", sevenDaysAgo)
+        .limit(500);
+
+      const { data: insightsPrevious } = await supabase
+        .from("google_ad_insights")
+        .select("google_campaign_id, impressions, clicks, cost_micros, conversions, conversions_value_micros, ctr, date_range_start")
+        .eq("tenant_id", tenantId)
+        .gte("date_range_start", fourteenDaysAgo)
+        .lt("date_range_start", sevenDaysAgo)
+        .limit(500);
+
+      const currentAgg = aggregateInsights(insightsCurrent || [], "cost_micros", "conversions", "conversions_value_micros");
+      currentAgg.active_campaigns = (campaigns || []).filter((c: any) => c.status === "ENABLED").length;
+
+      const previousAgg = aggregateInsights(insightsPrevious || [], "cost_micros", "conversions", "conversions_value_micros");
+      const trend = computeTrend(currentAgg, previousAgg);
+
+      // Per-campaign
+      const campaignPerf: Record<string, any> = {};
+      for (const ins of insightsCurrent || []) {
+        const cid = ins.google_campaign_id;
+        if (!campaignPerf[cid]) campaignPerf[cid] = { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0, days: new Set() };
+        campaignPerf[cid].spend += ins.cost_micros || 0;
+        campaignPerf[cid].impressions += ins.impressions || 0;
+        campaignPerf[cid].clicks += ins.clicks || 0;
+        campaignPerf[cid].conversions += ins.conversions || 0;
+        campaignPerf[cid].revenue += ins.conversions_value_micros || 0;
+        campaignPerf[cid].days.add(ins.date_range_start);
+      }
+      for (const cid of Object.keys(campaignPerf)) {
+        const p = campaignPerf[cid];
+        campaignPerf[cid] = {
+          ...p,
+          days: p.days.size,
+          cpa: safeDivide(p.spend, p.conversions),
+          roas: safeDivide(p.revenue, p.spend),
+          cpc: safeDivide(p.spend, p.clicks),
+          ctr_pct: safeDivide(p.clicks * 100, p.impressions),
+        };
+      }
+
+      channelData.google = { campaigns: campaigns || [], trend, campaignPerf, rawInsights7d: (insightsCurrent || []).length };
+    }
+
+    if (ch === "tiktok") {
+      const { data: campaigns } = await supabase
+        .from("tiktok_ad_campaigns")
+        .select("tiktok_campaign_id, name, status, objective_type, budget_cents")
+        .eq("tenant_id", tenantId)
+        .limit(50);
+
+      const { data: insightsCurrent } = await supabase
+        .from("tiktok_ad_insights")
+        .select("tiktok_campaign_id, impressions, clicks, spend_cents, conversions, roas, ctr, date_start")
+        .eq("tenant_id", tenantId)
+        .gte("date_start", sevenDaysAgo)
+        .limit(500);
+
+      const { data: insightsPrevious } = await supabase
+        .from("tiktok_ad_insights")
+        .select("tiktok_campaign_id, impressions, clicks, spend_cents, conversions, roas, ctr, date_start")
+        .eq("tenant_id", tenantId)
+        .gte("date_start", fourteenDaysAgo)
+        .lt("date_start", sevenDaysAgo)
+        .limit(500);
+
+      const currentAgg = aggregateInsights(insightsCurrent || [], "spend_cents", "conversions");
+      currentAgg.active_campaigns = (campaigns || []).filter((c: any) => c.status === "ENABLE" || c.status === "ACTIVE").length;
+
+      const previousAgg = aggregateInsights(insightsPrevious || [], "spend_cents", "conversions");
+      const trend = computeTrend(currentAgg, previousAgg);
+
+      const campaignPerf: Record<string, any> = {};
+      for (const ins of insightsCurrent || []) {
+        const cid = ins.tiktok_campaign_id;
+        if (!campaignPerf[cid]) campaignPerf[cid] = { spend: 0, impressions: 0, clicks: 0, conversions: 0, days: new Set() };
+        campaignPerf[cid].spend += ins.spend_cents || 0;
+        campaignPerf[cid].impressions += ins.impressions || 0;
+        campaignPerf[cid].clicks += ins.clicks || 0;
+        campaignPerf[cid].conversions += ins.conversions || 0;
+        campaignPerf[cid].days.add(ins.date_start);
+      }
+      for (const cid of Object.keys(campaignPerf)) {
+        const p = campaignPerf[cid];
+        campaignPerf[cid] = {
+          ...p,
+          days: p.days.size,
+          cpa_cents: safeDivide(p.spend, p.conversions),
+          cpc_cents: safeDivide(p.spend, p.clicks),
+          ctr_pct: safeDivide(p.clicks * 100, p.impressions),
+        };
+      }
+
+      channelData.tiktok = { campaigns: campaigns || [], trend, campaignPerf, rawInsights7d: (insightsCurrent || []).length };
+    }
   }
 
   return {
     products: products || [],
+    lowStockProducts,
     orderStats,
-    meta: { campaigns: metaCampaigns, insights: metaInsights },
-    google: { campaigns: googleCampaigns, insights: googleInsights },
-    tiktok: { campaigns: tiktokCampaigns, insights: tiktokInsights },
+    channels: channelData,
   };
 }
 
-// ============ POLICY VALIDATION ============
+// ============ POLICY VALIDATION (v2 - Enhanced) ============
 
-function validateAction(action: any, globalConfig: AutopilotConfig, channelConfig: AutopilotConfig | null): { valid: boolean; reason?: string } {
-  const rules = globalConfig.safety_rules;
+function validateAction(
+  action: any,
+  globalConfig: AutopilotConfig,
+  channelConfig: AutopilotConfig | null,
+  context: any,
+  sessionActionsCount: number
+): { valid: boolean; reason?: string } {
+  const rules = getSafetyRules(globalConfig);
+
+  // Max actions per session
+  if (sessionActionsCount >= rules.max_actions_per_session) {
+    return { valid: false, reason: `Limite de ${rules.max_actions_per_session} ações por sessão atingido.` };
+  }
 
   // Check if action type is allowed
   if (!rules.allowed_actions.includes(action.name)) {
-    return { valid: false, reason: `Ação '${action.name}' não está habilitada na fase atual do rollout.` };
+    return { valid: false, reason: `Ação '${action.name}' não habilitada na fase atual do rollout.` };
+  }
+
+  // Data sufficiency check
+  const channelKey = action.arguments?.channel || (channelConfig?.channel);
+  if (channelKey && context?.channels?.[channelKey]) {
+    const trend = context.channels[channelKey].trend;
+    if (trend?.current_period?.days_with_data < rules.min_data_days_for_action) {
+      if (action.name !== "report_insight") {
+        return {
+          valid: false,
+          reason: `Dados insuficientes (${trend.current_period.days_with_data} dias). Mínimo: ${rules.min_data_days_for_action} dias. Entrando em modo recommendation-only.`,
+        };
+      }
+    }
   }
 
   // Budget change limits
   if (action.name === "adjust_budget" && action.arguments) {
     const args = typeof action.arguments === "string" ? JSON.parse(action.arguments) : action.arguments;
-    if (args.change_pct && Math.abs(args.change_pct) > rules.max_budget_change_pct_day) {
-      return { valid: false, reason: `Alteração de ${args.change_pct}% excede o limite de ±${rules.max_budget_change_pct_day}%/dia.` };
+    const changePct = args.change_pct || 0;
+    const absChange = Math.abs(changePct);
+
+    if (absChange > rules.max_budget_change_pct_day) {
+      return { valid: false, reason: `Alteração de ${changePct}% excede limite de ±${rules.max_budget_change_pct_day}%/dia.` };
+    }
+
+    // Ramp-up: increases above ramp_up_max_pct require confidence >= 0.7
+    if (changePct > rules.ramp_up_max_pct) {
+      const confidence = parseFloat(args.confidence) || 0;
+      if (confidence < 0.7) {
+        return {
+          valid: false,
+          reason: `Aumento de ${changePct}% requer confidence >= 0.7 (atual: ${confidence}). Reduza para ≤${rules.ramp_up_max_pct}%.`,
+        };
+      }
+    }
+
+    // CPA ceiling check: new budget should not push CPA above max
+    if (rules.max_cpa_cents || context.orderStats?.avg_ticket_cents) {
+      const maxCpa = rules.max_cpa_cents || Math.round(context.orderStats.avg_ticket_cents * (1 - rules.gross_margin_pct / 100));
+      if (args.current_cpa_cents && args.current_cpa_cents > maxCpa && changePct > 0) {
+        return {
+          valid: false,
+          reason: `CPA atual (R$ ${(args.current_cpa_cents / 100).toFixed(2)}) já excede teto (R$ ${(maxCpa / 100).toFixed(2)}). Não permitido aumentar budget.`,
+        };
+      }
     }
   }
 
@@ -235,6 +523,11 @@ function validateAction(action: any, globalConfig: AutopilotConfig, channelConfi
     if (total > 100) {
       return { valid: false, reason: `Alocação total de ${total}% excede 100%.` };
     }
+  }
+
+  // Never delete - only pause
+  if (action.name === "delete_campaign" || action.name === "delete_ad" || action.name === "delete_adgroup") {
+    return { valid: false, reason: "Deletar entidades é PROIBIDO. Use pause." };
   }
 
   return { valid: true };
@@ -269,21 +562,22 @@ async function callAI(messages: any[], tools: any[], model: string): Promise<any
   return response.json();
 }
 
-// ============ TOOLS DEFINITIONS ============
+// ============ TOOLS DEFINITIONS (v2 - Expanded) ============
 
 const ALLOCATOR_TOOLS = [
   {
     type: "function",
     function: {
       name: "allocate_budget",
-      description: "Distribui o orçamento total entre os canais de anúncio baseado em performance.",
+      description: "Distribui o orçamento total entre os canais baseado em ROAS marginal, tendência e escala disponível.",
       parameters: {
         type: "object",
         properties: {
-          meta_pct: { type: "number", description: "Percentual do orçamento para Meta Ads (0-100)" },
-          google_pct: { type: "number", description: "Percentual do orçamento para Google Ads (0-100)" },
-          tiktok_pct: { type: "number", description: "Percentual do orçamento para TikTok Ads (0-100)" },
-          reasoning: { type: "string", description: "Explicação da decisão de alocação" },
+          meta_pct: { type: "number", description: "% do orçamento para Meta (0-100)" },
+          google_pct: { type: "number", description: "% do orçamento para Google (0-100)" },
+          tiktok_pct: { type: "number", description: "% do orçamento para TikTok (0-100)" },
+          reasoning: { type: "string", description: "Justificativa detalhada com base nos KPIs" },
+          risk_alerts: { type: "array", items: { type: "string" }, description: "Alertas de risco identificados" },
         },
         required: ["meta_pct", "google_pct", "tiktok_pct", "reasoning"],
         additionalProperties: false,
@@ -297,15 +591,24 @@ const PLANNER_TOOLS = [
     type: "function",
     function: {
       name: "pause_campaign",
-      description: "Pausa uma campanha com baixo desempenho.",
+      description: "Pausa campanha com baixo desempenho. NUNCA delete — apenas pause.",
       parameters: {
         type: "object",
         properties: {
           campaign_id: { type: "string", description: "ID da campanha na plataforma" },
-          reason: { type: "string", description: "Motivo para pausar" },
-          expected_impact: { type: "string", description: "Impacto esperado" },
-          confidence: { type: "string", enum: ["high", "medium", "low"] },
-          metric_trigger: { type: "string", description: "Métrica que motivou" },
+          reason: { type: "string", description: "Motivo baseado em métricas específicas" },
+          expected_impact: {
+            type: "object",
+            properties: {
+              spend_reduction_cents_day: { type: "number", description: "Economia diária em centavos" },
+              conversions_lost_day: { type: "number", description: "Conversões perdidas estimadas" },
+              risk: { type: "string", enum: ["low", "medium", "high"] },
+            },
+            required: ["spend_reduction_cents_day", "risk"],
+          },
+          confidence: { type: "number", minimum: 0, maximum: 1, description: "Nível de confiança (0-1)" },
+          metric_trigger: { type: "string", description: "KPI que motivou (ex: CPA > R$50, ROAS < 1.5)" },
+          rollback_plan: { type: "string", description: "Como reverter se necessário" },
         },
         required: ["campaign_id", "reason", "expected_impact", "confidence", "metric_trigger"],
         additionalProperties: false,
@@ -316,19 +619,29 @@ const PLANNER_TOOLS = [
     type: "function",
     function: {
       name: "adjust_budget",
-      description: "Ajusta o orçamento de uma campanha.",
+      description: "Ajusta orçamento de campanha. Respeite limites de ±% por dia e ramp-up.",
       parameters: {
         type: "object",
         properties: {
           campaign_id: { type: "string", description: "ID da campanha" },
-          new_budget_cents: { type: "number", description: "Novo orçamento em centavos" },
-          change_pct: { type: "number", description: "Percentual de mudança" },
-          reason: { type: "string", description: "Motivo do ajuste" },
-          expected_impact: { type: "string", description: "Impacto esperado" },
-          confidence: { type: "string", enum: ["high", "medium", "low"] },
-          metric_trigger: { type: "string", description: "Métrica que motivou" },
+          current_budget_cents: { type: "number", description: "Budget atual em centavos" },
+          new_budget_cents: { type: "number", description: "Novo budget em centavos" },
+          change_pct: { type: "number", description: "% de mudança (positivo=aumento, negativo=redução)" },
+          current_cpa_cents: { type: "number", description: "CPA atual em centavos (para validação)" },
+          reason: { type: "string", description: "Motivo baseado em métricas" },
+          expected_impact: {
+            type: "object",
+            properties: {
+              incremental_conversions_day: { type: "number" },
+              new_estimated_cpa_cents: { type: "number" },
+              risk: { type: "string", enum: ["low", "medium", "high"] },
+            },
+            required: ["risk"],
+          },
+          confidence: { type: "number", minimum: 0, maximum: 1 },
+          metric_trigger: { type: "string", description: "KPI que motivou" },
         },
-        required: ["campaign_id", "new_budget_cents", "reason", "expected_impact", "confidence", "metric_trigger"],
+        required: ["campaign_id", "new_budget_cents", "change_pct", "reason", "expected_impact", "confidence", "metric_trigger"],
         additionalProperties: false,
       },
     },
@@ -337,13 +650,23 @@ const PLANNER_TOOLS = [
     type: "function",
     function: {
       name: "report_insight",
-      description: "Reporta um insight ou recomendação sem executar ação.",
+      description: "Reporta insight, recomendação ou alerta sem executar ação. Use quando dados são insuficientes ou para diagnóstico.",
       parameters: {
         type: "object",
         properties: {
-          summary: { type: "string", description: "Resumo do insight" },
-          recommendations: { type: "array", items: { type: "string" }, description: "Lista de recomendações" },
+          summary: { type: "string", description: "Resumo executivo do insight" },
+          kpi_analysis: {
+            type: "object",
+            properties: {
+              best_performing_campaign: { type: "string" },
+              worst_performing_campaign: { type: "string" },
+              overall_trend: { type: "string", enum: ["improving", "declining", "stable"] },
+              key_metrics: { type: "string", description: "Métricas-chave observadas" },
+            },
+          },
+          recommendations: { type: "array", items: { type: "string" }, description: "Lista de recomendações acionáveis" },
           risk_alerts: { type: "array", items: { type: "string" }, description: "Alertas de risco" },
+          integration_gaps: { type: "array", items: { type: "string" }, description: "Pendências de integração" },
         },
         required: ["summary", "recommendations"],
         additionalProperties: false,
@@ -352,47 +675,123 @@ const PLANNER_TOOLS = [
   },
 ];
 
-// ============ SYSTEM PROMPTS ============
+// ============ SYSTEM PROMPTS (v2 - Professional) ============
 
-function buildAllocatorPrompt(globalConfig: AutopilotConfig) {
-  return `Você é um media buyer profissional especializado em alocação de orçamento cross-channel.
+function buildAllocatorPrompt(globalConfig: AutopilotConfig, context: any) {
+  const rules = getSafetyRules(globalConfig);
+  const maxCpaCents = rules.max_cpa_cents || Math.round(context.orderStats.avg_ticket_cents * (1 - rules.gross_margin_pct / 100));
 
-ORÇAMENTO TOTAL: R$ ${(globalConfig.budget_cents / 100).toFixed(2)} / ${globalConfig.budget_mode === "daily" ? "dia" : "mês"}
-OBJETIVO: ${globalConfig.objective}
-MARGEM BRUTA: ${globalConfig.safety_rules.gross_margin_pct}%
-ROAS MÍNIMO: ${globalConfig.safety_rules.min_roas}
+  return `Você é um media buyer sênior com 10+ anos de experiência em alocação cross-channel.
 
-${globalConfig.user_instructions ? `INSTRUÇÕES DO LOJISTA:\n${globalConfig.user_instructions}` : ""}
+## CONTEXTO DE NEGÓCIO
+- ORÇAMENTO TOTAL: R$ ${(globalConfig.budget_cents / 100).toFixed(2)} / ${globalConfig.budget_mode === "daily" ? "dia" : "mês"}
+- OBJETIVO: ${globalConfig.objective}
+- MARGEM BRUTA: ${rules.gross_margin_pct}%
+- ROAS MÍNIMO: ${rules.min_roas}
+- CPA MÁXIMO CALCULADO: R$ ${(maxCpaCents / 100).toFixed(2)}
+- TICKET MÉDIO: R$ ${(context.orderStats.avg_ticket_cents / 100).toFixed(2)}
+- PEDIDOS (30d): ${context.orderStats.paid_orders} pagos / ${context.orderStats.cancelled_orders} cancelados (${context.orderStats.cancellation_rate_pct}% cancel.)
 
-REGRAS:
-- Aloque 0% para canais sem dados ou sem conexão
-- Priorize canais com melhor ROAS marginal
-- Considere escala: canais com mais espaço para crescimento
-- A soma DEVE ser exatamente 100% (ou menos se canais bloqueados)
-- Cada canal tem limites min/max configurados
+${globalConfig.user_instructions ? `## INSTRUÇÕES DO LOJISTA\n${globalConfig.user_instructions}` : ""}
 
-Use a tool 'allocate_budget' para retornar a alocação.`;
+## CICLO DE EXECUÇÃO
+- Este autopilot roda a cada 6 HORAS (4x/dia).
+- Suas decisões de alocação valem para as próximas 6h até o próximo ciclo.
+- Ajustes devem ser graduais, não abruptos.
+
+## CHECKLIST DE DECISÃO
+1. Compare ROAS real de cada canal (receita/gasto, não estimado)
+2. Compare CPA real de cada canal (gasto/conversões)
+3. Avalie TENDÊNCIA (7d atual vs 7d anterior) — canal melhorando merece mais budget
+4. Considere ESCALA: canal com bom ROAS mas pouco gasto tem mais espaço de crescimento
+5. Canal sem dados = 0% (ou mínimo para teste se budget permitir)
+6. Considere ESTOQUE: produtos com ruptura iminente → reduzir tráfego para eles
+
+## REGRAS
+- A soma DEVE ser ≤ 100%
+- Canal sem conexão = 0%
+- Canal sem dados nos últimos 7d = máximo 15% (para exploração)
+- Priorize o canal com melhor ROAS MARGINAL (não absoluto)
+- Considere diversificação para reduzir risco
+
+Use a tool 'allocate_budget'.`;
 }
 
-function buildPlannerPrompt(channel: string, globalConfig: AutopilotConfig, channelBudgetCents: number) {
-  return `Você é um media buyer profissional especializado em ${channel === "meta" ? "Meta (Facebook/Instagram)" : channel === "google" ? "Google Ads" : "TikTok"} Ads.
+function buildPlannerPrompt(channel: string, globalConfig: AutopilotConfig, channelBudgetCents: number, context: any) {
+  const rules = getSafetyRules(globalConfig);
+  const maxCpaCents = rules.max_cpa_cents || Math.round(context.orderStats.avg_ticket_cents * (1 - rules.gross_margin_pct / 100));
+  const channelName = channel === "meta" ? "Meta (Facebook/Instagram)" : channel === "google" ? "Google Ads" : "TikTok Ads";
+  const channelTrend = context.channels?.[channel]?.trend;
 
-ORÇAMENTO PARA ESTE CANAL: R$ ${(channelBudgetCents / 100).toFixed(2)} / ${globalConfig.budget_mode === "daily" ? "dia" : "mês"}
-OBJETIVO: ${globalConfig.objective}
-MARGEM BRUTA: ${globalConfig.safety_rules.gross_margin_pct}%
-ROAS MÍNIMO: ${globalConfig.safety_rules.min_roas}
-${globalConfig.safety_rules.max_cpa_cents ? `CPA MÁXIMO: R$ ${(globalConfig.safety_rules.max_cpa_cents / 100).toFixed(2)}` : ""}
+  let trendSection = "";
+  if (channelTrend) {
+    const d = channelTrend.delta;
+    trendSection = `
+## TENDÊNCIA 7d ATUAL vs 7d ANTERIOR (${channelTrend.trend_direction.toUpperCase()})
+| Métrica | Atual | Anterior | Variação |
+|---------|-------|----------|----------|
+| Spend | R$ ${(channelTrend.current_period.total_spend_cents / 100).toFixed(2)} | R$ ${(channelTrend.previous_period.total_spend_cents / 100).toFixed(2)} | ${d.spend_pct > 0 ? "+" : ""}${d.spend_pct}% |
+| Impressões | ${channelTrend.current_period.total_impressions} | ${channelTrend.previous_period.total_impressions} | ${d.impressions_pct > 0 ? "+" : ""}${d.impressions_pct}% |
+| Cliques | ${channelTrend.current_period.total_clicks} | ${channelTrend.previous_period.total_clicks} | ${d.clicks_pct > 0 ? "+" : ""}${d.clicks_pct}% |
+| Conversões | ${channelTrend.current_period.total_conversions} | ${channelTrend.previous_period.total_conversions} | ${d.conversions_pct > 0 ? "+" : ""}${d.conversions_pct}% |
+| CPA | R$ ${(channelTrend.current_period.real_cpa_cents / 100).toFixed(2)} | R$ ${(channelTrend.previous_period.real_cpa_cents / 100).toFixed(2)} | ${d.cpa_pct > 0 ? "+" : ""}${d.cpa_pct}% |
+| CTR | ${channelTrend.current_period.avg_ctr_pct}% | ${channelTrend.previous_period.avg_ctr_pct}% | ${d.ctr_pct > 0 ? "+" : ""}${d.ctr_pct}% |
+| ROAS | ${channelTrend.current_period.real_roas} | ${channelTrend.previous_period.real_roas} | ${d.roas_pct > 0 ? "+" : ""}${d.roas_pct}% |
+| Dias c/ dados | ${channelTrend.current_period.days_with_data} | ${channelTrend.previous_period.days_with_data} | — |`;
+  }
 
-${globalConfig.user_instructions ? `INSTRUÇÕES DO LOJISTA:\n${globalConfig.user_instructions}` : ""}
+  return `Você é um media buyer sênior especializado em ${channelName}. Seu objetivo é maximizar ${globalConfig.objective} com eficiência.
 
-REGRAS OBRIGATÓRIAS:
-- NUNCA deletar campanhas, apenas pausar
-- Alterações de budget limitadas a ±${globalConfig.safety_rules.max_budget_change_pct_day}% por dia
-- Máximo ${globalConfig.safety_rules.max_actions_per_session} ações por sessão
-- Toda ação deve ter justificativa baseada em métricas
-- Se não houver dados suficientes, use report_insight para recomendar
+## CONTEXTO DE NEGÓCIO
+- ORÇAMENTO DESTE CANAL: R$ ${(channelBudgetCents / 100).toFixed(2)} / ${globalConfig.budget_mode === "daily" ? "dia" : "mês"}
+- OBJETIVO: ${globalConfig.objective}
+- MARGEM BRUTA: ${rules.gross_margin_pct}%
+- ROAS MÍNIMO: ${rules.min_roas}
+- CPA MÁXIMO: R$ ${(maxCpaCents / 100).toFixed(2)}
+- TICKET MÉDIO: R$ ${(context.orderStats.avg_ticket_cents / 100).toFixed(2)}
+${trendSection}
 
-Analise as campanhas e métricas e execute as ações necessárias.`;
+${globalConfig.user_instructions ? `## INSTRUÇÕES DO LOJISTA\n${globalConfig.user_instructions}` : ""}
+
+## CICLO DE EXECUÇÃO
+- Este autopilot roda a cada 6 HORAS (4x/dia).
+- Suas ações devem ser proporcionais a um ciclo de 6h — NÃO faça mudanças drásticas.
+- Limite alterações de budget a ±${rules.max_budget_change_pct_day}% por ciclo.
+
+## CHECKLIST DE ANÁLISE (OBRIGATÓRIO)
+Antes de qualquer ação, analise CADA campanha ativa com este checklist:
+
+### 1. EFICIÊNCIA (CPA)
+- CPA < CPA máximo (R$ ${(maxCpaCents / 100).toFixed(2)})? → OK, considere escalar
+- CPA entre 1x e 1.5x do máximo? → ATENÇÃO, monitore sem escalar
+- CPA > 1.5x do máximo por 3+ dias? → REDUZIR budget ou PAUSAR
+
+### 2. RETORNO (ROAS)
+- ROAS > ${rules.min_roas}? → OK, pode escalar
+- ROAS entre ${(rules.min_roas * 0.7).toFixed(1)} e ${rules.min_roas}? → REDUZIR budget gradualmente
+- ROAS < ${(rules.min_roas * 0.7).toFixed(1)} por 3+ dias? → PAUSAR
+
+### 3. ENGAJAMENTO (CTR/CPC)
+- CTR caindo + CPC subindo? → Fadiga de criativo, sinalize
+- CTR < 0.5% (Meta/TikTok) ou CTR < 1% (Google Search)? → Revisar targeting/criativo
+
+### 4. ESCALA
+- Campanha com bom ROAS + espaço pra crescer? → Aumentar budget (máx +${rules.max_budget_change_pct_day}%)
+- Campanha já no teto? → Não forçar, buscar novo canal/campanha
+
+### 5. ESTOQUE
+- Produto com estoque ≤ 5 unidades? → NÃO escalar tráfego para ele
+
+## REGRAS OBRIGATÓRIAS
+- NUNCA deletar — apenas pausar
+- Alterações de budget: máx ±${rules.max_budget_change_pct_day}% por ciclo
+- Máximo ${rules.max_actions_per_session} ações por sessão
+- Se dados < ${rules.min_data_days_for_action} dias, usar APENAS report_insight
+- Toda ação DEVE ter justificativa com NÚMEROS ESPECÍFICOS (não genérica)
+- Prefira poucas ações de alto impacto (3-5) a muitas de baixo impacto
+- Inclua rollback_plan em ações de execução
+
+Analise as campanhas e execute.`;
 }
 
 // ============ MAIN HANDLER ============
@@ -425,6 +824,9 @@ Deno.serve(async (req) => {
       return fail("Piloto Automático não está ativo. Configure e ative primeiro.");
     }
 
+    // Apply default safety rules
+    globalConfig.safety_rules = getSafetyRules(globalConfig);
+
     const channelConfigs = (configs || []).filter((c: any) => c.channel !== "global" && c.is_enabled) as AutopilotConfig[];
     const enabledChannels = channelConfigs.map((c) => c.channel);
 
@@ -437,25 +839,31 @@ Deno.serve(async (req) => {
     const connectedChannels = enabledChannels.filter((ch) => integrationStatus[ch]?.connected);
 
     if (connectedChannels.length === 0) {
-      // Create session with BLOCKED status
-      const { data: session } = await supabase.from("ads_autopilot_sessions").insert({
-        tenant_id,
-        channel: "global",
-        trigger_type,
-        integration_status: integrationStatus,
-        insights_generated: { blocked: true, reasons: Object.entries(integrationStatus).map(([ch, s]) => `${ch}: ${s.reason}`) },
-      }).select("id").single();
+      const { data: session } = await supabase
+        .from("ads_autopilot_sessions")
+        .insert({
+          tenant_id,
+          channel: "global",
+          trigger_type,
+          integration_status: integrationStatus,
+          insights_generated: {
+            blocked: true,
+            reasons: Object.entries(integrationStatus).map(([ch, s]) => `${ch}: ${(s as any).reason}`),
+          },
+        })
+        .select("id")
+        .single();
 
       return ok({
         status: "BLOCKED",
         integration_status: integrationStatus,
         session_id: session?.id,
-        message: "Nenhum canal conectado. Verifique as integrações.",
+        message: "Nenhum canal conectado.",
       });
     }
 
     // ---- ETAPA 1: Lock ----
-    const lockExpiry = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 min
+    const lockExpiry = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     const { data: lockResult, error: lockError } = await supabase
       .from("ads_autopilot_configs")
       .update({ lock_session_id: crypto.randomUUID(), lock_expires_at: lockExpiry })
@@ -465,23 +873,28 @@ Deno.serve(async (req) => {
       .single();
 
     if (lockError || !lockResult) {
-      return fail("Já existe uma análise em andamento. Aguarde a conclusão.");
+      return fail("Já existe uma análise em andamento. Aguarde.");
     }
 
     const sessionLockId = lockResult.lock_session_id;
 
     try {
-      // ---- ETAPA 2: Context Collector ----
+      // ---- ETAPA 2: Context Collector (Enhanced) ----
+      console.log(`[ads-autopilot-analyze][${VERSION}] Collecting context for ${connectedChannels.join(", ")}`);
       const context = await collectContext(supabase, tenant_id, connectedChannels);
 
       // ---- Create session ----
-      const { data: session } = await supabase.from("ads_autopilot_sessions").insert({
-        tenant_id,
-        channel: "global",
-        trigger_type,
-        context_snapshot: context,
-        integration_status: integrationStatus,
-      }).select("id").single();
+      const { data: session } = await supabase
+        .from("ads_autopilot_sessions")
+        .insert({
+          tenant_id,
+          channel: "global",
+          trigger_type,
+          context_snapshot: context,
+          integration_status: integrationStatus,
+        })
+        .select("id")
+        .single();
 
       const sessionId = session!.id;
       let totalActionsPlanned = 0;
@@ -489,20 +902,35 @@ Deno.serve(async (req) => {
       let totalActionsRejected = 0;
       const allInsights: any[] = [];
 
-      // ---- ETAPA 3: Allocator ----
+      // ---- ETAPA 3: Allocator (Enhanced with real metrics) ----
       let allocation: Record<string, number> = {};
 
       if (connectedChannels.length > 1 && globalConfig.allocation_mode === "auto") {
+        // Build rich context for allocator with aggregated metrics per channel
+        const channelSummary: Record<string, any> = {};
+        for (const ch of connectedChannels) {
+          const chData = context.channels[ch];
+          if (chData?.trend) {
+            channelSummary[ch] = {
+              spend_7d: `R$ ${(chData.trend.current_period.total_spend_cents / 100).toFixed(2)}`,
+              conversions_7d: chData.trend.current_period.total_conversions,
+              real_cpa: `R$ ${(chData.trend.current_period.real_cpa_cents / 100).toFixed(2)}`,
+              real_roas: chData.trend.current_period.real_roas,
+              avg_ctr: `${chData.trend.current_period.avg_ctr_pct}%`,
+              active_campaigns: chData.trend.current_period.active_campaigns,
+              trend: chData.trend.trend_direction,
+              trend_delta: chData.trend.delta,
+            };
+          } else {
+            channelSummary[ch] = "Sem dados de performance nos últimos 7 dias";
+          }
+        }
+
         const allocatorMessages = [
-          { role: "system", content: buildAllocatorPrompt(globalConfig) },
+          { role: "system", content: buildAllocatorPrompt(globalConfig, context) },
           {
             role: "user",
-            content: `Dados de performance dos canais:\n\n${JSON.stringify({
-              meta: context.meta.insights.length > 0 ? { campaigns: context.meta.campaigns.length, insights_7d: context.meta.insights.length } : "Sem dados",
-              google: context.google.insights.length > 0 ? { campaigns: context.google.campaigns.length, insights_7d: context.google.insights.length } : "Sem dados",
-              tiktok: context.tiktok.insights.length > 0 ? { campaigns: context.tiktok.campaigns.length, insights_7d: context.tiktok.insights.length } : "Sem dados",
-              order_stats: context.orderStats,
-            }, null, 2)}`,
+            content: `PERFORMANCE AGREGADA POR CANAL (7d):\n\n${JSON.stringify(channelSummary, null, 2)}\n\nESTATÍSTICAS DE VENDAS (30d):\n${JSON.stringify(context.orderStats, null, 2)}${context.lowStockProducts.length > 0 ? `\n\nPRODUTOS COM ESTOQUE BAIXO (≤5):\n${context.lowStockProducts.map((p: any) => `- ${p.name}: ${p.stock_quantity} un.`).join("\n")}` : ""}`,
           },
         ];
 
@@ -512,7 +940,7 @@ Deno.serve(async (req) => {
         for (const tc of toolCalls) {
           if (tc.function.name === "allocate_budget") {
             const args = JSON.parse(tc.function.arguments);
-            const validation = validateAction(tc.function, globalConfig, null);
+            const validation = validateAction({ name: tc.function.name, arguments: args }, globalConfig, null, context, totalActionsPlanned);
 
             allocation = {
               meta: args.meta_pct || 0,
@@ -527,7 +955,7 @@ Deno.serve(async (req) => {
               action_type: "allocate_budget",
               action_data: args,
               reasoning: args.reasoning,
-              expected_impact: "Redistribuição de orçamento cross-channel",
+              expected_impact: "Redistribuição cross-channel",
               confidence: "high",
               metric_trigger: "performance_analysis",
               status: validation.valid ? "executed" : "rejected",
@@ -541,36 +969,49 @@ Deno.serve(async (req) => {
           }
         }
       } else {
-        // Single channel or manual allocation — give 100% to the single connected channel
         for (const ch of connectedChannels) {
-          allocation[ch] = connectedChannels.length === 1 ? 100 : (100 / connectedChannels.length);
+          allocation[ch] = connectedChannels.length === 1 ? 100 : 100 / connectedChannels.length;
         }
       }
 
-      // ---- ETAPA 4: Planner per channel ----
+      // ---- ETAPA 4: Planner per channel (Enhanced) ----
       for (const channel of connectedChannels) {
-        const channelBudgetCents = Math.round(globalConfig.budget_cents * (allocation[channel] || 0) / 100);
+        const channelBudgetCents = Math.round((globalConfig.budget_cents * (allocation[channel] || 0)) / 100);
         if (channelBudgetCents === 0) continue;
 
-        const channelData = channel === "meta" ? context.meta : channel === "google" ? context.google : context.tiktok;
+        const channelData = context.channels[channel];
+        if (!channelData) continue;
 
         const plannerMessages = [
-          { role: "system", content: buildPlannerPrompt(channel, globalConfig, channelBudgetCents) },
+          { role: "system", content: buildPlannerPrompt(channel, globalConfig, channelBudgetCents, context) },
           {
             role: "user",
-            content: `Dados do canal ${channel}:\n\nCampanhas: ${JSON.stringify(channelData.campaigns, null, 2)}\n\nInsights 7 dias: ${JSON.stringify(channelData.insights.slice(0, 30), null, 2)}\n\nProdutos top: ${JSON.stringify(context.products.slice(0, 10).map((p: any) => ({ name: p.name, price: p.price, stock: p.stock_quantity })), null, 2)}\n\nEstatísticas de vendas: ${JSON.stringify(context.orderStats)}`,
+            content: `## CAMPANHAS ATIVAS\n${JSON.stringify(channelData.campaigns, null, 2)}\n\n## PERFORMANCE POR CAMPANHA (7d)\n${JSON.stringify(channelData.campaignPerf, null, 2)}\n\n## PRODUTOS TOP (para contexto de criativo)\n${JSON.stringify(
+              context.products.slice(0, 10).map((p: any) => ({
+                name: p.name,
+                price: `R$ ${(p.price / 100).toFixed(2)}`,
+                stock: p.stock_quantity,
+                cost: p.cost_price ? `R$ ${(p.cost_price / 100).toFixed(2)}` : "N/A",
+              })),
+              null,
+              2
+            )}\n\n## VENDAS (30d)\n${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n\n## ⚠️ PRODUTOS COM ESTOQUE BAIXO\n${context.lowStockProducts.map((p: any) => `- ${p.name}: ${p.stock_quantity} un.`).join("\n")}` : ""}`,
           },
         ];
 
         const plannerResponse = await callAI(plannerMessages, PLANNER_TOOLS, globalConfig.ai_model);
         const toolCalls = plannerResponse.choices?.[0]?.message?.tool_calls || [];
-
-        // Also save raw AI response
         const aiText = plannerResponse.choices?.[0]?.message?.content || "";
 
         for (const tc of toolCalls) {
           const args = typeof tc.function.arguments === "string" ? JSON.parse(tc.function.arguments) : tc.function.arguments;
-          const validation = validateAction(tc.function, globalConfig, channelConfigs.find((c) => c.channel === channel) || null);
+          const validation = validateAction(
+            { name: tc.function.name, arguments: args },
+            globalConfig,
+            channelConfigs.find((c) => c.channel === channel) || null,
+            context,
+            totalActionsPlanned
+          );
 
           totalActionsPlanned++;
 
@@ -597,28 +1038,27 @@ Deno.serve(async (req) => {
             action_type: tc.function.name,
             action_data: args,
             reasoning: args.reason || args.reasoning || "",
-            expected_impact: args.expected_impact || "",
-            confidence: args.confidence || "medium",
+            expected_impact: JSON.stringify(args.expected_impact || ""),
+            confidence: String(args.confidence || "medium"),
             metric_trigger: args.metric_trigger || "",
             status: validation.valid ? "validated" : "rejected",
             rejection_reason: validation.reason || null,
             action_hash: `${sessionId}_${tc.function.name}_${channel}_${args.campaign_id || totalActionsPlanned}`,
           };
 
-          // ETAPA 5: Execute validated actions
+          // ETAPA 5: Execute
           if (validation.valid) {
             try {
               if (tc.function.name === "pause_campaign") {
                 const edgeFn = channel === "meta" ? "meta-ads-campaigns" : channel === "google" ? "google-ads-campaigns" : "tiktok-ads-campaigns";
                 const idField = channel === "meta" ? "meta_campaign_id" : channel === "google" ? "google_campaign_id" : "tiktok_campaign_id";
-                
-                // Store rollback data
-                actionRecord.rollback_data = { previous_status: "ACTIVE" };
+
+                actionRecord.rollback_data = { previous_status: "ACTIVE", rollback_plan: args.rollback_plan || "Reativar campanha" };
 
                 const { error } = await supabase.functions.invoke(edgeFn, {
                   body: { tenant_id, action: "update", [idField]: args.campaign_id, status: "PAUSED" },
                 });
-                
+
                 if (error) throw error;
                 actionRecord.status = "executed";
                 actionRecord.executed_at = new Date().toISOString();
@@ -628,7 +1068,10 @@ Deno.serve(async (req) => {
                 const idField = channel === "meta" ? "meta_campaign_id" : channel === "google" ? "google_campaign_id" : "tiktok_campaign_id";
                 const budgetField = channel === "meta" ? "daily_budget_cents" : "budget_cents";
 
-                actionRecord.rollback_data = { previous_budget_cents: args.previous_budget_cents };
+                actionRecord.rollback_data = {
+                  previous_budget_cents: args.current_budget_cents,
+                  rollback_plan: `Reverter para R$ ${((args.current_budget_cents || 0) / 100).toFixed(2)}`,
+                };
 
                 const { error } = await supabase.functions.invoke(edgeFn, {
                   body: { tenant_id, action: "update", [idField]: args.campaign_id, [budgetField]: args.new_budget_cents },
@@ -639,27 +1082,28 @@ Deno.serve(async (req) => {
                 actionRecord.executed_at = new Date().toISOString();
                 totalActionsExecuted++;
               } else {
-                // Unknown action type, mark as validated but not executed
                 actionRecord.status = "validated";
               }
             } catch (execErr: any) {
               actionRecord.status = "failed";
-              actionRecord.error_message = execErr.message || "Erro ao executar ação";
+              actionRecord.error_message = execErr.message || "Erro ao executar";
+              console.error(`[ads-autopilot-analyze][${VERSION}] Execution error:`, execErr.message);
             }
           } else {
             totalActionsRejected++;
           }
 
-          await supabase.from("ads_autopilot_actions").insert(actionRecord);
+          const { error: insertErr } = await supabase.from("ads_autopilot_actions").insert(actionRecord);
+          if (insertErr) console.error(`[ads-autopilot-analyze][${VERSION}] Action insert error:`, insertErr);
         }
 
-        // Save planner AI response text to session
-        if (aiText) {
+        // Save channel session
+        if (aiText || toolCalls.length > 0) {
           await supabase.from("ads_autopilot_sessions").insert({
             tenant_id,
             channel,
             trigger_type,
-            context_snapshot: channelData,
+            context_snapshot: { trend: channelData.trend, campaignPerf: channelData.campaignPerf },
             ai_response_raw: aiText,
             actions_planned: toolCalls.length,
           });
@@ -668,19 +1112,29 @@ Deno.serve(async (req) => {
 
       // ---- Update global session ----
       const durationMs = Date.now() - startTime;
-      await supabase.from("ads_autopilot_sessions").update({
-        actions_planned: totalActionsPlanned,
-        actions_executed: totalActionsExecuted,
-        actions_rejected: totalActionsRejected,
-        insights_generated: allInsights.length > 0 ? allInsights : null,
-        duration_ms: durationMs,
-      }).eq("id", sessionId);
+      await supabase
+        .from("ads_autopilot_sessions")
+        .update({
+          actions_planned: totalActionsPlanned,
+          actions_executed: totalActionsExecuted,
+          actions_rejected: totalActionsRejected,
+          insights_generated: allInsights.length > 0 ? allInsights : null,
+          duration_ms: durationMs,
+        })
+        .eq("id", sessionId);
 
       // Update config stats
-      await supabase.from("ads_autopilot_configs").update({
-        last_analysis_at: new Date().toISOString(),
-        total_actions_executed: (globalConfig.total_actions_executed || 0) + totalActionsExecuted,
-      }).eq("id", globalConfig.id);
+      await supabase
+        .from("ads_autopilot_configs")
+        .update({
+          last_analysis_at: new Date().toISOString(),
+          total_actions_executed: (globalConfig.total_actions_executed || 0) + totalActionsExecuted,
+        })
+        .eq("id", globalConfig.id);
+
+      console.log(
+        `[ads-autopilot-analyze][${VERSION}] Completed: ${totalActionsPlanned} planned, ${totalActionsExecuted} executed, ${totalActionsRejected} rejected in ${durationMs}ms`
+      );
 
       return ok({
         session_id: sessionId,
@@ -693,10 +1147,11 @@ Deno.serve(async (req) => {
       });
     } finally {
       // ---- Release lock ----
-      await supabase.from("ads_autopilot_configs").update({
-        lock_session_id: null,
-        lock_expires_at: null,
-      }).eq("id", globalConfig.id).eq("lock_session_id", sessionLockId);
+      await supabase
+        .from("ads_autopilot_configs")
+        .update({ lock_session_id: null, lock_expires_at: null })
+        .eq("id", globalConfig.id)
+        .eq("lock_session_id", sessionLockId);
     }
   } catch (err: any) {
     console.error(`[ads-autopilot-analyze][${VERSION}] Error:`, err);
