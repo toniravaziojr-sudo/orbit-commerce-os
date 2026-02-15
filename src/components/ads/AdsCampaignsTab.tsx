@@ -328,8 +328,12 @@ export function AdsCampaignsTab({
     for (const i of insights) {
       if (dateRange?.from && dateRange?.to) {
         try {
-          const d = parseISO(i.date_start);
-          if (!isWithinInterval(d, { start: startOfDay(dateRange.from), end: endOfDay(dateRange.to) })) continue;
+          const dStart = parseISO(i.date_start);
+          const dStop = parseISO(i.date_stop);
+          const rangeFrom = startOfDay(dateRange.from);
+          const rangeTo = endOfDay(dateRange.to);
+          // Check if insight period OVERLAPS with selected range (not containment)
+          if (dStop < rangeFrom || dStart > rangeTo) continue;
         } catch { continue; }
       }
 
