@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.1.0"; // Fix: marketplace/is_active columns, extract conversion_value, multi-account, frequency
+const VERSION = "v1.2.0"; // Fix: auto-create missing campaigns from insights, prevent orphaned data
 // ===========================================================
 
 const corsHeaders = {
@@ -98,12 +98,30 @@ Deno.serve(async (req) => {
 
         for (const i of insights) {
           // Find local campaign
-          const { data: localCampaign } = await supabase
+          let { data: localCampaign } = await supabase
             .from("meta_ad_campaigns")
             .select("id")
             .eq("tenant_id", tenantId)
             .eq("meta_campaign_id", i.campaign_id)
             .maybeSingle();
+
+          // AUTO-CREATE missing campaign from insight data
+          if (!localCampaign && i.campaign_id && i.campaign_name) {
+            console.log(`[meta-ads-insights][${traceId}] Auto-creating missing campaign: ${i.campaign_name} (${i.campaign_id})`);
+            const { data: created } = await supabase
+              .from("meta_ad_campaigns")
+              .upsert({
+                tenant_id: tenantId,
+                meta_campaign_id: i.campaign_id,
+                ad_account_id: account.id,
+                name: i.campaign_name,
+                status: "UNKNOWN", // Will be corrected on next campaign sync
+                synced_at: new Date().toISOString(),
+              }, { onConflict: "tenant_id,meta_campaign_id" })
+              .select("id")
+              .maybeSingle();
+            localCampaign = created;
+          }
 
           // Extract conversions count from actions
           const purchaseAction = (i.actions || []).find((a: any) => 
