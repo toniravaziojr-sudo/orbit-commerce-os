@@ -106,6 +106,12 @@ export default function AdsManager() {
     }
   };
 
+  const handleUpdateAd = (adId: string, updates: { status?: string }) => {
+    if (activeChannel === "meta") {
+      meta.updateAd.mutate({ meta_ad_id: adId, ...updates });
+    }
+  };
+
   const handleSyncCampaigns = useCallback(async () => {
     if (activeChannel === "meta") {
       // Sync campaigns FIRST, then insights+adsets+balance
@@ -115,6 +121,7 @@ export default function AdsManager() {
       // Now sync insights, adsets and refresh balance in parallel
       meta.syncInsights.mutate({});
       meta.syncAdsets.mutate({});
+      meta.syncAds.mutate({});
       meta.refreshBalance();
     } else if (activeChannel === "tiktok") {
       try {
@@ -133,6 +140,7 @@ export default function AdsManager() {
           insights: meta.insights,
           insightsLoading: meta.insightsLoading,
           adsets: meta.adsets,
+          ads: meta.ads,
           accountBalances: meta.accountBalances,
         };
       case "tiktok":
@@ -142,10 +150,11 @@ export default function AdsManager() {
           insights: tiktok.insights,
           insightsLoading: tiktok.insightsLoading,
           adsets: [],
+          ads: [],
           accountBalances: [],
         };
       default:
-        return { campaigns: [], campaignsLoading: false, insights: [], insightsLoading: false, adsets: [], accountBalances: [] };
+        return { campaigns: [], campaignsLoading: false, insights: [], insightsLoading: false, adsets: [], ads: [], accountBalances: [] };
     }
   };
 
@@ -273,6 +282,7 @@ export default function AdsManager() {
                     onUpdateCampaign={handleUpdateCampaign}
                     onUpdateCampaignBudget={handleUpdateCampaignBudget}
                     onUpdateAdset={handleUpdateAdset}
+                    onUpdateAd={handleUpdateAd}
                     selectedAccountIds={channelSelectedAccounts}
                     adAccounts={integration.adAccounts}
                     isConnected={integration.isConnected}
@@ -280,6 +290,7 @@ export default function AdsManager() {
                     isSyncing={activeChannel === "meta" ? (meta.syncCampaigns.isPending || meta.syncInsights.isPending || meta.syncAdsets.isPending) : activeChannel === "tiktok" ? (tiktok.syncCampaigns.isPending || tiktok.syncInsights.isPending) : false}
                     insights={channelData.insights}
                     adsets={channelData.adsets}
+                    ads={channelData.ads}
                     accountBalances={channelData.accountBalances}
                   />
                 </TabsContent>

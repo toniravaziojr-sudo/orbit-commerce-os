@@ -95,6 +95,22 @@ export interface MetaAdAccountBalance {
   account_status: number;
 }
 
+export interface MetaAdAd {
+  id: string;
+  tenant_id: string;
+  meta_ad_id: string;
+  meta_adset_id: string;
+  meta_campaign_id: string;
+  adset_id: string | null;
+  ad_account_id: string;
+  name: string;
+  status: string;
+  creative_id: string | null;
+  synced_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export function useMetaAds() {
   const { currentTenant } = useAuth();
   const queryClient = useQueryClient();
@@ -197,6 +213,40 @@ export function useMetaAds() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  // ============ INDIVIDUAL ADS ============
+  const adsQuery = useQuery({
+    queryKey: ["meta-ads-ads", tenantId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("meta_ad_ads" as any)
+        .select("*")
+        .eq("tenant_id", tenantId!)
+        .order("updated_at", { ascending: false });
+      return (data || []) as unknown as MetaAdAd[];
+    },
+    enabled: !!tenantId,
+  });
+
+  const syncAds = useMutation({
+    mutationFn: (params?: { meta_adset_id?: string; meta_campaign_id?: string }) =>
+      invoke("meta-ads-ads", { action: "sync", ...params }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["meta-ads-ads"] });
+      toast.success(`${data.data?.synced || 0} anúncios sincronizados`);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const updateAd = useMutation({
+    mutationFn: (params: { meta_ad_id: string; name?: string; status?: string }) =>
+      invoke("meta-ads-ads", { action: "update", ...params }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["meta-ads-ads"] });
+      toast.success("Anúncio atualizado");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   // ============ ACCOUNT BALANCE ============
   const balanceQuery = useQuery({
     queryKey: ["meta-ads-balance", tenantId],
@@ -288,6 +338,7 @@ export function useMetaAds() {
         invoke("meta-ads-audiences", { action: "sync" }),
         invoke("meta-ads-creatives", { action: "sync" }),
         invoke("meta-ads-adsets", { action: "sync" }),
+        invoke("meta-ads-ads", { action: "sync" }),
       ]);
     },
     onSuccess: () => {
@@ -296,6 +347,7 @@ export function useMetaAds() {
       queryClient.invalidateQueries({ queryKey: ["meta-ads-audiences"] });
       queryClient.invalidateQueries({ queryKey: ["meta-ads-creatives"] });
       queryClient.invalidateQueries({ queryKey: ["meta-ads-adsets"] });
+      queryClient.invalidateQueries({ queryKey: ["meta-ads-ads"] });
       toast.success("Dados sincronizados com a Meta");
     },
     onError: (err: Error) => toast.error(err.message),
@@ -316,6 +368,8 @@ export function useMetaAds() {
     creativesLoading: creativesQuery.isLoading,
     adsets: adsetsQuery.data || [],
     adsetsLoading: adsetsQuery.isLoading,
+    ads: adsQuery.data || [],
+    adsLoading: adsQuery.isLoading,
     accountBalances: balanceQuery.data || [],
     balanceLoading: balanceQuery.isLoading,
     refreshBalance,
@@ -324,10 +378,12 @@ export function useMetaAds() {
     syncAudiences,
     syncCreatives,
     syncAdsets,
+    syncAds,
     syncAll,
     createCampaign,
     updateCampaign,
     updateAdset,
+    updateAd,
     deleteCampaign,
   };
 }

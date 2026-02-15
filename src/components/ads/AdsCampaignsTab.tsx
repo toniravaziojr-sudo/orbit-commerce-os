@@ -45,6 +45,15 @@ interface AdSetData {
   lifetime_budget_cents: number | null;
 }
 
+interface AdData {
+  id: string;
+  meta_ad_id: string;
+  meta_adset_id: string;
+  meta_campaign_id: string;
+  name: string;
+  status: string;
+}
+
 interface InsightData {
   meta_campaign_id?: string;
   tiktok_campaign_id?: string;
@@ -70,6 +79,7 @@ interface AdsCampaignsTabProps {
   onUpdateCampaign: (id: string, status: string) => void;
   onUpdateCampaignBudget?: (id: string, dailyBudgetCents: number) => void;
   onUpdateAdset?: (id: string, updates: { status?: string; daily_budget_cents?: number }) => void;
+  onUpdateAd?: (id: string, updates: { status?: string }) => void;
   selectedAccountIds?: string[];
   adAccounts?: AdAccount[];
   isConnected?: boolean;
@@ -77,6 +87,7 @@ interface AdsCampaignsTabProps {
   isSyncing?: boolean;
   insights?: InsightData[];
   adsets?: AdSetData[];
+  ads?: AdData[];
   accountBalances?: AccountBalance[];
 }
 
@@ -298,8 +309,8 @@ function ColumnSelector({ selected, onChange }: { selected: MetricColumnKey[]; o
 
 export function AdsCampaignsTab({
   campaigns, isLoading, channel, onUpdateCampaign, onUpdateCampaignBudget,
-  onUpdateAdset, selectedAccountIds, adAccounts, isConnected, onSync, isSyncing,
-  insights = [], adsets = [], accountBalances = [],
+  onUpdateAdset, onUpdateAd, selectedAccountIds, adAccounts, isConnected, onSync, isSyncing,
+  insights = [], adsets = [], ads = [], accountBalances = [],
 }: AdsCampaignsTabProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
@@ -458,6 +469,17 @@ export function AdsCampaignsTab({
     return map;
   }, [adsets]);
 
+  // Ads grouped by adset
+  const adsetAds = useMemo(() => {
+    const map = new Map<string, AdData[]>();
+    for (const ad of ads) {
+      const list = map.get(ad.meta_adset_id) || [];
+      list.push(ad);
+      map.set(ad.meta_adset_id, list);
+    }
+    return map;
+  }, [ads]);
+
   // ===== CRITICAL FIX: Balance filtered by selected accounts =====
   const filteredBalances = useMemo(() => {
     if (!selectedAccountIds || selectedAccountIds.length === 0) return accountBalances;
@@ -466,11 +488,22 @@ export function AdsCampaignsTab({
 
   const totalBalance = filteredBalances.reduce((sum, a) => sum + a.balance_cents, 0);
 
+  const [expandedAdsets, setExpandedAdsets] = useState<Set<string>>(new Set());
+
   const toggleExpand = (campaignId: string) => {
     setExpandedCampaigns(prev => {
       const next = new Set(prev);
       if (next.has(campaignId)) next.delete(campaignId);
       else next.add(campaignId);
+      return next;
+    });
+  };
+
+  const toggleAdsetExpand = (adsetId: string) => {
+    setExpandedAdsets(prev => {
+      const next = new Set(prev);
+      if (next.has(adsetId)) next.delete(adsetId);
+      else next.add(adsetId);
       return next;
     });
   };
@@ -495,6 +528,12 @@ export function AdsCampaignsTab({
     if (!onUpdateAdset) return;
     const newStatus = (currentStatus === "ACTIVE" || currentStatus === "ENABLE") ? "PAUSED" : "ACTIVE";
     onUpdateAdset(adsetId, { status: newStatus });
+  };
+
+  const handleAdToggleStatus = (adId: string, currentStatus: string) => {
+    if (!onUpdateAd) return;
+    const newStatus = (currentStatus === "ACTIVE" || currentStatus === "ENABLE") ? "PAUSED" : "ACTIVE";
+    onUpdateAd(adId, { status: newStatus });
   };
 
   // ========== METRIC CELL RENDERER ==========
@@ -868,40 +907,83 @@ export function AdsCampaignsTab({
                         </TableRow>
 
                         {/* Expanded ad sets */}
-                        {isExpanded && campaignAdsetList.map(as => (
-                          <TableRow key={as.id} className="bg-muted/20 text-xs">
-                            <TableCell className="px-2"></TableCell>
-                            <TableCell className="pl-6 py-2">
-                              <span className="text-muted-foreground mr-1.5">↳</span>
-                              <span className="text-muted-foreground">{as.name}</span>
-                            </TableCell>
-                            <TableCell><StatusDot status={as.status} /></TableCell>
-                            {visibleColumns.map((colKey, idx) => (
-                              <TableCell key={colKey} className="text-right tabular-nums text-xs">
-                                {idx === 0 ? (
-                                  <span className="text-muted-foreground text-[10px]">
-                                    {as.optimization_goal?.replace(/_/g, " ").toLowerCase() || "—"}
-                                  </span>
-                                ) : colKey === "budget" ? (
-                                  as.daily_budget_cents ? formatCurrency(as.daily_budget_cents) : <span className="text-muted-foreground">—</span>
-                                ) : ""}
-                              </TableCell>
-                            ))}
-                            <TableCell className="text-right">
-                              {onUpdateAdset && (
-                                (as.status === "ACTIVE" || as.status === "ENABLE") ? (
-                                  <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => handleAdsetToggleStatus(as.meta_adset_id, as.status)}>
-                                    <Pause className="h-2.5 w-2.5" />
-                                  </Button>
-                                ) : (as.status === "PAUSED" || as.status === "DISABLE") ? (
-                                  <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => handleAdsetToggleStatus(as.meta_adset_id, as.status)}>
-                                    <Play className="h-2.5 w-2.5" />
-                                  </Button>
-                                ) : null
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        {isExpanded && campaignAdsetList.map(as => {
+                          const adsetAdList = adsetAds.get(as.meta_adset_id) || [];
+                          const hasAds = adsetAdList.length > 0;
+                          const isAdsetExpanded = expandedAdsets.has(as.meta_adset_id);
+                          return (
+                            <span key={as.id} className="contents">
+                              <TableRow className="bg-muted/20 text-xs group/adset cursor-pointer" onClick={() => hasAds && toggleAdsetExpand(as.meta_adset_id)}>
+                                <TableCell className="px-2 w-8">
+                                  {hasAds && (
+                                    isAdsetExpanded
+                                      ? <ChevronDown className="h-3 w-3 text-muted-foreground ml-1" />
+                                      : <ChevronRight className="h-3 w-3 text-muted-foreground ml-1" />
+                                  )}
+                                </TableCell>
+                                <TableCell className="pl-6 py-2">
+                                  <span className="text-muted-foreground mr-1.5">↳</span>
+                                  <span className="text-muted-foreground">{as.name}</span>
+                                </TableCell>
+                                <TableCell><StatusDot status={as.status} /></TableCell>
+                                {visibleColumns.map((colKey, idx) => (
+                                  <TableCell key={colKey} className="text-right tabular-nums text-xs">
+                                    {idx === 0 ? (
+                                      <span className="text-muted-foreground text-[10px]">
+                                        {as.optimization_goal?.replace(/_/g, " ").toLowerCase() || "—"}
+                                      </span>
+                                    ) : colKey === "budget" ? (
+                                      as.daily_budget_cents ? formatCurrency(as.daily_budget_cents) : <span className="text-muted-foreground">—</span>
+                                    ) : ""}
+                                  </TableCell>
+                                ))}
+                                <TableCell className="text-right" onClick={e => e.stopPropagation()}>
+                                  {onUpdateAdset && (
+                                    (as.status === "ACTIVE" || as.status === "ENABLE") ? (
+                                      <Button size="icon" variant="ghost" className="h-5 w-5 opacity-0 group-hover/adset:opacity-100 transition-opacity" onClick={() => handleAdsetToggleStatus(as.meta_adset_id, as.status)}>
+                                        <Pause className="h-2.5 w-2.5" />
+                                      </Button>
+                                    ) : (as.status === "PAUSED" || as.status === "DISABLE") ? (
+                                      <Button size="icon" variant="ghost" className="h-5 w-5 opacity-0 group-hover/adset:opacity-100 transition-opacity" onClick={() => handleAdsetToggleStatus(as.meta_adset_id, as.status)}>
+                                        <Play className="h-2.5 w-2.5" />
+                                      </Button>
+                                    ) : null
+                                  )}
+                                </TableCell>
+                              </TableRow>
+
+                              {/* Expanded ads under ad set */}
+                              {isAdsetExpanded && adsetAdList.map(ad => (
+                                <TableRow key={ad.id} className="bg-muted/10 text-xs group/ad">
+                                  <TableCell className="px-2"></TableCell>
+                                  <TableCell className="pl-12 py-1.5">
+                                    <span className="text-muted-foreground/60 mr-1.5">↳</span>
+                                    <span className="text-muted-foreground/80 text-[11px]">{ad.name}</span>
+                                  </TableCell>
+                                  <TableCell><StatusDot status={ad.status} /></TableCell>
+                                  {visibleColumns.map(colKey => (
+                                    <TableCell key={colKey} className="text-right tabular-nums text-xs">
+                                      {""}
+                                    </TableCell>
+                                  ))}
+                                  <TableCell className="text-right">
+                                    {onUpdateAd && (
+                                      (ad.status === "ACTIVE" || ad.status === "ENABLE") ? (
+                                        <Button size="icon" variant="ghost" className="h-5 w-5 opacity-0 group-hover/ad:opacity-100 transition-opacity" onClick={() => handleAdToggleStatus(ad.meta_ad_id, ad.status)}>
+                                          <Pause className="h-2.5 w-2.5" />
+                                        </Button>
+                                      ) : (ad.status === "PAUSED" || ad.status === "DISABLE") ? (
+                                        <Button size="icon" variant="ghost" className="h-5 w-5 opacity-0 group-hover/ad:opacity-100 transition-opacity" onClick={() => handleAdToggleStatus(ad.meta_ad_id, ad.status)}>
+                                          <Play className="h-2.5 w-2.5" />
+                                        </Button>
+                                      ) : null
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </span>
+                          );
+                        })}
                       </span>
                     );
                   })}
