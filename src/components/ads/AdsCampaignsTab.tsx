@@ -113,11 +113,31 @@ function getAccountId(campaign: any): string {
 
 type StatusFilter = "all" | "active" | "paused";
 
-function matchesStatus(status: string, effectiveStatus: string | undefined, filter: StatusFilter): boolean {
-  if (filter === "all") return true;
+function isStatusActive(status: string, effectiveStatus?: string): boolean {
   const s = effectiveStatus || status;
-  if (filter === "active") return s === "ACTIVE" || s === "ENABLE";
+  return s === "ACTIVE" || s === "ENABLE";
+}
+
+function isStatusPaused(status: string, effectiveStatus?: string): boolean {
+  const s = effectiveStatus || status;
   return s === "PAUSED" || s === "DISABLE" || s === "ARCHIVED" || s === "CAMPAIGN_PAUSED" || s === "ADSET_PAUSED";
+}
+
+// A campaign is truly active only if it's ACTIVE AND has at least 1 active adset
+function isCampaignTrulyActive(campaign: any, adsets: AdSetData[]): boolean {
+  if (!isStatusActive(campaign.status, campaign.effective_status)) return false;
+  const campaignId = campaign.meta_campaign_id || campaign.google_campaign_id || campaign.tiktok_campaign_id;
+  if (!campaignId) return false;
+  const campaignAdsets = adsets.filter(a => a.meta_campaign_id === campaignId);
+  if (campaignAdsets.length === 0) return false;
+  return campaignAdsets.some(a => isStatusActive(a.status, a.effective_status));
+}
+
+function matchesStatus(campaign: any, adsets: AdSetData[], filter: StatusFilter): boolean {
+  if (filter === "all") return true;
+  if (filter === "active") return isCampaignTrulyActive(campaign, adsets);
+  // Paused = not truly active (campaign paused OR no active adsets)
+  return !isCampaignTrulyActive(campaign, adsets);
 }
 
 function StatusDot({ status, effectiveStatus }: { status: string; effectiveStatus?: string }) {
@@ -350,27 +370,21 @@ export function AdsCampaignsTab({
     return map;
   }, [campaigns]);
 
-  // Filter campaigns by search + status
+   // Filter campaigns by search + status
   const filteredCampaigns = useMemo(() => {
     return accountFiltered.filter(c => {
-      if (!matchesStatus(c.status, c.effective_status, statusFilter)) return false;
+      if (!matchesStatus(c, adsets, statusFilter)) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         if (!c.name?.toLowerCase().includes(q)) return false;
       }
       return true;
     });
-  }, [accountFiltered, statusFilter, searchQuery]);
+  }, [accountFiltered, statusFilter, searchQuery, adsets]);
 
-  // Count by status using effective_status
-  const activeCount = accountFiltered.filter(c => {
-    const s = c.effective_status || c.status;
-    return s === "ACTIVE" || s === "ENABLE";
-  }).length;
-  const pausedCount = accountFiltered.filter(c => {
-    const s = c.effective_status || c.status;
-    return s === "PAUSED" || s === "DISABLE" || s === "ARCHIVED" || s === "CAMPAIGN_PAUSED" || s === "ADSET_PAUSED";
-  }).length;
+  // Count by status: truly active = campaign ACTIVE + has active adset
+  const activeCount = accountFiltered.filter(c => isCampaignTrulyActive(c, adsets)).length;
+  const pausedCount = accountFiltered.filter(c => !isCampaignTrulyActive(c, adsets)).length;
 
   // ===== Filter insights by selected accounts + date range =====
   const campaignInsights = useMemo(() => {
