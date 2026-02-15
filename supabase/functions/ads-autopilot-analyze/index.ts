@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.0.0"; // Pipeline robusta: métricas agregadas, tendências 7d vs 7d, prompts profissionais, policy layer forte
+const VERSION = "v2.1.0"; // Platform-specific rules: Meta 20%/48h, learning phase, cold/warm audiences, initial budget, pause criteria
 // ===========================================================
 
 const corsHeaders = {
@@ -483,14 +483,30 @@ function validateAction(
     }
   }
 
-  // Budget change limits
+  // Budget change limits — PLATFORM-SPECIFIC
   if (action.name === "adjust_budget" && action.arguments) {
     const args = typeof action.arguments === "string" ? JSON.parse(action.arguments) : action.arguments;
     const changePct = args.change_pct || 0;
     const absChange = Math.abs(changePct);
 
-    if (absChange > rules.max_budget_change_pct_day) {
-      return { valid: false, reason: `Alteração de ${changePct}% excede limite de ±${rules.max_budget_change_pct_day}%/dia.` };
+    // Platform-specific max change per 6h cycle
+    // Meta: 20% every 48h → ~10% per 6h cycle (to stay safe)
+    // Google: 30% every 48-72h → ~15% per cycle (more flexible)
+    // TikTok: 15% every 48h → ~7% per cycle (most conservative)
+    const platformMaxPerCycle: Record<string, number> = {
+      meta: 10,
+      google: 15,
+      tiktok: 7,
+    };
+    const channelKey = channelConfig?.channel || "meta";
+    const platformMax = platformMaxPerCycle[channelKey] || rules.max_budget_change_pct_day;
+    const effectiveMax = Math.min(platformMax, rules.max_budget_change_pct_day);
+
+    if (absChange > effectiveMax) {
+      return {
+        valid: false,
+        reason: `Alteração de ${changePct}% excede limite de ±${effectiveMax}%/ciclo para ${channelKey}. (Regra da plataforma: max ±${platformMax}% por 6h para respeitar limite de 48h.)`,
+      };
     }
 
     // Ramp-up: increases above ramp_up_max_pct require confidence >= 0.7
@@ -514,6 +530,7 @@ function validateAction(
         };
       }
     }
+  }
   }
 
   // Allocate budget - validate shares
@@ -740,7 +757,149 @@ function buildPlannerPrompt(channel: string, globalConfig: AutopilotConfig, chan
 | Dias c/ dados | ${channelTrend.current_period.days_with_data} | ${channelTrend.previous_period.days_with_data} | — |`;
   }
 
-  return `Você é um media buyer sênior especializado em ${channelName}. Seu objetivo é maximizar ${globalConfig.objective} com eficiência.
+  // ========== PLATFORM-SPECIFIC KNOWLEDGE ==========
+  const platformKnowledge: Record<string, string> = {
+    meta: `
+## REGRAS ESPECÍFICAS DO META ADS (Facebook/Instagram)
+
+### LEARNING PHASE (Fase de Aprendizado)
+- Uma campanha/ad set entra em Learning Phase ao ser criada ou após EDIÇÕES SIGNIFICATIVAS (budget, targeting, criativo, bid)
+- Precisa de ~50 EVENTOS DE OTIMIZAÇÃO em 7 DIAS para sair da Learning Phase
+- Durante a Learning Phase: performance é instável e custos podem ser mais altos — NÃO tome decisões precipitadas
+- NUNCA julgue performance de um ad set que está em Learning Phase — aguarde 3-5 dias mínimo
+
+### REGRA DE ORÇAMENTO (CRÍTICA!)
+- **Regra dos 20%**: Aumentar ou diminuir o orçamento em no MÁXIMO 20% a cada 48 HORAS
+- Mudanças acima de 20% RESETAM a Learning Phase e destroem a otimização acumulada
+- Como este autopilot roda a cada 6h (4x/dia), aplique no MÁXIMO ±10% por ciclo (para respeitar ±20% em 48h)
+- Exemplo: R$100/dia → máx R$110/dia neste ciclo. Próximo aumento só no ciclo seguinte (+48h)
+- Se precisar escalar mais rápido, DUPLIQUE a campanha em vez de aumentar o budget
+
+### QUANDO PAUSAR NO META
+- CPA > 2x do CPA alvo por 3+ dias APÓS sair da Learning Phase
+- ROAS < 50% do mín. configurado por 5+ dias consecutivos
+- Frequência > 3.0 (indica saturação de audiência/criativo)
+- CTR < 0.5% por 3+ dias (indica criativo ou targeting ineficaz)
+- NÃO pausar durante Learning Phase a menos que o gasto esteja completamente fora de controle
+
+### PÚBLICO FRIO vs QUENTE
+- **Público Frio (Prospecção/TOF)**: Lookalike, interesses amplos, broad targeting
+  - CPA esperado: 1.5x a 3x maior que remarketing — ISSO É NORMAL
+  - Objetivo: volume e aprendizado, não ROAS imediato
+  - Orçamento recomendado: 60-70% do total do canal
+  - Métrica-chave: CPM, CTR, custo por lead/ATC (métricas de topo de funil)
+  - NÃO pausar por CPA alto se CPM e CTR estiverem saudáveis — está alimentando o funil
+
+- **Público Quente (Remarketing/MOF-BOF)**: Visitantes do site, carrinhos abandonados, engajaram com conteúdo
+  - CPA esperado: menor, mas volume limitado
+  - Objetivo: conversão direta, ROAS alto
+  - Orçamento recomendado: 20-30% do total do canal
+  - Métrica-chave: ROAS, CPA, taxa de conversão
+  - Pausar se ROAS cair abaixo de ${rules.min_roas} por 5+ dias
+
+- **Público Hot (Retargeting Agressivo)**: Compradores anteriores, carrinhos < 7 dias
+  - Orçamento recomendado: 10% do total
+  - Foco em upsell/cross-sell
+
+### INVESTIMENTO INICIAL RECOMENDADO
+- Campanha de Conversão: Mínimo R$30/dia (idealmente 10x CPA alvo)
+- Campanha de Tráfego: Mínimo R$20/dia
+- Campanha de Reconhecimento: Mínimo R$15/dia
+- Se o orçamento total do canal for < R$50/dia, concentre em UMA campanha de conversão`,
+
+    google: `
+## REGRAS ESPECÍFICAS DO GOOGLE ADS
+
+### LEARNING PHASE
+- Google Ads também possui período de aprendizado, especialmente em Smart Bidding (Target CPA, Target ROAS, Maximize Conversions)
+- Precisa de ~2 SEMANAS e ~30 CONVERSÕES para estabilizar Smart Bidding
+- Evitar mudanças significativas durante as primeiras 2 semanas de uma campanha nova
+- Após mudanças de bid strategy, aguardar 7-14 dias antes de julgar performance
+
+### REGRA DE ORÇAMENTO
+- Google é MAIS FLEXÍVEL que Meta — aceita mudanças maiores sem "resetar" completamente
+- Ainda assim, recomenda-se no máximo 20-30% a cada 48-72 horas para Smart Bidding
+- Para campanhas manuais (Manual CPC), pode-se ajustar mais agressivamente (até 30%/dia)
+- Google permite que o gasto diário real seja até 2x o budget diário configurado (otimização automática)
+
+### TIPOS DE CAMPANHA
+- **Search (Busca)**: Maior intenção de compra, CPA geralmente menor
+  - CTR benchmark: 3-5% (inferior indica keywords ruins ou anúncios fracos)
+  - Quality Score importa: otimizar anúncios com QS < 5
+- **Shopping**: Excelente para e-commerce, depende de feed bem otimizado
+  - ROAS benchmark: 4x-8x para e-commerce
+  - Pausar se ROAS < 2x por 7+ dias
+- **Display**: Público frio, reconhecimento — CPA mais alto é esperado
+  - NÃO esperar ROAS de Search em Display
+- **Performance Max (PMax)**: Campanhas automatizadas do Google
+  - Precisa de volume mínimo de conversões para funcionar bem
+  - NÃO alterar assets com frequência — deixar rodar 2+ semanas
+
+### QUANDO PAUSAR NO GOOGLE
+- Search: CPA > 2x do alvo por 7+ dias com 30+ cliques
+- Shopping: ROAS < 1.5x por 7+ dias
+- Display/PMax: ROAS < 1x por 14+ dias (precisa mais tempo)
+- Keywords com QS ≤ 3 e sem conversões: pausar keywords, não a campanha
+
+### PÚBLICO FRIO vs QUENTE
+- **Frio (Search Genérico, Display, Discovery)**: Intenção baixa-média
+  - Orçamento: 50-60% do canal
+- **Quente (Search Brand, RLSA, Shopping Remarketing)**: Alta intenção
+  - Orçamento: 30-40% do canal
+- **Hot (Dynamic Remarketing, carrinho abandonado)**: Conversão direta
+  - Orçamento: 10-20% do canal
+
+### INVESTIMENTO INICIAL RECOMENDADO
+- Search (conversão): Mínimo R$30/dia por campanha
+- Shopping: Mínimo R$50/dia (precisa de volume)
+- PMax: Mínimo R$50/dia (requer dados para otimizar)
+- Display remarketing: Mínimo R$20/dia`,
+
+    tiktok: `
+## REGRAS ESPECÍFICAS DO TIKTOK ADS
+
+### LEARNING PHASE
+- TikTok requer ~50 CONVERSÕES em 7 DIAS para sair da Learning Phase
+- A Learning Phase é especialmente sensível — mudanças RESETAM completamente
+- NÃO editar ad groups durante Learning Phase (budget, targeting, criativo, bid)
+- Aguardar 7-14 DIAS entre mudanças significativas
+
+### REGRA DE ORÇAMENTO (CRÍTICA!)
+- Escalar em no máximo 15-20% a cada 2-3 DIAS (mais conservador que Meta)
+- Como este autopilot roda a cada 6h, aplique no MÁXIMO ±7% por ciclo (para respeitar ±15% em 48h)
+- Budget diário mínimo: 10x o CPA alvo OU R$30/dia (o que for maior)
+- Mudanças bruscas de budget são a causa #1 de perda de performance no TikTok
+
+### QUANDO PAUSAR NO TIKTOK
+- CPA > 2.5x do alvo por 5+ dias APÓS sair da Learning Phase
+- CTR < 0.3% por 3+ dias (criativo não está engajando)
+- CPM subindo + CTR caindo = fadiga criativa severa → pausar e renovar criativos
+- NÃO pausar campanhas com < 7 dias de dados
+
+### PÚBLICO FRIO vs QUENTE
+- **Público Frio (Broad, Interest-based, Lookalike)**: 
+  - CPA será 2x-4x maior que remarketing — esperado para TikTok
+  - Orçamento recomendado: 70-80% (TikTok é plataforma de descoberta)
+  - Foco em criativos nativos (UGC, trend-based)
+- **Público Quente (Custom Audiences, Site visitors, Engagers)**:
+  - Orçamento: 20-30%
+  - Criativos mais diretos/oferta
+
+### INVESTIMENTO INICIAL RECOMENDADO
+- Campanha de Conversão: Mínimo R$50/dia (TikTok precisa de mais volume)
+- Campanha de Tráfego: Mínimo R$30/dia
+- Se orçamento total < R$50/dia, concentre em UMA campanha com broad targeting
+
+### PARTICULARIDADES DO TIKTOK
+- Criativos têm vida útil CURTA (7-14 dias em média) — monitorar frequência e CTR
+- UGC (User Generated Content) performa 2-3x melhor que anúncios "produzidos"
+- Vídeos de 15-30s performam melhor que vídeos longos
+- Hook nos primeiros 3 segundos é CRÍTICO`,
+  };
+
+  const channelKnowledgeBlock = platformKnowledge[channel] || "";
+
+  return `Você é um media buyer sênior especializado em ${channelName} com 10+ anos de experiência. Seu objetivo é maximizar ${globalConfig.objective} com eficiência.
 
 ## CONTEXTO DE NEGÓCIO
 - ORÇAMENTO DESTE CANAL: R$ ${(channelBudgetCents / 100).toFixed(2)} / ${globalConfig.budget_mode === "daily" ? "dia" : "mês"}
@@ -756,40 +915,55 @@ ${globalConfig.user_instructions ? `## INSTRUÇÕES DO LOJISTA\n${globalConfig.u
 ## CICLO DE EXECUÇÃO
 - Este autopilot roda a cada 6 HORAS (4x/dia).
 - Suas ações devem ser proporcionais a um ciclo de 6h — NÃO faça mudanças drásticas.
-- Limite alterações de budget a ±${rules.max_budget_change_pct_day}% por ciclo.
+- IMPORTANTE: Respeite os limites de alteração de budget ESPECÍFICOS da plataforma (veja abaixo).
+
+${channelKnowledgeBlock}
 
 ## CHECKLIST DE ANÁLISE (OBRIGATÓRIO)
 Antes de qualquer ação, analise CADA campanha ativa com este checklist:
 
-### 1. EFICIÊNCIA (CPA)
+### 1. FASE DE APRENDIZADO
+- A campanha está em Learning Phase? → Se sim, NÃO alterar (apenas report_insight)
+- Quantos dias de dados tem? → Se < 3 dias, modo recommendation-only
+- Quantas conversões nos últimos 7 dias? → Se < 50 (Meta/TikTok), considerar em aprendizado
+
+### 2. TIPO DE AUDIÊNCIA
+- É campanha de PÚBLICO FRIO (prospecção)? → CPA mais alto é NORMAL, avaliar métricas de topo de funil
+- É campanha de REMARKETING (quente)? → ROAS e CPA são as métricas decisivas
+- Não compare CPA de campanha fria com quente — são funis DIFERENTES
+
+### 3. EFICIÊNCIA (CPA)
 - CPA < CPA máximo (R$ ${(maxCpaCents / 100).toFixed(2)})? → OK, considere escalar
 - CPA entre 1x e 1.5x do máximo? → ATENÇÃO, monitore sem escalar
-- CPA > 1.5x do máximo por 3+ dias? → REDUZIR budget ou PAUSAR
+- CPA > 1.5x do máximo por período suficiente (ver regras da plataforma)? → REDUZIR budget ou PAUSAR
 
-### 2. RETORNO (ROAS)
+### 4. RETORNO (ROAS)
 - ROAS > ${rules.min_roas}? → OK, pode escalar
 - ROAS entre ${(rules.min_roas * 0.7).toFixed(1)} e ${rules.min_roas}? → REDUZIR budget gradualmente
-- ROAS < ${(rules.min_roas * 0.7).toFixed(1)} por 3+ dias? → PAUSAR
+- ROAS < ${(rules.min_roas * 0.7).toFixed(1)} por período suficiente? → PAUSAR (respeitando regras da plataforma)
 
-### 3. ENGAJAMENTO (CTR/CPC)
+### 5. ENGAJAMENTO (CTR/CPC/Frequência)
 - CTR caindo + CPC subindo? → Fadiga de criativo, sinalize
-- CTR < 0.5% (Meta/TikTok) ou CTR < 1% (Google Search)? → Revisar targeting/criativo
+- Frequência > 3.0 (Meta)? → Saturação de audiência
+- CTR abaixo do benchmark da plataforma? → Revisar targeting/criativo
 
-### 4. ESCALA
-- Campanha com bom ROAS + espaço pra crescer? → Aumentar budget (máx +${rules.max_budget_change_pct_day}%)
-- Campanha já no teto? → Não forçar, buscar novo canal/campanha
+### 6. ESCALA
+- Campanha com bom ROAS + espaço pra crescer? → Aumentar budget respeitando LIMITES DA PLATAFORMA
+- Campanha já no teto de escala? → Não forçar, buscar novo público/campanha
 
-### 5. ESTOQUE
+### 7. ESTOQUE
 - Produto com estoque ≤ 5 unidades? → NÃO escalar tráfego para ele
 
 ## REGRAS OBRIGATÓRIAS
 - NUNCA deletar — apenas pausar
-- Alterações de budget: máx ±${rules.max_budget_change_pct_day}% por ciclo
+- Respeitar limites de budget ESPECÍFICOS da plataforma (detalhados acima)
 - Máximo ${rules.max_actions_per_session} ações por sessão
 - Se dados < ${rules.min_data_days_for_action} dias, usar APENAS report_insight
 - Toda ação DEVE ter justificativa com NÚMEROS ESPECÍFICOS (não genérica)
 - Prefira poucas ações de alto impacto (3-5) a muitas de baixo impacto
 - Inclua rollback_plan em ações de execução
+- DIFERENCIE público frio de quente na análise — use CPA relativo, não absoluto
+- Campanhas em Learning Phase: APENAS report_insight
 
 Analise as campanhas e execute.`;
 }
