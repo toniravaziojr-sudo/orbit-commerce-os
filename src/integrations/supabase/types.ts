@@ -14715,11 +14715,86 @@ export type Database = {
         }
         Relationships: []
       }
+      tiktok_ads_connections: {
+        Row: {
+          access_token: string | null
+          advertiser_id: string | null
+          advertiser_name: string | null
+          assets: Json | null
+          connected_at: string | null
+          connected_by: string | null
+          connection_status: string | null
+          created_at: string | null
+          granted_scopes: string[] | null
+          id: string
+          is_active: boolean | null
+          last_error: string | null
+          last_sync_at: string | null
+          refresh_token: string | null
+          scope_packs: string[] | null
+          tenant_id: string
+          tiktok_user_id: string | null
+          token_expires_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          access_token?: string | null
+          advertiser_id?: string | null
+          advertiser_name?: string | null
+          assets?: Json | null
+          connected_at?: string | null
+          connected_by?: string | null
+          connection_status?: string | null
+          created_at?: string | null
+          granted_scopes?: string[] | null
+          id?: string
+          is_active?: boolean | null
+          last_error?: string | null
+          last_sync_at?: string | null
+          refresh_token?: string | null
+          scope_packs?: string[] | null
+          tenant_id: string
+          tiktok_user_id?: string | null
+          token_expires_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          access_token?: string | null
+          advertiser_id?: string | null
+          advertiser_name?: string | null
+          assets?: Json | null
+          connected_at?: string | null
+          connected_by?: string | null
+          connection_status?: string | null
+          created_at?: string | null
+          granted_scopes?: string[] | null
+          id?: string
+          is_active?: boolean | null
+          last_error?: string | null
+          last_sync_at?: string | null
+          refresh_token?: string | null
+          scope_packs?: string[] | null
+          tenant_id?: string
+          tiktok_user_id?: string | null
+          token_expires_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiktok_ads_connections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tiktok_oauth_states: {
         Row: {
           created_at: string
           expires_at: string
           id: string
+          product: string | null
           return_path: string | null
           scope_packs: string[] | null
           state_hash: string
@@ -14731,6 +14806,7 @@ export type Database = {
           created_at?: string
           expires_at?: string
           id?: string
+          product?: string | null
           return_path?: string | null
           scope_packs?: string[] | null
           state_hash: string
@@ -14742,6 +14818,7 @@ export type Database = {
           created_at?: string
           expires_at?: string
           id?: string
+          product?: string | null
           return_path?: string | null
           scope_packs?: string[] | null
           state_hash?: string
