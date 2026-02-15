@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { AdsChannelRoasConfig } from "@/components/ads/AdsChannelRoasConfig";
 import type { AutopilotConfig } from "@/hooks/useAdsAutopilot";
 
 interface AdsCampaignsTabProps {
@@ -15,6 +16,8 @@ interface AdsCampaignsTabProps {
   channelConfig: AutopilotConfig | null;
   onToggleChannel: (channel: string, enabled: boolean) => void;
   onUpdateCampaign: (id: string, status: string) => void;
+  onSaveChannelConfig: (config: Partial<AutopilotConfig> & { channel: string }) => void;
+  isSavingConfig: boolean;
 }
 
 function formatCurrency(cents: number) {
@@ -34,7 +37,7 @@ function StatusBadge({ status }: { status: string }) {
   return <Badge variant={info.variant}>{info.label}</Badge>;
 }
 
-export function AdsCampaignsTab({ campaigns, isLoading, channel, channelConfig, onToggleChannel, onUpdateCampaign }: AdsCampaignsTabProps) {
+export function AdsCampaignsTab({ campaigns, isLoading, channel, channelConfig, onToggleChannel, onUpdateCampaign, onSaveChannelConfig, isSavingConfig }: AdsCampaignsTabProps) {
   const isChannelEnabled = channelConfig?.is_enabled || false;
 
   return (
@@ -52,6 +55,14 @@ export function AdsCampaignsTab({ campaigns, isLoading, channel, channelConfig, 
           onCheckedChange={(checked) => onToggleChannel(channel, checked)}
         />
       </div>
+
+      {/* Per-channel ROAS targets */}
+      <AdsChannelRoasConfig
+        channel={channel}
+        channelConfig={channelConfig}
+        onSave={onSaveChannelConfig}
+        isSaving={isSavingConfig}
+      />
 
       {/* Campaigns table */}
       {isLoading ? (

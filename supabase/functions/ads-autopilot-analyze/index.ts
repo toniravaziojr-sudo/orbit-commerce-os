@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.3.0"; // Separate min ROAS pause thresholds for cold vs remarketing audiences
+const VERSION = "v3.0.0"; // Per-channel ROAS targets, audience management knowledge, budget×audience sizing
 // ===========================================================
 
 const corsHeaders = {
@@ -701,9 +701,15 @@ const PLANNER_TOOLS = [
 
 // ============ SYSTEM PROMPTS (v2 - Professional) ============
 
-function buildAllocatorPrompt(globalConfig: AutopilotConfig, context: any) {
+function buildAllocatorPrompt(globalConfig: AutopilotConfig, channelConfigs: AutopilotConfig[], context: any) {
   const rules = getSafetyRules(globalConfig);
   const maxCpaCents = rules.max_cpa_cents || Math.round(context.orderStats.avg_ticket_cents * (1 - rules.gross_margin_pct / 100));
+
+  // Build per-channel ROAS targets section
+  const channelRoasSection = channelConfigs.map(cc => {
+    const cr = { ...DEFAULT_SAFETY_RULES, ...cc.safety_rules };
+    return `- ${cc.channel.toUpperCase()}: ROAS ideal frio=${cr.target_roas_cold} | ROAS ideal remarketing=${cr.target_roas_remarketing} | Pausar frio<${cr.min_roas_pause_cold} | Pausar remarketing<${cr.min_roas_pause_remarketing}`;
+  }).join("\n");
 
   return `Você é um media buyer sênior com 10+ anos de experiência em alocação cross-channel.
 
@@ -711,14 +717,12 @@ function buildAllocatorPrompt(globalConfig: AutopilotConfig, context: any) {
 - ORÇAMENTO TOTAL: R$ ${(globalConfig.budget_cents / 100).toFixed(2)} / ${globalConfig.budget_mode === "daily" ? "dia" : "mês"}
 - OBJETIVO: ${globalConfig.objective}
 - MARGEM BRUTA: ${rules.gross_margin_pct}%
-- ROAS MÍNIMO GERAL: ${rules.min_roas}
-- ROAS IDEAL PÚBLICO FRIO: ${rules.target_roas_cold}
-- ROAS IDEAL REMARKETING: ${rules.target_roas_remarketing}
-- ROAS MÍNIMO P/ PAUSAR (Frio): ${rules.min_roas_pause_cold}
-- ROAS MÍNIMO P/ PAUSAR (Remarketing): ${rules.min_roas_pause_remarketing}
 - CPA MÁXIMO CALCULADO: R$ ${(maxCpaCents / 100).toFixed(2)}
 - TICKET MÉDIO: R$ ${(context.orderStats.avg_ticket_cents / 100).toFixed(2)}
 - PEDIDOS (30d): ${context.orderStats.paid_orders} pagos / ${context.orderStats.cancelled_orders} cancelados (${context.orderStats.cancellation_rate_pct}% cancel.)
+
+## METAS DE ROAS POR CANAL (definidas pelo lojista)
+${channelRoasSection || "Nenhuma meta por canal definida — usar defaults"}
 
 ${globalConfig.user_instructions ? `## INSTRUÇÕES DO LOJISTA\n${globalConfig.user_instructions}` : ""}
 
@@ -728,24 +732,27 @@ ${globalConfig.user_instructions ? `## INSTRUÇÕES DO LOJISTA\n${globalConfig.u
 - Ajustes devem ser graduais, não abruptos.
 
 ## CHECKLIST DE DECISÃO
-1. Compare ROAS real de cada canal (receita/gasto, não estimado)
+1. Compare ROAS real de cada canal usando as METAS ESPECÍFICAS DO CANAL (não uma meta global)
 2. Compare CPA real de cada canal (gasto/conversões)
 3. Avalie TENDÊNCIA (7d atual vs 7d anterior) — canal melhorando merece mais budget
 4. Considere ESCALA: canal com bom ROAS mas pouco gasto tem mais espaço de crescimento
 5. Canal sem dados = 0% (ou mínimo para teste se budget permitir)
 6. Considere ESTOQUE: produtos com ruptura iminente → reduzir tráfego para eles
+7. CADA CANAL TEM METAS DIFERENTES — não compare ROAS do Meta com Google diretamente
 
 ## REGRAS
 - A soma DEVE ser ≤ 100%
 - Canal sem conexão = 0%
 - Canal sem dados nos últimos 7d = máximo 15% (para exploração)
-- Priorize o canal com melhor ROAS MARGINAL (não absoluto)
+- Priorize o canal com melhor ROAS MARGINAL relativo à meta do canal
 - Considere diversificação para reduzir risco
 
 Use a tool 'allocate_budget'.`;
 }
 
-function buildPlannerPrompt(channel: string, globalConfig: AutopilotConfig, channelBudgetCents: number, context: any) {
+function buildPlannerPrompt(channel: string, globalConfig: AutopilotConfig, channelConfig: AutopilotConfig | null, channelBudgetCents: number, context: any) {
+  // Use per-channel ROAS targets if available, otherwise fall back to defaults
+  const channelRules = channelConfig?.safety_rules ? { ...DEFAULT_SAFETY_RULES, ...channelConfig.safety_rules } : DEFAULT_SAFETY_RULES;
   const rules = getSafetyRules(globalConfig);
   const maxCpaCents = rules.max_cpa_cents || Math.round(context.orderStats.avg_ticket_cents * (1 - rules.gross_margin_pct / 100));
   const channelName = channel === "meta" ? "Meta (Facebook/Instagram)" : channel === "google" ? "Google Ads" : "TikTok Ads";
@@ -788,8 +795,8 @@ function buildPlannerPrompt(channel: string, globalConfig: AutopilotConfig, chan
 
 ### QUANDO PAUSAR NO META
 - CPA > 2x do CPA alvo por 3+ dias APÓS sair da Learning Phase
-- Público Frio: ROAS < ${rules.min_roas_pause_cold} por 5+ dias → PAUSAR
-- Remarketing: ROAS < ${rules.min_roas_pause_remarketing} por 5+ dias → PAUSAR
+- Público Frio: ROAS < ${channelRules.min_roas_pause_cold} por 5+ dias → PAUSAR
+- Remarketing: ROAS < ${channelRules.min_roas_pause_remarketing} por 5+ dias → PAUSAR
 - Frequência > 3.0 (indica saturação de audiência/criativo)
 - CTR < 0.5% por 3+ dias (indica criativo ou targeting ineficaz)
 - NÃO pausar durante Learning Phase a menos que o gasto esteja completamente fora de controle
@@ -797,24 +804,38 @@ function buildPlannerPrompt(channel: string, globalConfig: AutopilotConfig, chan
 ### PÚBLICO FRIO vs QUENTE
 - **Público Frio (Prospecção/TOF)**: Lookalike, interesses amplos, broad targeting
   - CPA esperado: 1.5x a 3x maior que remarketing — ISSO É NORMAL
-  - ROAS IDEAL (definido pelo lojista): ${rules.target_roas_cold}
+  - ROAS IDEAL (definido pelo lojista para ${channelName}): ${channelRules.target_roas_cold}
   - Objetivo: volume e aprendizado, não ROAS imediato
   - Orçamento recomendado: 60-70% do total do canal
   - Métrica-chave: CPM, CTR, custo por lead/ATC (métricas de topo de funil)
   - NÃO pausar por CPA alto se CPM e CTR estiverem saudáveis — está alimentando o funil
-  - Pausar SOMENTE se ROAS < ${rules.min_roas_pause_cold} por 5+ dias
+  - Pausar SOMENTE se ROAS < ${channelRules.min_roas_pause_cold} por 5+ dias
 
 - **Público Quente (Remarketing/MOF-BOF)**: Visitantes do site, carrinhos abandonados, engajaram com conteúdo
   - CPA esperado: menor, mas volume limitado
   - Objetivo: conversão direta, ROAS alto
-  - ROAS IDEAL (definido pelo lojista): ${rules.target_roas_remarketing}
+  - ROAS IDEAL (definido pelo lojista para ${channelName}): ${channelRules.target_roas_remarketing}
   - Orçamento recomendado: 20-30% do total do canal
   - Métrica-chave: ROAS, CPA, taxa de conversão
-  - Pausar se ROAS cair abaixo de ${rules.min_roas_pause_remarketing} por 5+ dias
+  - Pausar se ROAS cair abaixo de ${channelRules.min_roas_pause_remarketing} por 5+ dias
 
 - **Público Hot (Retargeting Agressivo)**: Compradores anteriores, carrinhos < 7 dias
   - Orçamento recomendado: 10% do total
   - Foco em upsell/cross-sell
+
+### GESTÃO DE PÚBLICOS / AUDIÊNCIAS
+- **Criação de públicos**: A IA pode RECOMENDAR criação de públicos (via report_insight), mas NÃO cria diretamente
+  - Recomendar Lookalike de compradores (LTV alto) quando o Pixel tem 100+ eventos de compra
+  - Recomendar Custom Audience de visitantes 7/14/30 dias para remarketing
+  - Recomendar exclusão de compradores recentes (<30d) das campanhas de prospecção
+- **Tamanho de público × Orçamento**:
+  - Público < 10.000 pessoas → máximo R$15/dia (evitar frequência alta)
+  - Público 10.000–100.000 → R$20-50/dia
+  - Público 100.000–500.000 → R$50-200/dia
+  - Público 500.000–2M → R$100-500/dia
+  - Público > 2M (broad) → sem limite prático de budget
+  - REGRA: Se frequência > 3.0, o público é PEQUENO DEMAIS para o budget → reduzir budget OU ampliar público
+  - CPM muito alto (>R$50) + frequência alta = saturação → reportar e recomendar novo público
 
 ### INVESTIMENTO INICIAL RECOMENDADO
 - Campanha de Conversão: Mínimo R$30/dia (idealmente 10x CPA alvo)
@@ -855,14 +876,31 @@ function buildPlannerPrompt(channel: string, globalConfig: AutopilotConfig, chan
 - Shopping: ROAS < 1.5x por 7+ dias
 - Display/PMax: ROAS < 1x por 14+ dias (precisa mais tempo)
 - Keywords com QS ≤ 3 e sem conversões: pausar keywords, não a campanha
+- Público Frio: ROAS < ${channelRules.min_roas_pause_cold} por período adequado ao tipo de campanha
+- Remarketing: ROAS < ${channelRules.min_roas_pause_remarketing} por período adequado
 
 ### PÚBLICO FRIO vs QUENTE
 - **Frio (Search Genérico, Display, Discovery)**: Intenção baixa-média
+  - ROAS IDEAL (definido pelo lojista para ${channelName}): ${channelRules.target_roas_cold}
   - Orçamento: 50-60% do canal
 - **Quente (Search Brand, RLSA, Shopping Remarketing)**: Alta intenção
+  - ROAS IDEAL (definido pelo lojista para ${channelName}): ${channelRules.target_roas_remarketing}
   - Orçamento: 30-40% do canal
 - **Hot (Dynamic Remarketing, carrinho abandonado)**: Conversão direta
   - Orçamento: 10-20% do canal
+
+### GESTÃO DE PÚBLICOS / AUDIÊNCIAS
+- **Criação de públicos**: A IA pode RECOMENDAR (via report_insight):
+  - Listas de remarketing (RLSA) para Search com visitantes 7/14/30 dias
+  - Customer Match com base de clientes existentes
+  - Públicos similares baseados em converters
+  - Exclusão de converters recentes em campanhas de aquisição
+- **Tamanho de público × Orçamento**:
+  - Search: o volume é definido por keywords, não tamanho de público
+  - Display/YouTube remarketing: público < 5.000 → máximo R$10/dia
+  - Display prospecting: público > 100.000 → R$30-100/dia
+  - PMax: sem controle direto de público, mas budget mínimo R$50/dia
+  - Se impressão share < 50% em Search, o budget pode crescer
 
 ### INVESTIMENTO INICIAL RECOMENDADO
 - Search (conversão): Mínimo R$30/dia por campanha
@@ -890,15 +928,33 @@ function buildPlannerPrompt(channel: string, globalConfig: AutopilotConfig, chan
 - CTR < 0.3% por 3+ dias (criativo não está engajando)
 - CPM subindo + CTR caindo = fadiga criativa severa → pausar e renovar criativos
 - NÃO pausar campanhas com < 7 dias de dados
+- Público Frio: ROAS < ${channelRules.min_roas_pause_cold} por 5+ dias
+- Remarketing: ROAS < ${channelRules.min_roas_pause_remarketing} por 5+ dias
 
 ### PÚBLICO FRIO vs QUENTE
 - **Público Frio (Broad, Interest-based, Lookalike)**: 
   - CPA será 2x-4x maior que remarketing — esperado para TikTok
+  - ROAS IDEAL (definido pelo lojista para ${channelName}): ${channelRules.target_roas_cold}
   - Orçamento recomendado: 70-80% (TikTok é plataforma de descoberta)
   - Foco em criativos nativos (UGC, trend-based)
 - **Público Quente (Custom Audiences, Site visitors, Engagers)**:
+  - ROAS IDEAL (definido pelo lojista para ${channelName}): ${channelRules.target_roas_remarketing}
   - Orçamento: 20-30%
   - Criativos mais diretos/oferta
+
+### GESTÃO DE PÚBLICOS / AUDIÊNCIAS
+- **Criação de públicos**: A IA pode RECOMENDAR (via report_insight):
+  - Custom Audience de engajamento (viu vídeo 50%+, interagiu com perfil)
+  - Lookalike de compradores (tamanho 1-3% recomendado)
+  - Visitantes do site (requer Pixel instalado com tráfego mínimo)
+  - Exclusão de converters recentes
+- **Tamanho de público × Orçamento**:
+  - TikTok funciona MELHOR com públicos amplos (>500.000)
+  - Público < 50.000 → máximo R$20/dia (saturação rápida)
+  - Público 50.000–500.000 → R$30-100/dia
+  - Público > 500.000 (broad/LAL) → sem limite prático
+  - TikTok broad targeting geralmente performa MELHOR que targeting muito segmentado
+  - CPM alto (>R$40) + CTR baixo (<0.5%) = público exausto ou criativo fraco
 
 ### INVESTIMENTO INICIAL RECOMENDADO
 - Campanha de Conversão: Mínimo R$50/dia (TikTok precisa de mais volume)
@@ -920,14 +976,16 @@ function buildPlannerPrompt(channel: string, globalConfig: AutopilotConfig, chan
 - ORÇAMENTO DESTE CANAL: R$ ${(channelBudgetCents / 100).toFixed(2)} / ${globalConfig.budget_mode === "daily" ? "dia" : "mês"}
 - OBJETIVO: ${globalConfig.objective}
 - MARGEM BRUTA: ${rules.gross_margin_pct}%
-- ROAS MÍNIMO GERAL: ${rules.min_roas}
-- ROAS IDEAL PÚBLICO FRIO: ${rules.target_roas_cold}
-- ROAS IDEAL REMARKETING: ${rules.target_roas_remarketing}
-- ROAS MÍNIMO P/ PAUSAR (Frio): ${rules.min_roas_pause_cold}
-- ROAS MÍNIMO P/ PAUSAR (Remarketing): ${rules.min_roas_pause_remarketing}
 - CPA MÁXIMO: R$ ${(maxCpaCents / 100).toFixed(2)}
 - TICKET MÉDIO: R$ ${(context.orderStats.avg_ticket_cents / 100).toFixed(2)}
 ${trendSection}
+
+## METAS DE ROAS PARA ESTE CANAL (${channelName}) — DEFINIDAS PELO LOJISTA
+- ROAS IDEAL PÚBLICO FRIO: ${channelRules.target_roas_cold}
+- ROAS IDEAL REMARKETING: ${channelRules.target_roas_remarketing}
+- ROAS MÍNIMO P/ PAUSAR (Frio): ${channelRules.min_roas_pause_cold}
+- ROAS MÍNIMO P/ PAUSAR (Remarketing): ${channelRules.min_roas_pause_remarketing}
+⚠️ Estas metas são ESPECÍFICAS deste canal — cada canal tem seus próprios targets.
 
 ${globalConfig.user_instructions ? `## INSTRUÇÕES DO LOJISTA\n${globalConfig.user_instructions}` : ""}
 
@@ -956,21 +1014,21 @@ Antes de qualquer ação, analise CADA campanha ativa com este checklist:
 - CPA entre 1x e 1.5x do máximo? → ATENÇÃO, monitore sem escalar
 - CPA > 1.5x do máximo por período suficiente (ver regras da plataforma)? → REDUZIR budget ou PAUSAR
 
-### 4. RETORNO (ROAS) — METAS DO LOJISTA
-- Público Frio: ROAS ideal = ${rules.target_roas_cold}. Acima = escalar. Abaixo = monitorar (esperado ser menor que remarketing)
-- Remarketing: ROAS ideal = ${rules.target_roas_remarketing}. Acima = escalar agressivamente. Abaixo = otimizar
-- Público Frio: ROAS < ${rules.min_roas_pause_cold} por período suficiente? → PAUSAR (respeitando regras da plataforma)
-- Remarketing: ROAS < ${rules.min_roas_pause_remarketing} por período suficiente? → PAUSAR
-- ROAS entre o mínimo de pausa e ${rules.min_roas}? → REDUZIR budget gradualmente
+### 4. RETORNO (ROAS) — METAS DO LOJISTA PARA ${channelName.toUpperCase()}
+- Público Frio: ROAS ideal = ${channelRules.target_roas_cold}. Acima = escalar. Abaixo = monitorar (esperado ser menor que remarketing)
+- Remarketing: ROAS ideal = ${channelRules.target_roas_remarketing}. Acima = escalar agressivamente. Abaixo = otimizar
+- Público Frio: ROAS < ${channelRules.min_roas_pause_cold} por período suficiente? → PAUSAR (respeitando regras da plataforma)
+- Remarketing: ROAS < ${channelRules.min_roas_pause_remarketing} por período suficiente? → PAUSAR
 
 ### 5. ENGAJAMENTO (CTR/CPC/Frequência)
 - CTR caindo + CPC subindo? → Fadiga de criativo, sinalize
-- Frequência > 3.0 (Meta)? → Saturação de audiência
+- Frequência > 3.0 (Meta)? → Saturação de audiência → reportar e recomendar novo público ou redução de budget
 - CTR abaixo do benchmark da plataforma? → Revisar targeting/criativo
 
-### 6. ESCALA
+### 6. ESCALA & TAMANHO DE PÚBLICO
 - Campanha com bom ROAS + espaço pra crescer? → Aumentar budget respeitando LIMITES DA PLATAFORMA
-- Campanha já no teto de escala? → Não forçar, buscar novo público/campanha
+- Campanha já no teto de escala (frequência alta)? → NÃO forçar, recomendar ampliação de público
+- VERIFICAR relação budget × tamanho de público (veja seção "Tamanho de público × Orçamento" acima)
 
 ### 7. ESTOQUE
 - Produto com estoque ≤ 5 unidades? → NÃO escalar tráfego para ele
@@ -985,6 +1043,7 @@ Antes de qualquer ação, analise CADA campanha ativa com este checklist:
 - Inclua rollback_plan em ações de execução
 - DIFERENCIE público frio de quente na análise — use CPA relativo, não absoluto
 - Campanhas em Learning Phase: APENAS report_insight
+- Quando recomendar criação de públicos, use report_insight com detalhes específicos
 
 Analise as campanhas e execute.`;
 }
@@ -1122,7 +1181,7 @@ Deno.serve(async (req) => {
         }
 
         const allocatorMessages = [
-          { role: "system", content: buildAllocatorPrompt(globalConfig, context) },
+          { role: "system", content: buildAllocatorPrompt(globalConfig, channelConfigs, context) },
           {
             role: "user",
             content: `PERFORMANCE AGREGADA POR CANAL (7d):\n\n${JSON.stringify(channelSummary, null, 2)}\n\nESTATÍSTICAS DE VENDAS (30d):\n${JSON.stringify(context.orderStats, null, 2)}${context.lowStockProducts.length > 0 ? `\n\nPRODUTOS COM ESTOQUE BAIXO (≤5):\n${context.lowStockProducts.map((p: any) => `- ${p.name}: ${p.stock_quantity} un.`).join("\n")}` : ""}`,
@@ -1178,7 +1237,7 @@ Deno.serve(async (req) => {
         if (!channelData) continue;
 
         const plannerMessages = [
-          { role: "system", content: buildPlannerPrompt(channel, globalConfig, channelBudgetCents, context) },
+          { role: "system", content: buildPlannerPrompt(channel, globalConfig, channelConfigs.find((c) => c.channel === channel) || null, channelBudgetCents, context) },
           {
             role: "user",
             content: `## CAMPANHAS ATIVAS\n${JSON.stringify(channelData.campaigns, null, 2)}\n\n## PERFORMANCE POR CAMPANHA (7d)\n${JSON.stringify(channelData.campaignPerf, null, 2)}\n\n## PRODUTOS TOP (para contexto de criativo)\n${JSON.stringify(
