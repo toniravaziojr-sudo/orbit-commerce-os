@@ -353,12 +353,25 @@ A IA **NÃO cria públicos automaticamente** via API. Quando identifica necessid
 | **TikTok** | R$50/dia | R$30/dia | — |
 
 ### Critérios de Pausa por Plataforma
+
+**IMPORTANTE**: Os critérios de ROI mínimo (`min_roi_cold`/`min_roi_warm`) aplicam-se **SOMENTE a campanhas com objetivo de CONVERSÃO/VENDAS**. Campanhas com outros objetivos (tráfego, engajamento, alcance, visualizações de vídeo, etc.) NÃO devem ser pausadas por ROI — usam métricas próprias do objetivo (CPC, CPM, CTR, CPV, etc.).
+
+#### Campanhas de Conversão/Vendas
 | Plataforma | Critério de pausa |
 |------------|-------------------|
 | **Meta** | CPA > 2x alvo por 3+ dias (pós-learning), ROI < `min_roi_cold`/`min_roi_warm` do canal por 5d, Freq > 3.0, CTR < 0.5% |
 | **Google Search** | CPA > 2x alvo por 7+ dias com 30+ cliques |
 | **Google Shopping** | ROI < `min_roi_cold` do canal por 7+ dias |
 | **TikTok** | CPA > 2.5x alvo por 5+ dias (pós-learning), CTR < 0.3%, NÃO pausar com < 7 dias |
+
+#### Campanhas de Tráfego/Engajamento/Outros Objetivos
+| Plataforma | Critério de pausa |
+|------------|-------------------|
+| **Meta** | CPC > 3x média do setor por 5+ dias, CTR < 0.3%, Freq > 4.0 |
+| **Google** | CPC > 3x média por 7+ dias, CTR < 1% com 50+ impressões/dia |
+| **TikTok** | CPV > 2x média por 5+ dias, CTR < 0.2%, NÃO pausar com < 7 dias |
+
+> A IA pode criar campanhas de tráfego, engajamento ou alcance como parte da estratégia de funil (TOF), mas a **métrica final de sucesso do sistema é sempre o ROI das campanhas de conversão**.
 
 ### Rollout Progressivo (Phased)
 | Fase | Ações Permitidas (`allowed_actions`) |
