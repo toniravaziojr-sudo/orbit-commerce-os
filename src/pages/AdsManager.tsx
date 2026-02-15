@@ -27,8 +27,15 @@ export default function AdsManager() {
   const [activeChannel, setActiveChannel] = useState("meta");
   const [activeSubTab, setActiveSubTab] = useState("campaigns");
 
-  // Selected ad accounts per channel
-  const [selectedAccounts, setSelectedAccounts] = useState<Record<string, string[]>>({});
+  // Selected ad accounts per channel — persisted in localStorage
+  const STORAGE_KEY = "ads-selected-accounts";
+  
+  const [selectedAccounts, setSelectedAccounts] = useState<Record<string, string[]>>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
 
   const getAdAccountIds = useCallback((channel: string): string[] => {
     switch (channel) {
@@ -54,7 +61,9 @@ export default function AdsManager() {
       const next = current.includes(accountId)
         ? current.filter(id => id !== accountId)
         : [...current, accountId];
-      return { ...prev, [channel]: next };
+      const updated = { ...prev, [channel]: next };
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(updated)); } catch {}
+      return updated;
     });
   }, [getAdAccountIds]);
 
@@ -99,13 +108,14 @@ export default function AdsManager() {
 
   const handleSyncCampaigns = useCallback(async () => {
     if (activeChannel === "meta") {
-      // Sync campaigns FIRST, then insights+adsets (insights auto-create missing campaigns)
+      // Sync campaigns FIRST, then insights+adsets+balance
       try {
         await meta.syncCampaigns.mutateAsync();
       } catch {}
-      // Now sync insights and adsets in parallel
+      // Now sync insights, adsets and refresh balance in parallel
       meta.syncInsights.mutate({});
       meta.syncAdsets.mutate({});
+      meta.refreshBalance();
     } else if (activeChannel === "tiktok") {
       try {
         await tiktok.syncCampaigns.mutateAsync();
@@ -234,7 +244,9 @@ export default function AdsManager() {
                 channel={channel}
                 channelConfig={channelConfig}
                 onSave={(config) => autopilot.saveConfig.mutate(config)}
-                onToggleChannel={(ch, enabled) => autopilot.toggleChannel.mutate({ channel: ch, enabled })}
+                onToggleChannel={(ch, enabled) => {
+                  autopilot.toggleChannel.mutate({ channel: ch, enabled });
+                }}
                 isSaving={autopilot.saveConfig.isPending}
               />
 

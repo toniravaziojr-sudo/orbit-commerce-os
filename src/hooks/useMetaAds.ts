@@ -301,6 +301,10 @@ export function useMetaAds() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const refreshBalance = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["meta-ads-balance"] });
+  }, [queryClient]);
+
   return {
     campaigns: campaignsQuery.data || [],
     campaignsLoading: campaignsQuery.isLoading,
@@ -314,6 +318,7 @@ export function useMetaAds() {
     adsetsLoading: adsetsQuery.isLoading,
     accountBalances: balanceQuery.data || [],
     balanceLoading: balanceQuery.isLoading,
+    refreshBalance,
     syncCampaigns,
     syncInsights,
     syncAudiences,

@@ -734,7 +734,7 @@ export function AdsCampaignsTab({
               )}
               <Button variant="ghost" size="sm" className="gap-1.5 text-xs h-7 font-normal"
                 onClick={() => {
-                  // Deep link: open the top-spending campaign in the native ads manager
+                  // Deep link: open the top-spending campaign or selected account in the native ads manager
                   if (channel === "meta") {
                     // Find campaign with highest spend
                     let topCampaign: any = null;
@@ -750,6 +750,14 @@ export function AdsCampaignsTab({
                     if (topCampaign) {
                       const actId = topCampaign.ad_account_id?.replace("act_", "") || "";
                       window.open(`https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${actId}&selected_campaign_ids=${topCampaign.meta_campaign_id}`, "_blank");
+                    } else if (selectedAccountIds && selectedAccountIds.length === 1) {
+                      // Fallback: open the single selected account
+                      const actId = selectedAccountIds[0].replace("act_", "");
+                      window.open(`https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${actId}`, "_blank");
+                    } else if (selectedAccountIds && selectedAccountIds.length > 0) {
+                      // Fallback: open first selected account
+                      const actId = selectedAccountIds[0].replace("act_", "");
+                      window.open(`https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${actId}`, "_blank");
                     } else {
                       window.open(getChannelManagerUrl(channel), "_blank");
                     }
