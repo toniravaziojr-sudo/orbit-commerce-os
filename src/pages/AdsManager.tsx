@@ -159,6 +159,8 @@ export default function AdsManager() {
                   channelConfig={channelConfig}
                   onToggleChannel={(ch, enabled) => autopilot.toggleChannel.mutate({ channel: ch, enabled })}
                   onUpdateCampaign={handleUpdateCampaign}
+                  onSaveChannelConfig={(config) => autopilot.saveConfig.mutate(config)}
+                  isSavingConfig={autopilot.saveConfig.isPending}
                 />
               </TabsContent>
 
