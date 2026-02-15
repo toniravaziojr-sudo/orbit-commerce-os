@@ -93,8 +93,6 @@ export default function AdsManager() {
                 channelConfig={channelConfig}
                 onSave={(config) => autopilot.saveConfig.mutate(config)}
                 onToggleChannel={(ch, enabled) => autopilot.toggleChannel.mutate({ channel: ch, enabled })}
-                onTriggerAnalysis={() => autopilot.triggerAnalysis.mutate()}
-                isAnalyzing={autopilot.triggerAnalysis.isPending}
                 isSaving={autopilot.saveConfig.isPending}
               />
 
