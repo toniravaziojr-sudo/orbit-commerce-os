@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.1.0"; // Adds Drive folder for creatives + enriched action_data
+const VERSION = "v1.2.0"; // Auto-fetch product_image_url when not provided
 // ===================
 
 const corsHeaders = {
@@ -55,6 +55,39 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Auto-fetch product image if not provided
+    let resolvedImageUrl = product_image_url;
+    let resolvedProductName = product_name;
+    if (!resolvedImageUrl && product_id) {
+      const { data: productImages } = await supabase
+        .from("product_images")
+        .select("url")
+        .eq("product_id", product_id)
+        .order("position", { ascending: true })
+        .limit(1);
+      
+      if (productImages?.[0]?.url) {
+        resolvedImageUrl = productImages[0].url;
+        console.log(`[ads-autopilot-creative][${VERSION}] Auto-fetched product image: ${resolvedImageUrl.substring(0, 60)}...`);
+      } else {
+        // Try from products.images JSONB
+        const { data: product } = await supabase
+          .from("products")
+          .select("images, name")
+          .eq("id", product_id)
+          .maybeSingle();
+        
+        if (product?.images) {
+          const images = Array.isArray(product.images) ? product.images : [];
+          const firstImg = images[0];
+          resolvedImageUrl = typeof firstImg === "string" ? firstImg : (firstImg as any)?.url || null;
+        }
+        if (!resolvedProductName && product?.name) resolvedProductName = product.name;
+      }
+    }
+
+    if (!resolvedImageUrl) return fail("Imagem do produto não encontrada");
+
     // Ensure Drive folder exists for traffic creatives
     const ADS_FOLDER_NAME = "Gestor de Tráfego IA";
     const { data: existingFolder } = await supabase
@@ -92,7 +125,7 @@ Deno.serve(async (req) => {
     const promptParts = [
       `Criativo publicitário para ${channelName}`,
       campaign_objective ? `Objetivo: ${campaign_objective}` : null,
-      product_name ? `Produto: ${product_name}` : null,
+      resolvedProductName ? `Produto: ${resolvedProductName}` : null,
       target_audience ? `Público-alvo: ${target_audience}` : null,
       style_preference ? `Estilo: ${style_preference}` : null,
       "Visual impactante para anúncios pagos, cores vibrantes, contraste alto",
@@ -110,8 +143,8 @@ Deno.serve(async (req) => {
       body: {
         tenant_id,
         product_id,
-        product_name: product_name || "Produto",
-        product_image_url,
+        product_name: resolvedProductName || "Produto",
+        product_image_url: resolvedImageUrl,
         prompt: promptParts,
         output_folder_id: folderId,
         settings: {
@@ -156,7 +189,7 @@ Deno.serve(async (req) => {
           format,
           variations,
           generation_style: generationStyle,
-          product_name: product_name || "Produto",
+          product_name: resolvedProductName || "Produto",
           product_id,
           folder_name: ADS_FOLDER_NAME,
           campaign_objective,

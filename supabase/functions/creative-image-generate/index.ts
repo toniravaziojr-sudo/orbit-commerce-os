@@ -16,7 +16,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const VERSION = '3.0.0';
+const VERSION = '3.1.0'; // Add M2M auth bypass for autopilot calls
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -504,26 +504,35 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Auth
+    // Auth — supports both user tokens and M2M (service role) calls
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
+    let userId: string | null = null;
+    let isM2M = false;
+
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.replace('Bearer ', '');
+      
+      // Check if it's the service role key (M2M call from other edge functions)
+      if (token === supabaseServiceKey) {
+        isM2M = true;
+        userId = 'system'; // M2M calls use system user
+        console.log(`[creative-image-generate v${VERSION}] M2M auth (service role)`);
+      } else {
+        const { data: authData, error: authError } = await supabase.auth.getUser(token);
+        if (authError || !authData.user) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Invalid token' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        userId = authData.user.id;
+      }
+    } else {
       return new Response(
         JSON.stringify({ success: false, error: 'Unauthorized' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: authData, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !authData.user) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Invalid token' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const userId = authData.user.id;
 
     // Parse body
     const body = await req.json();
@@ -543,19 +552,21 @@ serve(async (req) => {
       );
     }
 
-    // Verify permission
-    const { data: userRole } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .eq('tenant_id', tenant_id)
-      .maybeSingle();
+    // Verify permission (skip for M2M calls)
+    if (!isM2M) {
+      const { data: userRole } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .eq('tenant_id', tenant_id)
+        .maybeSingle();
 
-    if (!userRole) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Sem permissão para este tenant' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      if (!userRole) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Sem permissão para este tenant' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     // Settings v3.0

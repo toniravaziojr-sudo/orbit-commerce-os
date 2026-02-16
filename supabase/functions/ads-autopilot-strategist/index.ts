@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.0.0"; // Strategist Motor — 5-phase pipeline (Plan → Creatives → Audiences → Assembly → Publish)
+const VERSION = "v1.1.0"; // Fix: promoted_object for AdSet, product_image_url for creatives, pixel_id from marketing_integrations
 // ===================
 
 const corsHeaders = {
@@ -241,8 +241,9 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     recentCreativesRes,
     recentActionsRes,
     experimentsRes,
+    marketingRes,
   ] = await Promise.all([
-    supabase.from("products").select("id, name, price, cost_price, status, stock_quantity, brand, short_description").eq("tenant_id", tenantId).eq("status", "active").order("price", { ascending: false }).limit(20),
+    supabase.from("products").select("id, name, price, cost_price, status, stock_quantity, brand, short_description, images").eq("tenant_id", tenantId).eq("status", "active").order("price", { ascending: false }).limit(20),
     supabase.from("orders").select("id, total, status, payment_status, created_at").eq("tenant_id", tenantId).gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()).limit(500),
     supabase.from("meta_ad_campaigns").select("meta_campaign_id, name, status, effective_status, objective, daily_budget_cents, ad_account_id").eq("tenant_id", tenantId).limit(200),
     supabase.from("meta_ad_insights").select("meta_campaign_id, impressions, clicks, spend_cents, conversions, roas, date_start").eq("tenant_id", tenantId).gte("date_start", thirtyDaysAgo).limit(1000),
@@ -252,6 +253,7 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     supabase.from("ads_creative_assets").select("id, channel, format, status, product_id, created_at").eq("tenant_id", tenantId).gte("created_at", sevenDaysAgo).limit(50),
     supabase.from("ads_autopilot_actions").select("action_type, action_data, status, channel, created_at").eq("tenant_id", tenantId).gte("created_at", sevenDaysAgo).limit(200),
     supabase.from("ads_autopilot_experiments").select("*").eq("tenant_id", tenantId).in("status", ["active", "completed"]).limit(20),
+    supabase.from("marketing_integrations").select("meta_pixel_id").eq("tenant_id", tenantId).maybeSingle(),
   ]);
 
   const products = productsRes.data || [];
@@ -264,6 +266,7 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
   const recentCreatives = recentCreativesRes.data || [];
   const recentActions = recentActionsRes.data || [];
   const experiments = experimentsRes.data || [];
+  const metaPixelId = marketingRes.data?.meta_pixel_id || null;
 
   // Compute per-campaign performance
   const buildPerf = (insights: any[]) => {
@@ -330,6 +333,7 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     experiments,
     creativeCadence,
     recentCreatives,
+    metaPixelId,
   };
 }
 
@@ -516,6 +520,14 @@ async function executeToolCall(
     const topProduct = context.products.find((p: any) => p.name === args.product_name) || context.products[0];
     if (!topProduct) return { status: "failed", data: { error: "Produto não encontrado" } };
 
+    // Resolve product image URL
+    let productImageUrl: string | null = null;
+    if (topProduct.images) {
+      const images = Array.isArray(topProduct.images) ? topProduct.images : [];
+      const firstImg = images[0];
+      productImageUrl = typeof firstImg === "string" ? firstImg : (firstImg as any)?.url || null;
+    }
+
     try {
       const { data: creativeResult, error: creativeErr } = await supabase.functions.invoke("ads-autopilot-creative", {
         body: {
@@ -524,6 +536,7 @@ async function executeToolCall(
           channel: config.channel,
           product_id: topProduct.id,
           product_name: topProduct.name,
+          product_image_url: productImageUrl, // Now included!
           campaign_objective: args.campaign_objective,
           target_audience: args.target_audience,
           style_preference: args.style_preference || "promotional",
@@ -613,6 +626,14 @@ async function executeToolCall(
       if (newCampaignId) {
         try {
           const targeting: any = { geo_locations: { countries: ["BR"] }, age_min: 18, age_max: 65 };
+          
+          // Build promoted_object for conversion campaigns
+          const promotedObject: any = {};
+          if (context.metaPixelId && (args.objective === "OUTCOME_SALES" || args.objective === "OUTCOME_LEADS")) {
+            promotedObject.pixel_id = context.metaPixelId;
+            promotedObject.custom_event_type = args.objective === "OUTCOME_SALES" ? "PURCHASE" : "LEAD";
+          }
+
           const { data: adsetResult } = await supabase.functions.invoke("meta-ads-adsets", {
             body: {
               tenant_id: tenantId,
@@ -622,6 +643,7 @@ async function executeToolCall(
               name: `[AI] ${args.funnel_stage} | ${args.targeting_description}`.substring(0, 200),
               targeting,
               status: "PAUSED",
+              ...(Object.keys(promotedObject).length > 0 ? { promoted_object: promotedObject } : {}),
             },
           });
           newAdsetId = adsetResult?.data?.meta_adset_id || null;
@@ -672,6 +694,13 @@ async function executeToolCall(
       if (args.custom_audience_id) targeting.custom_audiences = [{ id: args.custom_audience_id }];
       else if (args.interests?.length > 0) targeting.flexible_spec = [{ interests: args.interests }];
 
+      // Build promoted_object with pixel for conversion optimization
+      const promotedObject: any = {};
+      if (context.metaPixelId) {
+        promotedObject.pixel_id = context.metaPixelId;
+        promotedObject.custom_event_type = "PURCHASE";
+      }
+
       const { data: adsetResult, error: adsetErr } = await supabase.functions.invoke("meta-ads-adsets", {
         body: {
           tenant_id: tenantId,
@@ -681,6 +710,7 @@ async function executeToolCall(
           name: args.adset_name,
           targeting,
           status: "PAUSED",
+          ...(Object.keys(promotedObject).length > 0 ? { promoted_object: promotedObject } : {}),
         },
       });
       if (adsetErr) throw adsetErr;
