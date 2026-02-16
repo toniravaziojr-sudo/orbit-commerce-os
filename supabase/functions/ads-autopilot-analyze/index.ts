@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v4.13.0"; // Full campaign creation chain: campaign + adset + ad with best creative
+const VERSION = "v5.0.0"; // Smart audiences, auto-creative generation, auto-activation mode
 // ===========================================================
 
 const corsHeaders = {
@@ -90,7 +90,7 @@ const DEFAULT_SAFETY = {
   max_actions_per_session: 10,
   phase1_actions: ["pause_campaign", "adjust_budget", "report_insight", "allocate_budget"],
   phase2_actions: ["create_campaign", "create_adset"],
-  allowed_actions: ["pause_campaign", "adjust_budget", "report_insight", "allocate_budget", "create_campaign", "create_adset"],
+  allowed_actions: ["pause_campaign", "adjust_budget", "report_insight", "allocate_budget", "create_campaign", "create_adset", "generate_creative"],
   min_data_days_for_action: 3,
   min_data_days_for_creation: 7,
   min_conversions_for_creation: 10,
@@ -328,7 +328,43 @@ async function collectContext(supabase: any, tenantId: string, enabledChannels: 
         if (c.ad_account_id) campaignAccountMap[c.meta_campaign_id] = c.ad_account_id;
       }
 
-      channelData.meta = { campaigns: campaigns || [], trend, campaignPerf, campaignAccountMap, rawInsights7d: (insightsCurrent || []).length };
+      // Fetch saved custom audiences per ad account
+      const savedAudiences: Record<string, any[]> = {};
+      for (const account of (campaigns || []).reduce((acc: string[], c: any) => {
+        if (c.ad_account_id && !acc.includes(c.ad_account_id)) acc.push(c.ad_account_id);
+        return acc;
+      }, [] as string[])) {
+        try {
+          const accountId = account.replace("act_", "");
+          const { data: metaConn } = await supabase
+            .from("marketplace_connections")
+            .select("access_token")
+            .eq("tenant_id", tenantId)
+            .eq("marketplace", "meta")
+            .eq("is_active", true)
+            .maybeSingle();
+          
+          if (metaConn?.access_token) {
+            const audRes = await fetch(
+              `https://graph.facebook.com/${sevenDaysAgo ? "v21.0" : "v21.0"}/act_${accountId}/customaudiences?fields=id,name,subtype,approximate_count,delivery_status&limit=50&access_token=${metaConn.access_token}`
+            );
+            const audData = await audRes.json();
+            if (audData.data) {
+              savedAudiences[account] = audData.data.map((a: any) => ({
+                id: a.id,
+                name: a.name,
+                subtype: a.subtype,
+                size: a.approximate_count,
+                deliverable: a.delivery_status?.status === "ready",
+              }));
+            }
+          }
+        } catch (audErr: any) {
+          console.log(`[ads-autopilot-analyze][${VERSION}] Audience fetch failed for ${account}:`, audErr.message);
+        }
+      }
+
+      channelData.meta = { campaigns: campaigns || [], trend, campaignPerf, campaignAccountMap, savedAudiences, rawInsights7d: (insightsCurrent || []).length };
     }
 
     if (ch === "google") {
@@ -795,7 +831,7 @@ const PLANNER_TOOLS = [
     type: "function",
     function: {
       name: "create_adset",
-      description: "Cria novo conjunto de anúncios dentro de campanha existente. Requer campanha ativa e público válido.",
+      description: "Cria novo conjunto de anúncios dentro de campanha existente. Requer campanha ativa e público válido. Se houver custom_audience_id, usa o público salvo. Caso contrário, usa targeting broad.",
       parameters: {
         type: "object",
         properties: {
@@ -804,10 +840,32 @@ const PLANNER_TOOLS = [
           daily_budget_cents: { type: "number", description: "Orçamento diário em centavos" },
           targeting_description: { type: "string", description: "Descrição do targeting" },
           audience_type: { type: "string", enum: ["cold", "warm", "hot"], description: "Tipo de audiência" },
+          custom_audience_id: { type: "string", description: "ID da custom audience salva da Meta (se disponível)" },
           reason: { type: "string" },
           confidence: { type: "number", minimum: 0, maximum: 1 },
         },
         required: ["campaign_id", "adset_name", "daily_budget_cents", "targeting_description", "audience_type", "reason", "confidence"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "generate_creative",
+      description: "Gera criativos publicitários (imagem + copy) para uma campanha. Use quando não há criativos existentes na conta ou quando quer testar novos ângulos. Retorna um job_id que será processado assincronamente.",
+      parameters: {
+        type: "object",
+        properties: {
+          campaign_id: { type: "string", description: "ID da campanha destino (opcional)" },
+          product_name: { type: "string", description: "Nome do produto para o criativo" },
+          campaign_objective: { type: "string", enum: ["sales", "traffic", "awareness", "leads"] },
+          target_audience: { type: "string", description: "Descrição do público-alvo" },
+          style_preference: { type: "string", enum: ["promotional", "product_natural", "person_interacting"], description: "Estilo visual" },
+          reason: { type: "string" },
+          confidence: { type: "number", minimum: 0, maximum: 1 },
+        },
+        required: ["product_name", "campaign_objective", "reason", "confidence"],
         additionalProperties: false,
       },
     },
@@ -953,13 +1011,22 @@ Aja como se estivesse assumindo a gestão da conta pela primeira vez — seja CO
 
 ## FASE 2 — CRIAÇÃO (disponível se dados suficientes)
 Se esta conta tem 7+ dias de dados E 10+ conversões, você PODE usar:
-- create_campaign: Criar nova campanha com naming [AI] {objetivo} - {produto/público} - {data}
+- create_campaign: Criar nova campanha COMPLETA (campanha + ad set + ad) com naming [AI] {objetivo} - {produto/público} - {data}
   - Templates: cold_conversion (TOF), remarketing (BOF), creative_test, leads
   - Budget inicial respeitando splits de funil
   - Máximo ${DEFAULT_SAFETY.max_new_campaigns_per_day} novas campanhas por sessão
+  - O sistema cria automaticamente: campanha → ad set (com público) → ad (com criativo)
+  - Se houver custom audiences disponíveis, PRIORIZE usá-las em vez de targeting broad
 - create_adset: Criar novo ad set em campanha existente
-  - Público definido (cold/warm/hot)
+  - Se houver custom_audience_id disponível, USE-O no campo custom_audience_id
   - Budget proporcional ao tamanho do público
+- generate_creative: Gerar criativos para campanhas sem anúncios ou para testes
+  - Use quando não houver criativos existentes
+  - Priorize gerar para os TOP produtos por receita
+
+## FASE 3 — CRIATIVOS AUTOMÁTICOS
+Quando uma campanha é criada mas não há creative_id na conta, o sistema gera automaticamente via IA.
+Quando você usa generate_creative, o job é assíncrono — os criativos aparecerão na conta em minutos.
 
 Se dados insuficientes para criação, use report_insight para RECOMENDAR a criação.
 
@@ -1248,7 +1315,11 @@ ${JSON.stringify(
 )}
 
 ## VENDAS (30d)
-${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n\n## ⚠️ PRODUTOS COM ESTOQUE BAIXO\n${context.lowStockProducts.map((p: any) => `- ${p.name}: ${p.stock_quantity} un.`).join("\n")}` : ""}`,
+${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n\n## ⚠️ PRODUTOS COM ESTOQUE BAIXO\n${context.lowStockProducts.map((p: any) => `- ${p.name}: ${p.stock_quantity} un.`).join("\n")}` : ""}${
+  channel === "meta" && channelData.savedAudiences?.[acctConfig.ad_account_id]?.length > 0
+    ? `\n\n## 🎯 PÚBLICOS SALVOS (Custom Audiences)\nUse custom_audience_id ao criar ad sets para targeting inteligente.\n${JSON.stringify(channelData.savedAudiences[acctConfig.ad_account_id], null, 2)}`
+    : "\n\n## 🎯 PÚBLICOS: Nenhum público salvo encontrado. Use targeting broad (Brasil, 18-65)."
+}`,
           },
         ];
 
@@ -1335,7 +1406,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
           };
 
           // Human approval mode check
-          const isCreateAction = tc.function.name === "create_campaign" || tc.function.name === "create_adset";
+          const isCreateAction = tc.function.name === "create_campaign" || tc.function.name === "create_adset" || tc.function.name === "generate_creative";
           const isBigBudgetChange = tc.function.name === "adjust_budget" && Math.abs(args.change_pct || 0) > 20;
           const isHighImpact = isCreateAction || isBigBudgetChange;
           const needsApproval = validation.valid && (
@@ -1387,7 +1458,10 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 console.log(`[ads-autopilot-analyze][${VERSION}] Budget adjustment scheduled for ${scheduledFor}`);
                 totalActionsExecuted++;
               } else if (tc.function.name === "create_campaign") {
-                // ===== PHASE 2: Full campaign creation chain =====
+                // ===== v5.0: Full campaign creation chain with smart audiences + auto-creative + auto-activation =====
+                const isAutoMode = acctConfig.human_approval_mode === "auto";
+                const entityStatus = isAutoMode ? "ACTIVE" : "PAUSED";
+                
                 // Step 1: Create campaign
                 const objectiveMap: Record<string, string> = {
                   conversions: "OUTCOME_SALES",
@@ -1404,7 +1478,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                     ad_account_id: acctConfig.ad_account_id,
                     name: args.campaign_name,
                     objective: metaObjective,
-                    status: "PAUSED",
+                    status: entityStatus,
                     daily_budget_cents: args.daily_budget_cents,
                     special_ad_categories: [],
                   },
@@ -1414,9 +1488,9 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 if (createResult && !createResult.success) throw new Error(createResult.error || "Erro ao criar campanha");
 
                 const newMetaCampaignId = createResult?.data?.meta_campaign_id;
-                console.log(`[ads-autopilot-analyze][${VERSION}] Step 1/3: Campaign created: ${args.campaign_name} (${newMetaCampaignId})`);
+                console.log(`[ads-autopilot-analyze][${VERSION}] Step 1/3: Campaign created: ${args.campaign_name} (${newMetaCampaignId}) status=${entityStatus}`);
 
-                // Step 2: Create ad set with broad targeting (Brazil, 18-65)
+                // Step 2: Create ad set with SMART targeting (prefer saved audiences)
                 let newMetaAdsetId: string | null = null;
                 if (newMetaCampaignId) {
                   try {
@@ -1433,6 +1507,49 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                       leads: "IMPRESSIONS",
                     };
 
+                    // Build smart targeting: prefer saved custom audiences
+                    let targeting: any = {
+                      geo_locations: { countries: ["BR"] },
+                      age_min: 18,
+                      age_max: 65,
+                    };
+
+                    const accountAudiences = channelData.savedAudiences?.[acctConfig.ad_account_id] || [];
+                    if (accountAudiences.length > 0) {
+                      // Pick best audience based on funnel stage
+                      let bestAudience: any = null;
+                      const funnelStage = args.funnel_stage || "tof";
+                      
+                      if (funnelStage === "bof") {
+                        // BOF: prefer purchasers, cart abandoners
+                        bestAudience = accountAudiences.find((a: any) => 
+                          a.deliverable && (a.subtype === "CUSTOM" || a.subtype === "WEBSITE" || a.name?.toLowerCase().includes("compra") || a.name?.toLowerCase().includes("carrinho"))
+                        );
+                      } else if (funnelStage === "mof") {
+                        // MOF: prefer engagers, visitors
+                        bestAudience = accountAudiences.find((a: any) => 
+                          a.deliverable && (a.subtype === "ENGAGEMENT" || a.subtype === "WEBSITE" || a.name?.toLowerCase().includes("visita") || a.name?.toLowerCase().includes("engaj"))
+                        );
+                      } else {
+                        // TOF: prefer lookalikes
+                        bestAudience = accountAudiences.find((a: any) => 
+                          a.deliverable && (a.subtype === "LOOKALIKE" || a.name?.toLowerCase().includes("lookalike") || a.name?.toLowerCase().includes("semelhante"))
+                        );
+                      }
+                      
+                      // Fallback: largest deliverable audience
+                      if (!bestAudience) {
+                        bestAudience = accountAudiences
+                          .filter((a: any) => a.deliverable)
+                          .sort((a: any, b: any) => (b.size || 0) - (a.size || 0))[0];
+                      }
+
+                      if (bestAudience) {
+                        targeting.custom_audiences = [{ id: bestAudience.id }];
+                        console.log(`[ads-autopilot-analyze][${VERSION}] Step 2: Using audience: ${bestAudience.name} (${bestAudience.id}, size: ${bestAudience.size})`);
+                      }
+                    }
+
                     const adsetName = args.campaign_name.replace("[AI]", "[AI] CJ -");
                     const { data: adsetResult, error: adsetErr } = await supabase.functions.invoke("meta-ads-adsets", {
                       body: {
@@ -1444,12 +1561,8 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                         optimization_goal: optimizationGoalMap[args.objective] || "OFFSITE_CONVERSIONS",
                         billing_event: billingEventMap[args.objective] || "IMPRESSIONS",
                         daily_budget_cents: args.daily_budget_cents,
-                        targeting: {
-                          geo_locations: { countries: ["BR"] },
-                          age_min: 18,
-                          age_max: 65,
-                        },
-                        status: "PAUSED",
+                        targeting,
+                        status: entityStatus,
                       },
                     });
 
@@ -1459,15 +1572,16 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                       console.error(`[ads-autopilot-analyze][${VERSION}] Step 2/3 failed (adset):`, adsetResult.error);
                     } else {
                       newMetaAdsetId = adsetResult?.data?.meta_adset_id;
-                      console.log(`[ads-autopilot-analyze][${VERSION}] Step 2/3: Adset created: ${adsetName} (${newMetaAdsetId})`);
+                      console.log(`[ads-autopilot-analyze][${VERSION}] Step 2/3: Adset created: ${adsetName} (${newMetaAdsetId}) status=${entityStatus}`);
                     }
                   } catch (adsetExecErr: any) {
                     console.error(`[ads-autopilot-analyze][${VERSION}] Step 2/3 error:`, adsetExecErr.message);
                   }
                 }
 
-                // Step 3: Create ad using best performing creative from the account
+                // Step 3: Create ad — use existing creative OR trigger auto-generation
                 let newMetaAdId: string | null = null;
+                let creativeJobId: string | null = null;
                 if (newMetaAdsetId) {
                   try {
                     // Find best creative from existing active ads in this account
@@ -1492,7 +1606,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                           meta_campaign_id: newMetaCampaignId,
                           name: adName,
                           creative_id: bestCreativeId,
-                          status: "PAUSED",
+                          status: entityStatus,
                         },
                       });
 
@@ -1502,10 +1616,38 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                         console.error(`[ads-autopilot-analyze][${VERSION}] Step 3/3 failed (ad):`, adResult.error);
                       } else {
                         newMetaAdId = adResult?.data?.meta_ad_id;
-                        console.log(`[ads-autopilot-analyze][${VERSION}] Step 3/3: Ad created: ${adName} (${newMetaAdId}) with creative ${bestCreativeId}`);
+                        console.log(`[ads-autopilot-analyze][${VERSION}] Step 3/3: Ad created: ${adName} (${newMetaAdId}) with creative ${bestCreativeId} status=${entityStatus}`);
                       }
                     } else {
-                      console.log(`[ads-autopilot-analyze][${VERSION}] Step 3/3: Skipped — no existing creative found in account`);
+                      // No existing creative — auto-generate via ads-autopilot-creative
+                      console.log(`[ads-autopilot-analyze][${VERSION}] Step 3/3: No creative found — triggering auto-generation`);
+                      const topProduct = context.products?.[0];
+                      if (topProduct) {
+                        try {
+                          const { data: creativeResult, error: creativeErr } = await supabase.functions.invoke("ads-autopilot-creative", {
+                            body: {
+                              tenant_id,
+                              session_id: sessionId,
+                              channel: "meta",
+                              product_id: topProduct.id,
+                              product_name: topProduct.name,
+                              campaign_objective: args.objective,
+                              target_audience: args.targeting_description,
+                              style_preference: "promotional",
+                              format: "1:1",
+                              variations: 2,
+                            },
+                          });
+                          if (creativeErr) {
+                            console.error(`[ads-autopilot-analyze][${VERSION}] Creative generation failed:`, creativeErr.message);
+                          } else {
+                            creativeJobId = creativeResult?.data?.job_id || null;
+                            console.log(`[ads-autopilot-analyze][${VERSION}] Creative job started: ${creativeJobId}`);
+                          }
+                        } catch (creativeExecErr: any) {
+                          console.error(`[ads-autopilot-analyze][${VERSION}] Creative generation error:`, creativeExecErr.message);
+                        }
+                      }
                     }
                   } catch (adExecErr: any) {
                     console.error(`[ads-autopilot-analyze][${VERSION}] Step 3/3 error:`, adExecErr.message);
@@ -1519,17 +1661,33 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                   meta_campaign_id: newMetaCampaignId,
                   meta_adset_id: newMetaAdsetId,
                   meta_ad_id: newMetaAdId,
-                  created_status: "PAUSED",
+                  creative_job_id: creativeJobId,
+                  created_status: entityStatus,
                   chain_steps: {
                     campaign: !!newMetaCampaignId,
                     adset: !!newMetaAdsetId,
                     ad: !!newMetaAdId,
+                    creative_generating: !!creativeJobId,
                   },
                 };
-                console.log(`[ads-autopilot-analyze][${VERSION}] Full chain: campaign=${!!newMetaCampaignId} adset=${!!newMetaAdsetId} ad=${!!newMetaAdId}`);
+                console.log(`[ads-autopilot-analyze][${VERSION}] Full chain: campaign=${!!newMetaCampaignId} adset=${!!newMetaAdsetId} ad=${!!newMetaAdId} creative=${!!creativeJobId} status=${entityStatus}`);
                 totalActionsExecuted++;
               } else if (tc.function.name === "create_adset") {
-                // Standalone adset creation (outside campaign chain)
+                // Standalone adset creation with smart audiences
+                const isAutoMode = acctConfig.human_approval_mode === "auto";
+                const entityStatus = isAutoMode ? "ACTIVE" : "PAUSED";
+                
+                // Build targeting with custom audience if provided
+                let targeting: any = {
+                  geo_locations: { countries: ["BR"] },
+                  age_min: 18,
+                  age_max: 65,
+                };
+                if (args.custom_audience_id) {
+                  targeting.custom_audiences = [{ id: args.custom_audience_id }];
+                  console.log(`[ads-autopilot-analyze][${VERSION}] Using custom audience: ${args.custom_audience_id}`);
+                }
+
                 const { data: adsetResult, error: adsetErr } = await supabase.functions.invoke("meta-ads-adsets", {
                   body: {
                     tenant_id,
@@ -1538,12 +1696,8 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                     meta_campaign_id: args.campaign_id,
                     name: args.adset_name,
                     daily_budget_cents: args.daily_budget_cents,
-                    targeting: {
-                      geo_locations: { countries: ["BR"] },
-                      age_min: 18,
-                      age_max: 65,
-                    },
-                    status: "PAUSED",
+                    targeting,
+                    status: entityStatus,
                   },
                 });
 
@@ -1555,9 +1709,50 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 actionRecord.action_data = {
                   ...actionRecord.action_data,
                   meta_adset_id: adsetResult?.data?.meta_adset_id || null,
-                  created_status: "PAUSED",
+                  created_status: entityStatus,
+                  custom_audience_id: args.custom_audience_id || null,
                 };
-                console.log(`[ads-autopilot-analyze][${VERSION}] Adset created: ${args.adset_name} (${adsetResult?.data?.meta_adset_id})`);
+                console.log(`[ads-autopilot-analyze][${VERSION}] Adset created: ${args.adset_name} (${adsetResult?.data?.meta_adset_id}) status=${entityStatus}`);
+                totalActionsExecuted++;
+              } else if (tc.function.name === "generate_creative") {
+                // Phase 3: Creative generation
+                const topProduct = context.products?.find((p: any) => p.name === args.product_name) || context.products?.[0];
+                if (!topProduct) {
+                  actionRecord.status = "failed";
+                  actionRecord.error_message = "Nenhum produto encontrado para gerar criativo";
+                } else {
+                  try {
+                    const { data: creativeResult, error: creativeErr } = await supabase.functions.invoke("ads-autopilot-creative", {
+                      body: {
+                        tenant_id,
+                        session_id: sessionId,
+                        channel: "meta",
+                        product_id: topProduct.id,
+                        product_name: topProduct.name,
+                        campaign_objective: args.campaign_objective,
+                        target_audience: args.target_audience,
+                        style_preference: args.style_preference || "promotional",
+                        format: "1:1",
+                        variations: 3,
+                      },
+                    });
+
+                    if (creativeErr) throw creativeErr;
+
+                    actionRecord.status = "executed";
+                    actionRecord.executed_at = new Date().toISOString();
+                    actionRecord.action_data = {
+                      ...actionRecord.action_data,
+                      creative_job_id: creativeResult?.data?.job_id,
+                      product_id: topProduct.id,
+                      product_name: topProduct.name,
+                    };
+                    console.log(`[ads-autopilot-analyze][${VERSION}] Creative job started: ${creativeResult?.data?.job_id}`);
+                  } catch (creativeErr: any) {
+                    actionRecord.status = "failed";
+                    actionRecord.error_message = creativeErr.message || "Erro ao gerar criativo";
+                  }
+                }
                 totalActionsExecuted++;
               } else {
                 actionRecord.status = "validated";
