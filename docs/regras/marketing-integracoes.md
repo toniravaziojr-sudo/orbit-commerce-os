@@ -265,6 +265,23 @@ Arquivo: `src/components/ads/adsPromptTemplates.ts`
 
 Os templates servem como **exemplo** para o cliente montar seu próprio prompt. O botão "Usar template" na UI popula o campo com o template correspondente ao canal.
 
+#### Geração de Prompt com IA (v5.8)
+
+O botão **"✨ Gerar com IA"** no campo de Prompt Estratégico da configuração por conta invoca a edge function `ads-autopilot-generate-prompt` para gerar automaticamente um prompt personalizado baseado nos dados reais do tenant.
+
+| Dado Coletado | Fonte | Uso |
+|---------------|-------|-----|
+| Nome da loja | `store_settings.store_name` / `tenants.name` | Contexto do negócio |
+| Descrição | `store_settings.store_description` | Tom e nicho |
+| Categorias | `categories` (top 20) | Público-alvo e compliance |
+| Produtos top 10 | `products` (ativos, por preço desc) | Claims, hooks, ticket médio |
+| Margem estimada | `price - cost_price` | Estratégia de lance |
+
+A IA gera um prompt completo seguindo a estrutura: Missão → Contexto → Compliance → Fonte de Verdade → Destinos → Criativos → Formato de Saída. O resultado é inserido no campo `user_instructions` para revisão do cliente antes de salvar.
+
+Edge function: `supabase/functions/ads-autopilot-generate-prompt/index.ts`
+Hook: Invocado via `supabase.functions.invoke("ads-autopilot-generate-prompt")` no componente `AdsAccountConfig.tsx`.
+
 ### Config por Conta de Anúncios
 
 #### Tabela normalizada `ads_autopilot_account_configs` (v4.0 — PREFERIDA)
