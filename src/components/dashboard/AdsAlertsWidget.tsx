@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Megaphone, Lightbulb, Wallet, ArrowRight, AlertTriangle } from "lucide-react";
+import { Megaphone, Lightbulb, Wallet, ArrowRight, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,10 +20,7 @@ export function AdsAlertsWidget() {
   const hasLowBalance = balance.lowBalanceCount > 0;
   const hasZeroBalance = balance.zeroBalanceCount > 0;
 
-  // Don't render if no data at all
-  if (!balance.hasData && openInsights.length === 0) return null;
-
-  const items: { icon: any; title: string; description: string; variant: "warning" | "info" | "destructive" }[] = [];
+  const items: { icon: any; title: string; description: string; variant: "warning" | "info" | "destructive" | "success" }[] = [];
 
   if (hasZeroBalance) {
     items.push({
@@ -54,12 +51,23 @@ export function AdsAlertsWidget() {
     });
   }
 
-  if (items.length === 0) return null;
+  // Show "all good" when there's data but no alerts
+  if (items.length === 0) {
+    items.push({
+      icon: CheckCircle2,
+      title: "Tudo certo com suas campanhas",
+      description: balance.hasData
+        ? `${balance.totalAccounts} conta${balance.totalAccounts !== 1 ? "s" : ""} monitorada${balance.totalAccounts !== 1 ? "s" : ""} · ${balance.activeCampaigns} campanha${balance.activeCampaigns !== 1 ? "s" : ""} ativa${balance.activeCampaigns !== 1 ? "s" : ""}`
+        : "Nenhum alerta de tráfego no momento",
+      variant: "success",
+    });
+  }
 
   const iconColors = {
     warning: "text-warning bg-warning/10",
     info: "text-info bg-info/10",
     destructive: "text-destructive bg-destructive/10",
+    success: "text-green-600 bg-green-500/10",
   };
 
   return (
