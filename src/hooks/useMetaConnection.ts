@@ -18,6 +18,7 @@ interface MetaConnectionStatus {
   platformConfigured: boolean;
   isConnected: boolean;
   isExpired: boolean;
+  isPendingAssetSelection: boolean;
   connection: {
     externalUserId: string;
     externalUsername: string;
@@ -68,12 +69,17 @@ export function useMetaConnection() {
         connected_at?: string;
         scope_packs?: MetaScopePack[];
         assets?: MetaAssets;
+        pending_asset_selection?: boolean;
       } | null;
 
+      // Conexão só é considerada ativa se não estiver pendente de seleção de ativos
+      const isPendingAssetSelection = metadata?.pending_asset_selection === true;
+
       return {
-        platformConfigured: true, // Assumimos que está configurado se chegou aqui
-        isConnected: !!connection && connection.is_active && !isExpired,
+        platformConfigured: true,
+        isConnected: !!connection && connection.is_active && !isExpired && !isPendingAssetSelection,
         isExpired,
+        isPendingAssetSelection,
         connection: connection ? {
           externalUserId: connection.external_user_id,
           externalUsername: connection.external_username || "",
@@ -203,6 +209,7 @@ export function useMetaConnection() {
     platformConfigured: statusQuery.data?.platformConfigured ?? false,
     isConnected: statusQuery.data?.isConnected ?? false,
     isExpired: statusQuery.data?.isExpired ?? false,
+    isPendingAssetSelection: statusQuery.data?.isPendingAssetSelection ?? false,
     connection: statusQuery.data?.connection ?? null,
 
     // Actions
