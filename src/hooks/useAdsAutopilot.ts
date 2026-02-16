@@ -200,6 +200,25 @@ export function useAdsAutopilot() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  // ============ TRIGGER GUARDIAN ============
+  const triggerGuardian = useMutation({
+    mutationFn: async (cycle?: string) => {
+      const { data, error } = await supabase.functions.invoke("ads-autopilot-guardian", {
+        body: { tenant_id: tenantId, cycle: cycle || "12h" },
+      });
+      if (error) throw error;
+      if (data && !data.success) throw new Error(data.error || "Erro no Guardião");
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["ads-autopilot-actions"] });
+      queryClient.invalidateQueries({ queryKey: ["ads-autopilot-sessions"] });
+      const d = data?.data;
+      toast.success(`Guardião: ${d?.actions?.executed || 0} ações executadas`);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   return {
     // Configs
     globalConfig,
@@ -218,5 +237,8 @@ export function useAdsAutopilot() {
 
     // Analysis
     triggerAnalysis,
+
+    // Guardian
+    triggerGuardian,
   };
 }
