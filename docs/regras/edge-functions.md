@@ -256,7 +256,7 @@ Edge function para geração de landing pages via IA usando Lovable AI Gateway (
 
 ## AI Ads Autopilot (`ads-autopilot-analyze`)
 
-### Versão Atual: v5.2.0
+### Versão Atual: v5.9.0
 
 ### Visão Geral
 Edge Function autônoma de gestão de tráfego pago multi-canal (Meta, Google, TikTok). Opera como media buyer sênior com pipeline de 5 etapas, camada de segurança determinística, **conhecimento específico por plataforma**, **metas de ROAS por canal definidas pelo usuário**, **planejamento estratégico completo** e **janela de publicação 00:01-04:00 BRT**.
@@ -351,12 +351,17 @@ ROI = Retorno sobre Investimento. Ex: ROI 2 = R$2 de retorno para cada R$1 inves
 
 ### Conhecimento de Audiência e Gestão de Públicos (v5.1.0)
 
-#### Tipos de Audiência
-| Tipo | Descrição | CPA esperado | Budget recomendado |
-|------|-----------|-------------|-------------------|
-| **Frio (TOF)** | Lookalike, interesses, broad | 1.5x-3x maior | 60-70% (Meta), 50-60% (Google), 70-80% (TikTok) |
-| **Quente (MOF)** | Visitantes, engajadores | Médio | 20-30% |
-| **Hot (BOF)** | Carrinhos, compradores | Menor, ROAS alto | 10-20% |
+#### Tipos de Audiência / Splits de Funil
+As chaves de split salvas pela UI são: `cold`, `remarketing`, `tests`, `leads`.
+
+| Chave UI | Conceito | Descrição | CPA esperado | Budget recomendado |
+|----------|----------|-----------|-------------|-------------------|
+| `cold` | **Público Frio (TOF)** | Lookalike, interesses, broad | 1.5x-3x maior | 60-70% (Meta), 50-60% (Google), 70-80% (TikTok) |
+| `remarketing` | **Público Quente (MOF+BOF)** | Visitantes, engajadores, carrinhos | Menor, ROAS alto | 20-30% |
+| `tests` | **Testes de Criativos** | Budget reservado para testar novos criativos/ângulos | Variável | 5-15% |
+| `leads` | **Captação de Leads** | Campanhas de captação/formulários | Depende do objetivo | 0-10% |
+
+> ⚠️ **IMPORTANTE**: As edge functions DEVEM usar as chaves `cold`, `remarketing`, `tests`, `leads` (não `tof`, `mof`, `bof`).
 
 #### Gestão de Públicos (v5.1.0)
 A IA pode criar e gerenciar públicos automaticamente:
