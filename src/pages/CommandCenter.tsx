@@ -38,6 +38,7 @@ import { CommunicationsWidget } from "@/components/dashboard/CommunicationsWidge
 import { FiscalAlertsWidget } from "@/components/dashboard/FiscalAlertsWidget";
 import { OrderLimitWarning } from "@/components/billing/OrderLimitWarning";
 import { PaymentMethodBanner } from "@/components/billing/PaymentMethodBanner";
+import { AdsAlertsWidget } from "@/components/dashboard/AdsAlertsWidget";
 
 const DEMO_ATTENTION_ITEMS = [
   {
@@ -180,6 +181,9 @@ function DashboardContent() {
 
       {/* Communications Widget */}
       <CommunicationsWidget />
+
+      {/* Ads Alerts Widget */}
+      <AdsAlertsWidget />
 
       {/* Fiscal Alerts Widget */}
       <FiscalAlertsWidget />

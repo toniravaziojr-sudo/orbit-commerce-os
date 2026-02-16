@@ -2,21 +2,19 @@ import { useState, useMemo } from "react";
 import {
   Play, Pause, RefreshCw, Loader2,
   ChevronDown, ChevronRight, ExternalLink, Wallet,
-  CalendarDays, ShoppingCart, MousePointerClick,
+  ShoppingCart, MousePointerClick,
   Video, Target, Users, Eye, MessageCircle,
   Columns3, Check, Search, MoreHorizontal, Megaphone
 } from "lucide-react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { format, subDays, parseISO, startOfDay, endOfDay } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import type { DateRange } from "react-day-picker";
+import { DateRangeFilter } from "@/components/ui/date-range-filter";
+import { subDays, parseISO, startOfDay, endOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
 
 // ========== TYPES ==========
@@ -282,13 +280,7 @@ function getChannelLabel(channel: string): string {
   }
 }
 
-const DATE_PRESETS = [
-  { label: "Hoje", days: 0 },
-  { label: "7 dias", days: 7 },
-  { label: "14 dias", days: 14 },
-  { label: "30 dias", days: 30 },
-  { label: "90 dias", days: 90 },
-];
+// DATE_PRESETS removed — using DateRangeFilter component
 
 // ========== COLUMN SELECTOR ==========
 
@@ -368,10 +360,8 @@ export function AdsCampaignsTab({
   const [budgetValue, setBudgetValue] = useState("");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: subDays(new Date(), 30),
-    to: new Date(),
-  });
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(subDays(new Date(), 30));
+  const [dateTo, setDateTo] = useState<Date | undefined>(new Date());
   const [visibleColumns, setVisibleColumns] = useState<MetricColumnKey[]>(DEFAULT_COLUMNS);
 
   // ===== CRITICAL FIX: Build set of campaign IDs belonging to selected accounts =====
@@ -447,12 +437,12 @@ export function AdsCampaignsTab({
       }
 
       // Filter by date range
-      if (dateRange?.from && dateRange?.to) {
+      if (dateFrom && dateTo) {
         try {
           const dStart = parseISO(i.date_start);
           const dStop = parseISO(i.date_stop);
-          const rangeFrom = startOfDay(dateRange.from);
-          const rangeTo = endOfDay(dateRange.to);
+          const rangeFrom = startOfDay(dateFrom);
+          const rangeTo = endOfDay(dateTo);
           if (dStop < rangeFrom || dStart > rangeTo) continue;
         } catch { continue; }
       }
@@ -506,7 +496,7 @@ export function AdsCampaignsTab({
     }
 
     return map;
-  }, [insights, dateRange, selectedAccountIds, campaignAccountMap, selectedAccountSet]);
+  }, [insights, dateFrom, dateTo, selectedAccountIds, campaignAccountMap, selectedAccountSet]);
 
   // Ad sets grouped by campaign
   const campaignAdsets = useMemo(() => {
@@ -694,6 +684,95 @@ export function AdsCampaignsTab({
 
   const hasAnyCampaigns = accountFiltered.length > 0;
 
+  // ===== TOTALS for footer row =====
+  const columnTotals = useMemo(() => {
+    const t = {
+      impressions: 0, clicks: 0, spend_cents: 0, reach: 0,
+      conversions: 0, conversion_value_cents: 0, roas: 0, ctr: 0,
+      frequency: 0, cost_per_result_cents: 0, cpc_cents: 0, cpm_cents: 0,
+      link_clicks: 0, landing_page_views: 0, add_to_cart: 0,
+      initiate_checkout: 0, add_payment_info: 0, view_content: 0,
+      video_views: 0, post_engagement: 0, post_reactions: 0,
+      comments: 0, shares: 0, page_likes: 0,
+      cost_per_add_to_cart_cents: 0, cost_per_initiate_checkout_cents: 0,
+      cost_per_landing_page_view_cents: 0,
+      budget_cents: 0,
+    };
+    for (const c of filteredCampaigns) {
+      const cid = c.meta_campaign_id || c.google_campaign_id || c.tiktok_campaign_id;
+      const m = campaignInsights.get(cid);
+      t.budget_cents += c.daily_budget_cents || c.budget_cents || 0;
+      if (m) {
+        t.impressions += m.impressions;
+        t.clicks += m.clicks;
+        t.spend_cents += m.spend_cents;
+        t.reach += m.reach;
+        t.conversions += m.conversions;
+        t.conversion_value_cents += m.conversion_value_cents;
+        t.link_clicks += m.link_clicks;
+        t.landing_page_views += m.landing_page_views;
+        t.add_to_cart += m.add_to_cart;
+        t.initiate_checkout += m.initiate_checkout;
+        t.add_payment_info += m.add_payment_info;
+        t.view_content += m.view_content;
+        t.video_views += m.video_views;
+        t.post_engagement += m.post_engagement;
+        t.post_reactions += m.post_reactions;
+        t.comments += m.comments;
+        t.shares += m.shares;
+        t.page_likes += m.page_likes;
+      }
+    }
+    // Derived
+    t.ctr = t.impressions > 0 ? (t.clicks / t.impressions) * 100 : 0;
+    t.roas = t.spend_cents > 0 ? t.conversion_value_cents / t.spend_cents : 0;
+    t.frequency = t.reach > 0 ? t.impressions / t.reach : 0;
+    t.cost_per_result_cents = t.conversions > 0 ? Math.round(t.spend_cents / t.conversions) : 0;
+    t.cpc_cents = t.clicks > 0 ? Math.round(t.spend_cents / t.clicks) : 0;
+    t.cpm_cents = t.impressions > 0 ? Math.round((t.spend_cents / t.impressions) * 1000) : 0;
+    t.cost_per_add_to_cart_cents = t.add_to_cart > 0 ? Math.round(t.spend_cents / t.add_to_cart) : 0;
+    t.cost_per_initiate_checkout_cents = t.initiate_checkout > 0 ? Math.round(t.spend_cents / t.initiate_checkout) : 0;
+    t.cost_per_landing_page_view_cents = t.landing_page_views > 0 ? Math.round(t.spend_cents / t.landing_page_views) : 0;
+    return t;
+  }, [filteredCampaigns, campaignInsights]);
+
+  // Render a total cell for a given column
+  const renderTotalCell = (colKey: MetricColumnKey) => {
+    const t = columnTotals;
+    switch (colKey) {
+      case "results": return t.conversions > 0 ? formatNumber(t.conversions) : "—";
+      case "reach": return t.reach > 0 ? formatNumber(t.reach) : "—";
+      case "frequency": return t.frequency > 0 ? t.frequency.toFixed(2) : "—";
+      case "impressions": return t.impressions > 0 ? formatNumber(t.impressions) : "—";
+      case "clicks": return t.clicks > 0 ? formatNumber(t.clicks) : "—";
+      case "ctr": return t.ctr > 0 ? `${t.ctr.toFixed(2)}%` : "—";
+      case "cost_per_result": return t.cost_per_result_cents > 0 ? formatCurrency(t.cost_per_result_cents) : "—";
+      case "cpc": return t.cpc_cents > 0 ? formatCurrency(t.cpc_cents) : "—";
+      case "cpm": return t.cpm_cents > 0 ? formatCurrency(t.cpm_cents) : "—";
+      case "spend": return t.spend_cents > 0 ? formatCurrency(t.spend_cents) : "—";
+      case "budget": return t.budget_cents > 0 ? formatCurrency(t.budget_cents) : "—";
+      case "roas": return t.roas > 0 ? `${t.roas.toFixed(2)}x` : "—";
+      case "conversions": return t.conversions > 0 ? formatNumber(t.conversions) : "—";
+      case "conversion_value": return t.conversion_value_cents > 0 ? formatCurrency(t.conversion_value_cents) : "—";
+      case "link_clicks": return t.link_clicks > 0 ? formatNumber(t.link_clicks) : "—";
+      case "landing_page_views": return t.landing_page_views > 0 ? formatNumber(t.landing_page_views) : "—";
+      case "add_to_cart": return t.add_to_cart > 0 ? formatNumber(t.add_to_cart) : "—";
+      case "initiate_checkout": return t.initiate_checkout > 0 ? formatNumber(t.initiate_checkout) : "—";
+      case "add_payment_info": return t.add_payment_info > 0 ? formatNumber(t.add_payment_info) : "—";
+      case "view_content": return t.view_content > 0 ? formatNumber(t.view_content) : "—";
+      case "video_views": return t.video_views > 0 ? formatNumber(t.video_views) : "—";
+      case "post_engagement": return t.post_engagement > 0 ? formatNumber(t.post_engagement) : "—";
+      case "post_reactions": return t.post_reactions > 0 ? formatNumber(t.post_reactions) : "—";
+      case "comments": return t.comments > 0 ? formatNumber(t.comments) : "—";
+      case "shares": return t.shares > 0 ? formatNumber(t.shares) : "—";
+      case "page_likes": return t.page_likes > 0 ? formatNumber(t.page_likes) : "—";
+      case "cost_per_add_to_cart": return t.cost_per_add_to_cart_cents > 0 ? formatCurrency(t.cost_per_add_to_cart_cents) : "—";
+      case "cost_per_initiate_checkout": return t.cost_per_initiate_checkout_cents > 0 ? formatCurrency(t.cost_per_initiate_checkout_cents) : "—";
+      case "cost_per_landing_page_view": return t.cost_per_landing_page_view_cents > 0 ? formatCurrency(t.cost_per_landing_page_view_cents) : "—";
+      default: return "—";
+    }
+  };
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 50;
@@ -750,29 +829,13 @@ export function AdsCampaignsTab({
                 ))}
               </div>
 
-              {/* Date picker */}
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1.5 text-xs h-7 font-normal border-dashed">
-                    <CalendarDays className="h-3 w-3" />
-                    {dateRange?.from ? (
-                      dateRange.to
-                        ? `${format(dateRange.from, "dd/MM")} - ${format(dateRange.to, "dd/MM")}`
-                        : format(dateRange.from, "dd/MM/yyyy")
-                    ) : "Período"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <div className="flex gap-1 p-2 border-b">
-                    {DATE_PRESETS.map(preset => (
-                      <Button key={preset.days} variant="ghost" size="sm" className="text-xs h-6 px-2"
-                        onClick={() => { setDateRange({ from: preset.days === 0 ? new Date() : subDays(new Date(), preset.days), to: new Date() }); }}
-                      >{preset.label}</Button>
-                    ))}
-                  </div>
-                  <Calendar mode="range" selected={dateRange} onSelect={setDateRange} numberOfMonths={2} locale={ptBR} initialFocus className="p-3 pointer-events-auto" />
-                </PopoverContent>
-              </Popover>
+              {/* Date picker - standard DateRangeFilter */}
+              <DateRangeFilter
+                startDate={dateFrom}
+                endDate={dateTo}
+                onChange={(start, end) => { setDateFrom(start); setDateTo(end); }}
+                label="Período"
+              />
             </div>
 
             <div className="flex items-center gap-2">
@@ -1100,6 +1163,28 @@ export function AdsCampaignsTab({
                     );
                   })}
                 </TableBody>
+                {filteredCampaigns.length > 0 && (
+                  <TableFooter>
+                    <TableRow className="bg-muted/40 font-medium text-xs">
+                      <TableCell className="px-2"></TableCell>
+                      <TableCell className="py-2.5">
+                        <span className="text-muted-foreground">
+                          Resultados de {filteredCampaigns.length} campanha{filteredCampaigns.length !== 1 ? "s" : ""}
+                        </span>
+                      </TableCell>
+                      <TableCell></TableCell>
+                      {visibleColumns.map(colKey => (
+                        <TableCell key={colKey} className="text-right tabular-nums text-xs font-semibold py-2.5">
+                          {renderTotalCell(colKey)}
+                          <div className="text-[9px] font-normal text-muted-foreground mt-0.5">
+                            {colKey === "spend" ? "Total usado" : colKey === "budget" ? "Total" : colKey === "impressions" ? "Total" : colKey === "cpm" ? "Por 1.000 impressões" : colKey === "results" || colKey === "reach" || colKey === "clicks" || colKey === "conversions" || colKey === "link_clicks" || colKey === "landing_page_views" || colKey === "add_to_cart" || colKey === "initiate_checkout" ? "Total" : ""}
+                          </div>
+                        </TableCell>
+                      ))}
+                      <TableCell></TableCell>
+                    </TableRow>
+                  </TableFooter>
+                )}
               </Table>
             </div>
           )}
