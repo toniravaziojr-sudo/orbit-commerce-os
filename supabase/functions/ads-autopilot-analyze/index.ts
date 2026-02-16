@@ -583,7 +583,6 @@ function validateAction(
   }
 
   // Data sufficiency check
-  const channelKey = acctConfig.channel;
   if (channelKey && context?.channels?.[channelKey]) {
     const trend = context.channels[channelKey].trend;
     const daysWithData = trend?.current_period?.days_with_data || 0;
