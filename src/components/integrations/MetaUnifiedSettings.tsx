@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { 
   Loader2, 
   Link2, 
@@ -28,8 +29,15 @@ import {
   Plus,
   BarChart3,
   Crosshair,
+  Globe,
+  Server,
+  ExternalLink,
+  Copy,
+  Rss,
+  Chrome,
 } from "lucide-react";
 import { useMetaConnection, MetaScopePack } from "@/hooks/useMetaConnection";
+import { useMarketingIntegrations, MarketingIntegration } from "@/hooks/useMarketingIntegrations";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -425,6 +433,14 @@ export function MetaUnifiedSettings() {
 
               <Separator />
 
+              {/* Pixel & CAPI Configuration */}
+              <MetaPixelCapiSection />
+
+              {/* Product Feeds / Catalogs */}
+              <MetaProductFeedsSection />
+
+              <Separator />
+
               {/* Consentimento incremental — adicionar permissões */}
               <IncrementalConsentSection
                 currentPacks={connection.scopePacks}
@@ -649,6 +665,166 @@ function IncrementalConsentSection({
           Cancelar
         </Button>
       </div>
+    </div>
+  );
+}
+
+// Seção de Pixel & CAPI integrada ao Hub Meta
+function MetaPixelCapiSection() {
+  const { config, isLoading, upsertConfig } = useMarketingIntegrations();
+  
+  const [metaPixelId, setMetaPixelId] = useState('');
+  const [metaEnabled, setMetaEnabled] = useState(false);
+  const [metaCapiEnabled, setMetaCapiEnabled] = useState(false);
+  const [metaAccessToken, setMetaAccessToken] = useState('');
+  const [metaTokenConfigured, setMetaTokenConfigured] = useState(false);
+
+  useEffect(() => {
+    if (config) {
+      setMetaPixelId(config.meta_pixel_id || '');
+      setMetaEnabled(config.meta_enabled);
+      setMetaCapiEnabled(config.meta_capi_enabled);
+      setMetaTokenConfigured(!!(config as any).meta_access_token);
+    }
+  }, [config]);
+
+  const handleSave = async () => {
+    const updates: Partial<MarketingIntegration> = {
+      meta_pixel_id: metaPixelId || null,
+      meta_enabled: metaEnabled,
+      meta_capi_enabled: metaCapiEnabled,
+      meta_status: metaEnabled && metaPixelId ? 'active' : 'inactive',
+    };
+    if (metaAccessToken) {
+      (updates as any).meta_access_token = metaAccessToken;
+    }
+    await upsertConfig.mutateAsync(updates);
+    setMetaAccessToken('');
+  };
+
+  if (isLoading) return null;
+
+  return (
+    <div className="space-y-4">
+      <h4 className="text-sm font-medium flex items-center gap-2">
+        <Crosshair className="h-4 w-4" />
+        Pixel & Conversions API
+        {config?.meta_status === 'active' && (
+          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">
+            <CheckCircle className="h-3 w-3 mr-1" /> Ativo
+          </Badge>
+        )}
+      </h4>
+      
+      <div className="rounded-lg border p-4 space-y-4">
+        {/* Client-side */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <Globe className="h-3.5 w-3.5" />
+            Client-side (Pixel)
+          </div>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="meta-pixel-enabled" className="text-sm">Ativar Meta Pixel</Label>
+            <Switch id="meta-pixel-enabled" checked={metaEnabled} onCheckedChange={setMetaEnabled} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="meta-pixel-id" className="text-sm">Pixel ID</Label>
+            <Input id="meta-pixel-id" placeholder="123456789012345" value={metaPixelId} onChange={(e) => setMetaPixelId(e.target.value)} />
+            <p className="text-xs text-muted-foreground">
+              Encontre no{' '}
+              <a href="https://business.facebook.com/events_manager" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
+                Gerenciador de Eventos <ExternalLink className="h-3 w-3" />
+              </a>
+            </p>
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Server-side */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <Server className="h-3.5 w-3.5" />
+            Server-side (Conversions API)
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="meta-capi-enabled" className="text-sm">Ativar Conversions API</Label>
+              <p className="text-xs text-muted-foreground">Melhora atribuição e reduz perda por bloqueadores</p>
+            </div>
+            <Switch id="meta-capi-enabled" checked={metaCapiEnabled} onCheckedChange={setMetaCapiEnabled} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="meta-access-token" className="text-sm flex items-center gap-2">
+              <Lock className="h-3 w-3" />
+              Access Token
+              {metaTokenConfigured && <Badge variant="secondary" className="text-xs">Configurado</Badge>}
+            </Label>
+            <Input id="meta-access-token" type="password" placeholder={metaTokenConfigured ? '••••••••••••' : 'Cole seu access token aqui'} value={metaAccessToken} onChange={(e) => setMetaAccessToken(e.target.value)} />
+            <p className="text-xs text-muted-foreground">Token nunca é exibido após salvo.</p>
+          </div>
+        </div>
+
+        <Button size="sm" onClick={handleSave} disabled={upsertConfig.isPending}>
+          {upsertConfig.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+          Salvar Pixel & CAPI
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// Seção de Product Feeds / Catálogos
+function MetaProductFeedsSection() {
+  const { currentTenant } = useAuth();
+
+  const getFeedUrl = (format: 'google' | 'meta') => {
+    if (!currentTenant?.slug) return '';
+    const baseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/marketing-feed`;
+    return `${baseUrl}?tenant=${currentTenant.slug}&format=${format}`;
+  };
+
+  const copyUrl = (format: 'google' | 'meta') => {
+    navigator.clipboard.writeText(getFeedUrl(format));
+    toast.success('URL copiada!');
+  };
+
+  return (
+    <div className="space-y-4">
+      <h4 className="text-sm font-medium flex items-center gap-2">
+        <Rss className="h-4 w-4" />
+        Catálogos de Produtos
+      </h4>
+      
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-lg border p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <Facebook className="h-4 w-4 text-blue-600" />
+            <span className="text-sm font-medium">Meta Catalog (CSV)</span>
+          </div>
+          <div className="flex gap-1.5">
+            <Input value={getFeedUrl('meta')} readOnly className="font-mono text-xs h-8" />
+            <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => copyUrl('meta')}>
+              <Copy className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+        <div className="rounded-lg border p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <Chrome className="h-4 w-4 text-yellow-500" />
+            <span className="text-sm font-medium">Google Merchant (XML)</span>
+          </div>
+          <div className="flex gap-1.5">
+            <Input value={getFeedUrl('google')} readOnly className="font-mono text-xs h-8" />
+            <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => copyUrl('google')}>
+              <Copy className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Feeds atualizados automaticamente. Use essas URLs nas plataformas de anúncios.
+      </p>
     </div>
   );
 }

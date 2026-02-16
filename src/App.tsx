@@ -379,7 +379,7 @@ const App = () => {
                   <Route path="/files" element={<Files />} />
                   <Route path="/reports" element={<FeatureGatedRoute moduleKey="central" featureKey="reports" featureName="Relatórios" featureDescription="Relatórios avançados"><Reports /></FeatureGatedRoute>} />
                   
-                  <Route path="/marketing" element={<Marketing />} />
+                  <Route path="/marketing" element={<Navigate to="/integrations?tab=social" replace />} />
                   <Route path="/marketing/atribuicao" element={<FeatureGatedRoute moduleKey="marketing_basico" featureKey="attribution" featureName="Atribuição de Vendas" featureDescription="Atribuição de vendas por canal"><Attribution /></FeatureGatedRoute>} />
                   <Route path="/email-marketing" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado" moduleDescription="Email Marketing para campanhas"><EmailMarketing /></GatedRoute>} />
                   <Route path="/email-marketing/list/:listId" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado"><EmailMarketingListDetail /></GatedRoute>} />
