@@ -25,12 +25,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
+import { useAdsBalanceMonitor } from "@/hooks/useAdsBalanceMonitor";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // This is the Central de Execuções - core for event-driven architecture
 // Will show Jobs, Tasks, Scheduled executions, and their statuses
 
+function formatCurrency(cents: number) {
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+}
+
 export default function Executions() {
   const navigate = useNavigate();
+  const adsMonitor = useAdsBalanceMonitor();
+
   return (
     <div className="space-y-8 animate-fade-in">
       <PageHeader
@@ -131,14 +140,19 @@ export default function Executions() {
       </Card>
 
       {/* Ads Balance Monitoring Card */}
-      <Card className="border-warning/30 bg-warning/5">
+      <Card className={adsMonitor.lowBalanceCount > 0 ? "border-destructive/30 bg-destructive/5" : "border-warning/30 bg-warning/5"}>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="rounded-lg bg-warning/10 p-2">
-                <Megaphone className="h-4 w-4 text-warning" />
+              <div className={`rounded-lg p-2 ${adsMonitor.lowBalanceCount > 0 ? "bg-destructive/10" : "bg-warning/10"}`}>
+                <Megaphone className={`h-4 w-4 ${adsMonitor.lowBalanceCount > 0 ? "text-destructive" : "text-warning"}`} />
               </div>
               <CardTitle className="text-base font-semibold">Anúncios — Saldo & Campanhas</CardTitle>
+              {adsMonitor.lowBalanceCount > 0 && (
+                <Badge variant="destructive" className="text-[10px] h-5">
+                  {adsMonitor.lowBalanceCount} conta{adsMonitor.lowBalanceCount > 1 ? "s" : ""} com saldo baixo
+                </Badge>
+              )}
             </div>
             <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => navigate("/ads")}>
               <Wallet className="h-3 w-3" />
@@ -148,27 +162,96 @@ export default function Executions() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            <div className="flex items-start gap-2 p-3 rounded-md bg-background border">
-              <AlertTriangle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-foreground">Monitoramento de saldo ativo</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Contas pré-pagas (PIX, boleto) são monitoradas automaticamente. Você será alertado quando o saldo estiver abaixo de R$50,00 para evitar pausas nas campanhas.
-                </p>
+            {/* Low balance alerts */}
+            {adsMonitor.lowBalanceCount > 0 && (
+              <div className="flex items-start gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/20">
+                <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-destructive">Recarga necessária!</p>
+                  <div className="mt-1 space-y-0.5">
+                    {adsMonitor.lowBalanceAccounts.map(acc => (
+                      <p key={acc.id} className="text-xs text-destructive/80">
+                        <span className="font-medium">{acc.name}</span>: saldo restante {formatCurrency(acc.balance_cents)}
+                      </p>
+                    ))}
+                  </div>
+                  <p className="text-xs text-destructive/70 mt-1">
+                    Faça uma recarga via PIX ou boleto para evitar pausas automáticas nas campanhas.
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
+
+            {adsMonitor.zeroBalanceCount > 0 && (
+              <div className="flex items-start gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/20">
+                <XCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-destructive">Saldo zerado!</p>
+                  <div className="mt-1 space-y-0.5">
+                    {adsMonitor.zeroBalanceAccounts.map(acc => (
+                      <p key={acc.id} className="text-xs text-destructive/80">
+                        <span className="font-medium">{acc.name}</span>: sem saldo — campanhas serão pausadas automaticamente.
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!adsMonitor.hasData && !adsMonitor.isLoading && (
+              <div className="flex items-start gap-2 p-3 rounded-md bg-background border">
+                <AlertTriangle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-foreground">Monitoramento de saldo</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Contas pré-pagas (PIX, boleto) são monitoradas automaticamente. Conecte um canal de anúncios para ativar alertas de saldo baixo.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {adsMonitor.hasData && adsMonitor.lowBalanceCount === 0 && adsMonitor.zeroBalanceCount === 0 && (
+              <div className="flex items-start gap-2 p-3 rounded-md bg-background border">
+                <CheckCircle className="h-4 w-4 text-success mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-foreground">Todos os saldos OK</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Nenhuma conta pré-paga com saldo baixo detectada.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="p-3 rounded-md bg-muted/30 text-center">
                 <p className="text-xs text-muted-foreground">Contas monitoradas</p>
-                <p className="text-lg font-bold text-foreground mt-1">—</p>
+                {adsMonitor.isLoading ? (
+                  <Skeleton className="h-7 w-12 mx-auto mt-1" />
+                ) : (
+                  <p className="text-lg font-bold text-foreground mt-1">
+                    {adsMonitor.hasData ? adsMonitor.totalAccounts : "—"}
+                  </p>
+                )}
               </div>
               <div className="p-3 rounded-md bg-muted/30 text-center">
                 <p className="text-xs text-muted-foreground">Saldo baixo</p>
-                <p className="text-lg font-bold text-warning mt-1">—</p>
+                {adsMonitor.isLoading ? (
+                  <Skeleton className="h-7 w-12 mx-auto mt-1" />
+                ) : (
+                  <p className={`text-lg font-bold mt-1 ${adsMonitor.lowBalanceCount > 0 ? "text-destructive" : "text-foreground"}`}>
+                    {adsMonitor.hasData ? adsMonitor.lowBalanceCount + adsMonitor.zeroBalanceCount : "—"}
+                  </p>
+                )}
               </div>
               <div className="p-3 rounded-md bg-muted/30 text-center">
                 <p className="text-xs text-muted-foreground">Campanhas ativas</p>
-                <p className="text-lg font-bold text-foreground mt-1">—</p>
+                {adsMonitor.isLoading ? (
+                  <Skeleton className="h-7 w-12 mx-auto mt-1" />
+                ) : (
+                  <p className="text-lg font-bold text-foreground mt-1">
+                    {adsMonitor.hasData ? adsMonitor.activeCampaigns : "—"}
+                  </p>
+                )}
               </div>
             </div>
           </div>
