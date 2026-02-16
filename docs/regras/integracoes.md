@@ -658,7 +658,7 @@ A integração Meta usa **Scope Packs** para consentimento incremental. O tenant
 | `ads` | Anúncios | `ads_management`, `ads_read`, `pages_manage_ads`, `leads_retrieval` |
 | `leads` | Leads | `leads_retrieval`, `pages_manage_ads` |
 | `catalogo` | Catálogo | `catalog_management` |
-| `threads` | Threads | `threads_content_publish`, `threads_manage_replies`, `threads_manage_insights`, `threads_basic`, `threads_read_replies` |
+| `threads` | Threads | ⚠️ **OAuth separado** via `threads.net` — NÃO incluído no fluxo Facebook. Escopos: `threads_content_publish`, `threads_manage_replies`, `threads_manage_insights`, `threads_basic`, `threads_read_replies` |
 | `live_video` | Lives | `publish_video`, `pages_manage_posts` |
 | `pixel` | Pixel + CAPI | Configuração via token de sistema (sem OAuth) |
 | `insights` | Insights | `read_insights`, `pages_read_engagement` |
