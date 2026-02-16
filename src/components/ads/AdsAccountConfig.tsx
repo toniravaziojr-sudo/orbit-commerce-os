@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bot, DollarSign, Target, Shield, AlertTriangle, Zap, Scale, TrendingUp } from "lucide-react";
+import { Bot, DollarSign, Target, Shield, AlertTriangle, Zap, Scale, TrendingUp, TrendingDown, ChevronDown, ChevronUp, Info } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,8 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,6 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import type { AccountConfig } from "@/hooks/useAdsAccountConfigs";
 import { isAccountConfigComplete } from "@/hooks/useAdsAccountConfigs";
+import { getPromptTemplateForChannel } from "./adsPromptTemplates";
 
 interface AdAccount {
   id: string;
@@ -77,12 +80,17 @@ function AccountConfigCard({
   const [instructions, setInstructions] = useState(config?.user_instructions || "");
   const [minRoiCold, setMinRoiCold] = useState(String(config?.min_roi_cold ?? 2));
   const [minRoiWarm, setMinRoiWarm] = useState(String(config?.min_roi_warm ?? 3));
+  const [roasScaleUp, setRoasScaleUp] = useState(String((config as any)?.roas_scale_up_threshold ?? ""));
+  const [roasScaleDown, setRoasScaleDown] = useState(String((config as any)?.roas_scale_down_threshold ?? ""));
+  const [budgetIncreasePct, setBudgetIncreasePct] = useState(String((config as any)?.budget_increase_pct ?? "15"));
+  const [budgetDecreasePct, setBudgetDecreasePct] = useState(String((config as any)?.budget_decrease_pct ?? "20"));
   const [strategyMode, setStrategyMode] = useState(config?.strategy_mode || "balanced");
   const [funnelSplitMode, setFunnelSplitMode] = useState(config?.funnel_split_mode || "manual");
   const [funnelSplits, setFunnelSplits] = useState<Record<string, number>>(
     (config?.funnel_splits as Record<string, number>) || { cold: 60, remarketing: 25, tests: 15, leads: 0 }
   );
   const [approvalMode, setApprovalMode] = useState(config?.human_approval_mode || "auto");
+  const [showTemplate, setShowTemplate] = useState(false);
 
   useEffect(() => {
     if (config) {
@@ -92,6 +100,10 @@ function AccountConfigCard({
       setInstructions(config.user_instructions || "");
       setMinRoiCold(String(config.min_roi_cold ?? 2));
       setMinRoiWarm(String(config.min_roi_warm ?? 3));
+      setRoasScaleUp(String((config as any)?.roas_scale_up_threshold ?? ""));
+      setRoasScaleDown(String((config as any)?.roas_scale_down_threshold ?? ""));
+      setBudgetIncreasePct(String((config as any)?.budget_increase_pct ?? "15"));
+      setBudgetDecreasePct(String((config as any)?.budget_decrease_pct ?? "20"));
       setStrategyMode(config.strategy_mode || "balanced");
       setFunnelSplitMode(config.funnel_split_mode || "manual");
       setFunnelSplits((config.funnel_splits as Record<string, number>) || { cold: 60, remarketing: 25, tests: 15, leads: 0 });
@@ -113,6 +125,10 @@ function AccountConfigCard({
     target_roi: parseFloat(targetRoi || "0") || null,
     min_roi_cold: parseFloat(minRoiCold) || null,
     min_roi_warm: parseFloat(minRoiWarm) || null,
+    roas_scale_up_threshold: parseFloat(roasScaleUp || "0") || null,
+    roas_scale_down_threshold: parseFloat(roasScaleDown || "0") || null,
+    budget_increase_pct: parseInt(budgetIncreasePct || "15") || 15,
+    budget_decrease_pct: parseInt(budgetDecreasePct || "20") || 20,
     user_instructions: instructions,
     strategy_mode: strategyMode,
     funnel_split_mode: funnelSplitMode,
@@ -133,11 +149,15 @@ function AccountConfigCard({
       user_instructions: instructions,
       min_roi_cold: parseFloat(minRoiCold) || 2,
       min_roi_warm: parseFloat(minRoiWarm) || 3,
+      roas_scale_up_threshold: parseFloat(roasScaleUp || "0") || null,
+      roas_scale_down_threshold: parseFloat(roasScaleDown || "0") || null,
+      budget_increase_pct: parseInt(budgetIncreasePct || "15") || 15,
+      budget_decrease_pct: parseInt(budgetDecreasePct || "20") || 20,
       strategy_mode: strategyMode,
       funnel_split_mode: funnelSplitMode,
       funnel_splits: funnelSplitMode === "manual" ? funnelSplits : null,
       human_approval_mode: approvalMode,
-    });
+    } as any);
   };
 
   const handleSplitChange = (key: string, val: string) => {
@@ -150,6 +170,8 @@ function AccountConfigCard({
   };
 
   const killSwitchActive = config?.kill_switch || false;
+  const channelLabel = channel === "meta" ? "Meta" : channel === "google" ? "Google" : channel === "tiktok" ? "TikTok" : channel;
+  const promptTemplate = getPromptTemplateForChannel(channel);
 
   return (
     <Card className={`border ${killSwitchActive ? "border-destructive/50 bg-destructive/5" : "border-primary/30 bg-primary/5"}`}>
@@ -239,17 +261,51 @@ function AccountConfigCard({
         {/* ROI Mínimos */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="space-y-2 p-3 rounded-lg bg-background border">
-            <Label className="text-xs font-semibold">🧊 ROI mín. Frio</Label>
+            <Label className="text-xs font-semibold">🧊 ROI mín. Frio (Pausa)</Label>
             <div className="flex items-center gap-2">
               <Input type="number" step="0.1" min="0" value={minRoiCold} onChange={(e) => setMinRoiCold(e.target.value)} className="max-w-20 h-8 text-sm" />
               <span className="text-xs text-muted-foreground">x</span>
             </div>
           </div>
           <div className="space-y-2 p-3 rounded-lg bg-background border">
-            <Label className="text-xs font-semibold">🔥 ROI mín. Quente</Label>
+            <Label className="text-xs font-semibold">🔥 ROI mín. Quente (Pausa)</Label>
             <div className="flex items-center gap-2">
               <Input type="number" step="0.1" min="0" value={minRoiWarm} onChange={(e) => setMinRoiWarm(e.target.value)} className="max-w-20 h-8 text-sm" />
               <span className="text-xs text-muted-foreground">x</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ROAS Scaling Rules */}
+        <div className="space-y-3 p-3 rounded-lg border border-primary/20 bg-primary/5">
+          <Label className="text-xs font-semibold flex items-center gap-2">
+            <TrendingUp className="h-3.5 w-3.5 text-primary" />
+            Escalonamento de Orçamento (ROAS)
+          </Label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div className="space-y-1.5 p-2 rounded-lg bg-background border border-green-500/20">
+              <Label className="text-[10px] font-semibold text-green-700 dark:text-green-400 flex items-center gap-1">
+                <TrendingUp className="h-3 w-3" /> Escalar ↑
+              </Label>
+              <div className="flex items-center gap-1">
+                <span className="text-[9px] text-muted-foreground">ROAS &gt;</span>
+                <Input type="number" step="0.1" min="0" value={roasScaleUp} onChange={(e) => setRoasScaleUp(e.target.value)} placeholder="4" className="max-w-16 h-6 text-xs" />
+                <span className="text-[9px] text-muted-foreground">x →</span>
+                <Input type="number" min="1" max="50" value={budgetIncreasePct} onChange={(e) => setBudgetIncreasePct(e.target.value)} placeholder="15" className="max-w-12 h-6 text-xs" />
+                <span className="text-[9px] text-muted-foreground">%</span>
+              </div>
+            </div>
+            <div className="space-y-1.5 p-2 rounded-lg bg-background border border-orange-500/20">
+              <Label className="text-[10px] font-semibold text-orange-700 dark:text-orange-400 flex items-center gap-1">
+                <TrendingDown className="h-3 w-3" /> Reduzir ↓
+              </Label>
+              <div className="flex items-center gap-1">
+                <span className="text-[9px] text-muted-foreground">ROAS &lt;</span>
+                <Input type="number" step="0.1" min="0" value={roasScaleDown} onChange={(e) => setRoasScaleDown(e.target.value)} placeholder="2" className="max-w-16 h-6 text-xs" />
+                <span className="text-[9px] text-muted-foreground">x →</span>
+                <Input type="number" min="1" max="50" value={budgetDecreasePct} onChange={(e) => setBudgetDecreasePct(e.target.value)} placeholder="20" className="max-w-12 h-6 text-xs" />
+                <span className="text-[9px] text-muted-foreground">%</span>
+              </div>
             </div>
           </div>
         </div>
@@ -356,12 +412,47 @@ function AccountConfigCard({
             <Bot className="h-4 w-4 text-primary" />
             Prompt Estratégico
           </Label>
+
+          {/* Prompt Priority Alert */}
+          <Alert className="border-amber-500/30 bg-amber-500/5 py-2">
+            <Info className="h-3.5 w-3.5 text-amber-600" />
+            <AlertDescription className="text-[11px] text-amber-700 dark:text-amber-400">
+              O prompt é <strong>sugestivo</strong>. As configurações manuais (ROI, orçamento, estratégia) <strong>sempre prevalecem</strong> em caso de conflito.
+            </AlertDescription>
+          </Alert>
+
           <Textarea
             value={instructions}
             onChange={(e) => setInstructions(e.target.value)}
             rows={3}
-            placeholder={`Ex: "Priorize remarketing" ou "Foque no produto X"`}
+            placeholder="Cole ou adapte o template abaixo para seu negócio..."
           />
+
+          {/* Template Toggle */}
+          <Collapsible open={showTemplate} onOpenChange={setShowTemplate}>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="w-full text-xs gap-1 text-muted-foreground hover:text-foreground">
+                {showTemplate ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                {showTemplate ? "Ocultar template" : `📋 Ver template de exemplo para ${channelLabel}`}
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="relative">
+                <pre className="text-[10px] text-muted-foreground bg-muted/50 border rounded-lg p-3 max-h-48 overflow-y-auto whitespace-pre-wrap font-mono">
+                  {promptTemplate}
+                </pre>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="absolute top-2 right-2 text-[10px] h-6"
+                  onClick={() => setInstructions(promptTemplate)}
+                >
+                  Usar template
+                </Button>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
           <p className="text-[11px] text-muted-foreground">
             Mínimo 10 caracteres. ({instructions.trim().length}/10)
           </p>
@@ -404,8 +495,8 @@ function AccountConfigCard({
                 </AlertDialogTitle>
                 <AlertDialogDescription>
                   {killSwitchActive
-                    ? "O Autopilot voltará a executar ações nesta conta no próximo ciclo de análise."
-                    : "O Autopilot parará IMEDIATAMENTE de executar qualquer ação nesta conta. Campanhas ativas NÃO serão pausadas, mas nenhuma nova ação será tomada."}
+                    ? "A IA voltará a operar normalmente nesta conta."
+                    : "TODA atividade da IA será interrompida IMEDIATAMENTE nesta conta. Campanhas em execução não serão afetadas, mas nenhuma ação nova será tomada."}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -425,25 +516,21 @@ function AccountConfigCard({
 export function AdsAccountConfig({ channel, adAccounts, getAccountConfig, aiEnabledAccountIds, onSave, isSaving, onToggleAI, onToggleKillSwitch }: AdsAccountConfigProps) {
   if (adAccounts.length === 0) return null;
 
-  const handleSaveAccount = (accountId: string, data: Partial<AccountConfig>) => {
-    onSave({
-      channel,
-      ad_account_id: accountId,
-      ...data,
-    });
+  const handleAccountSave = (accountId: string, data: Partial<AccountConfig>) => {
+    onSave({ ...data, channel, ad_account_id: accountId });
   };
 
   return (
-    <div className="space-y-3">
-      {adAccounts.map(acc => (
+    <div className="space-y-4">
+      {adAccounts.map((account) => (
         <AccountConfigCard
-          key={acc.id}
-          accountId={acc.id}
-          accountName={acc.name}
+          key={account.id}
+          accountId={account.id}
+          accountName={account.name}
           channel={channel}
-          config={getAccountConfig(channel, acc.id)}
-          isAIEnabled={aiEnabledAccountIds.includes(acc.id)}
-          onSave={handleSaveAccount}
+          config={getAccountConfig(channel, account.id)}
+          isAIEnabled={aiEnabledAccountIds.includes(account.id)}
+          onSave={handleAccountSave}
           isSaving={isSaving}
           onToggleAI={onToggleAI}
           onToggleKillSwitch={onToggleKillSwitch}
