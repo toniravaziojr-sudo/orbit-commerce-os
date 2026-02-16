@@ -1,17 +1,15 @@
 import { useMemo, useState } from "react";
-import { DollarSign, TrendingUp, MousePointer, ShoppingCart, BarChart3, AlertTriangle, CalendarDays, ChevronDown, Check } from "lucide-react";
+import { DollarSign, TrendingUp, MousePointer, ShoppingCart, BarChart3, AlertTriangle, ChevronDown, Check } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
-import { format, subDays, parseISO, startOfDay, endOfDay } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import type { DateRange } from "react-day-picker";
+import { DateRangeFilter } from "@/components/ui/date-range-filter";
+import { subDays, parseISO, startOfDay, endOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
 
 interface ChannelSummary {
@@ -70,18 +68,10 @@ function buildChannelSummary(
   return { channel, label, spend_cents, impressions, clicks, conversions, conversion_value_cents, campaigns_count: campaigns.length };
 }
 
-const DATE_PRESETS = [
-  { label: "Hoje", days: 0 },
-  { label: "7 dias", days: 7 },
-  { label: "15 dias", days: 15 },
-  { label: "30 dias", days: 30 },
-  { label: "90 dias", days: 90 },
-];
-
-function filterInsightsByDate(insights: any[], dateRange: DateRange | undefined) {
-  if (!dateRange?.from || !dateRange?.to) return insights;
-  const rangeFrom = startOfDay(dateRange.from);
-  const rangeTo = endOfDay(dateRange.to);
+function filterInsightsByDate(insights: any[], startDate?: Date, endDate?: Date) {
+  if (!startDate || !endDate) return insights;
+  const rangeFrom = startOfDay(startDate);
+  const rangeTo = endOfDay(endDate);
   return insights.filter(i => {
     try {
       const dStart = parseISO(i.date_start);
@@ -113,15 +103,17 @@ export function AdsOverviewTab({
   selectedAccountIds,
   onToggleAccount,
 }: AdsOverviewTabProps) {
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: subDays(new Date(), 30),
-    to: new Date(),
-  });
+  const [startDate, setStartDate] = useState<Date | undefined>(subDays(new Date(), 30));
+  const [endDate, setEndDate] = useState<Date | undefined>(new Date());
 
+  const handleDateChange = (start?: Date, end?: Date) => {
+    setStartDate(start);
+    setEndDate(end);
+  };
   const channels = useMemo(() => {
     const list: ChannelSummary[] = [];
-    const filteredMeta = filterInsightsByAccounts(filterInsightsByDate(metaInsights, dateRange), selectedAccountIds);
-    const filteredTiktok = filterInsightsByAccounts(filterInsightsByDate(tiktokInsights, dateRange), selectedAccountIds);
+    const filteredMeta = filterInsightsByAccounts(filterInsightsByDate(metaInsights, startDate, endDate), selectedAccountIds);
+    const filteredTiktok = filterInsightsByAccounts(filterInsightsByDate(tiktokInsights, startDate, endDate), selectedAccountIds);
     if (metaCampaigns.length > 0 || filteredMeta.length > 0) {
       list.push(buildChannelSummary("meta", "Meta Ads", filteredMeta, metaCampaigns));
     }
@@ -129,7 +121,7 @@ export function AdsOverviewTab({
       list.push(buildChannelSummary("tiktok", "TikTok Ads", filteredTiktok, tiktokCampaigns));
     }
     return list;
-  }, [metaInsights, tiktokInsights, metaCampaigns, tiktokCampaigns, dateRange, selectedAccountIds]);
+  }, [metaInsights, tiktokInsights, metaCampaigns, tiktokCampaigns, startDate, endDate, selectedAccountIds]);
 
   const totals = useMemo(() => {
     return channels.reduce(
@@ -224,35 +216,14 @@ export function AdsOverviewTab({
               </PopoverContent>
             </Popover>
           )}
-
-          {/* Date presets */}
-          {DATE_PRESETS.map(preset => (
-            <Button
-              key={preset.days}
-              variant="ghost"
-              size="sm"
-              className="text-xs h-7 px-2.5"
-              onClick={() => setDateRange({ from: preset.days === 0 ? new Date() : subDays(new Date(), preset.days), to: new Date() })}
-            >
-              {preset.label}
-            </Button>
-          ))}
+          {/* Date Range Filter */}
+          <DateRangeFilter
+            startDate={startDate}
+            endDate={endDate}
+            onChange={handleDateChange}
+            label="Período"
+          />
         </div>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs h-7 font-normal border-dashed">
-              <CalendarDays className="h-3 w-3" />
-              {dateRange?.from ? (
-                dateRange.to
-                  ? `${format(dateRange.from, "dd/MM/yyyy")} - ${format(dateRange.to, "dd/MM/yyyy")}`
-                  : format(dateRange.from, "dd/MM/yyyy")
-              ) : "Período"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="end">
-            <Calendar mode="range" selected={dateRange} onSelect={setDateRange} numberOfMonths={2} locale={ptBR} initialFocus className="p-3 pointer-events-auto" />
-          </PopoverContent>
-        </Popover>
       </div>
       {trackingAlerts.length > 0 && (
         <Card className="border-destructive/30 bg-destructive/5">
