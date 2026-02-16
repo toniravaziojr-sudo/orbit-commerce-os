@@ -341,6 +341,37 @@ Se incompleto, o Switch fica desabilitado e um Tooltip mostra os campos faltante
 - **Kill Switch:** Verificado no início de cada ciclo (global e por conta)
 - **Human Approval:** Ações high-impact ficam como `pending_approval` quando configurado
 
+### Preview de Ações (ActionDetailDialog)
+
+Cada ação da IA na aba "Ações" é **clicável** e abre um `Dialog` com preview estruturado completo. O componente `ActionDetailDialog.tsx` renderiza previews específicos por tipo:
+
+| Tipo de Ação | Preview Estruturado |
+|---|---|
+| `create_campaign` | Nome, objetivo, status, orçamento diário, conjuntos de anúncios (com segmentação) e anúncios (headline, copy, CTA) |
+| `create_adset` | Nome, campanha, orçamento, otimização, segmentação detalhada (idade, gênero, geo, interesses, Custom/Lookalike Audiences), agendamento |
+| `generate_creative` | Título, copy, CTA, formato, ângulo, produto, imagem preview e variações |
+| `adjust_budget` / `allocate_budget` | Entidade, orçamento anterior vs novo, variação % |
+| `pause_campaign` | Nome, gasto atual, economia/dia estimada |
+| `report_insight` | Corpo do insight, categoria, prioridade |
+| Outros | JSON formatado (fallback) |
+
+**Componentes internos:**
+- `CampaignPreview` — Preview hierárquico (campanha → adsets → ads)
+- `AdsetPreview` — Conjunto com `TargetingPreview` integrado
+- `CreativePreview` — Com preview de imagem (`asset_url`)
+- `BudgetPreview` — Comparação antes/depois com destaque
+- `PausePreview` — Economia estimada
+- `TargetingPreview` — Breakdown de segmentação (interesses como badges, Custom Audiences, Lookalikes com ratio %)
+- `RawDataPreview` — Fallback JSON para dados de reversão e tipos desconhecidos
+
+**Elementos adicionais no dialog:**
+- Raciocínio da IA (`reasoning`)
+- Badges de confiança e métrica trigger
+- Dados de reversão (`rollback_data`) em JSON
+- Mensagem de erro quando aplicável
+
+**Interação:** Card clicável + botão "Detalhes" (com `Eye` icon). Botões de ação (Aprovar/Rejeitar/Desfazer) usam `stopPropagation` para não abrir o dialog.
+
 ### Edge Functions
 
 | Function | Descrição |
