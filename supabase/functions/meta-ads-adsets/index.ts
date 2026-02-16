@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.0.0"; // Add create action for adsets (autopilot campaign creation chain)
+const VERSION = "v2.1.0"; // Fix: add targeting_automation.advantage_audience flag (Meta API requirement)
 // ===========================================================
 
 const corsHeaders = {
@@ -236,13 +236,20 @@ Deno.serve(async (req) => {
         );
       }
 
+      // Build targeting with mandatory advantage_audience flag (Meta API requirement since 2025)
+      const finalTargeting = targeting || { geo_locations: { countries: ["BR"] }, age_min: 18, age_max: 65 };
+      // Ensure targeting_automation is set - Meta requires advantage_audience flag
+      if (!finalTargeting.targeting_automation) {
+        finalTargeting.targeting_automation = { advantage_audience: 0 };
+      }
+
       const createBody: any = {
         name: adsetName,
         campaign_id: meta_campaign_id,
         optimization_goal: optimization_goal || "OFFSITE_CONVERSIONS",
         billing_event: billing_event || "IMPRESSIONS",
         status: adsetStatus || "PAUSED",
-        targeting: targeting || { geo_locations: { countries: ["BR"] }, age_min: 18, age_max: 65 },
+        targeting: finalTargeting,
       };
 
       if (daily_budget_cents) createBody.daily_budget = String(daily_budget_cents);
