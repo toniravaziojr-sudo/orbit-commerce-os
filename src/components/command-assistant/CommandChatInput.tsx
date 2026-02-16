@@ -158,7 +158,7 @@ export function CommandChatInput({ onSend, isStreaming, onCancel }: CommandChatI
   };
 
   return (
-    <div className="border-t border-border p-4">
+    <div>
       {/* Attached files preview */}
       {hasAttachments && (
         <div className="flex flex-wrap gap-2 mb-3">
@@ -167,7 +167,7 @@ export function CommandChatInput({ onSend, isStreaming, onCancel }: CommandChatI
             return (
               <div 
                 key={idx}
-                className="relative group flex items-center gap-2 px-2 py-1.5 bg-muted rounded-md border"
+                className="relative group flex items-center gap-2 px-2 py-1.5 bg-muted/50 rounded-lg border border-border/40"
               >
                 {af.preview ? (
                   <img 
@@ -176,9 +176,9 @@ export function CommandChatInput({ onSend, isStreaming, onCancel }: CommandChatI
                     className="h-8 w-8 object-cover rounded"
                   />
                 ) : (
-                  <FileIcon className="h-5 w-5 text-muted-foreground" />
+                  <FileIcon className="h-4 w-4 text-muted-foreground" />
                 )}
-                <span className="text-xs max-w-[100px] truncate">
+                <span className="text-[11px] max-w-[100px] truncate">
                   {af.file.name}
                 </span>
                 {af.isUploading ? (
@@ -186,7 +186,7 @@ export function CommandChatInput({ onSend, isStreaming, onCancel }: CommandChatI
                 ) : (
                   <button
                     onClick={() => removeFile(af.file)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-destructive/20 rounded"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-destructive/10 rounded"
                   >
                     <X className="h-3 w-3 text-destructive" />
                   </button>
@@ -199,13 +199,12 @@ export function CommandChatInput({ onSend, isStreaming, onCancel }: CommandChatI
 
       <div className="flex items-end gap-2">
         <TooltipProvider>
-          {/* Attachment button */}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className="flex-shrink-0" 
+                className="flex-shrink-0 h-9 w-9 rounded-xl" 
                 disabled={isStreaming}
                 onClick={() => fileInputRef.current?.click()}
               >
@@ -218,7 +217,6 @@ export function CommandChatInput({ onSend, isStreaming, onCancel }: CommandChatI
           </Tooltip>
         </TooltipProvider>
 
-        {/* Hidden file input */}
         <input
           ref={fileInputRef}
           type="file"
@@ -228,7 +226,6 @@ export function CommandChatInput({ onSend, isStreaming, onCancel }: CommandChatI
           className="hidden"
         />
 
-        {/* Message input */}
         <div className="flex-1">
           <Textarea
             ref={textareaRef}
@@ -236,22 +233,21 @@ export function CommandChatInput({ onSend, isStreaming, onCancel }: CommandChatI
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
             onInput={handleInput}
-            placeholder="Digite sua mensagem... (Enter para enviar)"
+            placeholder="Digite sua mensagem..."
             className={cn(
-              "min-h-[40px] max-h-[200px] resize-none",
-              "bg-muted/50 border-transparent focus:border-border"
+              "min-h-[44px] max-h-[200px] resize-none rounded-xl text-[13px]",
+              "bg-muted/30 border-border/60 focus:bg-background transition-colors"
             )}
             rows={1}
             disabled={isStreaming}
           />
         </div>
 
-        {/* Send/Cancel button */}
         {isStreaming ? (
           <Button
             variant="destructive"
             size="icon"
-            className="flex-shrink-0"
+            className="flex-shrink-0 rounded-xl h-[44px] w-[44px]"
             onClick={onCancel}
           >
             <X className="h-4 w-4" />
@@ -259,7 +255,7 @@ export function CommandChatInput({ onSend, isStreaming, onCancel }: CommandChatI
         ) : (
           <Button
             size="icon"
-            className="flex-shrink-0"
+            className="flex-shrink-0 rounded-xl h-[44px] w-[44px]"
             onClick={handleSend}
             disabled={(!message.trim() && !hasAttachments) || isUploadingAny}
           >
@@ -271,10 +267,6 @@ export function CommandChatInput({ onSend, isStreaming, onCancel }: CommandChatI
           </Button>
         )}
       </div>
-
-      <p className="mt-2 text-center text-xs text-muted-foreground">
-        O assistente pode executar ações como criar categorias, cupons e tarefas
-      </p>
     </div>
   );
 }

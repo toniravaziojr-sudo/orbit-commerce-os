@@ -4,14 +4,15 @@
 // =============================================
 
 import { useEffect, useRef, useState } from "react";
-import { Bot, Plus, Send, Square, MessageCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Bot, MessageCircle } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Send, Square } from "lucide-react";
 import { useAdsChat } from "@/hooks/useAdsChat";
 import { toast } from "sonner";
-import ReactMarkdown from "react-markdown";
+import { ChatMessageBubble, ChatTypingIndicator, ChatEmptyState, ChatConversationList } from "@/components/chat";
+import { cn } from "@/lib/utils";
 
 interface AdsChatTabProps {
   scope: "global" | "account";
@@ -73,173 +74,116 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
     : "Chat IA — Global";
 
   return (
-    <div className="grid gap-4 lg:grid-cols-4 h-[calc(100vh-380px)] min-h-[400px]">
+    <div className="grid gap-3 lg:grid-cols-4 h-[calc(100vh-380px)] min-h-[400px]">
       {/* Sidebar */}
-      <Card className="lg:col-span-1 flex flex-col">
-        <CardHeader className="flex flex-row items-center justify-between pb-3 px-3 pt-3">
-          <CardTitle className="text-xs font-medium">Conversas</CardTitle>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={handleNewConversation}
-            disabled={isCreating}
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </Button>
-        </CardHeader>
-        <CardContent className="flex-1 overflow-hidden p-0">
-          <ScrollArea className="h-full px-2 pb-2">
-            <div className="space-y-1">
-              {conversations.map((conv) => (
-                <button
-                  key={conv.id}
-                  onClick={() => setCurrentConversationId(conv.id)}
-                  className={`w-full text-left rounded-md px-2.5 py-1.5 text-xs transition-colors ${
-                    currentConversationId === conv.id
-                      ? "bg-primary/10 text-primary"
-                      : "hover:bg-muted text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <p className="truncate font-medium">{conv.title || "Nova conversa"}</p>
-                  <p className="text-[10px] text-muted-foreground truncate">
-                    {new Date(conv.updated_at).toLocaleDateString("pt-BR")}
-                  </p>
-                </button>
-              ))}
-              {conversations.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-3">
-                  Nenhuma conversa
-                </p>
-              )}
-            </div>
-          </ScrollArea>
-        </CardContent>
-      </Card>
+      <div className="lg:col-span-1 bg-card border rounded-xl overflow-hidden flex flex-col">
+        <ChatConversationList
+          conversations={conversations}
+          currentId={currentConversationId}
+          onSelect={setCurrentConversationId}
+          onNew={handleNewConversation}
+          isCreating={isCreating}
+          className="flex-1"
+        />
+      </div>
 
       {/* Chat Area */}
-      <Card className="lg:col-span-3 flex flex-col">
-        <CardHeader className="border-b pb-2 pt-2 px-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10">
-              <Bot className="h-3.5 w-3.5 text-primary" />
-            </div>
-            <div>
-              <CardTitle className="text-xs font-medium">{scopeLabel}</CardTitle>
-              <p className="text-[10px] text-muted-foreground">
-                Converse com a IA sobre suas campanhas
-              </p>
-            </div>
+      <div className="lg:col-span-3 bg-card border rounded-xl overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="flex items-center gap-2.5 border-b px-4 py-2.5">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
+            <Bot className="h-3.5 w-3.5 text-primary" />
           </div>
-        </CardHeader>
+          <div>
+            <p className="text-xs font-semibold">{scopeLabel}</p>
+            <p className="text-[10px] text-muted-foreground">Converse com a IA sobre suas campanhas</p>
+          </div>
+        </div>
 
-        <CardContent className="flex-1 overflow-hidden p-0 flex flex-col">
-          {currentConversationId ? (
-            <>
-              {/* Messages */}
-              <ScrollArea className="flex-1 p-4">
-                <div className="space-y-4">
-                  {messages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                    >
-                      <div
-                        className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
-                          msg.role === "user"
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted"
-                        }`}
-                      >
-                        {msg.role === "assistant" ? (
-                          <div className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                            <ReactMarkdown>{msg.content || ""}</ReactMarkdown>
-                          </div>
-                        ) : (
-                          <p className="whitespace-pre-wrap">{msg.content}</p>
-                        )}
-                      </div>
+        {currentConversationId ? (
+          <>
+            {/* Messages */}
+            <ScrollArea className="flex-1 p-4">
+              <div className="space-y-4 max-w-3xl mx-auto">
+                {messages.map((msg) => (
+                  <ChatMessageBubble
+                    key={msg.id}
+                    role={msg.role as "user" | "assistant"}
+                    content={msg.content}
+                    avatarIcon={msg.role === "user" ? "user" : "bot"}
+                    avatarClassName="bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                  />
+                ))}
+
+                {/* Streaming */}
+                {isStreaming && streamingContent && (
+                  <ChatMessageBubble
+                    role="assistant"
+                    content={streamingContent}
+                    avatarClassName="bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                  />
+                )}
+
+                {isStreaming && !streamingContent && (
+                  <div className="flex gap-3">
+                    <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
+                      <Bot className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
                     </div>
-                  ))}
-
-                  {/* Streaming message */}
-                  {isStreaming && streamingContent && (
-                    <div className="flex justify-start">
-                      <div className="max-w-[80%] rounded-lg px-3 py-2 text-sm bg-muted">
-                        <div className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                          <ReactMarkdown>{streamingContent}</ReactMarkdown>
-                        </div>
-                      </div>
+                    <div className="rounded-2xl rounded-tl-md bg-muted/60 border border-border/40 px-4 py-3">
+                      <ChatTypingIndicator label="Analisando" />
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  {isStreaming && !streamingContent && (
-                    <div className="flex justify-start">
-                      <div className="max-w-[80%] rounded-lg px-3 py-2 text-sm bg-muted">
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                          Pensando...
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                <div ref={messagesEndRef} />
+              </div>
+            </ScrollArea>
 
-                  <div ref={messagesEndRef} />
-                </div>
-              </ScrollArea>
-
-              {/* Input */}
-              <div className="border-t p-3">
-                <div className="flex gap-2">
+            {/* Input */}
+            <div className="border-t p-3">
+              <div className="flex items-end gap-2 max-w-3xl mx-auto">
+                <div className="flex-1 relative">
                   <Textarea
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder="Pergunte sobre suas campanhas..."
-                    className="min-h-[40px] max-h-[120px] resize-none text-sm"
+                    className="min-h-[44px] max-h-[120px] resize-none rounded-xl border-border/60 bg-muted/30 text-[13px] pr-3 focus:bg-background transition-colors"
                     disabled={isStreaming}
                   />
-                  {isStreaming ? (
-                    <Button
-                      variant="destructive"
-                      size="icon"
-                      onClick={cancelStreaming}
-                      className="shrink-0"
-                    >
-                      <Square className="h-4 w-4" />
-                    </Button>
-                  ) : (
-                    <Button
-                      size="icon"
-                      onClick={handleSend}
-                      disabled={!input.trim()}
-                      className="shrink-0"
-                    >
-                      <Send className="h-4 w-4" />
-                    </Button>
-                  )}
                 </div>
+                {isStreaming ? (
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    onClick={cancelStreaming}
+                    className="shrink-0 rounded-xl h-[44px] w-[44px]"
+                  >
+                    <Square className="h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Button
+                    size="icon"
+                    onClick={handleSend}
+                    disabled={!input.trim()}
+                    className="shrink-0 rounded-xl h-[44px] w-[44px]"
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
-            </>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
-                <MessageCircle className="h-6 w-6 text-primary" />
-              </div>
-              <h3 className="text-sm font-semibold mb-1">
-                {scope === "account" ? "Chat da Conta" : "Chat Global"}
-              </h3>
-              <p className="text-xs text-muted-foreground mb-3 max-w-sm">
-                Converse com a IA sobre estratégias, peça relatórios, sugira campanhas ou solicite auditorias.
-              </p>
-              <Button size="sm" onClick={handleNewConversation} disabled={isCreating}>
-                <Plus className="h-3.5 w-3.5 mr-1.5" />
-                Nova conversa
-              </Button>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </>
+        ) : (
+          <ChatEmptyState
+            icon={<MessageCircle className="h-7 w-7 text-primary" />}
+            title={scope === "account" ? "Chat da Conta" : "Chat Global de Tráfego"}
+            description="Converse com a IA sobre estratégias, peça relatórios, sugira campanhas ou solicite auditorias completas."
+            onNewConversation={handleNewConversation}
+            isCreating={isCreating}
+          />
+        )}
+      </div>
     </div>
   );
 }
