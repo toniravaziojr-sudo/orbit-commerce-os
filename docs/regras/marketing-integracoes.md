@@ -451,11 +451,13 @@ A condição 2 evita que campanhas genuinamente ativas apareçam como pausadas a
 | `src/hooks/useAdsAccountConfigs.ts` | **NOVO v4.0 Sprint 3** — Hook CRUD para tabela normalizada `ads_autopilot_account_configs`. Inclui `toggleAI`, `toggleKillSwitch`, `saveAccountConfig` e validação `isAccountConfigComplete` |
 | `src/hooks/useAdsInsights.ts` | **NOVO v4.0** — Hook para CRUD de insights (listar, marcar done/ignored, gerar manual) |
 | `src/hooks/useMetaAds.ts` | Hook para campanhas, ad sets, insights, saldo e sync (Meta) |
-| `src/components/ads/AdsOverviewTab.tsx` | **NOVO v4.0** — Dashboard cross-channel com métricas agregadas, pacing mensal e breakdown por canal |
+| `src/components/ads/AdsOverviewTab.tsx` | **NOVO v4.0** — Dashboard cross-channel com seletor de plataforma (Meta/Google/TikTok), métricas agregadas, pacing mensal e breakdown por canal. Usa `DateRangeFilter` padrão |
 | `src/components/ads/AdsInsightsTab.tsx` | **NOVO v4.0** — Feed de insights com filtros, ações "Vou fazer"/"Ignorar" e histórico colapsável |
 | `src/components/ads/AdsAccountConfig.tsx` | **Refatorado v4.0 Sprint 3** — Config por conta com Estratégia, Splits de Funil, Modo de Aprovação, Kill Switch e validação obrigatória |
 | `src/components/ads/AdsChannelIntegrationAlert.tsx` | Alerta de integração por canal com chips de seleção de contas |
-| `src/components/ads/AdsCampaignsTab.tsx` | Campanhas por canal com 28 métricas disponíveis |
+| `src/components/ads/AdsCampaignsTab.tsx` | Campanhas por canal com 28 métricas disponíveis, rodapé com totais agregados (TableFooter) e `DateRangeFilter` padrão |
+| `src/components/dashboard/AdsAlertsWidget.tsx` | **NOVO Sprint 8** — Widget "Gestor de Tráfego" na Central de Execuções com alertas de insights não lidos e saldo baixo/zerado |
+| `src/hooks/useAdsBalanceMonitor.ts` | Hook de monitoramento de saldo. Threshold R$50. Exclui contas CC. Diferencia prepaid vs cartão via `funding_source_type` |
 | `src/components/ads/AdsActionsTab.tsx` | Timeline de ações da IA |
 | `src/components/ads/AdsReportsTab.tsx` | Relatórios por conta de anúncios |
 
@@ -514,7 +516,7 @@ Se falhar → status `BLOCKED`, gera `report_insight` com o que falta.
 | Item | Descrição |
 |------|-----------|
 | **Ações** | `sync` (com filtro opcional por `meta_campaign_id`), `update` (status/orçamento), `balance` (saldo da conta via `funding_source_details`) |
-| **Balance** | Retorna `balance`, `currency`, `amount_spent`, `spend_cap`, `funding_source` e `funding_source_details` para cálculo preciso do saldo |
+| **Balance** | Retorna `balance`, `currency`, `amount_spent`, `spend_cap`, `funding_source` e `funding_source_details` (incluindo `current_balance` para saldo real-time de contas prepaid) para cálculo preciso do saldo |
 | **Mapeamento funding_source_details.type** | `1` → `CREDIT_CARD`, `2` → `DEBIT_CARD`, `20` → `PREPAID_BALANCE`, outros → `UNKNOWN` |
 | **Cartão de crédito** | Quando `funding_source_type` = `CREDIT_CARD` (ou sem saldo numérico), a UI exibe **"Cartão de crédito"** em vez de valor monetário. Contas com cartão são excluídas do cálculo de "Saldo Total" |
 
@@ -773,6 +775,7 @@ CREATE TYPE creative_job_status AS ENUM (
 - [x] Gestor de Tráfego IA — Sprint 6b (Creative Generate + Human Approval): Edge function `ads-autopilot-creative-generate` v1.0.0 — analisa top 5 produtos por receita (30d), usa GPT-5-mini para planejar briefs criativos (format, angle, headline, copy, CTA), evita duplicatas recentes (7d), insere como draft em `ads_creative_assets`. Cron job `ads-creative-generate` (quarta 11:00 UTC). Human Approval UI em `AdsActionsTab.tsx`: ações `pending_approval` aparecem primeiro com destaque âmbar, banner de contagem, botões Aprovar (→executed) e Rejeitar (→rejected com motivo). Novos status no STATUS_CONFIG: `pending_approval`, `approved`, `expired`. Mutations inline com invalidação de cache.
 - [x] Gestor de Tráfego IA — Sprint 7 (Tracking Health + Pacing + ROI): Analyze v4.2.0 com `checkTrackingHealth` (discrepância atribuição vs pedidos reais, queda de conversões >30%, anomalia CPC >3x, colapso CTR <50%), persiste em `ads_tracking_health`. `checkPacing` (underspend/overspend detection por conta, projeção mensal). Tracking degraded/critical bloqueia escala de budget via `validateAction`. Contexto de pacing e health injetado no system prompt por conta. Nova aba "ROI Real" em `AdsRoiReportsTab.tsx`: ROI real = (Receita - COGS - Taxas 4%) / Spend, com breakdown visual (COGS via `order_items.cost_price`), margem de lucro, Progress bar de distribuição de receita.
 - [x] Gestor de Tráfego IA — Sprint 8 (Saldo & Monitoramento): Popover de saldo por conta em `AdsCampaignsTab.tsx` com resumo financeiro (total investido + saldo restante por conta prepaid, badge "Cartão" para CC). Indicador visual de saldo baixo (<R$50) com ícone pulsante vermelho. Hook `useAdsBalanceMonitor.ts` reutiliza `useMetaAds` para agregar: totalAccounts, prepaidCount, lowBalanceCount, zeroBalanceCount, activeCampaigns. Card de monitoramento em `Central de Execuções` (/executions) com alertas por conta (nome + saldo restante), badge de contagem, 3 métricas (contas monitoradas, saldo baixo, campanhas ativas). Threshold: R$50,00 (5000 cents). Contas CC excluídas do monitoramento de saldo.
+- [x] Gestor de Tráfego IA — Sprint 9 (UI Polish): Visão Geral refatorada com seletor de plataforma (Meta/Google/TikTok) em vez de contas individuais. Campanhas com rodapé de totais agregados (TableFooter com gasto total, ROAS médio, resultados, alcance, etc.). DateRangeFilter padrão aplicado em todas as abas de Ads. Widget `AdsAlertsWidget` na Central de Execuções mostrando insights não lidos, contas sem saldo e saldo baixo. Balance via `funding_source_details.current_balance` para saldo real-time preciso.
 - [ ] Relatórios de ROI (avançado — comparativo de períodos)
 - [x] Gestão de Criativos (UI básica)
 - [x] Gestão de Criativos (Tabela creative_jobs)

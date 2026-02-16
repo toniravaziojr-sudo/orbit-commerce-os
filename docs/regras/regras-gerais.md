@@ -456,6 +456,51 @@ import { Loader2 } from 'lucide-react';
 
 ---
 
+## 📅 DateRangeFilter — Componente Padrão de Seleção de Datas
+
+> **REGRA OBRIGATÓRIA** — Aplica-se a TODOS os módulos que filtram dados por período.
+
+### Componente Canônico
+
+`src/components/ui/date-range-filter.tsx` — **DateRangeFilter**
+
+### Uso Obrigatório
+
+**Todo filtro de período de datas no sistema DEVE usar o componente `DateRangeFilter`.**
+
+```tsx
+import { DateRangeFilter } from "@/components/ui/date-range-filter";
+
+<DateRangeFilter
+  startDate={startDate}
+  endDate={endDate}
+  onChange={(start, end) => {
+    setStartDate(start);
+    setEndDate(end);
+  }}
+/>
+```
+
+### Funcionalidades Incluídas
+
+| Feature | Descrição |
+|---------|-----------|
+| **Calendário duplo** | Dois meses lado a lado para seleção visual |
+| **Inputs de data** | Campos editáveis DD/MM/AAAA para início e fim |
+| **Presets** | Hoje, Últimos 7 dias, Últimos 14 dias, Últimos 30 dias, Últimos 90 dias, Este mês, Mês passado |
+| **Ícone** | `CalendarIcon` do lucide-react |
+
+### Proibições
+
+| ❌ Proibido | ✅ Correto |
+|-------------|------------|
+| Criar calendário customizado com `Calendar` + `Popover` | Usar `DateRangeFilter` |
+| Criar constantes `DATE_PRESETS` locais | Usar presets nativos do componente |
+| Implementar lógica própria de seleção de range | Usar `onChange(start, end)` do componente |
+| Usar `react-day-picker` diretamente para filtros | Usar `DateRangeFilter` que encapsula o picker |
+
+---
+
 ## Regra de Imutabilidade
 
 | Regra | Descrição |
