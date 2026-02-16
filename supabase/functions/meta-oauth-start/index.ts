@@ -58,14 +58,8 @@ const SCOPE_PACKS: Record<string, string[]> = {
     "whatsapp_business_management",
     "whatsapp_business_messaging",
   ],
-  // Threads (publicação e gestão)
-  threads: [
-    "threads_content_publish",
-    "threads_manage_replies",
-    "threads_manage_insights",
-    "threads_basic",
-    "threads_read_replies",
-  ],
+  // Threads — usa OAuth separado via threads.net, NÃO incluir no fluxo Facebook
+  // threads: [ ... ] — desabilitado aqui, será tratado em endpoint dedicado
   // Live Video (transmissões ao vivo)
   live_video: [
     "publish_video",
