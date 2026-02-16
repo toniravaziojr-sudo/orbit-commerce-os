@@ -120,7 +120,6 @@ const fullNavigation: NavGroup[] = [
     collapsible: true,
     items: [
       { title: "Blog", href: "/blog", icon: BookOpen },
-      { title: "Integrações Marketing", href: "/marketing", icon: TrendingUp },
       { title: "Atribuição de venda", href: "/marketing/atribuicao", icon: TrendingUp, blockedFeature: "attribution" },
       { title: "Descontos", href: "/discounts", icon: Percent },
       { title: "Aumentar Ticket", href: "/offers", icon: TrendingUp },

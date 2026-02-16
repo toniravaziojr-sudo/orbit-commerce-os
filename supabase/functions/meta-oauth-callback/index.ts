@@ -166,7 +166,8 @@ serve(async (req) => {
       }
     }
 
-    // Upsert na tabela marketplace_connections
+    // Salvar conexão com status pendente de seleção de ativos
+    // Os ativos completos ficam em pending_assets para o frontend mostrar a seleção
     const { error: upsertError } = await supabase
       .from("marketplace_connections")
       .upsert({
@@ -185,7 +186,9 @@ serve(async (req) => {
           connected_by: user_id,
           connected_at: new Date().toISOString(),
           scope_packs: mergedScopePacks,
-          assets: assets,
+          assets: assets, // Salva todos descobertos inicialmente
+          pending_asset_selection: true, // Flag para frontend saber que precisa confirmar
+          discovered_assets: assets, // Backup completo dos descobertos
         },
       }, {
         onConflict: "tenant_id,marketplace",
@@ -199,11 +202,13 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[meta-oauth-callback] Conexão Meta salva com sucesso para tenant ${tenant_id}`);
+    console.log(`[meta-oauth-callback] Conexão Meta salva com sucesso para tenant ${tenant_id} — aguardando seleção de ativos`);
 
+    // Retornar assets descobertos para frontend mostrar seleção
     return new Response(
       JSON.stringify({
         success: true,
+        requiresAssetSelection: true,
         returnPath: return_path || "/integrations",
         connection: {
           externalUserId: metaUserId,
