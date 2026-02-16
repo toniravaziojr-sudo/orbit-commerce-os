@@ -28,6 +28,14 @@ export interface AutopilotConfig {
   last_analysis_at: string | null;
   total_actions_executed: number;
   total_credits_consumed: number;
+  total_budget_cents: number | null;
+  total_budget_mode: string | null;
+  channel_limits: Record<string, any> | null;
+  strategy_mode: string | null;
+  funnel_split_mode: string | null;
+  funnel_splits: Record<string, any> | null;
+  kill_switch: boolean | null;
+  human_approval_mode: string | null;
   created_at: string;
   updated_at: string;
 }
