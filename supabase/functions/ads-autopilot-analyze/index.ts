@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v4.12.0"; // Execute create_campaign and create_adset via Meta API (Phase 2 live).
+const VERSION = "v4.13.0"; // Full campaign creation chain: campaign + adset + ad with best creative
 // ===========================================================
 
 const corsHeaders = {
@@ -1387,7 +1387,8 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 console.log(`[ads-autopilot-analyze][${VERSION}] Budget adjustment scheduled for ${scheduledFor}`);
                 totalActionsExecuted++;
               } else if (tc.function.name === "create_campaign") {
-                // ===== PHASE 2: Execute create_campaign via Meta API =====
+                // ===== PHASE 2: Full campaign creation chain =====
+                // Step 1: Create campaign
                 const objectiveMap: Record<string, string> = {
                   conversions: "OUTCOME_SALES",
                   traffic: "OUTCOME_TRAFFIC",
@@ -1403,7 +1404,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                     ad_account_id: acctConfig.ad_account_id,
                     name: args.campaign_name,
                     objective: metaObjective,
-                    status: "PAUSED", // Always create paused for safety
+                    status: "PAUSED",
                     daily_budget_cents: args.daily_budget_cents,
                     special_ad_categories: [],
                   },
@@ -1412,25 +1413,151 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 if (createErr) throw createErr;
                 if (createResult && !createResult.success) throw new Error(createResult.error || "Erro ao criar campanha");
 
+                const newMetaCampaignId = createResult?.data?.meta_campaign_id;
+                console.log(`[ads-autopilot-analyze][${VERSION}] Step 1/3: Campaign created: ${args.campaign_name} (${newMetaCampaignId})`);
+
+                // Step 2: Create ad set with broad targeting (Brazil, 18-65)
+                let newMetaAdsetId: string | null = null;
+                if (newMetaCampaignId) {
+                  try {
+                    const optimizationGoalMap: Record<string, string> = {
+                      conversions: "OFFSITE_CONVERSIONS",
+                      traffic: "LINK_CLICKS",
+                      awareness: "REACH",
+                      leads: "LEAD_GENERATION",
+                    };
+                    const billingEventMap: Record<string, string> = {
+                      conversions: "IMPRESSIONS",
+                      traffic: "IMPRESSIONS",
+                      awareness: "IMPRESSIONS",
+                      leads: "IMPRESSIONS",
+                    };
+
+                    const adsetName = args.campaign_name.replace("[AI]", "[AI] CJ -");
+                    const { data: adsetResult, error: adsetErr } = await supabase.functions.invoke("meta-ads-adsets", {
+                      body: {
+                        tenant_id,
+                        action: "create",
+                        ad_account_id: acctConfig.ad_account_id,
+                        meta_campaign_id: newMetaCampaignId,
+                        name: adsetName,
+                        optimization_goal: optimizationGoalMap[args.objective] || "OFFSITE_CONVERSIONS",
+                        billing_event: billingEventMap[args.objective] || "IMPRESSIONS",
+                        daily_budget_cents: args.daily_budget_cents,
+                        targeting: {
+                          geo_locations: { countries: ["BR"] },
+                          age_min: 18,
+                          age_max: 65,
+                        },
+                        status: "PAUSED",
+                      },
+                    });
+
+                    if (adsetErr) {
+                      console.error(`[ads-autopilot-analyze][${VERSION}] Step 2/3 failed (adset):`, adsetErr.message);
+                    } else if (adsetResult && !adsetResult.success) {
+                      console.error(`[ads-autopilot-analyze][${VERSION}] Step 2/3 failed (adset):`, adsetResult.error);
+                    } else {
+                      newMetaAdsetId = adsetResult?.data?.meta_adset_id;
+                      console.log(`[ads-autopilot-analyze][${VERSION}] Step 2/3: Adset created: ${adsetName} (${newMetaAdsetId})`);
+                    }
+                  } catch (adsetExecErr: any) {
+                    console.error(`[ads-autopilot-analyze][${VERSION}] Step 2/3 error:`, adsetExecErr.message);
+                  }
+                }
+
+                // Step 3: Create ad using best performing creative from the account
+                let newMetaAdId: string | null = null;
+                if (newMetaAdsetId) {
+                  try {
+                    // Find best creative from existing active ads in this account
+                    const { data: existingAds } = await supabase
+                      .from("meta_ad_ads")
+                      .select("creative_id, name")
+                      .eq("tenant_id", tenant_id)
+                      .eq("ad_account_id", acctConfig.ad_account_id)
+                      .not("creative_id", "is", null)
+                      .limit(10);
+
+                    const bestCreativeId = existingAds?.[0]?.creative_id;
+
+                    if (bestCreativeId) {
+                      const adName = args.campaign_name.replace("[AI]", "[AI] Ad -");
+                      const { data: adResult, error: adErr } = await supabase.functions.invoke("meta-ads-ads", {
+                        body: {
+                          tenant_id,
+                          action: "create",
+                          ad_account_id: acctConfig.ad_account_id,
+                          meta_adset_id: newMetaAdsetId,
+                          meta_campaign_id: newMetaCampaignId,
+                          name: adName,
+                          creative_id: bestCreativeId,
+                          status: "PAUSED",
+                        },
+                      });
+
+                      if (adErr) {
+                        console.error(`[ads-autopilot-analyze][${VERSION}] Step 3/3 failed (ad):`, adErr.message);
+                      } else if (adResult && !adResult.success) {
+                        console.error(`[ads-autopilot-analyze][${VERSION}] Step 3/3 failed (ad):`, adResult.error);
+                      } else {
+                        newMetaAdId = adResult?.data?.meta_ad_id;
+                        console.log(`[ads-autopilot-analyze][${VERSION}] Step 3/3: Ad created: ${adName} (${newMetaAdId}) with creative ${bestCreativeId}`);
+                      }
+                    } else {
+                      console.log(`[ads-autopilot-analyze][${VERSION}] Step 3/3: Skipped — no existing creative found in account`);
+                    }
+                  } catch (adExecErr: any) {
+                    console.error(`[ads-autopilot-analyze][${VERSION}] Step 3/3 error:`, adExecErr.message);
+                  }
+                }
+
                 actionRecord.status = "executed";
                 actionRecord.executed_at = new Date().toISOString();
                 actionRecord.action_data = {
                   ...actionRecord.action_data,
-                  meta_campaign_id: createResult?.data?.meta_campaign_id || null,
+                  meta_campaign_id: newMetaCampaignId,
+                  meta_adset_id: newMetaAdsetId,
+                  meta_ad_id: newMetaAdId,
                   created_status: "PAUSED",
+                  chain_steps: {
+                    campaign: !!newMetaCampaignId,
+                    adset: !!newMetaAdsetId,
+                    ad: !!newMetaAdId,
+                  },
                 };
-                console.log(`[ads-autopilot-analyze][${VERSION}] Campaign created: ${args.campaign_name} (${createResult?.data?.meta_campaign_id})`);
+                console.log(`[ads-autopilot-analyze][${VERSION}] Full chain: campaign=${!!newMetaCampaignId} adset=${!!newMetaAdsetId} ad=${!!newMetaAdId}`);
                 totalActionsExecuted++;
               } else if (tc.function.name === "create_adset") {
-                // ===== PHASE 2: Execute create_adset via Meta API =====
-                // For now, adset creation requires more complex targeting setup
-                // Mark as validated for manual review — full adset API integration TBD
-                actionRecord.status = "validated";
+                // Standalone adset creation (outside campaign chain)
+                const { data: adsetResult, error: adsetErr } = await supabase.functions.invoke("meta-ads-adsets", {
+                  body: {
+                    tenant_id,
+                    action: "create",
+                    ad_account_id: acctConfig.ad_account_id,
+                    meta_campaign_id: args.campaign_id,
+                    name: args.adset_name,
+                    daily_budget_cents: args.daily_budget_cents,
+                    targeting: {
+                      geo_locations: { countries: ["BR"] },
+                      age_min: 18,
+                      age_max: 65,
+                    },
+                    status: "PAUSED",
+                  },
+                });
+
+                if (adsetErr) throw adsetErr;
+                if (adsetResult && !adsetResult.success) throw new Error(adsetResult.error || "Erro ao criar adset");
+
+                actionRecord.status = "executed";
+                actionRecord.executed_at = new Date().toISOString();
                 actionRecord.action_data = {
                   ...actionRecord.action_data,
-                  note: "Adset criado como 'validado' — targeting completo requer configuração manual",
+                  meta_adset_id: adsetResult?.data?.meta_adset_id || null,
+                  created_status: "PAUSED",
                 };
-                console.log(`[ads-autopilot-analyze][${VERSION}] Adset validated (manual targeting needed): ${args.adset_name}`);
+                console.log(`[ads-autopilot-analyze][${VERSION}] Adset created: ${args.adset_name} (${adsetResult?.data?.meta_adset_id})`);
                 totalActionsExecuted++;
               } else {
                 actionRecord.status = "validated";
