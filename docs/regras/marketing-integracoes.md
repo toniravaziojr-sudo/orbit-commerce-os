@@ -88,13 +88,16 @@ A divisão reflete nas permissões:
 > | Landing Pages (Builder) `/lp/` | ✅ | Dentro do layout storefront |
 > | Quizzes `/quiz/` | ✅ | Dentro do layout storefront |
 > | Páginas Institucionais | ✅ | Dentro do layout storefront |
-> | AI Landing Pages `/ai-lp/` | ⚠️ **NÃO** | Standalone (iframe HTML puro) — necessita injeção manual no HTML gerado |
+> | AI Landing Pages `/ai-lp/` | ✅ | Pixel injetado automaticamente no HTML do iframe via `buildPixelScripts()` em `StorefrontAILandingPage.tsx` |
 >
 > #### Renovação do Token OAuth
 >
-> **⚠️ LIMITAÇÃO:** O token long-lived da Meta expira em ~60 dias. **NÃO existe renovação automática** implementada (diferente do Google que tem `google-token-refresh`). Quando o token expira, o `isExpired` do `useMetaConnection` sinaliza na UI e o usuário precisa reconectar. A CAPI para de funcionar até a reconexão.
+> ✅ **IMPLEMENTADO (v5.5.0):** A edge function `meta-token-refresh` renova automaticamente os tokens long-lived da Meta antes da expiração. Funciona via `fb_exchange_token` (a Meta não usa refresh tokens tradicionais).
 >
-> **TODO:** Implementar `meta-token-refresh` para renovação automática antes da expiração (similar ao `google-token-refresh` e `olist-token-refresh`).
+> - **Cron diário:** `meta-token-refresh-daily` executa às 03:00 UTC com `{ refreshAll: true }`, renovando todos os tokens que expiram em <7 dias.
+> - **Modo single:** `POST { tenantId }` renova token de um tenant específico.
+> - **Sync CAPI:** Ao renovar, o novo token é automaticamente sincronizado com `marketing_integrations.meta_access_token`.
+> - **Fallback:** Se o token já expirou/foi revogado, a conexão é marcada como inativa e o usuário precisa reconectar.
 
 ---
 
