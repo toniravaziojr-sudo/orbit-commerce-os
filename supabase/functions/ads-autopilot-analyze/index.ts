@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v4.8.0"; // Refactor: platform metrics as priority, orders as fallback only
+const VERSION = "v4.9.0"; // First activation: all phases + budget rebalance mandatory. Orders NEVER block.
 // ===========================================================
 
 const corsHeaders = {
@@ -552,22 +552,24 @@ function validateAction(
   trackingHealth?: Record<string, any>,
   triggerType?: string
 ): { valid: boolean; reason?: string } {
-  // FIRST ACTIVATION: bypass data sufficiency and phase restrictions (full access to "put the house in order")
+  // FIRST ACTIVATION: bypass data sufficiency, phase restrictions, and budget change limits
   const isFirstActivation = triggerType === "first_activation";
-  // Kill switch
+  
+  // Kill switch — ALWAYS checked, even on first activation
   if (acctConfig.kill_switch) {
     return { valid: false, reason: `Kill Switch ATIVO para conta ${acctConfig.ad_account_id}. Todas as ações bloqueadas.` };
   }
 
-  // Max actions per session
-  if (sessionActionsCount >= DEFAULT_SAFETY.max_actions_per_session) {
-    return { valid: false, reason: `Limite de ${DEFAULT_SAFETY.max_actions_per_session} ações por sessão atingido.` };
+  // Max actions per session (doubled for first activation to allow full restructuring)
+  const maxActions = isFirstActivation ? DEFAULT_SAFETY.max_actions_per_session * 2 : DEFAULT_SAFETY.max_actions_per_session;
+  if (sessionActionsCount >= maxActions) {
+    return { valid: false, reason: `Limite de ${maxActions} ações por sessão atingido.` };
   }
 
-  // Tracking health gate (v4.8): only block budget increases for non-order-based degradation
-  // Order discrepancy alone does NOT block actions (orders are fallback data)
+  // Tracking health gate: ONLY block budget INCREASES for non-order-based degradation
+  // Order discrepancy NEVER blocks ANY action
   const channelKey = acctConfig.channel;
-  if (trackingHealth?.[channelKey]) {
+  if (!isFirstActivation && trackingHealth?.[channelKey]) {
     const health = trackingHealth[channelKey];
     const hasNonOrderIssues = health.alerts?.some((a: string) => !a.startsWith("ℹ️ Info:"));
     if (hasNonOrderIssues && (health.status === "critical" || health.status === "degraded") && action.name === "adjust_budget") {
@@ -578,19 +580,19 @@ function validateAction(
     }
   }
 
-  // Check if action type is allowed
-  if (!DEFAULT_SAFETY.allowed_actions.includes(action.name)) {
+  // Check if action type is allowed — first activation allows ALL actions
+  if (!isFirstActivation && !DEFAULT_SAFETY.allowed_actions.includes(action.name)) {
     return { valid: false, reason: `Ação '${action.name}' não habilitada.` };
   }
 
-  // Data sufficiency check
-  if (channelKey && context?.channels?.[channelKey]) {
+  // Data sufficiency check — SKIP entirely on first activation
+  if (!isFirstActivation && channelKey && context?.channels?.[channelKey]) {
     const trend = context.channels[channelKey].trend;
     const daysWithData = trend?.current_period?.days_with_data || 0;
     const totalConversions = trend?.current_period?.total_conversions || 0;
 
-    // Phase 2 actions (create_campaign, create_adset) require more data — SKIP on first_activation
-    if (!isFirstActivation && DEFAULT_SAFETY.phase2_actions.includes(action.name)) {
+    // Phase 2 actions (create_campaign, create_adset) require more data
+    if (DEFAULT_SAFETY.phase2_actions.includes(action.name)) {
       if (daysWithData < DEFAULT_SAFETY.min_data_days_for_creation) {
         return { valid: false, reason: `Criação requer ${DEFAULT_SAFETY.min_data_days_for_creation}+ dias de dados (atual: ${daysWithData}).` };
       }
@@ -599,8 +601,8 @@ function validateAction(
       }
     }
 
-    // Min data days check — SKIP on first_activation
-    if (!isFirstActivation && daysWithData < DEFAULT_SAFETY.min_data_days_for_action) {
+    // Min data days check
+    if (daysWithData < DEFAULT_SAFETY.min_data_days_for_action) {
       if (action.name !== "report_insight") {
         return {
           valid: false,
@@ -610,8 +612,8 @@ function validateAction(
     }
   }
 
-  // Budget change limits — PLATFORM-SPECIFIC
-  if (action.name === "adjust_budget" && action.arguments) {
+  // Budget change limits — SKIP on first activation (needs freedom to redistribute)
+  if (!isFirstActivation && action.name === "adjust_budget" && action.arguments) {
     const args = typeof action.arguments === "string" ? JSON.parse(action.arguments) : action.arguments;
     const changePct = args.change_pct || 0;
     const absChange = Math.abs(changePct);
@@ -629,11 +631,6 @@ function validateAction(
       if (confidence < 0.7) {
         return { valid: false, reason: `Aumento de ${changePct}% requer confidence >= 0.7 (atual: ${confidence}).` };
       }
-    }
-
-    // Low stock check
-    if (context.lowStockProducts?.length > 0 && changePct > 0) {
-      // Allow increase but warn
     }
   }
 
@@ -894,13 +891,21 @@ ${trendSection}
 
 ${platformRules[acctConfig.channel] || ""}
 
-## PRIORIDADE DE MÉTRICAS
-- **PRIORIDADE 1**: Use ROAS, conversões, CPA e CTR reportados pela PRÓPRIA plataforma de anúncios (Meta/Google/TikTok). Estas são suas métricas principais para decisão.
-- **FALLBACK**: Pedidos internos da loja são dados COMPLEMENTARES. Podem não estar atualizados ou pertencer a outro canal. Use apenas para confirmar ROI real quando disponíveis.
-- NUNCA bloqueie ou pause campanhas apenas por discrepância entre conversões da plataforma e pedidos internos.
+## PRIORIDADE DE MÉTRICAS (REGRA ABSOLUTA)
+- **PRIORIDADE 1 (ÚNICA FONTE DE DECISÃO)**: Use ROAS, conversões, CPA e CTR reportados pela PRÓPRIA plataforma de anúncios (Meta/Google/TikTok). Estas são as ÚNICAS métricas válidas para tomar decisões.
+- **FALLBACK / INFORMACIONAL**: Pedidos internos da loja são dados COMPLEMENTARES OPCIONAIS. Podem pertencer a outra loja, não estarem importados, ou estarem desatualizados. Use APENAS para cálculo de ROI real quando disponíveis.
+- NUNCA bloqueie, pause ou atrase ações por discrepância entre conversões da plataforma e pedidos internos.
+- Se a plataforma reporta conversões mas não há pedidos internos correspondentes, PROSSIGA normalmente com base nas métricas da plataforma.
 
-## TICKET MÉDIO (referência): R$ ${(context.orderStats.avg_ticket_cents / 100).toFixed(2)}
-## PEDIDOS INTERNOS (30d, fallback): ${context.orderStats.paid_orders} pagos, ${context.orderStats.cancellation_rate_pct}% cancelados
+## TICKET MÉDIO (referência informacional): R$ ${(context.orderStats.avg_ticket_cents / 100).toFixed(2)}
+## PEDIDOS INTERNOS (30d, apenas referência): ${context.orderStats.paid_orders} pagos, ${context.orderStats.cancellation_rate_pct}% cancelados
+
+## 💰 REGRA DE ORÇAMENTO OBRIGATÓRIA
+O orçamento definido pelo lojista (${budgetStr}/${acctConfig.budget_mode === "daily" ? "dia" : "mês"}) é INVIOLÁVEL:
+- Se você pausar campanhas que gastavam R$ Y/dia, você DEVE redistribuir esse R$ Y para outras campanhas ativas ou criar novas campanhas para absorver esse orçamento.
+- O investimento diário/mensal definido NÃO PODE ser reduzido nem por um único dia.
+- Ao pausar: calcule o gasto diário das campanhas pausadas e redistribua via adjust_budget nas campanhas vencedoras ou via create_campaign se necessário.
+- Se não houver campanhas vencedoras suficientes para absorver, crie novas campanhas com o orçamento restante.
 
 ## CICLO
 - Roda a cada 6h. Ações graduais.
@@ -913,14 +918,19 @@ ${platformRules[acctConfig.channel] || ""}
 - ⏰ AJUSTES DE ORÇAMENTO: serão aplicados automaticamente no próximo 00:01 (meia-noite). Defina o valor desejado e o sistema agenda.
 
 ${triggerType === "first_activation" ? `
-## 🚀 PRIMEIRA ATIVAÇÃO — ACESSO TOTAL
-Esta é a PRIMEIRA VEZ que a IA está sendo ativada nesta conta. Você tem ACESSO TOTAL a TODAS as ferramentas, sem restrições de fase ou dias mínimos de dados. Seu objetivo é "colocar a casa em ordem":
+## 🚀 PRIMEIRA ATIVAÇÃO — ACESSO TOTAL A TODAS AS FASES
+Esta é a PRIMEIRA VEZ que a IA está sendo ativada nesta conta. Você tem ACESSO TOTAL a TODAS as ferramentas (Fases 1, 2 e 3), sem restrições de fase, dias mínimos de dados ou contagem mínima de conversões. Seu objetivo é "colocar a casa em ordem" COMPLETAMENTE:
+
 1. Analise TODAS as campanhas dos últimos 7 dias em profundidade
 2. Pause campanhas com métricas ruins (ROAS < mínimo, CPA muito alto)
-3. Programe ajustes de orçamento para campanhas vencedoras (serão aplicados às 00:01)
-4. Crie novas campanhas se identificar oportunidades claras nos dados
-5. Gere insights completos sobre o estado atual da conta
-6. Redistribua orçamento conforme splits de funil definidos
+3. **OBRIGATÓRIO**: Para cada campanha pausada, calcule o gasto diário economizado
+4. **OBRIGATÓRIO**: Redistribua TODO o orçamento economizado para campanhas vencedoras via adjust_budget
+5. Se não houver campanhas vencedoras suficientes, CRIE novas campanhas (create_campaign) para absorver o orçamento
+6. O orçamento total definido (${budgetStr}) DEVE ser mantido integralmente — NÃO é aceitável economizar
+7. Gere insights completos sobre o estado atual da conta
+8. Redistribua orçamento conforme splits de funil definidos
+
+⚠️ REGRA CRÍTICA: Se você pausou campanhas que gastavam R$ X/dia, a soma dos adjust_budget + create_campaign DEVE cobrir esses R$ X/dia. Não deixe orçamento ocioso.
 Aja como se estivesse assumindo a gestão da conta pela primeira vez — seja COMPLETO e DECISIVO.
 ` : ""}
 
