@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.8.1"; // Fix entityStatus undefined in campaign creation logs
+const VERSION = "v5.9.0"; // Fix funnel split key mapping: cold/remarketing/tests/leads instead of tof/mof/bof
 // ===========================================================
 
 const corsHeaders = {
@@ -960,16 +960,19 @@ function buildAccountPlannerPrompt(acctConfig: AccountConfig, context: any, trig
   let funnelSection = "";
   if (acctConfig.funnel_split_mode === "manual" && acctConfig.funnel_splits) {
     const splits = acctConfig.funnel_splits;
+    // UI saves keys as: cold, remarketing, tests, leads
     funnelSection = `
 ## SPLITS DE FUNIL (definidos pelo lojista — OBRIGATÓRIO respeitar)
-- TOF (Topo — Público Frio): ${splits.tof || 0}%
-- MOF (Meio — Público Morno): ${splits.mof || 0}%
-- BOF (Fundo — Público Quente): ${splits.bof || 0}%
-⚠️ Distribua o orçamento desta conta respeitando estes percentuais.`;
+- Público Frio (Prospecção/TOF): ${splits.cold || 0}%
+- Remarketing (Público Quente/MOF+BOF): ${splits.remarketing || 0}%
+- Testes de Criativos: ${splits.tests || 0}%
+- Leads/Captação: ${splits.leads || 0}%
+⚠️ Distribua o orçamento desta conta respeitando estes percentuais EXATOS.
+⚠️ Se "Testes de Criativos" > 0%, você DEVE criar campanhas de teste com criativos novos.`;
   } else {
     funnelSection = `
 ## SPLITS DE FUNIL
-A IA decide a distribuição ideal entre TOF/MOF/BOF com base nos dados.`;
+A IA decide a distribuição ideal entre Frio/Remarketing/Testes com base nos dados.`;
   }
 
   let trendSection = "";

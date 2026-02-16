@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.1.0"; // Fix: promoted_object for AdSet, product_image_url for creatives, pixel_id from marketing_integrations
+const VERSION = "v1.2.0"; // Fix funnel split key mapping: cold/remarketing/tests/leads instead of tof/mof/bof
 // ===================
 
 const corsHeaders = {
@@ -435,7 +435,7 @@ FOCO MENSAL: Visão macro. Identifique tendências e pivote estratégia se neces
 - ROI Mín Frio: ${minRoiCold}x | ROI Mín Quente: ${minRoiWarm}x | ROI Alvo: ${targetRoi || "N/D"}x
 - ROAS Scaling: ${roasThreshold ? roasThreshold + "x" : "Não definido"}
 - Estratégia: ${config.strategy_mode || "balanced"}
-- Splits de Funil: ${config.funnel_splits ? JSON.stringify(config.funnel_splits) : "AI decides"}
+- Splits de Funil: ${config.funnel_splits ? `Frio=${(config.funnel_splits as any).cold || 0}%, Remarketing=${(config.funnel_splits as any).remarketing || 0}%, Testes=${(config.funnel_splits as any).tests || 0}%, Leads=${(config.funnel_splits as any).leads || 0}%` : "AI decides"}
 - Limite de ajuste: ±${platformLimit.max_change_pct}% a cada ${platformLimit.min_interval_hours}h
 - Pode ajustar budget agora: ${budgetAdjustable ? "SIM" : "NÃO"}
 - Modo aprovação: ${config.human_approval_mode || "approve_high_impact"}
