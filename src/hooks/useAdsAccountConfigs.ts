@@ -111,17 +111,17 @@ export function useAdsAccountConfigs() {
       queryClient.invalidateQueries({ queryKey: ["ads-account-configs"] });
       toast.success(`IA ${enabled ? "ativada" : "desativada"} para esta conta`);
       
-      // Only trigger first_activation on the VERY FIRST time AI is enabled
-      // Subsequent enable/disable toggles use regular "manual" trigger via scheduled cycles
-      if (enabled && result?.isFirstEver) {
+      // Trigger analysis whenever AI is enabled (first activation or re-enable)
+      if (enabled) {
+        const triggerType = result?.isFirstEver ? "first_activation" : "manual";
         setTimeout(async () => {
           try {
             const { error } = await supabase.functions.invoke("ads-autopilot-analyze", {
-              body: { tenant_id: tenantId, trigger_type: "first_activation", target_account_id: ad_account_id, target_channel: channel },
+              body: { tenant_id: tenantId, trigger_type: triggerType, target_account_id: ad_account_id, target_channel: channel },
             });
-            if (error) console.error("First activation analysis error:", error);
+            if (error) console.error("AI activation analysis error:", error);
           } catch (e) {
-            console.error("First activation analysis error:", e);
+            console.error("AI activation analysis error:", e);
           }
         }, 1500);
       }
