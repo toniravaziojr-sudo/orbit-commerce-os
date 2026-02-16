@@ -23,12 +23,6 @@ interface ChannelSummary {
   campaigns_count: number;
 }
 
-interface AdAccount {
-  id: string;
-  name: string;
-  channel?: string;
-}
-
 interface AdsOverviewTabProps {
   metaInsights: any[];
   tiktokInsights: any[];
@@ -38,9 +32,6 @@ interface AdsOverviewTabProps {
   globalBudgetMode: string;
   isLoading: boolean;
   trackingAlerts: string[];
-  adAccounts?: AdAccount[];
-  selectedAccountIds?: string[];
-  onToggleAccount?: (accountId: string) => void;
 }
 
 function formatCurrency(cents: number) {
@@ -81,14 +72,13 @@ function filterInsightsByDate(insights: any[], startDate?: Date, endDate?: Date)
   });
 }
 
-function filterInsightsByAccounts(insights: any[], selectedIds: string[] | undefined) {
-  if (!selectedIds || selectedIds.length === 0) return insights;
-  const idSet = new Set(selectedIds);
-  return insights.filter(i => {
-    const accountId = i.ad_account_id;
-    return !accountId || idSet.has(accountId);
-  });
-}
+type ChannelKey = "meta" | "google" | "tiktok";
+
+const AVAILABLE_CHANNELS: { key: ChannelKey; label: string }[] = [
+  { key: "meta", label: "Meta Ads" },
+  { key: "google", label: "Google Ads" },
+  { key: "tiktok", label: "TikTok Ads" },
+];
 
 export function AdsOverviewTab({
   metaInsights,
@@ -99,29 +89,45 @@ export function AdsOverviewTab({
   globalBudgetMode,
   isLoading,
   trackingAlerts,
-  adAccounts = [],
-  selectedAccountIds,
-  onToggleAccount,
 }: AdsOverviewTabProps) {
   const [startDate, setStartDate] = useState<Date | undefined>(subDays(new Date(), 30));
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
+  const [selectedChannels, setSelectedChannels] = useState<Set<ChannelKey>>(new Set(["meta", "google", "tiktok"]));
 
   const handleDateChange = (start?: Date, end?: Date) => {
     setStartDate(start);
     setEndDate(end);
   };
+
+  const toggleChannel = (key: ChannelKey) => {
+    setSelectedChannels(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        if (next.size > 1) next.delete(key); // keep at least one
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
   const channels = useMemo(() => {
     const list: ChannelSummary[] = [];
-    const filteredMeta = filterInsightsByAccounts(filterInsightsByDate(metaInsights, startDate, endDate), selectedAccountIds);
-    const filteredTiktok = filterInsightsByAccounts(filterInsightsByDate(tiktokInsights, startDate, endDate), selectedAccountIds);
-    if (metaCampaigns.length > 0 || filteredMeta.length > 0) {
-      list.push(buildChannelSummary("meta", "Meta Ads", filteredMeta, metaCampaigns));
+    if (selectedChannels.has("meta")) {
+      const filteredMeta = filterInsightsByDate(metaInsights, startDate, endDate);
+      if (metaCampaigns.length > 0 || filteredMeta.length > 0) {
+        list.push(buildChannelSummary("meta", "Meta Ads", filteredMeta, metaCampaigns));
+      }
     }
-    if (tiktokCampaigns.length > 0 || filteredTiktok.length > 0) {
-      list.push(buildChannelSummary("tiktok", "TikTok Ads", filteredTiktok, tiktokCampaigns));
+    if (selectedChannels.has("tiktok")) {
+      const filteredTiktok = filterInsightsByDate(tiktokInsights, startDate, endDate);
+      if (tiktokCampaigns.length > 0 || filteredTiktok.length > 0) {
+        list.push(buildChannelSummary("tiktok", "TikTok Ads", filteredTiktok, tiktokCampaigns));
+      }
     }
+    // Google: when available, add here
     return list;
-  }, [metaInsights, tiktokInsights, metaCampaigns, tiktokCampaigns, startDate, endDate, selectedAccountIds]);
+  }, [metaInsights, tiktokInsights, metaCampaigns, tiktokCampaigns, startDate, endDate, selectedChannels]);
 
   const totals = useMemo(() => {
     return channels.reduce(
@@ -169,53 +175,51 @@ export function AdsOverviewTab({
     { title: "Receita", value: formatCurrency(totals.conversion_value_cents), icon: BarChart3 },
   ];
 
-  const selectedCount = selectedAccountIds?.length ?? adAccounts.length;
-  const allSelected = selectedCount === adAccounts.length || !selectedAccountIds;
+  const allChannelsSelected = selectedChannels.size === AVAILABLE_CHANNELS.length;
 
   return (
     <div className="space-y-6">
-      {/* Filters row: accounts + date */}
+      {/* Filters row: platform selector + date */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          {/* Account selector */}
-          {adAccounts.length > 0 && onToggleAccount && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-1.5 text-xs h-7 font-normal border-dashed">
-                  <BarChart3 className="h-3 w-3" />
-                  {allSelected ? "Todas as contas" : `${selectedCount} conta${selectedCount !== 1 ? "s" : ""}`}
-                  <ChevronDown className="h-3 w-3 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-64 p-0" align="start">
-                <Command>
-                  <CommandList>
-                    <CommandEmpty>Nenhuma conta encontrada</CommandEmpty>
-                    <CommandGroup>
-                      {adAccounts.map(account => {
-                        const isSelected = !selectedAccountIds || selectedAccountIds.includes(account.id);
-                        return (
-                          <CommandItem
-                            key={account.id}
-                            onSelect={() => onToggleAccount(account.id)}
-                            className="cursor-pointer"
-                          >
-                            <div className={cn(
-                              "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                              isSelected ? "bg-primary text-primary-foreground" : "opacity-50"
-                            )}>
-                              {isSelected && <Check className="h-3 w-3" />}
-                            </div>
-                            <span className="text-xs truncate">{account.name || account.id}</span>
-                          </CommandItem>
-                        );
-                      })}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-          )}
+          {/* Platform selector */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs h-7 font-normal border-dashed">
+                <BarChart3 className="h-3 w-3" />
+                {allChannelsSelected ? "Todas as plataformas" : `${selectedChannels.size} plataforma${selectedChannels.size !== 1 ? "s" : ""}`}
+                <ChevronDown className="h-3 w-3 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-52 p-0" align="start">
+              <Command>
+                <CommandList>
+                  <CommandEmpty>Nenhuma plataforma</CommandEmpty>
+                  <CommandGroup>
+                    {AVAILABLE_CHANNELS.map(ch => {
+                      const isSelected = selectedChannels.has(ch.key);
+                      return (
+                        <CommandItem
+                          key={ch.key}
+                          onSelect={() => toggleChannel(ch.key)}
+                          className="cursor-pointer"
+                        >
+                          <div className={cn(
+                            "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                            isSelected ? "bg-primary text-primary-foreground" : "opacity-50"
+                          )}>
+                            {isSelected && <Check className="h-3 w-3" />}
+                          </div>
+                          <span className="text-xs">{ch.label}</span>
+                        </CommandItem>
+                      );
+                    })}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+
           {/* Date Range Filter */}
           <DateRangeFilter
             startDate={startDate}
@@ -225,6 +229,7 @@ export function AdsOverviewTab({
           />
         </div>
       </div>
+
       {trackingAlerts.length > 0 && (
         <Card className="border-destructive/30 bg-destructive/5">
           <CardContent className="py-3">
