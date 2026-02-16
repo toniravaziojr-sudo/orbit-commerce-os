@@ -15,6 +15,7 @@ import {
   PackageCheck,
   PackageX,
   Trash2,
+  Sparkles,
 } from 'lucide-react';
 import {
   Table,
@@ -248,7 +249,14 @@ export function OrderList({
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right font-medium">
-                    {formatCurrency(order.total)}
+                    <div className="flex items-center justify-end gap-2">
+                      {formatCurrency(order.total)}
+                      {order.is_first_sale && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-emerald-500/10 text-emerald-600 border-emerald-500/30 whitespace-nowrap">
+                          1ª venda
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm">
                     {formatDate(order.created_at)}

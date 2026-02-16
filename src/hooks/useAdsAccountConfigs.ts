@@ -107,17 +107,16 @@ export function useAdsAccountConfigs() {
       }
       return { isFirstEver };
     },
-    onSuccess: (result, { channel, ad_account_id, enabled }) => {
+    onSuccess: (_, { channel, ad_account_id, enabled }) => {
       queryClient.invalidateQueries({ queryKey: ["ads-account-configs"] });
       toast.success(`IA ${enabled ? "ativada" : "desativada"} para esta conta`);
       
-      // Trigger analysis whenever AI is enabled (first activation or re-enable)
+      // Always trigger full analysis (first_activation) whenever AI is enabled
       if (enabled) {
-        const triggerType = result?.isFirstEver ? "first_activation" : "manual";
         setTimeout(async () => {
           try {
             const { error } = await supabase.functions.invoke("ads-autopilot-analyze", {
-              body: { tenant_id: tenantId, trigger_type: triggerType, target_account_id: ad_account_id, target_channel: channel },
+              body: { tenant_id: tenantId, trigger_type: "first_activation", target_account_id: ad_account_id, target_channel: channel },
             });
             if (error) console.error("AI activation analysis error:", error);
           } catch (e) {
