@@ -45,8 +45,8 @@ Deno.serve(async (req) => {
         .from("marketplace_connections")
         .select("access_token, metadata")
         .eq("tenant_id", tenantId)
-        .eq("platform", "meta")
-        .eq("status", "active")
+        .eq("marketplace", "meta")
+        .eq("is_active", true)
         .maybeSingle();
 
       if (!conn) {

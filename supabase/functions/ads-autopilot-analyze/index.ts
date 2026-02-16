@@ -135,8 +135,8 @@ async function preCheckIntegrations(supabase: any, tenantId: string, channels: s
         .from("marketplace_connections")
         .select("id")
         .eq("tenant_id", tenantId)
-        .eq("platform", "meta")
-        .eq("status", "active")
+        .eq("marketplace", "meta")
+        .eq("is_active", true)
         .maybeSingle();
       status.meta = data
         ? { connected: true }
