@@ -442,7 +442,7 @@ Cada ação da IA na aba "Ações" é **clicável** e abre um `Dialog` com previ
 |---|---|
 | `create_campaign` | Nome, objetivo, status, orçamento diário, conjuntos de anúncios (com segmentação) e anúncios (headline, copy, CTA) |
 | `create_adset` | Nome, campanha, orçamento, otimização, segmentação detalhada (idade, gênero, geo, interesses, Custom/Lookalike Audiences), agendamento |
-| `generate_creative` | Título, copy, CTA, formato, ângulo, produto, imagem preview e variações |
+| `generate_creative` | Produto, canal, formato, variações, estilo de geração, pasta de destino, objetivo e público-alvo. Status do job com indicador de progresso |
 | `adjust_budget` / `allocate_budget` | Entidade, orçamento anterior vs novo, variação % |
 | `pause_campaign` | Nome, gasto atual, economia/dia estimada |
 | `report_insight` | Corpo do insight, categoria, prioridade |
@@ -451,7 +451,7 @@ Cada ação da IA na aba "Ações" é **clicável** e abre um `Dialog` com previ
 **Componentes internos:**
 - `CampaignPreview` — Preview hierárquico (campanha → adsets → ads)
 - `AdsetPreview` — Conjunto com `TargetingPreview` integrado
-- `CreativePreview` — Com preview de imagem (`asset_url`)
+- `CreativePreview` — Com detalhes enriquecidos (produto, canal, formato, variações, estilo, pasta)
 - `BudgetPreview` — Comparação antes/depois com destaque
 - `PausePreview` — Economia estimada
 - `TargetingPreview` — Breakdown de segmentação (interesses como badges, Custom Audiences, Lookalikes com ratio %)
@@ -464,6 +464,30 @@ Cada ação da IA na aba "Ações" é **clicável** e abre um `Dialog` com previ
 - Mensagem de erro quando aplicável
 
 **Interação:** Card clicável + botão "Detalhes" (com `Eye` icon). Botões de ação (Aprovar/Rejeitar/Desfazer) usam `stopPropagation` para não abrir o dialog.
+
+### Rollback / Desfazer Ações (v1.1)
+
+O sistema permite reverter ações executadas pela IA diretamente na aba "Ações". O botão "Desfazer" aparece para ações com status `executed` dos seguintes tipos:
+
+| Tipo de Ação | Rollback | Descrição |
+|---|---|---|
+| `pause_campaign` | ✅ | Reativa campanha via `meta-ads-campaigns` (update → ACTIVE) |
+| `adjust_budget` | ✅ | Restaura orçamento anterior via `meta-ads-campaigns` (update → `rollback_data.previous_budget_cents`) |
+| `allocate_budget` | ✅ | Restaura orçamento anterior via `meta-ads-campaigns` |
+| `activate_campaign` | ✅ | Pausa campanha via `meta-ads-campaigns` (update → PAUSED) |
+
+Após reverter, o status da ação é atualizado para `rolled_back`.
+
+### Pasta Drive para Criativos de Tráfego (v1.1)
+
+Todos os ativos gerados pela IA de tráfego (imagens e vídeos para campanhas) são organizados em uma pasta dedicada no Drive do tenant:
+
+| Campo | Valor |
+|---|---|
+| **Nome da pasta** | `Gestor de Tráfego IA` |
+| **Criação** | Automática na primeira geração de criativo |
+| **Tabela** | `files` (com `is_folder=true`, `metadata.source='ads_autopilot'`) |
+| **Edge Function** | `ads-autopilot-creative` v1.1.0 |
 
 ### Edge Functions
 
@@ -879,6 +903,7 @@ CREATE TYPE creative_job_status AS ENUM (
 - [x] Gestor de Tráfego IA — Sprint 6b (Creative Generate + Human Approval): Edge function `ads-autopilot-creative-generate` v1.0.0 — analisa top 5 produtos por receita (30d), usa GPT-5-mini para planejar briefs criativos (format, angle, headline, copy, CTA), evita duplicatas recentes (7d), insere como draft em `ads_creative_assets`. Cron job `ads-creative-generate` (quarta 11:00 UTC). Human Approval UI em `AdsActionsTab.tsx`: ações `pending_approval` aparecem primeiro com destaque âmbar, banner de contagem, botões Aprovar (→executed) e Rejeitar (→rejected com motivo). Novos status no STATUS_CONFIG: `pending_approval`, `approved`, `expired`. Mutations inline com invalidação de cache.
 - [x] Gestor de Tráfego IA — Sprint 7 (Tracking Health + Pacing + ROI): Analyze v4.2.0 com `checkTrackingHealth` (discrepância atribuição vs pedidos reais, queda de conversões >30%, anomalia CPC >3x, colapso CTR <50%), persiste em `ads_tracking_health`. `checkPacing` (underspend/overspend detection por conta, projeção mensal). Tracking degraded/critical bloqueia escala de budget via `validateAction`. Contexto de pacing e health injetado no system prompt por conta. Nova aba "ROI Real" em `AdsRoiReportsTab.tsx`: ROI real = (Receita - COGS - Taxas 4%) / Spend, com breakdown visual (COGS via `order_items.cost_price`), margem de lucro, Progress bar de distribuição de receita.
 - [x] Gestor de Tráfego IA — Sprint 8 (Saldo & Monitoramento): Popover de saldo por conta em `AdsCampaignsTab.tsx` com resumo financeiro (total investido + saldo restante por conta prepaid, badge "Cartão" para CC). Indicador visual de saldo baixo (<R$50) com ícone pulsante vermelho. Hook `useAdsBalanceMonitor.ts` reutiliza `useMetaAds` para agregar: totalAccounts, prepaidCount, lowBalanceCount, zeroBalanceCount, activeCampaigns. Card de monitoramento em `Central de Execuções` (/executions) com alertas por conta (nome + saldo restante), badge de contagem, 3 métricas (contas monitoradas, saldo baixo, campanhas ativas). Threshold: R$50,00 (5000 cents). Contas CC excluídas do monitoramento de saldo.
+- [x] Gestor de Tráfego IA — Sprint 9 (Rollback + Drive + Criativos v1.1): **Rollback expandido** em `AdsActionsTab.tsx` — agora suporta desfazer `adjust_budget`, `allocate_budget` e `activate_campaign` (além de `pause_campaign`), restaurando orçamento/status anterior via API e atualizando status para `rolled_back`. **Pasta Drive "Gestor de Tráfego IA"** — edge function `ads-autopilot-creative` v1.1.0 cria automaticamente pasta dedicada na tabela `files` para organizar criativos gerados pela IA de tráfego. **Dados enriquecidos** — `action_data` de ações `generate_creative` agora inclui `product_name`, `channel`, `format`, `variations`, `generation_style`, `folder_name`, `campaign_objective`, `target_audience`. **Schema migration** — `roas_scaling_threshold` adicionado a `ads_autopilot_account_configs`, colunas obsoletas `roas_scale_up_threshold`, `roas_scale_down_threshold`, `budget_increase_pct`, `budget_decrease_pct` removidas.
 - [x] Gestor de Tráfego IA — Sprint 9 (UI Polish): Visão Geral refatorada com seletor de plataforma (Meta/Google/TikTok) em vez de contas individuais. Campanhas com rodapé de totais agregados (TableFooter com gasto total, ROAS médio, resultados, alcance, etc.). DateRangeFilter padrão aplicado em todas as abas de Ads. Widget `AdsAlertsWidget` na Central de Execuções mostrando insights não lidos, contas sem saldo e saldo baixo. Balance via `funding_source_details.current_balance` para saldo real-time preciso.
 - [x] Gestor de Tráfego IA — Sprint 10 (Regras Internas v4.3-v4.6): Analyze v4.3.0: `approve_high_impact` agora exige aprovação manual para ajustes de budget >20% (além de criações). Analyze v4.4.0: (1) Primeira ativação de IA em conta dispara análise imediata com `trigger_type: "first_activation"` e lookback de 7 dias, gerando insights e ações baseado nas configurações da conta. (2) Ajustes de orçamento (adjust_budget) são agendados para o próximo 00:01 (meia-noite + 1min) em vez de executados imediatamente — ação fica com `status: "scheduled"` e `scheduled_for` timestamp; o cron de 6h verifica e executa ações scheduled quando `scheduled_for <= now()`. Analyze v4.5.0: (3) **Primeira Ativação com Acesso Total** — quando `trigger_type === "first_activation"`, a IA recebe acesso irrestrito a TODAS as ferramentas (pause, adjust_budget, create_campaign, create_adset, report_insight) sem restrições de fase (min_data_days, min_conversions). O objetivo é "colocar a casa em ordem": analisar todas campanhas dos últimos 7d, pausar as ruins, programar ajustes de orçamento, criar campanhas se houver oportunidade, e gerar insights completos. Após esta primeira execução, o fluxo normal com restrições de fase progressiva é aplicado. Analyze v4.6.0: (4) **Remoção da dependência do config global** — `ads_autopilot_configs` (channel=global) não é mais gate de ativação. O controle de ativação é 100% por conta via `ads_autopilot_account_configs.is_ai_enabled`. O registro global é usado apenas como mutex de sessão (lock/unlock). Se não existir registro global, o lock é gerado em memória. AI model default: `openai/gpt-5.2` (fallback quando globalConfig ausente).
 - [x] Gestor de Tráfego IA — Sprint 11 (v4.7-v4.11 Prioridade de Métricas + Redistribuição + Learning Phase + Auto-Exec): Analyze v4.7.0-v4.8.0: Métricas da plataforma de anúncios (ROAS, CPA, Conversões da Meta/Google/TikTok) são a **fonte primária de verdade**. Pedidos internos do tenant (`orders`) são usados apenas como fallback informativo e para cálculo de ROI Real (COGS + taxas). Discrepâncias entre plataforma e pedidos geram alertas `Info` mas **nunca bloqueiam** ações da IA. Analyze v4.9.0: **Redistribuição Obrigatória de Orçamento** — se a IA pausou campanhas economizando R$ X/dia, a soma de `adjust_budget` + `create_campaign` DEVE cobrir esses R$ X/dia. Orçamento definido pelo usuário não pode ficar ocioso nem um dia. Na primeira ativação, todas as fases são liberadas e limites por ciclo (±10-20%) são removidos para permitir reestruturação agressiva. Analyze v4.10.0: **Proteção de Learning Phase** — mesmo na primeira ativação, cada campanha ativa só pode receber no máximo **+20%** de aumento de budget (`first_activation_max_increase_pct: 20`). Reduções/pausas permanecem livres. Se o orçamento economizado não cabe dentro do limite de +20% nas campanhas existentes, a IA é **obrigada** a criar novas campanhas (`create_campaign`) para absorver o excedente. Analyze v4.11.0: **Respeito total ao modo de aprovação** — quando `human_approval_mode = "auto"`, NENHUMA ação exige aprovação manual, incluindo `create_campaign` e `create_adset`. Criações só exigem aprovação nos modos `"all"` ou `"approve_high_impact"`. Removida a regra anterior que forçava `pending_approval` em criações independentemente do modo.
