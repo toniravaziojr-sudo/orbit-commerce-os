@@ -1,10 +1,16 @@
-import { useMemo } from "react";
-import { DollarSign, TrendingUp, MousePointer, ShoppingCart, BarChart3, AlertTriangle } from "lucide-react";
+import { useMemo, useState } from "react";
+import { DollarSign, TrendingUp, MousePointer, ShoppingCart, BarChart3, AlertTriangle, CalendarDays } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { format, subDays, parseISO, startOfDay, endOfDay } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import type { DateRange } from "react-day-picker";
 
 interface ChannelSummary {
   channel: string;
@@ -53,6 +59,27 @@ function buildChannelSummary(
   return { channel, label, spend_cents, impressions, clicks, conversions, conversion_value_cents, campaigns_count: campaigns.length };
 }
 
+const DATE_PRESETS = [
+  { label: "Hoje", days: 0 },
+  { label: "7 dias", days: 7 },
+  { label: "15 dias", days: 15 },
+  { label: "30 dias", days: 30 },
+  { label: "90 dias", days: 90 },
+];
+
+function filterInsightsByDate(insights: any[], dateRange: DateRange | undefined) {
+  if (!dateRange?.from || !dateRange?.to) return insights;
+  const rangeFrom = startOfDay(dateRange.from);
+  const rangeTo = endOfDay(dateRange.to);
+  return insights.filter(i => {
+    try {
+      const dStart = parseISO(i.date_start);
+      const dStop = parseISO(i.date_stop);
+      return !(dStop < rangeFrom || dStart > rangeTo);
+    } catch { return false; }
+  });
+}
+
 export function AdsOverviewTab({
   metaInsights,
   tiktokInsights,
@@ -63,16 +90,23 @@ export function AdsOverviewTab({
   isLoading,
   trackingAlerts,
 }: AdsOverviewTabProps) {
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: subDays(new Date(), 30),
+    to: new Date(),
+  });
+
   const channels = useMemo(() => {
     const list: ChannelSummary[] = [];
-    if (metaCampaigns.length > 0 || metaInsights.length > 0) {
-      list.push(buildChannelSummary("meta", "Meta Ads", metaInsights, metaCampaigns));
+    const filteredMeta = filterInsightsByDate(metaInsights, dateRange);
+    const filteredTiktok = filterInsightsByDate(tiktokInsights, dateRange);
+    if (metaCampaigns.length > 0 || filteredMeta.length > 0) {
+      list.push(buildChannelSummary("meta", "Meta Ads", filteredMeta, metaCampaigns));
     }
-    if (tiktokCampaigns.length > 0 || tiktokInsights.length > 0) {
-      list.push(buildChannelSummary("tiktok", "TikTok Ads", tiktokInsights, tiktokCampaigns));
+    if (tiktokCampaigns.length > 0 || filteredTiktok.length > 0) {
+      list.push(buildChannelSummary("tiktok", "TikTok Ads", filteredTiktok, tiktokCampaigns));
     }
     return list;
-  }, [metaInsights, tiktokInsights, metaCampaigns, tiktokCampaigns]);
+  }, [metaInsights, tiktokInsights, metaCampaigns, tiktokCampaigns, dateRange]);
 
   const totals = useMemo(() => {
     return channels.reduce(
@@ -122,7 +156,37 @@ export function AdsOverviewTab({
 
   return (
     <div className="space-y-6">
-      {/* Alertas */}
+      {/* Date range picker */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {DATE_PRESETS.map(preset => (
+            <Button
+              key={preset.days}
+              variant="ghost"
+              size="sm"
+              className="text-xs h-7 px-2.5"
+              onClick={() => setDateRange({ from: preset.days === 0 ? new Date() : subDays(new Date(), preset.days), to: new Date() })}
+            >
+              {preset.label}
+            </Button>
+          ))}
+        </div>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs h-7 font-normal border-dashed">
+              <CalendarDays className="h-3 w-3" />
+              {dateRange?.from ? (
+                dateRange.to
+                  ? `${format(dateRange.from, "dd/MM/yyyy")} - ${format(dateRange.to, "dd/MM/yyyy")}`
+                  : format(dateRange.from, "dd/MM/yyyy")
+              ) : "Período"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="end">
+            <Calendar mode="range" selected={dateRange} onSelect={setDateRange} numberOfMonths={2} locale={ptBR} initialFocus className="p-3 pointer-events-auto" />
+          </PopoverContent>
+        </Popover>
+      </div>
       {trackingAlerts.length > 0 && (
         <Card className="border-destructive/30 bg-destructive/5">
           <CardContent className="py-3">
