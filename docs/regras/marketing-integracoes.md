@@ -320,12 +320,14 @@ Se incompleto, o Switch fica desabilitado e um Tooltip mostra os campos faltante
 | 4 | 30+ dias + 50+ conversões | + expand_audience, advanced_ab_test |
 
 > **EXCEÇÃO — Primeira Ativação (`trigger_type: "first_activation"`):**
-> Quando a IA é ativada pela primeira vez em uma conta (via `useAdsAccountConfigs.toggleAI`), TODAS as restrições de fase, dias mínimos de dados e contagem mínima de conversões são ignoradas. O sistema executa os seguintes passos ANTES da análise:
+> Quando a IA é ativada **pela primeira vez** em uma conta (via `useAdsAccountConfigs.toggleAI`), TODAS as restrições de fase, dias mínimos de dados e contagem mínima de conversões são ignoradas. O sistema executa os seguintes passos ANTES da análise:
 > 1. **Sync de campanhas** — `meta-ads-campaigns` (action: sync) para garantir registros locais
 > 2. **Sync de insights 7d** — `meta-ads-insights` (action: sync, date_preset: last_7d) para coletar dados históricos da plataforma
 > 3. **Sync de ad sets** — `meta-ads-adsets` (action: sync) para visão completa da estrutura
 >
 > Isso garante que contas com dados históricos no Meta (mas sem dados locais) possam receber reestruturação completa na ativação.
+>
+> **⚠️ EVENTO ÚNICO (v5.3.1):** O `first_activation` só dispara na **primeira vez** que a IA é habilitada para uma conta. Se o usuário desativar e reativar a IA, o toggle simplesmente liga/desliga sem re-executar o sync pesado nem o bypass de fases — os ciclos regulares de 6h assumem o controle. A lógica detecta "primeira vez" verificando se `is_ai_enabled` nunca foi `true` antes (registro inexistente = primeira vez, `is_ai_enabled: false` em registro existente que já foi `true` = reativação normal).
 >
 > **Race Condition Fix (v5.3.0):** O `AdsManager.tsx` NÃO dispara `triggerAnalysis.mutate()` separado ao ativar IA — apenas `useAdsAccountConfigs.toggleAI` dispara `first_activation`. Isso evita que um trigger `manual` adquira o lock antes do `first_activation`.
 
