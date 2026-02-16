@@ -230,9 +230,21 @@ A página `/ads` utiliza 3 abas de nível superior:
 | `meta_ad_adsets` | Cache local de conjuntos de anúncios (ad sets) sincronizados da Meta |
 | `meta_ad_ads` | Cache local de anúncios individuais sincronizados da Meta |
 
-### Config Global (`channel='global'`)
+### Config Global (`channel='global'`) — Aba "Configurações Gerais"
 
-> **Parcialmente DEPRECADA na Fase 10.6.** Orçamento, ROI e prompt migraram para per-account. O registro `channel='global'` mantém `ai_model`, `lock_session_id` e os novos campos globais v4.0.
+> **v5.6:** A aba "Configurações Gerais" no Gestor de Tráfego permite definir regras de fallback que se aplicam a **todas as contas** que não possuem configurações exclusivas. O registro `channel='global'` na tabela `ads_autopilot_configs` armazena essas configurações.
+
+#### Hierarquia de Prioridade (INVIOLÁVEL)
+
+| Prioridade | Fonte | Descrição |
+|------------|-------|-----------|
+| **1 (máxima)** | Configurações manuais da conta | ROI, ROAS thresholds, estratégia, funil, orçamento por conta |
+| **2** | Prompt de instruções (IA) | Direcionamento estratégico sugestivo — NÃO sobrepõe configs manuais |
+| **3 (fallback)** | Configurações Gerais (global) | Aplicadas a contas SEM regras exclusivas |
+
+> **Regra do Prompt:** O prompt estratégico (user_instructions) é **sugestivo**. Se houver conflito entre o prompt e uma configuração manual (ex: ROI, estratégia, splits), a configuração manual SEMPRE prevalece. O prompt serve para fornecer contexto, expertise e direcionamento detalhado à IA.
+
+#### Campos Globais
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
@@ -244,6 +256,14 @@ A página `/ads` utiliza 3 abas de nível superior:
 | `strategy_mode` | text | **v4.0** — `aggressive` / `balanced` / `long_term` |
 | `kill_switch` | boolean | **v4.0** — Para imediato de todas as ações |
 | `human_approval_mode` | text | **v4.0** — `auto` / `approve_high_impact` |
+
+#### Templates de Prompt Estratégico (v5.6)
+
+O sistema disponibiliza templates de prompt nível "Sênior de Tráfego" para os canais Global, Meta, Google e TikTok. Estes templates incluem: missão, contexto de negócio, compliance/claims, fontes de verdade, destinos/funil, motor de decisão, regras de validade de público, anti-regressão, alocação operacional, playbooks por canal, sistema de criativos, matriz de testes, controles de risco e formato de saída obrigatório.
+
+Arquivo: `src/components/ads/adsPromptTemplates.ts`
+
+Os templates servem como **exemplo** para o cliente montar seu próprio prompt. O botão "Usar template" na UI popula o campo com o template correspondente ao canal.
 
 ### Config por Conta de Anúncios
 
@@ -259,12 +279,30 @@ A página `/ads` utiliza 3 abas de nível superior:
 | `target_roi` | numeric | null | ROI ideal — meta de retorno |
 | `min_roi_cold` | numeric | 2.0 | ROI mínimo para pausar público frio |
 | `min_roi_warm` | numeric | 3.0 | ROI mínimo para pausar público quente |
-| `user_instructions` | text | "" | Prompt estratégico da conta |
+| `roas_scale_up_threshold` | numeric | null | **v5.6** — ROAS acima do qual a IA aumenta orçamento |
+| `roas_scale_down_threshold` | numeric | null | **v5.6** — ROAS abaixo do qual a IA reduz orçamento |
+| `budget_increase_pct` | integer | 15 | **v5.6** — % de aumento por ciclo quando ROAS > scale_up |
+| `budget_decrease_pct` | integer | 20 | **v5.6** — % de redução por ciclo quando ROAS < scale_down |
+| `user_instructions` | text | "" | Prompt estratégico da conta (sugestivo, não sobrepõe configs manuais) |
 | `strategy_mode` | text | `balanced` | `aggressive` / `balanced` / `long_term` |
 | `funnel_split_mode` | text | `manual` | `manual` / `ai_decides` |
 | `funnel_splits` | jsonb | `{"cold":60,"remarketing":25,"tests":15,"leads":0}` | Distribuição por funil |
 | `kill_switch` | boolean | false | Para imediato nesta conta |
 | `human_approval_mode` | text | `auto` | `auto` / `approve_high_impact` |
+
+#### Escalonamento de Orçamento por ROAS (v5.6)
+
+Além das regras de **pausa** (min_roi_cold/warm), o sistema suporta ajuste dinâmico de orçamento:
+
+| Condição | Ação | Exemplo |
+|----------|------|---------|
+| ROAS > `roas_scale_up_threshold` | Aumentar orçamento em `budget_increase_pct`% | ROAS 4.5 > threshold 4.0 → +15% |
+| ROAS < `roas_scale_down_threshold` | Reduzir orçamento em `budget_decrease_pct`% | ROAS 1.8 < threshold 2.0 → -20% |
+| ROAS < `min_roi_cold/warm` | **Pausar** campanha (regra existente) | ROAS 0.8 < min 1.0 → pause |
+
+> **Hierarquia de decisão:** Pausa (min_roi) > Redução (scale_down) > Manutenção > Aumento (scale_up)
+>
+> Todas as alterações de orçamento são **agendadas para 00:01** do dia seguinte (ver regra de budget scheduling).
 
 > **Constraint:** UNIQUE(tenant_id, channel, ad_account_id)
 
