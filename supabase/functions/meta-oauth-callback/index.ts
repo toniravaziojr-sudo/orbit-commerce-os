@@ -243,6 +243,7 @@ async function discoverMetaAssets(accessToken: string, scopePacks: string[]) {
     instagram_accounts: Array<{ id: string; username: string; page_id: string }>;
     whatsapp_business_accounts: Array<{ id: string; name: string }>;
     ad_accounts: Array<{ id: string; name: string }>;
+    pixels: Array<{ id: string; name: string; ad_account_id: string }>;
     catalogs: Array<{ id: string; name: string }>;
     threads_profile: { id: string; username: string } | null;
   } = {
@@ -250,6 +251,7 @@ async function discoverMetaAssets(accessToken: string, scopePacks: string[]) {
     instagram_accounts: [],
     whatsapp_business_accounts: [],
     ad_accounts: [],
+    pixels: [],
     catalogs: [],
     threads_profile: null,
   };
@@ -342,6 +344,29 @@ async function discoverMetaAssets(accessToken: string, scopePacks: string[]) {
         }
       } catch (adsError) {
         console.warn("[meta-oauth-callback] Erro ao buscar Ad Accounts:", adsError);
+      }
+
+      // Buscar Pixels de cada Ad Account descoberta
+      for (const account of assets.ad_accounts) {
+        try {
+          const pixelsResponse = await fetch(
+            `https://graph.facebook.com/${graphVersion}/${account.id}/adspixels?fields=id,name&access_token=${accessToken}`
+          );
+          if (pixelsResponse.ok) {
+            const pixelsData = await pixelsResponse.json();
+            if (pixelsData.data) {
+              for (const pixel of pixelsData.data) {
+                assets.pixels.push({
+                  id: pixel.id,
+                  name: pixel.name || `Pixel ${pixel.id}`,
+                  ad_account_id: account.id,
+                });
+              }
+            }
+          }
+        } catch (pixelError) {
+          console.warn("[meta-oauth-callback] Erro ao buscar Pixels de", account.id, ":", pixelError);
+        }
       }
     }
 

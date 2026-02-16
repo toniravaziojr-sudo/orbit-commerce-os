@@ -111,6 +111,27 @@ serve(async (req) => {
       );
     }
 
+    // Sync pixel selecionado para marketing_integrations
+    if (selectedAssets.pixels && selectedAssets.pixels.length > 0) {
+      const selectedPixel = selectedAssets.pixels[0]; // Usa o primeiro pixel selecionado
+      const { error: miError } = await supabase
+        .from("marketing_integrations")
+        .upsert({
+          tenant_id: tenantId,
+          meta_pixel_id: selectedPixel.id,
+          meta_enabled: true,
+        }, {
+          onConflict: "tenant_id",
+        });
+      
+      if (miError) {
+        console.warn("[meta-save-selected-assets] Aviso: Erro ao sincronizar pixel com marketing_integrations:", miError);
+        // Não falha o fluxo — pixel pode ser configurado manualmente depois
+      } else {
+        console.log(`[meta-save-selected-assets] Pixel ${selectedPixel.id} sincronizado com marketing_integrations`);
+      }
+    }
+
     console.log(`[meta-save-selected-assets] Ativos selecionados salvos para tenant ${tenantId}`);
 
     return new Response(
