@@ -1002,16 +1002,14 @@ Deno.serve(async (req) => {
 
     const startTime = Date.now();
 
-    // ---- Load global config (for lock/session/global toggle) ----
+    // ---- Load global config (used only for session locking, not as gate) ----
     const { data: configs } = await supabase
       .from("ads_autopilot_configs")
       .select("*")
       .eq("tenant_id", tenant_id);
 
     const globalConfig = configs?.find((c: any) => c.channel === "global") as GlobalConfig | undefined;
-    if (!globalConfig || !globalConfig.is_enabled) {
-      return fail("Piloto Automático não está ativo. Configure e ative primeiro.");
-    }
+    // Note: global is_enabled is no longer required. Per-account configs control activation.
 
     // ---- Load per-account configs (v4) ----
     const { data: accountConfigs } = await supabase
@@ -1065,21 +1063,25 @@ Deno.serve(async (req) => {
       return fail("Contas ativas não possuem canais conectados.");
     }
 
-    // ---- Lock ----
+    // ---- Lock (use global config row as mutex if it exists, otherwise skip locking) ----
+    let sessionLockId: string | null = null;
     const lockExpiry = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-    const { data: lockResult, error: lockError } = await supabase
-      .from("ads_autopilot_configs")
-      .update({ lock_session_id: crypto.randomUUID(), lock_expires_at: lockExpiry })
-      .eq("id", globalConfig.id)
-      .or(`lock_session_id.is.null,lock_expires_at.lt.${new Date().toISOString()}`)
-      .select("lock_session_id")
-      .single();
+    if (globalConfig) {
+      const { data: lockResult, error: lockError } = await supabase
+        .from("ads_autopilot_configs")
+        .update({ lock_session_id: crypto.randomUUID(), lock_expires_at: lockExpiry })
+        .eq("id", globalConfig.id)
+        .or(`lock_session_id.is.null,lock_expires_at.lt.${new Date().toISOString()}`)
+        .select("lock_session_id")
+        .single();
 
-    if (lockError || !lockResult) {
-      return fail("Já existe uma análise em andamento. Aguarde.");
+      if (lockError || !lockResult) {
+        return fail("Já existe uma análise em andamento. Aguarde.");
+      }
+      sessionLockId = lockResult.lock_session_id;
+    } else {
+      sessionLockId = crypto.randomUUID();
     }
-
-    const sessionLockId = lockResult.lock_session_id;
 
     try {
       // ---- Execute scheduled budget actions from previous cycles ----
@@ -1202,7 +1204,8 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
           },
         ];
 
-        const plannerResponse = await callAI(plannerMessages, PLANNER_TOOLS, globalConfig.ai_model);
+        const aiModel = globalConfig?.ai_model || "openai/gpt-5.2";
+        const plannerResponse = await callAI(plannerMessages, PLANNER_TOOLS, aiModel);
         const toolCalls = plannerResponse.choices?.[0]?.message?.tool_calls || [];
         const aiText = plannerResponse.choices?.[0]?.message?.content || "";
 
@@ -1349,14 +1352,16 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
         })
         .eq("id", sessionId);
 
-      // Update config stats
-      await supabase
-        .from("ads_autopilot_configs")
-        .update({
-          last_analysis_at: new Date().toISOString(),
-          total_actions_executed: (globalConfig.total_actions_executed || 0) + totalActionsExecuted,
-        })
-        .eq("id", globalConfig.id);
+      // Update config stats (if global config exists)
+      if (globalConfig) {
+        await supabase
+          .from("ads_autopilot_configs")
+          .update({
+            last_analysis_at: new Date().toISOString(),
+            total_actions_executed: (globalConfig.total_actions_executed || 0) + totalActionsExecuted,
+          })
+          .eq("id", globalConfig.id);
+      }
 
       console.log(
         `[ads-autopilot-analyze][${VERSION}] Completed: ${runnableAccounts.length} accounts, ${totalActionsPlanned} planned, ${totalActionsExecuted} executed, ${totalActionsRejected} rejected in ${durationMs}ms`
@@ -1373,11 +1378,13 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
       });
     } finally {
       // ---- Release lock ----
-      await supabase
-        .from("ads_autopilot_configs")
-        .update({ lock_session_id: null, lock_expires_at: null })
-        .eq("id", globalConfig.id)
-        .eq("lock_session_id", sessionLockId);
+      if (globalConfig) {
+        await supabase
+          .from("ads_autopilot_configs")
+          .update({ lock_session_id: null, lock_expires_at: null })
+          .eq("id", globalConfig.id)
+          .eq("lock_session_id", sessionLockId);
+      }
     }
   } catch (err: any) {
     console.error(`[ads-autopilot-analyze][${VERSION}] Fatal error:`, err.message, err.stack);
