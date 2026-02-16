@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { DollarSign, TrendingUp, MousePointer, ShoppingCart, BarChart3, AlertTriangle, CalendarDays } from "lucide-react";
+import { DollarSign, TrendingUp, MousePointer, ShoppingCart, BarChart3, AlertTriangle, CalendarDays, ChevronDown, Check } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -8,9 +8,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { format, subDays, parseISO, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
+import { cn } from "@/lib/utils";
 
 interface ChannelSummary {
   channel: string;
@@ -23,6 +25,12 @@ interface ChannelSummary {
   campaigns_count: number;
 }
 
+interface AdAccount {
+  id: string;
+  name: string;
+  channel?: string;
+}
+
 interface AdsOverviewTabProps {
   metaInsights: any[];
   tiktokInsights: any[];
@@ -32,6 +40,9 @@ interface AdsOverviewTabProps {
   globalBudgetMode: string;
   isLoading: boolean;
   trackingAlerts: string[];
+  adAccounts?: AdAccount[];
+  selectedAccountIds?: string[];
+  onToggleAccount?: (accountId: string) => void;
 }
 
 function formatCurrency(cents: number) {
@@ -80,6 +91,15 @@ function filterInsightsByDate(insights: any[], dateRange: DateRange | undefined)
   });
 }
 
+function filterInsightsByAccounts(insights: any[], selectedIds: string[] | undefined) {
+  if (!selectedIds || selectedIds.length === 0) return insights;
+  const idSet = new Set(selectedIds);
+  return insights.filter(i => {
+    const accountId = i.ad_account_id;
+    return !accountId || idSet.has(accountId);
+  });
+}
+
 export function AdsOverviewTab({
   metaInsights,
   tiktokInsights,
@@ -89,6 +109,9 @@ export function AdsOverviewTab({
   globalBudgetMode,
   isLoading,
   trackingAlerts,
+  adAccounts = [],
+  selectedAccountIds,
+  onToggleAccount,
 }: AdsOverviewTabProps) {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: subDays(new Date(), 30),
@@ -97,8 +120,8 @@ export function AdsOverviewTab({
 
   const channels = useMemo(() => {
     const list: ChannelSummary[] = [];
-    const filteredMeta = filterInsightsByDate(metaInsights, dateRange);
-    const filteredTiktok = filterInsightsByDate(tiktokInsights, dateRange);
+    const filteredMeta = filterInsightsByAccounts(filterInsightsByDate(metaInsights, dateRange), selectedAccountIds);
+    const filteredTiktok = filterInsightsByAccounts(filterInsightsByDate(tiktokInsights, dateRange), selectedAccountIds);
     if (metaCampaigns.length > 0 || filteredMeta.length > 0) {
       list.push(buildChannelSummary("meta", "Meta Ads", filteredMeta, metaCampaigns));
     }
@@ -106,7 +129,7 @@ export function AdsOverviewTab({
       list.push(buildChannelSummary("tiktok", "TikTok Ads", filteredTiktok, tiktokCampaigns));
     }
     return list;
-  }, [metaInsights, tiktokInsights, metaCampaigns, tiktokCampaigns, dateRange]);
+  }, [metaInsights, tiktokInsights, metaCampaigns, tiktokCampaigns, dateRange, selectedAccountIds]);
 
   const totals = useMemo(() => {
     return channels.reduce(
@@ -154,11 +177,55 @@ export function AdsOverviewTab({
     { title: "Receita", value: formatCurrency(totals.conversion_value_cents), icon: BarChart3 },
   ];
 
+  const selectedCount = selectedAccountIds?.length ?? adAccounts.length;
+  const allSelected = selectedCount === adAccounts.length || !selectedAccountIds;
+
   return (
     <div className="space-y-6">
-      {/* Date range picker */}
-      <div className="flex items-center justify-between">
+      {/* Filters row: accounts + date */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
+          {/* Account selector */}
+          {adAccounts.length > 0 && onToggleAccount && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1.5 text-xs h-7 font-normal border-dashed">
+                  <BarChart3 className="h-3 w-3" />
+                  {allSelected ? "Todas as contas" : `${selectedCount} conta${selectedCount !== 1 ? "s" : ""}`}
+                  <ChevronDown className="h-3 w-3 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-0" align="start">
+                <Command>
+                  <CommandList>
+                    <CommandEmpty>Nenhuma conta encontrada</CommandEmpty>
+                    <CommandGroup>
+                      {adAccounts.map(account => {
+                        const isSelected = !selectedAccountIds || selectedAccountIds.includes(account.id);
+                        return (
+                          <CommandItem
+                            key={account.id}
+                            onSelect={() => onToggleAccount(account.id)}
+                            className="cursor-pointer"
+                          >
+                            <div className={cn(
+                              "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                              isSelected ? "bg-primary text-primary-foreground" : "opacity-50"
+                            )}>
+                              {isSelected && <Check className="h-3 w-3" />}
+                            </div>
+                            <span className="text-xs truncate">{account.name || account.id}</span>
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          )}
+
+          {/* Date presets */}
           {DATE_PRESETS.map(preset => (
             <Button
               key={preset.days}
