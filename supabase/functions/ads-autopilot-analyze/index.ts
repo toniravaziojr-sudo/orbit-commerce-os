@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v4.4.0"; // First activation immediate analysis + budget scheduling at 00:01
+const VERSION = "v4.5.0"; // First activation: full access (bypass phase restrictions)
 // ===========================================================
 
 const corsHeaders = {
@@ -550,8 +550,11 @@ function validateAction(
   acctConfig: AccountConfig,
   context: any,
   sessionActionsCount: number,
-  trackingHealth?: Record<string, any>
+  trackingHealth?: Record<string, any>,
+  triggerType?: string
 ): { valid: boolean; reason?: string } {
+  // FIRST ACTIVATION: bypass data sufficiency and phase restrictions (full access to "put the house in order")
+  const isFirstActivation = triggerType === "first_activation";
   // Kill switch
   if (acctConfig.kill_switch) {
     return { valid: false, reason: `Kill Switch ATIVO para conta ${acctConfig.ad_account_id}. Todas as ações bloqueadas.` };
@@ -586,8 +589,8 @@ function validateAction(
     const daysWithData = trend?.current_period?.days_with_data || 0;
     const totalConversions = trend?.current_period?.total_conversions || 0;
 
-    // Phase 2 actions (create_campaign, create_adset) require more data
-    if (DEFAULT_SAFETY.phase2_actions.includes(action.name)) {
+    // Phase 2 actions (create_campaign, create_adset) require more data — SKIP on first_activation
+    if (!isFirstActivation && DEFAULT_SAFETY.phase2_actions.includes(action.name)) {
       if (daysWithData < DEFAULT_SAFETY.min_data_days_for_creation) {
         return { valid: false, reason: `Criação requer ${DEFAULT_SAFETY.min_data_days_for_creation}+ dias de dados (atual: ${daysWithData}).` };
       }
@@ -596,7 +599,8 @@ function validateAction(
       }
     }
 
-    if (daysWithData < DEFAULT_SAFETY.min_data_days_for_action) {
+    // Min data days check — SKIP on first_activation
+    if (!isFirstActivation && daysWithData < DEFAULT_SAFETY.min_data_days_for_action) {
       if (action.name !== "report_insight") {
         return {
           valid: false,
@@ -801,7 +805,7 @@ const PLANNER_TOOLS = [
 
 // ============ SYSTEM PROMPT (v4 - Per-Account) ============
 
-function buildAccountPlannerPrompt(acctConfig: AccountConfig, context: any) {
+function buildAccountPlannerPrompt(acctConfig: AccountConfig, context: any, triggerType?: string) {
   const channelName = acctConfig.channel === "meta" ? "Meta (Facebook/Instagram)" : acctConfig.channel === "google" ? "Google Ads" : "TikTok Ads";
   const channelTrend = context.channels?.[acctConfig.channel]?.trend;
 
@@ -902,6 +906,18 @@ ${platformRules[acctConfig.channel] || ""}
 - Diferencie público frio de quente.
 - Campanhas em Learning Phase → APENAS report_insight.
 - ⏰ AJUSTES DE ORÇAMENTO: serão aplicados automaticamente no próximo 00:01 (meia-noite). Defina o valor desejado e o sistema agenda.
+
+${triggerType === "first_activation" ? `
+## 🚀 PRIMEIRA ATIVAÇÃO — ACESSO TOTAL
+Esta é a PRIMEIRA VEZ que a IA está sendo ativada nesta conta. Você tem ACESSO TOTAL a TODAS as ferramentas, sem restrições de fase ou dias mínimos de dados. Seu objetivo é "colocar a casa em ordem":
+1. Analise TODAS as campanhas dos últimos 7 dias em profundidade
+2. Pause campanhas com métricas ruins (ROAS < mínimo, CPA muito alto)
+3. Programe ajustes de orçamento para campanhas vencedoras (serão aplicados às 00:01)
+4. Crie novas campanhas se identificar oportunidades claras nos dados
+5. Gere insights completos sobre o estado atual da conta
+6. Redistribua orçamento conforme splits de funil definidos
+Aja como se estivesse assumindo a gestão da conta pela primeira vez — seja COMPLETO e DECISIVO.
+` : ""}
 
 ## FASE 2 — CRIAÇÃO (disponível se dados suficientes)
 Se esta conta tem 7+ dias de dados E 10+ conversões, você PODE usar:
@@ -1162,7 +1178,7 @@ ${channelHealth.alerts?.join("\n") || ""}
 🚨 RESTRIÇÃO: Não escalar budgets. Apenas pausar campanhas problemáticas e gerar insights.` : "";
 
         const plannerMessages = [
-          { role: "system", content: buildAccountPlannerPrompt(acctConfig, context) + pacingContext + healthContext },
+          { role: "system", content: buildAccountPlannerPrompt(acctConfig, context, trigger_type) + pacingContext + healthContext },
           {
             role: "user",
             content: `## CAMPANHAS DESTA CONTA (${acctConfig.ad_account_id})
@@ -1198,7 +1214,8 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
             acctConfig,
             context,
             totalActionsPlanned,
-            trackingHealth
+            trackingHealth,
+            trigger_type
           );
 
           totalActionsPlanned++;
