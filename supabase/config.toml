@@ -671,3 +671,18 @@ schedule = "0 3 * * 0,1"
 
 [functions.ads-chat]
 verify_jwt = false
+
+[functions.ads-autopilot-weekly-insights]
+verify_jwt = false
+schedule = "0 11 * * 1"
+
+[functions.ads-autopilot-experiments-run]
+verify_jwt = false
+schedule = "0 11 * * 2"
+
+[functions.ads-autopilot-creative-generate]
+verify_jwt = false
+schedule = "0 11 * * 3"
+
+[functions.ads-autopilot-creative]
+verify_jwt = false
