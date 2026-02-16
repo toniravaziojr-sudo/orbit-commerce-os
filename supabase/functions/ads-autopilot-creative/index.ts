@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.0.0"; // Initial: Autopilot creative generation bridge
+const VERSION = "v1.1.0"; // Adds Drive folder for creatives + enriched action_data
 // ===================
 
 const corsHeaders = {
@@ -55,6 +55,37 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Ensure Drive folder exists for traffic creatives
+    const ADS_FOLDER_NAME = "Gestor de Tráfego IA";
+    const { data: existingFolder } = await supabase
+      .from("files")
+      .select("id")
+      .eq("tenant_id", tenant_id)
+      .eq("filename", ADS_FOLDER_NAME)
+      .eq("is_folder", true)
+      .maybeSingle();
+
+    let folderId = existingFolder?.id || null;
+
+    if (!folderId) {
+      const { data: newFolder } = await supabase
+        .from("files")
+        .insert({
+          tenant_id,
+          folder_id: null,
+          filename: ADS_FOLDER_NAME,
+          original_name: ADS_FOLDER_NAME,
+          storage_path: `${tenant_id}/gestor-trafego-ia/`,
+          is_folder: true,
+          is_system_folder: false,
+          metadata: { source: "ads_autopilot", system_managed: true },
+        })
+        .select("id")
+        .single();
+      folderId = newFolder?.id || null;
+      console.log(`[ads-autopilot-creative][${VERSION}] Created Drive folder: ${folderId}`);
+    }
+
     // Build prompt based on channel + objective
     const channelName = channel === "meta" ? "Meta (Facebook/Instagram)" : channel === "google" ? "Google Ads" : "TikTok Ads";
     
@@ -82,6 +113,7 @@ Deno.serve(async (req) => {
         product_name: product_name || "Produto",
         product_image_url,
         prompt: promptParts,
+        output_folder_id: folderId,
         settings: {
           providers: ["openai", "gemini"],
           generation_style: generationStyle,
@@ -119,10 +151,16 @@ Deno.serve(async (req) => {
         executed_at: new Date().toISOString(),
         action_data: {
           job_id: result?.data?.job_id,
+          creative_job_id: result?.data?.job_id,
           channel,
           format,
           variations,
           generation_style: generationStyle,
+          product_name: product_name || "Produto",
+          product_id,
+          folder_name: ADS_FOLDER_NAME,
+          campaign_objective,
+          target_audience,
         },
       }).eq("id", action_id);
     }

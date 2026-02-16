@@ -19,10 +19,7 @@ export interface AccountConfig {
   target_roi: number | null;
   min_roi_cold: number | null;
   min_roi_warm: number | null;
-  roas_scale_up_threshold: number | null;
-  roas_scale_down_threshold: number | null;
-  budget_increase_pct: number;
-  budget_decrease_pct: number;
+  roas_scaling_threshold: number | null;
   user_instructions: string | null;
   strategy_mode: string;
   funnel_split_mode: string;
