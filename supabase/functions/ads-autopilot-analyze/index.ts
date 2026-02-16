@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.0.0"; // Smart audiences, auto-creative generation, auto-activation mode
+const VERSION = "v5.1.0"; // Interest targeting, Lookalike audience creation, enhanced prompt
 // ===========================================================
 
 const corsHeaders = {
@@ -89,8 +89,8 @@ const DEFAULT_SAFETY = {
   max_budget_change_pct_day: 10,
   max_actions_per_session: 10,
   phase1_actions: ["pause_campaign", "adjust_budget", "report_insight", "allocate_budget"],
-  phase2_actions: ["create_campaign", "create_adset"],
-  allowed_actions: ["pause_campaign", "adjust_budget", "report_insight", "allocate_budget", "create_campaign", "create_adset", "generate_creative"],
+  phase2_actions: ["create_campaign", "create_adset", "create_lookalike_audience"],
+  allowed_actions: ["pause_campaign", "adjust_budget", "report_insight", "allocate_budget", "create_campaign", "create_adset", "generate_creative", "create_lookalike_audience"],
   min_data_days_for_action: 3,
   min_data_days_for_creation: 7,
   min_conversions_for_creation: 10,
@@ -818,6 +818,10 @@ const PLANNER_TOOLS = [
           daily_budget_cents: { type: "number", description: "Orçamento diário em centavos" },
           targeting_description: { type: "string", description: "Descrição do público-alvo" },
           funnel_stage: { type: "string", enum: ["tof", "mof", "bof"], description: "Estágio do funil" },
+          interests: { type: "array", items: { type: "object", properties: { id: { type: "string" }, name: { type: "string" } }, required: ["id", "name"] }, description: "Interesses do Meta Ads (ex: [{id:'6003139266461',name:'Cosmetics'}]). Busque IDs válidos via Meta Targeting Search API." },
+          age_min: { type: "number", description: "Idade mínima (default 18)" },
+          age_max: { type: "number", description: "Idade máxima (default 65)" },
+          genders: { type: "array", items: { type: "number" }, description: "1=Male, 2=Female. Omitir = todos." },
           reason: { type: "string", description: "Justificativa baseada em dados" },
           confidence: { type: "number", minimum: 0, maximum: 1 },
           metric_trigger: { type: "string" },
@@ -831,7 +835,7 @@ const PLANNER_TOOLS = [
     type: "function",
     function: {
       name: "create_adset",
-      description: "Cria novo conjunto de anúncios dentro de campanha existente. Requer campanha ativa e público válido. Se houver custom_audience_id, usa o público salvo. Caso contrário, usa targeting broad.",
+      description: "Cria novo conjunto de anúncios dentro de campanha existente. Pode usar custom_audience_id (público salvo), interests (interesses), ou targeting broad.",
       parameters: {
         type: "object",
         properties: {
@@ -841,6 +845,10 @@ const PLANNER_TOOLS = [
           targeting_description: { type: "string", description: "Descrição do targeting" },
           audience_type: { type: "string", enum: ["cold", "warm", "hot"], description: "Tipo de audiência" },
           custom_audience_id: { type: "string", description: "ID da custom audience salva da Meta (se disponível)" },
+          interests: { type: "array", items: { type: "object", properties: { id: { type: "string" }, name: { type: "string" } }, required: ["id", "name"] }, description: "Interesses do Meta Ads para targeting detalhado" },
+          age_min: { type: "number", description: "Idade mínima (default 18)" },
+          age_max: { type: "number", description: "Idade máxima (default 65)" },
+          genders: { type: "array", items: { type: "number" }, description: "1=Male, 2=Female" },
           reason: { type: "string" },
           confidence: { type: "number", minimum: 0, maximum: 1 },
         },
@@ -866,6 +874,27 @@ const PLANNER_TOOLS = [
           confidence: { type: "number", minimum: 0, maximum: 1 },
         },
         required: ["product_name", "campaign_objective", "reason", "confidence"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_lookalike_audience",
+      description: "Cria um público Lookalike na Meta a partir de uma Custom Audience fonte (ex: compradores, visitantes). O público leva ~1h para ficar pronto. Use quando não houver Lookalikes disponíveis e a conta tiver Custom Audiences com dados suficientes.",
+      parameters: {
+        type: "object",
+        properties: {
+          source_audience_id: { type: "string", description: "ID da Custom Audience fonte (ex: compradores, visitantes do site)" },
+          source_audience_name: { type: "string", description: "Nome do público fonte para referência" },
+          lookalike_name: { type: "string", description: "Nome do novo Lookalike. Padrão: [AI] LAL - {fonte} - {%}" },
+          ratio: { type: "number", description: "Tamanho do Lookalike (0.01 a 0.20). 0.01=1% mais similar, 0.10=10%. Recomendado: 0.01-0.05 para BOF, 0.05-0.10 para MOF, 0.10-0.20 para TOF." },
+          country: { type: "string", description: "Código do país. Default: BR" },
+          reason: { type: "string" },
+          confidence: { type: "number", minimum: 0, maximum: 1 },
+        },
+        required: ["source_audience_id", "source_audience_name", "lookalike_name", "ratio", "reason", "confidence"],
         additionalProperties: false,
       },
     },
@@ -1016,13 +1045,28 @@ Se esta conta tem 7+ dias de dados E 10+ conversões, você PODE usar:
   - Budget inicial respeitando splits de funil
   - Máximo ${DEFAULT_SAFETY.max_new_campaigns_per_day} novas campanhas por sessão
   - O sistema cria automaticamente: campanha → ad set (com público) → ad (com criativo)
-  - Se houver custom audiences disponíveis, PRIORIZE usá-las em vez de targeting broad
+  - PRIORIDADE DE PÚBLICO: 1) Custom Audiences salvas 2) Interesses específicos 3) Broad (último recurso)
+  - Use o campo "interests" para definir interesses específicos: [{id:"6003139266461",name:"Cosmetics"}]
+  - Use age_min/age_max/genders para refinar demografia quando relevante
 - create_adset: Criar novo ad set em campanha existente
-  - Se houver custom_audience_id disponível, USE-O no campo custom_audience_id
+  - Se houver custom_audience_id disponível, USE-O
+  - Se não, use interests para targeting detalhado
   - Budget proporcional ao tamanho do público
 - generate_creative: Gerar criativos para campanhas sem anúncios ou para testes
   - Use quando não houver criativos existentes
   - Priorize gerar para os TOP produtos por receita
+- create_lookalike_audience: Criar público Lookalike a partir de um público fonte
+  - Use quando a conta tem Custom Audiences (compradores, visitantes) mas NÃO tem Lookalikes
+  - Ratio: 0.01 (1%) para BOF, 0.05 para MOF, 0.10-0.20 para TOF
+  - O público leva ~1h para ficar pronto. Crie e use em sessões futuras.
+
+## REGRAS DE TARGETING (OBRIGATÓRIAS)
+- Para TOF (público frio): Prefira Lookalikes > Interesses amplos > Broad
+- Para MOF (público morno): Prefira Engagers/Visitantes > Lookalikes pequenos > Interesses nichados
+- Para BOF (público quente): Prefira Custom Audiences (compradores, carrinho) > Visitantes recentes
+- Se não existem Lookalikes mas existem Custom Audiences com 1000+ registros, USE create_lookalike_audience
+- Interesses são ideais para TESTES: crie ad sets com interesses diferentes para descobrir segmentos vencedores
+- IDs de interesses válidos: consulte a seção INTERESSES DISPONÍVEIS abaixo (se fornecida)
 
 ## FASE 3 — CRIATIVOS AUTOMÁTICOS
 Quando uma campanha é criada mas não há creative_id na conta, o sistema gera automaticamente via IA.
@@ -1406,7 +1450,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
           };
 
           // Human approval mode check
-          const isCreateAction = tc.function.name === "create_campaign" || tc.function.name === "create_adset" || tc.function.name === "generate_creative";
+          const isCreateAction = tc.function.name === "create_campaign" || tc.function.name === "create_adset" || tc.function.name === "generate_creative" || tc.function.name === "create_lookalike_audience";
           const isBigBudgetChange = tc.function.name === "adjust_budget" && Math.abs(args.change_pct || 0) > 20;
           const isHighImpact = isCreateAction || isBigBudgetChange;
           const needsApproval = validation.valid && (
@@ -1507,12 +1551,13 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                       leads: "IMPRESSIONS",
                     };
 
-                    // Build smart targeting: prefer saved custom audiences
+                    // Build smart targeting: prefer saved custom audiences > interests > broad
                     let targeting: any = {
                       geo_locations: { countries: ["BR"] },
-                      age_min: 18,
-                      age_max: 65,
+                      age_min: args.age_min || 18,
+                      age_max: args.age_max || 65,
                     };
+                    if (args.genders?.length > 0) targeting.genders = args.genders;
 
                     const accountAudiences = channelData.savedAudiences?.[acctConfig.ad_account_id] || [];
                     if (accountAudiences.length > 0) {
@@ -1548,6 +1593,12 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                         targeting.custom_audiences = [{ id: bestAudience.id }];
                         console.log(`[ads-autopilot-analyze][${VERSION}] Step 2: Using audience: ${bestAudience.name} (${bestAudience.id}, size: ${bestAudience.size})`);
                       }
+                    }
+
+                    // Fallback to interests if no custom audience selected and AI provided interests
+                    if (!targeting.custom_audiences && args.interests?.length > 0) {
+                      targeting.flexible_spec = [{ interests: args.interests }];
+                      console.log(`[ads-autopilot-analyze][${VERSION}] Step 2: Using interest targeting: ${args.interests.map((i: any) => i.name).join(", ")}`);
                     }
 
                     const adsetName = args.campaign_name.replace("[AI]", "[AI] CJ -");
@@ -1677,15 +1728,19 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 const isAutoMode = acctConfig.human_approval_mode === "auto";
                 const entityStatus = isAutoMode ? "ACTIVE" : "PAUSED";
                 
-                // Build targeting with custom audience if provided
+                // Build targeting with custom audience, interests, or broad
                 let targeting: any = {
                   geo_locations: { countries: ["BR"] },
-                  age_min: 18,
-                  age_max: 65,
+                  age_min: args.age_min || 18,
+                  age_max: args.age_max || 65,
                 };
+                if (args.genders?.length > 0) targeting.genders = args.genders;
                 if (args.custom_audience_id) {
                   targeting.custom_audiences = [{ id: args.custom_audience_id }];
                   console.log(`[ads-autopilot-analyze][${VERSION}] Using custom audience: ${args.custom_audience_id}`);
+                } else if (args.interests?.length > 0) {
+                  targeting.flexible_spec = [{ interests: args.interests }];
+                  console.log(`[ads-autopilot-analyze][${VERSION}] Using interest targeting: ${args.interests.map((i: any) => i.name).join(", ")}`);
                 }
 
                 const { data: adsetResult, error: adsetErr } = await supabase.functions.invoke("meta-ads-adsets", {
@@ -1711,8 +1766,72 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                   meta_adset_id: adsetResult?.data?.meta_adset_id || null,
                   created_status: entityStatus,
                   custom_audience_id: args.custom_audience_id || null,
+                  interests: args.interests || null,
                 };
                 console.log(`[ads-autopilot-analyze][${VERSION}] Adset created: ${args.adset_name} (${adsetResult?.data?.meta_adset_id}) status=${entityStatus}`);
+                totalActionsExecuted++;
+              } else if (tc.function.name === "create_lookalike_audience") {
+                // Create Lookalike Audience via Meta API
+                try {
+                  const metaConn = await supabase
+                    .from("marketplace_connections")
+                    .select("access_token")
+                    .eq("tenant_id", tenant_id)
+                    .eq("marketplace", "meta")
+                    .eq("is_active", true)
+                    .maybeSingle();
+
+                  if (!metaConn?.data?.access_token) throw new Error("Meta não conectada");
+
+                  const accountId = acctConfig.ad_account_id.replace("act_", "");
+                  const lalBody = {
+                    name: args.lookalike_name,
+                    subtype: "LOOKALIKE",
+                    origin_audience_id: args.source_audience_id,
+                    lookalike_spec: JSON.stringify({
+                      type: "similarity",
+                      ratio: args.ratio || 0.05,
+                      country: args.country || "BR",
+                    }),
+                    access_token: metaConn.data.access_token,
+                  };
+
+                  const lalRes = await fetch(`https://graph.facebook.com/v21.0/act_${accountId}/customaudiences`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(lalBody),
+                  });
+                  const lalResult = await lalRes.json();
+
+                  if (lalResult.error) throw new Error(lalResult.error.message);
+
+                  // Save to local cache
+                  await supabase.from("meta_ad_audiences").upsert({
+                    tenant_id: tenant_id,
+                    meta_audience_id: lalResult.id,
+                    ad_account_id: acctConfig.ad_account_id,
+                    name: args.lookalike_name,
+                    audience_type: "lookalike",
+                    subtype: "LOOKALIKE",
+                    description: `LAL ${(args.ratio * 100).toFixed(0)}% de ${args.source_audience_name}`,
+                    lookalike_spec: { ratio: args.ratio, country: args.country || "BR", source: args.source_audience_id },
+                    synced_at: new Date().toISOString(),
+                  }, { onConflict: "tenant_id,meta_audience_id" });
+
+                  actionRecord.status = "executed";
+                  actionRecord.executed_at = new Date().toISOString();
+                  actionRecord.action_data = {
+                    ...actionRecord.action_data,
+                    lookalike_audience_id: lalResult.id,
+                    source_audience_id: args.source_audience_id,
+                    ratio: args.ratio,
+                  };
+                  console.log(`[ads-autopilot-analyze][${VERSION}] Lookalike created: ${args.lookalike_name} (${lalResult.id}) ratio=${args.ratio}`);
+                } catch (lalErr: any) {
+                  actionRecord.status = "failed";
+                  actionRecord.error_message = lalErr.message || "Erro ao criar Lookalike";
+                  console.error(`[ads-autopilot-analyze][${VERSION}] Lookalike creation failed:`, lalErr.message);
+                }
                 totalActionsExecuted++;
               } else if (tc.function.name === "generate_creative") {
                 // Phase 3: Creative generation
