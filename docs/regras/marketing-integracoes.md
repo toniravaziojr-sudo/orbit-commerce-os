@@ -267,6 +267,38 @@ A página `/ads` utiliza 3 abas de nível superior:
 
 > **Constraint:** UNIQUE(tenant_id, channel, ad_account_id)
 
+#### Hook `useAdsAccountConfigs.ts` (v4.0 Sprint 3)
+
+| Método | Descrição |
+|--------|-----------|
+| `configs` | Lista completa de configs por conta |
+| `getAccountConfig(channel, accountId)` | Retorna config de uma conta específica |
+| `getAIEnabledAccounts(channel)` | Lista IDs de contas com IA ativa |
+| `saveAccountConfig.mutate(config)` | Upsert config na tabela normalizada |
+| `toggleAI.mutate({ channel, ad_account_id, enabled })` | Liga/desliga IA para uma conta |
+| `toggleKillSwitch.mutate({ channel, ad_account_id, enabled })` | Ativa/desativa kill switch com AlertDialog de confirmação |
+
+#### Validação obrigatória para ativar IA (`isAccountConfigComplete`)
+
+O Switch de IA só fica habilitado quando **TODOS** os campos estão preenchidos:
+- Orçamento > 0
+- ROI Ideal preenchido
+- ROI mín. Frio e Quente preenchidos
+- Prompt Estratégico com mínimo 10 caracteres
+- Estratégia selecionada
+- Splits preenchidos (total = 100%) **OU** "IA decide" ativado
+
+Se incompleto, o Switch fica desabilitado e um Tooltip mostra os campos faltantes.
+
+#### Campos adicionais no card de configuração (Sprint 3)
+
+| Campo | Tipo | Opções | Descrição |
+|-------|------|--------|-----------|
+| Estratégia Geral | Select | 🔥 Agressiva / ⚖️ Balanceada (Recomendada) / 🌱 Médio/Longo Prazo | Define tom de atuação da IA |
+| Splits de Funil | 4 inputs % | Frio / Remarketing / Testes / Leads | Total deve ser 100%. Toggle "IA decide" desabilita campos |
+| Modo de Aprovação | Select | Auto-executar tudo / Aprovar alto impacto | Controla se ações high-impact requerem aprovação humana |
+| Kill Switch | Botão destrutivo | AlertDialog de confirmação | Para imediato de todas as ações da IA nesta conta |
+
 #### Legado: JSONB em `safety_rules` (mantido para retrocompatibilidade)
 
 ```jsonc
@@ -290,6 +322,8 @@ A página `/ads` utiliza 3 abas de nível superior:
   }
 }
 ```
+
+> **NOTA:** A partir do Sprint 3, o `AdsManager.tsx` utiliza `useAdsAccountConfigs` para CRUD na tabela normalizada. O JSONB legado é mantido apenas para retrocompatibilidade com a edge function `ads-autopilot-analyze` até o Sprint 5.
 
 > **UI:** Cada conta com IA ativa exibe um card colapsável com esses campos (`AdsAccountConfig.tsx`). O botão 🤖 nos chips de conta abre configurações (não alterna estado). Azul = IA ativa, Amarelo = IA inativa.
 
@@ -414,11 +448,12 @@ A condição 2 evita que campanhas genuinamente ativas apareçam como pausadas a
 |---------|-----------|
 | `src/pages/AdsManager.tsx` | Página principal com 3 abas mãe (Visão Geral / Gerenciador / Insights) e hooks de conexão por canal |
 | `src/hooks/useAdsAutopilot.ts` | Hook para configs, actions, sessions. Interface `AutopilotConfig` inclui campos v4.0 (`total_budget_cents`, `total_budget_mode`, `channel_limits`, `strategy_mode`, `funnel_split_mode`, `funnel_splits`, `kill_switch`, `human_approval_mode`) |
+| `src/hooks/useAdsAccountConfigs.ts` | **NOVO v4.0 Sprint 3** — Hook CRUD para tabela normalizada `ads_autopilot_account_configs`. Inclui `toggleAI`, `toggleKillSwitch`, `saveAccountConfig` e validação `isAccountConfigComplete` |
 | `src/hooks/useAdsInsights.ts` | **NOVO v4.0** — Hook para CRUD de insights (listar, marcar done/ignored, gerar manual) |
 | `src/hooks/useMetaAds.ts` | Hook para campanhas, ad sets, insights, saldo e sync (Meta) |
 | `src/components/ads/AdsOverviewTab.tsx` | **NOVO v4.0** — Dashboard cross-channel com métricas agregadas, pacing mensal e breakdown por canal |
 | `src/components/ads/AdsInsightsTab.tsx` | **NOVO v4.0** — Feed de insights com filtros, ações "Vou fazer"/"Ignorar" e histórico colapsável |
-| `src/components/ads/AdsAccountConfig.tsx` | Config por conta de anúncios com Switch de ativação da IA dentro do card |
+| `src/components/ads/AdsAccountConfig.tsx` | **Refatorado v4.0 Sprint 3** — Config por conta com Estratégia, Splits de Funil, Modo de Aprovação, Kill Switch e validação obrigatória |
 | `src/components/ads/AdsChannelIntegrationAlert.tsx` | Alerta de integração por canal com chips de seleção de contas |
 | `src/components/ads/AdsCampaignsTab.tsx` | Campanhas por canal com 28 métricas disponíveis |
 | `src/components/ads/AdsActionsTab.tsx` | Timeline de ações da IA |
