@@ -71,10 +71,10 @@ serve(async (req) => {
       );
     }
 
-    // Buscar conexão existente
+    // Buscar conexão existente (inclui access_token para CAPI)
     const { data: connection, error: connError } = await supabase
       .from("marketplace_connections")
-      .select("metadata")
+      .select("metadata, access_token")
       .eq("tenant_id", tenantId)
       .eq("marketplace", "meta")
       .single();
@@ -111,25 +111,34 @@ serve(async (req) => {
       );
     }
 
-    // Sync pixel selecionado para marketing_integrations
-    if (selectedAssets.pixels && selectedAssets.pixels.length > 0) {
-      const selectedPixel = selectedAssets.pixels[0]; // Usa o primeiro pixel selecionado
-      const { error: miError } = await supabase
-        .from("marketing_integrations")
-        .upsert({
-          tenant_id: tenantId,
-          meta_pixel_id: selectedPixel.id,
-          meta_enabled: true,
-        }, {
-          onConflict: "tenant_id",
-        });
-      
-      if (miError) {
-        console.warn("[meta-save-selected-assets] Aviso: Erro ao sincronizar pixel com marketing_integrations:", miError);
-        // Não falha o fluxo — pixel pode ser configurado manualmente depois
-      } else {
-        console.log(`[meta-save-selected-assets] Pixel ${selectedPixel.id} sincronizado com marketing_integrations`);
-      }
+    // Sync pixel + CAPI token para marketing_integrations
+    const pixelId = selectedAssets.pixels?.[0]?.id || null;
+    const oauthAccessToken = connection.access_token || null;
+    
+    const upsertData: Record<string, unknown> = {
+      tenant_id: tenantId,
+      meta_enabled: !!pixelId,
+      meta_status: pixelId ? 'active' : 'inactive',
+    };
+
+    if (pixelId) {
+      upsertData.meta_pixel_id = pixelId;
+    }
+
+    // Auto-sync CAPI: usar o token OAuth long-lived como CAPI token
+    if (oauthAccessToken && pixelId) {
+      upsertData.meta_access_token = oauthAccessToken;
+      upsertData.meta_capi_enabled = true;
+    }
+
+    const { error: miError } = await supabase
+      .from("marketing_integrations")
+      .upsert(upsertData, { onConflict: "tenant_id" });
+
+    if (miError) {
+      console.warn("[meta-save-selected-assets] Aviso: Erro ao sincronizar com marketing_integrations:", miError);
+    } else {
+      console.log(`[meta-save-selected-assets] Pixel ${pixelId || 'none'} + CAPI token sincronizados com marketing_integrations`);
     }
 
     console.log(`[meta-save-selected-assets] Ativos selecionados salvos para tenant ${tenantId}`);
