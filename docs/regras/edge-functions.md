@@ -256,7 +256,7 @@ Edge function para geração de landing pages via IA usando Lovable AI Gateway (
 
 ## AI Ads Autopilot (`ads-autopilot-analyze`)
 
-### Versão Atual: v3.0.0
+### Versão Atual: v4.12.0
 
 ### Visão Geral
 Edge Function autônoma de gestão de tráfego pago multi-canal (Meta, Google, TikTok). Opera como media buyer sênior com pipeline de 5 etapas, camada de segurança determinística, **conhecimento específico por plataforma** e **metas de ROAS por canal definidas pelo usuário**.
@@ -374,11 +374,19 @@ A IA **NÃO cria públicos automaticamente** via API. Quando identifica necessid
 > A IA pode criar campanhas de tráfego, engajamento ou alcance como parte da estratégia de funil (TOF), mas a **métrica final de sucesso do sistema é sempre o ROI das campanhas de conversão**.
 
 ### Rollout Progressivo (Phased)
-| Fase | Ações Permitidas (`allowed_actions`) |
-|------|--------------------------------------|
-| Fase 1 (Semana 1) | `pause_campaign`, `adjust_budget`, `report_insight`, `allocate_budget` |
-| Fase 2 (Semana 2) | + `create_campaign` |
-| Fase 3 (Semana 3) | + `generate_creative` |
+| Fase | Ações Permitidas (`allowed_actions`) | Status |
+|------|--------------------------------------|--------|
+| Fase 1 (Semana 1) | `pause_campaign`, `adjust_budget`, `report_insight`, `allocate_budget` | ✅ Live |
+| Fase 2 (Semana 2) | + `create_campaign` (executa via Meta API, cria PAUSED) | ✅ Live (v4.12.0) |
+| Fase 2.1 | + `create_adset` (validado, targeting manual necessário) | ⚠️ Parcial |
+| Fase 3 (Semana 3) | + `generate_creative` | 🔜 Pendente |
+
+### Execução de `create_campaign` (v4.12.0)
+- A IA chama `meta-ads-campaigns` com action `create` passando nome, objetivo, budget e conta
+- Campanhas criadas pela IA iniciam **sempre com status PAUSED** por segurança
+- Mapeamento de objectives: `conversions`→`OUTCOME_SALES`, `traffic`→`OUTCOME_TRAFFIC`, `awareness`→`OUTCOME_AWARENESS`, `leads`→`OUTCOME_LEADS`
+- Campanha é salva localmente em `meta_ad_campaigns` automaticamente
+- No modo `approve_high_impact`, criação de campanhas requer aprovação manual na aba Ações
 
 ### Checklist do Planner (7 pontos obrigatórios)
 1. **Learning Phase** — A campanha está em aprendizado? Se sim, apenas report_insight
