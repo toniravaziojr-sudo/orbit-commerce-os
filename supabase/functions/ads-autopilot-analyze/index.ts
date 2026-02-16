@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v4.9.0"; // First activation: all phases + budget rebalance mandatory. Orders NEVER block.
+const VERSION = "v4.10.0"; // Learning phase protection: max +20% per campaign even on first activation. Forces create_campaign.
 // ===========================================================
 
 const corsHeaders = {
@@ -96,6 +96,7 @@ const DEFAULT_SAFETY = {
   min_conversions_for_creation: 10,
   ramp_up_max_pct: 10,
   max_new_campaigns_per_day: 2,
+  first_activation_max_increase_pct: 20, // Max budget increase per campaign even on first activation
 };
 
 // ============ HELPERS ============
@@ -612,24 +613,37 @@ function validateAction(
     }
   }
 
-  // Budget change limits — SKIP on first activation (needs freedom to redistribute)
-  if (!isFirstActivation && action.name === "adjust_budget" && action.arguments) {
+  // Budget change limits — ALWAYS enforce per-campaign ceiling to protect learning phase
+  if (action.name === "adjust_budget" && action.arguments) {
     const args = typeof action.arguments === "string" ? JSON.parse(action.arguments) : action.arguments;
     const changePct = args.change_pct || 0;
     const absChange = Math.abs(changePct);
 
-    const platformMaxPerCycle: Record<string, number> = { meta: 10, google: 15, tiktok: 7 };
-    const platformMax = platformMaxPerCycle[channelKey] || DEFAULT_SAFETY.max_budget_change_pct_day;
-    const effectiveMax = Math.min(platformMax, DEFAULT_SAFETY.max_budget_change_pct_day);
+    if (isFirstActivation) {
+      // First activation: allow larger moves but STILL cap per campaign to protect learning
+      const firstActivationMax = DEFAULT_SAFETY.first_activation_max_increase_pct; // 20%
+      if (changePct > firstActivationMax) {
+        return {
+          valid: false,
+          reason: `Aumento de ${changePct}% excede limite de +${firstActivationMax}% por campanha (proteção de Learning Phase). Redistribua o orçamento excedente criando novas campanhas (create_campaign).`,
+        };
+      }
+      // Allow reductions freely on first activation (pausing/reducing is safe)
+    } else {
+      // Normal cycles: strict per-platform limits
+      const platformMaxPerCycle: Record<string, number> = { meta: 10, google: 15, tiktok: 7 };
+      const platformMax = platformMaxPerCycle[channelKey] || DEFAULT_SAFETY.max_budget_change_pct_day;
+      const effectiveMax = Math.min(platformMax, DEFAULT_SAFETY.max_budget_change_pct_day);
 
-    if (absChange > effectiveMax) {
-      return { valid: false, reason: `Alteração de ${changePct}% excede limite de ±${effectiveMax}%/ciclo para ${channelKey}.` };
-    }
+      if (absChange > effectiveMax) {
+        return { valid: false, reason: `Alteração de ${changePct}% excede limite de ±${effectiveMax}%/ciclo para ${channelKey}.` };
+      }
 
-    if (changePct > DEFAULT_SAFETY.ramp_up_max_pct) {
-      const confidence = parseFloat(args.confidence) || 0;
-      if (confidence < 0.7) {
-        return { valid: false, reason: `Aumento de ${changePct}% requer confidence >= 0.7 (atual: ${confidence}).` };
+      if (changePct > DEFAULT_SAFETY.ramp_up_max_pct) {
+        const confidence = parseFloat(args.confidence) || 0;
+        if (confidence < 0.7) {
+          return { valid: false, reason: `Aumento de ${changePct}% requer confidence >= 0.7 (atual: ${confidence}).` };
+        }
       }
     }
   }
@@ -931,6 +945,9 @@ Esta é a PRIMEIRA VEZ que a IA está sendo ativada nesta conta. Você tem ACESS
 8. Redistribua orçamento conforme splits de funil definidos
 
 ⚠️ REGRA CRÍTICA: Se você pausou campanhas que gastavam R$ X/dia, a soma dos adjust_budget + create_campaign DEVE cobrir esses R$ X/dia. Não deixe orçamento ocioso.
+
+⚠️ LIMITE DE ESCALA POR CAMPANHA: Mesmo na primeira ativação, cada campanha ativa só pode receber no MÁXIMO +${DEFAULT_SAFETY.first_activation_max_increase_pct}% de aumento de budget (proteção de Learning Phase). Se o orçamento economizado NÃO CABE dentro desse limite nas campanhas existentes, você É OBRIGADO a criar novas campanhas (create_campaign) para absorver o excedente. Exemplo: se economizou R$ 300/dia e as 2 campanhas ativas só absorvem +R$ 40/dia cada (20% de R$ 200), crie campanhas novas para os R$ 220 restantes.
+
 Aja como se estivesse assumindo a gestão da conta pela primeira vez — seja COMPLETO e DECISIVO.
 ` : ""}
 
