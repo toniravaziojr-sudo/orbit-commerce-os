@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.7.0"; // Fire-and-forget sync on first_activation to avoid timeout
+const VERSION = "v5.8.0"; // Fix adset creation: add promoted_object with pixel_id
 // ===========================================================
 
 const corsHeaders = {
@@ -1725,22 +1725,43 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                     }
 
                     const adsetName = args.campaign_name.replace("[AI]", "[AI] CJ -");
+
+                    // Fetch pixel_id for promoted_object (required for OFFSITE_CONVERSIONS)
+                    let pixelId: string | null = null;
+                    const optimizationGoal = optimizationGoalMap[args.objective] || "OFFSITE_CONVERSIONS";
+                    if (optimizationGoal === "OFFSITE_CONVERSIONS" || optimizationGoal === "LEAD_GENERATION") {
+                      const { data: mktConfig } = await supabase
+                        .from("marketing_integrations")
+                        .select("meta_pixel_id")
+                        .eq("tenant_id", tenant_id)
+                        .maybeSingle();
+                      pixelId = mktConfig?.meta_pixel_id || null;
+                      console.log(`[ads-autopilot-analyze][${VERSION}] Step 2: pixel_id=${pixelId ? pixelId.substring(0, 8) + '...' : 'NOT_FOUND'}`);
+                    }
+
                     // CBO mode: campaign has budget, so adset must NOT have its own budget
-                    // ABO mode: adset has budget, campaign does not
-                    // Since we create campaigns WITH daily_budget_cents (CBO), adset must NOT have budget
                     const adsetCreateBody: any = {
                       tenant_id,
                       action: "create",
                       ad_account_id: acctConfig.ad_account_id,
                       meta_campaign_id: newMetaCampaignId,
                       name: adsetName,
-                      optimization_goal: optimizationGoalMap[args.objective] || "OFFSITE_CONVERSIONS",
+                      optimization_goal: optimizationGoal,
                       billing_event: billingEventMap[args.objective] || "IMPRESSIONS",
                       targeting,
-                      status: "PAUSED", // Always PAUSED — activated with campaign
+                      status: "PAUSED",
                     };
-                    // Only set adset budget if campaign does NOT have budget (ABO mode)
-                    // Currently all AI-created campaigns use CBO (daily_budget on campaign), so skip adset budget
+
+                    // Add promoted_object for conversion/lead objectives
+                    if (pixelId && (optimizationGoal === "OFFSITE_CONVERSIONS" || optimizationGoal === "LEAD_GENERATION")) {
+                      adsetCreateBody.promoted_object = {
+                        pixel_id: pixelId,
+                        custom_event_type: optimizationGoal === "LEAD_GENERATION" ? "LEAD" : "PURCHASE",
+                      };
+                      console.log(`[ads-autopilot-analyze][${VERSION}] Step 2: promoted_object set with pixel ${pixelId.substring(0, 8)}...`);
+                    } else if (optimizationGoal === "OFFSITE_CONVERSIONS" || optimizationGoal === "LEAD_GENERATION") {
+                      console.error(`[ads-autopilot-analyze][${VERSION}] Step 2: WARNING - No pixel_id found, adset creation will likely fail`);
+                    }
                     
                     const { data: adsetResult, error: adsetErr } = await supabase.functions.invoke("meta-ads-adsets", {
                       body: adsetCreateBody,
