@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bot, Settings2, DollarSign, Target } from "lucide-react";
+import { Bot, DollarSign, Target, Shield, AlertTriangle, Zap, Scale, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -8,16 +8,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import type { AutopilotConfig } from "@/hooks/useAdsAutopilot";
-
-interface AccountConfig {
-  budget_mode: string;
-  budget_cents: number;
-  target_roi: number | null;
-  user_instructions: string;
-  min_roi_cold: number;
-  min_roi_warm: number;
-}
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import type { AccountConfig } from "@/hooks/useAdsAccountConfigs";
+import { isAccountConfigComplete } from "@/hooks/useAdsAccountConfigs";
 
 interface AdAccount {
   id: string;
@@ -26,65 +30,100 @@ interface AdAccount {
 
 interface AdsAccountConfigProps {
   channel: string;
-  channelConfig: AutopilotConfig | null;
-  aiEnabledAccountIds: string[];
   adAccounts: AdAccount[];
-  onSave: (config: Partial<AutopilotConfig> & { channel: string }) => void;
+  getAccountConfig: (channel: string, accountId: string) => AccountConfig | null;
+  aiEnabledAccountIds: string[];
+  onSave: (config: Partial<AccountConfig> & { channel: string; ad_account_id: string }) => void;
   isSaving: boolean;
   onToggleAI: (accountId: string, enabled: boolean) => void;
+  onToggleKillSwitch: (accountId: string, enabled: boolean) => void;
 }
 
-const CHANNEL_LABELS: Record<string, string> = {
-  meta: "Meta Ads",
-  google: "Google Ads",
-  tiktok: "TikTok Ads",
-};
+const STRATEGY_OPTIONS = [
+  { value: "aggressive", label: "Agressiva", icon: "🔥", desc: "Foco em vendas a curto prazo" },
+  { value: "balanced", label: "Balanceada", icon: "⚖️", desc: "Equilíbrio entre vendas e crescimento (Recomendada)" },
+  { value: "long_term", label: "Médio/Longo Prazo", icon: "🌱", desc: "Branding e crescimento sustentável" },
+];
 
-function getAccountConfig(channelConfig: AutopilotConfig | null, accountId: string): AccountConfig {
-  const configs = (channelConfig?.safety_rules as any)?.account_configs || {};
-  const c = configs[accountId];
-  return {
-    budget_mode: c?.budget_mode || "monthly",
-    budget_cents: c?.budget_cents || 0,
-    target_roi: c?.target_roi ?? null,
-    user_instructions: c?.user_instructions || "",
-    min_roi_cold: c?.min_roi_cold ?? 2,
-    min_roi_warm: c?.min_roi_warm ?? 3,
-  };
-}
+const APPROVAL_OPTIONS = [
+  { value: "auto", label: "Auto-executar tudo", desc: "IA executa todas as ações automaticamente" },
+  { value: "approve_high_impact", label: "Aprovar alto impacto", desc: "Criar campanha, budget >20%, trocar objetivo" },
+];
 
 function AccountConfigCard({
   accountId,
   accountName,
+  channel,
   config,
   isAIEnabled,
   onSave,
   isSaving,
   onToggleAI,
+  onToggleKillSwitch,
 }: {
   accountId: string;
   accountName: string;
-  config: AccountConfig;
+  channel: string;
+  config: AccountConfig | null;
   isAIEnabled: boolean;
-  onSave: (accountId: string, config: AccountConfig) => void;
+  onSave: (accountId: string, data: Partial<AccountConfig>) => void;
   isSaving: boolean;
   onToggleAI: (accountId: string, enabled: boolean) => void;
+  onToggleKillSwitch: (accountId: string, enabled: boolean) => void;
 }) {
-  const [budgetMode, setBudgetMode] = useState(config.budget_mode);
-  const [budgetValue, setBudgetValue] = useState(config.budget_cents ? (config.budget_cents / 100).toString() : "");
-  const [targetRoi, setTargetRoi] = useState(config.target_roi?.toString() || "");
-  const [instructions, setInstructions] = useState(config.user_instructions);
-  const [minRoiCold, setMinRoiCold] = useState(String(config.min_roi_cold));
-  const [minRoiWarm, setMinRoiWarm] = useState(String(config.min_roi_warm));
+  const [budgetMode, setBudgetMode] = useState(config?.budget_mode || "monthly");
+  const [budgetValue, setBudgetValue] = useState(config?.budget_cents ? (config.budget_cents / 100).toString() : "");
+  const [targetRoi, setTargetRoi] = useState(config?.target_roi?.toString() || "");
+  const [instructions, setInstructions] = useState(config?.user_instructions || "");
+  const [minRoiCold, setMinRoiCold] = useState(String(config?.min_roi_cold ?? 2));
+  const [minRoiWarm, setMinRoiWarm] = useState(String(config?.min_roi_warm ?? 3));
+  const [strategyMode, setStrategyMode] = useState(config?.strategy_mode || "balanced");
+  const [funnelSplitMode, setFunnelSplitMode] = useState(config?.funnel_split_mode || "manual");
+  const [funnelSplits, setFunnelSplits] = useState<Record<string, number>>(
+    (config?.funnel_splits as Record<string, number>) || { cold: 60, remarketing: 25, tests: 15, leads: 0 }
+  );
+  const [approvalMode, setApprovalMode] = useState(config?.human_approval_mode || "auto");
 
   useEffect(() => {
-    setBudgetMode(config.budget_mode);
-    setBudgetValue(config.budget_cents ? (config.budget_cents / 100).toString() : "");
-    setTargetRoi(config.target_roi?.toString() || "");
-    setInstructions(config.user_instructions);
-    setMinRoiCold(String(config.min_roi_cold));
-    setMinRoiWarm(String(config.min_roi_warm));
+    if (config) {
+      setBudgetMode(config.budget_mode || "monthly");
+      setBudgetValue(config.budget_cents ? (config.budget_cents / 100).toString() : "");
+      setTargetRoi(config.target_roi?.toString() || "");
+      setInstructions(config.user_instructions || "");
+      setMinRoiCold(String(config.min_roi_cold ?? 2));
+      setMinRoiWarm(String(config.min_roi_warm ?? 3));
+      setStrategyMode(config.strategy_mode || "balanced");
+      setFunnelSplitMode(config.funnel_split_mode || "manual");
+      setFunnelSplits((config.funnel_splits as Record<string, number>) || { cold: 60, remarketing: 25, tests: 15, leads: 0 });
+      setApprovalMode(config.human_approval_mode || "auto");
+    }
   }, [config]);
+
+  const splitTotal = Object.values(funnelSplits).reduce((s, v) => s + (v || 0), 0);
+  const splitValid = funnelSplitMode === "ai_decides" || splitTotal === 100;
+
+  const currentFormConfig: AccountConfig = {
+    id: config?.id || "",
+    tenant_id: config?.tenant_id || "",
+    channel,
+    ad_account_id: accountId,
+    is_ai_enabled: isAIEnabled,
+    budget_mode: budgetMode,
+    budget_cents: Math.round(parseFloat(budgetValue || "0") * 100),
+    target_roi: parseFloat(targetRoi || "0") || null,
+    min_roi_cold: parseFloat(minRoiCold) || null,
+    min_roi_warm: parseFloat(minRoiWarm) || null,
+    user_instructions: instructions,
+    strategy_mode: strategyMode,
+    funnel_split_mode: funnelSplitMode,
+    funnel_splits: funnelSplitMode === "manual" ? funnelSplits : null,
+    kill_switch: config?.kill_switch || false,
+    human_approval_mode: approvalMode,
+    created_at: config?.created_at || null,
+    updated_at: config?.updated_at || null,
+  };
+
+  const validation = isAccountConfigComplete(currentFormConfig);
 
   const handleSave = () => {
     onSave(accountId, {
@@ -94,21 +133,38 @@ function AccountConfigCard({
       user_instructions: instructions,
       min_roi_cold: parseFloat(minRoiCold) || 2,
       min_roi_warm: parseFloat(minRoiWarm) || 3,
+      strategy_mode: strategyMode,
+      funnel_split_mode: funnelSplitMode,
+      funnel_splits: funnelSplitMode === "manual" ? funnelSplits : null,
+      human_approval_mode: approvalMode,
     });
   };
 
+  const handleSplitChange = (key: string, val: string) => {
+    setFunnelSplits(prev => ({ ...prev, [key]: parseInt(val) || 0 }));
+  };
+
+  const handleToggleAI = (enabled: boolean) => {
+    if (enabled && !validation.valid) return;
+    onToggleAI(accountId, enabled);
+  };
+
+  const killSwitchActive = config?.kill_switch || false;
+
   return (
-    <Card className="border border-primary/30 bg-primary/5">
+    <Card className={`border ${killSwitchActive ? "border-destructive/50 bg-destructive/5" : "border-primary/30 bg-primary/5"}`}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <Bot className="h-5 w-5 text-primary" />
+            <div className={`p-2 rounded-lg ${killSwitchActive ? "bg-destructive/10" : "bg-primary/10"}`}>
+              <Bot className={`h-5 w-5 ${killSwitchActive ? "text-destructive" : "text-primary"}`} />
             </div>
             <div>
               <CardTitle className="text-sm flex items-center gap-2">
                 {accountName || accountId}
-                {isAIEnabled ? (
+                {killSwitchActive ? (
+                  <Badge variant="destructive" className="text-[10px] px-1.5 py-0">PARADA</Badge>
+                ) : isAIEnabled ? (
                   <Badge className="text-[10px] px-1.5 py-0 bg-blue-500">IA Ativa</Badge>
                 ) : (
                   <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-yellow-600 border-yellow-500/50">IA Inativa</Badge>
@@ -117,14 +173,31 @@ function AccountConfigCard({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Label htmlFor={`ai-toggle-${accountId}`} className="text-xs text-muted-foreground">
-              {isAIEnabled ? "Ativada" : "Desativada"}
-            </Label>
-            <Switch
-              id={`ai-toggle-${accountId}`}
-              checked={isAIEnabled}
-              onCheckedChange={(checked) => onToggleAI(accountId, checked)}
-            />
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor={`ai-toggle-${accountId}`} className="text-xs text-muted-foreground">
+                      {isAIEnabled ? "Ativada" : "Desativada"}
+                    </Label>
+                    <Switch
+                      id={`ai-toggle-${accountId}`}
+                      checked={isAIEnabled}
+                      onCheckedChange={handleToggleAI}
+                      disabled={!validation.valid && !isAIEnabled}
+                    />
+                  </div>
+                </TooltipTrigger>
+                {!validation.valid && !isAIEnabled && (
+                  <TooltipContent side="left" className="max-w-xs">
+                    <p className="font-semibold mb-1">Preencha antes de ativar:</p>
+                    <ul className="text-xs list-disc pl-3">
+                      {validation.missing.map(m => <li key={m}>{m}</li>)}
+                    </ul>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
       </CardHeader>
@@ -132,31 +205,23 @@ function AccountConfigCard({
       <CardContent className="pt-0 space-y-5">
         {/* Budget */}
         <div className="space-y-2">
-          <Label className="text-sm font-semibold">Orçamento</Label>
+          <Label className="text-sm font-semibold flex items-center gap-2">
+            <DollarSign className="h-4 w-4 text-primary" />
+            Orçamento
+          </Label>
           <div className="flex gap-2">
             <div className="relative flex-1">
               <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="number"
-                value={budgetValue}
-                onChange={(e) => setBudgetValue(e.target.value)}
-                className="pl-9"
-                placeholder="1000"
-              />
+              <Input type="number" value={budgetValue} onChange={(e) => setBudgetValue(e.target.value)} className="pl-9" placeholder="1000" />
             </div>
             <Select value={budgetMode} onValueChange={setBudgetMode}>
-              <SelectTrigger className="w-28">
-                <SelectValue />
-              </SelectTrigger>
+              <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="daily">/ dia</SelectItem>
                 <SelectItem value="monthly">/ mês</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          <p className="text-[11px] text-muted-foreground">
-            Limite máximo que a IA pode distribuir nesta conta
-          </p>
         </div>
 
         {/* ROI Ideal */}
@@ -166,20 +231,9 @@ function AccountConfigCard({
             ROI Ideal
           </Label>
           <div className="flex items-center gap-2">
-            <Input
-              type="number"
-              step="0.1"
-              min="0"
-              value={targetRoi}
-              onChange={(e) => setTargetRoi(e.target.value)}
-              placeholder="5"
-              className="w-24"
-            />
+            <Input type="number" step="0.1" min="0" value={targetRoi} onChange={(e) => setTargetRoi(e.target.value)} placeholder="5" className="w-24" />
             <span className="text-sm text-muted-foreground font-medium">x</span>
           </div>
-          <p className="text-[11px] text-muted-foreground">
-            Meta de retorno que a IA buscará alcançar nesta conta
-          </p>
         </div>
 
         {/* ROI Mínimos */}
@@ -200,6 +254,102 @@ function AccountConfigCard({
           </div>
         </div>
 
+        {/* Strategy Mode */}
+        <div className="space-y-2">
+          <Label className="text-sm font-semibold flex items-center gap-2">
+            <Zap className="h-4 w-4 text-primary" />
+            Estratégia Geral
+          </Label>
+          <Select value={strategyMode} onValueChange={setStrategyMode}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {STRATEGY_OPTIONS.map(opt => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  <span className="flex items-center gap-2">
+                    <span>{opt.icon}</span>
+                    <span>{opt.label}</span>
+                    <span className="text-xs text-muted-foreground">— {opt.desc}</span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Funnel Splits */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm font-semibold flex items-center gap-2">
+              <Scale className="h-4 w-4 text-primary" />
+              Splits de Funil
+            </Label>
+            <div className="flex items-center gap-2">
+              <Label htmlFor={`ai-decides-${accountId}`} className="text-xs text-muted-foreground">IA decide</Label>
+              <Switch
+                id={`ai-decides-${accountId}`}
+                checked={funnelSplitMode === "ai_decides"}
+                onCheckedChange={(checked) => setFunnelSplitMode(checked ? "ai_decides" : "manual")}
+              />
+            </div>
+          </div>
+
+          {funnelSplitMode === "manual" ? (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {[
+                  { key: "cold", label: "🧊 Frio", required: true },
+                  { key: "remarketing", label: "🔥 Remarketing", required: true },
+                  { key: "tests", label: "🧪 Testes", required: true },
+                  { key: "leads", label: "📋 Leads", required: false },
+                ].map(item => (
+                  <div key={item.key} className="space-y-1 p-2 rounded-lg bg-background border">
+                    <Label className="text-[11px] font-semibold">{item.label}</Label>
+                    <div className="flex items-center gap-1">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={funnelSplits[item.key] ?? 0}
+                        onChange={(e) => handleSplitChange(item.key, e.target.value)}
+                        className="h-7 text-sm w-16"
+                      />
+                      <span className="text-xs text-muted-foreground">%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className={`text-xs font-medium ${splitValid ? "text-green-600" : "text-destructive"}`}>
+                Total: {splitTotal}% {splitValid ? "✓" : `(faltam ${100 - splitTotal}%)`}
+              </div>
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground bg-background border rounded-lg p-3">
+              A IA distribuirá automaticamente o orçamento entre público frio, remarketing e testes com base nas métricas de performance.
+            </p>
+          )}
+        </div>
+
+        {/* Approval Mode */}
+        <div className="space-y-2">
+          <Label className="text-sm font-semibold flex items-center gap-2">
+            <Shield className="h-4 w-4 text-primary" />
+            Modo de Aprovação
+          </Label>
+          <Select value={approvalMode} onValueChange={setApprovalMode}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {APPROVAL_OPTIONS.map(opt => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  <span className="flex items-center gap-2">
+                    <span>{opt.label}</span>
+                    <span className="text-xs text-muted-foreground">— {opt.desc}</span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         {/* Prompt */}
         <div className="space-y-2">
           <Label className="text-sm font-semibold flex items-center gap-2">
@@ -212,31 +362,74 @@ function AccountConfigCard({
             rows={3}
             placeholder={`Ex: "Priorize remarketing" ou "Foque no produto X"`}
           />
+          <p className="text-[11px] text-muted-foreground">
+            Mínimo 10 caracteres. ({instructions.trim().length}/10)
+          </p>
         </div>
+
+        {/* Validation warnings */}
+        {!validation.valid && (
+          <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 space-y-1">
+            <p className="text-xs font-semibold text-yellow-700 flex items-center gap-1">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Campos obrigatórios pendentes:
+            </p>
+            <ul className="text-[11px] text-yellow-600 list-disc pl-4">
+              {validation.missing.map(m => <li key={m}>{m}</li>)}
+            </ul>
+          </div>
+        )}
 
         <Button onClick={handleSave} disabled={isSaving} size="sm" className="w-full">
           {isSaving ? "Salvando..." : "Salvar Configurações"}
         </Button>
+
+        {/* Kill Switch */}
+        <div className="pt-2 border-t">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant={killSwitchActive ? "outline" : "destructive"}
+                size="sm"
+                className="w-full gap-2"
+              >
+                <AlertTriangle className="h-4 w-4" />
+                {killSwitchActive ? "Desativar Kill Switch" : "🛑 Kill Switch — Parar IA"}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {killSwitchActive ? "Reativar Autopilot?" : "🛑 Ativar Kill Switch?"}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {killSwitchActive
+                    ? "O Autopilot voltará a executar ações nesta conta no próximo ciclo de análise."
+                    : "O Autopilot parará IMEDIATAMENTE de executar qualquer ação nesta conta. Campanhas ativas NÃO serão pausadas, mas nenhuma nova ação será tomada."}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={() => onToggleKillSwitch(accountId, !killSwitchActive)}>
+                  {killSwitchActive ? "Reativar" : "Ativar Kill Switch"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </CardContent>
     </Card>
   );
 }
 
-export function AdsAccountConfig({ channel, channelConfig, aiEnabledAccountIds, adAccounts, onSave, isSaving, onToggleAI }: AdsAccountConfigProps) {
+export function AdsAccountConfig({ channel, adAccounts, getAccountConfig, aiEnabledAccountIds, onSave, isSaving, onToggleAI, onToggleKillSwitch }: AdsAccountConfigProps) {
   if (adAccounts.length === 0) return null;
 
-  const handleSaveAccount = (accountId: string, accountCfg: AccountConfig) => {
-    const currentRules = (channelConfig?.safety_rules || {}) as Record<string, any>;
-    const currentConfigs = currentRules.account_configs || {};
+  const handleSaveAccount = (accountId: string, data: Partial<AccountConfig>) => {
     onSave({
       channel,
-      safety_rules: {
-        ...currentRules,
-        account_configs: {
-          ...currentConfigs,
-          [accountId]: accountCfg,
-        },
-      },
+      ad_account_id: accountId,
+      ...data,
     });
   };
 
@@ -247,11 +440,13 @@ export function AdsAccountConfig({ channel, channelConfig, aiEnabledAccountIds, 
           key={acc.id}
           accountId={acc.id}
           accountName={acc.name}
-          config={getAccountConfig(channelConfig, acc.id)}
+          channel={channel}
+          config={getAccountConfig(channel, acc.id)}
           isAIEnabled={aiEnabledAccountIds.includes(acc.id)}
           onSave={handleSaveAccount}
           isSaving={isSaving}
           onToggleAI={onToggleAI}
+          onToggleKillSwitch={onToggleKillSwitch}
         />
       ))}
     </div>
