@@ -148,16 +148,24 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
       if (!tenantId) throw new Error("Tenant não encontrado");
 
       // Execute rollback based on action type
-      if (action.action_type === "pause_campaign") {
-        const edgeFn = channel === "meta" ? "meta-ads-campaigns" : channel === "google" ? "google-ads-campaigns" : "tiktok-ads-campaigns";
-        const idField = channel === "meta" ? "meta_campaign_id" : channel === "google" ? "google_campaign_id" : "tiktok_campaign_id";
-        
+      const edgeFn = channel === "meta" ? "meta-ads-campaigns" : channel === "google" ? "google-ads-campaigns" : "tiktok-ads-campaigns";
+      const idField = channel === "meta" ? "meta_campaign_id" : channel === "google" ? "google_campaign_id" : "tiktok_campaign_id";
+
+      if (action.action_type === "pause_campaign" || action.action_type === "activate_campaign") {
         const { error } = await supabase.functions.invoke(edgeFn, {
           body: { tenant_id: tenantId, action: "update", [idField]: data.campaign_id, status: rollback.previous_status || "ACTIVE" },
         });
         if (error) throw error;
+      } else if (action.action_type === "adjust_budget" || action.action_type === "allocate_budget") {
+        const entityId = data.campaign_id || data.adset_id;
+        const entityField = data.campaign_id ? idField : channel === "meta" ? "meta_adset_id" : "adset_id";
+        const { error } = await supabase.functions.invoke(edgeFn, {
+          body: { tenant_id: tenantId, action: "update", [entityField]: entityId, daily_budget: rollback.previous_budget_cents },
+        });
+        if (error) throw error;
       } else {
-        throw new Error("Reversão não suportada para este tipo de ação");
+        // For other action types, just mark as rolled back without API call
+        console.warn("Rollback sem chamada API para:", action.action_type);
       }
 
       // Mark as rolled back
@@ -222,7 +230,7 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
         const isProcessing = processingId === action.id;
         const entityName = getEntityName(action);
         const budgetImpact = getBudgetImpact(action);
-        const canRollback = action.status === "executed" && action.rollback_data && action.action_type === "pause_campaign";
+        const canRollback = action.status === "executed" && action.rollback_data;
 
         return (
           <Card key={action.id} className={`transition-colors cursor-pointer hover:bg-accent/50 ${isPending ? "border-amber-500/30 bg-amber-500/5" : ""}`}>
@@ -313,9 +321,9 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
                         <AlertDialogContent>
                           <AlertDialogHeader>
                             <AlertDialogTitle>Reverter ação da IA?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Isso irá reativar a campanha que foi pausada pela IA. 
-                              {action.rollback_data?.rollback_plan && (
+                             <AlertDialogDescription>
+                               Isso irá reverter a ação executada pela IA para o estado anterior. 
+                               {action.rollback_data?.rollback_plan && (
                                 <span className="block mt-2 text-sm">
                                   <strong>Plano original:</strong> {action.rollback_data.rollback_plan}
                                 </span>

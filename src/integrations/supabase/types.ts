@@ -18,8 +18,6 @@ export type Database = {
         Row: {
           ad_account_id: string
           budget_cents: number | null
-          budget_decrease_pct: number | null
-          budget_increase_pct: number | null
           budget_mode: string | null
           channel: string
           created_at: string | null
@@ -31,8 +29,7 @@ export type Database = {
           kill_switch: boolean | null
           min_roi_cold: number | null
           min_roi_warm: number | null
-          roas_scale_down_threshold: number | null
-          roas_scale_up_threshold: number | null
+          roas_scaling_threshold: number | null
           strategy_mode: string | null
           target_roi: number | null
           tenant_id: string
@@ -42,8 +39,6 @@ export type Database = {
         Insert: {
           ad_account_id: string
           budget_cents?: number | null
-          budget_decrease_pct?: number | null
-          budget_increase_pct?: number | null
           budget_mode?: string | null
           channel: string
           created_at?: string | null
@@ -55,8 +50,7 @@ export type Database = {
           kill_switch?: boolean | null
           min_roi_cold?: number | null
           min_roi_warm?: number | null
-          roas_scale_down_threshold?: number | null
-          roas_scale_up_threshold?: number | null
+          roas_scaling_threshold?: number | null
           strategy_mode?: string | null
           target_roi?: number | null
           tenant_id: string
@@ -66,8 +60,6 @@ export type Database = {
         Update: {
           ad_account_id?: string
           budget_cents?: number | null
-          budget_decrease_pct?: number | null
-          budget_increase_pct?: number | null
           budget_mode?: string | null
           channel?: string
           created_at?: string | null
@@ -79,8 +71,7 @@ export type Database = {
           kill_switch?: boolean | null
           min_roi_cold?: number | null
           min_roi_warm?: number | null
-          roas_scale_down_threshold?: number | null
-          roas_scale_up_threshold?: number | null
+          roas_scaling_threshold?: number | null
           strategy_mode?: string | null
           target_roi?: number | null
           tenant_id?: string

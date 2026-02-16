@@ -120,16 +120,26 @@ function CreativePreview({ data }: { data: Record<string, any> }) {
   return (
     <div className="space-y-4">
       <DetailSection icon={<Image className="h-4 w-4" />} title="Criativo">
+        {data.product_name && <DetailRow label="Produto" value={data.product_name} />}
         {data.headline && <DetailRow label="Título" value={data.headline} />}
         {data.copy_text && <DetailRow label="Texto" value={data.copy_text} />}
         {data.cta_type && <DetailRow label="CTA" value={data.cta_type} />}
         {data.format && <DetailRow label="Formato" value={data.format} />}
         {data.angle && <DetailRow label="Ângulo" value={data.angle} />}
-        {data.product_name && <DetailRow label="Produto" value={data.product_name} />}
+        {data.generation_style && <DetailRow label="Estilo" value={data.generation_style} />}
+        {data.channel && <DetailRow label="Canal" value={data.channel} />}
+        {data.creative_job_id && <DetailRow label="Job ID" value={data.creative_job_id} mono />}
         {data.asset_url && (
           <div className="mt-2">
             <p className="text-xs text-muted-foreground mb-1">Imagem:</p>
             <img src={data.asset_url} alt="Criativo" className="rounded-lg border max-h-48 object-contain" />
+          </div>
+        )}
+        {data.creative_job_id && !data.asset_url && (
+          <div className="mt-2 p-3 rounded-lg bg-muted/50">
+            <p className="text-xs text-muted-foreground">
+              ⏳ Criativos sendo processados. Verifique no <strong>Estúdio de Criativos</strong> ou <strong>Meu Drive → Gestor de Tráfego IA</strong>.
+            </p>
           </div>
         )}
       </DetailSection>
@@ -141,6 +151,9 @@ function CreativePreview({ data }: { data: Record<string, any> }) {
               <p className="font-medium text-sm">Variação {i + 1}</p>
               {v.headline && <DetailRow label="Título" value={v.headline} />}
               {v.copy_text && <DetailRow label="Texto" value={v.copy_text} />}
+              {v.asset_url && (
+                <img src={v.asset_url} alt={`Variação ${i + 1}`} className="rounded border max-h-32 object-contain mt-1" />
+              )}
             </div>
           ))}
         </DetailSection>

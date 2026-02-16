@@ -80,7 +80,7 @@ function AccountConfigCard({
   const [instructions, setInstructions] = useState(config?.user_instructions || "");
   const [minRoiCold, setMinRoiCold] = useState(String(config?.min_roi_cold ?? 2));
   const [minRoiWarm, setMinRoiWarm] = useState(String(config?.min_roi_warm ?? 3));
-  const [roasScalingThreshold, setRoasScalingThreshold] = useState(String((config as any)?.roas_scale_up_threshold ?? (config as any)?.roas_scaling_threshold ?? ""));
+  const [roasScalingThreshold, setRoasScalingThreshold] = useState(String(config?.roas_scaling_threshold ?? ""));
   const [strategyMode, setStrategyMode] = useState(config?.strategy_mode || "balanced");
   const [funnelSplitMode, setFunnelSplitMode] = useState(config?.funnel_split_mode || "manual");
   const [funnelSplits, setFunnelSplits] = useState<Record<string, number>>(
@@ -97,7 +97,7 @@ function AccountConfigCard({
       setInstructions(config.user_instructions || "");
       setMinRoiCold(String(config.min_roi_cold ?? 2));
       setMinRoiWarm(String(config.min_roi_warm ?? 3));
-      setRoasScalingThreshold(String((config as any)?.roas_scale_up_threshold ?? (config as any)?.roas_scaling_threshold ?? ""));
+      setRoasScalingThreshold(String(config.roas_scaling_threshold ?? ""));
       setStrategyMode(config.strategy_mode || "balanced");
       setFunnelSplitMode(config.funnel_split_mode || "manual");
       setFunnelSplits((config.funnel_splits as Record<string, number>) || { cold: 60, remarketing: 25, tests: 15, leads: 0 });
@@ -119,10 +119,7 @@ function AccountConfigCard({
     target_roi: parseFloat(targetRoi || "0") || null,
     min_roi_cold: parseFloat(minRoiCold) || null,
     min_roi_warm: parseFloat(minRoiWarm) || null,
-    roas_scale_up_threshold: parseFloat(roasScalingThreshold || "0") || null,
-    roas_scale_down_threshold: null,
-    budget_increase_pct: 15,
-    budget_decrease_pct: 20,
+    roas_scaling_threshold: parseFloat(roasScalingThreshold || "0") || null,
     user_instructions: instructions,
     strategy_mode: strategyMode,
     funnel_split_mode: funnelSplitMode,
@@ -143,10 +140,7 @@ function AccountConfigCard({
       user_instructions: instructions,
       min_roi_cold: parseFloat(minRoiCold) || 2,
       min_roi_warm: parseFloat(minRoiWarm) || 3,
-      roas_scale_up_threshold: parseFloat(roasScalingThreshold || "0") || null,
-      roas_scale_down_threshold: null,
-      budget_increase_pct: 15,
-      budget_decrease_pct: 20,
+      roas_scaling_threshold: parseFloat(roasScalingThreshold || "0") || null,
       strategy_mode: strategyMode,
       funnel_split_mode: funnelSplitMode,
       funnel_splits: funnelSplitMode === "manual" ? funnelSplits : null,
