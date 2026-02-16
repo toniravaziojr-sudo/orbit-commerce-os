@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v4.0.0"; // Per-account configs from normalized table, kill_switch, strategy_mode, funnel_splits
+const VERSION = "v4.1.0"; // Added create_campaign, create_adset tools (Phase 2), data sufficiency gates
 // ===========================================================
 
 const corsHeaders = {
@@ -88,8 +88,12 @@ interface TrendComparison {
 const DEFAULT_SAFETY = {
   max_budget_change_pct_day: 10,
   max_actions_per_session: 10,
-  allowed_actions: ["pause_campaign", "adjust_budget", "report_insight", "allocate_budget"],
+  phase1_actions: ["pause_campaign", "adjust_budget", "report_insight", "allocate_budget"],
+  phase2_actions: ["create_campaign", "create_adset"],
+  allowed_actions: ["pause_campaign", "adjust_budget", "report_insight", "allocate_budget", "create_campaign", "create_adset"],
   min_data_days_for_action: 3,
+  min_data_days_for_creation: 7,
+  min_conversions_for_creation: 10,
   ramp_up_max_pct: 10,
   max_new_campaigns_per_day: 2,
 };
@@ -453,11 +457,24 @@ function validateAction(
   const channelKey = acctConfig.channel;
   if (channelKey && context?.channels?.[channelKey]) {
     const trend = context.channels[channelKey].trend;
-    if (trend?.current_period?.days_with_data < DEFAULT_SAFETY.min_data_days_for_action) {
+    const daysWithData = trend?.current_period?.days_with_data || 0;
+    const totalConversions = trend?.current_period?.total_conversions || 0;
+
+    // Phase 2 actions (create_campaign, create_adset) require more data
+    if (DEFAULT_SAFETY.phase2_actions.includes(action.name)) {
+      if (daysWithData < DEFAULT_SAFETY.min_data_days_for_creation) {
+        return { valid: false, reason: `Criação requer ${DEFAULT_SAFETY.min_data_days_for_creation}+ dias de dados (atual: ${daysWithData}).` };
+      }
+      if (totalConversions < DEFAULT_SAFETY.min_conversions_for_creation) {
+        return { valid: false, reason: `Criação requer ${DEFAULT_SAFETY.min_conversions_for_creation}+ conversões (atual: ${totalConversions}).` };
+      }
+    }
+
+    if (daysWithData < DEFAULT_SAFETY.min_data_days_for_action) {
       if (action.name !== "report_insight") {
         return {
           valid: false,
-          reason: `Dados insuficientes (${trend.current_period.days_with_data} dias). Mínimo: ${DEFAULT_SAFETY.min_data_days_for_action} dias.`,
+          reason: `Dados insuficientes (${daysWithData} dias). Mínimo: ${DEFAULT_SAFETY.min_data_days_for_action} dias.`,
         };
       }
     }
@@ -610,6 +627,50 @@ const PLANNER_TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "create_campaign",
+      description: "Cria nova campanha baseada em template. Requer 7+ dias de dados e 10+ conversões na conta. Naming: [AI] {objetivo} - {produto/público} - {data}.",
+      parameters: {
+        type: "object",
+        properties: {
+          campaign_name: { type: "string", description: "Nome da campanha seguindo padrão [AI] ..." },
+          objective: { type: "string", enum: ["conversions", "traffic", "awareness", "leads"], description: "Objetivo da campanha" },
+          template: { type: "string", enum: ["cold_conversion", "remarketing", "creative_test", "leads"], description: "Template de campanha" },
+          daily_budget_cents: { type: "number", description: "Orçamento diário em centavos" },
+          targeting_description: { type: "string", description: "Descrição do público-alvo" },
+          funnel_stage: { type: "string", enum: ["tof", "mof", "bof"], description: "Estágio do funil" },
+          reason: { type: "string", description: "Justificativa baseada em dados" },
+          confidence: { type: "number", minimum: 0, maximum: 1 },
+          metric_trigger: { type: "string" },
+        },
+        required: ["campaign_name", "objective", "template", "daily_budget_cents", "targeting_description", "funnel_stage", "reason", "confidence", "metric_trigger"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_adset",
+      description: "Cria novo conjunto de anúncios dentro de campanha existente. Requer campanha ativa e público válido.",
+      parameters: {
+        type: "object",
+        properties: {
+          campaign_id: { type: "string", description: "ID da campanha existente" },
+          adset_name: { type: "string", description: "Nome do ad set" },
+          daily_budget_cents: { type: "number", description: "Orçamento diário em centavos" },
+          targeting_description: { type: "string", description: "Descrição do targeting" },
+          audience_type: { type: "string", enum: ["cold", "warm", "hot"], description: "Tipo de audiência" },
+          reason: { type: "string" },
+          confidence: { type: "number", minimum: 0, maximum: 1 },
+        },
+        required: ["campaign_id", "adset_name", "daily_budget_cents", "targeting_description", "audience_type", "reason", "confidence"],
+        additionalProperties: false,
+      },
+    },
+  },
 ];
 
 // ============ SYSTEM PROMPT (v4 - Per-Account) ============
@@ -714,6 +775,18 @@ ${platformRules[acctConfig.channel] || ""}
 - Toda ação COM justificativa numérica.
 - Diferencie público frio de quente.
 - Campanhas em Learning Phase → APENAS report_insight.
+
+## FASE 2 — CRIAÇÃO (disponível se dados suficientes)
+Se esta conta tem 7+ dias de dados E 10+ conversões, você PODE usar:
+- create_campaign: Criar nova campanha com naming [AI] {objetivo} - {produto/público} - {data}
+  - Templates: cold_conversion (TOF), remarketing (BOF), creative_test, leads
+  - Budget inicial respeitando splits de funil
+  - Máximo ${DEFAULT_SAFETY.max_new_campaigns_per_day} novas campanhas por sessão
+- create_adset: Criar novo ad set em campanha existente
+  - Público definido (cold/warm/hot)
+  - Budget proporcional ao tamanho do público
+
+Se dados insuficientes para criação, use report_insight para RECOMENDAR a criação.
 
 Analise as campanhas DESTA CONTA e execute.`;
 }
@@ -938,10 +1011,14 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
             action_hash: `${sessionId}_${tc.function.name}_${acctConfig.ad_account_id}_${args.campaign_id || totalActionsPlanned}`,
           };
 
-          // Human approval mode check
-          if (validation.valid && acctConfig.human_approval_mode === "all") {
+          // Human approval mode check — create actions always need approval
+          const isCreateAction = tc.function.name === "create_campaign" || tc.function.name === "create_adset";
+          const needsApproval = validation.valid && (
+            acctConfig.human_approval_mode === "all" || isCreateAction
+          );
+
+          if (needsApproval) {
             actionRecord.status = "pending_approval";
-            totalActionsPlanned; // counted but not executed
           } else if (validation.valid) {
             // Execute
             try {
