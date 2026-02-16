@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.1.0"; // Interest targeting, Lookalike audience creation, enhanced prompt
+const VERSION = "v5.2.0"; // Strategic pipeline, 00:01-04:00 scheduling window, campaign activation scheduler
 // ===========================================================
 
 const corsHeaders = {
@@ -97,6 +97,8 @@ const DEFAULT_SAFETY = {
   ramp_up_max_pct: 10,
   max_new_campaigns_per_day: 2,
   first_activation_max_increase_pct: 20, // Max budget increase per campaign even on first activation
+  scheduling_window_start_hour: 0,  // 00:01
+  scheduling_window_end_hour: 4,    // 04:00
 };
 
 // ============ HELPERS ============
@@ -122,6 +124,38 @@ function pctChange(current: number, previous: number): number {
 
 function safeDivide(a: number, b: number, fallback = 0): number {
   return b > 0 ? Math.round((a / b) * 100) / 100 : fallback;
+}
+
+// Calculate next scheduling time within the 00:01-04:00 window
+function getNextSchedulingTime(): string {
+  const now = new Date();
+  const startHour = DEFAULT_SAFETY.scheduling_window_start_hour;
+  const endHour = DEFAULT_SAFETY.scheduling_window_end_hour;
+  
+  // Random minute within the window for distribution (avoid all hitting at exactly 00:01)
+  const randomHour = startHour + Math.floor(Math.random() * (endHour - startHour));
+  const randomMinute = randomHour === 0 ? 1 + Math.floor(Math.random() * 59) : Math.floor(Math.random() * 60);
+  
+  // Check if we're currently within the window
+  const currentHour = now.getUTCHours() - 3; // BRT = UTC-3
+  const adjustedHour = currentHour < 0 ? currentHour + 24 : currentHour;
+  
+  const scheduleDate = new Date(now);
+  
+  if (adjustedHour >= startHour && adjustedHour < endHour) {
+    // We're inside the window — schedule for NOW + small offset
+    scheduleDate.setMinutes(scheduleDate.getMinutes() + 5);
+  } else {
+    // Outside window — schedule for next window start
+    if (adjustedHour >= endHour) {
+      // Past today's window, schedule for tomorrow
+      scheduleDate.setDate(scheduleDate.getDate() + 1);
+    }
+    // Set to random time within 00:01-04:00 BRT (03:01-07:00 UTC)
+    scheduleDate.setUTCHours(randomHour + 3, randomMinute, 0, 0);
+  }
+  
+  return scheduleDate.toISOString();
 }
 
 // ============ PRE-CHECK INTEGRATIONS ============
@@ -1008,6 +1042,18 @@ O orçamento definido pelo lojista (${budgetStr}/${acctConfig.budget_mode === "d
 - Ao pausar: calcule o gasto diário das campanhas pausadas e redistribua via adjust_budget nas campanhas vencedoras ou via create_campaign se necessário.
 - Se não houver campanhas vencedoras suficientes para absorver, crie novas campanhas com o orçamento restante.
 
+## 🧠 PLANEJAMENTO ESTRATÉGICO OBRIGATÓRIO
+Antes de executar qualquer ação, PLANEJE UMA ESTRATÉGIA COMPLETA:
+1. **Diagnóstico**: Analise todas as campanhas ativas, identifique vencedoras e perdedoras
+2. **Redistribuição**: Calcule quanto orçamento está desperdiçado e quanto precisa ser realocado
+3. **Criação**: Se o orçamento definido (${budgetStr}) não está sendo investido ou há espaço para novos testes:
+   - Defina quais campanhas criar (objetivo, público, funil)
+   - Distribua o orçamento de forma estratégica entre as campanhas
+   - Crie públicos (Lookalikes) quando necessário
+   - Gere criativos quando não houver disponíveis
+4. **Execução**: Execute o plano de forma ordenada: pausas → redistribuições → criações
+5. **O orçamento TOTAL definido DEVE estar sempre investido** — nunca deixe verba ociosa
+
 ## CICLO
 - Roda a cada 6h. Ações graduais.
 - Máx ${DEFAULT_SAFETY.max_actions_per_session} ações/sessão.
@@ -1016,7 +1062,14 @@ O orçamento definido pelo lojista (${budgetStr}/${acctConfig.budget_mode === "d
 - Toda ação COM justificativa numérica.
 - Diferencie público frio de quente.
 - Campanhas em Learning Phase → APENAS report_insight.
-- ⏰ AJUSTES DE ORÇAMENTO: serão aplicados automaticamente no próximo 00:01 (meia-noite). Defina o valor desejado e o sistema agenda.
+
+## ⏰ JANELA DE PUBLICAÇÃO E AJUSTES (00:01 - 04:00 BRT)
+- TODAS as novas campanhas e ajustes de orçamento são AGENDADOS para a janela 00:01-04:00 BRT
+- Campanhas novas são criadas com status PAUSED e ativadas automaticamente na janela
+- Ajustes de orçamento (increases/decreases) são aplicados automaticamente na janela
+- Esta regra existe para respeitar o início do dia fiscal das plataformas de anúncios
+- Você NÃO precisa se preocupar com o agendamento — o sistema faz automaticamente
+- PAUSAS de campanhas são executadas IMEDIATAMENTE (não são agendadas)
 
 ${triggerType === "first_activation" ? `
 ## 🚀 PRIMEIRA ATIVAÇÃO — ACESSO TOTAL A TODAS AS FASES
@@ -1077,18 +1130,18 @@ Se dados insuficientes para criação, use report_insight para RECOMENDAR a cria
 Analise as campanhas DESTA CONTA e execute.`;
 }
 
-// ============ SCHEDULED ACTION EXECUTOR ============
+// ============ SCHEDULED ACTION EXECUTOR (00:01-04:00 BRT Window) ============
 
-async function executeScheduledBudgetActions(supabase: any, tenantId: string): Promise<number> {
+async function executeScheduledActions(supabase: any, tenantId: string): Promise<number> {
   const now = new Date().toISOString();
   
-  // Find scheduled budget adjustments whose time has come
+  // Find ALL scheduled actions whose time has come (budget adjustments + campaign activations)
   const { data: scheduledActions } = await supabase
     .from("ads_autopilot_actions")
     .select("*")
     .eq("tenant_id", tenantId)
     .eq("status", "scheduled")
-    .eq("action_type", "adjust_budget");
+    .in("action_type", ["adjust_budget", "activate_campaign"]);
 
   if (!scheduledActions || scheduledActions.length === 0) return 0;
 
@@ -1100,28 +1153,53 @@ async function executeScheduledBudgetActions(supabase: any, tenantId: string): P
     const channel = action.channel;
     const edgeFn = channel === "meta" ? "meta-ads-campaigns" : channel === "google" ? "google-ads-campaigns" : "tiktok-ads-campaigns";
     const idField = channel === "meta" ? "meta_campaign_id" : channel === "google" ? "google_campaign_id" : "tiktok_campaign_id";
-    const budgetField = channel === "meta" ? "daily_budget_cents" : "budget_cents";
-    const campaignId = action.action_data?.campaign_id;
-    const newBudget = action.action_data?.new_budget_cents;
-
-    if (!campaignId || !newBudget) continue;
 
     try {
-      const { error } = await supabase.functions.invoke(edgeFn, {
-        body: { tenant_id: tenantId, action: "update", [idField]: campaignId, [budgetField]: newBudget },
-      });
-      if (error) throw error;
+      if (action.action_type === "adjust_budget") {
+        const budgetField = channel === "meta" ? "daily_budget_cents" : "budget_cents";
+        const campaignId = action.action_data?.campaign_id;
+        const newBudget = action.action_data?.new_budget_cents;
+        if (!campaignId || !newBudget) continue;
+
+        const { error } = await supabase.functions.invoke(edgeFn, {
+          body: { tenant_id: tenantId, action: "update", [idField]: campaignId, [budgetField]: newBudget },
+        });
+        if (error) throw error;
+        console.log(`[ads-autopilot-analyze][${VERSION}] Scheduled budget executed for campaign ${campaignId}`);
+      } else if (action.action_type === "activate_campaign") {
+        const campaignId = action.action_data?.campaign_id;
+        if (!campaignId) continue;
+
+        // Activate campaign
+        const { error: campErr } = await supabase.functions.invoke(edgeFn, {
+          body: { tenant_id: tenantId, action: "update", [idField]: campaignId, status: "ACTIVE" },
+        });
+        if (campErr) throw campErr;
+        console.log(`[ads-autopilot-analyze][${VERSION}] Campaign ${campaignId} activated (scheduled)`);
+
+        // Also activate associated adset if present
+        const adsetId = action.action_data?.adset_id;
+        if (adsetId && channel === "meta") {
+          try {
+            await supabase.functions.invoke("meta-ads-adsets", {
+              body: { tenant_id: tenantId, action: "update", meta_adset_id: adsetId, status: "ACTIVE" },
+            });
+            console.log(`[ads-autopilot-analyze][${VERSION}] Adset ${adsetId} activated (scheduled)`);
+          } catch (adsetErr: any) {
+            console.error(`[ads-autopilot-analyze][${VERSION}] Adset activation failed:`, adsetErr.message);
+          }
+        }
+      }
 
       await supabase.from("ads_autopilot_actions")
         .update({ status: "executed", executed_at: now })
         .eq("id", action.id);
       executed++;
-      console.log(`[ads-autopilot-analyze][${VERSION}] Scheduled budget executed for campaign ${campaignId}`);
     } catch (err: any) {
       await supabase.from("ads_autopilot_actions")
         .update({ status: "failed", error_message: err.message || "Scheduled execution failed" })
         .eq("id", action.id);
-      console.error(`[ads-autopilot-analyze][${VERSION}] Scheduled budget failed:`, err.message);
+      console.error(`[ads-autopilot-analyze][${VERSION}] Scheduled action failed (${action.action_type}):`, err.message);
     }
   }
   return executed;
@@ -1242,10 +1320,10 @@ Deno.serve(async (req) => {
     }
 
     try {
-      // ---- Execute scheduled budget actions from previous cycles ----
-      const scheduledExecuted = await executeScheduledBudgetActions(supabase, tenant_id);
+      // ---- Execute scheduled actions from previous cycles (budgets + campaign activations) ----
+      const scheduledExecuted = await executeScheduledActions(supabase, tenant_id);
       if (scheduledExecuted > 0) {
-        console.log(`[ads-autopilot-analyze][${VERSION}] Executed ${scheduledExecuted} scheduled budget adjustments`);
+        console.log(`[ads-autopilot-analyze][${VERSION}] Executed ${scheduledExecuted} scheduled actions (budgets + activations)`);
       }
 
       // ---- Context Collector ----
@@ -1479,15 +1557,8 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 actionRecord.executed_at = new Date().toISOString();
                 totalActionsExecuted++;
               } else if (tc.function.name === "adjust_budget") {
-                // Budget adjustments are SCHEDULED for next 00:01 (internal rule)
-                const now = new Date();
-                const nextMidnight = new Date(now);
-                nextMidnight.setDate(nextMidnight.getDate() + 1);
-                nextMidnight.setHours(0, 1, 0, 0); // 00:01
-                // If it's already past midnight but before 00:01, schedule for today's 00:01
-                const todayMidnight = new Date(now);
-                todayMidnight.setHours(0, 1, 0, 0);
-                const scheduledFor = todayMidnight > now ? todayMidnight.toISOString() : nextMidnight.toISOString();
+                // Budget adjustments are SCHEDULED for 00:01-04:00 BRT window
+                const scheduledFor = getNextSchedulingTime();
 
                 actionRecord.rollback_data = {
                   previous_budget_cents: args.current_budget_cents,
@@ -1502,11 +1573,11 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 console.log(`[ads-autopilot-analyze][${VERSION}] Budget adjustment scheduled for ${scheduledFor}`);
                 totalActionsExecuted++;
               } else if (tc.function.name === "create_campaign") {
-                // ===== v5.0: Full campaign creation chain with smart audiences + auto-creative + auto-activation =====
+                // ===== v5.2: Full campaign creation chain — ALWAYS create PAUSED, schedule activation for 00:01-04:00 =====
                 const isAutoMode = acctConfig.human_approval_mode === "auto";
-                const entityStatus = isAutoMode ? "ACTIVE" : "PAUSED";
+                const scheduledActivationTime = getNextSchedulingTime();
                 
-                // Step 1: Create campaign
+                // Step 1: Create campaign — ALWAYS PAUSED initially, activation scheduled
                 const objectiveMap: Record<string, string> = {
                   conversions: "OUTCOME_SALES",
                   traffic: "OUTCOME_TRAFFIC",
@@ -1522,7 +1593,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                     ad_account_id: acctConfig.ad_account_id,
                     name: args.campaign_name,
                     objective: metaObjective,
-                    status: entityStatus,
+                    status: "PAUSED", // Always PAUSED — activation scheduled
                     daily_budget_cents: args.daily_budget_cents,
                     special_ad_categories: [],
                   },
@@ -1532,7 +1603,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 if (createResult && !createResult.success) throw new Error(createResult.error || "Erro ao criar campanha");
 
                 const newMetaCampaignId = createResult?.data?.meta_campaign_id;
-                console.log(`[ads-autopilot-analyze][${VERSION}] Step 1/3: Campaign created: ${args.campaign_name} (${newMetaCampaignId}) status=${entityStatus}`);
+                console.log(`[ads-autopilot-analyze][${VERSION}] Step 1/3: Campaign created: ${args.campaign_name} (${newMetaCampaignId}) status=PAUSED, activation scheduled for ${scheduledActivationTime}`);
 
                 // Step 2: Create ad set with SMART targeting (prefer saved audiences)
                 let newMetaAdsetId: string | null = null;
@@ -1613,7 +1684,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                         billing_event: billingEventMap[args.objective] || "IMPRESSIONS",
                         daily_budget_cents: args.daily_budget_cents,
                         targeting,
-                        status: entityStatus,
+                        status: "PAUSED", // Always PAUSED — activated with campaign
                       },
                     });
 
@@ -1657,7 +1728,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                           meta_campaign_id: newMetaCampaignId,
                           name: adName,
                           creative_id: bestCreativeId,
-                          status: entityStatus,
+                          status: "PAUSED", // Always PAUSED — activated with campaign
                         },
                       });
 
@@ -1705,7 +1776,29 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                   }
                 }
 
-                actionRecord.status = "executed";
+                // Schedule campaign activation for 00:01-04:00 window (if auto mode)
+                if (isAutoMode && newMetaCampaignId) {
+                  // Insert scheduled activation action
+                  await supabase.from("ads_autopilot_actions").insert({
+                    tenant_id,
+                    session_id: sessionId,
+                    channel,
+                    action_type: "activate_campaign",
+                    action_data: {
+                      campaign_id: newMetaCampaignId,
+                      ad_account_id: acctConfig.ad_account_id,
+                      campaign_name: args.campaign_name,
+                      scheduled_for: scheduledActivationTime,
+                      adset_id: newMetaAdsetId,
+                    },
+                    reasoning: `Ativação agendada para ${scheduledActivationTime} (janela 00:01-04:00 BRT)`,
+                    status: "scheduled",
+                    action_hash: `${sessionId}_activate_${newMetaCampaignId}`,
+                  });
+                  console.log(`[ads-autopilot-analyze][${VERSION}] Campaign activation scheduled for ${scheduledActivationTime}`);
+                }
+
+                actionRecord.status = isAutoMode ? "scheduled" : "executed";
                 actionRecord.executed_at = new Date().toISOString();
                 actionRecord.action_data = {
                   ...actionRecord.action_data,
@@ -1713,7 +1806,8 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                   meta_adset_id: newMetaAdsetId,
                   meta_ad_id: newMetaAdId,
                   creative_job_id: creativeJobId,
-                  created_status: entityStatus,
+                  created_status: "PAUSED",
+                  scheduled_activation: isAutoMode ? scheduledActivationTime : null,
                   chain_steps: {
                     campaign: !!newMetaCampaignId,
                     adset: !!newMetaAdsetId,
@@ -1721,7 +1815,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                     creative_generating: !!creativeJobId,
                   },
                 };
-                console.log(`[ads-autopilot-analyze][${VERSION}] Full chain: campaign=${!!newMetaCampaignId} adset=${!!newMetaAdsetId} ad=${!!newMetaAdId} creative=${!!creativeJobId} status=${entityStatus}`);
+                console.log(`[ads-autopilot-analyze][${VERSION}] Full chain: campaign=${!!newMetaCampaignId} adset=${!!newMetaAdsetId} ad=${!!newMetaAdId} creative=${!!creativeJobId} activation=${isAutoMode ? scheduledActivationTime : "PAUSED"}`);
                 totalActionsExecuted++;
               } else if (tc.function.name === "create_adset") {
                 // Standalone adset creation with smart audiences
@@ -1752,7 +1846,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                     name: args.adset_name,
                     daily_budget_cents: args.daily_budget_cents,
                     targeting,
-                    status: entityStatus,
+                    status: "PAUSED", // Always PAUSED — follows parent campaign scheduling
                   },
                 });
 
