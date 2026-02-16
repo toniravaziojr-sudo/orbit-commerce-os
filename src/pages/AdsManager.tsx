@@ -275,10 +275,9 @@ export default function AdsManager() {
               const aiEnabledAccounts = accountConfigs.getAIEnabledAccounts(channel);
 
               const handleToggleAI = (accountId: string, enabled: boolean) => {
+                // useAdsAccountConfigs.toggleAI already triggers first_activation analysis
+                // Do NOT fire a separate manual trigger here — it causes a race condition
                 accountConfigs.toggleAI.mutate({ channel, ad_account_id: accountId, enabled });
-                if (enabled && aiEnabledAccounts.length === 0) {
-                  setTimeout(() => autopilot.triggerAnalysis.mutate(), 1000);
-                }
               };
 
               const handleToggleKillSwitch = (accountId: string, enabled: boolean) => {
