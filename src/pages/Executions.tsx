@@ -7,6 +7,8 @@ import {
   RefreshCw,
   Filter,
   Search,
+  Wallet,
+  Megaphone,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
@@ -22,11 +24,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useNavigate } from "react-router-dom";
 
 // This is the Central de Execuções - core for event-driven architecture
 // Will show Jobs, Tasks, Scheduled executions, and their statuses
 
 export default function Executions() {
+  const navigate = useNavigate();
   return (
     <div className="space-y-8 animate-fade-in">
       <PageHeader
@@ -123,6 +127,51 @@ export default function Executions() {
             title="Nenhuma execução encontrada"
             description="Quando você configurar automações, notificações ou integrações, as execuções aparecerão aqui com rastreabilidade completa."
           />
+        </CardContent>
+      </Card>
+
+      {/* Ads Balance Monitoring Card */}
+      <Card className="border-warning/30 bg-warning/5">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="rounded-lg bg-warning/10 p-2">
+                <Megaphone className="h-4 w-4 text-warning" />
+              </div>
+              <CardTitle className="text-base font-semibold">Anúncios — Saldo & Campanhas</CardTitle>
+            </div>
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => navigate("/ads")}>
+              <Wallet className="h-3 w-3" />
+              Ver contas
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <div className="flex items-start gap-2 p-3 rounded-md bg-background border">
+              <AlertTriangle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-foreground">Monitoramento de saldo ativo</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Contas pré-pagas (PIX, boleto) são monitoradas automaticamente. Você será alertado quando o saldo estiver abaixo de R$50,00 para evitar pausas nas campanhas.
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="p-3 rounded-md bg-muted/30 text-center">
+                <p className="text-xs text-muted-foreground">Contas monitoradas</p>
+                <p className="text-lg font-bold text-foreground mt-1">—</p>
+              </div>
+              <div className="p-3 rounded-md bg-muted/30 text-center">
+                <p className="text-xs text-muted-foreground">Saldo baixo</p>
+                <p className="text-lg font-bold text-warning mt-1">—</p>
+              </div>
+              <div className="p-3 rounded-md bg-muted/30 text-center">
+                <p className="text-xs text-muted-foreground">Campanhas ativas</p>
+                <p className="text-lg font-bold text-foreground mt-1">—</p>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
