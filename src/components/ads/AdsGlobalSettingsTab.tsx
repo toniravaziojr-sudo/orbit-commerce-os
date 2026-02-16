@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bot, DollarSign, Target, Shield, Zap, Scale, AlertTriangle, Info, Globe } from "lucide-react";
+import { Bot, DollarSign, Target, Shield, Zap, Scale, AlertTriangle, Info, Globe, TrendingUp, TrendingDown, ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -8,7 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { AutopilotConfig } from "@/hooks/useAdsAutopilot";
+import { PROMPT_TEMPLATE_GLOBAL } from "./adsPromptTemplates";
 
 interface AdsGlobalSettingsTabProps {
   globalConfig: AutopilotConfig | null;
@@ -40,6 +42,18 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
   const [minRoiWarm, setMinRoiWarm] = useState(
     String((globalConfig?.safety_rules as any)?.min_roi_warm ?? "")
   );
+  const [roasScaleUp, setRoasScaleUp] = useState(
+    String((globalConfig?.safety_rules as any)?.roas_scale_up_threshold ?? "")
+  );
+  const [roasScaleDown, setRoasScaleDown] = useState(
+    String((globalConfig?.safety_rules as any)?.roas_scale_down_threshold ?? "")
+  );
+  const [budgetIncreasePct, setBudgetIncreasePct] = useState(
+    String((globalConfig?.safety_rules as any)?.budget_increase_pct ?? "15")
+  );
+  const [budgetDecreasePct, setBudgetDecreasePct] = useState(
+    String((globalConfig?.safety_rules as any)?.budget_decrease_pct ?? "20")
+  );
   const [instructions, setInstructions] = useState(globalConfig?.user_instructions || "");
   const [strategyMode, setStrategyMode] = useState(globalConfig?.strategy_mode || "balanced");
   const [funnelSplitMode, setFunnelSplitMode] = useState(globalConfig?.funnel_split_mode || "ai_decides");
@@ -47,6 +61,7 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
     (globalConfig?.funnel_splits as Record<string, number>) || { cold: 60, remarketing: 25, tests: 15, leads: 0 }
   );
   const [approvalMode, setApprovalMode] = useState(globalConfig?.human_approval_mode || "auto");
+  const [showTemplate, setShowTemplate] = useState(false);
 
   useEffect(() => {
     if (globalConfig) {
@@ -55,6 +70,10 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
       setTargetRoi((globalConfig.safety_rules as any)?.target_roi?.toString() || "");
       setMinRoiCold(String((globalConfig.safety_rules as any)?.min_roi_cold ?? ""));
       setMinRoiWarm(String((globalConfig.safety_rules as any)?.min_roi_warm ?? ""));
+      setRoasScaleUp(String((globalConfig.safety_rules as any)?.roas_scale_up_threshold ?? ""));
+      setRoasScaleDown(String((globalConfig.safety_rules as any)?.roas_scale_down_threshold ?? ""));
+      setBudgetIncreasePct(String((globalConfig.safety_rules as any)?.budget_increase_pct ?? "15"));
+      setBudgetDecreasePct(String((globalConfig.safety_rules as any)?.budget_decrease_pct ?? "20"));
       setInstructions(globalConfig.user_instructions || "");
       setStrategyMode(globalConfig.strategy_mode || "balanced");
       setFunnelSplitMode(globalConfig.funnel_split_mode || "ai_decides");
@@ -82,6 +101,10 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
         target_roi: parseFloat(targetRoi || "0") || null,
         min_roi_cold: parseFloat(minRoiCold || "0") || null,
         min_roi_warm: parseFloat(minRoiWarm || "0") || null,
+        roas_scale_up_threshold: parseFloat(roasScaleUp || "0") || null,
+        roas_scale_down_threshold: parseFloat(roasScaleDown || "0") || null,
+        budget_increase_pct: parseInt(budgetIncreasePct || "15") || 15,
+        budget_decrease_pct: parseInt(budgetDecreasePct || "20") || 20,
       },
     });
   };
@@ -182,19 +205,79 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
           {/* ROI Mínimos */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-2 p-3 rounded-lg bg-background border">
-              <Label className="text-xs font-semibold">🧊 ROI mín. Público Frio</Label>
+              <Label className="text-xs font-semibold">🧊 ROI mín. Público Frio (Pausa)</Label>
               <div className="flex items-center gap-2">
                 <Input type="number" step="0.1" min="0" value={minRoiCold} onChange={(e) => setMinRoiCold(e.target.value)} placeholder="2" className="max-w-20 h-8 text-sm" />
                 <span className="text-xs text-muted-foreground">x</span>
               </div>
+              <p className="text-[10px] text-muted-foreground">Abaixo disso a IA PAUSA a campanha</p>
             </div>
             <div className="space-y-2 p-3 rounded-lg bg-background border">
-              <Label className="text-xs font-semibold">🔥 ROI mín. Remarketing</Label>
+              <Label className="text-xs font-semibold">🔥 ROI mín. Remarketing (Pausa)</Label>
               <div className="flex items-center gap-2">
                 <Input type="number" step="0.1" min="0" value={minRoiWarm} onChange={(e) => setMinRoiWarm(e.target.value)} placeholder="3" className="max-w-20 h-8 text-sm" />
                 <span className="text-xs text-muted-foreground">x</span>
               </div>
+              <p className="text-[10px] text-muted-foreground">Abaixo disso a IA PAUSA a campanha</p>
             </div>
+          </div>
+
+          {/* ROAS Scaling Rules */}
+          <div className="space-y-3 p-4 rounded-lg border border-primary/20 bg-primary/5">
+            <Label className="text-sm font-semibold flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-primary" />
+              Regras de Escalonamento de Orçamento (ROAS)
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Defina quando a IA deve aumentar ou reduzir o orçamento com base no ROAS, em vez de apenas pausar campanhas.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Scale Up */}
+              <div className="space-y-2 p-3 rounded-lg bg-background border border-green-500/20">
+                <Label className="text-xs font-semibold text-green-700 dark:text-green-400 flex items-center gap-1">
+                  <TrendingUp className="h-3.5 w-3.5" />
+                  Escalar Orçamento ↑
+                </Label>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground">ROAS acima de:</span>
+                  <div className="flex items-center gap-1">
+                    <Input type="number" step="0.1" min="0" value={roasScaleUp} onChange={(e) => setRoasScaleUp(e.target.value)} placeholder="Ex: 4" className="max-w-20 h-7 text-sm" />
+                    <span className="text-xs text-muted-foreground">x</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground">Aumento máx. por ciclo:</span>
+                  <div className="flex items-center gap-1">
+                    <Input type="number" min="1" max="50" value={budgetIncreasePct} onChange={(e) => setBudgetIncreasePct(e.target.value)} placeholder="15" className="max-w-16 h-7 text-sm" />
+                    <span className="text-xs text-muted-foreground">%</span>
+                  </div>
+                </div>
+              </div>
+              {/* Scale Down */}
+              <div className="space-y-2 p-3 rounded-lg bg-background border border-orange-500/20">
+                <Label className="text-xs font-semibold text-orange-700 dark:text-orange-400 flex items-center gap-1">
+                  <TrendingDown className="h-3.5 w-3.5" />
+                  Reduzir Orçamento ↓
+                </Label>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground">ROAS abaixo de:</span>
+                  <div className="flex items-center gap-1">
+                    <Input type="number" step="0.1" min="0" value={roasScaleDown} onChange={(e) => setRoasScaleDown(e.target.value)} placeholder="Ex: 2" className="max-w-20 h-7 text-sm" />
+                    <span className="text-xs text-muted-foreground">x</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground">Redução máx. por ciclo:</span>
+                  <div className="flex items-center gap-1">
+                    <Input type="number" min="1" max="50" value={budgetDecreasePct} onChange={(e) => setBudgetDecreasePct(e.target.value)} placeholder="20" className="max-w-16 h-7 text-sm" />
+                    <span className="text-xs text-muted-foreground">%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p className="text-[10px] text-muted-foreground border-t pt-2">
+              ⚡ Escalonamento opera <strong>entre</strong> os ROIs mínimos (pausa) e o ROI ideal (meta). Ex: ROI mín. frio = 2x → abaixo = pausa. ROAS escalar ↓ = 2.5x → reduz orçamento. ROAS escalar ↑ = 4x → aumenta orçamento. ROI ideal = 5x → meta final.
+            </p>
           </div>
 
           {/* Strategy Mode */}
@@ -299,12 +382,48 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
               <Bot className="h-4 w-4 text-primary" />
               Prompt de Direcionamento Global
             </Label>
+            
+            {/* Prompt Priority Alert */}
+            <Alert className="border-amber-500/30 bg-amber-500/5 py-2">
+              <Info className="h-3.5 w-3.5 text-amber-600" />
+              <AlertDescription className="text-[11px] text-amber-700 dark:text-amber-400">
+                O prompt é <strong>sugestivo e complementar</strong>. As configurações manuais acima (ROI, orçamento, estratégia, splits) <strong>sempre prevalecem</strong>. 
+                Em caso de conflito entre o prompt e uma configuração manual, a configuração manual é seguida. O prompt serve para dar contexto de negócio, expertise e direcionamento estratégico detalhado à IA.
+              </AlertDescription>
+            </Alert>
+
             <Textarea
               value={instructions}
               onChange={(e) => setInstructions(e.target.value)}
-              rows={4}
-              placeholder={`Descreva como a IA deve gerenciar todas as suas campanhas globalmente. Exemplos:\n\n• "Priorize campanhas de remarketing, nosso forte é reconversão"\n• "O produto carro-chefe é o Shampoo X, foque nele para público frio"\n• "Nosso público principal são homens 25-45 anos, classe B"`}
+              rows={6}
+              placeholder="Cole ou adapte o template abaixo para seu negócio..."
             />
+            
+            {/* Template Toggle */}
+            <Collapsible open={showTemplate} onOpenChange={setShowTemplate}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="w-full text-xs gap-1 text-muted-foreground hover:text-foreground">
+                  {showTemplate ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                  {showTemplate ? "Ocultar template de exemplo" : "📋 Ver template de exemplo para prompt global"}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="relative">
+                  <pre className="text-[10px] text-muted-foreground bg-muted/50 border rounded-lg p-3 max-h-64 overflow-y-auto whitespace-pre-wrap font-mono">
+                    {PROMPT_TEMPLATE_GLOBAL}
+                  </pre>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="absolute top-2 right-2 text-[10px] h-6"
+                    onClick={() => setInstructions(PROMPT_TEMPLATE_GLOBAL)}
+                  >
+                    Usar template
+                  </Button>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
             <p className="text-[11px] text-muted-foreground">
               Direcionamento estratégico que a IA seguirá em todas as plataformas e contas sem regra exclusiva.
             </p>
