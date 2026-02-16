@@ -16,6 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { subDays, parseISO, startOfDay, endOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useAdsAccountConfigs } from "@/hooks/useAdsAccountConfigs";
 
 // ========== TYPES ==========
 
@@ -111,6 +112,23 @@ function formatNumber(n: number) {
 
 function getAccountId(campaign: any): string {
   return campaign.ad_account_id || campaign.advertiser_id || campaign.customer_id || "unknown";
+}
+
+/**
+ * Returns a Tailwind color class for ROAS based on account goals.
+ * 🔴 Critical: below min_roi_cold (or <1 if no config)
+ * 🟡 Warning: between min_roi_cold and target_roi
+ * 🟢 On target: at or above target_roi
+ * 🔵 Exceeding: above target_roi * 1.5
+ */
+function getRoasColorClass(roas: number, targetRoi: number | null, minRoiCold: number | null): string {
+  const target = targetRoi && targetRoi > 0 ? targetRoi : 2;
+  const minCold = minRoiCold && minRoiCold > 0 ? minRoiCold : 1;
+
+  if (roas >= target * 1.5) return "text-blue-600 font-medium";
+  if (roas >= target) return "text-green-600 font-medium";
+  if (roas >= minCold) return "text-yellow-600 font-medium";
+  return "text-red-500 font-medium";
 }
 
 // ========== STATUS ==========
@@ -363,6 +381,24 @@ export function AdsCampaignsTab({
   const [dateFrom, setDateFrom] = useState<Date | undefined>(subDays(new Date(), 30));
   const [dateTo, setDateTo] = useState<Date | undefined>(new Date());
   const [visibleColumns, setVisibleColumns] = useState<MetricColumnKey[]>(DEFAULT_COLUMNS);
+  const { configs: accountConfigs } = useAdsAccountConfigs();
+
+  // Helper to get ROAS goals for a campaign's account
+  const getAccountGoals = (campaign: any) => {
+    const accountId = getAccountId(campaign);
+    const config = accountConfigs.find(c => c.channel === channel && c.ad_account_id === accountId);
+    return { targetRoi: config?.target_roi ?? null, minRoiCold: config?.min_roi_cold ?? null };
+  };
+
+  // Aggregate goals for totals row (use first selected account or average)
+  const aggregateGoals = useMemo(() => {
+    const relevantConfigs = accountConfigs.filter(c => c.channel === channel && 
+      (!selectedAccountIds?.length || selectedAccountIds.includes(c.ad_account_id)));
+    if (relevantConfigs.length === 0) return { targetRoi: null as number | null, minRoiCold: null as number | null };
+    const avgTarget = relevantConfigs.reduce((s, c) => s + (c.target_roi || 0), 0) / relevantConfigs.length;
+    const avgMinCold = relevantConfigs.reduce((s, c) => s + (c.min_roi_cold || 0), 0) / relevantConfigs.length;
+    return { targetRoi: avgTarget || null, minRoiCold: avgMinCold || null };
+  }, [accountConfigs, channel, selectedAccountIds]);
 
   // ===== CRITICAL FIX: Build set of campaign IDs belonging to selected accounts =====
   const selectedAccountSet = useMemo(
@@ -636,11 +672,13 @@ export function AdsCampaignsTab({
             {budget ? formatCurrency(budget) : <span className="text-muted-foreground">—</span>}
           </span>
         );
-      case "roas":
+      case "roas": {
         if (isSalesCampaign && metrics?.roas > 0) {
-          return <span className={metrics.roas >= 1 ? "text-green-600 font-medium" : "text-red-500 font-medium"}>{metrics.roas.toFixed(2)}x</span>;
+          const goals = getAccountGoals(campaign);
+          return <span className={getRoasColorClass(metrics.roas, goals.targetRoi, goals.minRoiCold)}>{metrics.roas.toFixed(2)}x</span>;
         }
         return <span className="text-muted-foreground">—</span>;
+      }
       case "conversions":
         return metrics?.conversions > 0 ? formatNumber(metrics.conversions) : <span className="text-muted-foreground">—</span>;
       case "conversion_value":
@@ -751,7 +789,7 @@ export function AdsCampaignsTab({
       case "cpm": return t.cpm_cents > 0 ? formatCurrency(t.cpm_cents) : "—";
       case "spend": return t.spend_cents > 0 ? formatCurrency(t.spend_cents) : "—";
       case "budget": return t.budget_cents > 0 ? formatCurrency(t.budget_cents) : "—";
-      case "roas": return t.roas > 0 ? `${t.roas.toFixed(2)}x` : "—";
+      case "roas": return t.roas > 0 ? <span className={getRoasColorClass(t.roas, aggregateGoals.targetRoi, aggregateGoals.minRoiCold)}>{t.roas.toFixed(2)}x</span> : "—";
       case "conversions": return t.conversions > 0 ? formatNumber(t.conversions) : "—";
       case "conversion_value": return t.conversion_value_cents > 0 ? formatCurrency(t.conversion_value_cents) : "—";
       case "link_clicks": return t.link_clicks > 0 ? formatNumber(t.link_clicks) : "—";
