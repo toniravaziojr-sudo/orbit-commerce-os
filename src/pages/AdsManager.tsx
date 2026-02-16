@@ -10,6 +10,7 @@ import { useMetaConnection } from "@/hooks/useMetaConnection";
 import { useGoogleConnection } from "@/hooks/useGoogleConnection";
 import { useTikTokAdsConnection } from "@/hooks/useTikTokAdsConnection";
 import { useAdsInsights } from "@/hooks/useAdsInsights";
+import { useAdsAccountConfigs } from "@/hooks/useAdsAccountConfigs";
 import { AdsAccountConfig } from "@/components/ads/AdsAccountConfig";
 import { AdsChannelIntegrationAlert } from "@/components/ads/AdsChannelIntegrationAlert";
 import { AdsCampaignsTab } from "@/components/ads/AdsCampaignsTab";
@@ -26,6 +27,7 @@ export default function AdsManager() {
   const googleConn = useGoogleConnection();
   const tiktokConn = useTikTokAdsConnection();
   const adsInsights = useAdsInsights();
+  const accountConfigs = useAdsAccountConfigs();
 
   const [activeMainTab, setActiveMainTab] = useState("overview");
   const [activeChannel, setActiveChannel] = useState("meta");
@@ -269,27 +271,17 @@ export default function AdsManager() {
               const channelConfig = autopilot.channelConfigs.find(c => c.channel === channel) || null;
               const integration = getChannelIntegration(channel);
               const channelSelectedAccounts = selectedAccounts[channel] || integration.adAccounts.map(a => a.id);
-              const aiEnabledAccounts: string[] = (channelConfig?.safety_rules as any)?.ai_enabled_accounts || [];
+              const aiEnabledAccounts = accountConfigs.getAIEnabledAccounts(channel);
 
               const handleToggleAI = (accountId: string, enabled: boolean) => {
-                const current = [...aiEnabledAccounts];
-                if (enabled && !current.includes(accountId)) {
-                  current.push(accountId);
-                } else if (!enabled) {
-                  const idx = current.indexOf(accountId);
-                  if (idx >= 0) current.splice(idx, 1);
-                }
-                autopilot.saveConfig.mutate({
-                  channel,
-                  is_enabled: current.length > 0,
-                  safety_rules: {
-                    ...(channelConfig?.safety_rules || {}),
-                    ai_enabled_accounts: current,
-                  },
-                });
+                accountConfigs.toggleAI.mutate({ channel, ad_account_id: accountId, enabled });
                 if (enabled && aiEnabledAccounts.length === 0) {
                   setTimeout(() => autopilot.triggerAnalysis.mutate(), 1000);
                 }
+              };
+
+              const handleToggleKillSwitch = (accountId: string, enabled: boolean) => {
+                accountConfigs.toggleKillSwitch.mutate({ channel, ad_account_id: accountId, enabled });
               };
 
               const handleOpenAIConfig = (accountId: string) => {
@@ -312,12 +304,13 @@ export default function AdsManager() {
                   {openAIConfigAccountId && (
                     <AdsAccountConfig
                       channel={channel}
-                      channelConfig={channelConfig}
-                      aiEnabledAccountIds={aiEnabledAccounts}
                       adAccounts={integration.adAccounts.filter(a => a.id === openAIConfigAccountId)}
-                      onSave={(config) => autopilot.saveConfig.mutate(config)}
-                      isSaving={autopilot.saveConfig.isPending}
+                      getAccountConfig={accountConfigs.getAccountConfig}
+                      aiEnabledAccountIds={aiEnabledAccounts}
+                      onSave={(config) => accountConfigs.saveAccountConfig.mutate(config)}
+                      isSaving={accountConfigs.saveAccountConfig.isPending}
                       onToggleAI={handleToggleAI}
+                      onToggleKillSwitch={handleToggleKillSwitch}
                     />
                   )}
 
