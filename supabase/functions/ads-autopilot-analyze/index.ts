@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v4.3.0"; // Fixed approve_high_impact: budget >20% now requires approval
+const VERSION = "v4.4.0"; // First activation immediate analysis + budget scheduling at 00:01
 // ===========================================================
 
 const corsHeaders = {
@@ -901,6 +901,7 @@ ${platformRules[acctConfig.channel] || ""}
 - Toda ação COM justificativa numérica.
 - Diferencie público frio de quente.
 - Campanhas em Learning Phase → APENAS report_insight.
+- ⏰ AJUSTES DE ORÇAMENTO: serão aplicados automaticamente no próximo 00:01 (meia-noite). Defina o valor desejado e o sistema agenda.
 
 ## FASE 2 — CRIAÇÃO (disponível se dados suficientes)
 Se esta conta tem 7+ dias de dados E 10+ conversões, você PODE usar:
@@ -917,6 +918,56 @@ Se dados insuficientes para criação, use report_insight para RECOMENDAR a cria
 Analise as campanhas DESTA CONTA e execute.`;
 }
 
+// ============ SCHEDULED ACTION EXECUTOR ============
+
+async function executeScheduledBudgetActions(supabase: any, tenantId: string): Promise<number> {
+  const now = new Date().toISOString();
+  
+  // Find scheduled budget adjustments whose time has come
+  const { data: scheduledActions } = await supabase
+    .from("ads_autopilot_actions")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .eq("status", "scheduled")
+    .eq("action_type", "adjust_budget");
+
+  if (!scheduledActions || scheduledActions.length === 0) return 0;
+
+  let executed = 0;
+  for (const action of scheduledActions) {
+    const scheduledFor = action.action_data?.scheduled_for;
+    if (!scheduledFor || new Date(scheduledFor) > new Date(now)) continue;
+
+    const channel = action.channel;
+    const edgeFn = channel === "meta" ? "meta-ads-campaigns" : channel === "google" ? "google-ads-campaigns" : "tiktok-ads-campaigns";
+    const idField = channel === "meta" ? "meta_campaign_id" : channel === "google" ? "google_campaign_id" : "tiktok_campaign_id";
+    const budgetField = channel === "meta" ? "daily_budget_cents" : "budget_cents";
+    const campaignId = action.action_data?.campaign_id;
+    const newBudget = action.action_data?.new_budget_cents;
+
+    if (!campaignId || !newBudget) continue;
+
+    try {
+      const { error } = await supabase.functions.invoke(edgeFn, {
+        body: { tenant_id: tenantId, action: "update", [idField]: campaignId, [budgetField]: newBudget },
+      });
+      if (error) throw error;
+
+      await supabase.from("ads_autopilot_actions")
+        .update({ status: "executed", executed_at: now })
+        .eq("id", action.id);
+      executed++;
+      console.log(`[ads-autopilot-analyze][${VERSION}] Scheduled budget executed for campaign ${campaignId}`);
+    } catch (err: any) {
+      await supabase.from("ads_autopilot_actions")
+        .update({ status: "failed", error_message: err.message || "Scheduled execution failed" })
+        .eq("id", action.id);
+      console.error(`[ads-autopilot-analyze][${VERSION}] Scheduled budget failed:`, err.message);
+    }
+  }
+  return executed;
+}
+
 // ============ MAIN HANDLER ============
 
 Deno.serve(async (req) => {
@@ -927,7 +978,7 @@ Deno.serve(async (req) => {
   console.log(`[ads-autopilot-analyze][${VERSION}] Request received`);
 
   try {
-    const { tenant_id, trigger_type = "manual" } = await req.json();
+    const { tenant_id, trigger_type = "manual", target_account_id, target_channel } = await req.json();
     if (!tenant_id) return fail("tenant_id é obrigatório");
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -953,9 +1004,17 @@ Deno.serve(async (req) => {
       .select("*")
       .eq("tenant_id", tenant_id);
 
-    const activeAccounts = (accountConfigs || []).filter(
+    let activeAccounts = (accountConfigs || []).filter(
       (ac: any) => ac.is_ai_enabled && !ac.kill_switch
     ) as AccountConfig[];
+
+    // First activation: only analyze the specific account
+    if (trigger_type === "first_activation" && target_account_id) {
+      activeAccounts = activeAccounts.filter(
+        (ac) => ac.ad_account_id === target_account_id && ac.channel === (target_channel || ac.channel)
+      );
+      console.log(`[ads-autopilot-analyze][${VERSION}] First activation for account ${target_account_id}`);
+    }
 
     if (activeAccounts.length === 0) {
       return fail("Nenhuma conta de anúncios com IA ativa. Configure e ative pelo menos uma conta.");
@@ -1008,6 +1067,12 @@ Deno.serve(async (req) => {
     const sessionLockId = lockResult.lock_session_id;
 
     try {
+      // ---- Execute scheduled budget actions from previous cycles ----
+      const scheduledExecuted = await executeScheduledBudgetActions(supabase, tenant_id);
+      if (scheduledExecuted > 0) {
+        console.log(`[ads-autopilot-analyze][${VERSION}] Executed ${scheduledExecuted} scheduled budget adjustments`);
+      }
+
       // ---- Context Collector ----
       console.log(`[ads-autopilot-analyze][${VERSION}] Collecting context for ${connectedChannels.join(", ")}, ${runnableAccounts.length} accounts`);
       const context = await collectContext(supabase, tenant_id, connectedChannels);
@@ -1199,22 +1264,27 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 actionRecord.executed_at = new Date().toISOString();
                 totalActionsExecuted++;
               } else if (tc.function.name === "adjust_budget") {
-                const edgeFn = channel === "meta" ? "meta-ads-campaigns" : channel === "google" ? "google-ads-campaigns" : "tiktok-ads-campaigns";
-                const idField = channel === "meta" ? "meta_campaign_id" : channel === "google" ? "google_campaign_id" : "tiktok_campaign_id";
-                const budgetField = channel === "meta" ? "daily_budget_cents" : "budget_cents";
+                // Budget adjustments are SCHEDULED for next 00:01 (internal rule)
+                const now = new Date();
+                const nextMidnight = new Date(now);
+                nextMidnight.setDate(nextMidnight.getDate() + 1);
+                nextMidnight.setHours(0, 1, 0, 0); // 00:01
+                // If it's already past midnight but before 00:01, schedule for today's 00:01
+                const todayMidnight = new Date(now);
+                todayMidnight.setHours(0, 1, 0, 0);
+                const scheduledFor = todayMidnight > now ? todayMidnight.toISOString() : nextMidnight.toISOString();
 
                 actionRecord.rollback_data = {
                   previous_budget_cents: args.current_budget_cents,
                   rollback_plan: `Reverter para R$ ${((args.current_budget_cents || 0) / 100).toFixed(2)}`,
                 };
-
-                const { error } = await supabase.functions.invoke(edgeFn, {
-                  body: { tenant_id, action: "update", [idField]: args.campaign_id, [budgetField]: args.new_budget_cents },
-                });
-
-                if (error) throw error;
-                actionRecord.status = "executed";
-                actionRecord.executed_at = new Date().toISOString();
+                actionRecord.status = "scheduled";
+                actionRecord.action_data = {
+                  ...actionRecord.action_data,
+                  scheduled_for: scheduledFor,
+                  new_budget_cents: args.new_budget_cents,
+                };
+                console.log(`[ads-autopilot-analyze][${VERSION}] Budget adjustment scheduled for ${scheduledFor}`);
                 totalActionsExecuted++;
               } else {
                 actionRecord.status = "validated";

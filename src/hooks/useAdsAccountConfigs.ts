@@ -100,9 +100,23 @@ export function useAdsAccountConfigs() {
         if (error) throw error;
       }
     },
-    onSuccess: (_, { enabled }) => {
+    onSuccess: (_, { channel, ad_account_id, enabled }) => {
       queryClient.invalidateQueries({ queryKey: ["ads-account-configs"] });
       toast.success(`IA ${enabled ? "ativada" : "desativada"} para esta conta`);
+      
+      // First activation: trigger immediate analysis for this account
+      if (enabled) {
+        setTimeout(async () => {
+          try {
+            const { error } = await supabase.functions.invoke("ads-autopilot-analyze", {
+              body: { tenant_id: tenantId, trigger_type: "first_activation", target_account_id: ad_account_id, target_channel: channel },
+            });
+            if (error) console.error("First activation analysis error:", error);
+          } catch (e) {
+            console.error("First activation analysis error:", e);
+          }
+        }, 1500);
+      }
     },
     onError: (err: Error) => toast.error(err.message),
   });
