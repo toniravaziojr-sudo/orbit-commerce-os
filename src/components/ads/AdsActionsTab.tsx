@@ -65,13 +65,32 @@ function getEntityName(action: AutopilotAction): string | null {
   const data = action.action_data;
   if (!data) return null;
   
-  // Try to find campaign/entity name in action data
   if (data.campaign_name) return data.campaign_name;
   if (data.adset_name) return data.adset_name;
   
-  // Fall back to ID
   const id = data.campaign_id || data.adset_id;
   if (id) return `ID: ${id}`;
+  return null;
+}
+
+/** Get budget impact display from action data */
+function getBudgetImpact(action: AutopilotAction): string | null {
+  const data = action.action_data;
+  if (!data) return null;
+
+  // For pause actions, show spend reduction
+  const impact = data.expected_impact;
+  if (impact?.spend_reduction_cents_day) {
+    const value = (impact.spend_reduction_cents_day / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    return `${value}/dia economizado`;
+  }
+
+  // For budget adjustments
+  if (data.new_budget_cents) {
+    const value = (data.new_budget_cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    return `Novo: ${value}/dia`;
+  }
+
   return null;
 }
 
@@ -200,6 +219,7 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
         const isPending = action.status === "pending_approval";
         const isProcessing = processingId === action.id;
         const entityName = getEntityName(action);
+        const budgetImpact = getBudgetImpact(action);
         const canRollback = action.status === "executed" && action.rollback_data && action.action_type === "pause_campaign";
 
         return (
@@ -227,6 +247,12 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
                     {action.confidence && (
                       <Badge variant="outline" className="text-xs">
                         Confiança: {action.confidence}
+                      </Badge>
+                    )}
+                    {budgetImpact && (
+                      <Badge variant="outline" className="text-xs gap-1 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-600">
+                        <DollarSign className="h-3 w-3" />
+                        {budgetImpact}
                       </Badge>
                     )}
                   </div>
