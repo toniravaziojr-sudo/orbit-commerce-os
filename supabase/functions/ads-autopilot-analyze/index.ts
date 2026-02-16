@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v4.6.0"; // Fix: correct marketplace_connections query (marketplace + is_active)
+const VERSION = "v4.7.0"; // Fix: lock acquisition using read-then-write instead of broken .or() filter
 // ===========================================================
 
 const corsHeaders = {
@@ -1065,22 +1065,36 @@ Deno.serve(async (req) => {
 
     // ---- Lock (use global config row as mutex if it exists, otherwise skip locking) ----
     let sessionLockId: string | null = null;
+    const newLockId = crypto.randomUUID();
     const lockExpiry = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     if (globalConfig) {
-      const { data: lockResult, error: lockError } = await supabase
+      // Fresh read of lock state to avoid stale data
+      const { data: freshLock } = await supabase
         .from("ads_autopilot_configs")
-        .update({ lock_session_id: crypto.randomUUID(), lock_expires_at: lockExpiry })
+        .select("lock_session_id, lock_expires_at")
         .eq("id", globalConfig.id)
-        .or(`lock_session_id.is.null,lock_expires_at.lt.${new Date().toISOString()}`)
-        .select("lock_session_id")
         .single();
+      const currentLock = freshLock?.lock_session_id;
+      const currentExpiry = freshLock?.lock_expires_at;
+      const lockIsFree = !currentLock || !currentExpiry || new Date(currentExpiry) < new Date();
 
-      if (lockError || !lockResult) {
+      if (!lockIsFree) {
         return fail("Já existe uma análise em andamento. Aguarde.");
       }
-      sessionLockId = lockResult.lock_session_id;
+
+      // Acquire lock
+      const { error: lockError } = await supabase
+        .from("ads_autopilot_configs")
+        .update({ lock_session_id: newLockId, lock_expires_at: lockExpiry })
+        .eq("id", globalConfig.id);
+
+      if (lockError) {
+        console.error(`[ads-autopilot-analyze][${VERSION}] Lock acquire error:`, lockError.message);
+        return fail("Erro ao adquirir lock.");
+      }
+      sessionLockId = newLockId;
     } else {
-      sessionLockId = crypto.randomUUID();
+      sessionLockId = newLockId;
     }
 
     try {
@@ -1144,7 +1158,7 @@ Deno.serve(async (req) => {
             accountCampaignIds.includes(c.meta_campaign_id) || c.ad_account_id === acctConfig.ad_account_id
           );
 
-          accountCampaignPerf: Record<string, any> = {};
+          accountCampaignPerf = {};
           for (const cid of accountCampaignIds) {
             if (channelData.campaignPerf[cid]) {
               (accountCampaignPerf as any)[cid] = channelData.campaignPerf[cid];
