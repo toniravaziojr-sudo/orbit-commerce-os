@@ -43,60 +43,24 @@ A divisão reflete nas permissões:
 
 ---
 
-## 1. Integrações Marketing
+## 1. Integrações Marketing (DEPRECADO)
 
-### Plataformas
-| Plataforma | Status | Funcionalidades |
-|------------|--------|-----------------|
-| Meta (FB/IG) | ✅ Ready | Pixel, Catálogo, CAPI, OAuth integrador |
-| Google Ads | 🟧 Pending | Conversions, Merchant |
-| TikTok | ✅ Ready | Pixel, Events API, OAuth integrador → **Migrado para Hub TikTok em `/integrations`** |
-| Pinterest | 🟧 Pending | Tag, Catálogo |
-
-### TikTok OAuth (MIGRADO E LIMPO — Fase 2 Concluída)
-
-> **STATUS:** ✅ MIGRAÇÃO COMPLETA — Sem dual-write, sem fallback  
-> **Fase 1 concluída em:** 2026-02-15  
-> **Fase 2 concluída em:** 2026-02-15  
-> **Documentação completa:** `docs/regras/integracoes.md` → seção "TikTok — Hub Multi-Conexão"
-
-A integração TikTok foi completamente migrada de `marketing_integrations` para o Hub TikTok.
-
-#### O que mudou na Fase 2
-
-| Item | Antes (Fase 1) | Depois (Fase 2) |
-|------|-----------------|------------------|
-| `tiktok-oauth-callback` | v2 dual-write | v3 só `tiktok_ads_connections` |
-| `tiktok-token-refresh` | v1 dual-write | v2 só `tiktok_ads_connections` |
-| `marketing-send-tiktok` | v2 fallback legado | v3 só `tiktok_ads_connections` |
-| `useTikTokConnection.ts` | Deprecated | **Deletado** |
-| `TikTokIntegrationCard.tsx` | Deprecated | **Deletado** |
-
-#### Colunas legadas em `marketing_integrations`
-
-As colunas `tiktok_*` em `marketing_integrations` **não são mais escritas** por nenhuma edge function.  
-Podem ser removidas em uma futura migração de limpeza.
-
-### Meta Pixel & CAPI
-```typescript
-// Eventos rastreados
-{
-  PageView: 'Visualização de página',
-  ViewContent: 'Visualização de produto',
-  AddToCart: 'Adição ao carrinho',
-  InitiateCheckout: 'Início do checkout',
-  Purchase: 'Compra concluída',
-}
-
-// Configuração por tenant
-{
-  tenant_id: uuid,
-  pixel_id: string,
-  access_token: string,       // Para CAPI
-  test_event_code: string,    // Ambiente de teste
-  is_enabled: boolean,
-}
-```
+> **⚠️ MÓDULO REMOVIDO — 2026-02-16**
+>
+> O módulo "Integrações Marketing" (`/marketing`) foi **completamente removido** da navegação e rota.
+> Todas as funcionalidades foram migradas para os Hubs centralizados em `/integrations`:
+>
+> | Funcionalidade | Novo Local |
+> |----------------|------------|
+> | Meta Pixel & CAPI | Hub Meta (`/integrations?tab=social`) |
+> | Meta Catálogo | Hub Meta (`/integrations?tab=social`) |
+> | TikTok Pixel/CAPI | Hub TikTok (`/integrations?tab=tiktok`) |
+> | Google Ads | Hub Google (`/integrations?tab=google`) — futuro |
+>
+> **A rota `/marketing` redireciona automaticamente para `/integrations?tab=social`.**
+>
+> A tabela `marketing_integrations` continua existindo para o storefront tracker (`MarketingTrackerProvider`),
+> mas é atualizada automaticamente pelo Hub Meta ao salvar Pixel ID/CAPI.
 
 ---
 

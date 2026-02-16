@@ -639,11 +639,14 @@ https://ojssezfjhdvvncsqyhyq.supabase.co/functions/v1/google-oauth-callback
 ## Meta — Scope Packs e OAuth Incremental (Fase 1)
 
 > **STATUS:** ✅ Ready  
-> **Adicionado em:** 2026-02-14
+> **Adicionado em:** 2026-02-14  
+> **Atualizado em:** 2026-02-16 — Consolidação Pixel/CAPI/Catálogo + Seleção de Ativos
 
 ### Visão Geral
 
 A integração Meta usa **Scope Packs** para consentimento incremental. O tenant conecta apenas os packs que precisa e pode adicionar novos depois sem perder o token existente.
+
+**Hub centralizado** — Todas as funcionalidades Meta (Pixel, CAPI, Catálogo, Publicação, Atendimento, Ads, etc.) ficam **exclusivamente** em `/integrations?tab=social` (MetaUnifiedSettings). O módulo legado `/marketing` foi removido.
 
 ### Scope Packs Disponíveis
 
@@ -675,18 +678,70 @@ A integração Meta usa **Scope Packs** para consentimento incremental. O tenant
 8. Novo token substitui o anterior (com todos os escopos)
 ```
 
+### Seleção Granular de Ativos (DURANTE o OAuth)
+
+> **Adicionado em:** 2026-02-16
+
+Após o OAuth, o callback descobre os ativos disponíveis mas **NÃO os salva automaticamente**. Em vez disso, redireciona para uma tela de seleção onde o lojista escolhe quais ativos conectar.
+
+#### Fluxo
+
+```text
+1. Usuário clica "Conectar" → popup Meta OAuth
+2. Autoriza permissões no Meta
+3. meta-oauth-callback troca code por token
+4. Callback descobre todos os ativos disponíveis
+5. Salva em metadata com `pending_asset_selection: true`
+6. Redireciona para MetaOAuthCallback.tsx (tela de seleção)
+7. Lojista seleciona quais Pages, Instagram, Ad Accounts, Catalogs, etc. deseja
+8. Clica "Confirmar seleção"
+9. meta-save-selected-assets salva apenas os ativos selecionados
+10. `pending_asset_selection` → false, conexão ativa
+```
+
+#### Edge Function: `meta-save-selected-assets`
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `tenantId` | uuid | ID do tenant |
+| `selectedAssets` | MetaAssets | Ativos selecionados pelo usuário |
+
+**Resposta:** `{ success: true }` ou `{ success: false, error: string }`
+
+#### Campos de controle em `marketplace_connections.metadata`
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `pending_asset_selection` | boolean | `true` = aguardando seleção do lojista |
+| `available_assets` | MetaAssets | Todos os ativos encontrados (para exibir na tela de seleção) |
+| `assets` | MetaAssets | Ativos efetivamente selecionados pelo lojista |
+| `asset_selection_completed_at` | string | Timestamp da seleção |
+| `asset_selection_by` | uuid | ID do usuário que selecionou |
+
 ### Descoberta de Ativos
 
 O callback OAuth descobre automaticamente:
 
-| Ativo | Endpoint | Campo em `metadata.assets` |
-|-------|----------|---------------------------|
+| Ativo | Endpoint | Campo em `metadata.available_assets` |
+|-------|----------|--------------------------------------|
 | Páginas | `GET /me/accounts` | `pages[]` |
 | Instagram | `GET /{page_id}?fields=instagram_business_account` | `instagram_accounts[]` |
 | WhatsApp | `GET /me/businesses` → `/{biz_id}/owned_whatsapp_business_accounts` | `whatsapp_business_accounts[]` |
 | Contas de Anúncio | `GET /me/adaccounts` | `ad_accounts[]` |
 | Catálogos | `GET /me/businesses` → `/{biz_id}/owned_product_catalogs` | `catalogs[]` |
 | Threads | `GET /me/threads?fields=id,username` | `threads_profile` |
+
+### Consolidação Pixel/CAPI/Catálogo
+
+> **Adicionado em:** 2026-02-16
+
+| Funcionalidade | Localização Anterior | Localização Atual |
+|----------------|---------------------|-------------------|
+| Meta Pixel ID | `/marketing` (MarketingIntegrationsSettings) | `/integrations?tab=social` (MetaUnifiedSettings) |
+| Conversions API (CAPI) | `/marketing` (MarketingIntegrationsSettings) | `/integrations?tab=social` (MetaUnifiedSettings) |
+| Catálogo de Produtos | `/marketing` (MarketingIntegrationsSettings) | `/integrations?tab=social` (MetaUnifiedSettings) |
+
+**Compatibilidade com Storefront:** O MetaUnifiedSettings ao salvar Pixel/CAPI atualiza tanto `marketplace_connections` quanto `marketing_integrations` para manter o `MarketingTrackerProvider` funcionando.
 
 ### Mapeamento: Pack → Módulo do Sistema
 
@@ -698,9 +753,9 @@ O callback OAuth descobre automaticamente:
 | `threads` | Gestor de Mídias IA | `/media` |
 | `ads` | Gestor de Tráfego IA | `/campaigns` |
 | `leads` | CRM / Clientes | `/customers` |
-| `catalogo` | Marketing / Integrações | `/marketing` |
+| `catalogo` | Hub Meta / Integrações | `/integrations?tab=social` |
 | `live_video` | Lives | `/lives` |
-| `pixel` | Loja Online (Storefront) | `/integrations` (config) |
+| `pixel` | Hub Meta / Integrações | `/integrations?tab=social` |
 | `insights` | Gestor de Mídias IA | `/media` |
 
 ### Arquivos
@@ -708,10 +763,12 @@ O callback OAuth descobre automaticamente:
 | Arquivo | Descrição |
 |---------|-----------|
 | `src/hooks/useMetaConnection.ts` | Hook com tipos `MetaScopePack` e `MetaAssets` |
-| `src/components/integrations/MetaUnifiedSettings.tsx` | UI principal com scope packs + consentimento incremental |
+| `src/components/integrations/MetaUnifiedSettings.tsx` | UI principal com scope packs + consentimento incremental + Pixel/CAPI/Catálogo |
 | `src/components/integrations/MetaConnectionSettings.tsx` | Card alternativo de conexão |
+| `src/pages/MetaOAuthCallback.tsx` | **Tela de seleção de ativos** (pós-OAuth) |
 | `supabase/functions/meta-oauth-start/index.ts` | Gera URL OAuth com escopos por pack |
-| `supabase/functions/meta-oauth-callback/index.ts` | Callback com descoberta de ativos + merge de packs |
+| `supabase/functions/meta-oauth-callback/index.ts` | Callback com descoberta de ativos + `pending_asset_selection: true` |
+| `supabase/functions/meta-save-selected-assets/index.ts` | Salva apenas os ativos selecionados pelo lojista |
 | `supabase/functions/meta-page-webhook/index.ts` | Webhook para Messenger + comentários FB |
 | `supabase/functions/meta-instagram-webhook/index.ts` | Webhook para Instagram DM + comentários IG |
 | `supabase/functions/meta-send-message/index.ts` | Envio unificado Messenger/IG DM via Graph API |
