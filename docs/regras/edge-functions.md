@@ -256,10 +256,10 @@ Edge function para geração de landing pages via IA usando Lovable AI Gateway (
 
 ## AI Ads Autopilot (`ads-autopilot-analyze`)
 
-### Versão Atual: v4.12.0
+### Versão Atual: v5.2.0
 
 ### Visão Geral
-Edge Function autônoma de gestão de tráfego pago multi-canal (Meta, Google, TikTok). Opera como media buyer sênior com pipeline de 5 etapas, camada de segurança determinística, **conhecimento específico por plataforma** e **metas de ROAS por canal definidas pelo usuário**.
+Edge Function autônoma de gestão de tráfego pago multi-canal (Meta, Google, TikTok). Opera como media buyer sênior com pipeline de 5 etapas, camada de segurança determinística, **conhecimento específico por plataforma**, **metas de ROAS por canal definidas pelo usuário**, **planejamento estratégico completo** e **janela de publicação 00:01-04:00 BRT**.
 
 ### Agendamento
 - **Cron**: `0 */6 * * *` (a cada 6 horas — 4 ciclos/dia)
@@ -268,10 +268,35 @@ Edge Function autônoma de gestão de tráfego pago multi-canal (Meta, Google, T
 
 ### Pipeline de 5 Etapas
 1. **Pre-check**: Validação de tokens/conexões por canal
-2. **Context Collector**: Coleta de métricas 7d + 7d anterior, produtos top 20, pedidos 30d, alertas de estoque
+2. **Context Collector**: Coleta de métricas 7d + 7d anterior, produtos top 20, pedidos 30d, alertas de estoque, Custom Audiences
 3. **Allocator**: Split orçamentário cross-channel baseado em ROAS marginal e tendências
-4. **Planner**: Decisões por campanha via tool calling com **conhecimento específico da plataforma**
+4. **Planner**: Planejamento estratégico + decisões por campanha via tool calling com **conhecimento específico da plataforma**
 5. **Policy & Constraints**: Validação determinística com **limites de budget por plataforma**
+
+### Planejamento Estratégico (v5.2.0 — OBRIGATÓRIO)
+A IA segue um fluxo de planejamento antes de qualquer ação:
+1. **Diagnóstico**: Analisa todas as campanhas ativas, identifica vencedoras e perdedoras
+2. **Redistribuição**: Calcula orçamento desperdiçado e realoca para campanhas vencedoras
+3. **Criação**: Se o orçamento definido não está investido:
+   - Define campanhas a criar (objetivo, público, funil)
+   - Distribui orçamento estrategicamente
+   - Cria públicos (Lookalikes) quando necessário
+   - Gera criativos via IA quando indisponíveis
+4. **Execução**: Pausas → Redistribuições → Criações (ordem obrigatória)
+5. **Garantia**: O orçamento TOTAL definido DEVE estar sempre investido — verba ociosa é proibida
+
+### Janela de Publicação e Ajustes (00:01-04:00 BRT) — v5.2.0
+| Tipo de Ação | Comportamento |
+|-------------|--------------|
+| **Pausa de campanha** | Execução IMEDIATA |
+| **Ajuste de orçamento** | AGENDADO para 00:01-04:00 BRT |
+| **Nova campanha** | Criada com status PAUSED, ativação AGENDADA para 00:01-04:00 BRT |
+| **Novo ad set** | Criado com status PAUSED, ativado junto com a campanha |
+| **Novo ad** | Criado com status PAUSED, ativado junto com a campanha |
+| **Lookalike audience** | Criação IMEDIATA (precisa de ~1h para ficar pronto) |
+| **Geração de criativo** | IMEDIATA (assíncrona) |
+
+A janela existe para respeitar o início do dia fiscal das plataformas de anúncios. Ações são distribuídas aleatoriamente dentro da janela para evitar picos.
 
 ### Métricas Pré-calculadas (por canal)
 | Métrica | Descrição |
@@ -314,6 +339,8 @@ ROI = Retorno sobre Investimento. Ex: ROI 2 = R$2 de retorno para cada R$1 inves
 | `ramp_up_max_pct` | 10% | Aumento acima disso requer confidence ≥ 0.7 |
 | `max_new_campaigns_per_day` | 2 | Limite de campanhas novas criadas por dia |
 | `gross_margin_pct` | 50% | Margem bruta para cálculo do CPA máximo |
+| `scheduling_window_start_hour` | 0 | Início da janela de publicação (00:01 BRT) |
+| `scheduling_window_end_hour` | 4 | Fim da janela de publicação (04:00 BRT) |
 
 ### Limites de Budget por Plataforma
 | Plataforma | Máx. por ciclo (6h) | Regra da plataforma | Learning Phase |
@@ -322,7 +349,7 @@ ROI = Retorno sobre Investimento. Ex: ROI 2 = R$2 de retorno para cada R$1 inves
 | **Google** | ±15% | ±30% a cada 48-72h | ~30 conversões em 14 dias |
 | **TikTok** | ±7% | ±15% a cada 48h | ~50 conversões em 7 dias |
 
-### Conhecimento de Audiência e Gestão de Públicos (v3.0.0)
+### Conhecimento de Audiência e Gestão de Públicos (v5.1.0)
 
 #### Tipos de Audiência
 | Tipo | Descrição | CPA esperado | Budget recomendado |
@@ -331,11 +358,13 @@ ROI = Retorno sobre Investimento. Ex: ROI 2 = R$2 de retorno para cada R$1 inves
 | **Quente (MOF)** | Visitantes, engajadores | Médio | 20-30% |
 | **Hot (BOF)** | Carrinhos, compradores | Menor, ROAS alto | 10-20% |
 
-#### Gestão de Públicos
-A IA **NÃO cria públicos automaticamente** via API. Quando identifica necessidade, emite `report_insight` com recomendações:
-- Criação de Lookalike (1%, 3%, 5%) baseado em compradores
-- Custom Audiences (visitantes, engajadores, abandonadores de carrinho)
-- Exclusões (ex: compradores dos últimos 30d em campanhas de prospecção)
+#### Gestão de Públicos (v5.1.0)
+A IA pode criar e gerenciar públicos automaticamente:
+- **Custom Audiences**: Busca automaticamente públicos salvos (Lookalikes, Website Visitors, Engagers) via Meta API
+- **Lookalike Audiences**: Cria novos Lookalikes via `create_lookalike_audience` (ratios 1%-20%) quando há Custom Audiences com dados suficientes
+- **Interest Targeting**: Define interesses específicos (ex: Cosmetics, Fashion) via `flexible_spec` para segmentação detalhada
+- **Broad Targeting**: Fallback (Brasil, 18-65) quando nenhum público específico está disponível
+- **Prioridade de seleção**: Custom Audiences > Interesses > Broad
 
 #### Orçamento × Tamanho de Público
 | Plataforma | Audiência < 10k | Audiência 10k-100k | Audiência > 100k |
@@ -373,20 +402,25 @@ A IA **NÃO cria públicos automaticamente** via API. Quando identifica necessid
 
 > A IA pode criar campanhas de tráfego, engajamento ou alcance como parte da estratégia de funil (TOF), mas a **métrica final de sucesso do sistema é sempre o ROI das campanhas de conversão**.
 
-### Rollout Progressivo (Phased)
-| Fase | Ações Permitidas (`allowed_actions`) | Status |
-|------|--------------------------------------|--------|
-| Fase 1 (Semana 1) | `pause_campaign`, `adjust_budget`, `report_insight`, `allocate_budget` | ✅ Live |
-| Fase 2 (Semana 2) | + `create_campaign` (executa via Meta API, cria PAUSED) | ✅ Live (v4.12.0) |
-| Fase 2.1 | + `create_adset` (validado, targeting manual necessário) | ⚠️ Parcial |
-| Fase 3 (Semana 3) | + `generate_creative` | 🔜 Pendente |
+### Ferramentas Disponíveis (Tool Calling)
+| Ferramenta | Descrição | Fase |
+|-----------|-----------|------|
+| `pause_campaign` | Pausa campanha (execução imediata) | 1 |
+| `adjust_budget` | Ajusta orçamento (agendado 00:01-04:00) | 1 |
+| `report_insight` | Gera insight/diagnóstico | 1 |
+| `allocate_budget` | Redistribui budget cross-channel | 1 |
+| `create_campaign` | Cria campanha completa (Campaign→AdSet→Ad) com agendamento | 2 |
+| `create_adset` | Cria ad set com targeting inteligente | 2 |
+| `create_lookalike_audience` | Cria Lookalike audience via Meta API | 2 |
+| `generate_creative` | Gera criativos de imagem via IA | 3 |
 
-### Execução de `create_campaign` (v4.12.0)
-- A IA chama `meta-ads-campaigns` com action `create` passando nome, objetivo, budget e conta
-- Campanhas criadas pela IA iniciam **sempre com status PAUSED** por segurança
-- Mapeamento de objectives: `conversions`→`OUTCOME_SALES`, `traffic`→`OUTCOME_TRAFFIC`, `awareness`→`OUTCOME_AWARENESS`, `leads`→`OUTCOME_LEADS`
-- Campanha é salva localmente em `meta_ad_campaigns` automaticamente
-- No modo `approve_high_impact`, criação de campanhas requer aprovação manual na aba Ações
+### Execução de `create_campaign` (v5.2.0)
+1. Campanha criada **sempre PAUSED** via `meta-ads-campaigns` (action: create)
+2. Ad Set criado **PAUSED** com targeting inteligente (Custom Audiences > Interests > Broad)
+3. Ad criado **PAUSED** com criativo existente OU geração automática via IA
+4. **Ativação agendada** para janela 00:01-04:00 BRT (action_type: `activate_campaign`)
+5. No modo `approve_high_impact`, criação requer aprovação manual na aba Ações
+6. Mapeamento: `conversions`→`OUTCOME_SALES`, `traffic`→`OUTCOME_TRAFFIC`, `awareness`→`OUTCOME_AWARENESS`, `leads`→`OUTCOME_LEADS`
 
 ### Checklist do Planner (7 pontos obrigatórios)
 1. **Learning Phase** — A campanha está em aprendizado? Se sim, apenas report_insight
@@ -404,14 +438,20 @@ A IA **NÃO cria públicos automaticamente** via API. Quando identifica necessid
 - **CPA Ceiling**: Bloqueia aumento de budget se CPA > margem
 - **Ramp-up Logic**: Aumentos acima do ramp_up_max_pct exigem confidence ≥ 0.7
 - **Platform-specific limits**: Policy layer aplica limite de budget por plataforma (Meta ±10%/ciclo, Google ±15%, TikTok ±7%)
+- **Scheduling Window**: Novas campanhas e ajustes de budget só ativam entre 00:01-04:00 BRT
 
 ### Mapeamento Tabela → Edge Function
 | Tabela | Edge Function |
 |--------|---------------|
 | `ads_autopilot_configs` | `ads-autopilot-analyze` |
+| `ads_autopilot_account_configs` | `ads-autopilot-analyze` |
 | `ads_autopilot_sessions` | `ads-autopilot-analyze` |
 | `ads_autopilot_actions` | `ads-autopilot-analyze` |
+| `ads_autopilot_insights` | `ads-autopilot-analyze` |
 | `meta_ad_campaigns` | `ads-autopilot-analyze` |
+| `meta_ad_adsets` | `ads-autopilot-analyze` |
+| `meta_ad_ads` | `ads-autopilot-analyze` |
+| `meta_ad_audiences` | `ads-autopilot-analyze` |
 | `meta_ad_insights` | `ads-autopilot-analyze` |
 | `google_ad_campaigns` | `ads-autopilot-analyze` |
 | `google_ad_insights` | `ads-autopilot-analyze` |
@@ -419,3 +459,4 @@ A IA **NÃO cria públicos automaticamente** via API. Quando identifica necessid
 | `tiktok_ad_insights` | `ads-autopilot-analyze` |
 | `products` | `ads-autopilot-analyze` |
 | `orders` | `ads-autopilot-analyze` |
+| `ads_creative_assets` | `ads-autopilot-analyze` |
