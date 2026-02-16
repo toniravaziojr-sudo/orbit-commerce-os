@@ -87,25 +87,32 @@ export function useAdsAccountConfigs() {
       const existing = configsQuery.data?.find(
         c => c.channel === channel && c.ad_account_id === ad_account_id
       );
+      let isFirstEver = false;
       if (existing) {
+        // It's only a "first activation" if AI was NEVER enabled before (is_ai_enabled was always false/null)
+        isFirstEver = !existing.is_ai_enabled && enabled;
         const { error } = await supabase
           .from("ads_autopilot_account_configs")
           .update({ is_ai_enabled: enabled } as any)
           .eq("id", existing.id);
         if (error) throw error;
       } else {
+        // Brand new config row = definitely first activation
+        isFirstEver = enabled;
         const { error } = await supabase
           .from("ads_autopilot_account_configs")
           .insert({ tenant_id: tenantId, channel, ad_account_id, is_ai_enabled: enabled } as any);
         if (error) throw error;
       }
+      return { isFirstEver };
     },
-    onSuccess: (_, { channel, ad_account_id, enabled }) => {
+    onSuccess: (result, { channel, ad_account_id, enabled }) => {
       queryClient.invalidateQueries({ queryKey: ["ads-account-configs"] });
       toast.success(`IA ${enabled ? "ativada" : "desativada"} para esta conta`);
       
-      // First activation: trigger immediate analysis for this account
-      if (enabled) {
+      // Only trigger first_activation on the VERY FIRST time AI is enabled
+      // Subsequent enable/disable toggles use regular "manual" trigger via scheduled cycles
+      if (enabled && result?.isFirstEver) {
         setTimeout(async () => {
           try {
             const { error } = await supabase.functions.invoke("ads-autopilot-analyze", {
