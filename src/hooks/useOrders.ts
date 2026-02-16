@@ -93,6 +93,8 @@ export interface Order {
   customer_cpf: string | null;
   installments: number | null;
   installment_value: number | null;
+  // Computed: first sale flag
+  is_first_sale?: boolean;
 }
 
 export interface OrderItem {
@@ -148,6 +150,7 @@ export function useOrders(options?: {
   startDate?: Date;
   endDate?: Date;
   dateField?: string;
+  firstSaleOnly?: boolean;
 }) {
   const { currentTenant } = useAuth();
   const queryClient = useQueryClient();
@@ -160,19 +163,19 @@ export function useOrders(options?: {
   const startDate = options?.startDate;
   const endDate = options?.endDate;
   const dateField = options?.dateField ?? 'created_at';
+  const firstSaleOnly = options?.firstSaleOnly ?? false;
 
   const ordersQuery = useQuery({
-    queryKey: ['orders', currentTenant?.id, page, pageSize, search, status, paymentStatus, shippingStatus, startDate?.toISOString(), endDate?.toISOString(), dateField],
+    queryKey: ['orders', currentTenant?.id, page, pageSize, search, status, paymentStatus, shippingStatus, startDate?.toISOString(), endDate?.toISOString(), dateField, firstSaleOnly],
     queryFn: async () => {
       if (!currentTenant?.id) return { data: [], count: 0 };
       
+      // Use join to get customer total_orders for first sale detection
       let query = supabase
         .from('orders')
-        .select('*', { count: 'exact' })
+        .select('*, customers(total_orders)', { count: 'exact' })
         .eq('tenant_id', currentTenant.id);
 
-      // Apply filters - using 'as any' to bypass strict typing from generated Supabase types
-      // The actual DB columns accept string values
       if (search) {
         query = query.or(`order_number.ilike.%${search}%,customer_name.ilike.%${search}%,customer_email.ilike.%${search}%`);
       }
@@ -188,8 +191,7 @@ export function useOrders(options?: {
 
       // Date filters
       if (startDate) {
-        const startIso = startDate.toISOString();
-        query = query.gte(dateField, startIso);
+        query = query.gte(dateField, startDate.toISOString());
       }
       if (endDate) {
         const endOfDay = new Date(endDate);
@@ -206,7 +208,20 @@ export function useOrders(options?: {
         .range(from, to);
 
       if (error) throw error;
-      return { data: data as Order[], count: count ?? 0 };
+
+      // Map orders and compute is_first_sale
+      const orders = (data || []).map((row: any) => {
+        const { customers, ...orderData } = row;
+        const customerTotalOrders = customers?.total_orders ?? null;
+        // First sale = customer has no prior record (null customer_id) or total_orders <= 1
+        const isFirstSale = !orderData.customer_id || customerTotalOrders === null || customerTotalOrders <= 1;
+        return { ...orderData, is_first_sale: isFirstSale } as Order;
+      });
+
+      // Client-side filter for first sale only
+      const filtered = firstSaleOnly ? orders.filter(o => o.is_first_sale) : orders;
+
+      return { data: filtered, count: firstSaleOnly ? filtered.length : (count ?? 0) };
     },
     enabled: !!currentTenant?.id,
   });

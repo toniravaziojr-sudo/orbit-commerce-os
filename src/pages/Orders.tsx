@@ -27,6 +27,7 @@ export default function Orders() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [paymentFilter, setPaymentFilter] = useState('all');
   const [shippingFilter, setShippingFilter] = useState('all');
+  const [firstSaleOnly, setFirstSaleOnly] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
@@ -77,6 +78,7 @@ export default function Orders() {
     startDate,
     endDate,
     dateField,
+    firstSaleOnly,
   });
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
@@ -220,6 +222,14 @@ export default function Orders() {
                   <SelectItem value="returned">Devolvido</SelectItem>
                 </SelectContent>
               </Select>
+              <Button
+                variant={firstSaleOnly ? "default" : "outline"}
+                size="sm"
+                className="gap-1.5 whitespace-nowrap"
+                onClick={() => { setFirstSaleOnly(!firstSaleOnly); setCurrentPage(1); }}
+              >
+                🆕 1ª Venda
+              </Button>
             </div>
           </div>
         </CardContent>
