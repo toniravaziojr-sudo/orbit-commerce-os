@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v4.7.0"; // Fix: lock acquisition using read-then-write instead of broken .or() filter
+const VERSION = "v4.8.0"; // Refactor: platform metrics as priority, orders as fallback only
 // ===========================================================
 
 const corsHeaders = {
@@ -444,18 +444,17 @@ async function checkTrackingHealth(supabase: any, tenantId: string, context: any
     const alerts: string[] = [];
     let status = "healthy";
 
-    // 1. Check conversion attribution vs real orders
+    // 1. Order comparison is INFO-ONLY (fallback signal, NOT a gate)
+    // Orders may belong to another store or not be imported — platform metrics are the source of truth
     const adConversions = trend.total_conversions || 0;
     const realOrders = context.orderStats.paid_orders || 0;
     if (adConversions > 0 && realOrders > 0) {
       const discrepancyPct = Math.abs(adConversions - realOrders) / Math.max(adConversions, realOrders) * 100;
       indicators.attribution_discrepancy_pct = Math.round(discrepancyPct);
+      indicators.attribution_note = "Pedidos internos são FALLBACK — podem não refletir esta loja. Métricas da plataforma são prioridade.";
       if (discrepancyPct > 50) {
-        alerts.push(`Discrepância de atribuição ${Math.round(discrepancyPct)}% entre conversões (${adConversions}) e pedidos reais (${realOrders})`);
-        status = "critical";
-      } else if (discrepancyPct > 30) {
-        alerts.push(`Discrepância moderada ${Math.round(discrepancyPct)}% na atribuição`);
-        status = status === "critical" ? "critical" : "degraded";
+        alerts.push(`ℹ️ Info: Discrepância ${Math.round(discrepancyPct)}% entre conversões da plataforma (${adConversions}) e pedidos internos (${realOrders}). Pedidos podem não estar atualizados.`);
+        // NOT setting status to critical — this is informational only
       }
     }
 
@@ -565,11 +564,13 @@ function validateAction(
     return { valid: false, reason: `Limite de ${DEFAULT_SAFETY.max_actions_per_session} ações por sessão atingido.` };
   }
 
-  // Tracking health gate (v4.2): block budget increases when degraded/critical
+  // Tracking health gate (v4.8): only block budget increases for non-order-based degradation
+  // Order discrepancy alone does NOT block actions (orders are fallback data)
   const channelKey = acctConfig.channel;
   if (trackingHealth?.[channelKey]) {
     const health = trackingHealth[channelKey];
-    if ((health.status === "critical" || health.status === "degraded") && action.name === "adjust_budget") {
+    const hasNonOrderIssues = health.alerts?.some((a: string) => !a.startsWith("ℹ️ Info:"));
+    if (hasNonOrderIssues && (health.status === "critical" || health.status === "degraded") && action.name === "adjust_budget") {
       const args = typeof action.arguments === "string" ? JSON.parse(action.arguments) : action.arguments;
       if ((args.change_pct || 0) > 0) {
         return { valid: false, reason: `Tracking ${health.status}: escala de budget bloqueada. Corrija o tracking primeiro.` };
@@ -893,8 +894,13 @@ ${trendSection}
 
 ${platformRules[acctConfig.channel] || ""}
 
-## TICKET MÉDIO: R$ ${(context.orderStats.avg_ticket_cents / 100).toFixed(2)}
-## PEDIDOS (30d): ${context.orderStats.paid_orders} pagos, ${context.orderStats.cancellation_rate_pct}% cancelados
+## PRIORIDADE DE MÉTRICAS
+- **PRIORIDADE 1**: Use ROAS, conversões, CPA e CTR reportados pela PRÓPRIA plataforma de anúncios (Meta/Google/TikTok). Estas são suas métricas principais para decisão.
+- **FALLBACK**: Pedidos internos da loja são dados COMPLEMENTARES. Podem não estar atualizados ou pertencer a outro canal. Use apenas para confirmar ROI real quando disponíveis.
+- NUNCA bloqueie ou pause campanhas apenas por discrepância entre conversões da plataforma e pedidos internos.
+
+## TICKET MÉDIO (referência): R$ ${(context.orderStats.avg_ticket_cents / 100).toFixed(2)}
+## PEDIDOS INTERNOS (30d, fallback): ${context.orderStats.paid_orders} pagos, ${context.orderStats.cancellation_rate_pct}% cancelados
 
 ## CICLO
 - Roda a cada 6h. Ações graduais.
@@ -1173,9 +1179,10 @@ Deno.serve(async (req) => {
 
         console.log(`[ads-autopilot-analyze][${VERSION}] Analyzing account ${acctConfig.ad_account_id} (${channel}), ${accountCampaigns.length} campaigns`);
 
-        // Tracking health gate (v4.2): if channel is critical/degraded, restrict to insights only
+        // Tracking health gate (v4.8): only restrict for non-order-based issues
         const channelHealth = trackingHealth[channel];
-        const isHealthDegraded = channelHealth && (channelHealth.status === "critical" || channelHealth.status === "degraded");
+        const hasRealTrackingIssues = channelHealth?.alerts?.some((a: string) => !a.startsWith("ℹ️ Info:"));
+        const isHealthDegraded = channelHealth && hasRealTrackingIssues && (channelHealth.status === "critical" || channelHealth.status === "degraded");
 
         // Pacing context for this account (v4.2)
         const accountPacing = pacingResults[acctConfig.ad_account_id];
