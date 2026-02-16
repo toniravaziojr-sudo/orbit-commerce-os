@@ -61,6 +61,10 @@ A divisão reflete nas permissões:
 >
 > A tabela `marketing_integrations` continua existindo para o storefront tracker (`MarketingTrackerProvider`),
 > mas é atualizada automaticamente pelo Hub Meta ao salvar Pixel ID/CAPI.
+>
+> ### Descoberta Automática de Pixels (v5.3.0)
+>
+> O fluxo OAuth (`meta-oauth-callback`) descobre automaticamente os Pixels associados a cada conta de anúncios via `GET /{ad_account_id}/adspixels`. Os Pixels são exibidos como ativos selecionáveis no checklist de assets (`MetaOAuthCallback.tsx`, seção "Pixels" com ícone `Crosshair`). Ao salvar, o `meta-save-selected-assets` sincroniza o Pixel primário selecionado para `marketing_integrations.meta_pixel_id`, eliminando a necessidade de configuração manual.
 
 ---
 
@@ -314,6 +318,16 @@ Se incompleto, o Switch fica desabilitado e um Tooltip mostra os campos faltante
 | 2 | 7+ dias de dados + 10+ conversões | + create_campaign, create_adset |
 | 3 | 14+ dias + 30+ conversões | + create_creative, run_experiment |
 | 4 | 30+ dias + 50+ conversões | + expand_audience, advanced_ab_test |
+
+> **EXCEÇÃO — Primeira Ativação (`trigger_type: "first_activation"`):**
+> Quando a IA é ativada pela primeira vez em uma conta (via `useAdsAccountConfigs.toggleAI`), TODAS as restrições de fase, dias mínimos de dados e contagem mínima de conversões são ignoradas. O sistema executa os seguintes passos ANTES da análise:
+> 1. **Sync de campanhas** — `meta-ads-campaigns` (action: sync) para garantir registros locais
+> 2. **Sync de insights 7d** — `meta-ads-insights` (action: sync, date_preset: last_7d) para coletar dados históricos da plataforma
+> 3. **Sync de ad sets** — `meta-ads-adsets` (action: sync) para visão completa da estrutura
+>
+> Isso garante que contas com dados históricos no Meta (mas sem dados locais) possam receber reestruturação completa na ativação.
+>
+> **Race Condition Fix (v5.3.0):** O `AdsManager.tsx` NÃO dispara `triggerAnalysis.mutate()` separado ao ativar IA — apenas `useAdsAccountConfigs.toggleAI` dispara `first_activation`. Isso evita que um trigger `manual` adquira o lock antes do `first_activation`.
 
 ### Guardrails
 
