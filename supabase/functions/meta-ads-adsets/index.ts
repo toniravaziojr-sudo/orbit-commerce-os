@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.3.0"; // Balance: proper funding_source_type mapping (numeric→string) + business billing
+const VERSION = "v2.0.0"; // Add create action for adsets (autopilot campaign creation chain)
 // ===========================================================
 
 const corsHeaders = {
@@ -203,6 +203,107 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ success: true, data: { updated: true } }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ========================
+    // CREATE — Create ad set on Meta + local
+    // ========================
+    if (action === "create") {
+      const {
+        meta_campaign_id,
+        ad_account_id: targetAcct,
+        name: adsetName,
+        optimization_goal,
+        billing_event,
+        daily_budget_cents,
+        lifetime_budget_cents,
+        targeting,
+        bid_amount_cents,
+        start_time,
+        end_time,
+        status: adsetStatus,
+        promoted_object,
+      } = body;
+
+      const adAccountId = targetAcct || adAccounts[0].id;
+
+      if (!meta_campaign_id || !adsetName) {
+        return new Response(
+          JSON.stringify({ success: false, error: "meta_campaign_id e name obrigatórios" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const createBody: any = {
+        name: adsetName,
+        campaign_id: meta_campaign_id,
+        optimization_goal: optimization_goal || "OFFSITE_CONVERSIONS",
+        billing_event: billing_event || "IMPRESSIONS",
+        status: adsetStatus || "PAUSED",
+        targeting: targeting || { geo_locations: { countries: ["BR"] }, age_min: 18, age_max: 65 },
+      };
+
+      if (daily_budget_cents) createBody.daily_budget = String(daily_budget_cents);
+      if (lifetime_budget_cents) createBody.lifetime_budget = String(lifetime_budget_cents);
+      if (bid_amount_cents) createBody.bid_amount = String(bid_amount_cents);
+      if (start_time) createBody.start_time = start_time;
+      if (end_time) createBody.end_time = end_time;
+      if (promoted_object) createBody.promoted_object = promoted_object;
+
+      console.log(`[meta-ads-adsets][${traceId}] Creating adset: ${adsetName} in campaign ${meta_campaign_id}`);
+
+      const result = await graphApi(
+        `act_${adAccountId.replace("act_", "")}/adsets`,
+        conn.access_token,
+        "POST",
+        createBody
+      );
+
+      if (result.error) {
+        console.error(`[meta-ads-adsets][${traceId}] Create error:`, result.error);
+        return new Response(
+          JSON.stringify({ success: false, error: result.error.message, code: "GRAPH_API_ERROR", details: result.error }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Get local campaign FK
+      const { data: localCamp } = await supabase
+        .from("meta_ad_campaigns")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("meta_campaign_id", meta_campaign_id)
+        .maybeSingle();
+
+      // Save locally
+      const { data: saved, error: saveErr } = await supabase
+        .from("meta_ad_adsets")
+        .insert({
+          tenant_id: tenantId,
+          meta_adset_id: result.id,
+          meta_campaign_id,
+          campaign_id: localCamp?.id || null,
+          ad_account_id: adAccountId,
+          name: adsetName,
+          status: adsetStatus || "PAUSED",
+          effective_status: adsetStatus || "PAUSED",
+          optimization_goal: optimization_goal || "OFFSITE_CONVERSIONS",
+          billing_event: billing_event || "IMPRESSIONS",
+          daily_budget_cents,
+          targeting: targeting || { geo_locations: { countries: ["BR"] } },
+          synced_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (saveErr) console.error(`[meta-ads-adsets][${traceId}] Save error:`, saveErr);
+
+      console.log(`[meta-ads-adsets][${traceId}] Adset created: ${result.id}`);
+
+      return new Response(
+        JSON.stringify({ success: true, data: saved || { meta_adset_id: result.id } }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

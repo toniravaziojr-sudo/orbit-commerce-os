@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.0.0"; // Initial: sync and update individual ads
+const VERSION = "v2.0.0"; // Add create action for ads (autopilot campaign creation chain)
 // ===========================================================
 
 const corsHeaders = {
@@ -212,6 +212,89 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ success: true, data: { updated: true } }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ========================
+    // CREATE — Create ad on Meta + local
+    // ========================
+    if (action === "create") {
+      const {
+        meta_adset_id,
+        meta_campaign_id,
+        ad_account_id: targetAcct,
+        name: adName,
+        creative_id,
+        status: adStatus,
+      } = body;
+
+      const adAccountId = targetAcct || adAccounts[0].id;
+
+      if (!meta_adset_id || !adName || !creative_id) {
+        return new Response(
+          JSON.stringify({ success: false, error: "meta_adset_id, name e creative_id obrigatórios" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const createBody: any = {
+        name: adName,
+        adset_id: meta_adset_id,
+        creative: { creative_id },
+        status: adStatus || "PAUSED",
+      };
+
+      console.log(`[meta-ads-ads][${traceId}] Creating ad: ${adName} in adset ${meta_adset_id} with creative ${creative_id}`);
+
+      const result = await graphApi(
+        `act_${adAccountId.replace("act_", "")}/ads`,
+        conn.access_token,
+        "POST",
+        createBody
+      );
+
+      if (result.error) {
+        console.error(`[meta-ads-ads][${traceId}] Create error:`, result.error);
+        return new Response(
+          JSON.stringify({ success: false, error: result.error.message, code: "GRAPH_API_ERROR", details: result.error }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Get local adset FK
+      const { data: localAdset } = await supabase
+        .from("meta_ad_adsets")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("meta_adset_id", meta_adset_id)
+        .maybeSingle();
+
+      // Save locally
+      const { data: saved, error: saveErr } = await supabase
+        .from("meta_ad_ads")
+        .upsert({
+          tenant_id: tenantId,
+          meta_ad_id: result.id,
+          meta_adset_id,
+          meta_campaign_id: meta_campaign_id || "",
+          adset_id: localAdset?.id || null,
+          ad_account_id: adAccountId,
+          name: adName,
+          status: adStatus || "PAUSED",
+          effective_status: adStatus || "PAUSED",
+          creative_id,
+          synced_at: new Date().toISOString(),
+        }, { onConflict: "tenant_id,meta_ad_id" })
+        .select()
+        .single();
+
+      if (saveErr) console.error(`[meta-ads-ads][${traceId}] Save error:`, saveErr);
+
+      console.log(`[meta-ads-ads][${traceId}] Ad created: ${result.id}`);
+
+      return new Response(
+        JSON.stringify({ success: true, data: saved || { meta_ad_id: result.id } }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
