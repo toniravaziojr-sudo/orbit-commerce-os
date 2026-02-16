@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.8.0"; // Fix adset creation: add promoted_object with pixel_id
+const VERSION = "v5.8.1"; // Fix entityStatus undefined in campaign creation logs
 // ===========================================================
 
 const corsHeaders = {
@@ -1773,7 +1773,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                       console.error(`[ads-autopilot-analyze][${VERSION}] Step 2/3 failed (adset):`, adsetResult.error);
                     } else {
                       newMetaAdsetId = adsetResult?.data?.meta_adset_id;
-                      console.log(`[ads-autopilot-analyze][${VERSION}] Step 2/3: Adset created: ${adsetName} (${newMetaAdsetId}) status=${entityStatus}`);
+                      console.log(`[ads-autopilot-analyze][${VERSION}] Step 2/3: Adset created: ${adsetName} (${newMetaAdsetId}) status=PAUSED`);
                     }
                   } catch (adsetExecErr: any) {
                     console.error(`[ads-autopilot-analyze][${VERSION}] Step 2/3 error:`, adsetExecErr.message);
@@ -1817,7 +1817,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                         console.error(`[ads-autopilot-analyze][${VERSION}] Step 3/3 failed (ad):`, adResult.error);
                       } else {
                         newMetaAdId = adResult?.data?.meta_ad_id;
-                        console.log(`[ads-autopilot-analyze][${VERSION}] Step 3/3: Ad created: ${adName} (${newMetaAdId}) with creative ${bestCreativeId} status=${entityStatus}`);
+                        console.log(`[ads-autopilot-analyze][${VERSION}] Step 3/3: Ad created: ${adName} (${newMetaAdId}) with creative ${bestCreativeId} status=PAUSED`);
                       }
                     } else {
                       // No existing creative — auto-generate via ads-autopilot-creative
