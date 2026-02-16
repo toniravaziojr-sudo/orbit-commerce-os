@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.6.0"; // Pause timing rules (3d/7d), recovery cycle, ROAS scaling thresholds, prompt hierarchy
+const VERSION = "v5.7.0"; // Fire-and-forget sync on first_activation to avoid timeout
 // ===========================================================
 
 const corsHeaders = {
@@ -1356,49 +1356,25 @@ Deno.serve(async (req) => {
         console.log(`[ads-autopilot-analyze][${VERSION}] Executed ${scheduledExecuted} scheduled actions (budgets + activations)`);
       }
 
-      // ---- FIRST ACTIVATION: Sync fresh data from Meta before analysis ----
+      // ---- FIRST ACTIVATION: Fire-and-forget sync (don't block analysis) ----
       if (trigger_type === "first_activation") {
         const metaAccounts = runnableAccounts.filter(ac => ac.channel === "meta");
         if (metaAccounts.length > 0) {
-          // Scope sync to TARGET account only (avoids timeout when tenant has many accounts/campaigns)
           const syncAccountId = target_account_id || metaAccounts[0]?.ad_account_id;
-          console.log(`[ads-autopilot-analyze][${VERSION}] First activation — syncing fresh data from Meta for account ${syncAccountId}`);
-          try {
-            // 1. Sync campaigns for target account only
-            const { error: campSyncErr } = await supabase.functions.invoke("meta-ads-campaigns", {
-              body: { tenant_id, action: "sync", ad_account_id: syncAccountId },
-            });
-            if (campSyncErr) {
-              console.error(`[ads-autopilot-analyze][${VERSION}] Campaign sync error:`, campSyncErr.message);
-            } else {
-              console.log(`[ads-autopilot-analyze][${VERSION}] Campaigns synced for ${syncAccountId}`);
-            }
-
-            // 2. Sync insights for last 7 days (target account)
-            const { error: insightsSyncErr } = await supabase.functions.invoke("meta-ads-insights", {
-              body: { tenant_id, action: "sync", date_preset: "last_7d", ad_account_id: syncAccountId },
-            });
-            if (insightsSyncErr) {
-              console.error(`[ads-autopilot-analyze][${VERSION}] Insights sync error:`, insightsSyncErr.message);
-            } else {
-              console.log(`[ads-autopilot-analyze][${VERSION}] Insights (last_7d) synced for ${syncAccountId}`);
-            }
-
-            // 3. Sync adsets for target account
-            try {
-              await supabase.functions.invoke("meta-ads-adsets", {
-                body: { tenant_id, action: "sync", ad_account_id: syncAccountId },
-              });
-              console.log(`[ads-autopilot-analyze][${VERSION}] Adsets synced for ${syncAccountId}`);
-            } catch (e: any) {
-              console.log(`[ads-autopilot-analyze][${VERSION}] Adset sync skipped:`, e.message);
-            }
-
-            console.log(`[ads-autopilot-analyze][${VERSION}] First activation data sync complete`);
-          } catch (syncErr: any) {
-            console.error(`[ads-autopilot-analyze][${VERSION}] First activation sync error:`, syncErr.message);
-            // Continue with whatever local data exists — don't block analysis
-          }
+          console.log(`[ads-autopilot-analyze][${VERSION}] First activation — triggering async sync for account ${syncAccountId} (fire-and-forget)`);
+          // Fire-and-forget: trigger syncs without awaiting — they run in background
+          // Analysis proceeds immediately with existing DB data
+          supabase.functions.invoke("meta-ads-campaigns", {
+            body: { tenant_id, action: "sync", ad_account_id: syncAccountId },
+          }).catch((e: any) => console.log(`[ads-autopilot-analyze][${VERSION}] Async campaign sync error (non-blocking):`, e.message));
+          
+          supabase.functions.invoke("meta-ads-insights", {
+            body: { tenant_id, action: "sync", date_preset: "last_7d", ad_account_id: syncAccountId },
+          }).catch((e: any) => console.log(`[ads-autopilot-analyze][${VERSION}] Async insights sync error (non-blocking):`, e.message));
+          
+          supabase.functions.invoke("meta-ads-adsets", {
+            body: { tenant_id, action: "sync", ad_account_id: syncAccountId },
+          }).catch((e: any) => console.log(`[ads-autopilot-analyze][${VERSION}] Async adsets sync error (non-blocking):`, e.message));
         }
       }
 
