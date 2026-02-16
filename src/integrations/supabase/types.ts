@@ -14,6 +14,77 @@ export type Database = {
   }
   public: {
     Tables: {
+      ads_autopilot_account_configs: {
+        Row: {
+          ad_account_id: string
+          budget_cents: number | null
+          budget_mode: string | null
+          channel: string
+          created_at: string | null
+          funnel_split_mode: string | null
+          funnel_splits: Json | null
+          human_approval_mode: string | null
+          id: string
+          is_ai_enabled: boolean | null
+          kill_switch: boolean | null
+          min_roi_cold: number | null
+          min_roi_warm: number | null
+          strategy_mode: string | null
+          target_roi: number | null
+          tenant_id: string
+          updated_at: string | null
+          user_instructions: string | null
+        }
+        Insert: {
+          ad_account_id: string
+          budget_cents?: number | null
+          budget_mode?: string | null
+          channel: string
+          created_at?: string | null
+          funnel_split_mode?: string | null
+          funnel_splits?: Json | null
+          human_approval_mode?: string | null
+          id?: string
+          is_ai_enabled?: boolean | null
+          kill_switch?: boolean | null
+          min_roi_cold?: number | null
+          min_roi_warm?: number | null
+          strategy_mode?: string | null
+          target_roi?: number | null
+          tenant_id: string
+          updated_at?: string | null
+          user_instructions?: string | null
+        }
+        Update: {
+          ad_account_id?: string
+          budget_cents?: number | null
+          budget_mode?: string | null
+          channel?: string
+          created_at?: string | null
+          funnel_split_mode?: string | null
+          funnel_splits?: Json | null
+          human_approval_mode?: string | null
+          id?: string
+          is_ai_enabled?: boolean | null
+          kill_switch?: boolean | null
+          min_roi_cold?: number | null
+          min_roi_warm?: number | null
+          strategy_mode?: string | null
+          target_roi?: number | null
+          tenant_id?: string
+          updated_at?: string | null
+          user_instructions?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_autopilot_account_configs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ads_autopilot_actions: {
         Row: {
           action_data: Json | null
@@ -96,9 +167,14 @@ export type Database = {
           budget_cents: number
           budget_mode: string
           channel: string
+          channel_limits: Json | null
           created_at: string
+          funnel_split_mode: string | null
+          funnel_splits: Json | null
+          human_approval_mode: string | null
           id: string
           is_enabled: boolean
+          kill_switch: boolean | null
           last_analysis_at: string | null
           lock_expires_at: string | null
           lock_session_id: string | null
@@ -106,8 +182,11 @@ export type Database = {
           min_share_pct: number
           objective: string
           safety_rules: Json
+          strategy_mode: string | null
           tenant_id: string
           total_actions_executed: number
+          total_budget_cents: number | null
+          total_budget_mode: string | null
           total_credits_consumed: number
           updated_at: string
           user_instructions: string | null
@@ -118,9 +197,14 @@ export type Database = {
           budget_cents?: number
           budget_mode?: string
           channel: string
+          channel_limits?: Json | null
           created_at?: string
+          funnel_split_mode?: string | null
+          funnel_splits?: Json | null
+          human_approval_mode?: string | null
           id?: string
           is_enabled?: boolean
+          kill_switch?: boolean | null
           last_analysis_at?: string | null
           lock_expires_at?: string | null
           lock_session_id?: string | null
@@ -128,8 +212,11 @@ export type Database = {
           min_share_pct?: number
           objective?: string
           safety_rules?: Json
+          strategy_mode?: string | null
           tenant_id: string
           total_actions_executed?: number
+          total_budget_cents?: number | null
+          total_budget_mode?: string | null
           total_credits_consumed?: number
           updated_at?: string
           user_instructions?: string | null
@@ -140,9 +227,14 @@ export type Database = {
           budget_cents?: number
           budget_mode?: string
           channel?: string
+          channel_limits?: Json | null
           created_at?: string
+          funnel_split_mode?: string | null
+          funnel_splits?: Json | null
+          human_approval_mode?: string | null
           id?: string
           is_enabled?: boolean
+          kill_switch?: boolean | null
           last_analysis_at?: string | null
           lock_expires_at?: string | null
           lock_session_id?: string | null
@@ -150,8 +242,11 @@ export type Database = {
           min_share_pct?: number
           objective?: string
           safety_rules?: Json
+          strategy_mode?: string | null
           tenant_id?: string
           total_actions_executed?: number
+          total_budget_cents?: number | null
+          total_budget_mode?: string | null
           total_credits_consumed?: number
           updated_at?: string
           user_instructions?: string | null
@@ -159,6 +254,139 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "ads_autopilot_configs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ads_autopilot_experiments: {
+        Row: {
+          ad_account_id: string | null
+          budget_cents: number | null
+          channel: string
+          created_at: string | null
+          duration_days: number | null
+          end_at: string | null
+          hypothesis: string
+          id: string
+          min_conversions: number | null
+          min_spend_cents: number | null
+          plan: Json | null
+          results: Json | null
+          start_at: string | null
+          status: string | null
+          success_criteria: Json | null
+          tenant_id: string
+          updated_at: string | null
+          variable_type: string
+          winner_variant_id: string | null
+        }
+        Insert: {
+          ad_account_id?: string | null
+          budget_cents?: number | null
+          channel: string
+          created_at?: string | null
+          duration_days?: number | null
+          end_at?: string | null
+          hypothesis: string
+          id?: string
+          min_conversions?: number | null
+          min_spend_cents?: number | null
+          plan?: Json | null
+          results?: Json | null
+          start_at?: string | null
+          status?: string | null
+          success_criteria?: Json | null
+          tenant_id: string
+          updated_at?: string | null
+          variable_type: string
+          winner_variant_id?: string | null
+        }
+        Update: {
+          ad_account_id?: string | null
+          budget_cents?: number | null
+          channel?: string
+          created_at?: string | null
+          duration_days?: number | null
+          end_at?: string | null
+          hypothesis?: string
+          id?: string
+          min_conversions?: number | null
+          min_spend_cents?: number | null
+          plan?: Json | null
+          results?: Json | null
+          start_at?: string | null
+          status?: string | null
+          success_criteria?: Json | null
+          tenant_id?: string
+          updated_at?: string | null
+          variable_type?: string
+          winner_variant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_autopilot_experiments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ads_autopilot_insights: {
+        Row: {
+          ad_account_id: string | null
+          body: string
+          category: string | null
+          channel: string
+          created_at: string | null
+          evidence: Json | null
+          id: string
+          priority: string | null
+          recommended_action: Json | null
+          resolved_at: string | null
+          sentiment: string | null
+          status: string | null
+          tenant_id: string
+          title: string
+        }
+        Insert: {
+          ad_account_id?: string | null
+          body: string
+          category?: string | null
+          channel: string
+          created_at?: string | null
+          evidence?: Json | null
+          id?: string
+          priority?: string | null
+          recommended_action?: Json | null
+          resolved_at?: string | null
+          sentiment?: string | null
+          status?: string | null
+          tenant_id: string
+          title: string
+        }
+        Update: {
+          ad_account_id?: string | null
+          body?: string
+          category?: string | null
+          channel?: string
+          created_at?: string | null
+          evidence?: Json | null
+          id?: string
+          priority?: string | null
+          recommended_action?: Json | null
+          resolved_at?: string | null
+          sentiment?: string | null
+          status?: string | null
+          tenant_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_autopilot_insights_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -218,6 +446,140 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "ads_autopilot_sessions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ads_creative_assets: {
+        Row: {
+          ad_account_id: string | null
+          angle: string | null
+          aspect_ratio: string | null
+          asset_url: string | null
+          channel: string | null
+          compliance_notes: string | null
+          compliance_status: string | null
+          copy_text: string | null
+          created_at: string | null
+          cta_type: string | null
+          experiment_id: string | null
+          format: string | null
+          headline: string | null
+          id: string
+          meta: Json | null
+          performance: Json | null
+          platform_ad_id: string | null
+          product_id: string | null
+          status: string | null
+          storage_path: string | null
+          tenant_id: string
+          updated_at: string | null
+          variation_of: string | null
+        }
+        Insert: {
+          ad_account_id?: string | null
+          angle?: string | null
+          aspect_ratio?: string | null
+          asset_url?: string | null
+          channel?: string | null
+          compliance_notes?: string | null
+          compliance_status?: string | null
+          copy_text?: string | null
+          created_at?: string | null
+          cta_type?: string | null
+          experiment_id?: string | null
+          format?: string | null
+          headline?: string | null
+          id?: string
+          meta?: Json | null
+          performance?: Json | null
+          platform_ad_id?: string | null
+          product_id?: string | null
+          status?: string | null
+          storage_path?: string | null
+          tenant_id: string
+          updated_at?: string | null
+          variation_of?: string | null
+        }
+        Update: {
+          ad_account_id?: string | null
+          angle?: string | null
+          aspect_ratio?: string | null
+          asset_url?: string | null
+          channel?: string | null
+          compliance_notes?: string | null
+          compliance_status?: string | null
+          copy_text?: string | null
+          created_at?: string | null
+          cta_type?: string | null
+          experiment_id?: string | null
+          format?: string | null
+          headline?: string | null
+          id?: string
+          meta?: Json | null
+          performance?: Json | null
+          platform_ad_id?: string | null
+          product_id?: string | null
+          status?: string | null
+          storage_path?: string | null
+          tenant_id?: string
+          updated_at?: string | null
+          variation_of?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_creative_assets_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ads_creative_assets_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ads_tracking_health: {
+        Row: {
+          ad_account_id: string | null
+          alerts: Json | null
+          channel: string
+          created_at: string | null
+          id: string
+          indicators: Json | null
+          status: string | null
+          tenant_id: string
+        }
+        Insert: {
+          ad_account_id?: string | null
+          alerts?: Json | null
+          channel: string
+          created_at?: string | null
+          id?: string
+          indicators?: Json | null
+          status?: string | null
+          tenant_id: string
+        }
+        Update: {
+          ad_account_id?: string | null
+          alerts?: Json | null
+          channel?: string
+          created_at?: string | null
+          id?: string
+          indicators?: Json | null
+          status?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_tracking_health_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
