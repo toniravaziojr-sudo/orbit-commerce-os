@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Bot, BarChart3, Settings2, Lightbulb } from "lucide-react";
+import { Bot, BarChart3, Settings2, Lightbulb, MessageCircle } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
+import { AdsChatTab } from "@/components/ads/AdsChatTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useMetaAds } from "@/hooks/useMetaAds";
@@ -229,6 +230,10 @@ export default function AdsManager() {
             <Bot className="h-3.5 w-3.5" />
             Configurações Gerais
           </TabsTrigger>
+          <TabsTrigger value="global-chat" className="gap-2">
+            <MessageCircle className="h-3.5 w-3.5" />
+            Chat IA
+          </TabsTrigger>
         </TabsList>
 
         {/* === VISÃO GERAL === */}
@@ -333,6 +338,10 @@ export default function AdsManager() {
                       </TabsTrigger>
                       <TabsTrigger value="reports">Relatórios</TabsTrigger>
                       <TabsTrigger value="roi">ROI Real</TabsTrigger>
+                      <TabsTrigger value="account-chat" className="gap-2">
+                        <MessageCircle className="h-3.5 w-3.5" />
+                        Chat IA
+                      </TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="campaigns">
@@ -383,6 +392,14 @@ export default function AdsManager() {
                         adAccounts={integration.adAccounts}
                       />
                     </TabsContent>
+
+                    <TabsContent value="account-chat">
+                      <AdsChatTab
+                        scope="account"
+                        adAccountId={channelSelectedAccounts[0] || integration.adAccounts[0]?.id}
+                        channel={channel}
+                      />
+                    </TabsContent>
                   </Tabs>
                 </TabsContent>
               );
@@ -410,6 +427,11 @@ export default function AdsManager() {
             isSaving={autopilot.saveConfig.isPending}
             hasAccountOverrides={accountConfigs.configs.length > 0}
           />
+        </TabsContent>
+
+        {/* === CHAT IA GLOBAL === */}
+        <TabsContent value="global-chat">
+          <AdsChatTab scope="global" />
         </TabsContent>
       </Tabs>
     </div>

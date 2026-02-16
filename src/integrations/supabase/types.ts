@@ -27,6 +27,7 @@ export type Database = {
           id: string
           is_ai_enabled: boolean | null
           kill_switch: boolean | null
+          last_budget_adjusted_at: string | null
           min_roi_cold: number | null
           min_roi_warm: number | null
           roas_scaling_threshold: number | null
@@ -48,6 +49,7 @@ export type Database = {
           id?: string
           is_ai_enabled?: boolean | null
           kill_switch?: boolean | null
+          last_budget_adjusted_at?: string | null
           min_roi_cold?: number | null
           min_roi_warm?: number | null
           roas_scaling_threshold?: number | null
@@ -69,6 +71,7 @@ export type Database = {
           id?: string
           is_ai_enabled?: boolean | null
           kill_switch?: boolean | null
+          last_budget_adjusted_at?: string | null
           min_roi_cold?: number | null
           min_roi_warm?: number | null
           roas_scaling_threshold?: number | null
@@ -411,6 +414,7 @@ export type Database = {
           id: string
           insights_generated: Json | null
           integration_status: Json | null
+          motor_type: string | null
           tenant_id: string
           trigger_type: string
         }
@@ -427,6 +431,7 @@ export type Database = {
           id?: string
           insights_generated?: Json | null
           integration_status?: Json | null
+          motor_type?: string | null
           tenant_id: string
           trigger_type?: string
         }
@@ -443,12 +448,105 @@ export type Database = {
           id?: string
           insights_generated?: Json | null
           integration_status?: Json | null
+          motor_type?: string | null
           tenant_id?: string
           trigger_type?: string
         }
         Relationships: [
           {
             foreignKeyName: "ads_autopilot_sessions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ads_chat_conversations: {
+        Row: {
+          ad_account_id: string | null
+          channel: string | null
+          created_at: string
+          created_by: string
+          id: string
+          scope: string
+          tenant_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          ad_account_id?: string | null
+          channel?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          scope?: string
+          tenant_id: string
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          ad_account_id?: string | null
+          channel?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          scope?: string
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_chat_conversations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ads_chat_messages: {
+        Row: {
+          content: string | null
+          conversation_id: string
+          created_at: string
+          id: string
+          role: string
+          tenant_id: string
+          tool_calls: Json | null
+          tool_results: Json | null
+        }
+        Insert: {
+          content?: string | null
+          conversation_id: string
+          created_at?: string
+          id?: string
+          role?: string
+          tenant_id: string
+          tool_calls?: Json | null
+          tool_results?: Json | null
+        }
+        Update: {
+          content?: string | null
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          role?: string
+          tenant_id?: string
+          tool_calls?: Json | null
+          tool_results?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_chat_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "ads_chat_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ads_chat_messages_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
