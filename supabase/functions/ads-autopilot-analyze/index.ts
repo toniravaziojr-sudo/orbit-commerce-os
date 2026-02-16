@@ -1747,19 +1747,25 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                     }
 
                     const adsetName = args.campaign_name.replace("[AI]", "[AI] CJ -");
+                    // CBO mode: campaign has budget, so adset must NOT have its own budget
+                    // ABO mode: adset has budget, campaign does not
+                    // Since we create campaigns WITH daily_budget_cents (CBO), adset must NOT have budget
+                    const adsetCreateBody: any = {
+                      tenant_id,
+                      action: "create",
+                      ad_account_id: acctConfig.ad_account_id,
+                      meta_campaign_id: newMetaCampaignId,
+                      name: adsetName,
+                      optimization_goal: optimizationGoalMap[args.objective] || "OFFSITE_CONVERSIONS",
+                      billing_event: billingEventMap[args.objective] || "IMPRESSIONS",
+                      targeting,
+                      status: "PAUSED", // Always PAUSED — activated with campaign
+                    };
+                    // Only set adset budget if campaign does NOT have budget (ABO mode)
+                    // Currently all AI-created campaigns use CBO (daily_budget on campaign), so skip adset budget
+                    
                     const { data: adsetResult, error: adsetErr } = await supabase.functions.invoke("meta-ads-adsets", {
-                      body: {
-                        tenant_id,
-                        action: "create",
-                        ad_account_id: acctConfig.ad_account_id,
-                        meta_campaign_id: newMetaCampaignId,
-                        name: adsetName,
-                        optimization_goal: optimizationGoalMap[args.objective] || "OFFSITE_CONVERSIONS",
-                        billing_event: billingEventMap[args.objective] || "IMPRESSIONS",
-                        daily_budget_cents: args.daily_budget_cents,
-                        targeting,
-                        status: "PAUSED", // Always PAUSED — activated with campaign
-                      },
+                      body: adsetCreateBody,
                     });
 
                     if (adsetErr) {
