@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.3.0"; // First activation: fresh Meta data sync before analysis
+const VERSION = "v5.6.0"; // Pause timing rules (3d/7d), recovery cycle, ROAS scaling thresholds, prompt hierarchy
 // ===========================================================
 
 const corsHeaders = {
@@ -25,6 +25,10 @@ interface AccountConfig {
   target_roi: number | null;
   min_roi_cold: number | null;
   min_roi_warm: number | null;
+  roas_scale_up_threshold: number | null;
+  roas_scale_down_threshold: number | null;
+  budget_increase_pct: number | null;
+  budget_decrease_pct: number | null;
   user_instructions: string | null;
   strategy_mode: string | null;
   funnel_split_mode: string | null;
@@ -983,12 +987,27 @@ A IA decide a distribuição ideal entre TOF/MOF/BOF com base nos dados.`;
   }
 
   // Platform-specific knowledge (condensed)
+  // ROAS scaling thresholds
+  const scaleUpThreshold = acctConfig.roas_scale_up_threshold || null;
+  const scaleDownThreshold = acctConfig.roas_scale_down_threshold || null;
+  const budgetIncreasePct = acctConfig.budget_increase_pct || 15;
+  const budgetDecreasePct = acctConfig.budget_decrease_pct || 20;
+
+  let scalingSection = "";
+  if (scaleUpThreshold || scaleDownThreshold) {
+    scalingSection = `
+## 📊 REGRAS DE ESCALONAMENTO DE ORÇAMENTO POR ROAS
+${scaleUpThreshold ? `- ROAS > ${scaleUpThreshold}x → AUMENTAR orçamento em +${budgetIncreasePct}% (via adjust_budget)` : ""}
+${scaleDownThreshold ? `- ROAS < ${scaleDownThreshold}x (mas acima do mínimo de pausa) → REDUZIR orçamento em -${budgetDecreasePct}% (via adjust_budget)` : ""}
+- Hierarquia de decisão: PAUSA (min_roi) > REDUÇÃO (scale_down) > MANUTENÇÃO > AUMENTO (scale_up)
+- Ajustes de orçamento são agendados para 00:01 BRT (nunca imediatos).`;
+  }
+
   const platformRules: Record<string, string> = {
     meta: `
 ### META ADS — REGRAS
 - Learning Phase: ~50 eventos em 7d para estabilizar. NÃO editar durante.
 - Budget: Máx ±10% por ciclo de 6h (respeitar ±20% em 48h).
-- Pausar frio: ROAS < ${minRoiCold} por 5+ dias. Pausar quente: ROAS < ${minRoiWarm} por 5+ dias.
 - Frequência > 3.0 = saturação de audiência.
 - CTR < 0.5% por 3d = criativo/targeting ineficaz.`,
     google: `
@@ -1015,12 +1034,24 @@ ${strategyStr}
 - CONTA: ${acctConfig.ad_account_id}
 - ORÇAMENTO: ${budgetStr} / ${acctConfig.budget_mode === "daily" ? "dia" : "mês"}
 - ROI IDEAL (alvo): ${targetRoi}x
-- ROI MÍN. PÚBLICO FRIO: ${minRoiCold}x (abaixo disso → pausar campanhas frias)
-- ROI MÍN. PÚBLICO QUENTE: ${minRoiWarm}x (abaixo disso → pausar campanhas quentes)
+- ROI MÍN. PÚBLICO FRIO: ${minRoiCold}x (abaixo disso → regras de pausa abaixo)
+- ROI MÍN. PÚBLICO QUENTE: ${minRoiWarm}x (abaixo disso → regras de pausa abaixo)
+
+## 🛑 REGRAS DE PAUSA (TIMING OBRIGATÓRIO)
+- **PAUSA RÁPIDA (3 dias):** Se o ROI nos últimos 3 dias for < 50% do mínimo configurado (Frio < ${(minRoiCold * 0.5).toFixed(1)}x OU Quente < ${(minRoiWarm * 0.5).toFixed(1)}x) → PAUSAR IMEDIATAMENTE (performance crítica).
+- **PAUSA NORMAL (7 dias):** Se o ROI nos últimos 7 dias for < mínimo configurado (Frio < ${minRoiCold}x OU Quente < ${minRoiWarm}x) → PAUSAR (performance ruim sustentada).
+- **CICLO DE RECUPERAÇÃO:** Após 7 dias pausada, a campanha deve ser REATIVADA automaticamente para testar novamente.
+- **PAUSA INDETERMINADA:** Se após a reativação a campanha atingir novamente os critérios de pausa (3d ou 7d acima) → PAUSA INDETERMINADA (não tentar mais).
+- Use o campo metric_trigger para indicar: "pause_3d_critical", "pause_7d_normal", "recovery_reactivation" ou "pause_indefinite".
 
 ${funnelSection}
 
-${acctConfig.user_instructions ? `## INSTRUÇÕES DO LOJISTA\n${acctConfig.user_instructions}` : ""}
+${scalingSection}
+
+${acctConfig.user_instructions ? `## INSTRUÇÕES DO LOJISTA (SUGESTIVAS — NÃO SOBREPÕEM CONFIGS MANUAIS)
+⚠️ As instruções abaixo são SUGESTIVAS e servem para dar contexto e direcionamento à IA.
+Se houver CONFLITO entre estas instruções e as configurações manuais acima (ROI, orçamento, estratégia, splits), as CONFIGURAÇÕES MANUAIS SEMPRE PREVALECEM.
+${acctConfig.user_instructions}` : ""}
 
 ${trendSection}
 
