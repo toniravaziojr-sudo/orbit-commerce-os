@@ -19,6 +19,7 @@ import { AdsReportsTab } from "@/components/ads/AdsReportsTab";
 import { AdsRoiReportsTab } from "@/components/ads/AdsRoiReportsTab";
 import { AdsOverviewTab } from "@/components/ads/AdsOverviewTab";
 import { AdsInsightsTab } from "@/components/ads/AdsInsightsTab";
+import { AdsGlobalSettingsTab } from "@/components/ads/AdsGlobalSettingsTab";
 
 export default function AdsManager() {
   const meta = useMetaAds();
@@ -224,6 +225,10 @@ export default function AdsManager() {
               </Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="global-settings" className="gap-2">
+            <Bot className="h-3.5 w-3.5" />
+            Configurações Gerais
+          </TabsTrigger>
         </TabsList>
 
         {/* === VISÃO GERAL === */}
@@ -394,6 +399,16 @@ export default function AdsManager() {
             onMarkIgnored={adsInsights.markIgnored}
             onGenerateNow={() => adsInsights.generateNow.mutate()}
             isGenerating={adsInsights.generateNow.isPending}
+          />
+        </TabsContent>
+
+        {/* === CONFIGURAÇÕES GERAIS === */}
+        <TabsContent value="global-settings">
+          <AdsGlobalSettingsTab
+            globalConfig={globalConfig}
+            onSave={(config) => autopilot.saveConfig.mutate(config)}
+            isSaving={autopilot.saveConfig.isPending}
+            hasAccountOverrides={accountConfigs.configs.length > 0}
           />
         </TabsContent>
       </Tabs>
