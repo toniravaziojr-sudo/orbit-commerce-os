@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v4.10.0"; // Learning phase protection: max +20% per campaign even on first activation. Forces create_campaign.
+const VERSION = "v4.11.0"; // Respect human_approval_mode=auto: no forced approval for create actions.
 // ===========================================================
 
 const corsHeaders = {
@@ -1340,8 +1340,8 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
           const isHighImpact = isCreateAction || isBigBudgetChange;
           const needsApproval = validation.valid && (
             acctConfig.human_approval_mode === "all" ||
-            (acctConfig.human_approval_mode === "approve_high_impact" && isHighImpact) ||
-            isCreateAction // create actions ALWAYS need approval regardless of mode
+            (acctConfig.human_approval_mode === "approve_high_impact" && isHighImpact)
+            // When mode is "auto", NOTHING needs approval — AI executes everything
           );
 
           if (needsApproval) {
