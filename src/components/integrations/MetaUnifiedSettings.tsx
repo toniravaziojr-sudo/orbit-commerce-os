@@ -672,28 +672,41 @@ function IncrementalConsentSection({
 // Seção de Pixel & CAPI integrada ao Hub Meta
 function MetaPixelCapiSection() {
   const { config, isLoading, upsertConfig } = useMarketingIntegrations();
+  const { isConnected, connection } = useMetaConnection();
   
-  const [metaPixelId, setMetaPixelId] = useState('');
-  const [metaEnabled, setMetaEnabled] = useState(false);
   const [metaCapiEnabled, setMetaCapiEnabled] = useState(false);
   const [metaAccessToken, setMetaAccessToken] = useState('');
   const [metaTokenConfigured, setMetaTokenConfigured] = useState(false);
+  const [additionalPixels, setAdditionalPixels] = useState<string[]>([]);
+  const [newPixelId, setNewPixelId] = useState('');
+
+  // Primary pixel from OAuth connection
+  const primaryPixelId = config?.meta_pixel_id || '';
+  const primaryPixelName = connection?.assets?.pixels?.find(p => p.id === primaryPixelId)?.name || '';
 
   useEffect(() => {
     if (config) {
-      setMetaPixelId(config.meta_pixel_id || '');
-      setMetaEnabled(config.meta_enabled);
       setMetaCapiEnabled(config.meta_capi_enabled);
       setMetaTokenConfigured(!!(config as any).meta_access_token);
+      setAdditionalPixels(config.meta_additional_pixel_ids || []);
     }
   }, [config]);
 
+  const handleAddPixel = () => {
+    const trimmed = newPixelId.trim();
+    if (!trimmed || additionalPixels.includes(trimmed) || trimmed === primaryPixelId) return;
+    setAdditionalPixels([...additionalPixels, trimmed]);
+    setNewPixelId('');
+  };
+
+  const handleRemovePixel = (pixelId: string) => {
+    setAdditionalPixels(additionalPixels.filter(p => p !== pixelId));
+  };
+
   const handleSave = async () => {
     const updates: Partial<MarketingIntegration> = {
-      meta_pixel_id: metaPixelId || null,
-      meta_enabled: metaEnabled,
       meta_capi_enabled: metaCapiEnabled,
-      meta_status: metaEnabled && metaPixelId ? 'active' : 'inactive',
+      meta_additional_pixel_ids: additionalPixels.length > 0 ? additionalPixels : null,
     };
     if (metaAccessToken) {
       (updates as any).meta_access_token = metaAccessToken;
@@ -704,12 +717,14 @@ function MetaPixelCapiSection() {
 
   if (isLoading) return null;
 
+  const isActive = config?.meta_enabled && primaryPixelId;
+
   return (
     <div className="space-y-4">
       <h4 className="text-sm font-medium flex items-center gap-2">
         <Crosshair className="h-4 w-4" />
         Pixel & Conversions API
-        {config?.meta_status === 'active' && (
+        {isActive && (
           <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">
             <CheckCircle className="h-3 w-3 mr-1" /> Ativo
           </Badge>
@@ -717,31 +732,82 @@ function MetaPixelCapiSection() {
       </h4>
       
       <div className="rounded-lg border p-4 space-y-4">
-        {/* Client-side */}
+        {/* Primary Pixel (auto-synced) */}
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
             <Globe className="h-3.5 w-3.5" />
             Client-side (Pixel)
           </div>
-          <div className="flex items-center justify-between">
-            <Label htmlFor="meta-pixel-enabled" className="text-sm">Ativar Meta Pixel</Label>
-            <Switch id="meta-pixel-enabled" checked={metaEnabled} onCheckedChange={setMetaEnabled} />
-          </div>
+          
           <div className="space-y-1.5">
-            <Label htmlFor="meta-pixel-id" className="text-sm">Pixel ID</Label>
-            <Input id="meta-pixel-id" placeholder="123456789012345" value={metaPixelId} onChange={(e) => setMetaPixelId(e.target.value)} />
+            <Label className="text-sm">Pixel Principal</Label>
+            {primaryPixelId ? (
+              <div className="flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2">
+                <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-mono">{primaryPixelId}</p>
+                  {primaryPixelName && (
+                    <p className="text-xs text-muted-foreground">{primaryPixelName}</p>
+                  )}
+                </div>
+                <Badge variant="secondary" className="text-xs shrink-0">Auto-sync</Badge>
+              </div>
+            ) : (
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  Nenhum pixel conectado. Conecte sua conta Meta acima e selecione um Pixel nos ativos.
+                </AlertDescription>
+              </Alert>
+            )}
             <p className="text-xs text-muted-foreground">
-              Encontre no{' '}
-              <a href="https://business.facebook.com/events_manager" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
-                Gerenciador de Eventos <ExternalLink className="h-3 w-3" />
-              </a>
+              Sincronizado automaticamente da conexão Meta. Para alterar, edite os ativos conectados acima.
             </p>
+          </div>
+
+          {/* Additional Pixels */}
+          <div className="space-y-2 pt-1">
+            <Label className="text-sm">Pixels Adicionais</Label>
+            <p className="text-xs text-muted-foreground">
+              Adicione outros Pixel IDs para disparar eventos em múltiplos pixels simultaneamente.
+            </p>
+            
+            {additionalPixels.length > 0 && (
+              <div className="space-y-1.5">
+                {additionalPixels.map((pixelId) => (
+                  <div key={pixelId} className="flex items-center gap-2 rounded-md border px-3 py-1.5">
+                    <span className="text-sm font-mono flex-1">{pixelId}</span>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => handleRemovePixel(pixelId)}
+                    >
+                      ×
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Input 
+                placeholder="ID do pixel adicional" 
+                value={newPixelId} 
+                onChange={(e) => setNewPixelId(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAddPixel()}
+                className="flex-1"
+              />
+              <Button variant="outline" size="sm" onClick={handleAddPixel} disabled={!newPixelId.trim()}>
+                <Plus className="h-4 w-4 mr-1" /> Adicionar
+              </Button>
+            </div>
           </div>
         </div>
 
         <Separator />
 
-        {/* Server-side */}
+        {/* Server-side (CAPI) */}
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
             <Server className="h-3.5 w-3.5" />
@@ -750,24 +816,45 @@ function MetaPixelCapiSection() {
           <div className="flex items-center justify-between">
             <div>
               <Label htmlFor="meta-capi-enabled" className="text-sm">Ativar Conversions API</Label>
-              <p className="text-xs text-muted-foreground">Melhora atribuição e reduz perda por bloqueadores</p>
+              <p className="text-xs text-muted-foreground">Melhora atribuição e reduz perda por bloqueadores de anúncios</p>
             </div>
             <Switch id="meta-capi-enabled" checked={metaCapiEnabled} onCheckedChange={setMetaCapiEnabled} />
           </div>
+
+          <Alert className="bg-blue-50/50 border-blue-200">
+            <AlertDescription className="text-xs space-y-2">
+              <p className="font-medium text-blue-900">Como gerar o Access Token:</p>
+              <ol className="list-decimal list-inside space-y-1 text-blue-800">
+                <li>Acesse o <a href="https://business.facebook.com/events_manager" target="_blank" rel="noopener noreferrer" className="underline font-medium">Gerenciador de Eventos</a></li>
+                <li>Selecione seu Pixel → aba <strong>Configurações</strong></li>
+                <li>Role até <strong>"Conversions API"</strong></li>
+                <li>Clique em <strong>"Gerar token de acesso"</strong></li>
+                <li>Copie o token e cole abaixo</li>
+              </ol>
+              <p className="text-blue-700 italic">O token é permanente e específico do Pixel. Nunca compartilhe.</p>
+            </AlertDescription>
+          </Alert>
+
           <div className="space-y-1.5">
             <Label htmlFor="meta-access-token" className="text-sm flex items-center gap-2">
               <Lock className="h-3 w-3" />
               Access Token
               {metaTokenConfigured && <Badge variant="secondary" className="text-xs">Configurado</Badge>}
             </Label>
-            <Input id="meta-access-token" type="password" placeholder={metaTokenConfigured ? '••••••••••••' : 'Cole seu access token aqui'} value={metaAccessToken} onChange={(e) => setMetaAccessToken(e.target.value)} />
-            <p className="text-xs text-muted-foreground">Token nunca é exibido após salvo.</p>
+            <Input 
+              id="meta-access-token" 
+              type="password" 
+              placeholder={metaTokenConfigured ? '••••••••••••' : 'Cole seu access token aqui'} 
+              value={metaAccessToken} 
+              onChange={(e) => setMetaAccessToken(e.target.value)} 
+            />
+            <p className="text-xs text-muted-foreground">Token nunca é exibido após salvo. Deixe em branco para manter o atual.</p>
           </div>
         </div>
 
         <Button size="sm" onClick={handleSave} disabled={upsertConfig.isPending}>
           {upsertConfig.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-          Salvar Pixel & CAPI
+          Salvar Configurações
         </Button>
       </div>
     </div>

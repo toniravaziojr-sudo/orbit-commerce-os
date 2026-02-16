@@ -7567,6 +7567,7 @@ export type Database = {
           google_status: string | null
           id: string
           meta_access_token: string | null
+          meta_additional_pixel_ids: string[] | null
           meta_capi_enabled: boolean
           meta_enabled: boolean
           meta_last_error: string | null
@@ -7602,6 +7603,7 @@ export type Database = {
           google_status?: string | null
           id?: string
           meta_access_token?: string | null
+          meta_additional_pixel_ids?: string[] | null
           meta_capi_enabled?: boolean
           meta_enabled?: boolean
           meta_last_error?: string | null
@@ -7637,6 +7639,7 @@ export type Database = {
           google_status?: string | null
           id?: string
           meta_access_token?: string | null
+          meta_additional_pixel_ids?: string[] | null
           meta_capi_enabled?: boolean
           meta_enabled?: boolean
           meta_last_error?: string | null

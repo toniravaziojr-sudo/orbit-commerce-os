@@ -37,6 +37,9 @@ export interface MarketingIntegration {
   tiktok_last_test_at: string | null;
   tiktok_last_error: string | null;
   
+  // Additional Pixels
+  meta_additional_pixel_ids: string[] | null;
+  
   // General
   consent_mode_enabled: boolean;
   
