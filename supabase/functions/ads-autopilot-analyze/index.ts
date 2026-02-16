@@ -1360,38 +1360,40 @@ Deno.serve(async (req) => {
       if (trigger_type === "first_activation") {
         const metaAccounts = runnableAccounts.filter(ac => ac.channel === "meta");
         if (metaAccounts.length > 0) {
-          console.log(`[ads-autopilot-analyze][${VERSION}] First activation — syncing fresh data from Meta for ${metaAccounts.length} accounts`);
+          // Scope sync to TARGET account only (avoids timeout when tenant has many accounts/campaigns)
+          const syncAccountId = target_account_id || metaAccounts[0]?.ad_account_id;
+          console.log(`[ads-autopilot-analyze][${VERSION}] First activation — syncing fresh data from Meta for account ${syncAccountId}`);
           try {
-            // 1. Sync campaigns first (ensures we have campaign records locally)
+            // 1. Sync campaigns for target account only
             const { error: campSyncErr } = await supabase.functions.invoke("meta-ads-campaigns", {
-              body: { tenant_id, action: "sync" },
+              body: { tenant_id, action: "sync", ad_account_id: syncAccountId },
             });
             if (campSyncErr) {
               console.error(`[ads-autopilot-analyze][${VERSION}] Campaign sync error:`, campSyncErr.message);
             } else {
-              console.log(`[ads-autopilot-analyze][${VERSION}] Campaigns synced successfully`);
+              console.log(`[ads-autopilot-analyze][${VERSION}] Campaigns synced for ${syncAccountId}`);
             }
 
-            // 2. Sync insights for last 7 days (ensures we have performance data)
+            // 2. Sync insights for last 7 days (target account)
             const { error: insightsSyncErr } = await supabase.functions.invoke("meta-ads-insights", {
-              body: { tenant_id, action: "sync", date_preset: "last_7d" },
+              body: { tenant_id, action: "sync", date_preset: "last_7d", ad_account_id: syncAccountId },
             });
             if (insightsSyncErr) {
               console.error(`[ads-autopilot-analyze][${VERSION}] Insights sync error:`, insightsSyncErr.message);
             } else {
-              console.log(`[ads-autopilot-analyze][${VERSION}] Insights (last_7d) synced successfully`);
+              console.log(`[ads-autopilot-analyze][${VERSION}] Insights (last_7d) synced for ${syncAccountId}`);
             }
 
-            // 3. Sync adsets for each account (needed for complete picture)
-            for (const acct of metaAccounts) {
-              try {
-                await supabase.functions.invoke("meta-ads-adsets", {
-                  body: { tenant_id, action: "sync" },
-                });
-              } catch (e: any) {
-                console.log(`[ads-autopilot-analyze][${VERSION}] Adset sync skipped:`, e.message);
-              }
+            // 3. Sync adsets for target account
+            try {
+              await supabase.functions.invoke("meta-ads-adsets", {
+                body: { tenant_id, action: "sync", ad_account_id: syncAccountId },
+              });
+              console.log(`[ads-autopilot-analyze][${VERSION}] Adsets synced for ${syncAccountId}`);
+            } catch (e: any) {
+              console.log(`[ads-autopilot-analyze][${VERSION}] Adset sync skipped:`, e.message);
             }
+
             console.log(`[ads-autopilot-analyze][${VERSION}] First activation data sync complete`);
           } catch (syncErr: any) {
             console.error(`[ads-autopilot-analyze][${VERSION}] First activation sync error:`, syncErr.message);
