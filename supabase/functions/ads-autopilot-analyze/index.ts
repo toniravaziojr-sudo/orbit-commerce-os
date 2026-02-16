@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v4.2.0"; // Added Tracking Health Check, Pacing Monitor, underspend reallocation
+const VERSION = "v4.3.0"; // Fixed approve_high_impact: budget >20% now requires approval
 // ===========================================================
 
 const corsHeaders = {
@@ -1169,10 +1169,14 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
             action_hash: `${sessionId}_${tc.function.name}_${acctConfig.ad_account_id}_${args.campaign_id || totalActionsPlanned}`,
           };
 
-          // Human approval mode check — create actions always need approval
+          // Human approval mode check
           const isCreateAction = tc.function.name === "create_campaign" || tc.function.name === "create_adset";
+          const isBigBudgetChange = tc.function.name === "adjust_budget" && Math.abs(args.change_pct || 0) > 20;
+          const isHighImpact = isCreateAction || isBigBudgetChange;
           const needsApproval = validation.valid && (
-            acctConfig.human_approval_mode === "all" || isCreateAction
+            acctConfig.human_approval_mode === "all" ||
+            (acctConfig.human_approval_mode === "approve_high_impact" && isHighImpact) ||
+            isCreateAction // create actions ALWAYS need approval regardless of mode
           );
 
           if (needsApproval) {
