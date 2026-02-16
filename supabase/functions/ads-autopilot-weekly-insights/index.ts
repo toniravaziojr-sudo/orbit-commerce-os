@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.0.0"; // Initial weekly insights engine
+const VERSION = "v1.1.0"; // Fix AI response parsing
 // ===========================================================
 
 const corsHeaders = {
@@ -385,25 +385,45 @@ async function processOneTenant(supabase: any, tenantId: string, triggerType: st
     }),
   });
 
-  const aiText = await aiResponse.text();
-  let aiData: any;
-  try {
-    aiData = JSON.parse(aiText);
-  } catch {
-    console.error(`[weekly-insights] Failed to parse AI response:`, aiText.substring(0, 500));
-    throw new Error("Failed to parse AI response");
+  if (!aiResponse.ok) {
+    const errorText = await aiResponse.text();
+    console.error(`[weekly-insights] AI API error (${aiResponse.status}):`, errorText.substring(0, 500));
+    throw new Error(`AI API returned ${aiResponse.status}`);
   }
 
+  const aiData = await aiResponse.json();
   const content = aiData?.choices?.[0]?.message?.content || "";
+  
+  if (!content || content.trim().length === 0) {
+    console.error(`[weekly-insights] AI returned empty content. Full response:`, JSON.stringify(aiData).substring(0, 500));
+    throw new Error("AI returned empty content");
+  }
+
   let insights: any[];
   try {
-    // Handle potential markdown code blocks
-    const cleaned = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    // Handle potential markdown code blocks and various formats
+    let cleaned = content.trim();
+    // Remove markdown code fences
+    cleaned = cleaned.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+    
     const parsed = JSON.parse(cleaned);
-    insights = parsed.insights || [];
-  } catch {
-    console.error(`[weekly-insights] Failed to parse insights JSON:`, content.substring(0, 500));
-    throw new Error("Failed to parse insights from AI");
+    insights = parsed.insights || (Array.isArray(parsed) ? parsed : []);
+  } catch (parseErr: any) {
+    console.error(`[weekly-insights] Failed to parse insights JSON. Content preview:`, content.substring(0, 800));
+    
+    // Try to extract JSON from mixed content
+    const jsonMatch = content.match(/\{[\s\S]*"insights"\s*:\s*\[[\s\S]*\]\s*\}/);
+    if (jsonMatch) {
+      try {
+        const fallbackParsed = JSON.parse(jsonMatch[0]);
+        insights = fallbackParsed.insights || [];
+        console.log(`[weekly-insights] Fallback JSON extraction succeeded: ${insights.length} insights`);
+      } catch {
+        throw new Error("Failed to parse insights from AI");
+      }
+    } else {
+      throw new Error("Failed to parse insights from AI");
+    }
   }
 
   // Persist insights

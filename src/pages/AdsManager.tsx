@@ -237,6 +237,18 @@ export default function AdsManager() {
             globalBudgetMode={globalConfig?.total_budget_mode || globalConfig?.budget_mode || "monthly"}
             isLoading={meta.insightsLoading || tiktok.insightsLoading}
             trackingAlerts={[]}
+            adAccounts={[
+              ...getChannelIntegration("meta").adAccounts.map(a => ({ ...a, channel: "meta" })),
+              ...getChannelIntegration("google").adAccounts.map(a => ({ ...a, channel: "google" })),
+              ...getChannelIntegration("tiktok").adAccounts.map(a => ({ ...a, channel: "tiktok" })),
+            ]}
+            selectedAccountIds={Object.values(selectedAccounts).flat()}
+            onToggleAccount={(accountId) => {
+              const channel = ["meta", "google", "tiktok"].find(ch =>
+                getChannelIntegration(ch).adAccounts.some(a => a.id === accountId)
+              );
+              if (channel) toggleAccount(channel, accountId);
+            }}
           />
         </TabsContent>
 
