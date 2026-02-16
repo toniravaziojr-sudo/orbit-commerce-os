@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v4.1.0"; // Added create_campaign, create_adset tools (Phase 2), data sufficiency gates
+const VERSION = "v4.2.0"; // Added Tracking Health Check, Pacing Monitor, underspend reallocation
 // ===========================================================
 
 const corsHeaders = {
@@ -430,13 +430,127 @@ async function collectContext(supabase: any, tenantId: string, enabledChannels: 
   };
 }
 
+// ============ TRACKING HEALTH CHECK ============
+
+async function checkTrackingHealth(supabase: any, tenantId: string, context: any): Promise<Record<string, any>> {
+  const healthResults: Record<string, any> = {};
+
+  for (const [channel, data] of Object.entries(context.channels) as [string, any][]) {
+    const trend = data?.trend?.current_period;
+    const prevTrend = data?.trend?.previous_period;
+    if (!trend) continue;
+
+    const indicators: Record<string, any> = {};
+    const alerts: string[] = [];
+    let status = "healthy";
+
+    // 1. Check conversion attribution vs real orders
+    const adConversions = trend.total_conversions || 0;
+    const realOrders = context.orderStats.paid_orders || 0;
+    if (adConversions > 0 && realOrders > 0) {
+      const discrepancyPct = Math.abs(adConversions - realOrders) / Math.max(adConversions, realOrders) * 100;
+      indicators.attribution_discrepancy_pct = Math.round(discrepancyPct);
+      if (discrepancyPct > 50) {
+        alerts.push(`Discrepância de atribuição ${Math.round(discrepancyPct)}% entre conversões (${adConversions}) e pedidos reais (${realOrders})`);
+        status = "critical";
+      } else if (discrepancyPct > 30) {
+        alerts.push(`Discrepância moderada ${Math.round(discrepancyPct)}% na atribuição`);
+        status = status === "critical" ? "critical" : "degraded";
+      }
+    }
+
+    // 2. Check event drop (>30% vs previous period)
+    if (prevTrend && prevTrend.total_conversions > 0) {
+      const dropPct = ((prevTrend.total_conversions - trend.total_conversions) / prevTrend.total_conversions) * 100;
+      indicators.conversion_drop_pct = Math.round(dropPct);
+      if (dropPct > 30) {
+        alerts.push(`Queda de ${Math.round(dropPct)}% nas conversões vs período anterior`);
+        status = status === "critical" ? "critical" : "degraded";
+      }
+    }
+
+    // 3. CPC anomaly (>3x average)
+    if (prevTrend && prevTrend.avg_cpc_cents > 0 && trend.avg_cpc_cents > prevTrend.avg_cpc_cents * 3) {
+      indicators.cpc_anomaly = true;
+      alerts.push(`CPC ${Math.round(trend.avg_cpc_cents / 100 * 100) / 100} é ${Math.round(trend.avg_cpc_cents / prevTrend.avg_cpc_cents)}x a média anterior`);
+      status = status === "critical" ? "critical" : "degraded";
+    }
+
+    // 4. CTR collapse (< 50% of previous)
+    if (prevTrend && prevTrend.avg_ctr_pct > 0 && trend.avg_ctr_pct < prevTrend.avg_ctr_pct * 0.5) {
+      indicators.ctr_collapse = true;
+      alerts.push(`CTR caiu para ${trend.avg_ctr_pct.toFixed(2)}% (era ${prevTrend.avg_ctr_pct.toFixed(2)}%)`);
+    }
+
+    indicators.conversions_current = trend.total_conversions;
+    indicators.conversions_previous = prevTrend?.total_conversions || 0;
+    indicators.spend_current = trend.total_spend_cents;
+
+    healthResults[channel] = { status, indicators, alerts };
+
+    // Persist to ads_tracking_health
+    await supabase.from("ads_tracking_health").insert({
+      tenant_id: tenantId,
+      channel,
+      status,
+      indicators,
+      alerts,
+    });
+  }
+
+  return healthResults;
+}
+
+// ============ PACING MONITOR ============
+
+function checkPacing(context: any, accountConfigs: any[]): Record<string, any> {
+  const pacingResults: Record<string, any> = {};
+
+  for (const acct of accountConfigs) {
+    if (!acct.budget_cents || acct.budget_cents <= 0) continue;
+    const channelData = context.channels[acct.channel];
+    if (!channelData?.trend?.current_period) continue;
+
+    const trend = channelData.trend.current_period;
+    const monthlyBudget = acct.budget_mode === "daily" ? acct.budget_cents * 30 : acct.budget_cents;
+
+    // Estimate monthly spend from 7d data
+    const dailySpendAvg = trend.days_with_data > 0 ? trend.total_spend_cents / trend.days_with_data : 0;
+    const now = new Date();
+    const dayOfMonth = now.getDate();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const projectedMonthlySpend = dailySpendAvg * daysInMonth;
+    const spentSoFar = dailySpendAvg * dayOfMonth;
+
+    const expectedSpend = (dayOfMonth / daysInMonth) * monthlyBudget;
+    const pacingPct = expectedSpend > 0 ? Math.round((spentSoFar / expectedSpend) * 100) : 0;
+
+    const underspend = pacingPct < 80;
+    const overspend = pacingPct > 110;
+
+    pacingResults[acct.ad_account_id] = {
+      monthly_budget_cents: monthlyBudget,
+      daily_avg_spend_cents: Math.round(dailySpendAvg),
+      projected_monthly_spend_cents: Math.round(projectedMonthlySpend),
+      spent_so_far_cents: Math.round(spentSoFar),
+      pacing_pct: pacingPct,
+      underspend,
+      overspend,
+      flag: underspend ? "UNDERSPEND" : overspend ? "OVERSPEND" : "ON_TRACK",
+    };
+  }
+
+  return pacingResults;
+}
+
 // ============ POLICY VALIDATION (v4 - Per-Account) ============
 
 function validateAction(
   action: any,
   acctConfig: AccountConfig,
   context: any,
-  sessionActionsCount: number
+  sessionActionsCount: number,
+  trackingHealth?: Record<string, any>
 ): { valid: boolean; reason?: string } {
   // Kill switch
   if (acctConfig.kill_switch) {
@@ -446,6 +560,18 @@ function validateAction(
   // Max actions per session
   if (sessionActionsCount >= DEFAULT_SAFETY.max_actions_per_session) {
     return { valid: false, reason: `Limite de ${DEFAULT_SAFETY.max_actions_per_session} ações por sessão atingido.` };
+  }
+
+  // Tracking health gate (v4.2): block budget increases when degraded/critical
+  const channelKey = acctConfig.channel;
+  if (trackingHealth?.[channelKey]) {
+    const health = trackingHealth[channelKey];
+    if ((health.status === "critical" || health.status === "degraded") && action.name === "adjust_budget") {
+      const args = typeof action.arguments === "string" ? JSON.parse(action.arguments) : action.arguments;
+      if ((args.change_pct || 0) > 0) {
+        return { valid: false, reason: `Tracking ${health.status}: escala de budget bloqueada. Corrija o tracking primeiro.` };
+      }
+    }
   }
 
   // Check if action type is allowed
@@ -886,6 +1012,14 @@ Deno.serve(async (req) => {
       console.log(`[ads-autopilot-analyze][${VERSION}] Collecting context for ${connectedChannels.join(", ")}, ${runnableAccounts.length} accounts`);
       const context = await collectContext(supabase, tenant_id, connectedChannels);
 
+      // ---- Tracking Health Check (v4.2) ----
+      console.log(`[ads-autopilot-analyze][${VERSION}] Running Tracking Health Check`);
+      const trackingHealth = await checkTrackingHealth(supabase, tenant_id, context);
+
+      // ---- Pacing Monitor (v4.2) ----
+      console.log(`[ads-autopilot-analyze][${VERSION}] Running Pacing Monitor`);
+      const pacingResults = checkPacing(context, runnableAccounts);
+
       // ---- Create global session ----
       const { data: session } = await supabase
         .from("ads_autopilot_sessions")
@@ -893,7 +1027,11 @@ Deno.serve(async (req) => {
           tenant_id,
           channel: "global",
           trigger_type,
-          context_snapshot: { accounts: runnableAccounts.map((a) => ({ channel: a.channel, account: a.ad_account_id })) },
+          context_snapshot: {
+            accounts: runnableAccounts.map((a) => ({ channel: a.channel, account: a.ad_account_id })),
+            tracking_health: trackingHealth,
+            pacing: pacingResults,
+          },
           integration_status: integrationStatus,
         })
         .select("id")
@@ -939,8 +1077,27 @@ Deno.serve(async (req) => {
 
         console.log(`[ads-autopilot-analyze][${VERSION}] Analyzing account ${acctConfig.ad_account_id} (${channel}), ${accountCampaigns.length} campaigns`);
 
+        // Tracking health gate (v4.2): if channel is critical/degraded, restrict to insights only
+        const channelHealth = trackingHealth[channel];
+        const isHealthDegraded = channelHealth && (channelHealth.status === "critical" || channelHealth.status === "degraded");
+
+        // Pacing context for this account (v4.2)
+        const accountPacing = pacingResults[acctConfig.ad_account_id];
+        const pacingContext = accountPacing ? `
+## PACING (${accountPacing.flag})
+- Orçamento mensal: R$ ${(accountPacing.monthly_budget_cents / 100).toFixed(2)}
+- Gasto médio/dia: R$ ${(accountPacing.daily_avg_spend_cents / 100).toFixed(2)}
+- Pacing: ${accountPacing.pacing_pct}% do esperado
+${accountPacing.underspend ? "⚠️ UNDERSPEND >20%: Priorize escalar vencedores e criar novos testes." : ""}
+${accountPacing.overspend ? "⚠️ OVERSPEND >10%: Reduza agressividade e revise campanhas de alto CPA." : ""}` : "";
+
+        const healthContext = isHealthDegraded ? `
+## ⚠️ TRACKING DEGRADADO (${channelHealth.status.toUpperCase()})
+${channelHealth.alerts?.join("\n") || ""}
+🚨 RESTRIÇÃO: Não escalar budgets. Apenas pausar campanhas problemáticas e gerar insights.` : "";
+
         const plannerMessages = [
-          { role: "system", content: buildAccountPlannerPrompt(acctConfig, context) },
+          { role: "system", content: buildAccountPlannerPrompt(acctConfig, context) + pacingContext + healthContext },
           {
             role: "user",
             content: `## CAMPANHAS DESTA CONTA (${acctConfig.ad_account_id})
@@ -975,7 +1132,8 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
             { name: tc.function.name, arguments: args },
             acctConfig,
             context,
-            totalActionsPlanned
+            totalActionsPlanned,
+            trackingHealth
           );
 
           totalActionsPlanned++;
