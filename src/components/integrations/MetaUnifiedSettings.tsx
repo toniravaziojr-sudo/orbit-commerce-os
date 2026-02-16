@@ -674,19 +674,21 @@ function MetaPixelCapiSection() {
   const { config, isLoading, upsertConfig } = useMarketingIntegrations();
   const { isConnected, connection } = useMetaConnection();
   
-  const [metaCapiEnabled, setMetaCapiEnabled] = useState(false);
   const [metaAccessToken, setMetaAccessToken] = useState('');
   const [metaTokenConfigured, setMetaTokenConfigured] = useState(false);
   const [additionalPixels, setAdditionalPixels] = useState<string[]>([]);
   const [newPixelId, setNewPixelId] = useState('');
+  const [showManualCapi, setShowManualCapi] = useState(false);
 
   // Primary pixel from OAuth connection
   const primaryPixelId = config?.meta_pixel_id || '';
   const primaryPixelName = connection?.assets?.pixels?.find(p => p.id === primaryPixelId)?.name || '';
+  
+  // CAPI is auto-configured if connected + pixel exists + token configured
+  const isCapiAutoConfigured = isConnected && primaryPixelId && metaTokenConfigured;
 
   useEffect(() => {
     if (config) {
-      setMetaCapiEnabled(config.meta_capi_enabled);
       setMetaTokenConfigured(!!(config as any).meta_access_token);
       setAdditionalPixels(config.meta_additional_pixel_ids || []);
     }
@@ -705,14 +707,15 @@ function MetaPixelCapiSection() {
 
   const handleSave = async () => {
     const updates: Partial<MarketingIntegration> = {
-      meta_capi_enabled: metaCapiEnabled,
       meta_additional_pixel_ids: additionalPixels.length > 0 ? additionalPixels : null,
     };
     if (metaAccessToken) {
       (updates as any).meta_access_token = metaAccessToken;
+      updates.meta_capi_enabled = true;
     }
     await upsertConfig.mutateAsync(updates);
     setMetaAccessToken('');
+    setShowManualCapi(false);
   };
 
   if (isLoading) return null;
@@ -750,7 +753,7 @@ function MetaPixelCapiSection() {
                     <p className="text-xs text-muted-foreground">{primaryPixelName}</p>
                   )}
                 </div>
-                <Badge variant="secondary" className="text-xs shrink-0">Auto-sync</Badge>
+                <Badge variant="secondary" className="text-xs shrink-0">Automático</Badge>
               </div>
             ) : (
               <Alert>
@@ -761,13 +764,13 @@ function MetaPixelCapiSection() {
               </Alert>
             )}
             <p className="text-xs text-muted-foreground">
-              Sincronizado automaticamente da conexão Meta. Para alterar, edite os ativos conectados acima.
+              Instalado automaticamente na loja via conexão Meta.
             </p>
           </div>
 
           {/* Additional Pixels */}
           <div className="space-y-2 pt-1">
-            <Label className="text-sm">Pixels Adicionais</Label>
+            <Label className="text-sm">Pixels Adicionais (opcional)</Label>
             <p className="text-xs text-muted-foreground">
               Adicione outros Pixel IDs para disparar eventos em múltiplos pixels simultaneamente.
             </p>
@@ -813,43 +816,112 @@ function MetaPixelCapiSection() {
             <Server className="h-3.5 w-3.5" />
             Server-side (Conversions API)
           </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <Label htmlFor="meta-capi-enabled" className="text-sm">Ativar Conversions API</Label>
-              <p className="text-xs text-muted-foreground">Melhora atribuição e reduz perda por bloqueadores de anúncios</p>
-            </div>
-            <Switch id="meta-capi-enabled" checked={metaCapiEnabled} onCheckedChange={setMetaCapiEnabled} />
-          </div>
+          
+          {isCapiAutoConfigured ? (
+            <>
+              <div className="flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2">
+                <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Conversions API ativa</p>
+                  <p className="text-xs text-muted-foreground">
+                    Token sincronizado automaticamente da conexão Meta (long-lived, ~60 dias).
+                  </p>
+                </div>
+                <Badge variant="secondary" className="text-xs shrink-0">Automático</Badge>
+              </div>
+              
+              <button 
+                className="text-xs text-muted-foreground hover:text-foreground underline"
+                onClick={() => setShowManualCapi(!showManualCapi)}
+              >
+                {showManualCapi ? 'Ocultar opção manual' : 'Usar token manual (avançado)'}
+              </button>
 
-          <Alert className="bg-blue-50/50 border-blue-200">
-            <AlertDescription className="text-xs space-y-2">
-              <p className="font-medium text-blue-900">Como gerar o Access Token:</p>
-              <ol className="list-decimal list-inside space-y-1 text-blue-800">
-                <li>Acesse o <a href="https://business.facebook.com/events_manager" target="_blank" rel="noopener noreferrer" className="underline font-medium">Gerenciador de Eventos</a></li>
-                <li>Selecione seu Pixel → aba <strong>Configurações</strong></li>
-                <li>Role até <strong>"Conversions API"</strong></li>
-                <li>Clique em <strong>"Gerar token de acesso"</strong></li>
-                <li>Copie o token e cole abaixo</li>
-              </ol>
-              <p className="text-blue-700 italic">O token é permanente e específico do Pixel. Nunca compartilhe.</p>
-            </AlertDescription>
-          </Alert>
+              {showManualCapi && (
+                <div className="space-y-2 pl-2 border-l-2 border-muted">
+                  <p className="text-xs text-muted-foreground">
+                    Use um token manual apenas se precisar de um token de sistema (System User Token) permanente, 
+                    que não expira. O token automático da conexão dura ~60 dias.
+                  </p>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="meta-access-token" className="text-sm flex items-center gap-2">
+                      <Lock className="h-3 w-3" />
+                      Token Manual (substitui o automático)
+                    </Label>
+                    <Input 
+                      id="meta-access-token" 
+                      type="password" 
+                      placeholder="Cole o System User Token aqui"
+                      value={metaAccessToken} 
+                      onChange={(e) => setMetaAccessToken(e.target.value)} 
+                    />
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm">Conversions API</Label>
+                  <p className="text-xs text-muted-foreground">Melhora atribuição e reduz perda por bloqueadores de anúncios</p>
+                </div>
+                {metaTokenConfigured ? (
+                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">
+                    <CheckCircle className="h-3 w-3 mr-1" /> Configurado
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-xs">Não configurado</Badge>
+                )}
+              </div>
+              
+              {isConnected && primaryPixelId && !metaTokenConfigured ? (
+                <Alert className="bg-amber-50/50 border-amber-200">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-xs text-amber-800">
+                    Reconecte sua conta Meta para ativar a CAPI automaticamente. 
+                    Ou insira um token manual abaixo.
+                  </AlertDescription>
+                </Alert>
+              ) : !isConnected ? (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    Conecte sua conta Meta acima para ativar Pixel e CAPI automaticamente.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
 
-          <div className="space-y-1.5">
-            <Label htmlFor="meta-access-token" className="text-sm flex items-center gap-2">
-              <Lock className="h-3 w-3" />
-              Access Token
-              {metaTokenConfigured && <Badge variant="secondary" className="text-xs">Configurado</Badge>}
-            </Label>
-            <Input 
-              id="meta-access-token" 
-              type="password" 
-              placeholder={metaTokenConfigured ? '••••••••••••' : 'Cole seu access token aqui'} 
-              value={metaAccessToken} 
-              onChange={(e) => setMetaAccessToken(e.target.value)} 
-            />
-            <p className="text-xs text-muted-foreground">Token nunca é exibido após salvo. Deixe em branco para manter o atual.</p>
-          </div>
+              <Alert className="bg-blue-50/50 border-blue-200">
+                <AlertDescription className="text-xs space-y-2">
+                  <p className="font-medium text-blue-900">Como gerar um Access Token manual:</p>
+                  <ol className="list-decimal list-inside space-y-1 text-blue-800">
+                    <li>Acesse o <a href="https://business.facebook.com/events_manager" target="_blank" rel="noopener noreferrer" className="underline font-medium">Gerenciador de Eventos</a></li>
+                    <li>Selecione seu Pixel → aba <strong>Configurações</strong></li>
+                    <li>Role até <strong>"Conversions API"</strong></li>
+                    <li>Clique em <strong>"Gerar token de acesso"</strong></li>
+                    <li>Copie o token e cole abaixo</li>
+                  </ol>
+                  <p className="text-blue-700 italic">Este token é permanente e específico do Pixel.</p>
+                </AlertDescription>
+              </Alert>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="meta-access-token-fallback" className="text-sm flex items-center gap-2">
+                  <Lock className="h-3 w-3" />
+                  Access Token
+                </Label>
+                <Input 
+                  id="meta-access-token-fallback" 
+                  type="password" 
+                  placeholder={metaTokenConfigured ? '••••••••••••' : 'Cole seu access token aqui'} 
+                  value={metaAccessToken} 
+                  onChange={(e) => setMetaAccessToken(e.target.value)} 
+                />
+                <p className="text-xs text-muted-foreground">Token nunca é exibido após salvo.</p>
+              </div>
+            </>
+          )}
         </div>
 
         <Button size="sm" onClick={handleSave} disabled={upsertConfig.isPending}>
