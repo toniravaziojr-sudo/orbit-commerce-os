@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { 
   Loader2, CheckCircle, XCircle, Facebook, Instagram, MessageCircle, 
-  Megaphone, ShoppingBag, AtSign 
+  Megaphone, ShoppingBag, AtSign, Crosshair 
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -16,6 +16,7 @@ interface DiscoveredAssets {
   instagram_accounts: Array<{ id: string; username: string; page_id: string }>;
   whatsapp_business_accounts: Array<{ id: string; name: string }>;
   ad_accounts: Array<{ id: string; name: string }>;
+  pixels: Array<{ id: string; name: string; ad_account_id: string }>;
   catalogs: Array<{ id: string; name: string }>;
   threads_profile: { id: string; username: string } | null;
 }
@@ -72,6 +73,17 @@ export default function MetaOAuthCallback() {
       ad_accounts: exists
         ? selectedAssets.ad_accounts.filter(a => a.id !== accId)
         : [...selectedAssets.ad_accounts, discoveredAssets.ad_accounts.find(a => a.id === accId)!],
+    });
+  };
+
+  const togglePixel = (pixelId: string) => {
+    if (!selectedAssets || !discoveredAssets) return;
+    const exists = selectedAssets.pixels.some(p => p.id === pixelId);
+    setSelectedAssets({
+      ...selectedAssets,
+      pixels: exists
+        ? selectedAssets.pixels.filter(p => p.id !== pixelId)
+        : [...selectedAssets.pixels, discoveredAssets.pixels.find(p => p.id === pixelId)!],
     });
   };
 
@@ -232,13 +244,13 @@ export default function MetaOAuthCallback() {
   const totalAssets = discoveredAssets 
     ? discoveredAssets.pages.length + discoveredAssets.instagram_accounts.length + 
       discoveredAssets.whatsapp_business_accounts.length + discoveredAssets.ad_accounts.length + 
-      discoveredAssets.catalogs.length + (discoveredAssets.threads_profile ? 1 : 0)
+      discoveredAssets.pixels.length + discoveredAssets.catalogs.length + (discoveredAssets.threads_profile ? 1 : 0)
     : 0;
 
   const selectedCount = selectedAssets
     ? selectedAssets.pages.length + selectedAssets.instagram_accounts.length +
       selectedAssets.whatsapp_business_accounts.length + selectedAssets.ad_accounts.length +
-      selectedAssets.catalogs.length + (selectedAssets.threads_profile ? 1 : 0)
+      selectedAssets.pixels.length + selectedAssets.catalogs.length + (selectedAssets.threads_profile ? 1 : 0)
     : 0;
 
   // Asset selection screen
@@ -327,6 +339,25 @@ export default function MetaOAuthCallback() {
                     label={acc.name}
                     checked={selectedAssets.ad_accounts.some(a => a.id === acc.id)}
                     onToggle={() => toggleAdAccount(acc.id)}
+                  />
+                ))}
+              </AssetGroup>
+            )}
+
+            {/* Pixels */}
+            {discoveredAssets.pixels.length > 0 && (
+              <AssetGroup
+                icon={<Crosshair className="h-4 w-4 text-purple-600" />}
+                title="Pixels"
+                count={selectedAssets.pixels.length}
+                total={discoveredAssets.pixels.length}
+              >
+                {discoveredAssets.pixels.map(pixel => (
+                  <AssetItem
+                    key={pixel.id}
+                    label={`${pixel.name} (${pixel.id})`}
+                    checked={selectedAssets.pixels.some(p => p.id === pixel.id)}
+                    onToggle={() => togglePixel(pixel.id)}
                   />
                 ))}
               </AssetGroup>

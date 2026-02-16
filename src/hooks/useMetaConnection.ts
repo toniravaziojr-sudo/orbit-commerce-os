@@ -10,6 +10,7 @@ interface MetaAssets {
   instagram_accounts: Array<{ id: string; username: string; page_id: string }>;
   whatsapp_business_accounts: Array<{ id: string; name: string }>;
   ad_accounts: Array<{ id: string; name: string }>;
+  pixels: Array<{ id: string; name: string; ad_account_id: string }>;
   catalogs: Array<{ id: string; name: string }>;
   threads_profile: { id: string; username: string } | null;
 }
@@ -93,6 +94,7 @@ export function useMetaConnection() {
             instagram_accounts: [],
             whatsapp_business_accounts: [],
             ad_accounts: [],
+            pixels: [],
             catalogs: [],
             threads_profile: null,
           },
