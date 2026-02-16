@@ -62,9 +62,39 @@ A divisão reflete nas permissões:
 > A tabela `marketing_integrations` continua existindo para o storefront tracker (`MarketingTrackerProvider`),
 > mas é atualizada automaticamente pelo Hub Meta ao salvar Pixel ID/CAPI.
 >
-> ### Descoberta Automática de Pixels (v5.3.0)
+> ### Automação Completa de Pixel & CAPI (v5.4.0)
 >
-> O fluxo OAuth (`meta-oauth-callback`) descobre automaticamente os Pixels associados a cada conta de anúncios via `GET /{ad_account_id}/adspixels`. Os Pixels são exibidos como ativos selecionáveis no checklist de assets (`MetaOAuthCallback.tsx`, seção "Pixels" com ícone `Crosshair`). Ao salvar, o `meta-save-selected-assets` sincroniza o Pixel primário selecionado para `marketing_integrations.meta_pixel_id`, eliminando a necessidade de configuração manual.
+> #### Pixel (Client-side)
+> O fluxo OAuth (`meta-oauth-callback`) descobre automaticamente os Pixels associados a cada conta de anúncios via `GET /{ad_account_id}/adspixels`. Os Pixels são exibidos como ativos selecionáveis no checklist de assets. Ao salvar, o `meta-save-selected-assets` sincroniza o Pixel primário selecionado para `marketing_integrations.meta_pixel_id` e ativa `meta_enabled=true`, eliminando a necessidade de configuração manual.
+>
+> O campo na UI é **somente leitura** com badge "Automático". Para alterar o pixel principal, o usuário edita os ativos conectados.
+>
+> **Pixels adicionais:** Campo `meta_additional_pixel_ids` (TEXT[]) permite adicionar múltiplos Pixel IDs extras para disparar eventos em vários pixels simultaneamente.
+>
+> #### CAPI (Server-side)
+> O `meta-save-selected-assets` também sincroniza automaticamente o `access_token` long-lived (~60 dias) do OAuth para `marketing_integrations.meta_access_token` e ativa `meta_capi_enabled=true`. Isso elimina a necessidade de configuração manual do token CAPI.
+>
+> A UI mostra badge "Automático" quando o token foi sincronizado via OAuth. Um fallback manual ("Usar token manual — avançado") permite inserir um System User Token permanente que não expira.
+>
+> #### Cobertura do Tracking
+>
+> O `MarketingTrackerProvider` envolve **todo o storefront** via `TenantStorefrontLayout` e `StorefrontLayout`:
+>
+> | Página | Coberta | Observação |
+> |--------|---------|------------|
+> | Home, Categorias, Produtos | ✅ | Dentro do layout storefront |
+> | Carrinho, Checkout, Thank You | ✅ | Dentro do layout storefront |
+> | Blog, Rastreio | ✅ | Dentro do layout storefront |
+> | Landing Pages (Builder) `/lp/` | ✅ | Dentro do layout storefront |
+> | Quizzes `/quiz/` | ✅ | Dentro do layout storefront |
+> | Páginas Institucionais | ✅ | Dentro do layout storefront |
+> | AI Landing Pages `/ai-lp/` | ⚠️ **NÃO** | Standalone (iframe HTML puro) — necessita injeção manual no HTML gerado |
+>
+> #### Renovação do Token OAuth
+>
+> **⚠️ LIMITAÇÃO:** O token long-lived da Meta expira em ~60 dias. **NÃO existe renovação automática** implementada (diferente do Google que tem `google-token-refresh`). Quando o token expira, o `isExpired` do `useMetaConnection` sinaliza na UI e o usuário precisa reconectar. A CAPI para de funcionar até a reconexão.
+>
+> **TODO:** Implementar `meta-token-refresh` para renovação automática antes da expiração (similar ao `google-token-refresh` e `olist-token-refresh`).
 
 ---
 
