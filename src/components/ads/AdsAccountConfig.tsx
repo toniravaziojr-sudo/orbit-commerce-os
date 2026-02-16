@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bot, DollarSign, Target, Shield, AlertTriangle, Zap, Scale, TrendingUp, TrendingDown, ChevronDown, ChevronUp, Info } from "lucide-react";
+import { Bot, DollarSign, Target, Shield, AlertTriangle, Zap, Scale, TrendingUp, ChevronDown, ChevronUp, Info } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -80,10 +80,7 @@ function AccountConfigCard({
   const [instructions, setInstructions] = useState(config?.user_instructions || "");
   const [minRoiCold, setMinRoiCold] = useState(String(config?.min_roi_cold ?? 2));
   const [minRoiWarm, setMinRoiWarm] = useState(String(config?.min_roi_warm ?? 3));
-  const [roasScaleUp, setRoasScaleUp] = useState(String((config as any)?.roas_scale_up_threshold ?? ""));
-  const [roasScaleDown, setRoasScaleDown] = useState(String((config as any)?.roas_scale_down_threshold ?? ""));
-  const [budgetIncreasePct, setBudgetIncreasePct] = useState(String((config as any)?.budget_increase_pct ?? "15"));
-  const [budgetDecreasePct, setBudgetDecreasePct] = useState(String((config as any)?.budget_decrease_pct ?? "20"));
+  const [roasScalingThreshold, setRoasScalingThreshold] = useState(String((config as any)?.roas_scale_up_threshold ?? (config as any)?.roas_scaling_threshold ?? ""));
   const [strategyMode, setStrategyMode] = useState(config?.strategy_mode || "balanced");
   const [funnelSplitMode, setFunnelSplitMode] = useState(config?.funnel_split_mode || "manual");
   const [funnelSplits, setFunnelSplits] = useState<Record<string, number>>(
@@ -100,10 +97,7 @@ function AccountConfigCard({
       setInstructions(config.user_instructions || "");
       setMinRoiCold(String(config.min_roi_cold ?? 2));
       setMinRoiWarm(String(config.min_roi_warm ?? 3));
-      setRoasScaleUp(String((config as any)?.roas_scale_up_threshold ?? ""));
-      setRoasScaleDown(String((config as any)?.roas_scale_down_threshold ?? ""));
-      setBudgetIncreasePct(String((config as any)?.budget_increase_pct ?? "15"));
-      setBudgetDecreasePct(String((config as any)?.budget_decrease_pct ?? "20"));
+      setRoasScalingThreshold(String((config as any)?.roas_scale_up_threshold ?? (config as any)?.roas_scaling_threshold ?? ""));
       setStrategyMode(config.strategy_mode || "balanced");
       setFunnelSplitMode(config.funnel_split_mode || "manual");
       setFunnelSplits((config.funnel_splits as Record<string, number>) || { cold: 60, remarketing: 25, tests: 15, leads: 0 });
@@ -125,10 +119,10 @@ function AccountConfigCard({
     target_roi: parseFloat(targetRoi || "0") || null,
     min_roi_cold: parseFloat(minRoiCold) || null,
     min_roi_warm: parseFloat(minRoiWarm) || null,
-    roas_scale_up_threshold: parseFloat(roasScaleUp || "0") || null,
-    roas_scale_down_threshold: parseFloat(roasScaleDown || "0") || null,
-    budget_increase_pct: parseInt(budgetIncreasePct || "15") || 15,
-    budget_decrease_pct: parseInt(budgetDecreasePct || "20") || 20,
+    roas_scale_up_threshold: parseFloat(roasScalingThreshold || "0") || null,
+    roas_scale_down_threshold: null,
+    budget_increase_pct: 15,
+    budget_decrease_pct: 20,
     user_instructions: instructions,
     strategy_mode: strategyMode,
     funnel_split_mode: funnelSplitMode,
@@ -149,10 +143,10 @@ function AccountConfigCard({
       user_instructions: instructions,
       min_roi_cold: parseFloat(minRoiCold) || 2,
       min_roi_warm: parseFloat(minRoiWarm) || 3,
-      roas_scale_up_threshold: parseFloat(roasScaleUp || "0") || null,
-      roas_scale_down_threshold: parseFloat(roasScaleDown || "0") || null,
-      budget_increase_pct: parseInt(budgetIncreasePct || "15") || 15,
-      budget_decrease_pct: parseInt(budgetDecreasePct || "20") || 20,
+      roas_scale_up_threshold: parseFloat(roasScalingThreshold || "0") || null,
+      roas_scale_down_threshold: null,
+      budget_increase_pct: 15,
+      budget_decrease_pct: 20,
       strategy_mode: strategyMode,
       funnel_split_mode: funnelSplitMode,
       funnel_splits: funnelSplitMode === "manual" ? funnelSplits : null,
@@ -276,37 +270,17 @@ function AccountConfigCard({
           </div>
         </div>
 
-        {/* ROAS Scaling Rules */}
-        <div className="space-y-3 p-3 rounded-lg border border-primary/20 bg-primary/5">
+        {/* ROAS Scaling Threshold */}
+        <div className="space-y-2 p-3 rounded-lg border border-primary/20 bg-primary/5">
           <Label className="text-xs font-semibold flex items-center gap-2">
             <TrendingUp className="h-3.5 w-3.5 text-primary" />
-            Escalonamento de Orçamento (ROAS)
+            ROAS de Escalonamento
           </Label>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            <div className="space-y-1.5 p-2 rounded-lg bg-background border border-green-500/20">
-              <Label className="text-[10px] font-semibold text-green-700 dark:text-green-400 flex items-center gap-1">
-                <TrendingUp className="h-3 w-3" /> Escalar ↑
-              </Label>
-              <div className="flex items-center gap-1">
-                <span className="text-[9px] text-muted-foreground">ROAS &gt;</span>
-                <Input type="number" step="0.1" min="0" value={roasScaleUp} onChange={(e) => setRoasScaleUp(e.target.value)} placeholder="4" className="max-w-16 h-6 text-xs" />
-                <span className="text-[9px] text-muted-foreground">x →</span>
-                <Input type="number" min="1" max="50" value={budgetIncreasePct} onChange={(e) => setBudgetIncreasePct(e.target.value)} placeholder="15" className="max-w-12 h-6 text-xs" />
-                <span className="text-[9px] text-muted-foreground">%</span>
-              </div>
-            </div>
-            <div className="space-y-1.5 p-2 rounded-lg bg-background border border-orange-500/20">
-              <Label className="text-[10px] font-semibold text-orange-700 dark:text-orange-400 flex items-center gap-1">
-                <TrendingDown className="h-3 w-3" /> Reduzir ↓
-              </Label>
-              <div className="flex items-center gap-1">
-                <span className="text-[9px] text-muted-foreground">ROAS &lt;</span>
-                <Input type="number" step="0.1" min="0" value={roasScaleDown} onChange={(e) => setRoasScaleDown(e.target.value)} placeholder="2" className="max-w-16 h-6 text-xs" />
-                <span className="text-[9px] text-muted-foreground">x →</span>
-                <Input type="number" min="1" max="50" value={budgetDecreasePct} onChange={(e) => setBudgetDecreasePct(e.target.value)} placeholder="20" className="max-w-12 h-6 text-xs" />
-                <span className="text-[9px] text-muted-foreground">%</span>
-              </div>
-            </div>
+          <p className="text-[9px] text-muted-foreground">Acima → escala orçamento. Abaixo → reduz. IA respeita limites da plataforma.</p>
+          <div className="flex items-center gap-1">
+            <span className="text-[9px] text-muted-foreground">ROAS:</span>
+            <Input type="number" step="0.1" min="0" value={roasScalingThreshold} onChange={(e) => setRoasScalingThreshold(e.target.value)} placeholder="3" className="max-w-16 h-6 text-xs" />
+            <span className="text-[9px] text-muted-foreground">x</span>
           </div>
         </div>
 

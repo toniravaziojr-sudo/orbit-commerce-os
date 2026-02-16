@@ -987,19 +987,18 @@ A IA decide a distribuição ideal entre TOF/MOF/BOF com base nos dados.`;
   }
 
   // Platform-specific knowledge (condensed)
-  // ROAS scaling thresholds
-  const scaleUpThreshold = acctConfig.roas_scale_up_threshold || null;
-  const scaleDownThreshold = acctConfig.roas_scale_down_threshold || null;
-  const budgetIncreasePct = acctConfig.budget_increase_pct || 15;
-  const budgetDecreasePct = acctConfig.budget_decrease_pct || 20;
+  // ROAS scaling threshold (single value)
+  const roasScalingThreshold = acctConfig.roas_scale_up_threshold || null;
 
   let scalingSection = "";
-  if (scaleUpThreshold || scaleDownThreshold) {
+  if (roasScalingThreshold) {
     scalingSection = `
 ## 📊 REGRAS DE ESCALONAMENTO DE ORÇAMENTO POR ROAS
-${scaleUpThreshold ? `- ROAS > ${scaleUpThreshold}x → AUMENTAR orçamento em +${budgetIncreasePct}% (via adjust_budget)` : ""}
-${scaleDownThreshold ? `- ROAS < ${scaleDownThreshold}x (mas acima do mínimo de pausa) → REDUZIR orçamento em -${budgetDecreasePct}% (via adjust_budget)` : ""}
-- Hierarquia de decisão: PAUSA (min_roi) > REDUÇÃO (scale_down) > MANUTENÇÃO > AUMENTO (scale_up)
+- ROAS ALVO DE ESCALONAMENTO: ${roasScalingThreshold}x
+- ROAS >= ${roasScalingThreshold}x → AUMENTAR orçamento (via adjust_budget). Percentual definido pelos limites da plataforma.
+- ROAS < ${roasScalingThreshold}x (mas acima do mínimo de pausa) → REDUZIR orçamento (via adjust_budget). Percentual definido pelos limites da plataforma.
+- Limites por plataforma: Meta ±10%/ciclo, Google ±15%/ciclo, TikTok ±7%/ciclo.
+- Hierarquia de decisão: PAUSA (min_roi) > REDUÇÃO (abaixo do threshold) > MANUTENÇÃO > AUMENTO (acima do threshold)
 - Ajustes de orçamento são agendados para 00:01 BRT (nunca imediatos).`;
   }
 

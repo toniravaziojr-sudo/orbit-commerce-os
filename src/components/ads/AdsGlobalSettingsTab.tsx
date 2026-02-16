@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bot, DollarSign, Target, Shield, Zap, Scale, AlertTriangle, Info, Globe, TrendingUp, TrendingDown, ChevronDown, ChevronUp } from "lucide-react";
+import { Bot, DollarSign, Target, Shield, Zap, Scale, AlertTriangle, Info, Globe, TrendingUp, ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -42,17 +42,8 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
   const [minRoiWarm, setMinRoiWarm] = useState(
     String((globalConfig?.safety_rules as any)?.min_roi_warm ?? "")
   );
-  const [roasScaleUp, setRoasScaleUp] = useState(
-    String((globalConfig?.safety_rules as any)?.roas_scale_up_threshold ?? "")
-  );
-  const [roasScaleDown, setRoasScaleDown] = useState(
-    String((globalConfig?.safety_rules as any)?.roas_scale_down_threshold ?? "")
-  );
-  const [budgetIncreasePct, setBudgetIncreasePct] = useState(
-    String((globalConfig?.safety_rules as any)?.budget_increase_pct ?? "15")
-  );
-  const [budgetDecreasePct, setBudgetDecreasePct] = useState(
-    String((globalConfig?.safety_rules as any)?.budget_decrease_pct ?? "20")
+  const [roasScalingThreshold, setRoasScalingThreshold] = useState(
+    String((globalConfig?.safety_rules as any)?.roas_scaling_threshold ?? "")
   );
   const [instructions, setInstructions] = useState(globalConfig?.user_instructions || "");
   const [strategyMode, setStrategyMode] = useState(globalConfig?.strategy_mode || "balanced");
@@ -70,10 +61,7 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
       setTargetRoi((globalConfig.safety_rules as any)?.target_roi?.toString() || "");
       setMinRoiCold(String((globalConfig.safety_rules as any)?.min_roi_cold ?? ""));
       setMinRoiWarm(String((globalConfig.safety_rules as any)?.min_roi_warm ?? ""));
-      setRoasScaleUp(String((globalConfig.safety_rules as any)?.roas_scale_up_threshold ?? ""));
-      setRoasScaleDown(String((globalConfig.safety_rules as any)?.roas_scale_down_threshold ?? ""));
-      setBudgetIncreasePct(String((globalConfig.safety_rules as any)?.budget_increase_pct ?? "15"));
-      setBudgetDecreasePct(String((globalConfig.safety_rules as any)?.budget_decrease_pct ?? "20"));
+      setRoasScalingThreshold(String((globalConfig.safety_rules as any)?.roas_scaling_threshold ?? ""));
       setInstructions(globalConfig.user_instructions || "");
       setStrategyMode(globalConfig.strategy_mode || "balanced");
       setFunnelSplitMode(globalConfig.funnel_split_mode || "ai_decides");
@@ -101,10 +89,7 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
         target_roi: parseFloat(targetRoi || "0") || null,
         min_roi_cold: parseFloat(minRoiCold || "0") || null,
         min_roi_warm: parseFloat(minRoiWarm || "0") || null,
-        roas_scale_up_threshold: parseFloat(roasScaleUp || "0") || null,
-        roas_scale_down_threshold: parseFloat(roasScaleDown || "0") || null,
-        budget_increase_pct: parseInt(budgetIncreasePct || "15") || 15,
-        budget_decrease_pct: parseInt(budgetDecreasePct || "20") || 20,
+        roas_scaling_threshold: parseFloat(roasScalingThreshold || "0") || null,
       },
     });
   };
@@ -222,61 +207,22 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
             </div>
           </div>
 
-          {/* ROAS Scaling Rules */}
+          {/* ROAS Scaling Threshold */}
           <div className="space-y-3 p-4 rounded-lg border border-primary/20 bg-primary/5">
             <Label className="text-sm font-semibold flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-primary" />
-              Regras de Escalonamento de Orçamento (ROAS)
+              ROAS de Escalonamento
             </Label>
             <p className="text-xs text-muted-foreground">
-              Defina quando a IA deve aumentar ou reduzir o orçamento com base no ROAS, em vez de apenas pausar campanhas.
+              ROAS acima deste valor → IA escala orçamento. Abaixo → IA reduz. Ajustes respeitam os limites de cada plataforma.
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {/* Scale Up */}
-              <div className="space-y-2 p-3 rounded-lg bg-background border border-green-500/20">
-                <Label className="text-xs font-semibold text-green-700 dark:text-green-400 flex items-center gap-1">
-                  <TrendingUp className="h-3.5 w-3.5" />
-                  Escalar Orçamento ↑
-                </Label>
-                <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground">ROAS acima de:</span>
-                  <div className="flex items-center gap-1">
-                    <Input type="number" step="0.1" min="0" value={roasScaleUp} onChange={(e) => setRoasScaleUp(e.target.value)} placeholder="Ex: 4" className="max-w-20 h-7 text-sm" />
-                    <span className="text-xs text-muted-foreground">x</span>
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground">Aumento máx. por ciclo:</span>
-                  <div className="flex items-center gap-1">
-                    <Input type="number" min="1" max="50" value={budgetIncreasePct} onChange={(e) => setBudgetIncreasePct(e.target.value)} placeholder="15" className="max-w-16 h-7 text-sm" />
-                    <span className="text-xs text-muted-foreground">%</span>
-                  </div>
-                </div>
-              </div>
-              {/* Scale Down */}
-              <div className="space-y-2 p-3 rounded-lg bg-background border border-orange-500/20">
-                <Label className="text-xs font-semibold text-orange-700 dark:text-orange-400 flex items-center gap-1">
-                  <TrendingDown className="h-3.5 w-3.5" />
-                  Reduzir Orçamento ↓
-                </Label>
-                <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground">ROAS abaixo de:</span>
-                  <div className="flex items-center gap-1">
-                    <Input type="number" step="0.1" min="0" value={roasScaleDown} onChange={(e) => setRoasScaleDown(e.target.value)} placeholder="Ex: 2" className="max-w-20 h-7 text-sm" />
-                    <span className="text-xs text-muted-foreground">x</span>
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground">Redução máx. por ciclo:</span>
-                  <div className="flex items-center gap-1">
-                    <Input type="number" min="1" max="50" value={budgetDecreasePct} onChange={(e) => setBudgetDecreasePct(e.target.value)} placeholder="20" className="max-w-16 h-7 text-sm" />
-                    <span className="text-xs text-muted-foreground">%</span>
-                  </div>
-                </div>
-              </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">ROAS alvo:</span>
+              <Input type="number" step="0.1" min="0" value={roasScalingThreshold} onChange={(e) => setRoasScalingThreshold(e.target.value)} placeholder="Ex: 3" className="max-w-20 h-8 text-sm" />
+              <span className="text-sm text-muted-foreground">x</span>
             </div>
             <p className="text-[10px] text-muted-foreground border-t pt-2">
-              ⚡ Escalonamento opera <strong>entre</strong> os ROIs mínimos (pausa) e o ROI ideal (meta). Ex: ROI mín. frio = 2x → abaixo = pausa. ROAS escalar ↓ = 2.5x → reduz orçamento. ROAS escalar ↑ = 4x → aumenta orçamento. ROI ideal = 5x → meta final.
+              ⚡ Hierarquia: ROI mín. (pausa) → ROAS escalonamento (ajuste) → ROI ideal (meta final). A IA decide o percentual de ajuste respeitando os limites da plataforma (Meta ±10%, Google ±15%, TikTok ±7%).
             </p>
           </div>
 
