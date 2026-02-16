@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v4.5.0"; // First activation: full access (bypass phase restrictions)
+const VERSION = "v4.6.0"; // Fix: correct marketplace_connections query (marketplace + is_active)
 // ===========================================================
 
 const corsHeaders = {
