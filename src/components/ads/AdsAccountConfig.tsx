@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bot, DollarSign, Target, Shield, AlertTriangle, Zap, Scale, TrendingUp, ChevronDown, ChevronUp, Info } from "lucide-react";
+import { Bot, DollarSign, Target, Shield, AlertTriangle, Zap, Scale, TrendingUp, ChevronDown, ChevronUp, Info, Sparkles, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -25,6 +25,9 @@ import {
 import type { AccountConfig } from "@/hooks/useAdsAccountConfigs";
 import { isAccountConfigComplete } from "@/hooks/useAdsAccountConfigs";
 import { getPromptTemplateForChannel } from "./adsPromptTemplates";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 interface AdAccount {
   id: string;
@@ -63,6 +66,7 @@ function AccountConfigCard({
   isSaving,
   onToggleAI,
   onToggleKillSwitch,
+  tenantId,
 }: {
   accountId: string;
   accountName: string;
@@ -73,6 +77,7 @@ function AccountConfigCard({
   isSaving: boolean;
   onToggleAI: (accountId: string, enabled: boolean) => void;
   onToggleKillSwitch: (accountId: string, enabled: boolean) => void;
+  tenantId: string | undefined;
 }) {
   const [budgetMode, setBudgetMode] = useState(config?.budget_mode || "monthly");
   const [budgetValue, setBudgetValue] = useState(config?.budget_cents ? (config.budget_cents / 100).toString() : "");
@@ -88,6 +93,7 @@ function AccountConfigCard({
   );
   const [approvalMode, setApprovalMode] = useState(config?.human_approval_mode || "auto");
   const [showTemplate, setShowTemplate] = useState(false);
+  const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
 
   useEffect(() => {
     if (config) {
@@ -389,12 +395,53 @@ function AccountConfigCard({
             </AlertDescription>
           </Alert>
 
-          <Textarea
-            value={instructions}
-            onChange={(e) => setInstructions(e.target.value)}
-            rows={3}
-            placeholder="Cole ou adapte o template abaixo para seu negócio..."
-          />
+          <div className="flex gap-2">
+            <Textarea
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              rows={3}
+              placeholder="Descreva sua estratégia ou clique em '✨ Gerar com IA' para criar um prompt personalizado automaticamente..."
+            />
+          </div>
+
+          {/* Generate with AI button */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full gap-2 text-xs border-primary/30 hover:bg-primary/10"
+            disabled={isGeneratingPrompt || !tenantId}
+            onClick={async () => {
+              if (!tenantId) return;
+              setIsGeneratingPrompt(true);
+              try {
+                const { data, error } = await supabase.functions.invoke("ads-autopilot-generate-prompt", {
+                  body: { tenant_id: tenantId, channel },
+                });
+                if (error) throw error;
+                if (data && !data.success) throw new Error(data.error || "Erro na geração");
+                if (data?.data?.prompt) {
+                  setInstructions(data.data.prompt);
+                  toast.success(`Prompt gerado para ${data.data.store_name} (${data.data.products_count} produtos analisados)`);
+                }
+              } catch (err: any) {
+                toast.error(err.message || "Erro ao gerar prompt");
+              } finally {
+                setIsGeneratingPrompt(false);
+              }
+            }}
+          >
+            {isGeneratingPrompt ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Gerando prompt personalizado...
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-3.5 w-3.5" />
+                ✨ Gerar com IA (baseado nos seus produtos)
+              </>
+            )}
+          </Button>
 
           {/* Template Toggle */}
           <Collapsible open={showTemplate} onOpenChange={setShowTemplate}>
@@ -482,6 +529,7 @@ function AccountConfigCard({
 }
 
 export function AdsAccountConfig({ channel, adAccounts, getAccountConfig, aiEnabledAccountIds, onSave, isSaving, onToggleAI, onToggleKillSwitch }: AdsAccountConfigProps) {
+  const { currentTenant } = useAuth();
   if (adAccounts.length === 0) return null;
 
   const handleAccountSave = (accountId: string, data: Partial<AccountConfig>) => {
@@ -502,6 +550,7 @@ export function AdsAccountConfig({ channel, adAccounts, getAccountConfig, aiEnab
           isSaving={isSaving}
           onToggleAI={onToggleAI}
           onToggleKillSwitch={onToggleKillSwitch}
+          tenantId={currentTenant?.id}
         />
       ))}
     </div>
