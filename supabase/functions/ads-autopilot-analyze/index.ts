@@ -1255,8 +1255,41 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
               status: "executed",
               action_hash: `${sessionId}_insight_${acctConfig.ad_account_id}_${totalActionsPlanned}`,
             });
+
+            // Also insert into ads_autopilot_insights table for the Insights tab
+            const insightTitle = args.kpi_analysis?.overall_trend === "improving"
+              ? "📈 Conta em melhora"
+              : args.kpi_analysis?.overall_trend === "declining"
+              ? "📉 Conta em declínio"
+              : "📊 Análise da conta";
+
+            await supabase.from("ads_autopilot_insights").insert({
+              tenant_id,
+              channel,
+              ad_account_id: acctConfig.ad_account_id,
+              title: insightTitle + ` (${acctConfig.ad_account_id})`,
+              body: args.summary,
+              evidence: { kpi_analysis: args.kpi_analysis, risk_alerts: args.risk_alerts },
+              recommended_action: { recommendations: args.recommendations },
+              priority: args.risk_alerts?.length > 2 ? "high" : "medium",
+              category: "analysis",
+              sentiment: args.kpi_analysis?.overall_trend === "improving" ? "positive" : args.kpi_analysis?.overall_trend === "declining" ? "negative" : "neutral",
+              status: "open",
+            });
+            console.log(`[ads-autopilot-analyze][${VERSION}] Insight saved to ads_autopilot_insights table`);
+
             totalActionsExecuted++;
             continue;
+          }
+
+          // Enrich action_data with campaign name for UI clarity
+          const campaignId = args.campaign_id;
+          let campaignName: string | undefined;
+          if (campaignId && accountCampaigns) {
+            const match = accountCampaigns.find((c: any) => 
+              (c.meta_campaign_id === campaignId) || (c.google_campaign_id === campaignId) || (c.tiktok_campaign_id === campaignId)
+            );
+            campaignName = match?.name;
           }
 
           const actionRecord: any = {
@@ -1264,7 +1297,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
             session_id: sessionId,
             channel,
             action_type: tc.function.name,
-            action_data: { ...args, ad_account_id: acctConfig.ad_account_id },
+            action_data: { ...args, ad_account_id: acctConfig.ad_account_id, campaign_name: campaignName || null },
             reasoning: args.reason || args.reasoning || "",
             expected_impact: JSON.stringify(args.expected_impact || ""),
             confidence: String(args.confidence || "medium"),

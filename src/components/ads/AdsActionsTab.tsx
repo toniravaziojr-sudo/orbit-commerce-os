@@ -1,4 +1,4 @@
-import { Clock, CheckCircle2, XCircle, AlertTriangle, Bot, Pause, DollarSign, TrendingUp, Image, ThumbsUp, ThumbsDown, Hourglass } from "lucide-react";
+import { Clock, CheckCircle2, XCircle, AlertTriangle, Bot, Pause, DollarSign, TrendingUp, Image, ThumbsUp, ThumbsDown, Hourglass, Undo2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,18 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface AdsActionsTabProps {
   actions: AutopilotAction[];
@@ -45,10 +57,27 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
   failed: { label: "Falha", variant: "destructive", icon: XCircle },
   rejected: { label: "Rejeitada", variant: "destructive", icon: AlertTriangle },
   expired: { label: "Expirada", variant: "outline", icon: Clock },
+  rolled_back: { label: "Revertida", variant: "outline", icon: Undo2 },
 };
+
+/** Get a readable entity name from action data */
+function getEntityName(action: AutopilotAction): string | null {
+  const data = action.action_data;
+  if (!data) return null;
+  
+  // Try to find campaign/entity name in action data
+  if (data.campaign_name) return data.campaign_name;
+  if (data.adset_name) return data.adset_name;
+  
+  // Fall back to ID
+  const id = data.campaign_id || data.adset_id;
+  if (id) return `ID: ${id}`;
+  return null;
+}
 
 export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsTabProps) {
   const queryClient = useQueryClient();
+  const { currentTenant } = useAuth();
   const [processingId, setProcessingId] = useState<string | null>(null);
 
   const approveAction = useMutation({
@@ -84,6 +113,47 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
     },
     onError: (err: Error) => { toast.error(err.message); setProcessingId(null); },
   });
+
+  const rollbackAction = useMutation({
+    mutationFn: async (action: AutopilotAction) => {
+      setProcessingId(action.id);
+      const data = action.action_data;
+      const rollback = action.rollback_data;
+      
+      if (!data || !rollback) throw new Error("Dados de reversão não disponíveis");
+      
+      const channel = action.channel;
+      const tenantId = currentTenant?.id;
+      if (!tenantId) throw new Error("Tenant não encontrado");
+
+      // Execute rollback based on action type
+      if (action.action_type === "pause_campaign") {
+        const edgeFn = channel === "meta" ? "meta-ads-campaigns" : channel === "google" ? "google-ads-campaigns" : "tiktok-ads-campaigns";
+        const idField = channel === "meta" ? "meta_campaign_id" : channel === "google" ? "google_campaign_id" : "tiktok_campaign_id";
+        
+        const { error } = await supabase.functions.invoke(edgeFn, {
+          body: { tenant_id: tenantId, action: "update", [idField]: data.campaign_id, status: rollback.previous_status || "ACTIVE" },
+        });
+        if (error) throw error;
+      } else {
+        throw new Error("Reversão não suportada para este tipo de ação");
+      }
+
+      // Mark as rolled back
+      const { error: updateError } = await supabase
+        .from("ads_autopilot_actions" as any)
+        .update({ status: "rolled_back" } as any)
+        .eq("id", action.id);
+      if (updateError) throw updateError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ads-autopilot-actions"] });
+      toast.success("Ação revertida com sucesso! A campanha foi reativada.");
+      setProcessingId(null);
+    },
+    onError: (err: Error) => { toast.error("Erro ao reverter: " + err.message); setProcessingId(null); },
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -129,9 +199,11 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
         const StatusIcon = statusConfig.icon;
         const isPending = action.status === "pending_approval";
         const isProcessing = processingId === action.id;
+        const entityName = getEntityName(action);
+        const canRollback = action.status === "executed" && action.rollback_data && action.action_type === "pause_campaign";
 
         return (
-          <Card key={action.id} className={`transition-colors ${isPending ? "border-amber-500/30 bg-amber-500/5" : "hover:bg-muted/30"}`}>
+          <Card key={action.id} className={`transition-colors ${isPending ? "border-amber-500/30 bg-amber-500/5" : ""}`}>
             <CardContent className="py-4">
               <div className="flex items-start gap-4">
                 <div className={`p-2 rounded-lg ${isPending ? "bg-amber-500/10" : "bg-muted"}`}>
@@ -142,6 +214,11 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
                     <span className="font-medium text-sm">
                       {ACTION_LABELS[action.action_type] || action.action_type}
                     </span>
+                    {entityName && (
+                      <span className="text-xs text-muted-foreground font-mono truncate max-w-[300px]" title={entityName}>
+                        {entityName}
+                      </span>
+                    )}
                     <Badge variant="outline" className="text-xs capitalize">{action.channel}</Badge>
                     <Badge variant={statusConfig.variant} className="text-xs gap-1">
                       <StatusIcon className="h-3 w-3" />
@@ -167,30 +244,69 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
                   {action.metric_trigger && (
                     <p className="text-xs text-muted-foreground mt-1">Métrica: {action.metric_trigger}</p>
                   )}
-                  {isPending && (
-                    <div className="flex items-center gap-2 mt-3">
-                      <Button
-                        size="sm"
-                        variant="default"
-                        onClick={() => approveAction.mutate(action.id)}
-                        disabled={isProcessing}
-                        className="gap-1"
-                      >
-                        <ThumbsUp className="h-3 w-3" />
-                        Aprovar
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => rejectAction.mutate({ actionId: action.id, reason: "Rejeitado manualmente pelo usuário" })}
-                        disabled={isProcessing}
-                        className="gap-1 text-destructive hover:text-destructive"
-                      >
-                        <ThumbsDown className="h-3 w-3" />
-                        Rejeitar
-                      </Button>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2 mt-3 flex-wrap">
+                    {isPending && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => approveAction.mutate(action.id)}
+                          disabled={isProcessing}
+                          className="gap-1"
+                        >
+                          <ThumbsUp className="h-3 w-3" />
+                          Aprovar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => rejectAction.mutate({ actionId: action.id, reason: "Rejeitado manualmente pelo usuário" })}
+                          disabled={isProcessing}
+                          className="gap-1 text-destructive hover:text-destructive"
+                        >
+                          <ThumbsDown className="h-3 w-3" />
+                          Rejeitar
+                        </Button>
+                      </>
+                    )}
+                    {canRollback && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={isProcessing}
+                            className="gap-1 text-amber-600 hover:text-amber-700 border-amber-300 hover:border-amber-400"
+                          >
+                            <Undo2 className="h-3 w-3" />
+                            Desfazer
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Reverter ação da IA?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Isso irá reativar a campanha que foi pausada pela IA. 
+                              {action.rollback_data?.rollback_plan && (
+                                <span className="block mt-2 text-sm">
+                                  <strong>Plano original:</strong> {action.rollback_data.rollback_plan}
+                                </span>
+                              )}
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => rollbackAction.mutate(action)}
+                              className="bg-amber-600 hover:bg-amber-700"
+                            >
+                              Sim, reverter
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground mt-2">
                     {new Date(action.created_at).toLocaleString("pt-BR")}
                   </p>
