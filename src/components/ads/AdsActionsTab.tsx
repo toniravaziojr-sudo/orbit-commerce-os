@@ -1,4 +1,4 @@
-import { Clock, CheckCircle2, XCircle, AlertTriangle, Bot, Pause, DollarSign, TrendingUp, Image, ThumbsUp, ThumbsDown, Hourglass, Undo2 } from "lucide-react";
+import { Clock, CheckCircle2, XCircle, AlertTriangle, Bot, Pause, DollarSign, TrendingUp, Image, ThumbsUp, ThumbsDown, Hourglass, Undo2, Eye } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { ActionDetailDialog } from "./ActionDetailDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -98,6 +99,7 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
   const queryClient = useQueryClient();
   const { currentTenant } = useAuth();
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [detailAction, setDetailAction] = useState<AutopilotAction | null>(null);
 
   const approveAction = useMutation({
     mutationFn: async (actionId: string) => {
@@ -223,8 +225,8 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
         const canRollback = action.status === "executed" && action.rollback_data && action.action_type === "pause_campaign";
 
         return (
-          <Card key={action.id} className={`transition-colors ${isPending ? "border-amber-500/30 bg-amber-500/5" : ""}`}>
-            <CardContent className="py-4">
+          <Card key={action.id} className={`transition-colors cursor-pointer hover:bg-accent/50 ${isPending ? "border-amber-500/30 bg-amber-500/5" : ""}`}>
+            <CardContent className="py-4" onClick={() => setDetailAction(action)}>
               <div className="flex items-start gap-4">
                 <div className={`p-2 rounded-lg ${isPending ? "bg-amber-500/10" : "bg-muted"}`}>
                   <Icon className={`h-4 w-4 ${isPending ? "text-amber-600" : ""}`} />
@@ -270,7 +272,7 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
                   {action.metric_trigger && (
                     <p className="text-xs text-muted-foreground mt-1">Métrica: {action.metric_trigger}</p>
                   )}
-                  <div className="flex items-center gap-2 mt-3 flex-wrap">
+                  <div className="flex items-center gap-2 mt-3 flex-wrap" onClick={(e) => e.stopPropagation()}>
                     {isPending && (
                       <>
                         <Button
@@ -332,6 +334,16 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
                         </AlertDialogContent>
                       </AlertDialog>
                     )}
+                    {/* View details button */}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setDetailAction(action)}
+                      className="gap-1 text-muted-foreground"
+                    >
+                      <Eye className="h-3 w-3" />
+                      Detalhes
+                    </Button>
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">
                     {new Date(action.created_at).toLocaleString("pt-BR")}
@@ -342,6 +354,12 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
           </Card>
         );
       })}
+
+      <ActionDetailDialog
+        action={detailAction}
+        open={!!detailAction}
+        onOpenChange={(open) => { if (!open) setDetailAction(null); }}
+      />
     </div>
   );
 }
