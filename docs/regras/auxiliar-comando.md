@@ -55,8 +55,23 @@ Assistente de IA integrado à **Central de Execuções** para execução de tare
 | `src/components/command-assistant/CommandAssistantPanel.tsx` | Painel flutuante |
 | `src/components/command-assistant/CommandAssistantTrigger.tsx` | Gatilho visual |
 | `src/components/command-assistant/EmbeddedCommandAssistant.tsx` | Versão embedded para Central de Execuções |
+| `src/components/command-assistant/CommandChatMessages.tsx` | Renderização de mensagens (usa componentes compartilhados) |
+| `src/components/command-assistant/CommandChatInput.tsx` | Input com upload de arquivos |
 | `src/hooks/useCommandAssistant.ts` | Lógica de conversas e streaming |
 | `src/contexts/CommandAssistantContext.tsx` | Context global |
+
+### Componentes Compartilhados de Chat (`src/components/chat/`)
+
+Todos os 3 chats do sistema (Auxiliar de Comando, ChatGPT, IA de Tráfego) utilizam componentes visuais compartilhados:
+
+| Componente | Propósito |
+|------------|-----------|
+| `ChatMessageBubble` | Bolha de mensagem moderna com markdown (remarkGfm), avatares, anexos e timestamps |
+| `ChatTypingIndicator` | Indicador animado de digitação (3 dots bounce) |
+| `ChatEmptyState` | Estado vazio unificado com ícone, título, descrição e botão |
+| `ChatConversationList` | Lista de conversas com seleção, criação e exclusão |
+
+> ⚠️ **IMPORTANTE**: Ao criar novos chats no sistema, SEMPRE utilizar os componentes de `src/components/chat/` para manter consistência visual. Nunca criar bolhas/listas de conversa customizadas.
 | `supabase/functions/command-assistant-chat/` | Processamento de mensagens |
 | `supabase/functions/command-assistant-execute/` | Execução de ações |
 
