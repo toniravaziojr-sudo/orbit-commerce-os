@@ -536,11 +536,13 @@ export function AdsCampaignsTab({
     return accountBalances.filter(b => selectedAccountSet.has(b.id));
   }, [accountBalances, selectedAccountIds, selectedAccountSet]);
 
-  // Only sum prepaid accounts for total balance (exclude credit card)
+   // Only sum prepaid accounts for total balance (exclude credit card)
   const totalBalance = filteredBalances
     .filter(a => !isCreditCardFunding(a.funding_source_type))
     .reduce((sum, a) => sum + a.balance_cents, 0);
+  const totalSpent = filteredBalances.reduce((sum, a) => sum + a.amount_spent_cents, 0);
   const allCreditCard = filteredBalances.length > 0 && filteredBalances.every(b => isCreditCardFunding(b.funding_source_type));
+  const hasLowBalance = !allCreditCard && totalBalance > 0 && totalBalance < 5000; // < R$50
 
   const [expandedAdsets, setExpandedAdsets] = useState<Set<string>>(new Set());
 
@@ -817,15 +819,68 @@ export function AdsCampaignsTab({
             </div>
             <div className="flex items-center gap-2">
               {filteredBalances.length > 0 && (
-                <Button variant="ghost" size="sm" className="gap-1.5 text-xs h-7 font-normal"
-                  onClick={() => window.open(getChannelBalanceUrl(channel), "_blank")}
-                >
-                  <Wallet className="h-3 w-3" />
-                  {allCreditCard
-                    ? "Cartão de crédito"
-                    : `Saldo: ${formatCurrency(totalBalance)}`}
-                  <ExternalLink className="h-2.5 w-2.5 text-muted-foreground/60" />
-                </Button>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="ghost" size="sm" className={cn(
+                      "gap-1.5 text-xs h-7 font-normal",
+                      hasLowBalance && "text-destructive hover:text-destructive"
+                    )}>
+                      <Wallet className="h-3 w-3" />
+                      {allCreditCard
+                        ? "Cartão de crédito"
+                        : `Saldo: ${formatCurrency(totalBalance)}`}
+                      {hasLowBalance && <span className="h-1.5 w-1.5 rounded-full bg-destructive animate-pulse" />}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-72 p-0">
+                    <div className="p-3 border-b">
+                      <h4 className="text-xs font-semibold text-foreground">Resumo Financeiro</h4>
+                      <div className="mt-2 space-y-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">Total investido</span>
+                          <span className="font-medium">{formatCurrency(totalSpent)}</span>
+                        </div>
+                        {!allCreditCard && (
+                          <div className="flex justify-between text-xs">
+                            <span className="text-muted-foreground">Saldo restante</span>
+                            <span className={cn("font-medium", hasLowBalance && "text-destructive")}>{formatCurrency(totalBalance)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="p-3 space-y-2 max-h-48 overflow-y-auto">
+                      {filteredBalances.map(acc => {
+                        const isCC = isCreditCardFunding(acc.funding_source_type);
+                        const lowBal = !isCC && acc.balance_cents > 0 && acc.balance_cents < 5000;
+                        return (
+                          <div key={acc.id} className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground truncate max-w-[140px]" title={acc.name}>{acc.name}</span>
+                            {isCC ? (
+                              <Badge variant="outline" className="text-[10px] h-5">Cartão</Badge>
+                            ) : (
+                              <span className={cn("font-medium", lowBal && "text-destructive")}>
+                                {formatCurrency(acc.balance_cents)}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {hasLowBalance && (
+                      <div className="p-3 border-t bg-destructive/5">
+                        <p className="text-[10px] text-destructive font-medium">⚠️ Saldo baixo! Faça uma recarga para evitar pausas automáticas nas campanhas.</p>
+                      </div>
+                    )}
+                    <div className="p-2 border-t">
+                      <Button variant="ghost" size="sm" className="w-full text-xs h-7 gap-1.5"
+                        onClick={() => window.open(getChannelBalanceUrl(channel), "_blank")}
+                      >
+                        Ver na plataforma
+                        <ExternalLink className="h-2.5 w-2.5" />
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               )}
               <Button variant="ghost" size="sm" className="gap-1.5 text-xs h-7 font-normal"
                 onClick={() => {
