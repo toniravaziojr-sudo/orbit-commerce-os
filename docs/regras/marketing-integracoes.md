@@ -330,7 +330,7 @@ Além das regras de **pausa** (min_roi_cold/warm), o sistema suporta ajuste din�
 | `getAccountConfig(channel, accountId)` | Retorna config de uma conta específica |
 | `getAIEnabledAccounts(channel)` | Lista IDs de contas com IA ativa |
 | `saveAccountConfig.mutate(config)` | Upsert config na tabela normalizada |
-| `toggleAI.mutate({ channel, ad_account_id, enabled })` | Liga/desliga IA para uma conta |
+| `toggleAI.mutate({ channel, ad_account_id, enabled })` | Liga/desliga IA para uma conta. **Sempre dispara `first_activation`** (varredura completa). Ao desativar, exibe AlertDialog avisando que a reativação causará re-análise completa. |
 | `toggleKillSwitch.mutate({ channel, ad_account_id, enabled })` | Ativa/desativa kill switch com AlertDialog de confirmação |
 
 #### Validação obrigatória para ativar IA (`isAccountConfigComplete`)
@@ -353,6 +353,12 @@ Se incompleto, o Switch fica desabilitado e um Tooltip mostra os campos faltante
 | Splits de Funil | 4 inputs % | Frio / Remarketing / Testes / Leads | Total deve ser 100%. Toggle "IA decide" desabilita campos |
 | Modo de Aprovação | Select | Auto-executar tudo / Aprovar alto impacto | Controla se ações high-impact requerem aprovação humana |
 | Kill Switch | Botão destrutivo | AlertDialog de confirmação | Para imediato de todas as ações da IA nesta conta |
+
+#### Comportamento de Ativação/Desativação da IA (v2026-02-16)
+
+- **Ativação:** Toda ativação do toggle de IA dispara `trigger_type: "first_activation"`, executando varredura completa (sync 7 dias de dados históricos + reestruturação). Não há distinção entre primeira vez e reativação.
+- **Desativação:** Ao tentar desativar, um `AlertDialog` exibe aviso: "Ao ativar novamente, a IA fará uma varredura completa, re-analisando 7 dias de dados e podendo reestruturar campanhas." O usuário deve confirmar para prosseguir.
+- **Motivo:** Garante que o usuário esteja ciente de que reativações não são "continuações suaves", e sim re-análises completas do estado da conta.
 
 #### Legado: JSONB em `safety_rules` (mantido para retrocompatibilidade)
 

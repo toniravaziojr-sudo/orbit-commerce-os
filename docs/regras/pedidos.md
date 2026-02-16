@@ -316,11 +316,19 @@ graph TD
 | Elemento | Comportamento |
 |----------|---------------|
 | Busca | Por número, nome ou email do cliente |
-| Filtros | Status, pagamento, envio, período, data |
+| Filtros | Status, pagamento, envio, período, data, **🆕 1ª Venda** |
 | Estatísticas | Cards com pendentes, em separação, enviados |
 | Origem | Badge indicando Loja própria ou Marketplace |
+| **1ª Venda** | Badge verde "1ª venda" exibida ao lado do valor total quando `is_first_sale = true` |
 | Ações | Ver detalhes, atualizar status, excluir |
 | Paginação | 50 por página |
+
+### 6.1.1 Flag "1ª Venda" (v2026-02-16)
+
+- **Lógica:** Um pedido é marcado como "1ª venda" quando o `customer.total_orders <= 1` (cliente novo ou com apenas aquele pedido).
+- **Implementação:** O hook `useOrders.ts` faz JOIN com `customers(total_orders)` e calcula `is_first_sale` no frontend.
+- **UI:** Badge verde compacta `"1ª venda"` renderizada em `OrderList.tsx` ao lado da coluna de valor total.
+- **Filtro:** Botão toggle `"🆕 1ª Venda"` na página `Orders.tsx` filtra apenas pedidos de clientes novos.
 
 ### 6.2 Detalhes do Pedido
 
