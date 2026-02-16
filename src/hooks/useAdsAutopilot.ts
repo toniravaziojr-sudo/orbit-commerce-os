@@ -219,6 +219,26 @@ export function useAdsAutopilot() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  // ============ TRIGGER STRATEGIST ============
+  const triggerStrategist = useMutation({
+    mutationFn: async (trigger?: string) => {
+      const { data, error } = await supabase.functions.invoke("ads-autopilot-strategist", {
+        body: { tenant_id: tenantId, trigger: trigger || "weekly" },
+      });
+      if (error) throw error;
+      if (data && !data.success) throw new Error(data.error || "Erro no Estrategista");
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["ads-autopilot-actions"] });
+      queryClient.invalidateQueries({ queryKey: ["ads-autopilot-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["ads-autopilot-configs"] });
+      const d = data?.data;
+      toast.success(`Estrategista: ${d?.actions?.executed || 0} ações executadas, ${d?.actions?.rejected || 0} rejeitadas`);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   return {
     // Configs
     globalConfig,
@@ -240,5 +260,8 @@ export function useAdsAutopilot() {
 
     // Guardian
     triggerGuardian,
+
+    // Strategist
+    triggerStrategist,
   };
 }
