@@ -2,6 +2,7 @@
 // STOREFRONT AI LANDING PAGE - Serves AI-generated landing pages
 // Fetches from ai_landing_pages table and renders generated HTML
 // Resolves tenant from hostname (custom domain or platform subdomain)
+// Injects marketing pixels (Meta/Google/TikTok) into generated HTML
 // =============================================
 
 import { useParams } from 'react-router-dom';
@@ -10,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import NotFound from '@/pages/NotFound';
 import { isPlatformSubdomain, extractTenantFromPlatformSubdomain } from '@/lib/canonicalDomainService';
+import { usePublicMarketingConfig } from '@/hooks/useMarketingIntegrations';
 
 interface AILandingPageData {
   id: string;
@@ -85,9 +87,93 @@ function useTenantFromHostname() {
   });
 }
 
+/**
+ * Build pixel injection scripts to insert into the AI LP iframe HTML
+ */
+function buildPixelScripts(config: {
+  meta_pixel_id?: string | null;
+  meta_enabled?: boolean;
+  google_measurement_id?: string | null;
+  google_ads_conversion_id?: string | null;
+  google_enabled?: boolean;
+  tiktok_pixel_id?: string | null;
+  tiktok_enabled?: boolean;
+} | null): string {
+  if (!config) return '';
+
+  const scripts: string[] = [];
+
+  // Meta Pixel
+  if (config.meta_enabled && config.meta_pixel_id) {
+    scripts.push(`
+<script>
+!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
+document,'script','https://connect.facebook.net/en_US/fbevents.js');
+fbq('init','${config.meta_pixel_id}');fbq('track','PageView');
+</script>
+<noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=${config.meta_pixel_id}&ev=PageView&noscript=1"/></noscript>`);
+  }
+
+  // Google Analytics / Ads
+  if (config.google_enabled && config.google_measurement_id) {
+    scripts.push(`
+<script async src="https://www.googletagmanager.com/gtag/js?id=${config.google_measurement_id}"></script>
+<script>
+window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}
+gtag('js',new Date());gtag('config','${config.google_measurement_id}');
+${config.google_ads_conversion_id ? `gtag('config','${config.google_ads_conversion_id}');` : ''}
+</script>`);
+  }
+
+  // TikTok Pixel
+  if (config.tiktok_enabled && config.tiktok_pixel_id) {
+    scripts.push(`
+<script>
+!function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=
+["page","track","identify","instances","debug","on","off","once","ready","alias",
+"group","enableCookie","disableCookie"];ttq.setAndDefer=function(t,e){t[e]=function()
+{t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)
+ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],
+n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e};ttq.load=
+function(e,n){var i="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||
+{};ttq._i[e]=[];ttq._i[e]._u=i;ttq._t=ttq._t||{};ttq._t[e]=+new Date;ttq._o=
+ttq._o||{};ttq._o[e]=n||{};var o=document.createElement("script");o.type="text/javascript";
+o.async=!0;o.src=i+"?sdkid="+e+"&lib="+t;var a=document.getElementsByTagName("script")[0];
+a.parentNode.insertBefore(o,a)};ttq.load('${config.tiktok_pixel_id}');ttq.page()}
+(window,document,'ttq');
+</script>`);
+  }
+
+  return scripts.join('\n');
+}
+
+/**
+ * Inject pixel scripts into the AI LP HTML before </head> or </body>
+ */
+function injectPixelsIntoHtml(html: string, pixelScripts: string): string {
+  if (!pixelScripts) return html;
+
+  // Try to inject before </head>
+  if (html.includes('</head>')) {
+    return html.replace('</head>', `${pixelScripts}\n</head>`);
+  }
+  // Fallback: inject before </body>
+  if (html.includes('</body>')) {
+    return html.replace('</body>', `${pixelScripts}\n</body>`);
+  }
+  // Last resort: append
+  return html + pixelScripts;
+}
+
 export default function StorefrontAILandingPage() {
   const { lpSlug } = useParams<{ lpSlug: string }>();
   const { data: tenantInfo, isLoading: tenantLoading } = useTenantFromHostname();
+
+  // Fetch marketing config for pixel injection
+  const { data: marketingConfig } = usePublicMarketingConfig(tenantInfo?.tenantId);
 
   const { data: landingPage, isLoading: pageLoading, error } = useQuery({
     queryKey: ['ai-landing-page-public', tenantInfo?.tenantId, lpSlug],
@@ -128,8 +214,9 @@ export default function StorefrontAILandingPage() {
     return <NotFound />;
   }
 
-  // Render the full HTML page
-  const fullHtml = landingPage.generated_html;
+  // Inject pixel scripts into the generated HTML
+  const pixelScripts = buildPixelScripts(marketingConfig ?? null);
+  const fullHtml = injectPixelsIntoHtml(landingPage.generated_html, pixelScripts);
 
   // Set document title
   if (typeof document !== 'undefined') {
