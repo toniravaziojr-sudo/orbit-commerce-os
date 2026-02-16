@@ -432,22 +432,92 @@ Se incompleto, o Switch fica desabilitado e um Tooltip mostra os campos faltante
 - **Kill Switch:** Verificado no início de cada ciclo (global e por conta)
 - **Human Approval:** Ações high-impact ficam como `pending_approval` quando configurado
 
-### Regras de Pausa por Timing (v5.6)
+### Arquitetura Dual-Motor (v6.0)
 
-O sistema aplica regras de pausa baseadas em janelas temporais de observação:
+O sistema opera através de **dois motores independentes** para garantir separação entre proteção de orçamento e implementação estratégica:
 
-| Condição | Janela | Ação | metric_trigger |
-|----------|--------|------|----------------|
-| ROI < 50% do mínimo | **3 dias** | Pausa imediata (crítica) | `pause_3d_critical` |
-| ROI < mínimo configurado | **7 dias** | Pausa (ruim sustentada) | `pause_7d_normal` |
+#### Motor 1 — Guardião (Diário)
 
-#### Ciclo de Recuperação
+Edge function: `ads-autopilot-guardian`
 
-1. Após **7 dias pausada**, a IA **reativa automaticamente** para testar novamente (`recovery_reactivation`)
-2. Se na reativação a campanha atingir novamente os critérios de pausa → **pausa indeterminada** (`pause_indefinite`)
-3. Campanhas em pausa indeterminada **não são reativadas** — requerem intervenção manual
+| Horário (BRT) | Ação | Detalhes |
+|---|---|---|
+| **12:00** | 1ª análise do dia | Avalia todas as campanhas ativas. Se ok → mantém. Se ruim → pausa imediata |
+| **13:00** | Reativação | Reativa campanhas pausadas às 12h para reteste |
+| **16:00** | Reavaliação | Se campanha reativada ainda está ruim → pausa até 00:01 |
+| **00:01** | Execução noturna | Reativa pausas do dia anterior + aplica ajustes de budget agendados |
 
-> **Nota:** Esta lógica é implementada no prompt do sistema da edge function `ads-autopilot-analyze` e avaliada a cada ciclo de 6h. Os campos `min_roi_cold` e `min_roi_warm` existentes são usados como base.
+**Escopo**: Apenas campanhas **já existentes**. O Guardião **NUNCA** cria campanhas, criativos ou públicos.
+
+**Ações permitidas**: `pause_campaign`, `activate_campaign` (reativação), `adjust_budget` (agendado), `report_insight`
+
+#### Motor 2 — Estrategista (Start / Semanal / Mensal)
+
+Edge function: `ads-autopilot-strategist`
+
+| Trigger | Quando | Pipeline |
+|---|---|---|
+| **Start (1ª ativação)** | Imediato ao ativar IA | Pipeline completo: Planejamento → Criativos → Públicos → Montagem → Agenda Dom 00:01 |
+| **Semanal** | Todo **sábado** | Mesmo pipeline. Ajustes entram em vigor **Domingo 00:01** |
+| **Mensal** | **Dia 1** do mês | Análise macro do mês anterior. Avalia se estratégia está funcionando ou precisa ajustar |
+
+**Pipeline obrigatório (em fases com dependências)**:
+1. **Fase 0 — Planejamento**: IA analisa orçamento + configs + produtos + dados históricos → define plano (quais campanhas, públicos, criativos)
+2. **Fase 1 — Criativos**: Gera imagens + copys para cada campanha planejada
+3. **Fase 2 — Públicos**: Cria/seleciona audiences (Lookalike, Custom, Interesses)
+4. **Fase 3 — Montagem**: Cria Campanha → Ad Set → Ad (tudo PAUSED). Só executa se Fase 1 e 2 completas
+5. **Fase 4 — Publicação**: Agenda ativação para 00:01 BRT. Só agenda se cadeia completa (Campaign + AdSet + Ad)
+
+**Escopo**: Criação de novas campanhas, criativos, públicos e reestruturação.
+
+**Ações permitidas**: Todas (pause, adjust_budget, create_campaign, create_adset, generate_creative, create_lookalike_audience, report_insight)
+
+#### Chat de IA de Tráfego (v6.0)
+
+Interface de chat dedicada para interação direta com a IA de tráfego:
+
+| Nível | Localização | Contexto |
+|---|---|---|
+| **Por conta** | Nova aba no painel de cada ad account | Dados daquela conta específica |
+| **Global** | Nova aba nas tabs mãe (ao lado de Config. Gerais) | Dados cross-account |
+
+**Tabelas**: `ads_chat_conversations`, `ads_chat_messages`
+**Edge function**: `ads-chat`
+**Infraestrutura independente** do Auxiliar de Comando (tabelas, edge function e UI próprias)
+**Funções**: Sugestões de campanhas, relatórios de performance, auditorias completas (estilo Start), aconselhamento estratégico
+
+### Limites de Budget por Plataforma (v6.0)
+
+| Plataforma | Limite Seguro por Ajuste | Intervalo Mínimo entre Ajustes | Fonte |
+|---|---|---|---|
+| **Meta** | ±20% | 48h | Meta Marketing API docs + best practices |
+| **Google** | ±20% | 7 dias | Google Ads Support |
+| **TikTok** | ±15% | 48h | TikTok Ads best practices |
+
+> **Regra**: Mudanças >20% são "significant edits" e resetam a learning phase.
+> **Agendamento**: Todos os ajustes de budget são agendados para **00:01 BRT** do próximo dia válido (respeitando o intervalo mínimo).
+> **Registro**: O campo `last_budget_adjusted_at` na tabela `ads_autopilot_account_configs` rastreia o último ajuste para garantir o intervalo.
+
+### Regras de Pausa — Motor Guardião (v6.0)
+
+O Guardião implementa um ciclo diário de proteção:
+
+| Horário BRT | Condição | Ação | metric_trigger |
+|---|---|---|---|
+| 12:00 | Campanha com ROI ruim | Pausa imediata | `guardian_12h_pause` |
+| 13:00 | Campanha pausada às 12h | Reativa para reteste | `guardian_13h_retest` |
+| 16:00 | Reteste falhou (ainda ruim) | Pausa até 00:01 | `guardian_16h_pause_eod` |
+| 00:01 | Campanha pausada no dia anterior | Reativa + aplica budgets | `guardian_00h_reactivation` |
+
+#### Critérios de "Ruim"
+- ROI < mínimo configurado (cold ou warm conforme público)
+- CPA > 2x do alvo
+- CTR < 0.3% por 3+ dias
+
+#### Pausa Indefinida (legacy mantido)
+Campanhas que falham repetidamente após 2 ciclos de reteste → pausa indefinida (`pause_indefinite`), requer intervenção manual.
+
+> **Nota anterior (v5.6):** As regras de pausa por timing de 3d/7d são agora implementadas pelo Motor Estrategista na análise semanal. O Guardião foca no controle diário intraday.
 
 ### Hierarquia Prompt vs Configurações Manuais (v5.6)
 
