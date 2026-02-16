@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v3.0.0"; // Per-channel ROAS targets, audience management knowledge, budget×audience sizing
+const VERSION = "v4.0.0"; // Per-account configs from normalized table, kill_switch, strategy_mode, funnel_splits
 // ===========================================================
 
 const corsHeaders = {
@@ -14,24 +14,26 @@ const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 // ============ TYPES ============
 
-interface SafetyRules {
-  gross_margin_pct: number;
-  max_cpa_cents: number | null;
-  min_roas: number;
-  target_roas_cold: number;
-  target_roas_remarketing: number;
-  min_roas_pause_cold: number;          // ROAS mínimo p/ pausar campanhas de público frio
-  min_roas_pause_remarketing: number;   // ROAS mínimo p/ pausar campanhas de remarketing
-  max_budget_change_pct_day: number;
-  max_actions_per_session: number;
-  allowed_actions: string[];
-  // v2: novos campos
-  min_data_days_for_action: number;
-  ramp_up_max_pct: number;
-  max_new_campaigns_per_day: number;
+interface AccountConfig {
+  id: string;
+  tenant_id: string;
+  channel: string;
+  ad_account_id: string;
+  is_ai_enabled: boolean;
+  budget_mode: string | null;
+  budget_cents: number | null;
+  target_roi: number | null;
+  min_roi_cold: number | null;
+  min_roi_warm: number | null;
+  user_instructions: string | null;
+  strategy_mode: string | null;
+  funnel_split_mode: string | null;
+  funnel_splits: Record<string, number> | null;
+  kill_switch: boolean | null;
+  human_approval_mode: string | null;
 }
 
-interface AutopilotConfig {
+interface GlobalConfig {
   id: string;
   tenant_id: string;
   channel: string;
@@ -44,7 +46,7 @@ interface AutopilotConfig {
   objective: string;
   user_instructions: string | null;
   ai_model: string;
-  safety_rules: SafetyRules;
+  safety_rules: Record<string, any>;
   lock_session_id: string | null;
   lock_expires_at: string | null;
   total_actions_executed?: number;
@@ -83,14 +85,7 @@ interface TrendComparison {
 
 // ============ DEFAULTS ============
 
-const DEFAULT_SAFETY_RULES: SafetyRules = {
-  gross_margin_pct: 50,
-  max_cpa_cents: null,
-  min_roas: 2.0,
-  target_roas_cold: 2.0,
-  target_roas_remarketing: 4.0,
-  min_roas_pause_cold: 0.8,
-  min_roas_pause_remarketing: 1.5,
+const DEFAULT_SAFETY = {
   max_budget_change_pct_day: 10,
   max_actions_per_session: 10,
   allowed_actions: ["pause_campaign", "adjust_budget", "report_insight", "allocate_budget"],
@@ -98,10 +93,6 @@ const DEFAULT_SAFETY_RULES: SafetyRules = {
   ramp_up_max_pct: 10,
   max_new_campaigns_per_day: 2,
 };
-
-function getSafetyRules(config: AutopilotConfig): SafetyRules {
-  return { ...DEFAULT_SAFETY_RULES, ...config.safety_rules };
-}
 
 // ============ HELPERS ============
 
@@ -130,10 +121,11 @@ function safeDivide(a: number, b: number, fallback = 0): number {
 
 // ============ PRE-CHECK INTEGRATIONS ============
 
-async function preCheckIntegrations(supabase: any, tenantId: string, enabledChannels: string[]) {
+async function preCheckIntegrations(supabase: any, tenantId: string, channels: string[]) {
   const status: Record<string, { connected: boolean; reason?: string }> = {};
+  const uniqueChannels = [...new Set(channels)];
 
-  for (const channel of enabledChannels) {
+  for (const channel of uniqueChannels) {
     if (channel === "meta") {
       const { data } = await supabase
         .from("marketplace_connections")
@@ -146,7 +138,6 @@ async function preCheckIntegrations(supabase: any, tenantId: string, enabledChan
         ? { connected: true }
         : { connected: false, reason: "Meta não conectada. Vá em Integrações para conectar." };
     }
-
     if (channel === "google") {
       const { data } = await supabase
         .from("google_connections")
@@ -167,7 +158,6 @@ async function preCheckIntegrations(supabase: any, tenantId: string, enabledChan
           : { connected: false, reason: "Developer Token do Google Ads não configurado." };
       }
     }
-
     if (channel === "tiktok") {
       const { data } = await supabase
         .from("tiktok_ads_connections")
@@ -193,7 +183,6 @@ function aggregateInsights(insights: any[], spendField: string, conversionsField
   const totalConversions = insights.reduce((s, i) => s + (i[conversionsField] || 0), 0);
   const totalRevenue = revenueField ? insights.reduce((s, i) => s + (i[revenueField] || 0), 0) : 0;
 
-  // Count unique dates for days_with_data
   const dateField = insights[0]?.date_start ? "date_start" : "date_range_start";
   const uniqueDates = new Set(insights.map((i) => i[dateField]).filter(Boolean));
 
@@ -208,7 +197,7 @@ function aggregateInsights(insights: any[], spendField: string, conversionsField
     avg_ctr_pct: safeDivide(totalClicks * 100, totalImpressions),
     real_cpa_cents: safeDivide(totalSpend, totalConversions),
     real_roas: safeDivide(totalRevenue, totalSpend),
-    active_campaigns: 0, // set externally
+    active_campaigns: 0,
     days_with_data: uniqueDates.size,
   };
 }
@@ -224,7 +213,6 @@ function computeTrend(current: ChannelAggregates, previous: ChannelAggregates): 
     ctr_pct: pctChange(current.avg_ctr_pct, previous.avg_ctr_pct),
   };
 
-  // Direction: improving if ROAS up OR CPA down; declining if opposite
   let score = 0;
   if (delta.roas_pct > 5) score++;
   if (delta.roas_pct < -5) score--;
@@ -238,10 +226,9 @@ function computeTrend(current: ChannelAggregates, previous: ChannelAggregates): 
   return { current_period: current, previous_period: previous, delta, trend_direction };
 }
 
-// ============ ENHANCED CONTEXT COLLECTOR ============
+// ============ CONTEXT COLLECTOR ============
 
 async function collectContext(supabase: any, tenantId: string, enabledChannels: string[]) {
-  // Products - top 20 by sales
   const { data: products } = await supabase
     .from("products")
     .select("id, name, price, compare_at_price, cost_price, status, stock_quantity, product_type, brand")
@@ -250,7 +237,6 @@ async function collectContext(supabase: any, tenantId: string, enabledChannels: 
     .order("updated_at", { ascending: false })
     .limit(20);
 
-  // Orders - last 30 days
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const { data: orders } = await supabase
     .from("orders")
@@ -273,25 +259,22 @@ async function collectContext(supabase: any, tenantId: string, enabledChannels: 
       : 0,
   };
 
-  // Stock alerts - products with low stock
   const lowStockProducts = (products || []).filter((p: any) => p.stock_quantity !== null && p.stock_quantity <= 5);
 
-  // Time windows
   const now = Date.now();
   const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
   const fourteenDaysAgo = new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
   const channelData: Record<string, any> = {};
 
-  for (const ch of enabledChannels) {
+  for (const ch of [...new Set(enabledChannels)]) {
     if (ch === "meta") {
       const { data: campaigns } = await supabase
         .from("meta_ad_campaigns")
-        .select("meta_campaign_id, name, status, objective, daily_budget_cents")
+        .select("meta_campaign_id, name, status, objective, daily_budget_cents, ad_account_id")
         .eq("tenant_id", tenantId)
         .limit(50);
 
-      // Current 7 days
       const { data: insightsCurrent } = await supabase
         .from("meta_ad_insights")
         .select("meta_campaign_id, impressions, clicks, spend_cents, reach, ctr, conversions, roas, date_start")
@@ -299,7 +282,6 @@ async function collectContext(supabase: any, tenantId: string, enabledChannels: 
         .gte("date_start", sevenDaysAgo)
         .limit(500);
 
-      // Previous 7 days
       const { data: insightsPrevious } = await supabase
         .from("meta_ad_insights")
         .select("meta_campaign_id, impressions, clicks, spend_cents, reach, ctr, conversions, roas, date_start")
@@ -310,11 +292,10 @@ async function collectContext(supabase: any, tenantId: string, enabledChannels: 
 
       const currentAgg = aggregateInsights(insightsCurrent || [], "spend_cents", "conversions");
       currentAgg.active_campaigns = (campaigns || []).filter((c: any) => c.status === "ACTIVE").length;
-
       const previousAgg = aggregateInsights(insightsPrevious || [], "spend_cents", "conversions");
       const trend = computeTrend(currentAgg, previousAgg);
 
-      // Per-campaign performance for the planner
+      // Per-campaign perf
       const campaignPerf: Record<string, any> = {};
       for (const ins of insightsCurrent || []) {
         const cid = ins.meta_campaign_id;
@@ -325,7 +306,6 @@ async function collectContext(supabase: any, tenantId: string, enabledChannels: 
         campaignPerf[cid].conversions += ins.conversions || 0;
         campaignPerf[cid].days.add(ins.date_start);
       }
-      // Convert Sets to counts
       for (const cid of Object.keys(campaignPerf)) {
         const p = campaignPerf[cid];
         campaignPerf[cid] = {
@@ -337,7 +317,13 @@ async function collectContext(supabase: any, tenantId: string, enabledChannels: 
         };
       }
 
-      channelData.meta = { campaigns: campaigns || [], trend, campaignPerf, rawInsights7d: (insightsCurrent || []).length };
+      // Campaign → account mapping
+      const campaignAccountMap: Record<string, string> = {};
+      for (const c of campaigns || []) {
+        if (c.ad_account_id) campaignAccountMap[c.meta_campaign_id] = c.ad_account_id;
+      }
+
+      channelData.meta = { campaigns: campaigns || [], trend, campaignPerf, campaignAccountMap, rawInsights7d: (insightsCurrent || []).length };
     }
 
     if (ch === "google") {
@@ -364,11 +350,9 @@ async function collectContext(supabase: any, tenantId: string, enabledChannels: 
 
       const currentAgg = aggregateInsights(insightsCurrent || [], "cost_micros", "conversions", "conversions_value_micros");
       currentAgg.active_campaigns = (campaigns || []).filter((c: any) => c.status === "ENABLED").length;
-
       const previousAgg = aggregateInsights(insightsPrevious || [], "cost_micros", "conversions", "conversions_value_micros");
       const trend = computeTrend(currentAgg, previousAgg);
 
-      // Per-campaign
       const campaignPerf: Record<string, any> = {};
       for (const ins of insightsCurrent || []) {
         const cid = ins.google_campaign_id;
@@ -382,14 +366,7 @@ async function collectContext(supabase: any, tenantId: string, enabledChannels: 
       }
       for (const cid of Object.keys(campaignPerf)) {
         const p = campaignPerf[cid];
-        campaignPerf[cid] = {
-          ...p,
-          days: p.days.size,
-          cpa: safeDivide(p.spend, p.conversions),
-          roas: safeDivide(p.revenue, p.spend),
-          cpc: safeDivide(p.spend, p.clicks),
-          ctr_pct: safeDivide(p.clicks * 100, p.impressions),
-        };
+        campaignPerf[cid] = { ...p, days: p.days.size, cpa: safeDivide(p.spend, p.conversions), roas: safeDivide(p.revenue, p.spend), cpc: safeDivide(p.spend, p.clicks), ctr_pct: safeDivide(p.clicks * 100, p.impressions) };
       }
 
       channelData.google = { campaigns: campaigns || [], trend, campaignPerf, rawInsights7d: (insightsCurrent || []).length };
@@ -419,7 +396,6 @@ async function collectContext(supabase: any, tenantId: string, enabledChannels: 
 
       const currentAgg = aggregateInsights(insightsCurrent || [], "spend_cents", "conversions");
       currentAgg.active_campaigns = (campaigns || []).filter((c: any) => c.status === "ENABLE" || c.status === "ACTIVE").length;
-
       const previousAgg = aggregateInsights(insightsPrevious || [], "spend_cents", "conversions");
       const trend = computeTrend(currentAgg, previousAgg);
 
@@ -435,13 +411,7 @@ async function collectContext(supabase: any, tenantId: string, enabledChannels: 
       }
       for (const cid of Object.keys(campaignPerf)) {
         const p = campaignPerf[cid];
-        campaignPerf[cid] = {
-          ...p,
-          days: p.days.size,
-          cpa_cents: safeDivide(p.spend, p.conversions),
-          cpc_cents: safeDivide(p.spend, p.clicks),
-          ctr_pct: safeDivide(p.clicks * 100, p.impressions),
-        };
+        campaignPerf[cid] = { ...p, days: p.days.size, cpa_cents: safeDivide(p.spend, p.conversions), cpc_cents: safeDivide(p.spend, p.clicks), ctr_pct: safeDivide(p.clicks * 100, p.impressions) };
       }
 
       channelData.tiktok = { campaigns: campaigns || [], trend, campaignPerf, rawInsights7d: (insightsCurrent || []).length };
@@ -456,36 +426,38 @@ async function collectContext(supabase: any, tenantId: string, enabledChannels: 
   };
 }
 
-// ============ POLICY VALIDATION (v2 - Enhanced) ============
+// ============ POLICY VALIDATION (v4 - Per-Account) ============
 
 function validateAction(
   action: any,
-  globalConfig: AutopilotConfig,
-  channelConfig: AutopilotConfig | null,
+  acctConfig: AccountConfig,
   context: any,
   sessionActionsCount: number
 ): { valid: boolean; reason?: string } {
-  const rules = getSafetyRules(globalConfig);
+  // Kill switch
+  if (acctConfig.kill_switch) {
+    return { valid: false, reason: `Kill Switch ATIVO para conta ${acctConfig.ad_account_id}. Todas as ações bloqueadas.` };
+  }
 
   // Max actions per session
-  if (sessionActionsCount >= rules.max_actions_per_session) {
-    return { valid: false, reason: `Limite de ${rules.max_actions_per_session} ações por sessão atingido.` };
+  if (sessionActionsCount >= DEFAULT_SAFETY.max_actions_per_session) {
+    return { valid: false, reason: `Limite de ${DEFAULT_SAFETY.max_actions_per_session} ações por sessão atingido.` };
   }
 
   // Check if action type is allowed
-  if (!rules.allowed_actions.includes(action.name)) {
-    return { valid: false, reason: `Ação '${action.name}' não habilitada na fase atual do rollout.` };
+  if (!DEFAULT_SAFETY.allowed_actions.includes(action.name)) {
+    return { valid: false, reason: `Ação '${action.name}' não habilitada.` };
   }
 
   // Data sufficiency check
-  const channelKey = action.arguments?.channel || (channelConfig?.channel);
+  const channelKey = acctConfig.channel;
   if (channelKey && context?.channels?.[channelKey]) {
     const trend = context.channels[channelKey].trend;
-    if (trend?.current_period?.days_with_data < rules.min_data_days_for_action) {
+    if (trend?.current_period?.days_with_data < DEFAULT_SAFETY.min_data_days_for_action) {
       if (action.name !== "report_insight") {
         return {
           valid: false,
-          reason: `Dados insuficientes (${trend.current_period.days_with_data} dias). Mínimo: ${rules.min_data_days_for_action} dias. Entrando em modo recommendation-only.`,
+          reason: `Dados insuficientes (${trend.current_period.days_with_data} dias). Mínimo: ${DEFAULT_SAFETY.min_data_days_for_action} dias.`,
         };
       }
     }
@@ -497,59 +469,28 @@ function validateAction(
     const changePct = args.change_pct || 0;
     const absChange = Math.abs(changePct);
 
-    // Platform-specific max change per 6h cycle
-    // Meta: 20% every 48h → ~10% per 6h cycle (to stay safe)
-    // Google: 30% every 48-72h → ~15% per cycle (more flexible)
-    // TikTok: 15% every 48h → ~7% per cycle (most conservative)
-    const platformMaxPerCycle: Record<string, number> = {
-      meta: 10,
-      google: 15,
-      tiktok: 7,
-    };
-    const budgetChannelKey = channelConfig?.channel || "meta";
-    const platformMax = platformMaxPerCycle[budgetChannelKey] || rules.max_budget_change_pct_day;
-    const effectiveMax = Math.min(platformMax, rules.max_budget_change_pct_day);
+    const platformMaxPerCycle: Record<string, number> = { meta: 10, google: 15, tiktok: 7 };
+    const platformMax = platformMaxPerCycle[channelKey] || DEFAULT_SAFETY.max_budget_change_pct_day;
+    const effectiveMax = Math.min(platformMax, DEFAULT_SAFETY.max_budget_change_pct_day);
 
     if (absChange > effectiveMax) {
-      return {
-        valid: false,
-        reason: `Alteração de ${changePct}% excede limite de ±${effectiveMax}%/ciclo para ${budgetChannelKey}. (Regra da plataforma: max ±${platformMax}% por 6h para respeitar limite de 48h.)`,
-      };
+      return { valid: false, reason: `Alteração de ${changePct}% excede limite de ±${effectiveMax}%/ciclo para ${channelKey}.` };
     }
 
-    // Ramp-up: increases above ramp_up_max_pct require confidence >= 0.7
-    if (changePct > rules.ramp_up_max_pct) {
+    if (changePct > DEFAULT_SAFETY.ramp_up_max_pct) {
       const confidence = parseFloat(args.confidence) || 0;
       if (confidence < 0.7) {
-        return {
-          valid: false,
-          reason: `Aumento de ${changePct}% requer confidence >= 0.7 (atual: ${confidence}). Reduza para ≤${rules.ramp_up_max_pct}%.`,
-        };
+        return { valid: false, reason: `Aumento de ${changePct}% requer confidence >= 0.7 (atual: ${confidence}).` };
       }
     }
 
-    // CPA ceiling check: new budget should not push CPA above max
-    if (rules.max_cpa_cents || context.orderStats?.avg_ticket_cents) {
-      const maxCpa = rules.max_cpa_cents || Math.round(context.orderStats.avg_ticket_cents * (1 - rules.gross_margin_pct / 100));
-      if (args.current_cpa_cents && args.current_cpa_cents > maxCpa && changePct > 0) {
-        return {
-          valid: false,
-          reason: `CPA atual (R$ ${(args.current_cpa_cents / 100).toFixed(2)}) já excede teto (R$ ${(maxCpa / 100).toFixed(2)}). Não permitido aumentar budget.`,
-        };
-      }
+    // Low stock check
+    if (context.lowStockProducts?.length > 0 && changePct > 0) {
+      // Allow increase but warn
     }
   }
 
-  // Allocate budget - validate shares
-  if (action.name === "allocate_budget" && action.arguments) {
-    const args = typeof action.arguments === "string" ? JSON.parse(action.arguments) : action.arguments;
-    const total = (args.meta_pct || 0) + (args.google_pct || 0) + (args.tiktok_pct || 0);
-    if (total > 100) {
-      return { valid: false, reason: `Alocação total de ${total}% excede 100%.` };
-    }
-  }
-
-  // Never delete - only pause
+  // Never delete
   if (action.name === "delete_campaign" || action.name === "delete_ad" || action.name === "delete_adgroup") {
     return { valid: false, reason: "Deletar entidades é PROIBIDO. Use pause." };
   }
@@ -569,46 +510,19 @@ async function callAI(messages: any[], tools: any[], model: string): Promise<any
       Authorization: `Bearer ${LOVABLE_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      model,
-      messages,
-      tools,
-      tool_choice: "auto",
-    }),
+    body: JSON.stringify({ model, messages, tools, tool_choice: "auto" }),
   });
 
   if (!response.ok) {
     const text = await response.text();
-    console.error(`[ads-autopilot][${VERSION}] AI error: ${response.status} ${text}`);
+    console.error(`[ads-autopilot-analyze][${VERSION}] AI error: ${response.status} ${text}`);
     throw new Error(`AI gateway error: ${response.status}`);
   }
 
   return response.json();
 }
 
-// ============ TOOLS DEFINITIONS (v2 - Expanded) ============
-
-const ALLOCATOR_TOOLS = [
-  {
-    type: "function",
-    function: {
-      name: "allocate_budget",
-      description: "Distribui o orçamento total entre os canais baseado em ROAS marginal, tendência e escala disponível.",
-      parameters: {
-        type: "object",
-        properties: {
-          meta_pct: { type: "number", description: "% do orçamento para Meta (0-100)" },
-          google_pct: { type: "number", description: "% do orçamento para Google (0-100)" },
-          tiktok_pct: { type: "number", description: "% do orçamento para TikTok (0-100)" },
-          reasoning: { type: "string", description: "Justificativa detalhada com base nos KPIs" },
-          risk_alerts: { type: "array", items: { type: "string" }, description: "Alertas de risco identificados" },
-        },
-        required: ["meta_pct", "google_pct", "tiktok_pct", "reasoning"],
-        additionalProperties: false,
-      },
-    },
-  },
-];
+// ============ TOOLS DEFINITIONS ============
 
 const PLANNER_TOOLS = [
   {
@@ -624,15 +538,15 @@ const PLANNER_TOOLS = [
           expected_impact: {
             type: "object",
             properties: {
-              spend_reduction_cents_day: { type: "number", description: "Economia diária em centavos" },
-              conversions_lost_day: { type: "number", description: "Conversões perdidas estimadas" },
+              spend_reduction_cents_day: { type: "number" },
+              conversions_lost_day: { type: "number" },
               risk: { type: "string", enum: ["low", "medium", "high"] },
             },
             required: ["spend_reduction_cents_day", "risk"],
           },
-          confidence: { type: "number", minimum: 0, maximum: 1, description: "Nível de confiança (0-1)" },
-          metric_trigger: { type: "string", description: "KPI que motivou (ex: CPA > R$50, ROAS < 1.5)" },
-          rollback_plan: { type: "string", description: "Como reverter se necessário" },
+          confidence: { type: "number", minimum: 0, maximum: 1 },
+          metric_trigger: { type: "string" },
+          rollback_plan: { type: "string" },
         },
         required: ["campaign_id", "reason", "expected_impact", "confidence", "metric_trigger"],
         additionalProperties: false,
@@ -647,12 +561,12 @@ const PLANNER_TOOLS = [
       parameters: {
         type: "object",
         properties: {
-          campaign_id: { type: "string", description: "ID da campanha" },
-          current_budget_cents: { type: "number", description: "Budget atual em centavos" },
-          new_budget_cents: { type: "number", description: "Novo budget em centavos" },
-          change_pct: { type: "number", description: "% de mudança (positivo=aumento, negativo=redução)" },
-          current_cpa_cents: { type: "number", description: "CPA atual em centavos (para validação)" },
-          reason: { type: "string", description: "Motivo baseado em métricas" },
+          campaign_id: { type: "string" },
+          current_budget_cents: { type: "number" },
+          new_budget_cents: { type: "number" },
+          change_pct: { type: "number" },
+          current_cpa_cents: { type: "number" },
+          reason: { type: "string" },
           expected_impact: {
             type: "object",
             properties: {
@@ -663,7 +577,7 @@ const PLANNER_TOOLS = [
             required: ["risk"],
           },
           confidence: { type: "number", minimum: 0, maximum: 1 },
-          metric_trigger: { type: "string", description: "KPI que motivou" },
+          metric_trigger: { type: "string" },
         },
         required: ["campaign_id", "new_budget_cents", "change_pct", "reason", "expected_impact", "confidence", "metric_trigger"],
         additionalProperties: false,
@@ -674,23 +588,22 @@ const PLANNER_TOOLS = [
     type: "function",
     function: {
       name: "report_insight",
-      description: "Reporta insight, recomendação ou alerta sem executar ação. Use quando dados são insuficientes ou para diagnóstico.",
+      description: "Reporta insight, recomendação ou alerta sem executar ação.",
       parameters: {
         type: "object",
         properties: {
-          summary: { type: "string", description: "Resumo executivo do insight" },
+          summary: { type: "string" },
           kpi_analysis: {
             type: "object",
             properties: {
               best_performing_campaign: { type: "string" },
               worst_performing_campaign: { type: "string" },
               overall_trend: { type: "string", enum: ["improving", "declining", "stable"] },
-              key_metrics: { type: "string", description: "Métricas-chave observadas" },
+              key_metrics: { type: "string" },
             },
           },
-          recommendations: { type: "array", items: { type: "string" }, description: "Lista de recomendações acionáveis" },
-          risk_alerts: { type: "array", items: { type: "string" }, description: "Alertas de risco" },
-          integration_gaps: { type: "array", items: { type: "string" }, description: "Pendências de integração" },
+          recommendations: { type: "array", items: { type: "string" } },
+          risk_alerts: { type: "array", items: { type: "string" } },
         },
         required: ["summary", "recommendations"],
         additionalProperties: false,
@@ -699,64 +612,38 @@ const PLANNER_TOOLS = [
   },
 ];
 
-// ============ SYSTEM PROMPTS (v2 - Professional) ============
+// ============ SYSTEM PROMPT (v4 - Per-Account) ============
 
-function buildAllocatorPrompt(globalConfig: AutopilotConfig, channelConfigs: AutopilotConfig[], context: any) {
-  const rules = getSafetyRules(globalConfig);
-  const maxCpaCents = rules.max_cpa_cents || Math.round(context.orderStats.avg_ticket_cents * (1 - rules.gross_margin_pct / 100));
+function buildAccountPlannerPrompt(acctConfig: AccountConfig, context: any) {
+  const channelName = acctConfig.channel === "meta" ? "Meta (Facebook/Instagram)" : acctConfig.channel === "google" ? "Google Ads" : "TikTok Ads";
+  const channelTrend = context.channels?.[acctConfig.channel]?.trend;
 
-  // Build per-channel ROAS targets section
-  const channelRoasSection = channelConfigs.map(cc => {
-    const cr = { ...DEFAULT_SAFETY_RULES, ...cc.safety_rules };
-    return `- ${cc.channel.toUpperCase()}: ROAS ideal frio=${cr.target_roas_cold} | ROAS ideal remarketing=${cr.target_roas_remarketing} | Pausar frio<${cr.min_roas_pause_cold} | Pausar remarketing<${cr.min_roas_pause_remarketing}`;
-  }).join("\n");
+  const budgetStr = acctConfig.budget_cents ? `R$ ${(acctConfig.budget_cents / 100).toFixed(2)}` : "Não definido";
+  const targetRoi = acctConfig.target_roi || 2.0;
+  const minRoiCold = acctConfig.min_roi_cold || 0.8;
+  const minRoiWarm = acctConfig.min_roi_warm || 1.5;
 
-  return `Você é um media buyer sênior com 10+ anos de experiência em alocação cross-channel.
+  const strategyDescriptions: Record<string, string> = {
+    aggressive: "AGRESSIVA — Priorizar escala e volume. Aceitar CPAs temporariamente maiores para ganhar market share. Escalar rápido campanhas com ROI > alvo.",
+    balanced: "BALANCEADA — Equilibrar crescimento e eficiência. Escalar gradualmente mantendo ROI saudável. Pausar apenas quando métricas estiverem muito fora do alvo.",
+    long_term: "LONGO PRAZO — Priorizar sustentabilidade e construção de marca. Ser conservador com budget. Foco em LTV e retenção, não apenas ROAS imediato.",
+  };
+  const strategyStr = strategyDescriptions[acctConfig.strategy_mode || "balanced"] || strategyDescriptions.balanced;
 
-## CONTEXTO DE NEGÓCIO
-- ORÇAMENTO TOTAL: R$ ${(globalConfig.budget_cents / 100).toFixed(2)} / ${globalConfig.budget_mode === "daily" ? "dia" : "mês"}
-- OBJETIVO: ${globalConfig.objective}
-- MARGEM BRUTA: ${rules.gross_margin_pct}%
-- CPA MÁXIMO CALCULADO: R$ ${(maxCpaCents / 100).toFixed(2)}
-- TICKET MÉDIO: R$ ${(context.orderStats.avg_ticket_cents / 100).toFixed(2)}
-- PEDIDOS (30d): ${context.orderStats.paid_orders} pagos / ${context.orderStats.cancelled_orders} cancelados (${context.orderStats.cancellation_rate_pct}% cancel.)
-
-## METAS DE ROAS POR CANAL (definidas pelo lojista)
-${channelRoasSection || "Nenhuma meta por canal definida — usar defaults"}
-
-${globalConfig.user_instructions ? `## INSTRUÇÕES DO LOJISTA\n${globalConfig.user_instructions}` : ""}
-
-## CICLO DE EXECUÇÃO
-- Este autopilot roda a cada 6 HORAS (4x/dia).
-- Suas decisões de alocação valem para as próximas 6h até o próximo ciclo.
-- Ajustes devem ser graduais, não abruptos.
-
-## CHECKLIST DE DECISÃO
-1. Compare ROAS real de cada canal usando as METAS ESPECÍFICAS DO CANAL (não uma meta global)
-2. Compare CPA real de cada canal (gasto/conversões)
-3. Avalie TENDÊNCIA (7d atual vs 7d anterior) — canal melhorando merece mais budget
-4. Considere ESCALA: canal com bom ROAS mas pouco gasto tem mais espaço de crescimento
-5. Canal sem dados = 0% (ou mínimo para teste se budget permitir)
-6. Considere ESTOQUE: produtos com ruptura iminente → reduzir tráfego para eles
-7. CADA CANAL TEM METAS DIFERENTES — não compare ROAS do Meta com Google diretamente
-
-## REGRAS
-- A soma DEVE ser ≤ 100%
-- Canal sem conexão = 0%
-- Canal sem dados nos últimos 7d = máximo 15% (para exploração)
-- Priorize o canal com melhor ROAS MARGINAL relativo à meta do canal
-- Considere diversificação para reduzir risco
-
-Use a tool 'allocate_budget'.`;
-}
-
-function buildPlannerPrompt(channel: string, globalConfig: AutopilotConfig, channelConfig: AutopilotConfig | null, channelBudgetCents: number, context: any) {
-  // Use per-channel ROAS targets if available, otherwise fall back to defaults
-  const channelRules = channelConfig?.safety_rules ? { ...DEFAULT_SAFETY_RULES, ...channelConfig.safety_rules } : DEFAULT_SAFETY_RULES;
-  const rules = getSafetyRules(globalConfig);
-  const maxCpaCents = rules.max_cpa_cents || Math.round(context.orderStats.avg_ticket_cents * (1 - rules.gross_margin_pct / 100));
-  const channelName = channel === "meta" ? "Meta (Facebook/Instagram)" : channel === "google" ? "Google Ads" : "TikTok Ads";
-  const channelTrend = context.channels?.[channel]?.trend;
+  let funnelSection = "";
+  if (acctConfig.funnel_split_mode === "manual" && acctConfig.funnel_splits) {
+    const splits = acctConfig.funnel_splits;
+    funnelSection = `
+## SPLITS DE FUNIL (definidos pelo lojista — OBRIGATÓRIO respeitar)
+- TOF (Topo — Público Frio): ${splits.tof || 0}%
+- MOF (Meio — Público Morno): ${splits.mof || 0}%
+- BOF (Fundo — Público Quente): ${splits.bof || 0}%
+⚠️ Distribua o orçamento desta conta respeitando estes percentuais.`;
+  } else {
+    funnelSection = `
+## SPLITS DE FUNIL
+A IA decide a distribuição ideal entre TOF/MOF/BOF com base nos dados.`;
+  }
 
   let trendSection = "";
   if (channelTrend) {
@@ -766,286 +653,69 @@ function buildPlannerPrompt(channel: string, globalConfig: AutopilotConfig, chan
 | Métrica | Atual | Anterior | Variação |
 |---------|-------|----------|----------|
 | Spend | R$ ${(channelTrend.current_period.total_spend_cents / 100).toFixed(2)} | R$ ${(channelTrend.previous_period.total_spend_cents / 100).toFixed(2)} | ${d.spend_pct > 0 ? "+" : ""}${d.spend_pct}% |
-| Impressões | ${channelTrend.current_period.total_impressions} | ${channelTrend.previous_period.total_impressions} | ${d.impressions_pct > 0 ? "+" : ""}${d.impressions_pct}% |
-| Cliques | ${channelTrend.current_period.total_clicks} | ${channelTrend.previous_period.total_clicks} | ${d.clicks_pct > 0 ? "+" : ""}${d.clicks_pct}% |
 | Conversões | ${channelTrend.current_period.total_conversions} | ${channelTrend.previous_period.total_conversions} | ${d.conversions_pct > 0 ? "+" : ""}${d.conversions_pct}% |
 | CPA | R$ ${(channelTrend.current_period.real_cpa_cents / 100).toFixed(2)} | R$ ${(channelTrend.previous_period.real_cpa_cents / 100).toFixed(2)} | ${d.cpa_pct > 0 ? "+" : ""}${d.cpa_pct}% |
 | CTR | ${channelTrend.current_period.avg_ctr_pct}% | ${channelTrend.previous_period.avg_ctr_pct}% | ${d.ctr_pct > 0 ? "+" : ""}${d.ctr_pct}% |
-| ROAS | ${channelTrend.current_period.real_roas} | ${channelTrend.previous_period.real_roas} | ${d.roas_pct > 0 ? "+" : ""}${d.roas_pct}% |
-| Dias c/ dados | ${channelTrend.current_period.days_with_data} | ${channelTrend.previous_period.days_with_data} | — |`;
+| ROAS | ${channelTrend.current_period.real_roas} | ${channelTrend.previous_period.real_roas} | ${d.roas_pct > 0 ? "+" : ""}${d.roas_pct}% |`;
   }
 
-  // ========== PLATFORM-SPECIFIC KNOWLEDGE ==========
-  const platformKnowledge: Record<string, string> = {
+  // Platform-specific knowledge (condensed)
+  const platformRules: Record<string, string> = {
     meta: `
-## REGRAS ESPECÍFICAS DO META ADS (Facebook/Instagram)
-
-### LEARNING PHASE (Fase de Aprendizado)
-- Uma campanha/ad set entra em Learning Phase ao ser criada ou após EDIÇÕES SIGNIFICATIVAS (budget, targeting, criativo, bid)
-- Precisa de ~50 EVENTOS DE OTIMIZAÇÃO em 7 DIAS para sair da Learning Phase
-- Durante a Learning Phase: performance é instável e custos podem ser mais altos — NÃO tome decisões precipitadas
-- NUNCA julgue performance de um ad set que está em Learning Phase — aguarde 3-5 dias mínimo
-
-### REGRA DE ORÇAMENTO (CRÍTICA!)
-- **Regra dos 20%**: Aumentar ou diminuir o orçamento em no MÁXIMO 20% a cada 48 HORAS
-- Mudanças acima de 20% RESETAM a Learning Phase e destroem a otimização acumulada
-- Como este autopilot roda a cada 6h (4x/dia), aplique no MÁXIMO ±10% por ciclo (para respeitar ±20% em 48h)
-- Exemplo: R$100/dia → máx R$110/dia neste ciclo. Próximo aumento só no ciclo seguinte (+48h)
-- Se precisar escalar mais rápido, DUPLIQUE a campanha em vez de aumentar o budget
-
-### QUANDO PAUSAR NO META
-- CPA > 2x do CPA alvo por 3+ dias APÓS sair da Learning Phase
-- Público Frio: ROAS < ${channelRules.min_roas_pause_cold} por 5+ dias → PAUSAR
-- Remarketing: ROAS < ${channelRules.min_roas_pause_remarketing} por 5+ dias → PAUSAR
-- Frequência > 3.0 (indica saturação de audiência/criativo)
-- CTR < 0.5% por 3+ dias (indica criativo ou targeting ineficaz)
-- NÃO pausar durante Learning Phase a menos que o gasto esteja completamente fora de controle
-
-### PÚBLICO FRIO vs QUENTE
-- **Público Frio (Prospecção/TOF)**: Lookalike, interesses amplos, broad targeting
-  - CPA esperado: 1.5x a 3x maior que remarketing — ISSO É NORMAL
-  - ROAS IDEAL (definido pelo lojista para ${channelName}): ${channelRules.target_roas_cold}
-  - Objetivo: volume e aprendizado, não ROAS imediato
-  - Orçamento recomendado: 60-70% do total do canal
-  - Métrica-chave: CPM, CTR, custo por lead/ATC (métricas de topo de funil)
-  - NÃO pausar por CPA alto se CPM e CTR estiverem saudáveis — está alimentando o funil
-  - Pausar SOMENTE se ROAS < ${channelRules.min_roas_pause_cold} por 5+ dias
-
-- **Público Quente (Remarketing/MOF-BOF)**: Visitantes do site, carrinhos abandonados, engajaram com conteúdo
-  - CPA esperado: menor, mas volume limitado
-  - Objetivo: conversão direta, ROAS alto
-  - ROAS IDEAL (definido pelo lojista para ${channelName}): ${channelRules.target_roas_remarketing}
-  - Orçamento recomendado: 20-30% do total do canal
-  - Métrica-chave: ROAS, CPA, taxa de conversão
-  - Pausar se ROAS cair abaixo de ${channelRules.min_roas_pause_remarketing} por 5+ dias
-
-- **Público Hot (Retargeting Agressivo)**: Compradores anteriores, carrinhos < 7 dias
-  - Orçamento recomendado: 10% do total
-  - Foco em upsell/cross-sell
-
-### GESTÃO DE PÚBLICOS / AUDIÊNCIAS
-- **Criação de públicos**: A IA pode RECOMENDAR criação de públicos (via report_insight), mas NÃO cria diretamente
-  - Recomendar Lookalike de compradores (LTV alto) quando o Pixel tem 100+ eventos de compra
-  - Recomendar Custom Audience de visitantes 7/14/30 dias para remarketing
-  - Recomendar exclusão de compradores recentes (<30d) das campanhas de prospecção
-- **Tamanho de público × Orçamento**:
-  - Público < 10.000 pessoas → máximo R$15/dia (evitar frequência alta)
-  - Público 10.000–100.000 → R$20-50/dia
-  - Público 100.000–500.000 → R$50-200/dia
-  - Público 500.000–2M → R$100-500/dia
-  - Público > 2M (broad) → sem limite prático de budget
-  - REGRA: Se frequência > 3.0, o público é PEQUENO DEMAIS para o budget → reduzir budget OU ampliar público
-  - CPM muito alto (>R$50) + frequência alta = saturação → reportar e recomendar novo público
-
-### INVESTIMENTO INICIAL RECOMENDADO
-- Campanha de Conversão: Mínimo R$30/dia (idealmente 10x CPA alvo)
-- Campanha de Tráfego: Mínimo R$20/dia
-- Campanha de Reconhecimento: Mínimo R$15/dia
-- Se o orçamento total do canal for < R$50/dia, concentre em UMA campanha de conversão`,
-
+### META ADS — REGRAS
+- Learning Phase: ~50 eventos em 7d para estabilizar. NÃO editar durante.
+- Budget: Máx ±10% por ciclo de 6h (respeitar ±20% em 48h).
+- Pausar frio: ROAS < ${minRoiCold} por 5+ dias. Pausar quente: ROAS < ${minRoiWarm} por 5+ dias.
+- Frequência > 3.0 = saturação de audiência.
+- CTR < 0.5% por 3d = criativo/targeting ineficaz.`,
     google: `
-## REGRAS ESPECÍFICAS DO GOOGLE ADS
-
-### LEARNING PHASE
-- Google Ads também possui período de aprendizado, especialmente em Smart Bidding (Target CPA, Target ROAS, Maximize Conversions)
-- Precisa de ~2 SEMANAS e ~30 CONVERSÕES para estabilizar Smart Bidding
-- Evitar mudanças significativas durante as primeiras 2 semanas de uma campanha nova
-- Após mudanças de bid strategy, aguardar 7-14 dias antes de julgar performance
-
-### REGRA DE ORÇAMENTO
-- Google é MAIS FLEXÍVEL que Meta — aceita mudanças maiores sem "resetar" completamente
-- Ainda assim, recomenda-se no máximo 20-30% a cada 48-72 horas para Smart Bidding
-- Para campanhas manuais (Manual CPC), pode-se ajustar mais agressivamente (até 30%/dia)
-- Google permite que o gasto diário real seja até 2x o budget diário configurado (otimização automática)
-
-### TIPOS DE CAMPANHA
-- **Search (Busca)**: Maior intenção de compra, CPA geralmente menor
-  - CTR benchmark: 3-5% (inferior indica keywords ruins ou anúncios fracos)
-  - Quality Score importa: otimizar anúncios com QS < 5
-- **Shopping**: Excelente para e-commerce, depende de feed bem otimizado
-  - ROAS benchmark: 4x-8x para e-commerce
-  - Pausar se ROAS < 2x por 7+ dias
-- **Display**: Público frio, reconhecimento — CPA mais alto é esperado
-  - NÃO esperar ROAS de Search em Display
-- **Performance Max (PMax)**: Campanhas automatizadas do Google
-  - Precisa de volume mínimo de conversões para funcionar bem
-  - NÃO alterar assets com frequência — deixar rodar 2+ semanas
-
-### QUANDO PAUSAR NO GOOGLE
-- Search: CPA > 2x do alvo por 7+ dias com 30+ cliques
-- Shopping: ROAS < 1.5x por 7+ dias
-- Display/PMax: ROAS < 1x por 14+ dias (precisa mais tempo)
-- Keywords com QS ≤ 3 e sem conversões: pausar keywords, não a campanha
-- Público Frio: ROAS < ${channelRules.min_roas_pause_cold} por período adequado ao tipo de campanha
-- Remarketing: ROAS < ${channelRules.min_roas_pause_remarketing} por período adequado
-
-### PÚBLICO FRIO vs QUENTE
-- **Frio (Search Genérico, Display, Discovery)**: Intenção baixa-média
-  - ROAS IDEAL (definido pelo lojista para ${channelName}): ${channelRules.target_roas_cold}
-  - Orçamento: 50-60% do canal
-- **Quente (Search Brand, RLSA, Shopping Remarketing)**: Alta intenção
-  - ROAS IDEAL (definido pelo lojista para ${channelName}): ${channelRules.target_roas_remarketing}
-  - Orçamento: 30-40% do canal
-- **Hot (Dynamic Remarketing, carrinho abandonado)**: Conversão direta
-  - Orçamento: 10-20% do canal
-
-### GESTÃO DE PÚBLICOS / AUDIÊNCIAS
-- **Criação de públicos**: A IA pode RECOMENDAR (via report_insight):
-  - Listas de remarketing (RLSA) para Search com visitantes 7/14/30 dias
-  - Customer Match com base de clientes existentes
-  - Públicos similares baseados em converters
-  - Exclusão de converters recentes em campanhas de aquisição
-- **Tamanho de público × Orçamento**:
-  - Search: o volume é definido por keywords, não tamanho de público
-  - Display/YouTube remarketing: público < 5.000 → máximo R$10/dia
-  - Display prospecting: público > 100.000 → R$30-100/dia
-  - PMax: sem controle direto de público, mas budget mínimo R$50/dia
-  - Se impressão share < 50% em Search, o budget pode crescer
-
-### INVESTIMENTO INICIAL RECOMENDADO
-- Search (conversão): Mínimo R$30/dia por campanha
-- Shopping: Mínimo R$50/dia (precisa de volume)
-- PMax: Mínimo R$50/dia (requer dados para otimizar)
-- Display remarketing: Mínimo R$20/dia`,
-
+### GOOGLE ADS — REGRAS
+- Smart Bidding: ~2 semanas e ~30 conversões para estabilizar.
+- Budget: Máx ±15% por ciclo (mais flexível que Meta).
+- Search: CPA > 2x alvo por 7d com 30+ cliques → pausar.
+- Shopping: ROAS < 1.5x por 7d → pausar.`,
     tiktok: `
-## REGRAS ESPECÍFICAS DO TIKTOK ADS
-
-### LEARNING PHASE
-- TikTok requer ~50 CONVERSÕES em 7 DIAS para sair da Learning Phase
-- A Learning Phase é especialmente sensível — mudanças RESETAM completamente
-- NÃO editar ad groups durante Learning Phase (budget, targeting, criativo, bid)
-- Aguardar 7-14 DIAS entre mudanças significativas
-
-### REGRA DE ORÇAMENTO (CRÍTICA!)
-- Escalar em no máximo 15-20% a cada 2-3 DIAS (mais conservador que Meta)
-- Como este autopilot roda a cada 6h, aplique no MÁXIMO ±7% por ciclo (para respeitar ±15% em 48h)
-- Budget diário mínimo: 10x o CPA alvo OU R$30/dia (o que for maior)
-- Mudanças bruscas de budget são a causa #1 de perda de performance no TikTok
-
-### QUANDO PAUSAR NO TIKTOK
-- CPA > 2.5x do alvo por 5+ dias APÓS sair da Learning Phase
-- CTR < 0.3% por 3+ dias (criativo não está engajando)
-- CPM subindo + CTR caindo = fadiga criativa severa → pausar e renovar criativos
-- NÃO pausar campanhas com < 7 dias de dados
-- Público Frio: ROAS < ${channelRules.min_roas_pause_cold} por 5+ dias
-- Remarketing: ROAS < ${channelRules.min_roas_pause_remarketing} por 5+ dias
-
-### PÚBLICO FRIO vs QUENTE
-- **Público Frio (Broad, Interest-based, Lookalike)**: 
-  - CPA será 2x-4x maior que remarketing — esperado para TikTok
-  - ROAS IDEAL (definido pelo lojista para ${channelName}): ${channelRules.target_roas_cold}
-  - Orçamento recomendado: 70-80% (TikTok é plataforma de descoberta)
-  - Foco em criativos nativos (UGC, trend-based)
-- **Público Quente (Custom Audiences, Site visitors, Engagers)**:
-  - ROAS IDEAL (definido pelo lojista para ${channelName}): ${channelRules.target_roas_remarketing}
-  - Orçamento: 20-30%
-  - Criativos mais diretos/oferta
-
-### GESTÃO DE PÚBLICOS / AUDIÊNCIAS
-- **Criação de públicos**: A IA pode RECOMENDAR (via report_insight):
-  - Custom Audience de engajamento (viu vídeo 50%+, interagiu com perfil)
-  - Lookalike de compradores (tamanho 1-3% recomendado)
-  - Visitantes do site (requer Pixel instalado com tráfego mínimo)
-  - Exclusão de converters recentes
-- **Tamanho de público × Orçamento**:
-  - TikTok funciona MELHOR com públicos amplos (>500.000)
-  - Público < 50.000 → máximo R$20/dia (saturação rápida)
-  - Público 50.000–500.000 → R$30-100/dia
-  - Público > 500.000 (broad/LAL) → sem limite prático
-  - TikTok broad targeting geralmente performa MELHOR que targeting muito segmentado
-  - CPM alto (>R$40) + CTR baixo (<0.5%) = público exausto ou criativo fraco
-
-### INVESTIMENTO INICIAL RECOMENDADO
-- Campanha de Conversão: Mínimo R$50/dia (TikTok precisa de mais volume)
-- Campanha de Tráfego: Mínimo R$30/dia
-- Se orçamento total < R$50/dia, concentre em UMA campanha com broad targeting
-
-### PARTICULARIDADES DO TIKTOK
-- Criativos têm vida útil CURTA (7-14 dias em média) — monitorar frequência e CTR
-- UGC (User Generated Content) performa 2-3x melhor que anúncios "produzidos"
-- Vídeos de 15-30s performam melhor que vídeos longos
-- Hook nos primeiros 3 segundos é CRÍTICO`,
+### TIKTOK ADS — REGRAS
+- Learning Phase: ~50 conversões em 7d. Mais sensível que Meta.
+- Budget: Máx ±7% por ciclo (mais conservador).
+- CTR < 0.3% por 3d = criativo não engaja.
+- Criativos duram 7-14 dias. UGC performa 2-3x melhor.`,
   };
 
-  const channelKnowledgeBlock = platformKnowledge[channel] || "";
+  return `Você é um media buyer sênior especializado em ${channelName}, focado exclusivamente na conta de anúncios ${acctConfig.ad_account_id}.
 
-  return `Você é um media buyer sênior especializado em ${channelName} com 10+ anos de experiência. Seu objetivo é maximizar ${globalConfig.objective} com eficiência.
+## ESTRATÉGIA DEFINIDA PELO LOJISTA
+${strategyStr}
 
-## CONTEXTO DE NEGÓCIO
-- ORÇAMENTO DESTE CANAL: R$ ${(channelBudgetCents / 100).toFixed(2)} / ${globalConfig.budget_mode === "daily" ? "dia" : "mês"}
-- OBJETIVO: ${globalConfig.objective}
-- MARGEM BRUTA: ${rules.gross_margin_pct}%
-- CPA MÁXIMO: R$ ${(maxCpaCents / 100).toFixed(2)}
-- TICKET MÉDIO: R$ ${(context.orderStats.avg_ticket_cents / 100).toFixed(2)}
+## CONTEXTO DA CONTA
+- CANAL: ${channelName}
+- CONTA: ${acctConfig.ad_account_id}
+- ORÇAMENTO: ${budgetStr} / ${acctConfig.budget_mode === "daily" ? "dia" : "mês"}
+- ROI IDEAL (alvo): ${targetRoi}x
+- ROI MÍN. PÚBLICO FRIO: ${minRoiCold}x (abaixo disso → pausar campanhas frias)
+- ROI MÍN. PÚBLICO QUENTE: ${minRoiWarm}x (abaixo disso → pausar campanhas quentes)
+
+${funnelSection}
+
+${acctConfig.user_instructions ? `## INSTRUÇÕES DO LOJISTA\n${acctConfig.user_instructions}` : ""}
+
 ${trendSection}
 
-## METAS DE ROAS PARA ESTE CANAL (${channelName}) — DEFINIDAS PELO LOJISTA
-- ROAS IDEAL PÚBLICO FRIO: ${channelRules.target_roas_cold}
-- ROAS IDEAL REMARKETING: ${channelRules.target_roas_remarketing}
-- ROAS MÍNIMO P/ PAUSAR (Frio): ${channelRules.min_roas_pause_cold}
-- ROAS MÍNIMO P/ PAUSAR (Remarketing): ${channelRules.min_roas_pause_remarketing}
-⚠️ Estas metas são ESPECÍFICAS deste canal — cada canal tem seus próprios targets.
+${platformRules[acctConfig.channel] || ""}
 
-${globalConfig.user_instructions ? `## INSTRUÇÕES DO LOJISTA\n${globalConfig.user_instructions}` : ""}
+## TICKET MÉDIO: R$ ${(context.orderStats.avg_ticket_cents / 100).toFixed(2)}
+## PEDIDOS (30d): ${context.orderStats.paid_orders} pagos, ${context.orderStats.cancellation_rate_pct}% cancelados
 
-## CICLO DE EXECUÇÃO
-- Este autopilot roda a cada 6 HORAS (4x/dia).
-- Suas ações devem ser proporcionais a um ciclo de 6h — NÃO faça mudanças drásticas.
-- IMPORTANTE: Respeite os limites de alteração de budget ESPECÍFICOS da plataforma (veja abaixo).
+## CICLO
+- Roda a cada 6h. Ações graduais.
+- Máx ${DEFAULT_SAFETY.max_actions_per_session} ações/sessão.
+- Se dados < ${DEFAULT_SAFETY.min_data_days_for_action} dias → APENAS report_insight.
+- NUNCA deletar — apenas pausar.
+- Toda ação COM justificativa numérica.
+- Diferencie público frio de quente.
+- Campanhas em Learning Phase → APENAS report_insight.
 
-${channelKnowledgeBlock}
-
-## CHECKLIST DE ANÁLISE (OBRIGATÓRIO)
-Antes de qualquer ação, analise CADA campanha ativa com este checklist:
-
-### 1. FASE DE APRENDIZADO
-- A campanha está em Learning Phase? → Se sim, NÃO alterar (apenas report_insight)
-- Quantos dias de dados tem? → Se < 3 dias, modo recommendation-only
-- Quantas conversões nos últimos 7 dias? → Se < 50 (Meta/TikTok), considerar em aprendizado
-
-### 2. TIPO DE AUDIÊNCIA
-- É campanha de PÚBLICO FRIO (prospecção)? → CPA mais alto é NORMAL, avaliar métricas de topo de funil
-- É campanha de REMARKETING (quente)? → ROAS e CPA são as métricas decisivas
-- Não compare CPA de campanha fria com quente — são funis DIFERENTES
-
-### 3. EFICIÊNCIA (CPA)
-- CPA < CPA máximo (R$ ${(maxCpaCents / 100).toFixed(2)})? → OK, considere escalar
-- CPA entre 1x e 1.5x do máximo? → ATENÇÃO, monitore sem escalar
-- CPA > 1.5x do máximo por período suficiente (ver regras da plataforma)? → REDUZIR budget ou PAUSAR
-
-### 4. RETORNO (ROAS) — METAS DO LOJISTA PARA ${channelName.toUpperCase()}
-- Público Frio: ROAS ideal = ${channelRules.target_roas_cold}. Acima = escalar. Abaixo = monitorar (esperado ser menor que remarketing)
-- Remarketing: ROAS ideal = ${channelRules.target_roas_remarketing}. Acima = escalar agressivamente. Abaixo = otimizar
-- Público Frio: ROAS < ${channelRules.min_roas_pause_cold} por período suficiente? → PAUSAR (respeitando regras da plataforma)
-- Remarketing: ROAS < ${channelRules.min_roas_pause_remarketing} por período suficiente? → PAUSAR
-
-### 5. ENGAJAMENTO (CTR/CPC/Frequência)
-- CTR caindo + CPC subindo? → Fadiga de criativo, sinalize
-- Frequência > 3.0 (Meta)? → Saturação de audiência → reportar e recomendar novo público ou redução de budget
-- CTR abaixo do benchmark da plataforma? → Revisar targeting/criativo
-
-### 6. ESCALA & TAMANHO DE PÚBLICO
-- Campanha com bom ROAS + espaço pra crescer? → Aumentar budget respeitando LIMITES DA PLATAFORMA
-- Campanha já no teto de escala (frequência alta)? → NÃO forçar, recomendar ampliação de público
-- VERIFICAR relação budget × tamanho de público (veja seção "Tamanho de público × Orçamento" acima)
-
-### 7. ESTOQUE
-- Produto com estoque ≤ 5 unidades? → NÃO escalar tráfego para ele
-
-## REGRAS OBRIGATÓRIAS
-- NUNCA deletar — apenas pausar
-- Respeitar limites de budget ESPECÍFICOS da plataforma (detalhados acima)
-- Máximo ${rules.max_actions_per_session} ações por sessão
-- Se dados < ${rules.min_data_days_for_action} dias, usar APENAS report_insight
-- Toda ação DEVE ter justificativa com NÚMEROS ESPECÍFICOS (não genérica)
-- Prefira poucas ações de alto impacto (3-5) a muitas de baixo impacto
-- Inclua rollback_plan em ações de execução
-- DIFERENCIE público frio de quente na análise — use CPA relativo, não absoluto
-- Campanhas em Learning Phase: APENAS report_insight
-- Quando recomendar criação de públicos, use report_insight com detalhes específicos
-
-Analise as campanhas e execute.`;
+Analise as campanhas DESTA CONTA e execute.`;
 }
 
 // ============ MAIN HANDLER ============
@@ -1067,28 +737,33 @@ Deno.serve(async (req) => {
 
     const startTime = Date.now();
 
-    // ---- Load configs ----
+    // ---- Load global config (for lock/session/global toggle) ----
     const { data: configs } = await supabase
       .from("ads_autopilot_configs")
       .select("*")
       .eq("tenant_id", tenant_id);
 
-    const globalConfig = configs?.find((c: any) => c.channel === "global") as AutopilotConfig | undefined;
+    const globalConfig = configs?.find((c: any) => c.channel === "global") as GlobalConfig | undefined;
     if (!globalConfig || !globalConfig.is_enabled) {
       return fail("Piloto Automático não está ativo. Configure e ative primeiro.");
     }
 
-    // Apply default safety rules
-    globalConfig.safety_rules = getSafetyRules(globalConfig);
+    // ---- Load per-account configs (v4) ----
+    const { data: accountConfigs } = await supabase
+      .from("ads_autopilot_account_configs")
+      .select("*")
+      .eq("tenant_id", tenant_id);
 
-    const channelConfigs = (configs || []).filter((c: any) => c.channel !== "global" && c.is_enabled) as AutopilotConfig[];
-    const enabledChannels = channelConfigs.map((c) => c.channel);
+    const activeAccounts = (accountConfigs || []).filter(
+      (ac: any) => ac.is_ai_enabled && !ac.kill_switch
+    ) as AccountConfig[];
 
-    if (enabledChannels.length === 0) {
-      return fail("Nenhum canal habilitado. Ative pelo menos um canal.");
+    if (activeAccounts.length === 0) {
+      return fail("Nenhuma conta de anúncios com IA ativa. Configure e ative pelo menos uma conta.");
     }
 
-    // ---- ETAPA 0: Pre-check ----
+    // ---- Pre-check integrations ----
+    const enabledChannels = [...new Set(activeAccounts.map((ac) => ac.channel))];
     const integrationStatus = await preCheckIntegrations(supabase, tenant_id, enabledChannels);
     const connectedChannels = enabledChannels.filter((ch) => integrationStatus[ch]?.connected);
 
@@ -1108,15 +783,16 @@ Deno.serve(async (req) => {
         .select("id")
         .single();
 
-      return ok({
-        status: "BLOCKED",
-        integration_status: integrationStatus,
-        session_id: session?.id,
-        message: "Nenhum canal conectado.",
-      });
+      return ok({ status: "BLOCKED", integration_status: integrationStatus, session_id: session?.id });
     }
 
-    // ---- ETAPA 1: Lock ----
+    // Filter active accounts to only connected channels
+    const runnableAccounts = activeAccounts.filter((ac) => connectedChannels.includes(ac.channel));
+    if (runnableAccounts.length === 0) {
+      return fail("Contas ativas não possuem canais conectados.");
+    }
+
+    // ---- Lock ----
     const lockExpiry = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     const { data: lockResult, error: lockError } = await supabase
       .from("ads_autopilot_configs")
@@ -1133,18 +809,18 @@ Deno.serve(async (req) => {
     const sessionLockId = lockResult.lock_session_id;
 
     try {
-      // ---- ETAPA 2: Context Collector (Enhanced) ----
-      console.log(`[ads-autopilot-analyze][${VERSION}] Collecting context for ${connectedChannels.join(", ")}`);
+      // ---- Context Collector ----
+      console.log(`[ads-autopilot-analyze][${VERSION}] Collecting context for ${connectedChannels.join(", ")}, ${runnableAccounts.length} accounts`);
       const context = await collectContext(supabase, tenant_id, connectedChannels);
 
-      // ---- Create session ----
+      // ---- Create global session ----
       const { data: session } = await supabase
         .from("ads_autopilot_sessions")
         .insert({
           tenant_id,
           channel: "global",
           trigger_type,
-          context_snapshot: context,
+          context_snapshot: { accounts: runnableAccounts.map((a) => ({ channel: a.channel, account: a.ad_account_id })) },
           integration_status: integrationStatus,
         })
         .select("id")
@@ -1156,100 +832,63 @@ Deno.serve(async (req) => {
       let totalActionsRejected = 0;
       const allInsights: any[] = [];
 
-      // ---- ETAPA 3: Allocator (Enhanced with real metrics) ----
-      let allocation: Record<string, number> = {};
-
-      if (connectedChannels.length > 1 && globalConfig.allocation_mode === "auto") {
-        // Build rich context for allocator with aggregated metrics per channel
-        const channelSummary: Record<string, any> = {};
-        for (const ch of connectedChannels) {
-          const chData = context.channels[ch];
-          if (chData?.trend) {
-            channelSummary[ch] = {
-              spend_7d: `R$ ${(chData.trend.current_period.total_spend_cents / 100).toFixed(2)}`,
-              conversions_7d: chData.trend.current_period.total_conversions,
-              real_cpa: `R$ ${(chData.trend.current_period.real_cpa_cents / 100).toFixed(2)}`,
-              real_roas: chData.trend.current_period.real_roas,
-              avg_ctr: `${chData.trend.current_period.avg_ctr_pct}%`,
-              active_campaigns: chData.trend.current_period.active_campaigns,
-              trend: chData.trend.trend_direction,
-              trend_delta: chData.trend.delta,
-            };
-          } else {
-            channelSummary[ch] = "Sem dados de performance nos últimos 7 dias";
-          }
-        }
-
-        const allocatorMessages = [
-          { role: "system", content: buildAllocatorPrompt(globalConfig, channelConfigs, context) },
-          {
-            role: "user",
-            content: `PERFORMANCE AGREGADA POR CANAL (7d):\n\n${JSON.stringify(channelSummary, null, 2)}\n\nESTATÍSTICAS DE VENDAS (30d):\n${JSON.stringify(context.orderStats, null, 2)}${context.lowStockProducts.length > 0 ? `\n\nPRODUTOS COM ESTOQUE BAIXO (≤5):\n${context.lowStockProducts.map((p: any) => `- ${p.name}: ${p.stock_quantity} un.`).join("\n")}` : ""}`,
-          },
-        ];
-
-        const allocatorResponse = await callAI(allocatorMessages, ALLOCATOR_TOOLS, globalConfig.ai_model);
-        const toolCalls = allocatorResponse.choices?.[0]?.message?.tool_calls || [];
-
-        for (const tc of toolCalls) {
-          if (tc.function.name === "allocate_budget") {
-            const args = JSON.parse(tc.function.arguments);
-            const validation = validateAction({ name: tc.function.name, arguments: args }, globalConfig, null, context, totalActionsPlanned);
-
-            allocation = {
-              meta: args.meta_pct || 0,
-              google: args.google_pct || 0,
-              tiktok: args.tiktok_pct || 0,
-            };
-
-            await supabase.from("ads_autopilot_actions").insert({
-              tenant_id,
-              session_id: sessionId,
-              channel: "global",
-              action_type: "allocate_budget",
-              action_data: args,
-              reasoning: args.reasoning,
-              expected_impact: "Redistribuição cross-channel",
-              confidence: "high",
-              metric_trigger: "performance_analysis",
-              status: validation.valid ? "executed" : "rejected",
-              rejection_reason: validation.reason || null,
-              action_hash: `${sessionId}_allocate_budget_global`,
-            });
-
-            totalActionsPlanned++;
-            if (validation.valid) totalActionsExecuted++;
-            else totalActionsRejected++;
-          }
-        }
-      } else {
-        for (const ch of connectedChannels) {
-          allocation[ch] = connectedChannels.length === 1 ? 100 : 100 / connectedChannels.length;
-        }
-      }
-
-      // ---- ETAPA 4: Planner per channel (Enhanced) ----
-      for (const channel of connectedChannels) {
-        const channelBudgetCents = Math.round((globalConfig.budget_cents * (allocation[channel] || 0)) / 100);
-        if (channelBudgetCents === 0) continue;
-
+      // ---- Per-Account Analysis (v4 core) ----
+      for (const acctConfig of runnableAccounts) {
+        const channel = acctConfig.channel;
         const channelData = context.channels[channel];
         if (!channelData) continue;
 
+        // Filter campaigns for this account (Meta has ad_account_id mapping)
+        let accountCampaigns = channelData.campaigns;
+        let accountCampaignPerf = channelData.campaignPerf;
+
+        if (channel === "meta" && channelData.campaignAccountMap) {
+          const accountCampaignIds = Object.entries(channelData.campaignAccountMap)
+            .filter(([_, acctId]) => acctId === acctConfig.ad_account_id)
+            .map(([campId]) => campId);
+
+          accountCampaigns = channelData.campaigns.filter((c: any) =>
+            accountCampaignIds.includes(c.meta_campaign_id) || c.ad_account_id === acctConfig.ad_account_id
+          );
+
+          accountCampaignPerf: Record<string, any> = {};
+          for (const cid of accountCampaignIds) {
+            if (channelData.campaignPerf[cid]) {
+              (accountCampaignPerf as any)[cid] = channelData.campaignPerf[cid];
+            }
+          }
+        }
+
+        if (accountCampaigns.length === 0) {
+          console.log(`[ads-autopilot-analyze][${VERSION}] No campaigns for account ${acctConfig.ad_account_id}, skipping`);
+          continue;
+        }
+
+        console.log(`[ads-autopilot-analyze][${VERSION}] Analyzing account ${acctConfig.ad_account_id} (${channel}), ${accountCampaigns.length} campaigns`);
+
         const plannerMessages = [
-          { role: "system", content: buildPlannerPrompt(channel, globalConfig, channelConfigs.find((c) => c.channel === channel) || null, channelBudgetCents, context) },
+          { role: "system", content: buildAccountPlannerPrompt(acctConfig, context) },
           {
             role: "user",
-            content: `## CAMPANHAS ATIVAS\n${JSON.stringify(channelData.campaigns, null, 2)}\n\n## PERFORMANCE POR CAMPANHA (7d)\n${JSON.stringify(channelData.campaignPerf, null, 2)}\n\n## PRODUTOS TOP (para contexto de criativo)\n${JSON.stringify(
-              context.products.slice(0, 10).map((p: any) => ({
-                name: p.name,
-                price: `R$ ${(p.price / 100).toFixed(2)}`,
-                stock: p.stock_quantity,
-                cost: p.cost_price ? `R$ ${(p.cost_price / 100).toFixed(2)}` : "N/A",
-              })),
-              null,
-              2
-            )}\n\n## VENDAS (30d)\n${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n\n## ⚠️ PRODUTOS COM ESTOQUE BAIXO\n${context.lowStockProducts.map((p: any) => `- ${p.name}: ${p.stock_quantity} un.`).join("\n")}` : ""}`,
+            content: `## CAMPANHAS DESTA CONTA (${acctConfig.ad_account_id})
+${JSON.stringify(accountCampaigns, null, 2)}
+
+## PERFORMANCE POR CAMPANHA (7d)
+${JSON.stringify(accountCampaignPerf, null, 2)}
+
+## PRODUTOS TOP
+${JSON.stringify(
+  context.products.slice(0, 10).map((p: any) => ({
+    name: p.name,
+    price: `R$ ${(p.price / 100).toFixed(2)}`,
+    stock: p.stock_quantity,
+    cost: p.cost_price ? `R$ ${(p.cost_price / 100).toFixed(2)}` : "N/A",
+  })),
+  null, 2
+)}
+
+## VENDAS (30d)
+${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n\n## ⚠️ PRODUTOS COM ESTOQUE BAIXO\n${context.lowStockProducts.map((p: any) => `- ${p.name}: ${p.stock_quantity} un.`).join("\n")}` : ""}`,
           },
         ];
 
@@ -1261,8 +900,7 @@ Deno.serve(async (req) => {
           const args = typeof tc.function.arguments === "string" ? JSON.parse(tc.function.arguments) : tc.function.arguments;
           const validation = validateAction(
             { name: tc.function.name, arguments: args },
-            globalConfig,
-            channelConfigs.find((c) => c.channel === channel) || null,
+            acctConfig,
             context,
             totalActionsPlanned
           );
@@ -1270,16 +908,16 @@ Deno.serve(async (req) => {
           totalActionsPlanned++;
 
           if (tc.function.name === "report_insight") {
-            allInsights.push(args);
+            allInsights.push({ ...args, account_id: acctConfig.ad_account_id });
             await supabase.from("ads_autopilot_actions").insert({
               tenant_id,
               session_id: sessionId,
               channel,
               action_type: "report_insight",
-              action_data: args,
+              action_data: { ...args, ad_account_id: acctConfig.ad_account_id },
               reasoning: args.summary,
               status: "executed",
-              action_hash: `${sessionId}_report_insight_${channel}_${totalActionsPlanned}`,
+              action_hash: `${sessionId}_insight_${acctConfig.ad_account_id}_${totalActionsPlanned}`,
             });
             totalActionsExecuted++;
             continue;
@@ -1290,18 +928,22 @@ Deno.serve(async (req) => {
             session_id: sessionId,
             channel,
             action_type: tc.function.name,
-            action_data: args,
+            action_data: { ...args, ad_account_id: acctConfig.ad_account_id },
             reasoning: args.reason || args.reasoning || "",
             expected_impact: JSON.stringify(args.expected_impact || ""),
             confidence: String(args.confidence || "medium"),
             metric_trigger: args.metric_trigger || "",
             status: validation.valid ? "validated" : "rejected",
             rejection_reason: validation.reason || null,
-            action_hash: `${sessionId}_${tc.function.name}_${channel}_${args.campaign_id || totalActionsPlanned}`,
+            action_hash: `${sessionId}_${tc.function.name}_${acctConfig.ad_account_id}_${args.campaign_id || totalActionsPlanned}`,
           };
 
-          // ETAPA 5: Execute
-          if (validation.valid) {
+          // Human approval mode check
+          if (validation.valid && acctConfig.human_approval_mode === "all") {
+            actionRecord.status = "pending_approval";
+            totalActionsPlanned; // counted but not executed
+          } else if (validation.valid) {
+            // Execute
             try {
               if (tc.function.name === "pause_campaign") {
                 const edgeFn = channel === "meta" ? "meta-ads-campaigns" : channel === "google" ? "google-ads-campaigns" : "tiktok-ads-campaigns";
@@ -1351,13 +993,18 @@ Deno.serve(async (req) => {
           if (insertErr) console.error(`[ads-autopilot-analyze][${VERSION}] Action insert error:`, insertErr);
         }
 
-        // Save channel session
+        // Save per-account session
         if (aiText || toolCalls.length > 0) {
           await supabase.from("ads_autopilot_sessions").insert({
             tenant_id,
             channel,
             trigger_type,
-            context_snapshot: { trend: channelData.trend, campaignPerf: channelData.campaignPerf },
+            context_snapshot: {
+              ad_account_id: acctConfig.ad_account_id,
+              strategy_mode: acctConfig.strategy_mode,
+              trend: channelData.trend,
+              campaignPerf: accountCampaignPerf,
+            },
             ai_response_raw: aiText,
             actions_planned: toolCalls.length,
           });
@@ -1387,13 +1034,13 @@ Deno.serve(async (req) => {
         .eq("id", globalConfig.id);
 
       console.log(
-        `[ads-autopilot-analyze][${VERSION}] Completed: ${totalActionsPlanned} planned, ${totalActionsExecuted} executed, ${totalActionsRejected} rejected in ${durationMs}ms`
+        `[ads-autopilot-analyze][${VERSION}] Completed: ${runnableAccounts.length} accounts, ${totalActionsPlanned} planned, ${totalActionsExecuted} executed, ${totalActionsRejected} rejected in ${durationMs}ms`
       );
 
       return ok({
         session_id: sessionId,
         status: "completed",
-        allocation,
+        accounts_analyzed: runnableAccounts.length,
         integration_status: integrationStatus,
         actions: { planned: totalActionsPlanned, executed: totalActionsExecuted, rejected: totalActionsRejected },
         insights: allInsights,
@@ -1408,7 +1055,7 @@ Deno.serve(async (req) => {
         .eq("lock_session_id", sessionLockId);
     }
   } catch (err: any) {
-    console.error(`[ads-autopilot-analyze][${VERSION}] Error:`, err);
+    console.error(`[ads-autopilot-analyze][${VERSION}] Fatal error:`, err.message, err.stack);
     return fail(err.message || "Erro interno");
   }
 });
