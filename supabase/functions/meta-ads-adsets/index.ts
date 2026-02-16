@@ -315,9 +315,9 @@ Deno.serve(async (req) => {
       const results: any[] = [];
       for (const account of adAccounts) {
         const accountId = account.id.replace("act_", "");
-        // Fetch balance + funding_source_details with explicit subfields for accurate prepaid balance
+        // Fetch balance — use only top-level fields (funding_source_details.current_balance deprecated)
         const result = await graphApi(
-          `act_${accountId}?fields=balance,amount_spent,spend_cap,currency,account_status,name,funding_source_details{type,display_string,current_balance},funding_source`,
+          `act_${accountId}?fields=balance,amount_spent,spend_cap,currency,account_status,name,funding_source_details{type,display_string},funding_source`,
           conn.access_token
         );
         if (!result.error) {
@@ -333,19 +333,16 @@ Deno.serve(async (req) => {
           else if (rawType != null) fundingType = `TYPE_${rawType}`;
           else if (result.funding_source) fundingType = "CREDIT_CARD"; // fallback
 
-          const fundingBalance = result.funding_source_details?.current_balance;
           const apiBalance = result.balance ? parseInt(result.balance) : 0;
 
-          // For prepaid accounts: prefer funding_source_details.current_balance (accurate real-time)
-          // If not available, use |balance| from the API (may be stale)
+          // For prepaid accounts: use |balance| from the API (represents remaining credit)
           // For credit card accounts: balance is irrelevant (post-paid)
-          // Note: Meta's `balance` field represents "bill amount due" — for prepaid it's the remaining credit
-          // but can be stale. funding_source_details.current_balance is the real-time value.
+          // Note: Meta's `balance` field is negative for prepaid (remaining credit), use Math.abs
           const balanceCents = fundingType === "CREDIT_CARD" 
             ? 0 
-            : (fundingBalance != null ? parseInt(String(fundingBalance)) : Math.abs(apiBalance));
+            : Math.abs(apiBalance);
 
-          console.log(`[meta-ads-adsets][${traceId}] Balance ${account.id}: type=${fundingType} rawType=${rawType} balance=${balanceCents} fundingBalance=${fundingBalance} apiBalance=${apiBalance} displayString=${result.funding_source_details?.display_string}`);
+          console.log(`[meta-ads-adsets][${traceId}] Balance ${account.id}: type=${fundingType} rawType=${rawType} balance=${balanceCents} apiBalance=${apiBalance} displayString=${result.funding_source_details?.display_string}`);
 
           results.push({
             id: account.id,
