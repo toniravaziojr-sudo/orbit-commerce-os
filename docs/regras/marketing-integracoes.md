@@ -279,10 +279,7 @@ Os templates servem como **exemplo** para o cliente montar seu próprio prompt. 
 | `target_roi` | numeric | null | ROI ideal — meta de retorno |
 | `min_roi_cold` | numeric | 2.0 | ROI mínimo para pausar público frio |
 | `min_roi_warm` | numeric | 3.0 | ROI mínimo para pausar público quente |
-| `roas_scale_up_threshold` | numeric | null | **v5.6** — ROAS acima do qual a IA aumenta orçamento |
-| `roas_scale_down_threshold` | numeric | null | **v5.6** — ROAS abaixo do qual a IA reduz orçamento |
-| `budget_increase_pct` | integer | 15 | **v5.6** — % de aumento por ciclo quando ROAS > scale_up |
-| `budget_decrease_pct` | integer | 20 | **v5.6** — % de redução por ciclo quando ROAS < scale_down |
+| `roas_scaling_threshold` | numeric | null | **v5.7** — ROAS único de referência: ≥ escala, < reduz (IA decide % seguindo limites da plataforma) |
 | `user_instructions` | text | "" | Prompt estratégico da conta (sugestivo, não sobrepõe configs manuais) |
 | `strategy_mode` | text | `balanced` | `aggressive` / `balanced` / `long_term` |
 | `funnel_split_mode` | text | `manual` | `manual` / `ai_decides` |
@@ -290,17 +287,19 @@ Os templates servem como **exemplo** para o cliente montar seu próprio prompt. 
 | `kill_switch` | boolean | false | Para imediato nesta conta |
 | `human_approval_mode` | text | `auto` | `auto` / `approve_high_impact` |
 
-#### Escalonamento de Orçamento por ROAS (v5.6)
+#### Escalonamento de Orçamento por ROAS (v5.7)
 
-Além das regras de **pausa** (min_roi_cold/warm), o sistema suporta ajuste dinâmico de orçamento:
+Além das regras de **pausa** (min_roi_cold/warm), o sistema suporta ajuste dinâmico de orçamento baseado em um **único threshold ROAS**:
 
 | Condição | Ação | Exemplo |
 |----------|------|---------|
-| ROAS > `roas_scale_up_threshold` | Aumentar orçamento em `budget_increase_pct`% | ROAS 4.5 > threshold 4.0 → +15% |
-| ROAS < `roas_scale_down_threshold` | Reduzir orçamento em `budget_decrease_pct`% | ROAS 1.8 < threshold 2.0 → -20% |
+| ROAS ≥ `roas_scaling_threshold` | IA **aumenta** orçamento respeitando limites da plataforma | ROAS 4.5 ≥ 3.0 → IA escala (Meta ±10%, Google ±15%, TikTok ±7%) |
+| ROAS < `roas_scaling_threshold` (mas acima de min_roi) | IA **reduz** orçamento respeitando limites da plataforma | ROAS 2.5 < 3.0 → IA reduz |
 | ROAS < `min_roi_cold/warm` | **Pausar** campanha (regra existente) | ROAS 0.8 < min 1.0 → pause |
 
-> **Hierarquia de decisão:** Pausa (min_roi) > Redução (scale_down) > Manutenção > Aumento (scale_up)
+> **Hierarquia de decisão:** Pausa (min_roi) > Redução (< threshold) > Aumento (≥ threshold)
+>
+> A IA decide o percentual exato de ajuste seguindo os limites padrão de cada plataforma para não resetar a fase de aprendizado.
 >
 > Todas as alterações de orçamento são **agendadas para 00:01** do dia seguinte (ver regra de budget scheduling).
 
