@@ -187,7 +187,7 @@ Podem ser removidas em uma futura migração de limpeza.
 
 ## 5. Gestor de Tráfego IA (Autopilot)
 
-> **STATUS:** ✅ Ready (Fase 1-8 implementadas)  
+> **STATUS:** ✅ Ready (Fase 1-8 + v4.0 Sprints 1-2 implementados)  
 > **Rota:** `/ads`
 
 ### Arquitetura
@@ -204,28 +204,70 @@ Lojista (Orçamento Total + Instruções)
   → Etapa 5: Executor (executa ações validadas via edge functions de cada canal)
 ```
 
+### UI: Estrutura de 3 Abas Mãe (v4.0)
+
+A página `/ads` utiliza 3 abas de nível superior:
+
+| Aba | Componente | Descrição |
+|-----|-----------|-----------|
+| **Visão Geral** | `AdsOverviewTab.tsx` | Dashboard cross-channel com métricas agregadas (Investimento Total, ROAS Blended, CPA Médio, Conversões, Receita), barra de pacing mensal e breakdown por canal |
+| **Gerenciador** | Tabs Meta/Google/TikTok (existentes) | Conteúdo anterior reorganizado com sub-tabs: Campanhas, Ações IA, Relatórios |
+| **Insights** | `AdsInsightsTab.tsx` | Feed de insights semanais da IA com filtros por categoria/canal, botões "Vou fazer"/"Ignorar", histórico colapsável e botão "Gerar Insights Agora" |
+
 ### Tabelas
 
 | Tabela | Descrição |
 |--------|-----------|
-| `ads_autopilot_configs` | Config global (`channel='global'`) + configs por canal |
+| `ads_autopilot_configs` | Config global (`channel='global'`) + configs por canal. Novas colunas v4.0: `total_budget_cents`, `total_budget_mode`, `channel_limits`, `strategy_mode`, `funnel_split_mode`, `funnel_splits`, `kill_switch`, `human_approval_mode` |
 | `ads_autopilot_sessions` | Histórico de sessões de análise |
 | `ads_autopilot_actions` | Ações da IA com reasoning, rollback_data e action_hash |
+| `ads_autopilot_account_configs` | **NOVA v4.0** — Config normalizada por conta de anúncios (substitui JSONB `safety_rules.account_configs`). Campos: `is_ai_enabled`, `budget_mode`, `budget_cents`, `target_roi`, `min_roi_cold`, `min_roi_warm`, `user_instructions`, `strategy_mode`, `funnel_split_mode`, `funnel_splits`, `kill_switch`, `human_approval_mode` |
+| `ads_autopilot_insights` | **NOVA v4.0** — Insights semanais da IA com `title`, `body`, `evidence`, `recommended_action`, `priority`, `category`, `sentiment`, `status` (open/done/ignored) |
+| `ads_autopilot_experiments` | **NOVA v4.0** — Experimentos A/B com `hypothesis`, `variable_type`, `plan`, `budget_cents`, `duration_days`, `min_spend_cents`, `min_conversions`, `success_criteria`, `status`, `results`, `winner_variant_id` |
+| `ads_creative_assets` | **NOVA v4.0** — Criativos gerados com `format`, `aspect_ratio`, `angle`, `copy_text`, `headline`, `cta_type`, `platform_ad_id`, `performance`, `compliance_status` |
+| `ads_tracking_health` | **NOVA v4.0** — Saúde do tracking com `status` (healthy/degraded/critical/unknown), `indicators`, `alerts` |
 | `meta_ad_adsets` | Cache local de conjuntos de anúncios (ad sets) sincronizados da Meta |
 | `meta_ad_ads` | Cache local de anúncios individuais sincronizados da Meta |
 
-### Config Global (`channel='global'`) — DEPRECADA
+### Config Global (`channel='global'`)
 
-> **DEPRECADA na Fase 10.6.** Configs agora são por conta de anúncios (ver abaixo). O registro `channel='global'` pode existir para `ai_model` e `lock_session_id`, mas orçamento, ROI e prompt migraram para per-account.
+> **Parcialmente DEPRECADA na Fase 10.6.** Orçamento, ROI e prompt migraram para per-account. O registro `channel='global'` mantém `ai_model`, `lock_session_id` e os novos campos globais v4.0.
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
 | `ai_model` | text | Default `openai/gpt-5.2` |
 | `lock_session_id` | uuid | Sessão que detém o lock (nullable) |
+| `total_budget_cents` | integer | **v4.0** — Orçamento total cross-channel |
+| `total_budget_mode` | text | **v4.0** — `daily` ou `monthly` |
+| `channel_limits` | jsonb | **v4.0** — Limites min/max % por canal (meta, google, tiktok) |
+| `strategy_mode` | text | **v4.0** — `aggressive` / `balanced` / `long_term` |
+| `kill_switch` | boolean | **v4.0** — Para imediato de todas as ações |
+| `human_approval_mode` | text | **v4.0** — `auto` / `approve_high_impact` |
 
-### Config por Conta de Anúncios (dentro de `safety_rules` do channel config)
+### Config por Conta de Anúncios
 
-A ativação e configuração da IA é **por conta de anúncios**, armazenada no `safety_rules` JSONB da config de canal:
+#### Tabela normalizada `ads_autopilot_account_configs` (v4.0 — PREFERIDA)
+
+| Campo | Tipo | Default | Descrição |
+|-------|------|---------|-----------|
+| `channel` | text | — | meta / google / tiktok |
+| `ad_account_id` | text | — | ID da conta na plataforma |
+| `is_ai_enabled` | boolean | false | Se a IA está ativa nesta conta |
+| `budget_mode` | text | `monthly` | Período do orçamento |
+| `budget_cents` | integer | 0 | Limite máximo da IA nesta conta |
+| `target_roi` | numeric | null | ROI ideal — meta de retorno |
+| `min_roi_cold` | numeric | 2.0 | ROI mínimo para pausar público frio |
+| `min_roi_warm` | numeric | 3.0 | ROI mínimo para pausar público quente |
+| `user_instructions` | text | "" | Prompt estratégico da conta |
+| `strategy_mode` | text | `balanced` | `aggressive` / `balanced` / `long_term` |
+| `funnel_split_mode` | text | `manual` | `manual` / `ai_decides` |
+| `funnel_splits` | jsonb | `{"cold":60,"remarketing":25,"tests":15,"leads":0}` | Distribuição por funil |
+| `kill_switch` | boolean | false | Para imediato nesta conta |
+| `human_approval_mode` | text | `auto` | `auto` / `approve_high_impact` |
+
+> **Constraint:** UNIQUE(tenant_id, channel, ad_account_id)
+
+#### Legado: JSONB em `safety_rules` (mantido para retrocompatibilidade)
 
 ```jsonc
 // ads_autopilot_configs WHERE channel = 'meta'
@@ -234,12 +276,12 @@ A ativação e configuração da IA é **por conta de anúncios**, armazenada no
     "ai_enabled_accounts": ["act_123", "act_456"],
     "account_configs": {
       "act_123": {
-        "budget_mode": "monthly",     // daily | monthly
-        "budget_cents": 100000,       // Orçamento da conta
-        "target_roi": 5,              // ROI ideal (meta aspiracional)
-        "min_roi_cold": 2,            // ROI mín. para pausar (público frio)
-        "min_roi_warm": 3,            // ROI mín. para pausar (público quente)
-        "user_instructions": "..."    // Prompt estratégico
+        "budget_mode": "monthly",
+        "budget_cents": 100000,
+        "target_roi": 5,
+        "min_roi_cold": 2,
+        "min_roi_warm": 3,
+        "user_instructions": "..."
       }
     },
     "max_budget_change_pct_day": 10,
@@ -249,27 +291,31 @@ A ativação e configuração da IA é **por conta de anúncios**, armazenada no
 }
 ```
 
-| Campo (per-account) | Tipo | Default | Descrição |
-|---------------------|------|---------|-----------|
-| `budget_mode` | string | `monthly` | Período do orçamento |
-| `budget_cents` | number | 0 | Limite máximo da IA nesta conta |
-| `target_roi` | number | null | ROI ideal — meta de retorno |
-| `min_roi_cold` | number | 2 | ROI mínimo para pausar público frio |
-| `min_roi_warm` | number | 3 | ROI mínimo para pausar público quente |
-| `user_instructions` | string | "" | Prompt estratégico da conta |
-
-> **UI:** Cada conta com IA ativa exibe um card colapsável com esses campos (`AdsAccountConfig.tsx`). O botão 🤖 nos chips de conta ativa/desativa a IA individualmente.
+> **UI:** Cada conta com IA ativa exibe um card colapsável com esses campos (`AdsAccountConfig.tsx`). O botão 🤖 nos chips de conta abre configurações (não alterna estado). Azul = IA ativa, Amarelo = IA inativa.
 
 ### Tipos de Ação
 
-| Ação | Semana | Descrição |
-|------|--------|-----------|
+| Ação | Fase | Descrição |
+|------|------|-----------|
 | `allocate_budget` | 1 | Distribuição cross-channel |
 | `pause_campaign` | 1 | Pausar campanha de baixo desempenho |
 | `adjust_budget` | 1 | Ajustar orçamento de campanha |
 | `report_insight` | 1 | Insight sem execução |
 | `create_campaign` | 2 | Criar campanha com templates fixos |
+| `create_adset` | 2 | Criar conjunto com targeting definido |
 | `generate_creative` | 3 | Gerar criativos via `ads-autopilot-creative` |
+| `run_experiment` | 3 | Executar teste A/B estruturado |
+| `expand_audience` | 4 | Expandir públicos |
+| `advanced_ab_test` | 4 | Testes A/B avançados |
+
+### Phased Rollout (allowed_actions)
+
+| Fase | Critério de Liberação | Ações |
+|------|----------------------|-------|
+| 1 (atual) | Sempre | pause, adjust_budget, report_insight, allocate_budget |
+| 2 | 7+ dias de dados + 10+ conversões | + create_campaign, create_adset |
+| 3 | 14+ dias + 30+ conversões | + create_creative, run_experiment |
+| 4 | 30+ dias + 50+ conversões | + expand_audience, advanced_ab_test |
 
 ### Guardrails
 
@@ -278,6 +324,8 @@ A ativação e configuração da IA é **por conta de anúncios**, armazenada no
 - **Policy Layer:** Validação determinística antes de qualquer execução
 - **Nunca deletar:** Só pausar campanhas
 - **CPA baseado em margem:** Não em ticket médio
+- **Kill Switch:** Verificado no início de cada ciclo (global e por conta)
+- **Human Approval:** Ações high-impact ficam como `pending_approval` quando configurado
 
 ### Edge Functions
 
@@ -285,8 +333,19 @@ A ativação e configuração da IA é **por conta de anúncios**, armazenada no
 |----------|-----------|
 | `ads-autopilot-analyze` | Orquestrador principal (pipeline 5 etapas) |
 | `ads-autopilot-creative` | Geração de criativos para campanhas via autopilot |
+| `ads-autopilot-weekly-insights` | **NOVA v4.0** — Diagnóstico semanal com insights categorizados |
+| `ads-autopilot-experiments-run` | **NOVA v4.0 (planejada)** — Avaliação/criação/promoção de experimentos |
 | `meta-ads-adsets` | Sync, update e balance de ad sets e contas Meta (v1.0.0) |
 | `meta-ads-ads` | Sync e update de anúncios individuais Meta (v1.0.0) |
+
+### Cron Jobs
+
+| Job | Frequência | Edge Function | Descrição |
+|-----|-----------|---------------|-----------|
+| Otimização | 6h (existente) | ads-autopilot-analyze v4.0 | Ajustes, pausas, pacing, tracking health, kill switch |
+| Insights | Semanal (seg 11h UTC) | ads-autopilot-weekly-insights | Diagnóstico + insights persistidos |
+| Experimentos | Semanal (ter 11h UTC) | ads-autopilot-experiments-run | Avaliar/criar/promover testes |
+| Criativos | Semanal (qua 11h UTC) | ads-autopilot-creative-generate | Gerar assets para produtos vencedores |
 
 ### Tabela `meta_ad_adsets`
 
@@ -353,14 +412,17 @@ A condição 2 evita que campanhas genuinamente ativas apareçam como pausadas a
 
 | Arquivo | Descrição |
 |---------|-----------|
-| `src/pages/AdsManager.tsx` | Página principal com hooks de conexão por canal |
-| `src/hooks/useAdsAutopilot.ts` | Hook para configs, actions, sessions |
+| `src/pages/AdsManager.tsx` | Página principal com 3 abas mãe (Visão Geral / Gerenciador / Insights) e hooks de conexão por canal |
+| `src/hooks/useAdsAutopilot.ts` | Hook para configs, actions, sessions. Interface `AutopilotConfig` inclui campos v4.0 (`total_budget_cents`, `total_budget_mode`, `channel_limits`, `strategy_mode`, `funnel_split_mode`, `funnel_splits`, `kill_switch`, `human_approval_mode`) |
+| `src/hooks/useAdsInsights.ts` | **NOVO v4.0** — Hook para CRUD de insights (listar, marcar done/ignored, gerar manual) |
 | `src/hooks/useMetaAds.ts` | Hook para campanhas, ad sets, insights, saldo e sync (Meta) |
-| `src/components/ads/AdsAccountConfig.tsx` | Config por conta de anúncios com Switch de ativação da IA dentro do card (orçamento, ROI ideal, ROI mín frio/quente, prompt estratégico). O toggle de IA fica **dentro** das configurações, não no chip externo. |
-| `src/components/ads/AdsChannelIntegrationAlert.tsx` | Alerta de integração por canal (não conectado → link para /integrations; conectado → chips de seleção de contas com ícone Bot 🤖 que **abre configurações** em vez de ativar/desativar diretamente. Azul = IA ativa, Amarelo = IA inativa). |
-| `src/components/ads/AdsCampaignsTab.tsx` | Campanhas por canal com: filtro por status, filtro de datas, conjuntos expandíveis (ad sets), métricas dinâmicas por objetivo, gestão manual de orçamento e status, botão de saldo e deep link para campanha no gerenciador nativo. **28 métricas disponíveis** em 4 grupos (Desempenho, Custo, Conversão, Engajamento) selecionáveis via Column Selector (até 7 simultâneas). Métricas de ações extraídas do campo `actions` JSONB (link_clicks, landing_page_views, add_to_cart, initiate_checkout, video_views, post_engagement, etc.) |
+| `src/components/ads/AdsOverviewTab.tsx` | **NOVO v4.0** — Dashboard cross-channel com métricas agregadas, pacing mensal e breakdown por canal |
+| `src/components/ads/AdsInsightsTab.tsx` | **NOVO v4.0** — Feed de insights com filtros, ações "Vou fazer"/"Ignorar" e histórico colapsável |
+| `src/components/ads/AdsAccountConfig.tsx` | Config por conta de anúncios com Switch de ativação da IA dentro do card |
+| `src/components/ads/AdsChannelIntegrationAlert.tsx` | Alerta de integração por canal com chips de seleção de contas |
+| `src/components/ads/AdsCampaignsTab.tsx` | Campanhas por canal com 28 métricas disponíveis |
 | `src/components/ads/AdsActionsTab.tsx` | Timeline de ações da IA |
-| `src/components/ads/AdsReportsTab.tsx` | Relatórios por conta de anúncios. Agrupa insights por account_id (via mapeamento campaign→account) e renderiza cards de métricas (Investimento, Impressões, Cliques, Conversões, ROAS) individuais para cada conta selecionada. |
+| `src/components/ads/AdsReportsTab.tsx` | Relatórios por conta de anúncios |
 
 ### Pre-check de Integrações
 
@@ -378,7 +440,7 @@ Se falhar → status `BLOCKED`, gera `report_insight` com o que falta.
 
 | Comportamento | Descrição |
 |---------------|-----------|
-| **Auto-sync** | Na primeira visualização de um canal conectado, se a lista de campanhas estiver vazia, dispara `syncCampaigns.mutate()` automaticamente (controlado por `syncedChannelsRef` para evitar re-trigger) |
+| **Auto-sync** | Na primeira visualização de um canal conectado, se a lista de campanhas estiver vazia, dispara `syncCampaigns.mutate()` automaticamente (controlado por `syncedChannelsRef` para evitar re-trigger). Só dispara quando a aba ativa é "Gerenciador". |
 | **Sync sequencial** | Botão "Atualizar" executa sync **sequencial**: primeiro `syncCampaigns` (await), depois `syncInsights` + `syncAdsets` em paralelo — garante que campanhas existam antes de processar insights |
 | **Sync de ad sets** | Ao expandir uma campanha, sincroniza os ad sets automaticamente via `meta-ads-adsets` edge function (ação `sync` com filtro por `meta_campaign_id`) |
 | **Filtro por status** | ToggleGroup com 3 opções: Todas (total), Ativas (ACTIVE/ENABLE), Pausadas (PAUSED/DISABLE/ARCHIVED) — cada uma com badge de contagem |
