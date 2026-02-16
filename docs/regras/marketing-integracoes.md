@@ -412,6 +412,29 @@ Se incompleto, o Switch fica desabilitado e um Tooltip mostra os campos faltante
 - **Kill Switch:** Verificado no início de cada ciclo (global e por conta)
 - **Human Approval:** Ações high-impact ficam como `pending_approval` quando configurado
 
+### Regras de Pausa por Timing (v5.6)
+
+O sistema aplica regras de pausa baseadas em janelas temporais de observação:
+
+| Condição | Janela | Ação | metric_trigger |
+|----------|--------|------|----------------|
+| ROI < 50% do mínimo | **3 dias** | Pausa imediata (crítica) | `pause_3d_critical` |
+| ROI < mínimo configurado | **7 dias** | Pausa (ruim sustentada) | `pause_7d_normal` |
+
+#### Ciclo de Recuperação
+
+1. Após **7 dias pausada**, a IA **reativa automaticamente** para testar novamente (`recovery_reactivation`)
+2. Se na reativação a campanha atingir novamente os critérios de pausa → **pausa indeterminada** (`pause_indefinite`)
+3. Campanhas em pausa indeterminada **não são reativadas** — requerem intervenção manual
+
+> **Nota:** Esta lógica é implementada no prompt do sistema da edge function `ads-autopilot-analyze` e avaliada a cada ciclo de 6h. Os campos `min_roi_cold` e `min_roi_warm` existentes são usados como base.
+
+### Hierarquia Prompt vs Configurações Manuais (v5.6)
+
+O prompt estratégico (`user_instructions`) é **sugestivo**:
+- Se houver conflito entre o prompt e configurações manuais (ROI, orçamento, estratégia, splits), as **configurações manuais SEMPRE prevalecem**
+- A IA exibe aviso no sistema de que as instruções são sugestivas e não sobrepõem configs numéricas
+
 ### Preview de Ações (ActionDetailDialog)
 
 Cada ação da IA na aba "Ações" é **clicável** e abre um `Dialog` com preview estruturado completo. O componente `ActionDetailDialog.tsx` renderiza previews específicos por tipo:
