@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.3.0"; // Product images in context + Drive folder + anti-hallucination + UI language enforcement
+const VERSION = "v5.3.1"; // Distinguish data honesty vs marketing creativity + product images Drive sync
 // ===========================================================
 
 const corsHeaders = {
@@ -2085,9 +2085,11 @@ async function collectBaseContext(supabase: any, tenantId: string, scope: string
   // Fetch images for these products
   const productIds = (products || []).map((p: any) => p.id);
   let productImageMap: Record<string, string[]> = {};
+  let allProductImageRows: any[] = [];
   if (productIds.length > 0) {
-    const { data: imgs } = await supabase.from("product_images").select("product_id, url, is_primary").in("product_id", productIds).order("sort_order", { ascending: true });
-    for (const img of (imgs || [])) {
+    const { data: imgs } = await supabase.from("product_images").select("id, product_id, url, is_primary, position").in("product_id", productIds).order("position", { ascending: true });
+    allProductImageRows = imgs || [];
+    for (const img of allProductImageRows) {
       if (!productImageMap[img.product_id]) productImageMap[img.product_id] = [];
       productImageMap[img.product_id].push(img.url);
     }
@@ -2103,22 +2105,78 @@ async function collectBaseContext(supabase: any, tenantId: string, scope: string
     has_images: (productImageMap[p.id] || []).length > 0,
   }));
   
-  // Ensure "Imagens de Produtos" folder exists in Drive
+  // Ensure "Imagens de Produtos" folder exists in Drive + sync existing product images
   try {
     const { data: existingFolder } = await supabase.from("files").select("id").eq("tenant_id", tenantId).eq("is_folder", true).eq("filename", "Imagens de Produtos").maybeSingle();
-    if (!existingFolder) {
-      await supabase.from("files").insert({
+    let folderId = existingFolder?.id || null;
+    
+    if (!folderId) {
+      const { data: newFolder } = await supabase.from("files").insert({
         tenant_id: tenantId,
         filename: "Imagens de Produtos",
         original_name: "Imagens de Produtos",
         is_folder: true,
         is_system_folder: false,
         metadata: { source: "ads_chat", system_managed: true, description: "Pasta padrão para imagens dos produtos usadas pela IA de tráfego" },
-      });
-      console.log(`[ads-chat][${VERSION}] Created 'Imagens de Produtos' folder in Drive`);
+      }).select("id").single();
+      folderId = newFolder?.id || null;
+      console.log(`[ads-chat][${VERSION}] Created 'Imagens de Produtos' folder in Drive: ${folderId}`);
+    }
+    
+    // Sync: copy existing product images to Drive folder (fire-and-forget, non-blocking)
+    if (folderId && allProductImageRows && allProductImageRows.length > 0) {
+      // Check which images are already registered in this folder
+      const { data: existingFiles } = await supabase.from("files")
+        .select("storage_path")
+        .eq("tenant_id", tenantId)
+        .eq("folder_id", folderId)
+        .eq("is_folder", false)
+        .limit(500);
+      
+      const existingPaths = new Set((existingFiles || []).map((f: any) => f.storage_path));
+      
+      // Find images not yet in the folder
+      const newImages: any[] = [];
+      for (const img of allProductImageRows) {
+        if (!img.url) continue;
+        // Use URL as storage_path reference to avoid duplicates
+        const refPath = `product_image_ref:${img.product_id}:${img.id || img.url.slice(-40)}`;
+        if (existingPaths.has(refPath)) continue;
+        
+        // Find product name for this image
+        const product = products?.find((p: any) => p.id === img.product_id);
+        const productName = product?.name || "Produto";
+        
+        newImages.push({
+          tenant_id: tenantId,
+          folder_id: folderId,
+          filename: `${productName} - ${img.position || 1}.${(img.url || "").split(".").pop()?.split("?")[0] || "jpg"}`,
+          original_name: `${productName} - imagem ${img.position || 1}`,
+          storage_path: refPath,
+          mime_type: "image/jpeg",
+          is_folder: false,
+          is_system_folder: false,
+          metadata: {
+            source: "product_catalog",
+            system_managed: true,
+            url: img.url,
+            product_id: img.product_id,
+            product_name: productName,
+          },
+        });
+      }
+      
+      if (newImages.length > 0) {
+        const { error: syncErr } = await supabase.from("files").insert(newImages);
+        if (syncErr) {
+          console.error(`[ads-chat][${VERSION}] Error syncing product images to Drive:`, syncErr);
+        } else {
+          console.log(`[ads-chat][${VERSION}] Synced ${newImages.length} product images to Drive folder`);
+        }
+      }
     }
   } catch (e) {
-    console.error(`[ads-chat][${VERSION}] Error creating Drive folder (non-blocking):`, e);
+    console.error(`[ads-chat][${VERSION}] Error creating/syncing Drive folder (non-blocking):`, e);
   }
 
   // Categories
@@ -2183,16 +2241,24 @@ function buildSystemPrompt(scope: string, adAccountId?: string, channel?: string
 ${context?.storeDescription ? `\n**Sobre a loja**: ${context.storeDescription}` : ""}
 ${context?.storeUrl ? `**URL da loja**: ${context.storeUrl}` : ""}
 
-## REGRA SUPREMA: HONESTIDADE ABSOLUTA
-- Você NUNCA mente, inventa ou alucina dados.
+## REGRA SUPREMA: HONESTIDADE ABSOLUTA (DADOS vs MARKETING)
+- Você NUNCA mente, inventa ou alucina DADOS REAIS (métricas, preços, nomes de produtos, estatísticas de vendas, contagem de campanhas).
 - Se NÃO SABE algo, diga "Não tenho essa informação agora."
 - Se NÃO PODE fazer algo, diga "Não consigo fazer isso diretamente."
 - NUNCA finja que está processando algo que não está executando de fato.
-- NUNCA invente nomes de produtos, preços ou descrições — use APENAS o catálogo real.
+- NUNCA invente nomes de produtos, preços ou descrições de catálogo — use APENAS o catálogo real.
 - Se uma ferramenta retorna erro, informe o erro real.
-- **NUNCA invente estatísticas** (ex: "5 mil clientes já usaram", "92% de satisfação") — se não veio de uma ferramenta ou do contexto, NÃO EXISTE.
+- **NUNCA invente estatísticas sobre a loja** (ex: "5 mil clientes já compraram", "92% de satisfação") — se não veio de uma ferramenta ou do contexto, NÃO EXISTE.
 - **NUNCA peça ao lojista para verificar dados** que você já possui. Se o preço está no catálogo, ele está correto — apresente com confiança.
 - **NUNCA exponha dúvidas sobre seus próprios dados** — se os dados vieram de uma ferramenta, confie neles.
+
+### CRIATIVIDADE DE MARKETING (PERMITIDO E INCENTIVADO)
+- Você PODE e DEVE ser criativo ao sugerir textos de anúncios, headlines, descrições publicitárias, chamadas de ação (CTAs) e conceitos de campanha.
+- Você PODE inventar frases de efeito, slogans, ângulos de venda e narrativas persuasivas para uso em anúncios.
+- Você PODE sugerir benefícios emocionais, criar urgência e usar gatilhos mentais em textos publicitários.
+- A diferença é clara: **dados sobre a loja = verdade absoluta** | **textos de marketing = criatividade livre**.
+- Exemplo PROIBIDO: "Já vendemos 5 mil unidades" (dado inventado sobre a loja)
+- Exemplo PERMITIDO: "Descubra o segredo que está transformando rotinas" (texto criativo para anúncio)
 
 ## REGRA OBRIGATÓRIA: BUSCAR DADOS ANTES DE DIAGNOSTICAR (ANTI-ALUCINAÇÃO)
 **ANTES de fazer QUALQUER diagnóstico, estratégia ou análise, você DEVE obrigatoriamente:**

@@ -225,6 +225,46 @@ import { DriveFilePicker } from '@/components/ui/DriveFilePicker';
 
 ---
 
+## Pasta "Imagens de Produtos" (Meu Drive)
+
+Pasta automática criada no Meu Drive para centralizar imagens de produtos, acessível pelo **Gestor de Tráfego IA** para geração de criativos.
+
+| Item | Valor |
+|------|-------|
+| **Nome da pasta** | `Imagens de Produtos` |
+| **Criação** | Automática pela edge function `ads-chat` ao precisar de imagens |
+| **Fonte** | `product_images` + `products.images` (JSONB) |
+| **Registro** | `public.files` com `source: 'product_catalog'` e `system_managed: true` |
+| **Uso principal** | IA de Tráfego consulta esta pasta para gerar criativos com imagens reais dos produtos |
+
+### Sincronização
+
+```
+1. Ao criar a pasta, imagens existentes de product_images são copiadas automaticamente
+2. Novos produtos com imagens são registrados sob demanda pela IA
+3. A pasta é do tipo is_folder=true, NÃO é system_folder (pode ser navegada pelo lojista)
+```
+
+### Acesso pela IA de Tráfego
+
+A ferramenta `get_product_images` do chat de IA busca imagens de duas fontes:
+1. **Tabela `product_images`** — imagens cadastradas no módulo de produtos
+2. **Pasta "Imagens de Produtos"** no Meu Drive — imagens organizadas para uso em criativos
+
+---
+
+## Pasta "Gestor de Tráfego IA" (Meu Drive)
+
+Pasta automática para armazenar criativos gerados pela IA de Tráfego para campanhas de anúncios.
+
+| Item | Valor |
+|------|-------|
+| **Nome da pasta** | `Gestor de Tráfego IA` |
+| **Criação** | Automática pela edge function `ads-autopilot-creative` |
+| **Registro** | `public.files` com `source: 'ads_autopilot'` e `system_managed: true` |
+
+---
+
 ## Criativos com IA — Armazenamento Automático
 
 Criativos gerados pelo módulo **Gestor de Criativos** (`/creatives`) são automaticamente armazenados no Meu Drive:
@@ -342,6 +382,7 @@ Todas as previews de criativos (gerados ou uploaded) devem usar `object-contain`
 
 | Data | Alteração |
 |------|-----------|
+| 2026-02-17 | Adicionadas pastas "Imagens de Produtos" e "Gestor de Tráfego IA" — sincronização automática de imagens do catálogo para o Meu Drive |
 | 2026-02-14 | Adicionadas regras de estabilidade do DriveFilePicker: `stopPropagation` no DialogContent e `type="button"` no botão do Drive |
 | 2026-02-14 | Adicionada seção de Visibilidade de Criativos — regras de `object-contain` vs `object-cover` |
 | 2026-02-14 | Corrigido `CalendarItemDialog` e `AssetVariantsGallery` para não cortar imagens |
