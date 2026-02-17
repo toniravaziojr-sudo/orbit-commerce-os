@@ -804,10 +804,19 @@ A sync diária permite que ferramentas como `get_performance_trend` mostrem time
 
 **Config**: `verify_jwt = false` em `supabase/config.toml` para `creative-image-generate`
 
+### Correções v2.0.1 — `creative-image-generate`
+
+1. **Remoção de `file_type`**: A coluna `file_type` não existe na tabela `files`. O insert no Drive foi corrigido para omitir esse campo, eliminando o erro `PGRST204`
+2. **Atualização automática de `ads_creative_assets`**: Após o pipeline de imagem concluir com sucesso, a função agora busca todos os `ads_creative_assets` que referenciam o `job_id` (via `meta.image_job_id`) e atualiza:
+   - `asset_url` → URL da imagem vencedora (winner) ou primeira gerada
+   - `storage_path` → Path no Storage
+   - `status` → `'ready'`
+   - `meta.image_status` → `'completed'`
+
 ### Mapeamento Tabela → Edge Function (atualizado)
 | Tabela | Edge Function |
 |--------|---------------|
-| `ads_creative_assets` | `ads-autopilot-creative-generate`, `ads-chat` |
+| `ads_creative_assets` | `ads-autopilot-creative-generate`, `ads-chat`, `creative-image-generate` (update após pipeline) |
 | `creative_jobs` | `creative-image-generate`, `ads-autopilot-creative-generate` (via bridge) |
 | `product_images` | `ads-autopilot-creative-generate`, `creative-image-generate` |
-| `files` | `ads-autopilot-creative-generate` (pasta Drive) |
+| `files` | `ads-autopilot-creative-generate` (pasta Drive), `creative-image-generate` (registro no Drive) |
