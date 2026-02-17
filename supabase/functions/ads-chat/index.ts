@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v4.1.0"; // Add generate_creative_image tool for visual creative generation via ads-autopilot-creative
+const VERSION = "v4.2.0"; // Add create_meta_campaign tool: full campaign creation (Campaign→AdSet→Ad) with creative from Drive
 // ===========================================================
 
 const corsHeaders = {
@@ -73,6 +73,27 @@ const TOOLS = [
           style_preference: { type: "string", enum: ["promotional", "product_natural", "person_interacting"], description: "Estilo visual (default: promotional)" },
           format: { type: "string", enum: ["1:1", "9:16", "16:9"], description: "Formato da imagem (default: 1:1)" },
           variations: { type: "number", description: "Número de variações (1-4, default: 2)" },
+        },
+        required: ["product_name"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_meta_campaign",
+      description: "Cria uma campanha COMPLETA no Meta Ads (Campanha → Conjunto de Anúncios → Anúncio com criativo). Busca automaticamente criativos prontos do Drive/galeria para o produto. A campanha é criada PAUSADA e agendada para ativação em 00:01-04:00 BRT. Use quando o usuário pedir para criar/montar/publicar uma campanha.",
+      parameters: {
+        type: "object",
+        properties: {
+          product_name: { type: "string", description: "Nome do produto do catálogo (obrigatório)" },
+          campaign_name: { type: "string", description: "Nome da campanha (opcional, gerado automaticamente se omitido)" },
+          objective: { type: "string", enum: ["OUTCOME_SALES", "OUTCOME_LEADS", "OUTCOME_TRAFFIC", "OUTCOME_AWARENESS"], description: "Objetivo da campanha (default: OUTCOME_SALES)" },
+          daily_budget_cents: { type: "number", description: "Orçamento diário em centavos (default: 3000 = R$30)" },
+          targeting_description: { type: "string", description: "Descrição do público-alvo para segmentação" },
+          funnel_stage: { type: "string", enum: ["cold", "warm", "hot"], description: "Estágio do funil (default: cold)" },
+          ad_account_id: { type: "string", description: "ID da conta de anúncios Meta (opcional, usa a primeira disponível)" },
         },
         required: ["product_name"],
         additionalProperties: false,
@@ -322,6 +343,8 @@ async function executeTool(
         return await triggerCreativeGeneration(supabase, tenantId);
       case "generate_creative_image":
         return await generateCreativeImage(supabase, tenantId, args);
+      case "create_meta_campaign":
+        return await createMetaCampaign(supabase, tenantId, args);
       case "trigger_autopilot_analysis":
         return await triggerAutopilotAnalysis(supabase, tenantId, args.channel);
       case "get_autopilot_actions":
@@ -513,6 +536,366 @@ async function generateCreativeImage(supabase: any, tenantId: string, args: any)
     });
   } catch (err: any) {
     return JSON.stringify({ success: false, error: err.message });
+  }
+}
+
+async function createMetaCampaign(supabase: any, tenantId: string, args: any) {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const headers = { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` };
+
+  try {
+    // 1. Find the product
+    const { data: products } = await supabase
+      .from("products")
+      .select("id, name")
+      .eq("tenant_id", tenantId)
+      .eq("status", "active");
+
+    const product = (products || []).find((p: any) =>
+      p.name.toLowerCase().includes((args.product_name || "").toLowerCase())
+    ) || products?.[0];
+
+    if (!product) {
+      return JSON.stringify({ success: false, error: "Produto não encontrado no catálogo." });
+    }
+
+    // 2. Get Meta connection and ad account
+    const { data: conn } = await supabase
+      .from("marketplace_connections")
+      .select("access_token, metadata")
+      .eq("tenant_id", tenantId)
+      .eq("marketplace", "meta")
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (!conn) {
+      return JSON.stringify({ success: false, error: "Meta não conectada. Configure a integração Meta primeiro." });
+    }
+
+    const adAccounts = conn.metadata?.assets?.ad_accounts || [];
+    const adAccountId = args.ad_account_id || adAccounts[0]?.id;
+    if (!adAccountId) {
+      return JSON.stringify({ success: false, error: "Nenhuma conta de anúncios Meta encontrada." });
+    }
+
+    // 3. Find ready creative for this product (from ads_creative_assets or meta_ad_creatives)
+    const { data: creativeAssets } = await supabase
+      .from("ads_creative_assets")
+      .select("id, asset_url, storage_path, headline, copy_text, cta_type, product_id")
+      .eq("tenant_id", tenantId)
+      .eq("product_id", product.id)
+      .in("status", ["ready", "draft"])
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    let creativeImageUrl: string | null = null;
+    let creativeHeadline: string | null = null;
+    let creativeCopy: string | null = null;
+
+    if (creativeAssets && creativeAssets.length > 0) {
+      const best = creativeAssets.find((c: any) => c.asset_url) || creativeAssets[0];
+      creativeImageUrl = best.asset_url || null;
+      creativeHeadline = best.headline || null;
+      creativeCopy = best.copy_text || null;
+
+      // If no URL but has storage_path, build signed URL
+      if (!creativeImageUrl && best.storage_path) {
+        const { data: signedData } = await supabase.storage
+          .from("files")
+          .createSignedUrl(best.storage_path, 86400 * 30); // 30 days
+        if (signedData?.signedUrl) creativeImageUrl = signedData.signedUrl;
+      }
+    }
+
+    // 4. Fallback: check files in Drive "Gestor de Tráfego IA" folder
+    if (!creativeImageUrl) {
+      const { data: folder } = await supabase
+        .from("files")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("filename", "Gestor de Tráfego IA")
+        .eq("is_folder", true)
+        .maybeSingle();
+
+      if (folder) {
+        const { data: driveFiles } = await supabase
+          .from("files")
+          .select("id, url, storage_path, filename")
+          .eq("tenant_id", tenantId)
+          .eq("folder_id", folder.id)
+          .eq("is_folder", false)
+          .order("created_at", { ascending: false })
+          .limit(5);
+
+        const imageFile = (driveFiles || []).find((f: any) =>
+          f.url || f.storage_path
+        );
+        if (imageFile) {
+          creativeImageUrl = imageFile.url || null;
+          if (!creativeImageUrl && imageFile.storage_path) {
+            const { data: signedData } = await supabase.storage
+              .from("files")
+              .createSignedUrl(imageFile.storage_path, 86400 * 30);
+            if (signedData?.signedUrl) creativeImageUrl = signedData.signedUrl;
+          }
+        }
+      }
+    }
+
+    // 5. Fallback: product image
+    if (!creativeImageUrl) {
+      const { data: prodImages } = await supabase
+        .from("product_images")
+        .select("url")
+        .eq("product_id", product.id)
+        .order("position", { ascending: true })
+        .limit(1);
+      if (prodImages?.[0]?.url) creativeImageUrl = prodImages[0].url;
+    }
+
+    if (!creativeImageUrl) {
+      return JSON.stringify({
+        success: false,
+        error: "Nenhum criativo ou imagem disponível para este produto. Gere criativos primeiro usando generate_creative_image.",
+      });
+    }
+
+    // 6. Get pixel from marketing_integrations
+    const { data: mktIntegration } = await supabase
+      .from("marketing_integrations")
+      .select("meta_pixel_id")
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    const pixelId = mktIntegration?.meta_pixel_id || null;
+
+    // 7. Get page for creative
+    const pages = conn.metadata?.assets?.pages || [];
+    const pageId = pages[0]?.id || null;
+    const pageAccessToken = pages[0]?.access_token || conn.access_token;
+
+    // 8. Upload image to Meta and create ad creative
+    const accountIdClean = adAccountId.replace("act_", "");
+
+    // Upload image hash
+    const imageHashResult = await fetch(
+      `https://graph.facebook.com/v21.0/act_${accountIdClean}/adimages`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: creativeImageUrl,
+          access_token: conn.access_token,
+        }),
+      }
+    );
+    const imageHashData = await imageHashResult.json();
+    const imageHash = imageHashData?.images?.[Object.keys(imageHashData?.images || {})[0]]?.hash;
+
+    if (!imageHash) {
+      console.error(`[ads-chat][${VERSION}] Image upload failed:`, JSON.stringify(imageHashData));
+      return JSON.stringify({
+        success: false,
+        error: "Falha ao enviar imagem para o Meta. Tente novamente.",
+        details: imageHashData?.error?.message || "Hash não retornado",
+      });
+    }
+
+    // Create ad creative on Meta
+    const objective = args.objective || "OUTCOME_SALES";
+    const creativeName = `[AI] ${product.name} - ${new Date().toISOString().split("T")[0]}`;
+    const creativeBody: any = {
+      name: creativeName,
+      access_token: conn.access_token,
+    };
+
+    if (pageId) {
+      creativeBody.object_story_spec = {
+        page_id: pageId,
+        link_data: {
+          image_hash: imageHash,
+          message: creativeCopy || `Conheça ${product.name}! Aproveite agora.`,
+          name: creativeHeadline || product.name,
+          call_to_action: {
+            type: objective === "OUTCOME_SALES" ? "SHOP_NOW" : "LEARN_MORE",
+          },
+        },
+      };
+    } else {
+      creativeBody.image_hash = imageHash;
+      creativeBody.title = creativeHeadline || product.name;
+      creativeBody.body = creativeCopy || `Conheça ${product.name}!`;
+    }
+
+    const creativeResult = await fetch(
+      `https://graph.facebook.com/v21.0/act_${accountIdClean}/adcreatives`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(creativeBody),
+      }
+    );
+    const creativeData = await creativeResult.json();
+
+    if (creativeData.error) {
+      console.error(`[ads-chat][${VERSION}] Creative creation failed:`, creativeData.error);
+      return JSON.stringify({
+        success: false,
+        error: `Falha ao criar criativo: ${creativeData.error.message}`,
+      });
+    }
+
+    const metaCreativeId = creativeData.id;
+    console.log(`[ads-chat][${VERSION}] Creative created: ${metaCreativeId}`);
+
+    // 9. Create Campaign (PAUSED) via edge function
+    const campName = args.campaign_name || `[AI] ${objective === "OUTCOME_SALES" ? "Vendas" : "Tráfego"} | ${product.name} | ${new Date().toISOString().split("T")[0]}`;
+    const dailyBudgetCents = args.daily_budget_cents || 3000;
+
+    const campResponse = await fetch(`${supabaseUrl}/functions/v1/meta-ads-campaigns`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        tenant_id: tenantId,
+        action: "create",
+        ad_account_id: adAccountId,
+        name: campName,
+        objective,
+        daily_budget_cents: dailyBudgetCents,
+        status: "PAUSED",
+        bid_strategy: "LOWEST_COST_WITHOUT_CAP",
+      }),
+    });
+    const campResult = await campResponse.text();
+    let campParsed: any;
+    try { campParsed = JSON.parse(campResult); } catch { campParsed = { raw: campResult }; }
+
+    if (!campParsed?.success) {
+      return JSON.stringify({
+        success: false,
+        error: `Falha ao criar campanha: ${campParsed?.error || "Erro desconhecido"}`,
+      });
+    }
+
+    const metaCampaignId = campParsed.data?.meta_campaign_id;
+    console.log(`[ads-chat][${VERSION}] Campaign created: ${metaCampaignId}`);
+
+    // 10. Create AdSet (PAUSED) with pixel
+    const funnelStage = args.funnel_stage || "cold";
+    const adsetName = `[AI] ${funnelStage} | ${args.targeting_description || "Brasil 18-65"} | ${product.name}`.substring(0, 200);
+
+    const adsetBody: any = {
+      tenant_id: tenantId,
+      action: "create",
+      ad_account_id: adAccountId,
+      meta_campaign_id: metaCampaignId,
+      name: adsetName,
+      targeting: {
+        geo_locations: { countries: ["BR"] },
+        age_min: 18,
+        age_max: 65,
+      },
+      status: "PAUSED",
+    };
+
+    // Add promoted_object for conversion campaigns
+    if (pixelId && (objective === "OUTCOME_SALES" || objective === "OUTCOME_LEADS")) {
+      adsetBody.promoted_object = {
+        pixel_id: pixelId,
+        custom_event_type: objective === "OUTCOME_SALES" ? "PURCHASE" : "LEAD",
+      };
+    }
+
+    const adsetResponse = await fetch(`${supabaseUrl}/functions/v1/meta-ads-adsets`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(adsetBody),
+    });
+    const adsetResult = await adsetResponse.text();
+    let adsetParsed: any;
+    try { adsetParsed = JSON.parse(adsetResult); } catch { adsetParsed = { raw: adsetResult }; }
+
+    const metaAdsetId = adsetParsed?.data?.meta_adset_id || null;
+    console.log(`[ads-chat][${VERSION}] AdSet created: ${metaAdsetId}`);
+
+    // 11. Create Ad (PAUSED) with the creative
+    let metaAdId: string | null = null;
+    if (metaAdsetId && metaCreativeId) {
+      const adResponse = await fetch(`${supabaseUrl}/functions/v1/meta-ads-ads`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          tenant_id: tenantId,
+          action: "create",
+          ad_account_id: adAccountId,
+          meta_adset_id: metaAdsetId,
+          meta_campaign_id: metaCampaignId,
+          name: `[AI] ${product.name} - Criativo 1`,
+          creative_id: metaCreativeId,
+          status: "PAUSED",
+        }),
+      });
+      const adResult = await adResponse.text();
+      let adParsed: any;
+      try { adParsed = JSON.parse(adResult); } catch { adParsed = { raw: adResult }; }
+      metaAdId = adParsed?.data?.meta_ad_id || null;
+      console.log(`[ads-chat][${VERSION}] Ad created: ${metaAdId}`);
+    }
+
+    // 12. Schedule activation for 00:01-04:00 BRT
+    const now = new Date();
+    const utcHour = now.getUTCHours();
+    const brtHour = utcHour - 3 < 0 ? utcHour - 3 + 24 : utcHour - 3;
+    const scheduleDate = new Date(now);
+    if (brtHour >= 0 && brtHour < 4) {
+      scheduleDate.setMinutes(scheduleDate.getMinutes() + 5);
+    } else {
+      if (brtHour >= 4) scheduleDate.setDate(scheduleDate.getDate() + 1);
+      const randomMinute = 1 + Math.floor(Math.random() * 59);
+      scheduleDate.setUTCHours(3, randomMinute, 0, 0);
+    }
+    const scheduledFor = scheduleDate.toISOString();
+
+    // Record scheduled activation action
+    await supabase.from("ads_autopilot_actions").insert({
+      tenant_id: tenantId,
+      session_id: crypto.randomUUID(),
+      channel: "meta",
+      action_type: "activate_campaign",
+      action_data: {
+        campaign_id: metaCampaignId,
+        adset_id: metaAdsetId,
+        ad_id: metaAdId,
+        ad_account_id: adAccountId,
+        campaign_name: campName,
+        product_name: product.name,
+        creative_id: metaCreativeId,
+        scheduled_for: scheduledFor,
+        daily_budget_cents: dailyBudgetCents,
+        created_by: "ads_chat",
+      },
+      reasoning: `Campanha completa criada via Chat IA para "${product.name}". Ativação agendada para ${scheduledFor} (00:01-04:00 BRT).`,
+      status: "scheduled",
+      action_hash: `chat_activate_${metaCampaignId}_${Date.now()}`,
+    });
+
+    return JSON.stringify({
+      success: true,
+      message: `Campanha completa criada com sucesso para "${product.name}"! A campanha foi criada PAUSADA e será ativada automaticamente na próxima janela (00:01-04:00 BRT).`,
+      data: {
+        campaign: { id: metaCampaignId, name: campName, status: "PAUSED" },
+        adset: { id: metaAdsetId, name: adsetName, status: "PAUSED" },
+        ad: { id: metaAdId, status: "PAUSED" },
+        creative_id: metaCreativeId,
+        daily_budget: `R$ ${(dailyBudgetCents / 100).toFixed(2)}`,
+        scheduled_activation: scheduledFor,
+        product: product.name,
+        image_used: creativeImageUrl?.substring(0, 80) + "...",
+      },
+    });
+  } catch (err: any) {
+    console.error(`[ads-chat][${VERSION}] create_meta_campaign error:`, err);
+    return JSON.stringify({ success: false, error: err.message || "Erro ao criar campanha" });
   }
 }
 
@@ -1005,11 +1388,12 @@ function buildSystemPrompt(scope: string, adAccountId?: string, channel?: string
 ### Execução
 14. **trigger_creative_generation** → Disparar geração de BRIEFS criativos (headlines + copy)
 15. **generate_creative_image** → Gerar IMAGENS reais via IA (Gemini) para criativos de anúncios. Informe o nome do produto e opcionalmente canal, estilo, formato e variações.
-16. **trigger_autopilot_analysis** → Disparar análise do Autopilot para um canal
-17. **update_autopilot_config** → Alterar configurações do Autopilot (ROI, orçamento, estratégia, etc)
+16. **create_meta_campaign** → Criar campanha COMPLETA no Meta Ads (Campanha→AdSet→Ad com criativo). Busca criativos prontos do Drive automaticamente. Campanha criada PAUSADA com ativação agendada para 00:01-04:00 BRT.
+17. **trigger_autopilot_analysis** → Disparar análise do Autopilot para um canal
+18. **update_autopilot_config** → Alterar configurações do Autopilot (ROI, orçamento, estratégia, etc)
 
 ### Análise Externa
-18. **analyze_url** → Analisar conteúdo de uma URL (landing page, concorrente, artigo)
+19. **analyze_url** → Analisar conteúdo de uma URL (landing page, concorrente, artigo)
 
 ## CAPACIDADES MULTIMODAIS
 - Você PODE analisar imagens enviadas pelo usuário (screenshots de anúncios, criativos, métricas, etc.)
@@ -1019,10 +1403,15 @@ function buildSystemPrompt(scope: string, adAccountId?: string, channel?: string
 - Quando o usuário enviar um link, use analyze_url para extrair o conteúdo
 
 ## O QUE VOCÊ NÃO PODE FAZER (NUNCA FINJA QUE PODE)
-- Não pode fazer upload de mídia para a Meta/Google/TikTok diretamente
-- Não pode criar campanhas diretamente (quem faz é o Autopilot via trigger_autopilot_analysis)
-- Não pode acessar a API da Meta/Google/TikTok diretamente
+- Não pode acessar a API da Meta/Google/TikTok diretamente (usa edge functions intermediárias)
+- Não pode criar campanhas Google/TikTok diretamente (somente Meta por enquanto)
 - Não pode "renderizar" ou "finalizar" nada fora das ferramentas acima
+
+## FLUXO RECOMENDADO PARA CRIAR CAMPANHAS
+1. Gere criativos visuais primeiro (generate_creative_image)
+2. Aguarde a geração ser concluída (verifique com get_creative_assets)
+3. Monte a campanha completa (create_meta_campaign) — ela busca automaticamente os criativos gerados
+4. A campanha será ativada automaticamente na janela 00:01-04:00 BRT
 ${userInstructionsBlock}
 ## CATÁLOGO DE PRODUTOS REAIS
 ${productsList || "Nenhum produto ativo no catálogo."}
@@ -1048,11 +1437,13 @@ ${configSummary || "Nenhuma conta configurada."}
 - Quando pedir para ALTERAR configurações, USE update_autopilot_config
 - Quando pedir criativos TEXTUAIS (briefs, copy, headlines), USE trigger_creative_generation
 - Quando pedir criativos VISUAIS (imagens, artes, fotos), USE generate_creative_image com o nome do produto
+- Quando pedir para CRIAR/MONTAR/PUBLICAR uma campanha Meta, USE create_meta_campaign (ela monta Campanha→AdSet→Ad automaticamente)
 - Quando pedir análise, USE trigger_autopilot_analysis
 - Quando perguntar sobre tracking/pixel, USE get_tracking_health
 - Quando perguntar sobre histórico de execuções, USE get_autopilot_sessions
 - Quando perguntar sobre experimentos/testes A/B, USE get_experiments
 - Quando enviar link/URL, USE analyze_url
+- Se o usuário pedir para criar campanha E não houver criativos prontos, PRIMEIRO gere criativos (generate_creative_image) e avise o usuário. Depois monte a campanha.
 - SEMPRE referencie produtos pelo nome real do catálogo acima`;
 }
 
