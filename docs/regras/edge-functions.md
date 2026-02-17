@@ -476,7 +476,7 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v5.6.0
+### Versão Atual: v5.7.0
 
 ### v5.3.6: Fix colunas erradas em createCustomAudience/createLookalikeAudience
 - **Bug crítico**: Insert usava `audience_id` mas coluna real é `meta_audience_id`. Insert falhava silenciosamente → públicos criados no Meta nunca eram salvos no banco local
@@ -525,7 +525,7 @@ A IA pode criar e gerenciar públicos automaticamente:
 Edge Function de chat conversacional **multimodal** com **tool calling real** para o Gestor de Tráfego IA. Opera como assistente de tráfego pago com acesso completo de leitura e escrita ao módulo de tráfego. Suporta análise de imagens, arquivos e URLs. Implementa **auto-sync fire-and-forget**, **contexto de negócio enriquecido** e **passo de verificação obrigatório** para eliminar alucinações.
 
 ### Arquitetura: Tool Calling em 3 Etapas
-1. **Chamada Inicial (não-streaming, timeout 45s)**: Envia mensagem do usuário + histórico (últimas 15 mensagens) + definições de ferramentas → IA decide se precisa chamar ferramentas
+1. **Chamada Inicial (não-streaming, timeout 90s)**: Envia mensagem do usuário + histórico (últimas 15 mensagens) + definições de ferramentas → IA decide se precisa chamar ferramentas
 2. **Execução de Tools**: Se a IA requisitou ferramentas, executa cada uma contra o banco/APIs reais e coleta resultados
 3. **Resposta Final (streaming)**: Injeta resultados reais como contexto `[DADOS REAIS DO SISTEMA]` e faz chamada final com streaming SSE
 
@@ -547,7 +547,7 @@ Edge Function de chat conversacional **multimodal** com **tool calling real** pa
 ### Tratamento de Falhas (v2.3.0 — CRÍTICO)
 | Cenário | Comportamento |
 |---------|--------------|
-| **Timeout (>45s)** | Retorna mensagem visível: "O processamento demorou mais que o esperado — crie uma nova conversa" |
+| **Timeout (>90s)** | Retorna mensagem visível: "O processamento demorou mais que o esperado — crie uma nova conversa" |
 | **Rate limit (429)** | Salva mensagem de erro no chat + retorna HTTP 429 |
 | **Créditos (402)** | Salva mensagem de erro no chat + retorna HTTP 402 |
 | **Erro genérico** | Retorna erro como SSE para que o cliente exiba no chat |
@@ -671,7 +671,7 @@ O lojista pode sobrepor QUALQUER configuração do sistema via chat com confirma
 6. **Verifica freshness dos dados** — dispara sync fire-and-forget se > 1h
 7. Monta mensagem multimodal (imagens como `image_url`, arquivos como texto)
 8. Seleciona modelo (vision vs text) baseado nos anexos
-9. Executa pipeline de 3 etapas (tool calling) com **timeout de 45s**
+9. Executa pipeline de 3 etapas (tool calling) com **timeout de 90s**
 10. Salva resposta da IA em `ads_chat_messages` (inclusive erros)
 11. Retorna streaming SSE para o frontend
 
@@ -733,6 +733,7 @@ A sync diária permite que ferramentas como `get_performance_trend` mostrem time
 | v5.4.0 | 2026-02-17 | **Strategy Mode Guardrails**: IA obrigada a validar ações contra `strategy_mode` configurado (conservative/balanced/aggressive). Regras de budget por modo injetadas no prompt. `get_autopilot_config` obrigatório antes de propor mudanças. Alerta obrigatório quando ação viola regra manual. |
 | v5.5.0 | 2026-02-17 | **Action Logging + Anti-Hallucination**: Todas as tools de escrita (toggle_entity_status, update_budget, generate_creative_image, trigger_creative_generation) agora logam na tabela `ads_autopilot_actions`. Novas regras de prompt: proibido "Posso seguir?", obrigatório reportar resultados reais das ferramentas, respeitar mapeamento produto→funil das instruções estratégicas, distribuir budget conforme funnel_splits. |
 | v5.6.0 | 2026-02-17 | **Playbook Estratégico Injetado no System Prompt**: Adicionado bloco completo de diretrizes de escala (vertical/horizontal), framework Core/Test/Explore (60-80%/15-30%/5-10%), árvore diagnóstica (Tracking→Unit Economics→Criativo→Público→Budget), cadência operacional (diária/semanal/mensal), regras de testes (1 variável, volume mínimo, promoção/corte), copy persuasiva (AIDA/PAS/4U, 8 tipos de hooks), checklist de criativos (gancho 0-2s, produto cedo, texto na tela, CTA claro), e métricas de ROI real vs ROAS + MER. |
+| v5.7.0 | 2026-02-17 | **Timeout 90s + Logging Síncrono + Reconciliação de Campanhas**: Timeout da chamada de IA aumentado de 45s para 90s para suportar tarefas multi-campanha. Logging de ações em `ads_autopilot_actions` agora é `await` (síncrono) em vez de fire-and-forget, garantindo que todas as ações apareçam na aba "Ações da IA". Fallback de imagem melhorado em `createMetaCampaign` — loga ação de falha se nenhuma imagem encontrada. Sync de campanhas/adsets/ads agora reconcilia exclusões (deleta do banco local registros que não existem mais no Meta). |
 
 ### Regras de Strategy Mode — `ads-chat` v5.4.0
 
