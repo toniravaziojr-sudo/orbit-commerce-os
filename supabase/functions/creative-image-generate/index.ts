@@ -16,7 +16,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const VERSION = '3.1.0'; // Add M2M auth bypass for autopilot calls
+const VERSION = '3.2.0'; // Respect output_folder_id from caller
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -542,6 +542,7 @@ serve(async (req) => {
       product_name,
       product_image_url,
       prompt,
+      output_folder_id,
       settings = {},
     } = body;
 
@@ -593,31 +594,54 @@ serve(async (req) => {
 
     console.log(`[creative-image] Config: providers=${enabledProviders.join(',')}, style=${generation_style}, variations=${numVariations}`);
 
-    // Ensure folder exists
-    const { data: folder } = await supabase
-      .from('files')
-      .select('id')
-      .eq('tenant_id', tenant_id)
-      .eq('filename', 'Criativos com IA')
-      .eq('is_folder', true)
-      .maybeSingle();
+    // Ensure folder exists — use output_folder_id if provided (e.g. from ads-autopilot-creative)
+    let folderId = output_folder_id || null;
 
-    let folderId = folder?.id;
-    if (!folderId) {
-      const { data: newFolder } = await supabase
+    if (folderId) {
+      // Verify the provided folder exists
+      const { data: existingFolder } = await supabase
         .from('files')
-        .insert({
-          tenant_id,
-          filename: 'Criativos com IA',
-          original_name: 'Criativos com IA',
-          storage_path: `${tenant_id}/criativos-ia/`,
-          is_folder: true,
-          created_by: userId,
-          metadata: { source: 'creatives_module', system_managed: true },
-        })
         .select('id')
-        .single();
-      folderId = newFolder?.id;
+        .eq('id', folderId)
+        .eq('tenant_id', tenant_id)
+        .eq('is_folder', true)
+        .maybeSingle();
+      
+      if (!existingFolder) {
+        console.log(`[creative-image] Provided output_folder_id ${folderId} not found, falling back to default`);
+        folderId = null;
+      } else {
+        console.log(`[creative-image] Using provided output_folder_id: ${folderId}`);
+      }
+    }
+
+    if (!folderId) {
+      // Fallback: use/create default "Criativos com IA" folder
+      const { data: folder } = await supabase
+        .from('files')
+        .select('id')
+        .eq('tenant_id', tenant_id)
+        .eq('filename', 'Criativos com IA')
+        .eq('is_folder', true)
+        .maybeSingle();
+
+      folderId = folder?.id;
+      if (!folderId) {
+        const { data: newFolder } = await supabase
+          .from('files')
+          .insert({
+            tenant_id,
+            filename: 'Criativos com IA',
+            original_name: 'Criativos com IA',
+            storage_path: `${tenant_id}/criativos-ia/`,
+            is_folder: true,
+            created_by: userId,
+            metadata: { source: 'creatives_module', system_managed: true },
+          })
+          .select('id')
+          .single();
+        folderId = newFolder?.id;
+      }
     }
 
     // Create job
