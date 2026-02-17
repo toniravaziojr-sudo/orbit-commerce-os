@@ -30,7 +30,7 @@ const PROSE_CLASSES = cn(
   "prose prose-sm dark:prose-invert max-w-none",
   "prose-headings:mt-3 prose-headings:mb-1.5 prose-headings:font-semibold prose-headings:tracking-tight",
   "prose-h1:text-base prose-h2:text-sm prose-h3:text-xs",
-  "prose-p:my-1.5 prose-p:leading-relaxed prose-p:text-[13px]",
+  "prose-p:my-3 prose-p:leading-relaxed prose-p:text-[13px]",
   "prose-ul:my-1.5 prose-ul:list-disc prose-ul:pl-4 prose-ul:space-y-0.5",
   "prose-ol:my-1.5 prose-ol:list-decimal prose-ol:pl-4 prose-ol:space-y-0.5",
   "prose-li:my-0 prose-li:leading-relaxed prose-li:text-[13px]",
