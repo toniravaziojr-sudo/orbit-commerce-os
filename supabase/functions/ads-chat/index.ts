@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.9.0"; // Fix: parallel tool execution, files.url→storage_path
+const VERSION = "v5.9.1"; // Fix: sort_order in generateCreativeImage, campaign limit per round, Drive img.position fix
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -1960,7 +1960,7 @@ async function generateCreativeImage(supabase: any, tenantId: string, args: any,
     if (!product) return JSON.stringify({ success: false, error: "Produto não encontrado no catálogo." });
 
     let productImageUrl: string | null = null;
-    const { data: prodImgs } = await supabase.from("product_images").select("url").eq("product_id", product.id).order("position", { ascending: true }).limit(1);
+    const { data: prodImgs } = await supabase.from("product_images").select("url").eq("product_id", product.id).order("sort_order", { ascending: true }).limit(1);
     if (prodImgs?.[0]?.url) productImageUrl = prodImgs[0].url;
 
     const response = await fetch(`${supabaseUrl}/functions/v1/ads-autopilot-creative`, {
@@ -2276,8 +2276,8 @@ async function collectBaseContext(supabase: any, tenantId: string, scope: string
         newImages.push({
           tenant_id: tenantId,
           folder_id: folderId,
-          filename: `${productName} - ${img.position || 1}.${(img.url || "").split(".").pop()?.split("?")[0] || "jpg"}`,
-          original_name: `${productName} - imagem ${img.position || 1}`,
+          filename: `${productName} - ${img.sort_order || 1}.${(img.url || "").split(".").pop()?.split("?")[0] || "jpg"}`,
+          original_name: `${productName} - imagem ${img.sort_order || 1}`,
           storage_path: refPath,
           mime_type: "image/jpeg",
           is_folder: false,
@@ -2826,6 +2826,13 @@ Exemplo: Se budget = R$ 600/dia e splits = {cold: 40, remarketing: 25, tests: 25
 6. Campanha criada pausada → ativação automática na madrugada
 
 **IMPORTANTE**: Os passos 2, 3 e 4 devem ser executados AUTOMATICAMENTE, sem pedir permissão.
+
+## REGRA CRÍTICA: LIMITE DE CAMPANHAS POR INTERAÇÃO (ANTI-TIMEOUT)
+- Crie no **MÁXIMO 2 campanhas por rodada de ferramentas** (por chamada de create_meta_campaign)
+- Se o plano exige 5 campanhas, crie 2 agora e DIGA ao lojista: "Criei as 2 primeiras campanhas. Envie 'continuar' para eu criar as próximas."
+- Cada create_meta_campaign faz ~5 chamadas HTTP sequenciais à API do Meta. Criar mais de 2 em paralelo causa timeout.
+- **NUNCA chame create_meta_campaign mais de 2 vezes em uma mesma rodada de ferramentas.**
+- Priorize a ordem: primeiro campanhas de público frio, depois remarketing.
 
 ## IMAGENS DE PRODUTOS
 - As imagens dos produtos estão disponíveis via catálogo (product_images) e no **Meu Drive** (pasta "Imagens de Produtos")
