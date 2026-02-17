@@ -470,7 +470,7 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v5.0.0
+### Versão Atual: v5.1.0
 
 ### Visão Geral
 Edge Function de chat conversacional **multimodal** com **tool calling real** para o Gestor de Tráfego IA. Opera como assistente de tráfego pago com acesso completo de leitura e escrita ao módulo de tráfego. Suporta análise de imagens, arquivos e URLs. Implementa **auto-sync fire-and-forget**, **contexto de negócio enriquecido** e **passo de verificação obrigatório** para eliminar alucinações.
@@ -576,6 +576,8 @@ O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe
 | `update_autopilot_config` | Atualiza config do Autopilot (ROI, budget, estratégia, instruções) | Escrita |
 | `toggle_entity_status` | Pausa/reativa campanha, conjunto ou anúncio no Meta via API | Escrita |
 | `update_budget` | Altera orçamento (em centavos) de campanha ou conjunto existente no Meta | Escrita |
+| `duplicate_campaign` | Duplica campanha Meta existente com todos conjuntos e anúncios, agenda ativação | Escrita |
+| `update_adset_targeting` | Atualiza segmentação de conjunto (idade, gênero, localização, interesses) | Escrita |
 | `trigger_creative_generation` | Dispara geração de briefs criativos (headlines + copy) | Execução |
 | `generate_creative_image` | Gera IMAGENS reais via IA (Gemini) para criativos de anúncios | Execução |
 | `create_meta_campaign` | Cria campanha COMPLETA no Meta (Campaign→AdSet→Ad com criativo do Drive). Agenda ativação para 00:01-04:00 BRT | Execução |
@@ -597,9 +599,7 @@ O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe
 ### O que o Chat NÃO Pode Fazer
 - Criar campanhas Google/TikTok diretamente (somente Meta por enquanto)
 - Acessar APIs de plataformas diretamente (usa edge functions intermediárias)
-- Duplicar campanhas ou conjuntos (pendente — Frente 4.3 do plano)
-- Alterar segmentação de conjuntos existentes (pendente — Frente 4.4 do plano)
-- Criar/editar públicos customizados (pendente)
+- Criar/editar públicos customizados diretamente (usa targeting no conjunto)
 - Renderizar ou finalizar qualquer coisa fora das ferramentas acima
 
 ### Fluxo de Conversação
