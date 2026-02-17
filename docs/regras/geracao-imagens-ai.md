@@ -348,9 +348,11 @@ A edge function `ads-autopilot-creative-generate` atua como **bridge** entre o s
 Quando um `ads_creative_assets` atinge `status = 'ready'`, tanto o `ads-chat` quanto o `ads-autopilot-analyze` podem publicá-lo no Meta:
 
 1. **Upload da imagem** para Meta via `POST /act_{id}/adimages` → obtém `image_hash`
-2. **URL de destino obrigatória**: `https://{custom_domain || slug.shops.comandocentral.com.br}/produto/{product_slug}`
+2. **URL de destino obrigatória**: `https://{storeHost}/produto/{product_slug}` — domínio resolvido via `tenant_domains` (type=custom, is_primary=true), fallback para `slug.shops.comandocentral.com.br`
 3. **Criação de `adcreative`** com `object_story_spec.link_data` contendo `image_hash`, `message`, `name`, `link` e `call_to_action`
 4. **Atualização do asset**: `status → 'published'`, `platform_ad_id → creative_id` do Meta
+
+**⚠️ NUNCA usar `tenants.custom_domain`** — esta coluna NÃO EXISTE. Sempre buscar de `tenant_domains`.
 
 **Ciclo de vida do `status`**:
 ```

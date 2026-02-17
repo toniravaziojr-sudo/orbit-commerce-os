@@ -815,7 +815,7 @@ A sync diária permite que ferramentas como `get_performance_trend` mostrem time
 
 ### v5.9.5 — `ads-chat` — URL de destino + bucket corrigido
 
-1. **Campo `link` obrigatório no `link_data`**: O `object_story_spec.link_data` agora inclui `link` (URL de destino do anúncio) e `call_to_action.value.link`. A URL é construída como `https://{storeHost}/produto/{productSlug}` usando `custom_domain` ou `slug.shops.comandocentral.com.br`
+1. **Campo `link` obrigatório no `link_data`**: O `object_story_spec.link_data` agora inclui `link` (URL de destino do anúncio) e `call_to_action.value.link`. A URL é construída como `https://{storeHost}/produto/{productSlug}` buscando o domínio da tabela `tenant_domains` (ver regra de resolução abaixo)
 2. **Busca de `slug` do produto**: O select de produtos inclui campo `slug` para construir a URL de destino
 3. **Bucket corrigido**: Fallbacks de `createSignedUrl` agora usam `media-assets` em vez de `files` (imagens geradas pela IA ficam no bucket `media-assets`)
 
@@ -832,6 +832,25 @@ A sync diária permite que ferramentas como `get_performance_trend` mostrem time
 2. **Prioridade 2 — Creative existente**: Fallback para `creative_id` de anúncios já existentes na conta
 3. **Prioridade 3 — Auto-geração**: Dispara `ads-autopilot-creative` para gerar novos criativos
 
+### ⚠️ Resolução de Domínio para URL de Destino (REGRA CRÍTICA)
+
+**A tabela `tenants` NÃO possui coluna `custom_domain`.** O domínio customizado está na tabela `tenant_domains`.
+
+```typescript
+// ✅ CORRETO — Buscar domínio de tenant_domains
+const { data: tenantInfo } = await supabase.from("tenants").select("slug").eq("id", tenantId).single();
+const { data: tenantDomainInfo } = await supabase
+  .from("tenant_domains").select("domain")
+  .eq("tenant_id", tenantId).eq("type", "custom").eq("is_primary", true)
+  .maybeSingle();
+const storeHost = tenantDomainInfo?.domain || (tenantInfo?.slug ? `${tenantInfo.slug}.shops.comandocentral.com.br` : null);
+
+// ❌ ERRADO — custom_domain NÃO EXISTE em tenants (retorna sempre null/undefined)
+const { data: t } = await supabase.from("tenants").select("slug, custom_domain")...
+```
+
+**Aplicado em**: `ads-chat` (3 locais), `ads-autopilot-analyze` (1 local)
+
 ### Mapeamento Tabela → Edge Function (atualizado)
 | Tabela | Edge Function |
 |--------|---------------|
@@ -839,3 +858,4 @@ A sync diária permite que ferramentas como `get_performance_trend` mostrem time
 | `creative_jobs` | `creative-image-generate`, `ads-autopilot-creative-generate` (via bridge) |
 | `product_images` | `ads-autopilot-creative-generate`, `creative-image-generate` |
 | `files` | `ads-autopilot-creative-generate` (pasta Drive), `creative-image-generate` (registro no Drive) |
+| `tenant_domains` | `ads-chat`, `ads-autopilot-analyze` (resolução de domínio para URL de destino) |
