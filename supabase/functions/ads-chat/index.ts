@@ -1,8 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.6.0"; // Strategic playbook injection: scaling, testing, copy, creative frameworks
+const VERSION = "v5.7.0"; // Fix: timeout 45s→90s, logging síncrono de ações, fallback imagem catálogo
 // ===========================================================
+
+const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1039,13 +1041,14 @@ async function toggleEntityStatus(supabase: any, tenantId: string, args: any) {
 
   if (result.error) {
     // Log failed action
-    await supabase.from("ads_autopilot_actions").insert({
+    const { error: logErr } = await supabase.from("ads_autopilot_actions").insert({
       tenant_id: tenantId, session_id: crypto.randomUUID(), channel: "meta",
       action_type: new_status === "PAUSED" ? "pause_entity" : "activate_entity",
       status: "failed", error_message: result.error.message,
       action_data: { entity_type, entity_id, new_status, created_by: "ads_chat" },
       reasoning: `Tentativa de ${new_status === "PAUSED" ? "pausar" : "reativar"} ${entity_type} ${entity_id} via Chat IA`,
-    }).then(() => {}).catch(() => {});
+    });
+    if (logErr) console.error(`[ads-chat][${VERSION}] Action log error:`, logErr.message);
     return JSON.stringify({ success: false, error: result.error.message });
   }
 
@@ -1067,13 +1070,14 @@ async function toggleEntityStatus(supabase: any, tenantId: string, args: any) {
   if (entityData?.name) entityName = entityData.name;
 
   // Log successful action
-  await supabase.from("ads_autopilot_actions").insert({
+  const { error: logErr2 } = await supabase.from("ads_autopilot_actions").insert({
     tenant_id: tenantId, session_id: crypto.randomUUID(), channel: "meta",
     action_type: new_status === "PAUSED" ? "pause_entity" : "activate_entity",
     status: "executed", executed_at: new Date().toISOString(), confidence: "high",
     action_data: { entity_type, entity_id, entity_name: entityName, new_status, created_by: "ads_chat" },
     reasoning: `${typeLabel} "${entityName}" ${statusLabel} via Chat IA`,
-  }).then(() => {}).catch((e: any) => console.error(`[ads-chat][${VERSION}] Action log error:`, e));
+  });
+  if (logErr2) console.error(`[ads-chat][${VERSION}] Action log error:`, logErr2.message);
 
   return JSON.stringify({ success: true, message: `${typeLabel} "${entityName}" ${statusLabel} com sucesso.` });
 }
@@ -1108,12 +1112,13 @@ async function updateBudget(supabase: any, tenantId: string, args: any) {
   const result = await res.json();
 
   if (result.error) {
-    await supabase.from("ads_autopilot_actions").insert({
+    const { error: budgetLogErr } = await supabase.from("ads_autopilot_actions").insert({
       tenant_id: tenantId, session_id: crypto.randomUUID(), channel: "meta",
       action_type: "update_budget", status: "failed", error_message: result.error.message,
       action_data: { entity_type, entity_id, entity_name: entityName, old_budget_cents: oldBudgetCents, new_daily_budget_cents, created_by: "ads_chat" },
       reasoning: `Tentativa de alterar budget de "${entityName}" de R$ ${(oldBudgetCents / 100).toFixed(2)} para R$ ${(new_daily_budget_cents / 100).toFixed(2)} via Chat IA`,
-    }).then(() => {}).catch(() => {});
+    });
+    if (budgetLogErr) console.error(`[ads-chat][${VERSION}] Action log error:`, budgetLogErr.message);
     return JSON.stringify({ success: false, error: result.error.message });
   }
 
@@ -1122,12 +1127,13 @@ async function updateBudget(supabase: any, tenantId: string, args: any) {
     .eq("tenant_id", tenantId).eq(idCol, entity_id);
 
   // Log successful action
-  await supabase.from("ads_autopilot_actions").insert({
+  const { error: budgetLogErr2 } = await supabase.from("ads_autopilot_actions").insert({
     tenant_id: tenantId, session_id: crypto.randomUUID(), channel: "meta",
     action_type: "update_budget", status: "executed", executed_at: new Date().toISOString(), confidence: "high",
     action_data: { entity_type, entity_id, entity_name: entityName, old_budget_cents: oldBudgetCents, new_daily_budget_cents, change_pct: oldBudgetCents > 0 ? `${(((new_daily_budget_cents - oldBudgetCents) / oldBudgetCents) * 100).toFixed(0)}%` : "N/A", created_by: "ads_chat" },
     reasoning: `Budget de "${entityName}" alterado de R$ ${(oldBudgetCents / 100).toFixed(2)} para R$ ${(new_daily_budget_cents / 100).toFixed(2)}/dia via Chat IA`,
-  }).then(() => {}).catch((e: any) => console.error(`[ads-chat][${VERSION}] Action log error:`, e));
+  });
+  if (budgetLogErr2) console.error(`[ads-chat][${VERSION}] Action log error:`, budgetLogErr2.message);
 
   return JSON.stringify({
     success: true,
@@ -1929,15 +1935,16 @@ async function triggerCreativeGeneration(supabase: any, tenantId: string) {
     const result = await response.text();
     let parsed; try { parsed = JSON.parse(result); } catch { parsed = { raw: result }; }
 
-    // Log action
-    await supabase.from("ads_autopilot_actions").insert({
+    // Log action (synchronous)
+    const { error: logErr } = await supabase.from("ads_autopilot_actions").insert({
       tenant_id: tenantId, session_id: crypto.randomUUID(), channel: "meta",
       action_type: "generate_creative", status: response.ok ? "executed" : "failed",
       executed_at: response.ok ? new Date().toISOString() : null,
       error_message: !response.ok ? `HTTP ${response.status}` : null,
       action_data: { type: "text_copy", created_by: "ads_chat", details: parsed },
       reasoning: "Geração de textos criativos (headlines e copys) disparada via Chat IA",
-    }).then(() => {}).catch(() => {});
+    });
+    if (logErr) console.error(`[ads-chat][${VERSION}] Action log error:`, logErr.message);
 
     return JSON.stringify({ success: response.ok, message: response.ok ? "Geração de textos criativos disparada." : `Falha (HTTP ${response.status})`, details: parsed });
   } catch (err: any) { return JSON.stringify({ success: false, error: err.message }); }
@@ -1967,16 +1974,17 @@ async function generateCreativeImage(supabase: any, tenantId: string, args: any)
     const result = await response.text();
     let parsed; try { parsed = JSON.parse(result); } catch { parsed = { raw: result }; }
 
-    // Log action
+    // Log action (synchronous)
     const isSuccess = response.ok && parsed?.success;
-    await supabase.from("ads_autopilot_actions").insert({
+    const { error: imgLogErr } = await supabase.from("ads_autopilot_actions").insert({
       tenant_id: tenantId, session_id: crypto.randomUUID(), channel: args.channel || "meta",
       action_type: "generate_creative", status: isSuccess ? "executed" : "failed",
       executed_at: isSuccess ? new Date().toISOString() : null,
       error_message: !isSuccess ? (parsed?.error || `HTTP ${response.status}`) : null,
       action_data: { type: "image", product_name: product.name, product_id: product.id, format: args.format || "1:1", variations: args.variations || 2, style: args.style_preference || "promotional", job_id: parsed?.data?.job_id, created_by: "ads_chat" },
       reasoning: `Geração de ${args.variations || 2} imagem(ns) para "${product.name}" via Chat IA`,
-    }).then(() => {}).catch((e: any) => console.error(`[ads-chat][${VERSION}] Action log error:`, e));
+    });
+    if (imgLogErr) console.error(`[ads-chat][${VERSION}] Action log error:`, imgLogErr.message);
 
     if (!isSuccess) return JSON.stringify({ success: false, error: `Falha ao gerar imagens (HTTP ${response.status})`, details: parsed });
     return JSON.stringify({ success: true, message: `Geração de ${args.variations || 2} imagem(ns) disparada para "${product.name}".`, job_id: parsed?.data?.job_id });
@@ -2033,13 +2041,27 @@ async function createMetaCampaign(supabase: any, tenantId: string, args: any) {
       }
     }
 
-    // Fallback: product image
+    // Fallback: product image from catalog (ALWAYS available)
     if (!creativeImageUrl) {
       const { data: prodImages } = await supabase.from("product_images").select("url").eq("product_id", product.id).order("position", { ascending: true }).limit(1);
-      if (prodImages?.[0]?.url) creativeImageUrl = prodImages[0].url;
+      if (prodImages?.[0]?.url) {
+        creativeImageUrl = prodImages[0].url;
+        console.log(`[ads-chat][${VERSION}] Using catalog image for ${product.name}: ${creativeImageUrl}`);
+      }
     }
 
-    if (!creativeImageUrl) return JSON.stringify({ success: false, error: "Nenhum criativo ou imagem disponível. Gere artes primeiro." });
+    if (!creativeImageUrl) {
+      console.error(`[ads-chat][${VERSION}] No image found for product ${product.name} (${product.id})`);
+      // Log the failure as an action
+      await supabase.from("ads_autopilot_actions").insert({
+        tenant_id: tenantId, session_id: crypto.randomUUID(), channel: "meta",
+        action_type: "create_campaign", status: "failed",
+        error_message: `Nenhuma imagem encontrada para "${product.name}". Adicione imagens ao produto no catálogo.`,
+        action_data: { product_name: product.name, product_id: product.id, created_by: "ads_chat" },
+        reasoning: `Tentativa de criar campanha para "${product.name}" falhou por falta de imagem`,
+      });
+      return JSON.stringify({ success: false, error: `Nenhuma imagem disponível para "${product.name}". Adicione imagens ao produto no catálogo ou no Meu Drive.` });
+    }
 
     // Pixel
     const { data: mktIntegration } = await supabase.from("marketing_integrations").select("meta_pixel_id").eq("tenant_id", tenantId).maybeSingle();
@@ -2922,9 +2944,9 @@ Deno.serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    // Step 1: Non-streaming call WITH tools (45s timeout)
+    // Step 1: Non-streaming call WITH tools
     const abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), 45000);
+    const timeoutId = setTimeout(() => abortController.abort(), AI_TIMEOUT_MS);
 
     let initialResult: any;
     try {
@@ -2993,7 +3015,7 @@ Deno.serve(async (req) => {
         
         // Call AI again WITH tools so it can decide to call more tools or respond
         const nextAbort = new AbortController();
-        const nextTimeout = setTimeout(() => nextAbort.abort(), 45000);
+        const nextTimeout = setTimeout(() => nextAbort.abort(), AI_TIMEOUT_MS);
         
         let nextResult: any;
         try {
