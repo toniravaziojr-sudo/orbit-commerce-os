@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.3.0"; // Fix: pagination using absolute next URL from Meta Graph API
+const VERSION = "v1.4.0"; // Reconciliation: delete local campaigns not found on Meta after sync
 // ===========================================================
 
 const corsHeaders = {
@@ -173,8 +173,51 @@ Deno.serve(async (req) => {
         }
       }
 
+      // ---- RECONCILIATION: remove local campaigns that no longer exist on Meta ----
+      let totalDeleted = 0;
+      for (const account of accountsToSync) {
+        // Collect all meta IDs we just synced for this account
+        const { data: localRows } = await supabase
+          .from("meta_ad_campaigns")
+          .select("id, meta_campaign_id")
+          .eq("tenant_id", tenantId)
+          .eq("ad_account_id", account.id);
+
+        if (localRows && localRows.length > 0) {
+          // Build set of IDs that exist on Meta (already fetched above)
+          // Re-fetch a lightweight list to confirm existence
+          let metaIds = new Set<string>();
+          let checkUrl: string | null = `act_${account.id.replace("act_", "")}/campaigns?fields=id&limit=500`;
+          let checkPages = 0;
+          while (checkUrl && checkPages < 10) {
+            checkPages++;
+            const checkResult = await graphApi(checkUrl, conn.access_token);
+            if (checkResult.error) break;
+            for (const c of (checkResult.data || [])) {
+              metaIds.add(c.id);
+            }
+            checkUrl = checkResult.paging?.next || null;
+          }
+
+          // Delete locals not found on Meta
+          for (const row of localRows) {
+            if (!metaIds.has(row.meta_campaign_id)) {
+              console.log(`[meta-ads-campaigns][${traceId}] Reconcile: deleting local campaign ${row.meta_campaign_id} (not found on Meta)`);
+              // Also delete related adsets and ads
+              await supabase.from("meta_ad_ads").delete().eq("tenant_id", tenantId).eq("meta_campaign_id", row.meta_campaign_id);
+              await supabase.from("meta_ad_adsets").delete().eq("tenant_id", tenantId).eq("meta_campaign_id", row.meta_campaign_id);
+              await supabase.from("meta_ad_campaigns").delete().eq("id", row.id);
+              totalDeleted++;
+            }
+          }
+        }
+      }
+      if (totalDeleted > 0) {
+        console.log(`[meta-ads-campaigns][${traceId}] Reconciliation: removed ${totalDeleted} orphaned campaigns`);
+      }
+
       return new Response(
-        JSON.stringify({ success: true, data: { synced: totalSynced, total: totalCampaigns } }),
+        JSON.stringify({ success: true, data: { synced: totalSynced, total: totalCampaigns, deleted: totalDeleted } }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

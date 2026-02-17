@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.0.0"; // Add create action for ads (autopilot campaign creation chain)
+const VERSION = "v2.1.0"; // Reconciliation: delete local ads not found on Meta after sync
 // ===========================================================
 
 const corsHeaders = {
@@ -168,8 +168,42 @@ Deno.serve(async (req) => {
         }
       }
 
+      // ---- RECONCILIATION: remove local ads not found on Meta ----
+      let totalDeleted = 0;
+      for (const account of adAccounts) {
+        const { data: localRows } = await supabase
+          .from("meta_ad_ads")
+          .select("id, meta_ad_id")
+          .eq("tenant_id", tenantId)
+          .eq("ad_account_id", account.id);
+
+        if (localRows && localRows.length > 0) {
+          let metaIds = new Set<string>();
+          let checkUrl: string | null = `act_${account.id.replace("act_", "")}/ads?fields=id&limit=500`;
+          let checkPages = 0;
+          while (checkUrl && checkPages < 10) {
+            checkPages++;
+            const checkResult = await graphApi(checkUrl, conn.access_token);
+            if (checkResult.error) break;
+            for (const a of (checkResult.data || [])) metaIds.add(a.id);
+            checkUrl = checkResult.paging?.next || null;
+          }
+
+          for (const row of localRows) {
+            if (!metaIds.has(row.meta_ad_id)) {
+              console.log(`[meta-ads-ads][${traceId}] Reconcile: deleting local ad ${row.meta_ad_id}`);
+              await supabase.from("meta_ad_ads").delete().eq("id", row.id);
+              totalDeleted++;
+            }
+          }
+        }
+      }
+      if (totalDeleted > 0) {
+        console.log(`[meta-ads-ads][${traceId}] Reconciliation: removed ${totalDeleted} orphaned ads`);
+      }
+
       return new Response(
-        JSON.stringify({ success: true, data: { synced: totalSynced } }),
+        JSON.stringify({ success: true, data: { synced: totalSynced, deleted: totalDeleted } }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
