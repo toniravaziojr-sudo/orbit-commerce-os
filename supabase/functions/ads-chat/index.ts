@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.3.6"; // Fix: createCustomAudience/createLookalikeAudience wrong column names (audience_id→meta_audience_id, remove non-existent status column)
+const VERSION = "v5.3.7"; // Fix: multi-round tool call loop — AI can now call read AND write tools across multiple rounds
 // ===========================================================
 
 const corsHeaders = {
@@ -2609,35 +2609,96 @@ Deno.serve(async (req) => {
     const toolCalls = firstChoice.message?.tool_calls;
 
     if (toolCalls && toolCalls.length > 0) {
-      console.log(`[ads-chat][${VERSION}] Tool calls: ${toolCalls.map((t: any) => t.function.name).join(", ")}`);
-
-      const toolResults: string[] = [];
-      for (const tc of toolCalls) {
-        let args = {};
-        try { args = JSON.parse(tc.function.arguments || "{}"); } catch { /* empty */ }
-        const result = await executeTool(supabase, tenant_id, tc.function.name, args);
-        toolResults.push(`[Resultado de ${tc.function.name}]:\n${result}`);
-        await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: null, tool_calls: [{ id: tc.id, function: { name: tc.function.name, arguments: tc.function.arguments } }] });
+      // ===== MULTI-ROUND TOOL CALL LOOP (v5.3.7) =====
+      // The AI can call tools multiple times (read first, then write) across up to 5 rounds.
+      // Each round: execute tool calls → feed results back to model WITH tools → repeat until text response.
+      const MAX_TOOL_ROUNDS = 5;
+      let currentToolCalls = toolCalls;
+      let loopMessages = [...aiMessages];
+      
+      for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+        console.log(`[ads-chat][${VERSION}] Tool round ${round + 1}: ${currentToolCalls.map((t: any) => t.function.name).join(", ")}`);
+        
+        // Build assistant message with tool_calls
+        const assistantMsg: any = { role: "assistant", content: null, tool_calls: currentToolCalls.map((tc: any) => ({ id: tc.id, type: "function", function: { name: tc.function.name, arguments: tc.function.arguments } })) };
+        loopMessages.push(assistantMsg);
+        
+        // Execute each tool call and build tool result messages
+        for (const tc of currentToolCalls) {
+          let args = {};
+          try { args = JSON.parse(tc.function.arguments || "{}"); } catch { /* empty */ }
+          const result = await executeTool(supabase, tenant_id, tc.function.name, args);
+          
+          // Save tool call to DB
+          await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: null, tool_calls: [{ id: tc.id, function: { name: tc.function.name, arguments: tc.function.arguments } }] });
+          
+          // Add tool result message in OpenAI format
+          loopMessages.push({ role: "tool", tool_call_id: tc.id, content: result });
+        }
+        
+        // Call AI again WITH tools so it can decide to call more tools or respond
+        const nextAbort = new AbortController();
+        const nextTimeout = setTimeout(() => nextAbort.abort(), 45000);
+        
+        let nextResult: any;
+        try {
+          const nextResponse = await fetch(LOVABLE_AI_URL, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: modelToUse, messages: loopMessages, tools: TOOLS, stream: false }),
+            signal: nextAbort.signal,
+          });
+          clearTimeout(nextTimeout);
+          if (!nextResponse.ok) {
+            const errText = await nextResponse.text();
+            console.error(`[ads-chat][${VERSION}] AI round ${round + 1} error: ${nextResponse.status} ${errText}`);
+            throw new Error(`AI error round ${round + 1}: ${nextResponse.status}`);
+          }
+          nextResult = await nextResponse.json();
+        } catch (err: any) {
+          clearTimeout(nextTimeout);
+          if (err.name === "AbortError") {
+            const timeoutMsg = "⚠️ O processamento demorou mais que o esperado. Tente novamente.";
+            await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: timeoutMsg });
+            const sseData = `data: ${JSON.stringify({ choices: [{ delta: { content: timeoutMsg } }] })}\n\ndata: [DONE]\n\n`;
+            return new Response(sseData, { headers: { ...corsHeaders, "Content-Type": "text/event-stream", "X-Conversation-Id": convId } });
+          }
+          throw err;
+        }
+        
+        const nextChoice = nextResult.choices?.[0];
+        const nextToolCalls = nextChoice?.message?.tool_calls;
+        
+        if (nextToolCalls && nextToolCalls.length > 0) {
+          // More tools to call — continue loop
+          currentToolCalls = nextToolCalls;
+          continue;
+        }
+        
+        // No more tool calls — stream final text response
+        const finalContent = nextChoice?.message?.content;
+        if (finalContent) {
+          await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: finalContent });
+          if ((history || []).length <= 1) {
+            await supabase.from("ads_chat_conversations").update({ title: (message || "").substring(0, 60), updated_at: new Date().toISOString() }).eq("id", convId);
+          }
+          const sseData = `data: ${JSON.stringify({ choices: [{ delta: { content: finalContent } }] })}\n\ndata: [DONE]\n\n`;
+          return new Response(sseData, { headers: { ...corsHeaders, "Content-Type": "text/event-stream", "X-Conversation-Id": convId } });
+        }
+        
+        // If neither tools nor content, break
+        break;
       }
-
-      const followUpMessages = [
-        ...aiMessages,
-        { role: "assistant", content: "Vou consultar os dados reais do sistema para responder com precisão." },
-        { role: "user", content: `[DADOS REAIS DO SISTEMA — baseie sua resposta EXCLUSIVAMENTE nestes dados]\n\n${toolResults.join("\n\n")}` },
-      ];
-
-      const finalAiResponse = await fetch(LOVABLE_AI_URL, {
+      
+      // Fallback: if loop exhausted without final text, do a streaming call
+      console.log(`[ads-chat][${VERSION}] Tool loop exhausted after ${MAX_TOOL_ROUNDS} rounds, streaming final response`);
+      const finalStream = await fetch(LOVABLE_AI_URL, {
         method: "POST",
         headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: followUpMessages, stream: true }),
+        body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: loopMessages, stream: true }),
       });
-
-      if (!finalAiResponse.ok) {
-        const errText = await finalAiResponse.text();
-        throw new Error(`AI final response error: ${finalAiResponse.status} - ${errText}`);
-      }
-
-      return streamAndSave(finalAiResponse, supabase, convId, tenant_id, message || "Anexo", history);
+      if (!finalStream.ok) throw new Error(`Final stream error: ${finalStream.status}`);
+      return streamAndSave(finalStream, supabase, convId, tenant_id, message || "Anexo", history);
     }
 
     // No tool calls — direct text
