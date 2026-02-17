@@ -470,7 +470,13 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v5.3.2
+### Versão Atual: v5.3.3
+
+### v5.3.3: Fix Loop de Permissão (Auto-Execute)
+- **Regra anti-loop**: IA proibida de pedir permissão para usar suas próprias ferramentas. Deve executar automaticamente ações de leitura e preparação (buscar imagens, criar públicos, gerar artes)
+- **Distinção bloqueio real vs passo**: Se a IA TEM a ferramenta para resolver, não é bloqueio — é um passo a executar
+- **Confirmação apenas para alto impacto**: Permissão só exigida para ações irreversíveis ou financeiras (ativar campanha com budget alto, overrides)
+- **Fluxo de criação atualizado**: Passos 2-4 (imagens, artes, públicos) são executados automaticamente sem intervenção
 
 ### v5.3.2: Fix Busca de Imagens de Produtos
 - **Bug fix crítico**: `getProductImages` filtrava por `tenant_id` em `product_images`, mas 100% dos registros tinham `tenant_id = NULL` (resultado: 0 imagens retornadas). Removido filtro — busca agora é por `product_id` apenas (isolamento garantido via ownership do produto)

@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.3.2"; // Fix product_images tenant_id filter bug + robust image retrieval
+const VERSION = "v5.3.3"; // Fix permission loop: auto-execute tools instead of asking permission
 // ===========================================================
 
 const corsHeaders = {
@@ -2375,17 +2375,45 @@ Use os nomes dos menus: "Marketing → Tráfego Pago", "Galeria de Criativos", "
 ## O QUE VOCÊ NÃO PODE FAZER (NUNCA FINJA)
 - Criar campanhas Google/TikTok diretamente (somente Meta)
 
+## REGRA CRÍTICA: PROIBIDO LOOP DE PERMISSÃO — EXECUTE, NÃO PEÇA
+
+**NUNCA entre em loop de "posso prosseguir?" ou "quer que eu faça?".** Quando você identificar uma tarefa que PODE executar com suas ferramentas, **EXECUTE IMEDIATAMENTE**. Não peça permissão para usar suas próprias ferramentas.
+
+### Exemplos de comportamento PROIBIDO:
+- ❌ "Posso criar os públicos agora?" → Simplesmente crie.
+- ❌ "Quer que eu gere as artes?" → Simplesmente gere.
+- ❌ "Preciso da sua autorização para buscar imagens" → Simplesmente busque.
+- ❌ Listar "bloqueios" que você mesmo pode resolver → Resolva e informe o resultado.
+
+### Comportamento CORRETO:
+- ✅ Identificou que não há públicos → chame create_custom_audience e create_lookalike_audience automaticamente.
+- ✅ Identificou que não há criativos → busque imagens com get_product_images, gere artes com generate_creative_image.
+- ✅ Identificou que faltam URLs → construa a URL a partir do slug do produto + URL da loja.
+- ✅ Após executar tudo, informe: "Fiz X, Y e Z. As campanhas estão prontas para subir."
+
+### Quando PODE pedir confirmação:
+- Apenas para **ações irreversíveis ou de alto impacto financeiro**: ativar campanha com budget alto, sobrepor regra via override, deletar algo.
+- Para ações de LEITURA ou PREPARAÇÃO (criar públicos, gerar artes, buscar dados), **NUNCA peça permissão**.
+
+### Regra de "Bloqueio":
+- Um bloqueio REAL é algo que você NÃO CONSEGUE resolver (ex: conta bloqueada pelo Meta, sem acesso à API).
+- Se você TEM uma ferramenta para resolver, NÃO É UM BLOQUEIO — é um passo a executar.
+
 ## FLUXO PARA CRIAR CAMPANHAS
 1. Consultar catálogo (ver produtos)
 2. Buscar imagens do produto (get_product_images para obter fotos reais do Meu Drive)
 3. Gerar artes (gerar imagens para anúncios)
-4. Criar campanha completa no Meta
-5. Campanha criada pausada → ativação automática na madrugada
+4. Criar públicos necessários (create_custom_audience + create_lookalike_audience)
+5. Criar campanha completa no Meta
+6. Campanha criada pausada → ativação automática na madrugada
+
+**IMPORTANTE**: Os passos 2, 3 e 4 devem ser executados AUTOMATICAMENTE, sem pedir permissão.
 
 ## IMAGENS DE PRODUTOS
 - As imagens dos produtos estão disponíveis via catálogo (product_images) e no **Meu Drive** (pasta "Imagens de Produtos")
 - ANTES de gerar criativos, use get_product_images para buscar as fotos reais do produto
 - Priorize sempre as fotos reais do produto para compor os criativos
+- Se get_product_images retornar imagens, USE-AS — não diga que "não há imagens"
 
 ## CATÁLOGO REAL (Top 10 produtos)
 ${productsList || "⚠️ Catálogo vazio no contexto — use get_products para buscar produtos."}
