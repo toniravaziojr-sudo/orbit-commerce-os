@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.8.0"; // Fix: product_images sort_order, session_id FK para action logging
+const VERSION = "v5.9.0"; // Fix: parallel tool execution, files.url→storage_path
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -2030,14 +2030,11 @@ async function createMetaCampaign(supabase: any, tenantId: string, args: any, ch
     if (!creativeImageUrl) {
       const { data: folder } = await supabase.from("files").select("id").eq("tenant_id", tenantId).eq("filename", "Gestor de Tráfego IA").eq("is_folder", true).maybeSingle();
       if (folder) {
-        const { data: driveFiles } = await supabase.from("files").select("id, url, storage_path, filename").eq("tenant_id", tenantId).eq("folder_id", folder.id).eq("is_folder", false).order("created_at", { ascending: false }).limit(5);
-        const imageFile = (driveFiles || []).find((f: any) => f.url || f.storage_path);
-        if (imageFile) {
-          creativeImageUrl = imageFile.url || null;
-          if (!creativeImageUrl && imageFile.storage_path) {
-            const { data: signedData } = await supabase.storage.from("files").createSignedUrl(imageFile.storage_path, 86400 * 30);
-            if (signedData?.signedUrl) creativeImageUrl = signedData.signedUrl;
-          }
+        const { data: driveFiles } = await supabase.from("files").select("id, storage_path, filename").eq("tenant_id", tenantId).eq("folder_id", folder.id).eq("is_folder", false).order("created_at", { ascending: false }).limit(5);
+        const imageFile = (driveFiles || []).find((f: any) => f.storage_path);
+        if (imageFile && imageFile.storage_path) {
+          const { data: signedData } = await supabase.storage.from("files").createSignedUrl(imageFile.storage_path, 86400 * 30);
+          if (signedData?.signedUrl) creativeImageUrl = signedData.signedUrl;
         }
       }
     }
@@ -3008,17 +3005,25 @@ Deno.serve(async (req) => {
         const assistantMsg: any = { role: "assistant", content: null, tool_calls: currentToolCalls.map((tc: any) => ({ id: tc.id, type: "function", function: { name: tc.function.name, arguments: tc.function.arguments } })) };
         loopMessages.push(assistantMsg);
         
-        // Execute each tool call and build tool result messages
-        for (const tc of currentToolCalls) {
+        // Execute tool calls IN PARALLEL for performance (v5.9.0)
+        const toolPromises = currentToolCalls.map(async (tc: any) => {
           let args = {};
           try { args = JSON.parse(tc.function.arguments || "{}"); } catch { /* empty */ }
           const result = await executeTool(supabase, tenant_id, tc.function.name, args, chatSessionId);
-          
-          // Save tool call to DB
-          await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: null, tool_calls: [{ id: tc.id, function: { name: tc.function.name, arguments: tc.function.arguments } }] });
-          
-          // Add tool result message in OpenAI format
-          loopMessages.push({ role: "tool", tool_call_id: tc.id, content: result });
+          // Save tool call to DB (fire-and-forget to not block)
+          supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: null, tool_calls: [{ id: tc.id, function: { name: tc.function.name, arguments: tc.function.arguments } }] }).then(() => {}).catch((e: any) => console.error(`[ads-chat][${VERSION}] DB save error:`, e));
+          return { tc_id: tc.id, result };
+        });
+        const toolResults = await Promise.allSettled(toolPromises);
+        for (const res of toolResults) {
+          if (res.status === "fulfilled") {
+            loopMessages.push({ role: "tool", tool_call_id: res.value.tc_id, content: res.value.result });
+          } else {
+            // Find the tc_id from the original list by index
+            const idx = toolResults.indexOf(res);
+            const tcId = currentToolCalls[idx]?.id || "unknown";
+            loopMessages.push({ role: "tool", tool_call_id: tcId, content: JSON.stringify({ error: res.reason?.message || "Tool execution failed" }) });
+          }
         }
         
         // Call AI again WITH tools so it can decide to call more tools or respond
