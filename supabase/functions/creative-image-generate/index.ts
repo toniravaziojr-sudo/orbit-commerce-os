@@ -845,9 +845,8 @@ serve(async (req) => {
             filename: `${product_name || 'Produto'}_${img.provider}${img.isWinner ? '_BEST' : ''}_${Date.now()}.png`,
             original_name: `${img.provider}_${i + 1}.png`,
             storage_path: actualStoragePath,
-            file_type: 'image',
             mime_type: 'image/png',
-            size_bytes: null, // Could calculate from base64 but not critical
+            size_bytes: null,
             created_by: userId,
             metadata: {
               source: 'creative_job_v3',
@@ -866,6 +865,45 @@ serve(async (req) => {
             console.error(`[creative-image] Error registering file to Drive:`, fileInsertError);
           } else {
             console.log(`[creative-image] File registered in Drive: ${actualStoragePath}`);
+          }
+        }
+
+        // Update ads_creative_assets that reference this job_id with the generated image URL
+        if (uploadedImages.length > 0) {
+          const winnerUrl = (winner?.url || uploadedImages[0]?.url);
+          const winnerStoragePath = (() => {
+            const m = winnerUrl?.match(/\/storage\/v1\/object\/public\/[^/]+\/(.+)$/);
+            return m ? m[1] : null;
+          })();
+          
+          // Find all ads_creative_assets that have this job_id in their meta
+          const { data: linkedAssets } = await supabase
+            .from('ads_creative_assets')
+            .select('id, meta')
+            .eq('tenant_id', tenant_id)
+            .eq('product_id', product_id);
+          
+          const assetsToUpdate = (linkedAssets || []).filter((a: any) => {
+            const m = a.meta as any;
+            return m?.image_job_id === jobId;
+          });
+          
+          if (assetsToUpdate.length > 0) {
+            for (const asset of assetsToUpdate) {
+              const existingMeta = asset.meta as any || {};
+              await supabase.from('ads_creative_assets').update({
+                asset_url: winnerUrl,
+                storage_path: winnerStoragePath,
+                status: 'ready',
+                meta: {
+                  ...existingMeta,
+                  image_status: 'completed',
+                  image_job_id: jobId,
+                  image_scores: winner?.scores || uploadedImages[0]?.scores,
+                },
+              }).eq('id', asset.id);
+            }
+            console.log(`[creative-image] Updated ${assetsToUpdate.length} ads_creative_assets with image URL`);
           }
         }
 
