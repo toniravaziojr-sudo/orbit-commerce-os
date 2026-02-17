@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.3.0"; // Fix silent failures: reduce history, add timeout, error SSE
+const VERSION = "v3.0.0"; // Multimodal: image analysis, file upload, URL scraping
 // ===========================================================
 
 const corsHeaders = {
@@ -104,6 +104,21 @@ const TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "analyze_url",
+      description: "Analisa o conteúdo de uma URL (landing page, concorrente, anúncio, artigo). Extrai texto, estrutura e informações relevantes. Use quando o usuário enviar um link ou pedir para analisar uma página.",
+      parameters: {
+        type: "object",
+        properties: {
+          url: { type: "string", description: "URL completa para analisar" },
+        },
+        required: ["url"],
+        additionalProperties: false,
+      },
+    },
+  },
 ];
 
 // ============ TOOL EXECUTORS ============
@@ -128,6 +143,8 @@ async function executeTool(
         return await getAutopilotActions(supabase, tenantId, args.status, args.limit);
       case "get_autopilot_insights":
         return await getAutopilotInsights(supabase, tenantId, args.status);
+      case "analyze_url":
+        return await analyzeUrl(args.url);
       default:
         return JSON.stringify({ error: `Ferramenta desconhecida: ${toolName}` });
     }
@@ -140,7 +157,6 @@ async function executeTool(
 async function getCampaignPerformance(supabase: any, tenantId: string, adAccountId?: string) {
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
 
-  // Get campaigns
   const campQuery = supabase
     .from("meta_ad_campaigns")
     .select("meta_campaign_id, name, status, objective, daily_budget_cents, ad_account_id")
@@ -148,7 +164,6 @@ async function getCampaignPerformance(supabase: any, tenantId: string, adAccount
   if (adAccountId) campQuery.eq("ad_account_id", adAccountId);
   const { data: campaigns } = await campQuery.limit(30);
 
-  // Get insights
   const insightQuery = supabase
     .from("meta_ad_insights")
     .select("meta_campaign_id, spend_cents, impressions, clicks, conversions, roas, ctr, cpc_cents, cpm_cents, date_start")
@@ -156,20 +171,12 @@ async function getCampaignPerformance(supabase: any, tenantId: string, adAccount
     .gte("date_start", sevenDaysAgo);
   const { data: insights } = await insightQuery.limit(500);
 
-  // Aggregate per campaign
   const campMap: Record<string, any> = {};
   for (const c of (campaigns || [])) {
     campMap[c.meta_campaign_id] = {
-      name: c.name,
-      status: c.status,
-      objective: c.objective,
+      name: c.name, status: c.status, objective: c.objective,
       daily_budget: `R$ ${((c.daily_budget_cents || 0) / 100).toFixed(2)}`,
-      spend_7d: 0,
-      impressions_7d: 0,
-      clicks_7d: 0,
-      conversions_7d: 0,
-      roas_avg: 0,
-      days_with_data: 0,
+      spend_7d: 0, impressions_7d: 0, clicks_7d: 0, conversions_7d: 0, roas_avg: 0, days_with_data: 0,
     };
   }
 
@@ -181,7 +188,7 @@ async function getCampaignPerformance(supabase: any, tenantId: string, adAccount
     c.clicks_7d += i.clicks || 0;
     c.conversions_7d += i.conversions || 0;
     c.days_with_data += 1;
-    if (i.roas) c.roas_avg = i.roas; // simplification, last value
+    if (i.roas) c.roas_avg = i.roas;
   }
 
   const result = Object.values(campMap).map((c: any) => ({
@@ -207,21 +214,13 @@ async function getCreativeAssets(supabase: any, tenantId: string, status?: strin
     .limit(20);
   if (status) query.eq("status", status);
   const { data, error } = await query;
-
   if (error) return JSON.stringify({ error: error.message });
-
   return JSON.stringify({
     total: data?.length || 0,
     assets: (data || []).map((a: any) => ({
-      id: a.id,
-      headline: a.headline,
-      copy: a.copy_text?.substring(0, 100),
-      format: a.format,
-      status: a.status,
-      angle: a.angle,
-      channel: a.channel,
-      has_image: !!(a.asset_url || a.storage_path),
-      created_at: a.created_at,
+      id: a.id, headline: a.headline, copy: a.copy_text?.substring(0, 100),
+      format: a.format, status: a.status, angle: a.angle, channel: a.channel,
+      has_image: !!(a.asset_url || a.storage_path), created_at: a.created_at,
     })),
   });
 }
@@ -229,38 +228,19 @@ async function getCreativeAssets(supabase: any, tenantId: string, status?: strin
 async function triggerCreativeGeneration(supabase: any, tenantId: string) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
   try {
     const response = await fetch(`${supabaseUrl}/functions/v1/ads-autopilot-creative-generate`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${serviceKey}`,
-      },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
       body: JSON.stringify({ tenant_id: tenantId }),
     });
-
     const result = await response.text();
     let parsed;
-    try {
-      parsed = JSON.parse(result);
-    } catch {
-      parsed = { raw: result };
-    }
-
+    try { parsed = JSON.parse(result); } catch { parsed = { raw: result }; }
     if (!response.ok) {
-      return JSON.stringify({
-        success: false,
-        error: `Falha ao gerar criativos (HTTP ${response.status})`,
-        details: parsed,
-      });
+      return JSON.stringify({ success: false, error: `Falha ao gerar criativos (HTTP ${response.status})`, details: parsed });
     }
-
-    return JSON.stringify({
-      success: true,
-      message: "Geração de briefs criativos disparada com sucesso. Os resultados aparecerão na aba de criativos.",
-      details: parsed,
-    });
+    return JSON.stringify({ success: true, message: "Geração de briefs criativos disparada com sucesso.", details: parsed });
   } catch (err: any) {
     return JSON.stringify({ success: false, error: err.message });
   }
@@ -269,30 +249,18 @@ async function triggerCreativeGeneration(supabase: any, tenantId: string) {
 async function triggerAutopilotAnalysis(supabase: any, tenantId: string, channel: string) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
   try {
     const response = await fetch(`${supabaseUrl}/functions/v1/ads-autopilot-analyze`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${serviceKey}`,
-      },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
       body: JSON.stringify({ tenant_id: tenantId, channel, trigger_type: "manual" }),
     });
-
     const result = await response.text();
     let parsed;
-    try {
-      parsed = JSON.parse(result);
-    } catch {
-      parsed = { raw: result };
-    }
-
+    try { parsed = JSON.parse(result); } catch { parsed = { raw: result }; }
     return JSON.stringify({
       success: response.ok,
-      message: response.ok
-        ? `Análise do Autopilot (${channel}) disparada. Verifique as ações e insights em instantes.`
-        : `Falha ao disparar análise (HTTP ${response.status})`,
+      message: response.ok ? `Análise do Autopilot (${channel}) disparada.` : `Falha (HTTP ${response.status})`,
       details: parsed,
     });
   } catch (err: any) {
@@ -309,22 +277,16 @@ async function getAutopilotActions(supabase: any, tenantId: string, status?: str
     .limit(limit || 15);
   if (status) query.eq("status", status);
   const { data, error } = await query;
-
   if (error) return JSON.stringify({ error: error.message });
-
   return JSON.stringify({
     total: data?.length || 0,
     actions: (data || []).map((a: any) => ({
-      action_type: a.action_type,
-      channel: a.channel,
-      status: a.status,
-      reasoning: a.reasoning?.substring(0, 200),
-      confidence: a.confidence,
+      action_type: a.action_type, channel: a.channel, status: a.status,
+      reasoning: a.reasoning?.substring(0, 200), confidence: a.confidence,
       error: a.error_message,
       campaign_name: a.action_data?.campaign_name,
       daily_budget: a.action_data?.daily_budget_cents ? `R$ ${(a.action_data.daily_budget_cents / 100).toFixed(2)}` : null,
-      executed_at: a.executed_at,
-      created_at: a.created_at,
+      executed_at: a.executed_at, created_at: a.created_at,
     })),
   });
 }
@@ -338,10 +300,56 @@ async function getAutopilotInsights(supabase: any, tenantId: string, status?: st
     .limit(15);
   if (status) query.eq("status", status);
   const { data, error } = await query;
-
   if (error) return JSON.stringify({ error: error.message });
-
   return JSON.stringify({ total: data?.length || 0, insights: data || [] });
+}
+
+// ============ NEW: URL ANALYSIS (Firecrawl) ============
+
+async function analyzeUrl(url: string): Promise<string> {
+  const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
+  if (!FIRECRAWL_API_KEY) {
+    return JSON.stringify({ error: "Firecrawl não configurado. Não é possível analisar URLs." });
+  }
+
+  try {
+    const response = await fetch("https://api.firecrawl.dev/v1/scrape", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        url,
+        formats: ["markdown"],
+        onlyMainContent: true,
+      }),
+    });
+
+    const result = await response.text();
+    let parsed;
+    try { parsed = JSON.parse(result); } catch { parsed = { raw: result }; }
+
+    if (!response.ok) {
+      return JSON.stringify({ error: `Falha ao analisar URL (HTTP ${response.status})`, details: parsed });
+    }
+
+    const markdown = parsed?.data?.markdown || "";
+    const metadata = parsed?.data?.metadata || {};
+
+    // Truncate to avoid context bloat
+    const truncated = markdown.length > 3000 ? markdown.substring(0, 3000) + "\n\n[...conteúdo truncado]" : markdown;
+
+    return JSON.stringify({
+      success: true,
+      url,
+      title: metadata.title || "",
+      description: metadata.description || "",
+      content: truncated,
+    });
+  } catch (err: any) {
+    return JSON.stringify({ error: `Erro ao acessar URL: ${err.message}` });
+  }
 }
 
 // ============ CONTEXT COLLECTOR ============
@@ -356,7 +364,6 @@ async function collectBaseContext(supabase: any, tenantId: string, scope: string
     .single();
   context.storeName = tenant?.name || "Loja";
 
-  // Account configs summary (INCLUDING user_instructions)
   const configQuery = supabase
     .from("ads_autopilot_account_configs")
     .select("channel, ad_account_id, is_ai_enabled, budget_cents, target_roi, strategy_mode, funnel_splits, user_instructions")
@@ -365,11 +372,9 @@ async function collectBaseContext(supabase: any, tenantId: string, scope: string
   const { data: configs } = await configQuery;
   context.accountConfigs = configs || [];
 
-  // Extract user_instructions from active account (critical for product knowledge)
   const activeConfig = (configs || []).find((c: any) => c.is_ai_enabled && c.ad_account_id === adAccountId);
   context.userInstructions = activeConfig?.user_instructions || (configs || [])?.[0]?.user_instructions || null;
 
-  // Quick order stats
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
   const { data: orders } = await supabase
     .from("orders")
@@ -383,7 +388,6 @@ async function collectBaseContext(supabase: any, tenantId: string, scope: string
     avg_ticket_brl: paid.length ? (paid.reduce((s: number, o: any) => s + (o.total || 0), 0) / paid.length / 100).toFixed(2) : "0",
   };
 
-  // Product catalog (top 10 active products for context)
   const { data: products } = await supabase
     .from("products")
     .select("id, name, price, status, description, images")
@@ -392,8 +396,7 @@ async function collectBaseContext(supabase: any, tenantId: string, scope: string
     .order("created_at", { ascending: false })
     .limit(10);
   context.products = (products || []).map((p: any) => ({
-    id: p.id,
-    name: p.name,
+    id: p.id, name: p.name,
     price_brl: `R$ ${((p.price || 0) / 100).toFixed(2)}`,
     description: p.description?.substring(0, 120) || "",
     has_image: Array.isArray(p.images) && p.images.length > 0,
@@ -414,12 +417,10 @@ function buildSystemPrompt(scope: string, adAccountId?: string, channel?: string
     `- ${c.channel} / ${c.ad_account_id}: IA ${c.is_ai_enabled ? "ON" : "OFF"}, Budget R$ ${((c.budget_cents || 0) / 100).toFixed(2)}/dia, ROI alvo ${c.target_roi || "N/D"}, Splits: ${JSON.stringify(c.funnel_splits || {})}`
   ).join("\n");
 
-  // Product catalog context
   const productsList = (context?.products || []).map((p: any) =>
     `- ${p.name} (${p.price_brl}) ${p.description ? `— ${p.description}` : ""}`
   ).join("\n");
 
-  // User instructions (strategic prompt)
   const userInstructionsBlock = context?.userInstructions
     ? `\n## INSTRUÇÕES ESTRATÉGICAS DO LOJISTA (LEIA COM ATENÇÃO — SEGUIR À RISCA)\n${context.userInstructions}\n`
     : "";
@@ -437,12 +438,20 @@ function buildSystemPrompt(scope: string, adAccountId?: string, channel?: string
 - Suas únicas capacidades de execução são as FERRAMENTAS listadas abaixo. Tudo que não está nas ferramentas, você NÃO PODE FAZER.
 
 ## SUAS FERRAMENTAS (o que você PODE fazer de verdade)
-1. **get_campaign_performance** → Buscar métricas reais de campanhas (spend, ROAS, CPA, impressões, cliques, conversões)
+1. **get_campaign_performance** → Buscar métricas reais de campanhas
 2. **get_creative_assets** → Listar criativos existentes e seus status
-3. **trigger_creative_generation** → Disparar geração de BRIEFS criativos (headlines + copy) para produtos do catálogo. Isso NÃO gera imagens — gera textos para anúncios.
+3. **trigger_creative_generation** → Disparar geração de BRIEFS criativos (headlines + copy)
 4. **trigger_autopilot_analysis** → Disparar uma análise do Autopilot para um canal
 5. **get_autopilot_actions** → Ver ações reais executadas/agendadas pela IA
 6. **get_autopilot_insights** → Ver insights e diagnósticos reais
+7. **analyze_url** → Analisar o conteúdo de uma URL (landing page, concorrente, anúncio, artigo)
+
+## CAPACIDADES MULTIMODAIS
+- Você PODE analisar imagens enviadas pelo usuário (screenshots de anúncios, criativos, métricas, etc.)
+- Você PODE analisar links/URLs usando a ferramenta analyze_url
+- Você PODE analisar documentos/arquivos de texto enviados pelo usuário
+- Quando o usuário enviar uma imagem, descreva o que vê e dê feedback relevante sobre tráfego/marketing
+- Quando o usuário enviar um link, use analyze_url para extrair o conteúdo
 
 ## O QUE VOCÊ NÃO PODE FAZER (NUNCA FINJA QUE PODE)
 - Não pode gerar imagens diretamente
@@ -471,7 +480,43 @@ ${configSummary || "Nenhuma conta configurada."}
 - Quando o usuário perguntar sobre performance, USE a ferramenta get_campaign_performance
 - Quando pedir criativos, USE trigger_creative_generation e informe que são BRIEFS (textos), não imagens
 - Quando pedir análise, USE trigger_autopilot_analysis
+- Quando enviar link/URL, USE analyze_url
 - SEMPRE referencie produtos pelo nome real do catálogo acima`;
+}
+
+// ============ BUILD MULTIMODAL USER MESSAGE ============
+
+function buildUserMessage(message: string, attachments?: any[]) {
+  // If no attachments, return simple text
+  if (!attachments || attachments.length === 0) {
+    return { role: "user", content: message };
+  }
+
+  // Build multimodal content array
+  const content: any[] = [];
+
+  // Add text first
+  if (message) {
+    content.push({ type: "text", text: message });
+  }
+
+  // Add images/files
+  for (const att of attachments) {
+    if (att.mimeType?.startsWith("image/")) {
+      content.push({
+        type: "image_url",
+        image_url: { url: att.url },
+      });
+    } else {
+      // For non-image files, add as text reference
+      content.push({
+        type: "text",
+        text: `[Arquivo anexado: ${att.filename} (${att.mimeType || "desconhecido"})]`,
+      });
+    }
+  }
+
+  return { role: "user", content };
 }
 
 // ============ MAIN HANDLER ============
@@ -483,6 +528,8 @@ Deno.serve(async (req) => {
 
   console.log(`[ads-chat][${VERSION}] Request received`);
 
+  let body: any;
+
   try {
     const authHeader = req.headers.get("Authorization");
     const supabase = createClient(
@@ -490,7 +537,6 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Validate user
     const userClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
@@ -504,10 +550,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const body = await req.json();
-    const { conversation_id, message, tenant_id, scope, ad_account_id, channel } = body;
+    body = await req.json();
+    const { conversation_id, message, tenant_id, scope, ad_account_id, channel, attachments } = body;
 
-    if (!tenant_id || !message) {
+    if (!tenant_id || (!message && (!attachments || attachments.length === 0))) {
       return new Response(JSON.stringify({ error: "Missing tenant_id or message" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -524,7 +570,7 @@ Deno.serve(async (req) => {
           scope: scope || "global",
           ad_account_id: ad_account_id || null,
           channel: channel || null,
-          title: message.substring(0, 60),
+          title: (message || "Anexo").substring(0, 60),
           created_by: user.id,
         })
         .select("id")
@@ -533,39 +579,49 @@ Deno.serve(async (req) => {
       convId = conv.id;
     }
 
-    // Save user message
+    // Save user message (with attachments if any)
     await supabase.from("ads_chat_messages").insert({
       conversation_id: convId,
       tenant_id,
       role: "user",
-      content: message,
+      content: message || null,
+      attachments: attachments && attachments.length > 0 ? attachments : null,
     });
 
-    // Load conversation history (last 15 messages with content only — prevents context bloat)
+    // Load conversation history (last 15 messages)
     const { data: allHistory } = await supabase
       .from("ads_chat_messages")
-      .select("role, content")
+      .select("role, content, attachments")
       .eq("conversation_id", convId)
       .not("content", "is", null)
       .order("created_at", { ascending: false })
       .limit(15);
-    // Reverse to chronological order
     const history = (allHistory || []).reverse();
 
     // Collect base context
     const context = await collectBaseContext(supabase, tenant_id, scope, ad_account_id, channel);
-
     const systemPrompt = buildSystemPrompt(scope, ad_account_id, channel, context);
 
-    const aiMessages = [
-      { role: "system", content: systemPrompt },
-      ...(history || []).map((m: any) => ({ role: m.role, content: m.content })),
-    ];
+    // Build AI messages - handle multimodal for last user message
+    const aiMessages: any[] = [{ role: "system", content: systemPrompt }];
+    for (let i = 0; i < history.length; i++) {
+      const m = history[i];
+      if (i === history.length - 1 && m.role === "user" && m.attachments) {
+        // Last message with attachments — use multimodal format
+        aiMessages.push(buildUserMessage(m.content || "", m.attachments));
+      } else {
+        aiMessages.push({ role: m.role, content: m.content });
+      }
+    }
+
+    // Detect if current message has images (use vision model)
+    const hasImages = attachments?.some((a: any) => a.mimeType?.startsWith("image/"));
+    const modelToUse = hasImages ? "google/gemini-2.5-pro" : "google/gemini-3-flash-preview";
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    // === STEP 1: Non-streaming call WITH tools (with 45s timeout to avoid edge fn timeout) ===
+    // === STEP 1: Non-streaming call WITH tools (45s timeout) ===
     const abortController = new AbortController();
     const timeoutId = setTimeout(() => abortController.abort(), 45000);
 
@@ -578,7 +634,7 @@ Deno.serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
+          model: modelToUse,
           messages: aiMessages,
           tools: TOOLS,
           stream: false,
@@ -592,7 +648,6 @@ Deno.serve(async (req) => {
         console.error(`[ads-chat][${VERSION}] AI error: ${initialResponse.status} ${errText}`);
         if (initialResponse.status === 429 || initialResponse.status === 402) {
           const errorMsg = initialResponse.status === 429 ? "Rate limit exceeded" : "Credits required";
-          // Save error as assistant message so user sees it
           await supabase.from("ads_chat_messages").insert({
             conversation_id: convId, tenant_id, role: "assistant",
             content: `⚠️ Erro temporário: ${errorMsg}. Tente novamente em alguns segundos.`,
@@ -609,7 +664,6 @@ Deno.serve(async (req) => {
       clearTimeout(timeoutId);
       if (err.name === "AbortError") {
         console.error(`[ads-chat][${VERSION}] Timeout after 45s`);
-        // Save timeout error as visible message
         const timeoutMsg = "⚠️ O processamento demorou mais que o esperado. A conversa está muito longa — tente criar uma **nova conversa** para continuar.";
         await supabase.from("ads_chat_messages").insert({
           conversation_id: convId, tenant_id, role: "assistant", content: timeoutMsg,
@@ -623,47 +677,32 @@ Deno.serve(async (req) => {
     }
 
     const firstChoice = initialResult.choices?.[0];
-
     if (!firstChoice) throw new Error("Empty AI response");
 
-    // Check if there are tool calls
+    // Check tool calls
     const toolCalls = firstChoice.message?.tool_calls;
 
     if (toolCalls && toolCalls.length > 0) {
       console.log(`[ads-chat][${VERSION}] Tool calls: ${toolCalls.map((t: any) => t.function.name).join(", ")}`);
 
-      // Execute all tool calls and collect results
       const toolResults: string[] = [];
       for (const tc of toolCalls) {
         let args = {};
-        try {
-          args = JSON.parse(tc.function.arguments || "{}");
-        } catch { /* empty args */ }
+        try { args = JSON.parse(tc.function.arguments || "{}"); } catch { /* empty args */ }
 
         const result = await executeTool(supabase, tenant_id, tc.function.name, args);
         toolResults.push(`[Resultado de ${tc.function.name}]:\n${result}`);
 
-        // Save tool call to DB
         await supabase.from("ads_chat_messages").insert({
-          conversation_id: convId,
-          tenant_id,
-          role: "assistant",
-          content: null,
+          conversation_id: convId, tenant_id, role: "assistant", content: null,
           tool_calls: [{ id: tc.id, function: { name: tc.function.name, arguments: tc.function.arguments } }],
         });
       }
 
-      // Build follow-up with tool results as context (avoids tool_call format issues)
       const followUpMessages = [
         ...aiMessages,
-        {
-          role: "assistant",
-          content: "Vou consultar os dados reais do sistema para responder com precisão.",
-        },
-        {
-          role: "user",
-          content: `[DADOS REAIS DO SISTEMA — baseie sua resposta EXCLUSIVAMENTE nestes dados]\n\n${toolResults.join("\n\n")}`,
-        },
+        { role: "assistant", content: "Vou consultar os dados reais do sistema para responder com precisão." },
+        { role: "user", content: `[DADOS REAIS DO SISTEMA — baseie sua resposta EXCLUSIVAMENTE nestes dados]\n\n${toolResults.join("\n\n")}` },
       ];
 
       const finalAiResponse = await fetch(LOVABLE_AI_URL, {
@@ -684,28 +723,18 @@ Deno.serve(async (req) => {
         throw new Error(`AI final response error: ${finalAiResponse.status} - ${errText}`);
       }
 
-      return streamAndSave(finalAiResponse, supabase, convId, tenant_id, message, history);
+      return streamAndSave(finalAiResponse, supabase, convId, tenant_id, message || "Anexo", history);
     }
 
-    // No tool calls — check if there's a direct text response we can use
+    // No tool calls — direct text response
     const directContent = firstChoice.message?.content;
     if (directContent) {
-      // Save directly and return as SSE
       await supabase.from("ads_chat_messages").insert({
-        conversation_id: convId,
-        tenant_id,
-        role: "assistant",
-        content: directContent,
+        conversation_id: convId, tenant_id, role: "assistant", content: directContent,
       });
-
-      // Format as SSE for consistent client handling
       const sseData = `data: ${JSON.stringify({ choices: [{ delta: { content: directContent } }] })}\n\ndata: [DONE]\n\n`;
       return new Response(sseData, {
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "text/event-stream",
-          "X-Conversation-Id": convId,
-        },
+        headers: { ...corsHeaders, "Content-Type": "text/event-stream", "X-Conversation-Id": convId },
       });
     }
 
@@ -717,26 +746,20 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: modelToUse,
         messages: aiMessages,
         stream: true,
       }),
     });
 
-    if (!streamResponse.ok) {
-      throw new Error(`Stream error: ${streamResponse.status}`);
-    }
+    if (!streamResponse.ok) throw new Error(`Stream error: ${streamResponse.status}`);
 
-    return streamAndSave(streamResponse, supabase, convId, tenant_id, message, history);
+    return streamAndSave(streamResponse, supabase, convId, tenant_id, message || "Anexo", history);
   } catch (e: any) {
     console.error(`[ads-chat][${VERSION}] Error:`, e);
-    // Try to save error as visible message so user isn't left hanging
     try {
       const errMsg = `⚠️ Ocorreu um erro ao processar sua mensagem: ${e.message || "Erro interno"}. Tente novamente.`;
-      const supabaseForError = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-      // We may not have convId here if error happened early
       if (body?.conversation_id || body?.tenant_id) {
-        // Return error as SSE so the client can display it
         const sseData = `data: ${JSON.stringify({ choices: [{ delta: { content: errMsg } }] })}\n\ndata: [DONE]\n\n`;
         return new Response(sseData, {
           headers: { ...corsHeaders, "Content-Type": "text/event-stream" },

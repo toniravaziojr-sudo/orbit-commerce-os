@@ -8,12 +8,19 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
+export interface AdsChatAttachment {
+  url: string;
+  filename: string;
+  mimeType: string;
+}
+
 export interface AdsChatMessage {
   id: string;
   conversation_id: string;
   tenant_id: string;
   role: "user" | "assistant" | "system";
   content: string | null;
+  attachments?: AdsChatAttachment[] | null;
   created_at: string;
 }
 
@@ -103,9 +110,9 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
     return () => { supabase.removeChannel(ch); };
   }, [currentConversationId, isStreaming, queryClient]);
 
-  // Send message with streaming
-  const sendMessage = useCallback(async (message: string) => {
-    if (!tenantId || !message.trim()) return;
+  // Send message with streaming (supports attachments)
+  const sendMessage = useCallback(async (message: string, attachments?: AdsChatAttachment[]) => {
+    if (!tenantId || (!message.trim() && (!attachments || attachments.length === 0))) return;
 
     setIsStreaming(true);
     setStreamingContent("");
@@ -130,6 +137,7 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
           scope,
           ad_account_id: adAccountId,
           channel,
+          attachments: attachments && attachments.length > 0 ? attachments : undefined,
         }),
         signal: controller.signal,
       });

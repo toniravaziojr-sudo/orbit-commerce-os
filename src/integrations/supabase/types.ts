@@ -508,6 +508,7 @@ export type Database = {
       }
       ads_chat_messages: {
         Row: {
+          attachments: Json | null
           content: string | null
           conversation_id: string
           created_at: string
@@ -518,6 +519,7 @@ export type Database = {
           tool_results: Json | null
         }
         Insert: {
+          attachments?: Json | null
           content?: string | null
           conversation_id: string
           created_at?: string
@@ -528,6 +530,7 @@ export type Database = {
           tool_results?: Json | null
         }
         Update: {
+          attachments?: Json | null
           content?: string | null
           conversation_id?: string
           created_at?: string
