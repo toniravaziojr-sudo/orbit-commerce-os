@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v4.3.0"; // Fix: user-friendly language in prompts + add get_products tool
+const VERSION = "v5.0.0"; // Major: Fix hallucination (5 frentes) — limits, context, new tools, prompt rules
 // ===========================================================
 
 const corsHeaders = {
@@ -15,15 +15,18 @@ const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 // ============ TOOL DEFINITIONS ============
 
 const TOOLS = [
+  // ===== LEITURA: Campanhas e Performance =====
   {
     type: "function",
     function: {
       name: "get_campaign_performance",
-      description: "Busca performance real das campanhas (métricas dos últimos 7 dias). Use para responder sobre performance, ROAS, CPA, etc.",
+      description: "Busca performance real das campanhas Meta (até 200 campanhas, ACTIVE primeiro). OBRIGATÓRIO antes de qualquer diagnóstico.",
       parameters: {
         type: "object",
         properties: {
-          ad_account_id: { type: "string", description: "ID da conta de anúncios (opcional, busca todas se omitido)" },
+          ad_account_id: { type: "string", description: "ID da conta de anúncios (opcional)" },
+          status_filter: { type: "string", enum: ["ACTIVE", "PAUSED", "ALL"], description: "Filtrar por status (default: ALL, mas ACTIVE primeiro)" },
+          days: { type: "number", description: "Janela de dias para métricas (default: 14, max: 30)" },
         },
         required: [],
         additionalProperties: false,
@@ -33,8 +36,105 @@ const TOOLS = [
   {
     type: "function",
     function: {
+      name: "get_campaign_details",
+      description: "Drill-down em uma campanha específica: mostra todos os conjuntos e anúncios vinculados com métricas individuais.",
+      parameters: {
+        type: "object",
+        properties: {
+          campaign_id: { type: "string", description: "meta_campaign_id da campanha" },
+        },
+        required: ["campaign_id"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_performance_trend",
+      description: "Time-series de uma campanha: gasto, conversões, ROAS por dia nos últimos N dias. Use para identificar tendências.",
+      parameters: {
+        type: "object",
+        properties: {
+          campaign_id: { type: "string", description: "meta_campaign_id" },
+          days: { type: "number", description: "Janela em dias (default: 14, max: 30)" },
+        },
+        required: ["campaign_id"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_adset_performance",
+      description: "Performance por conjunto de anúncios (AdSet) com métricas agregadas. Essencial para otimizar segmentação.",
+      parameters: {
+        type: "object",
+        properties: {
+          ad_account_id: { type: "string", description: "ID da conta (opcional)" },
+          campaign_id: { type: "string", description: "Filtrar por campanha específica (opcional)" },
+          status: { type: "string", enum: ["ACTIVE", "PAUSED", "ALL"], description: "Filtrar por status (default: ALL)" },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_ad_performance",
+      description: "Performance por anúncio individual com criativos vinculados. Essencial para saber qual criativo performa melhor.",
+      parameters: {
+        type: "object",
+        properties: {
+          ad_account_id: { type: "string", description: "ID da conta (opcional)" },
+          campaign_id: { type: "string", description: "Filtrar por campanha (opcional)" },
+          adset_id: { type: "string", description: "Filtrar por conjunto (opcional)" },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  // ===== LEITURA: Contexto de Negócio =====
+  {
+    type: "function",
+    function: {
+      name: "get_store_context",
+      description: "Busca contexto completo do negócio: nicho, público-alvo, domínio, URLs, ofertas ativas, categorias, margens. Use para entender o negócio antes de montar estratégias.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_products",
+      description: "Busca produtos do catálogo da loja com imagens e margens. Use ANTES de gerar criativos ou criar campanhas.",
+      parameters: {
+        type: "object",
+        properties: {
+          search: { type: "string", description: "Buscar por nome (opcional)" },
+          limit: { type: "number", description: "Quantidade (default 20, max 50)" },
+          status: { type: "string", enum: ["active", "draft", "archived"], description: "Filtrar por status (default: active)" },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  // ===== LEITURA: Criativos, Públicos, Tracking =====
+  {
+    type: "function",
+    function: {
       name: "get_creative_assets",
-      description: "Lista os criativos existentes (imagens/copy gerados). Use para verificar status de criativos.",
+      description: "Lista os criativos existentes (imagens/copy gerados).",
       parameters: {
         type: "object",
         properties: {
@@ -48,11 +148,14 @@ const TOOLS = [
   {
     type: "function",
     function: {
-      name: "trigger_creative_generation",
-      description: "Dispara a geração REAL de briefs criativos (headlines + copy) para os top produtos por receita. Gera textos estratégicos (roteiros, headlines, copy). Para gerar IMAGENS use generate_creative_image.",
+      name: "get_meta_adsets",
+      description: "Lista conjuntos de anúncios Meta (até 100) com status, orçamento, segmentação e pixel.",
       parameters: {
         type: "object",
-        properties: {},
+        properties: {
+          ad_account_id: { type: "string", description: "ID da conta (opcional)" },
+          status: { type: "string", enum: ["ACTIVE", "PAUSED", "DELETED"], description: "Filtrar por status" },
+        },
         required: [],
         additionalProperties: false,
       },
@@ -61,20 +164,14 @@ const TOOLS = [
   {
     type: "function",
     function: {
-      name: "generate_creative_image",
-      description: "Gera IMAGENS reais de criativos para anúncios usando IA (Gemini). Cria imagens publicitárias baseadas no produto selecionado. Use quando o usuário pedir para gerar imagens, artes, criativos visuais ou quando precisar de mídia para campanhas.",
+      name: "get_meta_ads",
+      description: "Lista anúncios individuais Meta (até 100) com criativos vinculados.",
       parameters: {
         type: "object",
         properties: {
-          product_name: { type: "string", description: "Nome do produto do catálogo real (obrigatório)" },
-          channel: { type: "string", enum: ["meta", "google", "tiktok"], description: "Canal de destino (default: meta)" },
-          campaign_objective: { type: "string", enum: ["sales", "leads", "traffic", "awareness"], description: "Objetivo da campanha" },
-          target_audience: { type: "string", description: "Descrição do público-alvo" },
-          style_preference: { type: "string", enum: ["promotional", "product_natural", "person_interacting"], description: "Estilo visual (default: promotional)" },
-          format: { type: "string", enum: ["1:1", "9:16", "16:9"], description: "Formato da imagem (default: 1:1)" },
-          variations: { type: "number", description: "Número de variações (1-4, default: 2)" },
+          ad_account_id: { type: "string", description: "ID da conta (opcional)" },
         },
-        required: ["product_name"],
+        required: [],
         additionalProperties: false,
       },
     },
@@ -82,20 +179,14 @@ const TOOLS = [
   {
     type: "function",
     function: {
-      name: "create_meta_campaign",
-      description: "Cria uma campanha COMPLETA no Meta Ads (Campanha → Conjunto de Anúncios → Anúncio com criativo). Busca automaticamente criativos prontos do Drive/galeria para o produto. A campanha é criada PAUSADA e agendada para ativação em 00:01-04:00 BRT. Use quando o usuário pedir para criar/montar/publicar uma campanha.",
+      name: "get_audiences",
+      description: "Lista os públicos/audiências configurados.",
       parameters: {
         type: "object",
         properties: {
-          product_name: { type: "string", description: "Nome do produto do catálogo (obrigatório)" },
-          campaign_name: { type: "string", description: "Nome da campanha (opcional, gerado automaticamente se omitido)" },
-          objective: { type: "string", enum: ["OUTCOME_SALES", "OUTCOME_LEADS", "OUTCOME_TRAFFIC", "OUTCOME_AWARENESS"], description: "Objetivo da campanha (default: OUTCOME_SALES)" },
-          daily_budget_cents: { type: "number", description: "Orçamento diário em centavos (default: 3000 = R$30)" },
-          targeting_description: { type: "string", description: "Descrição do público-alvo para segmentação" },
-          funnel_stage: { type: "string", enum: ["cold", "warm", "hot"], description: "Estágio do funil (default: cold)" },
-          ad_account_id: { type: "string", description: "ID da conta de anúncios Meta (opcional, usa a primeira disponível)" },
+          channel: { type: "string", enum: ["meta", "google"], description: "Canal (default: todos)" },
         },
-        required: ["product_name"],
+        required: [],
         additionalProperties: false,
       },
     },
@@ -103,14 +194,28 @@ const TOOLS = [
   {
     type: "function",
     function: {
-      name: "trigger_autopilot_analysis",
-      description: "Dispara uma análise completa do Autopilot (Motor Guardião). Só use quando o usuário pedir para rodar uma análise ou auditoria.",
+      name: "get_tracking_health",
+      description: "Retorna saúde do pixel/rastreamento (Meta, Google, TikTok).",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  // ===== LEITURA: Autopilot =====
+  {
+    type: "function",
+    function: {
+      name: "get_autopilot_config",
+      description: "Retorna configurações atuais da IA de Tráfego (globais e por conta).",
       parameters: {
         type: "object",
         properties: {
-          channel: { type: "string", enum: ["meta", "google", "tiktok"], description: "Canal para análise" },
+          ad_account_id: { type: "string", description: "ID da conta (opcional)" },
         },
-        required: ["channel"],
+        required: [],
         additionalProperties: false,
       },
     },
@@ -119,12 +224,12 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_autopilot_actions",
-      description: "Lista as ações executadas ou agendadas pelo Autopilot. Use para mostrar o que a IA de tráfego está fazendo de verdade.",
+      description: "Lista ações executadas ou agendadas pela IA de Tráfego.",
       parameters: {
         type: "object",
         properties: {
           status: { type: "string", enum: ["scheduled", "executed", "failed", "pending_approval"], description: "Filtrar por status" },
-          limit: { type: "number", description: "Quantidade de ações (default 15)" },
+          limit: { type: "number", description: "Quantidade (default 15)" },
         },
         required: [],
         additionalProperties: false,
@@ -135,7 +240,7 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_autopilot_insights",
-      description: "Lista os insights e diagnósticos gerados pelo Autopilot.",
+      description: "Lista diagnósticos e insights gerados pela IA de Tráfego.",
       parameters: {
         type: "object",
         properties: {
@@ -149,14 +254,14 @@ const TOOLS = [
   {
     type: "function",
     function: {
-      name: "analyze_url",
-      description: "Analisa o conteúdo de uma URL (landing page, concorrente, anúncio, artigo). Extrai texto, estrutura e informações relevantes. Use quando o usuário enviar um link ou pedir para analisar uma página.",
+      name: "get_autopilot_sessions",
+      description: "Histórico de execuções da IA de Tráfego.",
       parameters: {
         type: "object",
         properties: {
-          url: { type: "string", description: "URL completa para analisar" },
+          limit: { type: "number", description: "Quantidade (default 10)" },
         },
-        required: ["url"],
+        required: [],
         additionalProperties: false,
       },
     },
@@ -164,8 +269,24 @@ const TOOLS = [
   {
     type: "function",
     function: {
+      name: "get_experiments",
+      description: "Lista testes A/B em andamento ou finalizados.",
+      parameters: {
+        type: "object",
+        properties: {
+          status: { type: "string", enum: ["draft", "running", "completed", "cancelled"], description: "Filtrar por status" },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  // ===== LEITURA: Outros canais =====
+  {
+    type: "function",
+    function: {
       name: "get_google_campaigns",
-      description: "Busca campanhas e performance do Google Ads. Use para perguntas sobre Google Ads.",
+      description: "Busca campanhas e performance do Google Ads.",
       parameters: {
         type: "object",
         properties: {
@@ -180,7 +301,7 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_tiktok_campaigns",
-      description: "Busca campanhas e performance do TikTok Ads. Use para perguntas sobre TikTok Ads.",
+      description: "Busca campanhas e performance do TikTok Ads.",
       parameters: {
         type: "object",
         properties: {
@@ -191,115 +312,12 @@ const TOOLS = [
       },
     },
   },
+  // ===== ESCRITA: Criativos e Campanhas =====
   {
     type: "function",
     function: {
-      name: "get_meta_adsets",
-      description: "Lista os conjuntos de anúncios (Ad Sets) da Meta com status, orçamento, segmentação e pixel. Use para perguntas detalhadas sobre conjuntos.",
-      parameters: {
-        type: "object",
-        properties: {
-          ad_account_id: { type: "string", description: "ID da conta Meta (opcional)" },
-          status: { type: "string", enum: ["ACTIVE", "PAUSED", "DELETED"], description: "Filtrar por status" },
-        },
-        required: [],
-        additionalProperties: false,
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "get_meta_ads",
-      description: "Lista os anúncios individuais da Meta com status e criativos vinculados. Use para detalhes de anúncios específicos.",
-      parameters: {
-        type: "object",
-        properties: {
-          ad_account_id: { type: "string", description: "ID da conta Meta (opcional)" },
-        },
-        required: [],
-        additionalProperties: false,
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "get_audiences",
-      description: "Lista os públicos/audiências configurados (Meta e Google). Use para perguntas sobre segmentação.",
-      parameters: {
-        type: "object",
-        properties: {
-          channel: { type: "string", enum: ["meta", "google"], description: "Canal (default: todos)" },
-        },
-        required: [],
-        additionalProperties: false,
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "get_autopilot_config",
-      description: "Retorna as configurações atuais do Autopilot (globais e por conta). Use para mostrar settings, ROI alvo, modo de aprovação, orçamento, etc.",
-      parameters: {
-        type: "object",
-        properties: {
-          ad_account_id: { type: "string", description: "ID da conta específica (opcional, retorna todas se omitido)" },
-        },
-        required: [],
-        additionalProperties: false,
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "update_autopilot_config",
-      description: "Atualiza configurações do Autopilot para uma conta específica. Use APENAS quando o usuário pedir explicitamente para alterar configurações (ROI, orçamento, estratégia, etc).",
-      parameters: {
-        type: "object",
-        properties: {
-          ad_account_id: { type: "string", description: "ID da conta de anúncios" },
-          channel: { type: "string", description: "Canal da conta" },
-          updates: {
-            type: "object",
-            description: "Campos a atualizar",
-            properties: {
-              target_roi: { type: "number", description: "ROI alvo (ex: 3.0)" },
-              budget_cents: { type: "number", description: "Orçamento diário em centavos" },
-              strategy_mode: { type: "string", enum: ["conservative", "balanced", "aggressive"], description: "Modo de estratégia" },
-              is_ai_enabled: { type: "boolean", description: "Ativar/desativar IA" },
-              user_instructions: { type: "string", description: "Instruções estratégicas do lojista" },
-              human_approval_mode: { type: "string", enum: ["auto", "high_impact"], description: "Modo de aprovação" },
-            },
-          },
-        },
-        required: ["ad_account_id", "channel", "updates"],
-        additionalProperties: false,
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "get_experiments",
-      description: "Lista os experimentos/testes A/B em andamento ou finalizados.",
-      parameters: {
-        type: "object",
-        properties: {
-          status: { type: "string", enum: ["draft", "running", "completed", "cancelled"], description: "Filtrar por status" },
-        },
-        required: [],
-        additionalProperties: false,
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "get_tracking_health",
-      description: "Retorna o status de saúde do tracking/pixel (Meta, Google, TikTok). Use para diagnosticar problemas de rastreamento.",
+      name: "trigger_creative_generation",
+      description: "Gera textos/copies estratégicos para anúncios (headlines, roteiros). Para IMAGENS use generate_creative_image.",
       parameters: {
         type: "object",
         properties: {},
@@ -311,14 +329,20 @@ const TOOLS = [
   {
     type: "function",
     function: {
-      name: "get_autopilot_sessions",
-      description: "Lista as sessões de execução do Autopilot (histórico de análises). Mostra quando rodou, quantas ações fez, custo, etc.",
+      name: "generate_creative_image",
+      description: "Gera IMAGENS de criativos para anúncios via IA. Use quando precisar de artes visuais.",
       parameters: {
         type: "object",
         properties: {
-          limit: { type: "number", description: "Quantidade (default 10)" },
+          product_name: { type: "string", description: "Nome do produto do catálogo (obrigatório)" },
+          channel: { type: "string", enum: ["meta", "google", "tiktok"], description: "Canal (default: meta)" },
+          campaign_objective: { type: "string", enum: ["sales", "leads", "traffic", "awareness"], description: "Objetivo" },
+          target_audience: { type: "string", description: "Descrição do público-alvo" },
+          style_preference: { type: "string", enum: ["promotional", "product_natural", "person_interacting"], description: "Estilo visual" },
+          format: { type: "string", enum: ["1:1", "9:16", "16:9"], description: "Formato (default: 1:1)" },
+          variations: { type: "number", description: "Variações (1-4, default: 2)" },
         },
-        required: [],
+        required: ["product_name"],
         additionalProperties: false,
       },
     },
@@ -326,16 +350,117 @@ const TOOLS = [
   {
     type: "function",
     function: {
-      name: "get_products",
-      description: "Busca produtos do catálogo da loja. Use quando precisar ver o catálogo completo, buscar um produto por nome, ou verificar detalhes como preço, descrição, imagens e estoque. Use ANTES de gerar criativos ou criar campanhas se o catálogo do contexto estiver vazio.",
+      name: "create_meta_campaign",
+      description: "Cria campanha COMPLETA no Meta Ads (Campanha → Conjunto → Anúncio). Criada PAUSADA, ativação agendada para 00:01-04:00 BRT.",
       parameters: {
         type: "object",
         properties: {
-          search: { type: "string", description: "Buscar por nome do produto (opcional)" },
-          limit: { type: "number", description: "Quantidade de produtos (default 20, max 50)" },
-          status: { type: "string", enum: ["active", "draft", "archived"], description: "Filtrar por status (default: active)" },
+          product_name: { type: "string", description: "Nome do produto (obrigatório)" },
+          campaign_name: { type: "string", description: "Nome da campanha (opcional)" },
+          objective: { type: "string", enum: ["OUTCOME_SALES", "OUTCOME_LEADS", "OUTCOME_TRAFFIC", "OUTCOME_AWARENESS"], description: "Objetivo (default: OUTCOME_SALES)" },
+          daily_budget_cents: { type: "number", description: "Orçamento diário em centavos (default: 3000)" },
+          targeting_description: { type: "string", description: "Descrição do público-alvo" },
+          funnel_stage: { type: "string", enum: ["cold", "warm", "hot"], description: "Estágio do funil" },
+          ad_account_id: { type: "string", description: "ID da conta Meta (opcional)" },
         },
-        required: [],
+        required: ["product_name"],
+        additionalProperties: false,
+      },
+    },
+  },
+  // ===== ESCRITA: Gerenciamento de Entidades (NOVO — Frente 4) =====
+  {
+    type: "function",
+    function: {
+      name: "toggle_entity_status",
+      description: "Pausa ou reativa uma campanha, conjunto de anúncios ou anúncio no Meta Ads.",
+      parameters: {
+        type: "object",
+        properties: {
+          entity_type: { type: "string", enum: ["campaign", "adset", "ad"], description: "Tipo da entidade" },
+          entity_id: { type: "string", description: "ID da entidade na Meta (meta_campaign_id, meta_adset_id ou meta_ad_id)" },
+          new_status: { type: "string", enum: ["ACTIVE", "PAUSED"], description: "Novo status" },
+          ad_account_id: { type: "string", description: "ID da conta Meta (opcional, busca automática)" },
+        },
+        required: ["entity_type", "entity_id", "new_status"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_budget",
+      description: "Altera o orçamento diário de uma campanha ou conjunto de anúncios existente no Meta.",
+      parameters: {
+        type: "object",
+        properties: {
+          entity_type: { type: "string", enum: ["campaign", "adset"], description: "Tipo (campanha ou conjunto)" },
+          entity_id: { type: "string", description: "ID da entidade na Meta" },
+          new_daily_budget_cents: { type: "number", description: "Novo orçamento diário em centavos (ex: 5000 = R$50)" },
+          ad_account_id: { type: "string", description: "ID da conta Meta (opcional)" },
+        },
+        required: ["entity_type", "entity_id", "new_daily_budget_cents"],
+        additionalProperties: false,
+      },
+    },
+  },
+  // ===== ESCRITA: Autopilot Config =====
+  {
+    type: "function",
+    function: {
+      name: "update_autopilot_config",
+      description: "Atualiza configurações da IA de Tráfego. Use APENAS quando o usuário pedir explicitamente.",
+      parameters: {
+        type: "object",
+        properties: {
+          ad_account_id: { type: "string", description: "ID da conta de anúncios" },
+          channel: { type: "string", description: "Canal da conta" },
+          updates: {
+            type: "object",
+            description: "Campos a atualizar",
+            properties: {
+              target_roi: { type: "number" },
+              budget_cents: { type: "number" },
+              strategy_mode: { type: "string", enum: ["conservative", "balanced", "aggressive"] },
+              is_ai_enabled: { type: "boolean" },
+              user_instructions: { type: "string" },
+              human_approval_mode: { type: "string", enum: ["auto", "high_impact"] },
+            },
+          },
+        },
+        required: ["ad_account_id", "channel", "updates"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "trigger_autopilot_analysis",
+      description: "Dispara análise completa da IA de Tráfego. Só use quando solicitado.",
+      parameters: {
+        type: "object",
+        properties: {
+          channel: { type: "string", enum: ["meta", "google", "tiktok"], description: "Canal" },
+        },
+        required: ["channel"],
+        additionalProperties: false,
+      },
+    },
+  },
+  // ===== UTILIDADES =====
+  {
+    type: "function",
+    function: {
+      name: "analyze_url",
+      description: "Analisa conteúdo de uma URL (landing page, concorrente). Extrai texto e estrutura.",
+      parameters: {
+        type: "object",
+        properties: {
+          url: { type: "string", description: "URL completa" },
+        },
+        required: ["url"],
         additionalProperties: false,
       },
     },
@@ -353,45 +478,59 @@ async function executeTool(
   try {
     switch (toolName) {
       case "get_campaign_performance":
-        return await getCampaignPerformance(supabase, tenantId, args.ad_account_id);
+        return await getCampaignPerformance(supabase, tenantId, args.ad_account_id, args.status_filter, args.days);
+      case "get_campaign_details":
+        return await getCampaignDetails(supabase, tenantId, args.campaign_id);
+      case "get_performance_trend":
+        return await getPerformanceTrend(supabase, tenantId, args.campaign_id, args.days);
+      case "get_adset_performance":
+        return await getAdsetPerformance(supabase, tenantId, args.ad_account_id, args.campaign_id, args.status);
+      case "get_ad_performance":
+        return await getAdPerformance(supabase, tenantId, args.ad_account_id, args.campaign_id, args.adset_id);
+      case "get_store_context":
+        return await getStoreContext(supabase, tenantId);
+      case "get_products":
+        return await getProducts(supabase, tenantId, args.search, args.limit, args.status);
       case "get_creative_assets":
         return await getCreativeAssets(supabase, tenantId, args.status);
-      case "trigger_creative_generation":
-        return await triggerCreativeGeneration(supabase, tenantId);
-      case "generate_creative_image":
-        return await generateCreativeImage(supabase, tenantId, args);
-      case "create_meta_campaign":
-        return await createMetaCampaign(supabase, tenantId, args);
-      case "trigger_autopilot_analysis":
-        return await triggerAutopilotAnalysis(supabase, tenantId, args.channel);
-      case "get_autopilot_actions":
-        return await getAutopilotActions(supabase, tenantId, args.status, args.limit);
-      case "get_autopilot_insights":
-        return await getAutopilotInsights(supabase, tenantId, args.status);
-      case "analyze_url":
-        return await analyzeUrl(args.url);
-      case "get_google_campaigns":
-        return await getGoogleCampaigns(supabase, tenantId, args.ad_account_id);
-      case "get_tiktok_campaigns":
-        return await getTikTokCampaigns(supabase, tenantId, args.advertiser_id);
       case "get_meta_adsets":
         return await getMetaAdsets(supabase, tenantId, args.ad_account_id, args.status);
       case "get_meta_ads":
         return await getMetaAds(supabase, tenantId, args.ad_account_id);
       case "get_audiences":
         return await getAudiences(supabase, tenantId, args.channel);
-      case "get_autopilot_config":
-        return await getAutopilotConfig(supabase, tenantId, args.ad_account_id);
-      case "update_autopilot_config":
-        return await updateAutopilotConfig(supabase, tenantId, args.ad_account_id, args.channel, args.updates);
-      case "get_experiments":
-        return await getExperiments(supabase, tenantId, args.status);
       case "get_tracking_health":
         return await getTrackingHealth(supabase, tenantId);
+      case "get_autopilot_config":
+        return await getAutopilotConfig(supabase, tenantId, args.ad_account_id);
+      case "get_autopilot_actions":
+        return await getAutopilotActions(supabase, tenantId, args.status, args.limit);
+      case "get_autopilot_insights":
+        return await getAutopilotInsights(supabase, tenantId, args.status);
       case "get_autopilot_sessions":
         return await getAutopilotSessions(supabase, tenantId, args.limit);
-      case "get_products":
-        return await getProducts(supabase, tenantId, args.search, args.limit, args.status);
+      case "get_experiments":
+        return await getExperiments(supabase, tenantId, args.status);
+      case "get_google_campaigns":
+        return await getGoogleCampaigns(supabase, tenantId, args.ad_account_id);
+      case "get_tiktok_campaigns":
+        return await getTikTokCampaigns(supabase, tenantId, args.advertiser_id);
+      case "trigger_creative_generation":
+        return await triggerCreativeGeneration(supabase, tenantId);
+      case "generate_creative_image":
+        return await generateCreativeImage(supabase, tenantId, args);
+      case "create_meta_campaign":
+        return await createMetaCampaign(supabase, tenantId, args);
+      case "toggle_entity_status":
+        return await toggleEntityStatus(supabase, tenantId, args);
+      case "update_budget":
+        return await updateBudget(supabase, tenantId, args);
+      case "update_autopilot_config":
+        return await updateAutopilotConfig(supabase, tenantId, args.ad_account_id, args.channel, args.updates);
+      case "trigger_autopilot_analysis":
+        return await triggerAutopilotAnalysis(supabase, tenantId, args.channel);
+      case "analyze_url":
+        return await analyzeUrl(args.url);
       default:
         return JSON.stringify({ error: `Ferramenta desconhecida: ${toolName}` });
     }
@@ -401,64 +540,498 @@ async function executeTool(
   }
 }
 
-async function getCampaignPerformance(supabase: any, tenantId: string, adAccountId?: string) {
-  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+// ============ TOOL IMPLEMENTATIONS ============
 
+// --- Frente 1: getCampaignPerformance com limites corrigidos ---
+async function getCampaignPerformance(supabase: any, tenantId: string, adAccountId?: string, statusFilter?: string, days?: number) {
+  const dayWindow = Math.min(days || 14, 30);
+  const sinceDate = new Date(Date.now() - dayWindow * 86400000).toISOString().split("T")[0];
+
+  // Fetch ALL campaigns (up to 200), ACTIVE first
   const campQuery = supabase
     .from("meta_ad_campaigns")
     .select("meta_campaign_id, name, status, objective, daily_budget_cents, ad_account_id")
-    .eq("tenant_id", tenantId);
+    .eq("tenant_id", tenantId)
+    .order("status", { ascending: true }); // ACTIVE before PAUSED alphabetically
   if (adAccountId) campQuery.eq("ad_account_id", adAccountId);
-  const { data: campaigns } = await campQuery.limit(30);
+  if (statusFilter && statusFilter !== "ALL") campQuery.eq("status", statusFilter);
+  const { data: campaigns } = await campQuery.limit(200);
 
+  // Fetch insights for the window
   const insightQuery = supabase
     .from("meta_ad_insights")
-    .select("meta_campaign_id, spend_cents, impressions, clicks, conversions, roas, ctr, cpc_cents, cpm_cents, date_start")
+    .select("meta_campaign_id, spend_cents, impressions, clicks, conversions, conversion_value_cents, roas, ctr, cpc_cents, cpm_cents, date_start")
     .eq("tenant_id", tenantId)
-    .gte("date_start", sevenDaysAgo);
-  const { data: insights } = await insightQuery.limit(500);
+    .gte("date_start", sinceDate);
+  const { data: insights } = await insightQuery.limit(2000);
 
   const campMap: Record<string, any> = {};
   for (const c of (campaigns || [])) {
     campMap[c.meta_campaign_id] = {
+      meta_campaign_id: c.meta_campaign_id,
       name: c.name, status: c.status, objective: c.objective,
       daily_budget: `R$ ${((c.daily_budget_cents || 0) / 100).toFixed(2)}`,
-      spend_7d: 0, impressions_7d: 0, clicks_7d: 0, conversions_7d: 0, roas_avg: 0, days_with_data: 0,
+      ad_account_id: c.ad_account_id,
+      spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0, days_with_data: 0,
     };
   }
 
   for (const i of (insights || [])) {
     const c = campMap[i.meta_campaign_id];
     if (!c) continue;
-    c.spend_7d += (i.spend_cents || 0) / 100;
-    c.impressions_7d += i.impressions || 0;
-    c.clicks_7d += i.clicks || 0;
-    c.conversions_7d += i.conversions || 0;
+    c.spend += (i.spend_cents || 0) / 100;
+    c.impressions += i.impressions || 0;
+    c.clicks += i.clicks || 0;
+    c.conversions += i.conversions || 0;
+    c.revenue += (i.conversion_value_cents || 0) / 100;
     c.days_with_data += 1;
-    if (i.roas) c.roas_avg = i.roas;
   }
 
-  const result = Object.values(campMap).map((c: any) => ({
+  const allCamps = Object.values(campMap);
+  const activeCamps = allCamps.filter((c: any) => c.status === "ACTIVE");
+  const pausedCamps = allCamps.filter((c: any) => c.status === "PAUSED");
+
+  const formatCamp = (c: any) => ({
     ...c,
-    spend_7d: `R$ ${c.spend_7d.toFixed(2)}`,
-    cpa: c.conversions_7d > 0 ? `R$ ${(c.spend_7d / c.conversions_7d).toFixed(2)}` : "N/A",
-  }));
+    spend: `R$ ${c.spend.toFixed(2)}`,
+    revenue: `R$ ${c.revenue.toFixed(2)}`,
+    roas: c.spend > 0 ? (c.revenue / c.spend).toFixed(2) : "N/A",
+    cpa: c.conversions > 0 ? `R$ ${(c.spend / c.conversions).toFixed(2)}` : "N/A",
+  });
 
   return JSON.stringify({
-    total_campaigns: campaigns?.length || 0,
-    active: (campaigns || []).filter((c: any) => c.status === "ACTIVE").length,
-    paused: (campaigns || []).filter((c: any) => c.status === "PAUSED").length,
-    campaigns: result,
+    summary: {
+      total_campaigns: campaigns?.length || 0,
+      active: activeCamps.length,
+      paused: pausedCamps.length,
+      period: `últimos ${dayWindow} dias`,
+      total_spend: `R$ ${allCamps.reduce((s: number, c: any) => s + (typeof c.spend === 'number' ? c.spend : 0), 0).toFixed(2)}`,
+    },
+    active_campaigns: activeCamps.map(formatCamp),
+    paused_campaigns_sample: pausedCamps.slice(0, 10).map(formatCamp),
+    paused_total: pausedCamps.length,
+  });
+}
+
+// --- Frente 3: get_campaign_details ---
+async function getCampaignDetails(supabase: any, tenantId: string, campaignId: string) {
+  // Campaign
+  const { data: campaign } = await supabase
+    .from("meta_ad_campaigns")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .eq("meta_campaign_id", campaignId)
+    .maybeSingle();
+
+  if (!campaign) return JSON.stringify({ error: "Campanha não encontrada" });
+
+  // AdSets
+  const { data: adsets } = await supabase
+    .from("meta_ad_adsets")
+    .select("meta_adset_id, name, status, daily_budget_cents, targeting, pixel_id, optimization_goal")
+    .eq("tenant_id", tenantId)
+    .eq("meta_campaign_id", campaignId)
+    .limit(50);
+
+  // Ads
+  const { data: ads } = await supabase
+    .from("meta_ad_ads")
+    .select("meta_ad_id, name, status, effective_status, meta_adset_id")
+    .eq("tenant_id", tenantId)
+    .eq("meta_campaign_id", campaignId)
+    .limit(100);
+
+  // Recent insights
+  const fourteenDaysAgo = new Date(Date.now() - 14 * 86400000).toISOString().split("T")[0];
+  const { data: insights } = await supabase
+    .from("meta_ad_insights")
+    .select("spend_cents, impressions, clicks, conversions, conversion_value_cents, date_start")
+    .eq("tenant_id", tenantId)
+    .eq("meta_campaign_id", campaignId)
+    .gte("date_start", fourteenDaysAgo)
+    .order("date_start", { ascending: false });
+
+  const totalSpend = (insights || []).reduce((s: number, i: any) => s + (i.spend_cents || 0), 0) / 100;
+  const totalConv = (insights || []).reduce((s: number, i: any) => s + (i.conversions || 0), 0);
+  const totalRev = (insights || []).reduce((s: number, i: any) => s + (i.conversion_value_cents || 0), 0) / 100;
+
+  return JSON.stringify({
+    campaign: {
+      name: campaign.name, status: campaign.status, objective: campaign.objective,
+      daily_budget: `R$ ${((campaign.daily_budget_cents || 0) / 100).toFixed(2)}`,
+      meta_campaign_id: campaign.meta_campaign_id,
+    },
+    performance_14d: {
+      spend: `R$ ${totalSpend.toFixed(2)}`,
+      conversions: totalConv,
+      revenue: `R$ ${totalRev.toFixed(2)}`,
+      roas: totalSpend > 0 ? (totalRev / totalSpend).toFixed(2) : "N/A",
+    },
+    adsets: (adsets || []).map((a: any) => ({
+      meta_adset_id: a.meta_adset_id, name: a.name, status: a.status,
+      daily_budget: a.daily_budget_cents ? `R$ ${(a.daily_budget_cents / 100).toFixed(2)}` : null,
+      has_pixel: !!a.pixel_id, optimization_goal: a.optimization_goal,
+      targeting_summary: a.targeting ? JSON.stringify(a.targeting).substring(0, 200) : null,
+      ads: (ads || []).filter((ad: any) => ad.meta_adset_id === a.meta_adset_id).map((ad: any) => ({
+        meta_ad_id: ad.meta_ad_id, name: ad.name, status: ad.status,
+      })),
+    })),
+  });
+}
+
+// --- Frente 3: get_performance_trend ---
+async function getPerformanceTrend(supabase: any, tenantId: string, campaignId: string, days?: number) {
+  const dayWindow = Math.min(days || 14, 30);
+  const sinceDate = new Date(Date.now() - dayWindow * 86400000).toISOString().split("T")[0];
+
+  const { data: insights } = await supabase
+    .from("meta_ad_insights")
+    .select("date_start, spend_cents, impressions, clicks, conversions, conversion_value_cents, ctr, roas")
+    .eq("tenant_id", tenantId)
+    .eq("meta_campaign_id", campaignId)
+    .gte("date_start", sinceDate)
+    .order("date_start", { ascending: true })
+    .limit(60);
+
+  if (!insights || insights.length === 0) {
+    return JSON.stringify({ error: "Sem dados de insights para esta campanha no período" });
+  }
+
+  // Aggregate by date
+  const byDate: Record<string, any> = {};
+  for (const i of insights) {
+    const d = i.date_start;
+    if (!byDate[d]) byDate[d] = { date: d, spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0 };
+    byDate[d].spend += (i.spend_cents || 0) / 100;
+    byDate[d].impressions += i.impressions || 0;
+    byDate[d].clicks += i.clicks || 0;
+    byDate[d].conversions += i.conversions || 0;
+    byDate[d].revenue += (i.conversion_value_cents || 0) / 100;
+  }
+
+  const daily = Object.values(byDate).map((d: any) => ({
+    ...d,
+    spend: `R$ ${d.spend.toFixed(2)}`,
+    revenue: `R$ ${d.revenue.toFixed(2)}`,
+    roas: d.spend > 0 ? (d.revenue / d.spend).toFixed(2) : "0",
+    cpa: d.conversions > 0 ? `R$ ${(d.spend / d.conversions).toFixed(2)}` : "N/A",
+  }));
+
+  return JSON.stringify({ campaign_id: campaignId, period: `últimos ${dayWindow} dias`, daily_data: daily });
+}
+
+// --- Frente 3: get_adset_performance ---
+async function getAdsetPerformance(supabase: any, tenantId: string, adAccountId?: string, campaignId?: string, status?: string) {
+  const query = supabase
+    .from("meta_ad_adsets")
+    .select("meta_adset_id, meta_campaign_id, name, status, daily_budget_cents, lifetime_budget_cents, targeting, pixel_id, optimization_goal, bid_strategy, ad_account_id, created_at")
+    .eq("tenant_id", tenantId)
+    .order("status", { ascending: true });
+  if (adAccountId) query.eq("ad_account_id", adAccountId);
+  if (campaignId) query.eq("meta_campaign_id", campaignId);
+  if (status && status !== "ALL") query.eq("status", status);
+  const { data: adsets, error } = await query.limit(100);
+  if (error) return JSON.stringify({ error: error.message });
+
+  // Get campaign names for context
+  const campIds = [...new Set((adsets || []).map((a: any) => a.meta_campaign_id).filter(Boolean))];
+  let campNames: Record<string, string> = {};
+  if (campIds.length > 0) {
+    const { data: camps } = await supabase
+      .from("meta_ad_campaigns")
+      .select("meta_campaign_id, name")
+      .eq("tenant_id", tenantId)
+      .in("meta_campaign_id", campIds);
+    for (const c of (camps || [])) campNames[c.meta_campaign_id] = c.name;
+  }
+
+  const activeAdsets = (adsets || []).filter((a: any) => a.status === "ACTIVE");
+  const pausedAdsets = (adsets || []).filter((a: any) => a.status === "PAUSED");
+
+  return JSON.stringify({
+    total: adsets?.length || 0,
+    active: activeAdsets.length,
+    paused: pausedAdsets.length,
+    adsets: (adsets || []).slice(0, 50).map((a: any) => ({
+      meta_adset_id: a.meta_adset_id, name: a.name, status: a.status,
+      campaign_name: campNames[a.meta_campaign_id] || a.meta_campaign_id,
+      daily_budget: a.daily_budget_cents ? `R$ ${(a.daily_budget_cents / 100).toFixed(2)}` : null,
+      has_pixel: !!a.pixel_id, optimization_goal: a.optimization_goal,
+      targeting_summary: a.targeting ? JSON.stringify(a.targeting).substring(0, 200) : null,
+    })),
+  });
+}
+
+// --- Frente 3: get_ad_performance ---
+async function getAdPerformance(supabase: any, tenantId: string, adAccountId?: string, campaignId?: string, adsetId?: string) {
+  const query = supabase
+    .from("meta_ad_ads")
+    .select("meta_ad_id, name, status, effective_status, meta_adset_id, meta_campaign_id, ad_account_id, created_at")
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: false });
+  if (adAccountId) query.eq("ad_account_id", adAccountId);
+  if (campaignId) query.eq("meta_campaign_id", campaignId);
+  if (adsetId) query.eq("meta_adset_id", adsetId);
+  const { data: ads, error } = await query.limit(100);
+  if (error) return JSON.stringify({ error: error.message });
+
+  // Creatives
+  const adIds = (ads || []).map((a: any) => a.meta_ad_id).filter(Boolean);
+  let creativeMap: Record<string, any> = {};
+  if (adIds.length > 0) {
+    const { data: cData } = await supabase
+      .from("meta_ad_creatives")
+      .select("meta_ad_id, name, title, body, image_url, thumbnail_url, call_to_action_type")
+      .eq("tenant_id", tenantId)
+      .in("meta_ad_id", adIds);
+    for (const c of (cData || [])) creativeMap[c.meta_ad_id] = c;
+  }
+
+  const activeAds = (ads || []).filter((a: any) => a.status === "ACTIVE");
+
+  return JSON.stringify({
+    total: ads?.length || 0,
+    active: activeAds.length,
+    ads: (ads || []).slice(0, 50).map((a: any) => {
+      const cr = creativeMap[a.meta_ad_id];
+      return {
+        meta_ad_id: a.meta_ad_id, name: a.name, status: a.status, effective_status: a.effective_status,
+        adset_id: a.meta_adset_id, campaign_id: a.meta_campaign_id,
+        creative: cr ? { title: cr.title, body: cr.body?.substring(0, 100), cta: cr.call_to_action_type, has_image: !!cr.image_url } : null,
+      };
+    }),
+  });
+}
+
+// --- Frente 3: get_store_context ---
+async function getStoreContext(supabase: any, tenantId: string) {
+  // Store settings
+  const { data: settings } = await supabase
+    .from("store_settings")
+    .select("store_name, store_description, logo_url, favicon_url, contact_email, contact_phone, social_links, seo_title, seo_description")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+
+  // Tenant info (domain, slug)
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("name, slug, custom_domain")
+    .eq("id", tenantId)
+    .single();
+
+  // Categories
+  const { data: categories } = await supabase
+    .from("categories")
+    .select("name, slug")
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true)
+    .limit(20);
+
+  // Active discounts
+  const { data: discounts } = await supabase
+    .from("discounts")
+    .select("code, type, value, min_purchase, max_uses, starts_at, ends_at")
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true)
+    .limit(10);
+
+  // Top 5 products by revenue (orders last 30d)
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
+  const { data: topOrderItems } = await supabase
+    .from("order_items")
+    .select("product_id, quantity, price, orders!inner(tenant_id, payment_status, created_at)")
+    .eq("orders.tenant_id", tenantId)
+    .eq("orders.payment_status", "paid")
+    .gte("orders.created_at", thirtyDaysAgo)
+    .limit(500);
+
+  // Aggregate by product
+  const prodRevenue: Record<string, { revenue: number; qty: number }> = {};
+  for (const item of (topOrderItems || [])) {
+    const pid = item.product_id;
+    if (!prodRevenue[pid]) prodRevenue[pid] = { revenue: 0, qty: 0 };
+    prodRevenue[pid].revenue += (item.price || 0) * (item.quantity || 1);
+    prodRevenue[pid].qty += item.quantity || 1;
+  }
+  const topProductIds = Object.entries(prodRevenue)
+    .sort(([, a], [, b]) => b.revenue - a.revenue)
+    .slice(0, 5)
+    .map(([id]) => id);
+
+  let topProducts: any[] = [];
+  if (topProductIds.length > 0) {
+    const { data: prods } = await supabase
+      .from("products")
+      .select("id, name, price, cost_price, compare_at_price")
+      .in("id", topProductIds);
+    topProducts = (prods || []).map((p: any) => ({
+      name: p.name,
+      price: `R$ ${((p.price || 0) / 100).toFixed(2)}`,
+      cost_price: p.cost_price ? `R$ ${(p.cost_price / 100).toFixed(2)}` : null,
+      margin_pct: p.cost_price && p.price ? `${(((p.price - p.cost_price) / p.price) * 100).toFixed(0)}%` : null,
+      revenue_30d: `R$ ${((prodRevenue[p.id]?.revenue || 0) / 100).toFixed(2)}`,
+      units_sold_30d: prodRevenue[p.id]?.qty || 0,
+    }));
+  }
+
+  // Marketing integrations (pixel IDs)
+  const { data: mktConfig } = await supabase
+    .from("marketing_integrations")
+    .select("meta_pixel_id, meta_enabled, google_measurement_id, google_enabled")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+
+  const storeUrl = tenant?.custom_domain || (tenant?.slug ? `${tenant.slug}.comandocentral.com.br` : null);
+
+  return JSON.stringify({
+    store: {
+      name: settings?.store_name || tenant?.name || "Loja",
+      description: settings?.store_description || null,
+      url: storeUrl,
+      contact_email: settings?.contact_email,
+      contact_phone: settings?.contact_phone,
+      seo_title: settings?.seo_title,
+      seo_description: settings?.seo_description,
+    },
+    categories: (categories || []).map((c: any) => c.name),
+    active_offers: (discounts || []).map((d: any) => ({
+      code: d.code, type: d.type, value: d.value,
+      min_purchase: d.min_purchase ? `R$ ${(d.min_purchase / 100).toFixed(2)}` : null,
+      ends_at: d.ends_at,
+    })),
+    top_products_by_revenue: topProducts,
+    tracking: {
+      meta_pixel: mktConfig?.meta_pixel_id || "Não configurado",
+      meta_enabled: mktConfig?.meta_enabled || false,
+      google_analytics: mktConfig?.google_measurement_id || "Não configurado",
+    },
+  });
+}
+
+// --- Frente 4: toggle_entity_status ---
+async function toggleEntityStatus(supabase: any, tenantId: string, args: any) {
+  const { entity_type, entity_id, new_status } = args;
+
+  // Get Meta connection
+  const { data: conn } = await supabase
+    .from("marketplace_connections")
+    .select("access_token")
+    .eq("tenant_id", tenantId)
+    .eq("marketplace", "meta")
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!conn) return JSON.stringify({ success: false, error: "Meta não conectada" });
+
+  const res = await fetch(`https://graph.facebook.com/v21.0/${entity_id}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status: new_status, access_token: conn.access_token }),
+  });
+  const result = await res.json();
+
+  if (result.error) {
+    return JSON.stringify({ success: false, error: result.error.message });
+  }
+
+  // Update local DB
+  const table = entity_type === "campaign" ? "meta_ad_campaigns" :
+    entity_type === "adset" ? "meta_ad_adsets" : "meta_ad_ads";
+  const idCol = entity_type === "campaign" ? "meta_campaign_id" :
+    entity_type === "adset" ? "meta_adset_id" : "meta_ad_id";
+
+  await supabase.from(table).update({ status: new_status, synced_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId).eq(idCol, entity_id);
+
+  const statusLabel = new_status === "ACTIVE" ? "reativado" : "pausado";
+  const typeLabel = entity_type === "campaign" ? "Campanha" : entity_type === "adset" ? "Conjunto" : "Anúncio";
+
+  return JSON.stringify({ success: true, message: `${typeLabel} ${statusLabel} com sucesso.` });
+}
+
+// --- Frente 4: update_budget ---
+async function updateBudget(supabase: any, tenantId: string, args: any) {
+  const { entity_type, entity_id, new_daily_budget_cents } = args;
+
+  const { data: conn } = await supabase
+    .from("marketplace_connections")
+    .select("access_token")
+    .eq("tenant_id", tenantId)
+    .eq("marketplace", "meta")
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!conn) return JSON.stringify({ success: false, error: "Meta não conectada" });
+
+  // Meta API uses daily_budget in the account currency's smallest unit
+  const res = await fetch(`https://graph.facebook.com/v21.0/${entity_id}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ daily_budget: new_daily_budget_cents, access_token: conn.access_token }),
+  });
+  const result = await res.json();
+
+  if (result.error) {
+    return JSON.stringify({ success: false, error: result.error.message });
+  }
+
+  // Update local DB
+  const table = entity_type === "campaign" ? "meta_ad_campaigns" : "meta_ad_adsets";
+  const idCol = entity_type === "campaign" ? "meta_campaign_id" : "meta_adset_id";
+
+  await supabase.from(table).update({ daily_budget_cents: new_daily_budget_cents, synced_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId).eq(idCol, entity_id);
+
+  return JSON.stringify({
+    success: true,
+    message: `Orçamento atualizado para R$ ${(new_daily_budget_cents / 100).toFixed(2)}/dia.`,
+  });
+}
+
+// --- Existing tools (kept) ---
+
+async function getProducts(supabase: any, tenantId: string, search?: string, limit?: number, status?: string) {
+  const safeLimit = Math.min(limit || 20, 50);
+  const query = supabase
+    .from("products")
+    .select("id, name, price, compare_at_price, cost_price, status, description, sku, stock_quantity, created_at")
+    .eq("tenant_id", tenantId)
+    .eq("status", status || "active")
+    .order("created_at", { ascending: false })
+    .limit(safeLimit);
+  if (search) query.ilike("name", `%${search}%`);
+  const { data: products, error } = await query;
+  if (error) return JSON.stringify({ error: error.message });
+
+  const productIds = (products || []).map((p: any) => p.id);
+  let imageMap: Record<string, string[]> = {};
+  if (productIds.length > 0) {
+    const { data: imgs } = await supabase.from("product_images").select("product_id, url, position").in("product_id", productIds).order("position", { ascending: true });
+    for (const img of (imgs || [])) {
+      if (!imageMap[img.product_id]) imageMap[img.product_id] = [];
+      imageMap[img.product_id].push(img.url);
+    }
+  }
+
+  return JSON.stringify({
+    total: products?.length || 0,
+    products: (products || []).map((p: any) => ({
+      id: p.id, name: p.name,
+      price_brl: `R$ ${((p.price || 0) / 100).toFixed(2)}`,
+      compare_at_price_brl: p.compare_at_price ? `R$ ${(p.compare_at_price / 100).toFixed(2)}` : null,
+      cost_price_brl: p.cost_price ? `R$ ${(p.cost_price / 100).toFixed(2)}` : null,
+      margin_pct: p.cost_price && p.price ? `${(((p.price - p.cost_price) / p.price) * 100).toFixed(0)}%` : null,
+      status: p.status, sku: p.sku, stock: p.stock_quantity,
+      description: p.description?.substring(0, 200) || "",
+      images: imageMap[p.id] || [],
+    })),
   });
 }
 
 async function getCreativeAssets(supabase: any, tenantId: string, status?: string) {
-  const query = supabase
-    .from("ads_creative_assets")
+  const query = supabase.from("ads_creative_assets")
     .select("id, headline, copy_text, format, status, angle, channel, asset_url, storage_path, created_at")
-    .eq("tenant_id", tenantId)
-    .order("created_at", { ascending: false })
-    .limit(20);
+    .eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(20);
   if (status) query.eq("status", status);
   const { data, error } = await query;
   if (error) return JSON.stringify({ error: error.message });
@@ -472,678 +1045,33 @@ async function getCreativeAssets(supabase: any, tenantId: string, status?: strin
   });
 }
 
-async function triggerCreativeGeneration(supabase: any, tenantId: string) {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  try {
-    const response = await fetch(`${supabaseUrl}/functions/v1/ads-autopilot-creative-generate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
-      body: JSON.stringify({ tenant_id: tenantId }),
-    });
-    const result = await response.text();
-    let parsed;
-    try { parsed = JSON.parse(result); } catch { parsed = { raw: result }; }
-    if (!response.ok) {
-      return JSON.stringify({ success: false, error: `Falha ao gerar criativos (HTTP ${response.status})`, details: parsed });
-    }
-    return JSON.stringify({ success: true, message: "Geração de briefs criativos disparada com sucesso.", details: parsed });
-  } catch (err: any) {
-    return JSON.stringify({ success: false, error: err.message });
-  }
-}
-
-async function generateCreativeImage(supabase: any, tenantId: string, args: any) {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  try {
-    // Find product by name in catalog
-    const { data: products } = await supabase
-      .from("products")
-      .select("id, name")
-      .eq("tenant_id", tenantId)
-      .eq("status", "active");
-
-    const product = (products || []).find((p: any) => 
-      p.name.toLowerCase().includes((args.product_name || "").toLowerCase())
-    ) || products?.[0];
-
-    if (!product) {
-      return JSON.stringify({ success: false, error: "Produto não encontrado no catálogo. Verifique o nome e tente novamente." });
-    }
-
-    // Resolve product image from product_images table
-    let productImageUrl: string | null = null;
-    const { data: prodImgs } = await supabase
-      .from("product_images")
-      .select("url")
-      .eq("product_id", product.id)
-      .order("position", { ascending: true })
-      .limit(1);
-    if (prodImgs?.[0]?.url) productImageUrl = prodImgs[0].url;
-
-    const response = await fetch(`${supabaseUrl}/functions/v1/ads-autopilot-creative`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
-      body: JSON.stringify({
-        tenant_id: tenantId,
-        channel: args.channel || "meta",
-        product_id: product.id,
-        product_name: product.name,
-        product_image_url: productImageUrl,
-        campaign_objective: args.campaign_objective || "sales",
-        target_audience: args.target_audience,
-        style_preference: args.style_preference || "promotional",
-        format: args.format || "1:1",
-        variations: Math.min(args.variations || 2, 4),
-      }),
-    });
-
-    const result = await response.text();
-    let parsed;
-    try { parsed = JSON.parse(result); } catch { parsed = { raw: result }; }
-
-    if (!response.ok || !parsed?.success) {
-      return JSON.stringify({ success: false, error: `Falha ao gerar imagens (HTTP ${response.status})`, details: parsed });
-    }
-
-    return JSON.stringify({
-      success: true,
-      message: `Geração de ${args.variations || 2} imagem(ns) criativa(s) disparada com sucesso para "${product.name}". As imagens estão sendo geradas via IA e ficarão disponíveis na pasta "Gestor de Tráfego IA" do Drive e na galeria de criativos.`,
-      job_id: parsed?.data?.job_id,
-      product_name: product.name,
-      style: args.style_preference || "promotional",
-      format: args.format || "1:1",
-    });
-  } catch (err: any) {
-    return JSON.stringify({ success: false, error: err.message });
-  }
-}
-
-async function createMetaCampaign(supabase: any, tenantId: string, args: any) {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const headers = { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` };
-
-  try {
-    // 1. Find the product
-    const { data: products } = await supabase
-      .from("products")
-      .select("id, name")
-      .eq("tenant_id", tenantId)
-      .eq("status", "active");
-
-    const product = (products || []).find((p: any) =>
-      p.name.toLowerCase().includes((args.product_name || "").toLowerCase())
-    ) || products?.[0];
-
-    if (!product) {
-      return JSON.stringify({ success: false, error: "Produto não encontrado no catálogo." });
-    }
-
-    // 2. Get Meta connection and ad account
-    const { data: conn } = await supabase
-      .from("marketplace_connections")
-      .select("access_token, metadata")
-      .eq("tenant_id", tenantId)
-      .eq("marketplace", "meta")
-      .eq("is_active", true)
-      .maybeSingle();
-
-    if (!conn) {
-      return JSON.stringify({ success: false, error: "Meta não conectada. Configure a integração Meta primeiro." });
-    }
-
-    const adAccounts = conn.metadata?.assets?.ad_accounts || [];
-    const adAccountId = args.ad_account_id || adAccounts[0]?.id;
-    if (!adAccountId) {
-      return JSON.stringify({ success: false, error: "Nenhuma conta de anúncios Meta encontrada." });
-    }
-
-    // 3. Find ready creative for this product (from ads_creative_assets or meta_ad_creatives)
-    const { data: creativeAssets } = await supabase
-      .from("ads_creative_assets")
-      .select("id, asset_url, storage_path, headline, copy_text, cta_type, product_id")
-      .eq("tenant_id", tenantId)
-      .eq("product_id", product.id)
-      .in("status", ["ready", "draft"])
-      .order("created_at", { ascending: false })
-      .limit(5);
-
-    let creativeImageUrl: string | null = null;
-    let creativeHeadline: string | null = null;
-    let creativeCopy: string | null = null;
-
-    if (creativeAssets && creativeAssets.length > 0) {
-      const best = creativeAssets.find((c: any) => c.asset_url) || creativeAssets[0];
-      creativeImageUrl = best.asset_url || null;
-      creativeHeadline = best.headline || null;
-      creativeCopy = best.copy_text || null;
-
-      // If no URL but has storage_path, build signed URL
-      if (!creativeImageUrl && best.storage_path) {
-        const { data: signedData } = await supabase.storage
-          .from("files")
-          .createSignedUrl(best.storage_path, 86400 * 30); // 30 days
-        if (signedData?.signedUrl) creativeImageUrl = signedData.signedUrl;
-      }
-    }
-
-    // 4. Fallback: check files in Drive "Gestor de Tráfego IA" folder
-    if (!creativeImageUrl) {
-      const { data: folder } = await supabase
-        .from("files")
-        .select("id")
-        .eq("tenant_id", tenantId)
-        .eq("filename", "Gestor de Tráfego IA")
-        .eq("is_folder", true)
-        .maybeSingle();
-
-      if (folder) {
-        const { data: driveFiles } = await supabase
-          .from("files")
-          .select("id, url, storage_path, filename")
-          .eq("tenant_id", tenantId)
-          .eq("folder_id", folder.id)
-          .eq("is_folder", false)
-          .order("created_at", { ascending: false })
-          .limit(5);
-
-        const imageFile = (driveFiles || []).find((f: any) =>
-          f.url || f.storage_path
-        );
-        if (imageFile) {
-          creativeImageUrl = imageFile.url || null;
-          if (!creativeImageUrl && imageFile.storage_path) {
-            const { data: signedData } = await supabase.storage
-              .from("files")
-              .createSignedUrl(imageFile.storage_path, 86400 * 30);
-            if (signedData?.signedUrl) creativeImageUrl = signedData.signedUrl;
-          }
-        }
-      }
-    }
-
-    // 5. Fallback: product image
-    if (!creativeImageUrl) {
-      const { data: prodImages } = await supabase
-        .from("product_images")
-        .select("url")
-        .eq("product_id", product.id)
-        .order("position", { ascending: true })
-        .limit(1);
-      if (prodImages?.[0]?.url) creativeImageUrl = prodImages[0].url;
-    }
-
-    if (!creativeImageUrl) {
-      return JSON.stringify({
-        success: false,
-        error: "Nenhum criativo ou imagem disponível para este produto. Gere criativos primeiro usando generate_creative_image.",
-      });
-    }
-
-    // 6. Get pixel from marketing_integrations
-    const { data: mktIntegration } = await supabase
-      .from("marketing_integrations")
-      .select("meta_pixel_id")
-      .eq("tenant_id", tenantId)
-      .maybeSingle();
-    const pixelId = mktIntegration?.meta_pixel_id || null;
-
-    // 7. Get page for creative
-    const pages = conn.metadata?.assets?.pages || [];
-    const pageId = pages[0]?.id || null;
-    const pageAccessToken = pages[0]?.access_token || conn.access_token;
-
-    // 8. Upload image to Meta and create ad creative
-    const accountIdClean = adAccountId.replace("act_", "");
-
-    // Upload image hash
-    const imageHashResult = await fetch(
-      `https://graph.facebook.com/v21.0/act_${accountIdClean}/adimages`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url: creativeImageUrl,
-          access_token: conn.access_token,
-        }),
-      }
-    );
-    const imageHashData = await imageHashResult.json();
-    const imageHash = imageHashData?.images?.[Object.keys(imageHashData?.images || {})[0]]?.hash;
-
-    if (!imageHash) {
-      console.error(`[ads-chat][${VERSION}] Image upload failed:`, JSON.stringify(imageHashData));
-      return JSON.stringify({
-        success: false,
-        error: "Falha ao enviar imagem para o Meta. Tente novamente.",
-        details: imageHashData?.error?.message || "Hash não retornado",
-      });
-    }
-
-    // Create ad creative on Meta
-    const objective = args.objective || "OUTCOME_SALES";
-    const creativeName = `[AI] ${product.name} - ${new Date().toISOString().split("T")[0]}`;
-    const creativeBody: any = {
-      name: creativeName,
-      access_token: conn.access_token,
-    };
-
-    if (pageId) {
-      creativeBody.object_story_spec = {
-        page_id: pageId,
-        link_data: {
-          image_hash: imageHash,
-          message: creativeCopy || `Conheça ${product.name}! Aproveite agora.`,
-          name: creativeHeadline || product.name,
-          call_to_action: {
-            type: objective === "OUTCOME_SALES" ? "SHOP_NOW" : "LEARN_MORE",
-          },
-        },
-      };
-    } else {
-      creativeBody.image_hash = imageHash;
-      creativeBody.title = creativeHeadline || product.name;
-      creativeBody.body = creativeCopy || `Conheça ${product.name}!`;
-    }
-
-    const creativeResult = await fetch(
-      `https://graph.facebook.com/v21.0/act_${accountIdClean}/adcreatives`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(creativeBody),
-      }
-    );
-    const creativeData = await creativeResult.json();
-
-    if (creativeData.error) {
-      console.error(`[ads-chat][${VERSION}] Creative creation failed:`, creativeData.error);
-      return JSON.stringify({
-        success: false,
-        error: `Falha ao criar criativo: ${creativeData.error.message}`,
-      });
-    }
-
-    const metaCreativeId = creativeData.id;
-    console.log(`[ads-chat][${VERSION}] Creative created: ${metaCreativeId}`);
-
-    // 9. Create Campaign (PAUSED) via edge function
-    const campName = args.campaign_name || `[AI] ${objective === "OUTCOME_SALES" ? "Vendas" : "Tráfego"} | ${product.name} | ${new Date().toISOString().split("T")[0]}`;
-    const dailyBudgetCents = args.daily_budget_cents || 3000;
-
-    const campResponse = await fetch(`${supabaseUrl}/functions/v1/meta-ads-campaigns`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        tenant_id: tenantId,
-        action: "create",
-        ad_account_id: adAccountId,
-        name: campName,
-        objective,
-        daily_budget_cents: dailyBudgetCents,
-        status: "PAUSED",
-        bid_strategy: "LOWEST_COST_WITHOUT_CAP",
-      }),
-    });
-    const campResult = await campResponse.text();
-    let campParsed: any;
-    try { campParsed = JSON.parse(campResult); } catch { campParsed = { raw: campResult }; }
-
-    if (!campParsed?.success) {
-      return JSON.stringify({
-        success: false,
-        error: `Falha ao criar campanha: ${campParsed?.error || "Erro desconhecido"}`,
-      });
-    }
-
-    const metaCampaignId = campParsed.data?.meta_campaign_id;
-    console.log(`[ads-chat][${VERSION}] Campaign created: ${metaCampaignId}`);
-
-    // 10. Create AdSet (PAUSED) with pixel
-    const funnelStage = args.funnel_stage || "cold";
-    const adsetName = `[AI] ${funnelStage} | ${args.targeting_description || "Brasil 18-65"} | ${product.name}`.substring(0, 200);
-
-    const adsetBody: any = {
-      tenant_id: tenantId,
-      action: "create",
-      ad_account_id: adAccountId,
-      meta_campaign_id: metaCampaignId,
-      name: adsetName,
-      targeting: {
-        geo_locations: { countries: ["BR"] },
-        age_min: 18,
-        age_max: 65,
-      },
-      status: "PAUSED",
-    };
-
-    // Add promoted_object for conversion campaigns
-    if (pixelId && (objective === "OUTCOME_SALES" || objective === "OUTCOME_LEADS")) {
-      adsetBody.promoted_object = {
-        pixel_id: pixelId,
-        custom_event_type: objective === "OUTCOME_SALES" ? "PURCHASE" : "LEAD",
-      };
-    }
-
-    const adsetResponse = await fetch(`${supabaseUrl}/functions/v1/meta-ads-adsets`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(adsetBody),
-    });
-    const adsetResult = await adsetResponse.text();
-    let adsetParsed: any;
-    try { adsetParsed = JSON.parse(adsetResult); } catch { adsetParsed = { raw: adsetResult }; }
-
-    const metaAdsetId = adsetParsed?.data?.meta_adset_id || null;
-    console.log(`[ads-chat][${VERSION}] AdSet created: ${metaAdsetId}`);
-
-    // 11. Create Ad (PAUSED) with the creative
-    let metaAdId: string | null = null;
-    if (metaAdsetId && metaCreativeId) {
-      const adResponse = await fetch(`${supabaseUrl}/functions/v1/meta-ads-ads`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          tenant_id: tenantId,
-          action: "create",
-          ad_account_id: adAccountId,
-          meta_adset_id: metaAdsetId,
-          meta_campaign_id: metaCampaignId,
-          name: `[AI] ${product.name} - Criativo 1`,
-          creative_id: metaCreativeId,
-          status: "PAUSED",
-        }),
-      });
-      const adResult = await adResponse.text();
-      let adParsed: any;
-      try { adParsed = JSON.parse(adResult); } catch { adParsed = { raw: adResult }; }
-      metaAdId = adParsed?.data?.meta_ad_id || null;
-      console.log(`[ads-chat][${VERSION}] Ad created: ${metaAdId}`);
-    }
-
-    // 12. Schedule activation for 00:01-04:00 BRT
-    const now = new Date();
-    const utcHour = now.getUTCHours();
-    const brtHour = utcHour - 3 < 0 ? utcHour - 3 + 24 : utcHour - 3;
-    const scheduleDate = new Date(now);
-    if (brtHour >= 0 && brtHour < 4) {
-      scheduleDate.setMinutes(scheduleDate.getMinutes() + 5);
-    } else {
-      if (brtHour >= 4) scheduleDate.setDate(scheduleDate.getDate() + 1);
-      const randomMinute = 1 + Math.floor(Math.random() * 59);
-      scheduleDate.setUTCHours(3, randomMinute, 0, 0);
-    }
-    const scheduledFor = scheduleDate.toISOString();
-
-    // Record scheduled activation action
-    await supabase.from("ads_autopilot_actions").insert({
-      tenant_id: tenantId,
-      session_id: crypto.randomUUID(),
-      channel: "meta",
-      action_type: "activate_campaign",
-      action_data: {
-        campaign_id: metaCampaignId,
-        adset_id: metaAdsetId,
-        ad_id: metaAdId,
-        ad_account_id: adAccountId,
-        campaign_name: campName,
-        product_name: product.name,
-        creative_id: metaCreativeId,
-        scheduled_for: scheduledFor,
-        daily_budget_cents: dailyBudgetCents,
-        created_by: "ads_chat",
-      },
-      reasoning: `Campanha completa criada via Chat IA para "${product.name}". Ativação agendada para ${scheduledFor} (00:01-04:00 BRT).`,
-      status: "scheduled",
-      action_hash: `chat_activate_${metaCampaignId}_${Date.now()}`,
-    });
-
-    return JSON.stringify({
-      success: true,
-      message: `Campanha completa criada com sucesso para "${product.name}"! A campanha foi criada PAUSADA e será ativada automaticamente na próxima janela (00:01-04:00 BRT).`,
-      data: {
-        campaign: { id: metaCampaignId, name: campName, status: "PAUSED" },
-        adset: { id: metaAdsetId, name: adsetName, status: "PAUSED" },
-        ad: { id: metaAdId, status: "PAUSED" },
-        creative_id: metaCreativeId,
-        daily_budget: `R$ ${(dailyBudgetCents / 100).toFixed(2)}`,
-        scheduled_activation: scheduledFor,
-        product: product.name,
-        image_used: creativeImageUrl?.substring(0, 80) + "...",
-      },
-    });
-  } catch (err: any) {
-    console.error(`[ads-chat][${VERSION}] create_meta_campaign error:`, err);
-    return JSON.stringify({ success: false, error: err.message || "Erro ao criar campanha" });
-  }
-}
-
-async function triggerAutopilotAnalysis(supabase: any, tenantId: string, channel: string) {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  try {
-    const response = await fetch(`${supabaseUrl}/functions/v1/ads-autopilot-analyze`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
-      body: JSON.stringify({ tenant_id: tenantId, channel, trigger_type: "manual" }),
-    });
-    const result = await response.text();
-    let parsed;
-    try { parsed = JSON.parse(result); } catch { parsed = { raw: result }; }
-    return JSON.stringify({
-      success: response.ok,
-      message: response.ok ? `Análise do Autopilot (${channel}) disparada.` : `Falha (HTTP ${response.status})`,
-      details: parsed,
-    });
-  } catch (err: any) {
-    return JSON.stringify({ success: false, error: err.message });
-  }
-}
-
-async function getAutopilotActions(supabase: any, tenantId: string, status?: string, limit?: number) {
-  const query = supabase
-    .from("ads_autopilot_actions")
-    .select("id, action_type, channel, status, reasoning, confidence, error_message, executed_at, created_at, action_data")
-    .eq("tenant_id", tenantId)
-    .order("created_at", { ascending: false })
-    .limit(limit || 15);
-  if (status) query.eq("status", status);
-  const { data, error } = await query;
-  if (error) return JSON.stringify({ error: error.message });
-  return JSON.stringify({
-    total: data?.length || 0,
-    actions: (data || []).map((a: any) => ({
-      action_type: a.action_type, channel: a.channel, status: a.status,
-      reasoning: a.reasoning?.substring(0, 200), confidence: a.confidence,
-      error: a.error_message,
-      campaign_name: a.action_data?.campaign_name,
-      daily_budget: a.action_data?.daily_budget_cents ? `R$ ${(a.action_data.daily_budget_cents / 100).toFixed(2)}` : null,
-      executed_at: a.executed_at, created_at: a.created_at,
-    })),
-  });
-}
-
-async function getAutopilotInsights(supabase: any, tenantId: string, status?: string) {
-  const query = supabase
-    .from("ads_autopilot_insights")
-    .select("id, title, body, category, priority, sentiment, status, created_at")
-    .eq("tenant_id", tenantId)
-    .order("created_at", { ascending: false })
-    .limit(15);
-  if (status) query.eq("status", status);
-  const { data, error } = await query;
-  if (error) return JSON.stringify({ error: error.message });
-  return JSON.stringify({ total: data?.length || 0, insights: data || [] });
-}
-
-// ============ NEW: URL ANALYSIS (Firecrawl) ============
-
-async function analyzeUrl(url: string): Promise<string> {
-  const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
-  if (!FIRECRAWL_API_KEY) {
-    return JSON.stringify({ error: "Firecrawl não configurado. Não é possível analisar URLs." });
-  }
-
-  try {
-    const response = await fetch("https://api.firecrawl.dev/v1/scrape", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        url,
-        formats: ["markdown"],
-        onlyMainContent: true,
-      }),
-    });
-
-    const result = await response.text();
-    let parsed;
-    try { parsed = JSON.parse(result); } catch { parsed = { raw: result }; }
-
-    if (!response.ok) {
-      return JSON.stringify({ error: `Falha ao analisar URL (HTTP ${response.status})`, details: parsed });
-    }
-
-    const markdown = parsed?.data?.markdown || "";
-    const metadata = parsed?.data?.metadata || {};
-
-    // Truncate to avoid context bloat
-    const truncated = markdown.length > 3000 ? markdown.substring(0, 3000) + "\n\n[...conteúdo truncado]" : markdown;
-
-    return JSON.stringify({
-      success: true,
-      url,
-      title: metadata.title || "",
-      description: metadata.description || "",
-      content: truncated,
-    });
-  } catch (err: any) {
-    return JSON.stringify({ error: `Erro ao acessar URL: ${err.message}` });
-  }
-}
-
-// ============ NEW TOOL EXECUTORS (v4.0) ============
-
-async function getGoogleCampaigns(supabase: any, tenantId: string, adAccountId?: string) {
-  const query = supabase
-    .from("google_ad_campaigns")
-    .select("id, google_campaign_id, name, status, campaign_type, daily_budget_cents, ad_account_id, created_at")
-    .eq("tenant_id", tenantId)
-    .order("created_at", { ascending: false })
-    .limit(30);
-  if (adAccountId) query.eq("ad_account_id", adAccountId);
-  const { data: campaigns, error } = await query;
-  if (error) return JSON.stringify({ error: error.message });
-
-  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
-  const { data: insights } = await supabase
-    .from("google_ad_insights")
-    .select("google_campaign_id, spend_cents, impressions, clicks, conversions, ctr, cpc_cents, date_start")
-    .eq("tenant_id", tenantId)
-    .gte("date_start", sevenDaysAgo)
-    .limit(500);
-
-  const insightMap: Record<string, any> = {};
-  for (const i of (insights || [])) {
-    if (!insightMap[i.google_campaign_id]) insightMap[i.google_campaign_id] = { spend: 0, impressions: 0, clicks: 0, conversions: 0 };
-    const m = insightMap[i.google_campaign_id];
-    m.spend += (i.spend_cents || 0) / 100;
-    m.impressions += i.impressions || 0;
-    m.clicks += i.clicks || 0;
-    m.conversions += i.conversions || 0;
-  }
-
-  return JSON.stringify({
-    total: campaigns?.length || 0,
-    campaigns: (campaigns || []).map((c: any) => {
-      const perf = insightMap[c.google_campaign_id] || {};
-      return {
-        name: c.name, status: c.status, type: c.campaign_type,
-        daily_budget: `R$ ${((c.daily_budget_cents || 0) / 100).toFixed(2)}`,
-        spend_7d: `R$ ${(perf.spend || 0).toFixed(2)}`,
-        impressions_7d: perf.impressions || 0, clicks_7d: perf.clicks || 0, conversions_7d: perf.conversions || 0,
-      };
-    }),
-  });
-}
-
-async function getTikTokCampaigns(supabase: any, tenantId: string, advertiserId?: string) {
-  const query = supabase
-    .from("tiktok_ad_campaigns")
-    .select("id, tiktok_campaign_id, campaign_name, status, objective_type, budget_cents, advertiser_id, created_at")
-    .eq("tenant_id", tenantId)
-    .order("created_at", { ascending: false })
-    .limit(30);
-  if (advertiserId) query.eq("advertiser_id", advertiserId);
-  const { data: campaigns, error } = await query;
-  if (error) return JSON.stringify({ error: error.message });
-
-  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
-  const { data: insights } = await supabase
-    .from("tiktok_ad_insights")
-    .select("tiktok_campaign_id, spend_cents, impressions, clicks, conversions, date_start")
-    .eq("tenant_id", tenantId)
-    .gte("date_start", sevenDaysAgo)
-    .limit(500);
-
-  const insightMap: Record<string, any> = {};
-  for (const i of (insights || [])) {
-    if (!insightMap[i.tiktok_campaign_id]) insightMap[i.tiktok_campaign_id] = { spend: 0, impressions: 0, clicks: 0, conversions: 0 };
-    const m = insightMap[i.tiktok_campaign_id];
-    m.spend += (i.spend_cents || 0) / 100;
-    m.impressions += i.impressions || 0;
-    m.clicks += i.clicks || 0;
-    m.conversions += i.conversions || 0;
-  }
-
-  return JSON.stringify({
-    total: campaigns?.length || 0,
-    campaigns: (campaigns || []).map((c: any) => {
-      const perf = insightMap[c.tiktok_campaign_id] || {};
-      return {
-        name: c.campaign_name, status: c.status, objective: c.objective_type,
-        budget: `R$ ${((c.budget_cents || 0) / 100).toFixed(2)}`,
-        spend_7d: `R$ ${(perf.spend || 0).toFixed(2)}`,
-        impressions_7d: perf.impressions || 0, clicks_7d: perf.clicks || 0, conversions_7d: perf.conversions || 0,
-      };
-    }),
-  });
-}
-
 async function getMetaAdsets(supabase: any, tenantId: string, adAccountId?: string, status?: string) {
-  const query = supabase
-    .from("meta_ad_adsets")
+  const query = supabase.from("meta_ad_adsets")
     .select("id, meta_adset_id, name, status, daily_budget_cents, lifetime_budget_cents, targeting, pixel_id, ad_account_id, optimization_goal, bid_strategy, created_at")
-    .eq("tenant_id", tenantId)
-    .order("created_at", { ascending: false })
-    .limit(30);
+    .eq("tenant_id", tenantId).order("status", { ascending: true }).limit(100);
   if (adAccountId) query.eq("ad_account_id", adAccountId);
   if (status) query.eq("status", status);
   const { data, error } = await query;
   if (error) return JSON.stringify({ error: error.message });
+
+  const active = (data || []).filter((a: any) => a.status === "ACTIVE");
+  const paused = (data || []).filter((a: any) => a.status === "PAUSED");
+
   return JSON.stringify({
-    total: data?.length || 0,
+    total: data?.length || 0, active: active.length, paused: paused.length,
     adsets: (data || []).map((a: any) => ({
       name: a.name, status: a.status, meta_adset_id: a.meta_adset_id,
       daily_budget: a.daily_budget_cents ? `R$ ${(a.daily_budget_cents / 100).toFixed(2)}` : null,
-      lifetime_budget: a.lifetime_budget_cents ? `R$ ${(a.lifetime_budget_cents / 100).toFixed(2)}` : null,
-      has_pixel: !!a.pixel_id, optimization_goal: a.optimization_goal, bid_strategy: a.bid_strategy,
+      has_pixel: !!a.pixel_id, optimization_goal: a.optimization_goal,
       targeting_summary: a.targeting ? JSON.stringify(a.targeting).substring(0, 200) : null,
     })),
   });
 }
 
 async function getMetaAds(supabase: any, tenantId: string, adAccountId?: string) {
-  const query = supabase
-    .from("meta_ad_ads")
+  const query = supabase.from("meta_ad_ads")
     .select("id, meta_ad_id, name, status, effective_status, meta_adset_id, meta_campaign_id, ad_account_id, created_at")
-    .eq("tenant_id", tenantId)
-    .order("created_at", { ascending: false })
-    .limit(30);
+    .eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(100);
   if (adAccountId) query.eq("ad_account_id", adAccountId);
   const { data, error } = await query;
   if (error) return JSON.stringify({ error: error.message });
@@ -1151,11 +1079,7 @@ async function getMetaAds(supabase: any, tenantId: string, adAccountId?: string)
   const adIds = (data || []).map((a: any) => a.meta_ad_id).filter(Boolean);
   let creatives: any[] = [];
   if (adIds.length > 0) {
-    const { data: cData } = await supabase
-      .from("meta_ad_creatives")
-      .select("meta_ad_id, name, title, body, image_url, thumbnail_url, call_to_action_type")
-      .eq("tenant_id", tenantId)
-      .in("meta_ad_id", adIds);
+    const { data: cData } = await supabase.from("meta_ad_creatives").select("meta_ad_id, name, title, body, image_url, thumbnail_url, call_to_action_type").eq("tenant_id", tenantId).in("meta_ad_id", adIds);
     creatives = cData || [];
   }
   const creativeMap: Record<string, any> = {};
@@ -1176,32 +1100,25 @@ async function getMetaAds(supabase: any, tenantId: string, adAccountId?: string)
 async function getAudiences(supabase: any, tenantId: string, channel?: string) {
   const result: any = {};
   if (!channel || channel === "meta") {
-    const { data } = await supabase
-      .from("meta_ad_audiences")
-      .select("id, name, audience_type, approximate_count, ad_account_id, created_at")
-      .eq("tenant_id", tenantId).limit(30);
+    const { data } = await supabase.from("meta_ad_audiences").select("id, name, audience_type, approximate_count, ad_account_id, created_at").eq("tenant_id", tenantId).limit(50);
     result.meta = (data || []).map((a: any) => ({ name: a.name, type: a.audience_type, size: a.approximate_count }));
   }
   if (!channel || channel === "google") {
-    const { data } = await supabase
-      .from("google_ad_audiences")
-      .select("id, name, audience_type, size_estimate, ad_account_id, created_at")
-      .eq("tenant_id", tenantId).limit(30);
+    const { data } = await supabase.from("google_ad_audiences").select("id, name, audience_type, size_estimate, ad_account_id, created_at").eq("tenant_id", tenantId).limit(50);
     result.google = (data || []).map((a: any) => ({ name: a.name, type: a.audience_type, size: a.size_estimate }));
   }
   return JSON.stringify(result);
 }
 
-async function getAutopilotConfig(supabase: any, tenantId: string, adAccountId?: string) {
-  const { data: globalConfigs } = await supabase
-    .from("ads_autopilot_configs")
-    .select("*")
-    .eq("tenant_id", tenantId);
+async function getTrackingHealth(supabase: any, tenantId: string) {
+  const { data, error } = await supabase.from("ads_tracking_health").select("channel, status, indicators, alerts, ad_account_id, created_at").eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(10);
+  if (error) return JSON.stringify({ error: error.message });
+  return JSON.stringify({ total: data?.length || 0, tracking: data || [] });
+}
 
-  const accQuery = supabase
-    .from("ads_autopilot_account_configs")
-    .select("*")
-    .eq("tenant_id", tenantId);
+async function getAutopilotConfig(supabase: any, tenantId: string, adAccountId?: string) {
+  const { data: globalConfigs } = await supabase.from("ads_autopilot_configs").select("*").eq("tenant_id", tenantId);
+  const accQuery = supabase.from("ads_autopilot_account_configs").select("*").eq("tenant_id", tenantId);
   if (adAccountId) accQuery.eq("ad_account_id", adAccountId);
   const { data: accountConfigs } = await accQuery;
 
@@ -1226,34 +1143,48 @@ async function getAutopilotConfig(supabase: any, tenantId: string, adAccountId?:
   });
 }
 
-async function updateAutopilotConfig(supabase: any, tenantId: string, adAccountId: string, channel: string, updates: any) {
-  if (!adAccountId || !channel) return JSON.stringify({ error: "ad_account_id e channel são obrigatórios" });
-  const safeFields: Record<string, any> = {};
-  const allowed = ["target_roi", "budget_cents", "strategy_mode", "is_ai_enabled", "user_instructions", "human_approval_mode"];
-  for (const key of allowed) {
-    if (updates[key] !== undefined) safeFields[key] = updates[key];
-  }
-  if (Object.keys(safeFields).length === 0) return JSON.stringify({ error: "Nenhum campo válido para atualizar" });
-  safeFields.updated_at = new Date().toISOString();
-
-  const { error } = await supabase
-    .from("ads_autopilot_account_configs")
-    .update(safeFields)
-    .eq("tenant_id", tenantId)
-    .eq("ad_account_id", adAccountId)
-    .eq("channel", channel);
-
+async function getAutopilotActions(supabase: any, tenantId: string, status?: string, limit?: number) {
+  const query = supabase.from("ads_autopilot_actions")
+    .select("id, action_type, channel, status, reasoning, confidence, error_message, executed_at, created_at, action_data")
+    .eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(limit || 15);
+  if (status) query.eq("status", status);
+  const { data, error } = await query;
   if (error) return JSON.stringify({ error: error.message });
-  return JSON.stringify({ success: true, updated_fields: Object.keys(safeFields).filter(k => k !== "updated_at"), message: "Configurações atualizadas com sucesso." });
+  return JSON.stringify({
+    total: data?.length || 0,
+    actions: (data || []).map((a: any) => ({
+      action_type: a.action_type, channel: a.channel, status: a.status,
+      reasoning: a.reasoning?.substring(0, 200), confidence: a.confidence,
+      error: a.error_message, campaign_name: a.action_data?.campaign_name,
+      daily_budget: a.action_data?.daily_budget_cents ? `R$ ${(a.action_data.daily_budget_cents / 100).toFixed(2)}` : null,
+      executed_at: a.executed_at, created_at: a.created_at,
+    })),
+  });
+}
+
+async function getAutopilotInsights(supabase: any, tenantId: string, status?: string) {
+  const query = supabase.from("ads_autopilot_insights").select("id, title, body, category, priority, sentiment, status, created_at").eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(15);
+  if (status) query.eq("status", status);
+  const { data, error } = await query;
+  if (error) return JSON.stringify({ error: error.message });
+  return JSON.stringify({ total: data?.length || 0, insights: data || [] });
+}
+
+async function getAutopilotSessions(supabase: any, tenantId: string, limit?: number) {
+  const { data, error } = await supabase.from("ads_autopilot_sessions").select("id, channel, trigger_type, motor_type, actions_planned, actions_executed, actions_rejected, cost_credits, duration_ms, created_at, insights_generated").eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(limit || 10);
+  if (error) return JSON.stringify({ error: error.message });
+  return JSON.stringify({
+    total: data?.length || 0,
+    sessions: (data || []).map((s: any) => ({
+      channel: s.channel, trigger: s.trigger_type, motor: s.motor_type,
+      planned: s.actions_planned, executed: s.actions_executed, rejected: s.actions_rejected,
+      credits: s.cost_credits, duration_ms: s.duration_ms, ran_at: s.created_at,
+    })),
+  });
 }
 
 async function getExperiments(supabase: any, tenantId: string, status?: string) {
-  const query = supabase
-    .from("ads_autopilot_experiments")
-    .select("id, hypothesis, variable_type, channel, status, start_at, end_at, budget_cents, results, winner_variant_id, created_at")
-    .eq("tenant_id", tenantId)
-    .order("created_at", { ascending: false })
-    .limit(15);
+  const query = supabase.from("ads_autopilot_experiments").select("id, hypothesis, variable_type, channel, status, start_at, end_at, budget_cents, results, winner_variant_id, created_at").eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(15);
   if (status) query.eq("status", status);
   const { data, error } = await query;
   if (error) return JSON.stringify({ error: error.message });
@@ -1267,121 +1198,271 @@ async function getExperiments(supabase: any, tenantId: string, status?: string) 
   });
 }
 
-async function getTrackingHealth(supabase: any, tenantId: string) {
-  const { data, error } = await supabase
-    .from("ads_tracking_health")
-    .select("channel, status, indicators, alerts, ad_account_id, created_at")
-    .eq("tenant_id", tenantId)
-    .order("created_at", { ascending: false })
-    .limit(10);
+async function getGoogleCampaigns(supabase: any, tenantId: string, adAccountId?: string) {
+  const query = supabase.from("google_ad_campaigns").select("id, google_campaign_id, name, status, campaign_type, daily_budget_cents, ad_account_id, created_at").eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(30);
+  if (adAccountId) query.eq("ad_account_id", adAccountId);
+  const { data: campaigns, error } = await query;
   if (error) return JSON.stringify({ error: error.message });
-  return JSON.stringify({
-    total: data?.length || 0,
-    tracking: (data || []).map((t: any) => ({
-      channel: t.channel, status: t.status, ad_account_id: t.ad_account_id,
-      indicators: t.indicators, alerts: t.alerts, checked_at: t.created_at,
-    })),
-  });
+  return JSON.stringify({ total: campaigns?.length || 0, campaigns: campaigns || [] });
 }
 
-async function getAutopilotSessions(supabase: any, tenantId: string, limit?: number) {
-  const { data, error } = await supabase
-    .from("ads_autopilot_sessions")
-    .select("id, channel, trigger_type, motor_type, actions_planned, actions_executed, actions_rejected, cost_credits, duration_ms, created_at, insights_generated")
-    .eq("tenant_id", tenantId)
-    .order("created_at", { ascending: false })
-    .limit(limit || 10);
+async function getTikTokCampaigns(supabase: any, tenantId: string, advertiserId?: string) {
+  const query = supabase.from("tiktok_ad_campaigns").select("id, tiktok_campaign_id, campaign_name, status, objective_type, budget_cents, advertiser_id, created_at").eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(30);
+  if (advertiserId) query.eq("advertiser_id", advertiserId);
+  const { data: campaigns, error } = await query;
   if (error) return JSON.stringify({ error: error.message });
-  return JSON.stringify({
-    total: data?.length || 0,
-    sessions: (data || []).map((s: any) => ({
-      channel: s.channel, trigger: s.trigger_type, motor: s.motor_type,
-      planned: s.actions_planned, executed: s.actions_executed, rejected: s.actions_rejected,
-      credits: s.cost_credits, duration_ms: s.duration_ms,
-      insights_count: Array.isArray(s.insights_generated) ? s.insights_generated.length : 0,
-      ran_at: s.created_at,
-    })),
-  });
+  return JSON.stringify({ total: campaigns?.length || 0, campaigns: campaigns || [] });
 }
 
-async function getProducts(supabase: any, tenantId: string, search?: string, limit?: number, status?: string) {
-  const safeLimit = Math.min(limit || 20, 50);
-  const query = supabase
-    .from("products")
-    .select("id, name, price, compare_at_price, status, description, sku, stock_quantity, created_at")
-    .eq("tenant_id", tenantId)
-    .eq("status", status || "active")
-    .order("created_at", { ascending: false })
-    .limit(safeLimit);
-
-  if (search) {
-    query.ilike("name", `%${search}%`);
-  }
-
-  const { data: products, error } = await query;
+async function updateAutopilotConfig(supabase: any, tenantId: string, adAccountId: string, channel: string, updates: any) {
+  if (!adAccountId || !channel) return JSON.stringify({ error: "ad_account_id e channel são obrigatórios" });
+  const safeFields: Record<string, any> = {};
+  const allowed = ["target_roi", "budget_cents", "strategy_mode", "is_ai_enabled", "user_instructions", "human_approval_mode"];
+  for (const key of allowed) { if (updates[key] !== undefined) safeFields[key] = updates[key]; }
+  if (Object.keys(safeFields).length === 0) return JSON.stringify({ error: "Nenhum campo válido" });
+  safeFields.updated_at = new Date().toISOString();
+  const { error } = await supabase.from("ads_autopilot_account_configs").update(safeFields).eq("tenant_id", tenantId).eq("ad_account_id", adAccountId).eq("channel", channel);
   if (error) return JSON.stringify({ error: error.message });
+  return JSON.stringify({ success: true, message: "Configurações atualizadas com sucesso." });
+}
 
-  // Also fetch product_images for better image data
-  const productIds = (products || []).map((p: any) => p.id);
-  let imageMap: Record<string, string[]> = {};
-  if (productIds.length > 0) {
-    const { data: imgs } = await supabase
-      .from("product_images")
-      .select("product_id, url, position")
-      .in("product_id", productIds)
-      .order("position", { ascending: true });
-    for (const img of (imgs || [])) {
-      if (!imageMap[img.product_id]) imageMap[img.product_id] = [];
-      imageMap[img.product_id].push(img.url);
+// --- Creative generation (kept) ---
+async function triggerCreativeGeneration(supabase: any, tenantId: string) {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/ads-autopilot-creative-generate`, {
+      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+      body: JSON.stringify({ tenant_id: tenantId }),
+    });
+    const result = await response.text();
+    let parsed; try { parsed = JSON.parse(result); } catch { parsed = { raw: result }; }
+    return JSON.stringify({ success: response.ok, message: response.ok ? "Geração de textos criativos disparada." : `Falha (HTTP ${response.status})`, details: parsed });
+  } catch (err: any) { return JSON.stringify({ success: false, error: err.message }); }
+}
+
+async function generateCreativeImage(supabase: any, tenantId: string, args: any) {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  try {
+    const { data: products } = await supabase.from("products").select("id, name").eq("tenant_id", tenantId).eq("status", "active");
+    const product = (products || []).find((p: any) => p.name.toLowerCase().includes((args.product_name || "").toLowerCase())) || products?.[0];
+    if (!product) return JSON.stringify({ success: false, error: "Produto não encontrado no catálogo." });
+
+    let productImageUrl: string | null = null;
+    const { data: prodImgs } = await supabase.from("product_images").select("url").eq("product_id", product.id).order("position", { ascending: true }).limit(1);
+    if (prodImgs?.[0]?.url) productImageUrl = prodImgs[0].url;
+
+    const response = await fetch(`${supabaseUrl}/functions/v1/ads-autopilot-creative`, {
+      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+      body: JSON.stringify({
+        tenant_id: tenantId, channel: args.channel || "meta", product_id: product.id, product_name: product.name,
+        product_image_url: productImageUrl, campaign_objective: args.campaign_objective || "sales",
+        target_audience: args.target_audience, style_preference: args.style_preference || "promotional",
+        format: args.format || "1:1", variations: Math.min(args.variations || 2, 4),
+      }),
+    });
+    const result = await response.text();
+    let parsed; try { parsed = JSON.parse(result); } catch { parsed = { raw: result }; }
+    if (!response.ok || !parsed?.success) return JSON.stringify({ success: false, error: `Falha ao gerar imagens (HTTP ${response.status})`, details: parsed });
+    return JSON.stringify({ success: true, message: `Geração de ${args.variations || 2} imagem(ns) disparada para "${product.name}".`, job_id: parsed?.data?.job_id });
+  } catch (err: any) { return JSON.stringify({ success: false, error: err.message }); }
+}
+
+async function createMetaCampaign(supabase: any, tenantId: string, args: any) {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const headers = { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` };
+
+  try {
+    const { data: products } = await supabase.from("products").select("id, name").eq("tenant_id", tenantId).eq("status", "active");
+    const product = (products || []).find((p: any) => p.name.toLowerCase().includes((args.product_name || "").toLowerCase())) || products?.[0];
+    if (!product) return JSON.stringify({ success: false, error: "Produto não encontrado no catálogo." });
+
+    const { data: conn } = await supabase.from("marketplace_connections").select("access_token, metadata").eq("tenant_id", tenantId).eq("marketplace", "meta").eq("is_active", true).maybeSingle();
+    if (!conn) return JSON.stringify({ success: false, error: "Meta não conectada." });
+
+    const adAccounts = conn.metadata?.assets?.ad_accounts || [];
+    const adAccountId = args.ad_account_id || adAccounts[0]?.id;
+    if (!adAccountId) return JSON.stringify({ success: false, error: "Nenhuma conta de anúncios Meta encontrada." });
+
+    // Find creative image
+    let creativeImageUrl: string | null = null;
+    let creativeHeadline: string | null = null;
+    let creativeCopy: string | null = null;
+
+    const { data: creativeAssets } = await supabase.from("ads_creative_assets").select("id, asset_url, storage_path, headline, copy_text, cta_type, product_id").eq("tenant_id", tenantId).eq("product_id", product.id).in("status", ["ready", "draft"]).order("created_at", { ascending: false }).limit(5);
+    if (creativeAssets?.length) {
+      const best = creativeAssets.find((c: any) => c.asset_url) || creativeAssets[0];
+      creativeImageUrl = best.asset_url || null;
+      creativeHeadline = best.headline || null;
+      creativeCopy = best.copy_text || null;
+      if (!creativeImageUrl && best.storage_path) {
+        const { data: signedData } = await supabase.storage.from("files").createSignedUrl(best.storage_path, 86400 * 30);
+        if (signedData?.signedUrl) creativeImageUrl = signedData.signedUrl;
+      }
     }
-  }
 
-  return JSON.stringify({
-    total: products?.length || 0,
-    products: (products || []).map((p: any) => ({
-      id: p.id,
-      name: p.name,
-      price_brl: `R$ ${((p.price || 0) / 100).toFixed(2)}`,
-      compare_at_price_brl: p.compare_at_price ? `R$ ${(p.compare_at_price / 100).toFixed(2)}` : null,
-      status: p.status,
-      sku: p.sku,
-      stock: p.stock_quantity,
-      description: p.description?.substring(0, 200) || "",
-      images: imageMap[p.id] || [],
-      has_images: (imageMap[p.id] || []).length > 0,
-    })),
-  });
+    // Fallback: Drive folder
+    if (!creativeImageUrl) {
+      const { data: folder } = await supabase.from("files").select("id").eq("tenant_id", tenantId).eq("filename", "Gestor de Tráfego IA").eq("is_folder", true).maybeSingle();
+      if (folder) {
+        const { data: driveFiles } = await supabase.from("files").select("id, url, storage_path, filename").eq("tenant_id", tenantId).eq("folder_id", folder.id).eq("is_folder", false).order("created_at", { ascending: false }).limit(5);
+        const imageFile = (driveFiles || []).find((f: any) => f.url || f.storage_path);
+        if (imageFile) {
+          creativeImageUrl = imageFile.url || null;
+          if (!creativeImageUrl && imageFile.storage_path) {
+            const { data: signedData } = await supabase.storage.from("files").createSignedUrl(imageFile.storage_path, 86400 * 30);
+            if (signedData?.signedUrl) creativeImageUrl = signedData.signedUrl;
+          }
+        }
+      }
+    }
+
+    // Fallback: product image
+    if (!creativeImageUrl) {
+      const { data: prodImages } = await supabase.from("product_images").select("url").eq("product_id", product.id).order("position", { ascending: true }).limit(1);
+      if (prodImages?.[0]?.url) creativeImageUrl = prodImages[0].url;
+    }
+
+    if (!creativeImageUrl) return JSON.stringify({ success: false, error: "Nenhum criativo ou imagem disponível. Gere artes primeiro." });
+
+    // Pixel
+    const { data: mktIntegration } = await supabase.from("marketing_integrations").select("meta_pixel_id").eq("tenant_id", tenantId).maybeSingle();
+    const pixelId = mktIntegration?.meta_pixel_id || null;
+    const pages = conn.metadata?.assets?.pages || [];
+    const pageId = pages[0]?.id || null;
+    const accountIdClean = adAccountId.replace("act_", "");
+
+    // Upload image hash
+    const imageHashResult = await fetch(`https://graph.facebook.com/v21.0/act_${accountIdClean}/adimages`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: creativeImageUrl, access_token: conn.access_token }),
+    });
+    const imageHashData = await imageHashResult.json();
+    const imageHash = imageHashData?.images?.[Object.keys(imageHashData?.images || {})[0]]?.hash;
+    if (!imageHash) return JSON.stringify({ success: false, error: "Falha ao enviar imagem para o Meta.", details: imageHashData?.error?.message });
+
+    // Create creative
+    const objective = args.objective || "OUTCOME_SALES";
+    const creativeBody: any = { name: `[AI] ${product.name} - ${new Date().toISOString().split("T")[0]}`, access_token: conn.access_token };
+    if (pageId) {
+      creativeBody.object_story_spec = { page_id: pageId, link_data: { image_hash: imageHash, message: creativeCopy || `Conheça ${product.name}! Aproveite agora.`, name: creativeHeadline || product.name, call_to_action: { type: objective === "OUTCOME_SALES" ? "SHOP_NOW" : "LEARN_MORE" } } };
+    } else {
+      creativeBody.image_hash = imageHash; creativeBody.title = creativeHeadline || product.name; creativeBody.body = creativeCopy || `Conheça ${product.name}!`;
+    }
+    const creativeResult = await fetch(`https://graph.facebook.com/v21.0/act_${accountIdClean}/adcreatives`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(creativeBody) });
+    const creativeData = await creativeResult.json();
+    if (creativeData.error) return JSON.stringify({ success: false, error: `Falha ao criar criativo: ${creativeData.error.message}` });
+    const metaCreativeId = creativeData.id;
+
+    // Create Campaign PAUSED
+    const campName = args.campaign_name || `[AI] ${objective === "OUTCOME_SALES" ? "Vendas" : "Tráfego"} | ${product.name} | ${new Date().toISOString().split("T")[0]}`;
+    const dailyBudgetCents = args.daily_budget_cents || 3000;
+    const campResponse = await fetch(`${supabaseUrl}/functions/v1/meta-ads-campaigns`, { method: "POST", headers, body: JSON.stringify({ tenant_id: tenantId, action: "create", ad_account_id: adAccountId, name: campName, objective, daily_budget_cents: dailyBudgetCents, status: "PAUSED", bid_strategy: "LOWEST_COST_WITHOUT_CAP" }) });
+    const campResult = await campResponse.text(); let campParsed: any; try { campParsed = JSON.parse(campResult); } catch { campParsed = { raw: campResult }; }
+    if (!campParsed?.success) return JSON.stringify({ success: false, error: `Falha ao criar campanha: ${campParsed?.error || "Erro desconhecido"}` });
+    const metaCampaignId = campParsed.data?.meta_campaign_id;
+
+    // Create AdSet PAUSED
+    const funnelStage = args.funnel_stage || "cold";
+    const adsetName = `[AI] ${funnelStage} | ${args.targeting_description || "Brasil 18-65"} | ${product.name}`.substring(0, 200);
+    const adsetBody: any = { tenant_id: tenantId, action: "create", ad_account_id: adAccountId, meta_campaign_id: metaCampaignId, name: adsetName, targeting: { geo_locations: { countries: ["BR"] }, age_min: 18, age_max: 65 }, status: "PAUSED" };
+    if (pixelId && (objective === "OUTCOME_SALES" || objective === "OUTCOME_LEADS")) {
+      adsetBody.promoted_object = { pixel_id: pixelId, custom_event_type: objective === "OUTCOME_SALES" ? "PURCHASE" : "LEAD" };
+    }
+    const adsetResponse = await fetch(`${supabaseUrl}/functions/v1/meta-ads-adsets`, { method: "POST", headers, body: JSON.stringify(adsetBody) });
+    const adsetResult = await adsetResponse.text(); let adsetParsed: any; try { adsetParsed = JSON.parse(adsetResult); } catch { adsetParsed = { raw: adsetResult }; }
+    const metaAdsetId = adsetParsed?.data?.meta_adset_id || null;
+
+    // Create Ad PAUSED
+    let metaAdId: string | null = null;
+    if (metaAdsetId && metaCreativeId) {
+      const adResponse = await fetch(`${supabaseUrl}/functions/v1/meta-ads-ads`, { method: "POST", headers, body: JSON.stringify({ tenant_id: tenantId, action: "create", ad_account_id: adAccountId, meta_adset_id: metaAdsetId, meta_campaign_id: metaCampaignId, name: `[AI] ${product.name} - Criativo 1`, creative_id: metaCreativeId, status: "PAUSED" }) });
+      const adResult = await adResponse.text(); let adParsed: any; try { adParsed = JSON.parse(adResult); } catch { adParsed = { raw: adResult }; }
+      metaAdId = adParsed?.data?.meta_ad_id || null;
+    }
+
+    // Schedule activation
+    const now = new Date();
+    const scheduleDate = new Date(now);
+    const utcHour = now.getUTCHours();
+    const brtHour = utcHour - 3 < 0 ? utcHour - 3 + 24 : utcHour - 3;
+    if (brtHour >= 0 && brtHour < 4) { scheduleDate.setMinutes(scheduleDate.getMinutes() + 5); }
+    else { if (brtHour >= 4) scheduleDate.setDate(scheduleDate.getDate() + 1); scheduleDate.setUTCHours(3, 1 + Math.floor(Math.random() * 59), 0, 0); }
+
+    await supabase.from("ads_autopilot_actions").insert({
+      tenant_id: tenantId, session_id: crypto.randomUUID(), channel: "meta", action_type: "activate_campaign",
+      action_data: { campaign_id: metaCampaignId, adset_id: metaAdsetId, ad_id: metaAdId, ad_account_id: adAccountId, campaign_name: campName, product_name: product.name, creative_id: metaCreativeId, scheduled_for: scheduleDate.toISOString(), daily_budget_cents: dailyBudgetCents, created_by: "ads_chat" },
+      reasoning: `Campanha criada via Chat IA para "${product.name}". Ativação agendada.`, status: "scheduled",
+      action_hash: `chat_activate_${metaCampaignId}_${Date.now()}`,
+    });
+
+    return JSON.stringify({
+      success: true,
+      message: `Campanha completa criada para "${product.name}"! Será ativada automaticamente na próxima janela (00:01-04:00 BRT).`,
+      data: { campaign: { id: metaCampaignId, name: campName }, adset: { id: metaAdsetId, name: adsetName }, ad: { id: metaAdId }, daily_budget: `R$ ${(dailyBudgetCents / 100).toFixed(2)}` },
+    });
+  } catch (err: any) { return JSON.stringify({ success: false, error: err.message }); }
 }
 
-// ============ CONTEXT COLLECTOR ============
+async function triggerAutopilotAnalysis(supabase: any, tenantId: string, channel: string) {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/ads-autopilot-analyze`, {
+      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+      body: JSON.stringify({ tenant_id: tenantId, channel, trigger_type: "manual" }),
+    });
+    const result = await response.text();
+    let parsed; try { parsed = JSON.parse(result); } catch { parsed = { raw: result }; }
+    return JSON.stringify({ success: response.ok, message: response.ok ? `Análise (${channel}) disparada.` : `Falha (HTTP ${response.status})`, details: parsed });
+  } catch (err: any) { return JSON.stringify({ success: false, error: err.message }); }
+}
+
+async function analyzeUrl(url: string): Promise<string> {
+  const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
+  if (!FIRECRAWL_API_KEY) return JSON.stringify({ error: "Análise de URLs não configurada." });
+  try {
+    const response = await fetch("https://api.firecrawl.dev/v1/scrape", {
+      method: "POST", headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true }),
+    });
+    const result = await response.text();
+    let parsed; try { parsed = JSON.parse(result); } catch { parsed = { raw: result }; }
+    if (!response.ok) return JSON.stringify({ error: `Falha (HTTP ${response.status})`, details: parsed });
+    const markdown = parsed?.data?.markdown || "";
+    const metadata = parsed?.data?.metadata || {};
+    return JSON.stringify({ success: true, url, title: metadata.title || "", description: metadata.description || "", content: markdown.length > 3000 ? markdown.substring(0, 3000) + "\n\n[...truncado]" : markdown });
+  } catch (err: any) { return JSON.stringify({ error: err.message }); }
+}
+
+// ============ CONTEXT COLLECTOR (Frente 1+2: Enriched) ============
 
 async function collectBaseContext(supabase: any, tenantId: string, scope: string, adAccountId?: string, channel?: string) {
   const context: any = {};
 
-  const { data: tenant } = await supabase
-    .from("tenants")
-    .select("name, slug")
-    .eq("id", tenantId)
-    .single();
+  // Tenant + store_settings
+  const { data: tenant } = await supabase.from("tenants").select("name, slug, custom_domain").eq("id", tenantId).single();
   context.storeName = tenant?.name || "Loja";
+  context.storeUrl = tenant?.custom_domain || (tenant?.slug ? `${tenant.slug}.comandocentral.com.br` : null);
 
-  const configQuery = supabase
-    .from("ads_autopilot_account_configs")
+  const { data: settings } = await supabase.from("store_settings").select("store_name, store_description").eq("tenant_id", tenantId).maybeSingle();
+  if (settings?.store_description) context.storeDescription = settings.store_description;
+
+  // Account configs
+  const configQuery = supabase.from("ads_autopilot_account_configs")
     .select("channel, ad_account_id, is_ai_enabled, budget_cents, target_roi, strategy_mode, funnel_splits, user_instructions")
     .eq("tenant_id", tenantId);
   if (scope === "account" && adAccountId) configQuery.eq("ad_account_id", adAccountId);
   const { data: configs } = await configQuery;
   context.accountConfigs = configs || [];
-
   const activeConfig = (configs || []).find((c: any) => c.is_ai_enabled && c.ad_account_id === adAccountId);
   context.userInstructions = activeConfig?.user_instructions || (configs || [])?.[0]?.user_instructions || null;
 
+  // Orders 30d
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
-  const { data: orders } = await supabase
-    .from("orders")
-    .select("total, payment_status")
-    .eq("tenant_id", tenantId)
-    .gte("created_at", thirtyDaysAgo);
+  const { data: orders } = await supabase.from("orders").select("total, payment_status").eq("tenant_id", tenantId).gte("created_at", thirtyDaysAgo);
   const paid = (orders || []).filter((o: any) => o.payment_status === "paid");
   context.orderStats = {
     paid: paid.length,
@@ -1389,23 +1470,52 @@ async function collectBaseContext(supabase: any, tenantId: string, scope: string
     avg_ticket_brl: paid.length ? (paid.reduce((s: number, o: any) => s + (o.total || 0), 0) / paid.length / 100).toFixed(2) : "0",
   };
 
-  const { data: products } = await supabase
-    .from("products")
-    .select("id, name, price, status, description")
-    .eq("tenant_id", tenantId)
-    .eq("status", "active")
-    .order("created_at", { ascending: false })
-    .limit(10);
+  // Products (top 10)
+  const { data: products } = await supabase.from("products").select("id, name, price, cost_price, status, description").eq("tenant_id", tenantId).eq("status", "active").order("created_at", { ascending: false }).limit(10);
   context.products = (products || []).map((p: any) => ({
     id: p.id, name: p.name,
     price_brl: `R$ ${((p.price || 0) / 100).toFixed(2)}`,
+    cost_price_brl: p.cost_price ? `R$ ${(p.cost_price / 100).toFixed(2)}` : null,
+    margin_pct: p.cost_price && p.price ? `${(((p.price - p.cost_price) / p.price) * 100).toFixed(0)}%` : null,
     description: p.description?.substring(0, 120) || "",
   }));
+
+  // Categories
+  const { data: categories } = await supabase.from("categories").select("name").eq("tenant_id", tenantId).eq("is_active", true).limit(10);
+  context.categories = (categories || []).map((c: any) => c.name);
+
+  // Active offers (quick check)
+  const { data: discounts } = await supabase.from("discounts").select("code, type, value").eq("tenant_id", tenantId).eq("is_active", true).limit(5);
+  context.activeOffers = (discounts || []).map((d: any) => `${d.code} (${d.type}: ${d.value})`);
+
+  // Fire-and-forget sync if data might be stale (Frente 1.3)
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const syncHeaders = { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` };
+
+    // Check last sync time from campaigns
+    const { data: lastSync } = await supabase.from("meta_ad_campaigns").select("synced_at").eq("tenant_id", tenantId).order("synced_at", { ascending: false }).limit(1);
+    const lastSyncTime = lastSync?.[0]?.synced_at ? new Date(lastSync[0].synced_at).getTime() : 0;
+    const oneHourAgo = Date.now() - 3600000;
+
+    if (lastSyncTime < oneHourAgo) {
+      console.log(`[ads-chat][${VERSION}] Data stale (last sync: ${lastSync?.[0]?.synced_at || 'never'}), triggering fire-and-forget sync`);
+      // Fire and forget — don't await
+      fetch(`${supabaseUrl}/functions/v1/meta-ads-campaigns`, { method: "POST", headers: syncHeaders, body: JSON.stringify({ tenant_id: tenantId, action: "sync" }) }).catch(() => {});
+      fetch(`${supabaseUrl}/functions/v1/meta-ads-insights`, { method: "POST", headers: syncHeaders, body: JSON.stringify({ tenant_id: tenantId, action: "sync", date_preset: "last_30d" }) }).catch(() => {});
+      fetch(`${supabaseUrl}/functions/v1/meta-ads-adsets`, { method: "POST", headers: syncHeaders, body: JSON.stringify({ tenant_id: tenantId, action: "sync" }) }).catch(() => {});
+      fetch(`${supabaseUrl}/functions/v1/meta-ads-creatives`, { method: "POST", headers: syncHeaders, body: JSON.stringify({ tenant_id: tenantId, action: "sync" }) }).catch(() => {});
+      fetch(`${supabaseUrl}/functions/v1/meta-ads-audiences`, { method: "POST", headers: syncHeaders, body: JSON.stringify({ tenant_id: tenantId, action: "sync" }) }).catch(() => {});
+    }
+  } catch (e) {
+    console.error(`[ads-chat][${VERSION}] Sync trigger error (non-blocking):`, e);
+  }
 
   return context;
 }
 
-// ============ SYSTEM PROMPT ============
+// ============ SYSTEM PROMPT (Frente 5: Regras obrigatórias) ============
 
 function buildSystemPrompt(scope: string, adAccountId?: string, channel?: string, context?: any) {
   const scopeDesc = scope === "account"
@@ -1418,104 +1528,119 @@ function buildSystemPrompt(scope: string, adAccountId?: string, channel?: string
   ).join("\n");
 
   const productsList = (context?.products || []).map((p: any) =>
-    `- ${p.name} (${p.price_brl}) ${p.description ? `— ${p.description}` : ""}`
+    `- ${p.name} (${p.price_brl}${p.margin_pct ? `, margem ${p.margin_pct}` : ""}) ${p.description ? `— ${p.description}` : ""}`
   ).join("\n");
 
+  const categoriesList = (context?.categories || []).join(", ");
+  const offersList = (context?.activeOffers || []).join(", ");
+
   const userInstructionsBlock = context?.userInstructions
-    ? `\n## INSTRUÇÕES ESTRATÉGICAS DO LOJISTA (LEIA COM ATENÇÃO — SEGUIR À RISCA)\n${context.userInstructions}\n`
+    ? `\n## INSTRUÇÕES ESTRATÉGICAS DO LOJISTA (SEGUIR À RISCA)\n${context.userInstructions}\n`
     : "";
 
   return `Você é o Gestor de Tráfego IA da loja "${context?.storeName}". ${scopeDesc}
+${context?.storeDescription ? `\n**Sobre a loja**: ${context.storeDescription}` : ""}
+${context?.storeUrl ? `**URL da loja**: ${context.storeUrl}` : ""}
 
 ## REGRA SUPREMA: HONESTIDADE ABSOLUTA
-- Você NUNCA mente, inventa ou alucina.
-- Se você NÃO SABE algo, diga "Não tenho essa informação agora."
-- Se você NÃO PODE fazer algo, diga "Não consigo fazer isso diretamente."
-- NUNCA finja que está renderizando artes, fazendo upload ou qualquer processo que você não está executando de fato.
-- NUNCA diga frases como "estou finalizando", "estou renderizando", "estou processando" se não estiver de fato executando uma ferramenta.
-- NUNCA invente nomes de produtos, preços ou descrições. Use APENAS os produtos listados no CATÁLOGO REAL abaixo, ou busque com a ferramenta de catálogo.
-- Se uma ferramenta retorna erro, informe o erro real ao usuário. Não tente contornar com texto inventado.
+- Você NUNCA mente, inventa ou alucina dados.
+- Se NÃO SABE algo, diga "Não tenho essa informação agora."
+- Se NÃO PODE fazer algo, diga "Não consigo fazer isso diretamente."
+- NUNCA finja que está processando algo que não está executando de fato.
+- NUNCA invente nomes de produtos, preços ou descrições — use APENAS o catálogo real.
+- Se uma ferramenta retorna erro, informe o erro real.
+
+## REGRA OBRIGATÓRIA: BUSCAR DADOS ANTES DE DIAGNOSTICAR (ANTI-ALUCINAÇÃO)
+**ANTES de fazer QUALQUER diagnóstico, estratégia ou análise, você DEVE obrigatoriamente:**
+1. Chamar **get_campaign_performance** para ver o estado REAL das campanhas (ativas vs pausadas, métricas)
+2. Chamar **get_adset_performance** para ver conjuntos de anúncios ativos
+3. Chamar **get_tracking_health** para verificar saúde do pixel
+
+**NUNCA confie apenas no contexto base** — ele pode ter dados limitados. Sempre consulte as ferramentas.
+
+Quando o usuário pedir "estratégia", "diagnóstico", "análise" ou "plano", chame TODAS essas ferramentas ANTES de responder.
+
+## REGRA: PRIORIZAR CAMPANHAS ATIVAS
+- Sempre liste campanhas ATIVAS primeiro, com destaque
+- Separe claramente: "**Campanhas Ativas (N)**" vs "**Campanhas Pausadas (N)**"
+- Nunca diga que "todas as campanhas estão pausadas" sem antes verificar com get_campaign_performance
 
 ## REGRA CRÍTICA DE COMUNICAÇÃO — LINGUAGEM AMIGÁVEL AO LOJISTA
-Você está conversando com o DONO DA LOJA ou um gestor, NÃO com um desenvolvedor.
-NUNCA exponha termos técnicos internos ao usuário. Use SEMPRE a linguagem que o lojista veria na interface do sistema.
+Você conversa com o DONO DA LOJA, NÃO com um desenvolvedor.
+NUNCA exponha termos técnicos internos. Use SEMPRE a linguagem da interface.
 
 ### Mapeamento obrigatório de termos (SEMPRE substituir):
 | ❌ NUNCA diga | ✅ Diga assim |
 |--------------|--------------|
 | autopilot_config | configurações da IA de tráfego |
-| trigger_creative_generation | gerar textos/copies para anúncios |
-| generate_creative_image | gerar artes/imagens para anúncios |
-| create_meta_campaign | criar campanha no Meta/Facebook |
+| trigger_creative_generation | gerar textos para anúncios |
+| generate_creative_image | gerar artes para anúncios |
+| create_meta_campaign | criar campanha no Meta |
 | get_campaign_performance | ver performance das campanhas |
+| get_campaign_details | ver detalhes da campanha |
+| get_performance_trend | ver tendência de performance |
+| get_adset_performance | ver performance dos conjuntos |
+| get_ad_performance | ver performance dos anúncios |
+| get_store_context | ver contexto do negócio |
 | get_autopilot_actions | ver ações da IA |
-| get_autopilot_insights | ver diagnósticos/insights |
+| get_autopilot_insights | ver diagnósticos |
 | get_autopilot_sessions | ver histórico de execuções |
 | update_autopilot_config | atualizar configurações da IA |
-| trigger_autopilot_analysis | rodar análise/auditoria |
+| trigger_autopilot_analysis | rodar análise |
 | get_creative_assets | ver criativos existentes |
-| get_tracking_health | verificar saúde do pixel/rastreamento |
+| get_tracking_health | verificar saúde do pixel |
 | get_experiments | ver testes A/B |
 | get_meta_adsets | ver conjuntos de anúncios |
 | get_meta_ads | ver anúncios |
 | get_audiences | ver públicos |
-| get_products | ver catálogo de produtos |
+| get_products | ver catálogo |
+| toggle_entity_status | pausar/reativar |
+| update_budget | alterar orçamento |
 | edge function | sistema interno |
 | tenant_id | loja |
 | kill_switch | botão de emergência |
 | human_approval_mode | modo de aprovação |
-| ROAS | retorno sobre investimento em anúncios |
+| ROAS | retorno sobre investimento |
 | funnel_splits | divisão de funil |
 
-### Exemplos de comunicação:
-| ❌ Errado | ✅ Correto |
-|-----------|-----------|
-| "Use a ferramenta update_autopilot_config para salvar" | "Posso salvar essas configurações para você na seção de IA de Tráfego" |
-| "Vou usar trigger_creative_generation" | "Vou gerar os textos e copies para seus anúncios" |
-| "Seus funnel_splits estão em 60/30/10" | "A divisão do seu funil está em 60% frio, 30% morno e 10% quente" |
-| "O kill_switch está ativo" | "O botão de emergência está ativado — a IA está pausada" |
-| "Posso gravar no autopilot_config" | "Posso salvar essas instruções nas configurações da IA" |
-| "Eu não tenho memória de longo prazo" | "Eu lembro de tudo nesta conversa. Para instruções permanentes, posso salvar nas configurações da IA de Tráfego" |
-
 ### Regra de navegação:
-Quando orientar o usuário a fazer algo na interface, use os nomes dos menus como aparecem no sistema:
-- "Marketing → Tráfego Pago" (não "autopilot settings")
-- "Configurações da conta" (não "account configs")
-- "Galeria de Criativos" (não "creative assets")
-- "Central de Execuções" (não "autopilot actions")
-- "Meu Drive" (não "storage" ou "files table")
+Use os nomes dos menus: "Marketing → Tráfego Pago", "Galeria de Criativos", "Meu Drive", etc.
 
 ## O QUE VOCÊ PODE FAZER
-- **Ver performance** de campanhas Meta, Google e TikTok
-- **Ver detalhes** de conjuntos, anúncios e públicos
-- **Consultar o catálogo** de produtos da loja (buscar por nome, ver preços, estoque, imagens)
-- **Gerar textos** para anúncios (headlines, copies, roteiros)
-- **Gerar artes/imagens** para anúncios via IA
-- **Criar campanhas completas** no Meta Ads (campanha + conjunto + anúncio com criativo)
-- **Analisar links** e páginas (landing pages, concorrentes)
-- **Analisar imagens** enviadas por você (screenshots, criativos, métricas)
-- **Ver e alterar configurações** da IA de tráfego (ROI, orçamento, estratégia)
-- **Rodar análises/auditorias** nas contas de anúncios
-- **Ver diagnósticos** e histórico de ações da IA
-- **Verificar rastreamento** (saúde do pixel)
-- **Ver testes A/B** em andamento
+- **Ver performance** real de campanhas, conjuntos e anúncios (Meta, Google, TikTok)
+- **Drill-down**: ver detalhes de uma campanha específica com todos conjuntos/anúncios
+- **Tendências**: ver performance dia a dia de uma campanha (time-series)
+- **Contexto do negócio**: ver nicho, categorias, ofertas ativas, margens, top produtos
+- **Pausar/Reativar** campanhas, conjuntos ou anúncios no Meta
+- **Alterar orçamento** de campanhas e conjuntos existentes
+- **Gerar textos** e **artes/imagens** para anúncios
+- **Criar campanhas completas** no Meta Ads
+- **Analisar links** e **imagens** enviadas
+- **Ver e alterar configurações** da IA de tráfego
+- **Rodar análises/auditorias** e ver histórico
 
-## O QUE VOCÊ NÃO PODE FAZER (NUNCA FINJA QUE PODE)
-- Não pode criar campanhas Google/TikTok diretamente (somente Meta por enquanto)
-- Não pode "renderizar" ou "finalizar" nada fora das capacidades listadas acima
+## O QUE VOCÊ NÃO PODE FAZER (NUNCA FINJA)
+- Criar campanhas Google/TikTok diretamente (somente Meta)
+- Duplicar campanhas (use criar nova + ajustar)
+- Alterar segmentação de conjuntos existentes diretamente na Meta
 
 ## FLUXO PARA CRIAR CAMPANHAS
-1. Consultar o catálogo para escolher o produto
-2. Gerar artes/imagens para o produto escolhido
-3. Criar a campanha completa — ela busca automaticamente as artes geradas
-4. A campanha é criada pausada e ativada automaticamente na melhor janela (madrugada)
+1. Consultar catálogo (get_products)
+2. Gerar artes (generate_creative_image)
+3. Criar campanha completa (create_meta_campaign)
+4. Campanha criada pausada → ativação automática na madrugada
 
-## CATÁLOGO REAL — SEMPRE USE get_products SE ESTIVER VAZIO OU PRECISAR DE MAIS
-Se o catálogo abaixo estiver vazio, USE a ferramenta get_products para buscar os produtos antes de dizer que não há produtos.
-${productsList || "⚠️ Catálogo vazio no contexto — use get_products para buscar produtos da loja."}
+## CATÁLOGO REAL (Top 10 produtos)
+${productsList || "⚠️ Catálogo vazio no contexto — use get_products para buscar produtos."}
+
+## CATEGORIAS DA LOJA
+${categoriesList || "Não informadas"}
+
+## OFERTAS ATIVAS
+${offersList || "Nenhuma oferta ativa no momento"}
 ${userInstructionsBlock}
 ## CONTEXTO ATUAL
-### Configurações da IA
+### Configurações da IA de Tráfego
 ${configSummary || "Nenhuma conta configurada."}
 
 ### Vendas (30d)
@@ -1524,47 +1649,30 @@ ${configSummary || "Nenhuma conta configurada."}
 - Ticket médio: R$ ${context?.orderStats?.avg_ticket_brl || "0.00"}
 
 ## ESTILO DE RESPOSTA
-- Respostas diretas, objetivas e em Português BR
-- Use Markdown para formatação
-- Fale como um gestor de tráfego profissional conversando com o dono da loja
-- Seja proativo: sugira ações, não espere o lojista saber o que pedir
-- Sempre baseie suas respostas nos dados REAIS consultados
-- Se o catálogo do contexto estiver vazio, consulte os produtos ANTES de responder
-- SEMPRE referencie produtos pelo nome real do catálogo`;
+- Respostas diretas, objetivas, em Português BR
+- Use Markdown
+- Fale como gestor de tráfego profissional conversando com o dono da loja
+- Seja proativo: sugira ações
+- Baseie respostas nos dados REAIS consultados
+- Se catálogo vazio, consulte get_products ANTES de responder
+- Referencie produtos pelo nome real`;
 }
 
 // ============ BUILD MULTIMODAL USER MESSAGE ============
 
 function buildUserMessage(message: string, attachments?: any[]) {
-  // If no attachments, return simple text
   if (!attachments || attachments.length === 0) {
     return { role: "user", content: message };
   }
-
-  // Build multimodal content array
   const content: any[] = [];
-
-  // Add text first
-  if (message) {
-    content.push({ type: "text", text: message });
-  }
-
-  // Add images/files
+  if (message) content.push({ type: "text", text: message });
   for (const att of attachments) {
     if (att.mimeType?.startsWith("image/")) {
-      content.push({
-        type: "image_url",
-        image_url: { url: att.url },
-      });
+      content.push({ type: "image_url", image_url: { url: att.url } });
     } else {
-      // For non-image files, add as text reference
-      content.push({
-        type: "text",
-        text: `[Arquivo anexado: ${att.filename} (${att.mimeType || "desconhecido"})]`,
-      });
+      content.push({ type: "text", text: `[Arquivo: ${att.filename} (${att.mimeType || "desconhecido"})]` });
     }
   }
-
   return { role: "user", content };
 }
 
@@ -1581,96 +1689,57 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
-
-    const userClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader || "" } } }
-    );
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const userClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: authHeader || "" } } });
     const { data: { user }, error: authError } = await userClient.auth.getUser();
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     body = await req.json();
     const { conversation_id, message, tenant_id, scope, ad_account_id, channel, attachments } = body;
 
     if (!tenant_id || (!message && (!attachments || attachments.length === 0))) {
-      return new Response(JSON.stringify({ error: "Missing tenant_id or message" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(JSON.stringify({ error: "Missing tenant_id or message" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Create or get conversation
     let convId = conversation_id;
     if (!convId) {
-      const { data: conv, error: convErr } = await supabase
-        .from("ads_chat_conversations")
-        .insert({
-          tenant_id,
-          scope: scope || "global",
-          ad_account_id: ad_account_id || null,
-          channel: channel || null,
-          title: (message || "Anexo").substring(0, 60),
-          created_by: user.id,
-        })
-        .select("id")
-        .single();
+      const { data: conv, error: convErr } = await supabase.from("ads_chat_conversations").insert({ tenant_id, scope: scope || "global", ad_account_id: ad_account_id || null, channel: channel || null, title: (message || "Anexo").substring(0, 60), created_by: user.id }).select("id").single();
       if (convErr) throw convErr;
       convId = conv.id;
     }
 
-    // Save user message (with attachments if any)
-    await supabase.from("ads_chat_messages").insert({
-      conversation_id: convId,
-      tenant_id,
-      role: "user",
-      content: message || null,
-      attachments: attachments && attachments.length > 0 ? attachments : null,
-    });
+    // Save user message
+    await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "user", content: message || null, attachments: attachments?.length > 0 ? attachments : null });
 
-    // Load conversation history (last 15 messages)
-    const { data: allHistory } = await supabase
-      .from("ads_chat_messages")
-      .select("role, content, attachments")
-      .eq("conversation_id", convId)
-      .not("content", "is", null)
-      .order("created_at", { ascending: false })
-      .limit(15);
+    // Load conversation history (last 15)
+    const { data: allHistory } = await supabase.from("ads_chat_messages").select("role, content, attachments").eq("conversation_id", convId).not("content", "is", null).order("created_at", { ascending: false }).limit(15);
     const history = (allHistory || []).reverse();
 
-    // Collect base context
+    // Collect context (enriched — Frente 2)
     const context = await collectBaseContext(supabase, tenant_id, scope, ad_account_id, channel);
     const systemPrompt = buildSystemPrompt(scope, ad_account_id, channel, context);
 
-    // Build AI messages - handle multimodal for last user message
+    // Build AI messages
     const aiMessages: any[] = [{ role: "system", content: systemPrompt }];
     for (let i = 0; i < history.length; i++) {
       const m = history[i];
       if (i === history.length - 1 && m.role === "user" && m.attachments) {
-        // Last message with attachments — use multimodal format
         aiMessages.push(buildUserMessage(m.content || "", m.attachments));
       } else {
         aiMessages.push({ role: m.role, content: m.content });
       }
     }
 
-    // Detect if current message has images (use vision model)
     const hasImages = attachments?.some((a: any) => a.mimeType?.startsWith("image/"));
     const modelToUse = hasImages ? "google/gemini-2.5-pro" : "google/gemini-3-flash-preview";
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    // === STEP 1: Non-streaming call WITH tools (45s timeout) ===
+    // Step 1: Non-streaming call WITH tools (45s timeout)
     const abortController = new AbortController();
     const timeoutId = setTimeout(() => abortController.abort(), 45000);
 
@@ -1678,16 +1747,8 @@ Deno.serve(async (req) => {
     try {
       const initialResponse = await fetch(LOVABLE_AI_URL, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: modelToUse,
-          messages: aiMessages,
-          tools: TOOLS,
-          stream: false,
-        }),
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: modelToUse, messages: aiMessages, tools: TOOLS, stream: false }),
         signal: abortController.signal,
       });
       clearTimeout(timeoutId);
@@ -1697,30 +1758,19 @@ Deno.serve(async (req) => {
         console.error(`[ads-chat][${VERSION}] AI error: ${initialResponse.status} ${errText}`);
         if (initialResponse.status === 429 || initialResponse.status === 402) {
           const errorMsg = initialResponse.status === 429 ? "Rate limit exceeded" : "Credits required";
-          await supabase.from("ads_chat_messages").insert({
-            conversation_id: convId, tenant_id, role: "assistant",
-            content: `⚠️ Erro temporário: ${errorMsg}. Tente novamente em alguns segundos.`,
-          });
-          return new Response(JSON.stringify({ error: errorMsg }), {
-            status: initialResponse.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+          await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: `⚠️ Erro temporário: ${errorMsg}. Tente novamente.` });
+          return new Response(JSON.stringify({ error: errorMsg }), { status: initialResponse.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
         throw new Error(`AI gateway error: ${initialResponse.status}`);
       }
-
       initialResult = await initialResponse.json();
     } catch (err: any) {
       clearTimeout(timeoutId);
       if (err.name === "AbortError") {
-        console.error(`[ads-chat][${VERSION}] Timeout after 45s`);
-        const timeoutMsg = "⚠️ O processamento demorou mais que o esperado. A conversa está muito longa — tente criar uma **nova conversa** para continuar.";
-        await supabase.from("ads_chat_messages").insert({
-          conversation_id: convId, tenant_id, role: "assistant", content: timeoutMsg,
-        });
+        const timeoutMsg = "⚠️ O processamento demorou mais que o esperado. Tente criar uma **nova conversa**.";
+        await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: timeoutMsg });
         const sseData = `data: ${JSON.stringify({ choices: [{ delta: { content: timeoutMsg } }] })}\n\ndata: [DONE]\n\n`;
-        return new Response(sseData, {
-          headers: { ...corsHeaders, "Content-Type": "text/event-stream", "X-Conversation-Id": convId },
-        });
+        return new Response(sseData, { headers: { ...corsHeaders, "Content-Type": "text/event-stream", "X-Conversation-Id": convId } });
       }
       throw err;
     }
@@ -1728,7 +1778,6 @@ Deno.serve(async (req) => {
     const firstChoice = initialResult.choices?.[0];
     if (!firstChoice) throw new Error("Empty AI response");
 
-    // Check tool calls
     const toolCalls = firstChoice.message?.tool_calls;
 
     if (toolCalls && toolCalls.length > 0) {
@@ -1737,15 +1786,10 @@ Deno.serve(async (req) => {
       const toolResults: string[] = [];
       for (const tc of toolCalls) {
         let args = {};
-        try { args = JSON.parse(tc.function.arguments || "{}"); } catch { /* empty args */ }
-
+        try { args = JSON.parse(tc.function.arguments || "{}"); } catch { /* empty */ }
         const result = await executeTool(supabase, tenant_id, tc.function.name, args);
         toolResults.push(`[Resultado de ${tc.function.name}]:\n${result}`);
-
-        await supabase.from("ads_chat_messages").insert({
-          conversation_id: convId, tenant_id, role: "assistant", content: null,
-          tool_calls: [{ id: tc.id, function: { name: tc.function.name, arguments: tc.function.arguments } }],
-        });
+        await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: null, tool_calls: [{ id: tc.id, function: { name: tc.function.name, arguments: tc.function.arguments } }] });
       }
 
       const followUpMessages = [
@@ -1756,15 +1800,8 @@ Deno.serve(async (req) => {
 
       const finalAiResponse = await fetch(LOVABLE_AI_URL, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages: followUpMessages,
-          stream: true,
-        }),
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: followUpMessages, stream: true }),
       });
 
       if (!finalAiResponse.ok) {
@@ -1775,63 +1812,38 @@ Deno.serve(async (req) => {
       return streamAndSave(finalAiResponse, supabase, convId, tenant_id, message || "Anexo", history);
     }
 
-    // No tool calls — direct text response
+    // No tool calls — direct text
     const directContent = firstChoice.message?.content;
     if (directContent) {
-      await supabase.from("ads_chat_messages").insert({
-        conversation_id: convId, tenant_id, role: "assistant", content: directContent,
-      });
+      await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: directContent });
       const sseData = `data: ${JSON.stringify({ choices: [{ delta: { content: directContent } }] })}\n\ndata: [DONE]\n\n`;
-      return new Response(sseData, {
-        headers: { ...corsHeaders, "Content-Type": "text/event-stream", "X-Conversation-Id": convId },
-      });
+      return new Response(sseData, { headers: { ...corsHeaders, "Content-Type": "text/event-stream", "X-Conversation-Id": convId } });
     }
 
-    // Fallback: stream a new call
+    // Fallback stream
     const streamResponse = await fetch(LOVABLE_AI_URL, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: modelToUse,
-        messages: aiMessages,
-        stream: true,
-      }),
+      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: modelToUse, messages: aiMessages, stream: true }),
     });
-
     if (!streamResponse.ok) throw new Error(`Stream error: ${streamResponse.status}`);
-
     return streamAndSave(streamResponse, supabase, convId, tenant_id, message || "Anexo", history);
   } catch (e: any) {
     console.error(`[ads-chat][${VERSION}] Error:`, e);
     try {
-      const errMsg = `⚠️ Ocorreu um erro ao processar sua mensagem: ${e.message || "Erro interno"}. Tente novamente.`;
+      const errMsg = `⚠️ Ocorreu um erro: ${e.message || "Erro interno"}. Tente novamente.`;
       if (body?.conversation_id || body?.tenant_id) {
         const sseData = `data: ${JSON.stringify({ choices: [{ delta: { content: errMsg } }] })}\n\ndata: [DONE]\n\n`;
-        return new Response(sseData, {
-          headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
-        });
+        return new Response(sseData, { headers: { ...corsHeaders, "Content-Type": "text/event-stream" } });
       }
-    } catch { /* ignore secondary errors */ }
-    return new Response(JSON.stringify({ error: e.message || "Internal error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    } catch { /* ignore */ }
+    return new Response(JSON.stringify({ error: e.message || "Internal error" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });
 
 // ============ STREAM & SAVE ============
 
-function streamAndSave(
-  aiResponse: Response,
-  supabase: any,
-  convId: string,
-  tenantId: string,
-  userMessage: string,
-  history: any[] | null
-) {
+function streamAndSave(aiResponse: Response, supabase: any, convId: string, tenantId: string, userMessage: string, history: any[] | null) {
   const { readable, writable } = new TransformStream();
   const writer = writable.getWriter();
   const decoder = new TextDecoder();
@@ -1841,13 +1853,10 @@ function streamAndSave(
     try {
       const reader = aiResponse.body!.getReader();
       let buffer = "";
-
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
         await writer.write(value);
-
         buffer += decoder.decode(value, { stream: true });
         let newlineIdx;
         while ((newlineIdx = buffer.indexOf("\n")) !== -1) {
@@ -1864,20 +1873,10 @@ function streamAndSave(
           } catch { /* partial */ }
         }
       }
-
       if (fullContent) {
-        await supabase.from("ads_chat_messages").insert({
-          conversation_id: convId,
-          tenant_id: tenantId,
-          role: "assistant",
-          content: fullContent,
-        });
-
+        await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id: tenantId, role: "assistant", content: fullContent });
         if ((history || []).length <= 1) {
-          await supabase
-            .from("ads_chat_conversations")
-            .update({ title: userMessage.substring(0, 60), updated_at: new Date().toISOString() })
-            .eq("id", convId);
+          await supabase.from("ads_chat_conversations").update({ title: userMessage.substring(0, 60), updated_at: new Date().toISOString() }).eq("id", convId);
         }
       }
     } catch (e) {
@@ -1887,11 +1886,5 @@ function streamAndSave(
     }
   })();
 
-  return new Response(readable, {
-    headers: {
-      ...corsHeaders,
-      "Content-Type": "text/event-stream",
-      "X-Conversation-Id": convId,
-    },
-  });
+  return new Response(readable, { headers: { ...corsHeaders, "Content-Type": "text/event-stream", "X-Conversation-Id": convId } });
 }
