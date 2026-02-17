@@ -65,20 +65,30 @@ Deno.serve(async (req) => {
         );
       }
 
-      const res = await fetch(
-        `https://graph.facebook.com/${GRAPH_API_VERSION}/act_${adAccountId.replace("act_", "")}/customaudiences?fields=id,name,subtype,approximate_count,description,rule,lookalike_spec&limit=200&access_token=${conn.access_token}`
-      );
-      const result = await res.json();
-
-      if (result.error) {
-        return new Response(
-          JSON.stringify({ success: false, error: result.error.message }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      // Fetch in batches with reduced fields to avoid "reduce the amount of data" error
+      let allAudiences: any[] = [];
+      let nextUrl: string | null = `https://graph.facebook.com/${GRAPH_API_VERSION}/act_${adAccountId.replace("act_", "")}/customaudiences?fields=id,name,subtype,description&limit=50&access_token=${conn.access_token}`;
+      
+      while (nextUrl) {
+        const res = await fetch(nextUrl);
+        const result = await res.json();
+        
+        if (result.error) {
+          return new Response(
+            JSON.stringify({ success: false, error: result.error.message }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        
+        allAudiences = allAudiences.concat(result.data || []);
+        nextUrl = result.paging?.next || null;
+        
+        // Safety: max 500 audiences
+        if (allAudiences.length >= 500) break;
       }
 
       let synced = 0;
-      for (const a of (result.data || [])) {
+      for (const a of allAudiences) {
         const { error } = await supabase
           .from("meta_ad_audiences")
           .upsert({
@@ -88,10 +98,7 @@ Deno.serve(async (req) => {
             name: a.name,
             audience_type: "custom",
             subtype: a.subtype,
-            approximate_count: a.approximate_count,
             description: a.description,
-            rule: a.rule || null,
-            lookalike_spec: a.lookalike_spec || null,
             synced_at: new Date().toISOString(),
           }, { onConflict: "tenant_id,meta_audience_id" });
 
@@ -99,7 +106,7 @@ Deno.serve(async (req) => {
       }
 
       return new Response(
-        JSON.stringify({ success: true, data: { synced, total: (result.data || []).length } }),
+        JSON.stringify({ success: true, data: { synced, total: allAudiences.length } }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
