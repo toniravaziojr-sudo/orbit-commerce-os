@@ -166,6 +166,7 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
                       filename: a.filename,
                       mimeType: a.mimeType,
                     }))}
+                    timestamp={msg.created_at ? new Date(msg.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : undefined}
                   />
                 ))}
 

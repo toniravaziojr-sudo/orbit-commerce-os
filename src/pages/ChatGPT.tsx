@@ -109,6 +109,7 @@ export default function ChatGPT() {
                       avatarClassName={message.role !== "user" ? "bg-emerald-500/10 text-emerald-500" : undefined}
                       attachments={attachments}
                       modeIndicator={message.role === "assistant" ? renderModeIndicator(message) : undefined}
+                      timestamp={message.created_at ? new Date(message.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : undefined}
                     />
                   );
                 })}

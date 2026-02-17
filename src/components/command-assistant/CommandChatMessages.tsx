@@ -52,6 +52,7 @@ export function CommandChatMessages({
               content={message.content}
               avatarIcon={message.role === "user" ? "user" : message.role === "tool" ? "tool" : "bot"}
               attachments={attachments}
+              timestamp={message.created_at ? new Date(message.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : undefined}
               actions={
                 <>
                   {/* Tool result */}

@@ -126,7 +126,7 @@ export function ChatMessageBubble({
 
         {/* Timestamp */}
         {timestamp && (
-          <span className="text-[10px] text-muted-foreground/60 px-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <span className="text-[10px] text-muted-foreground/60 px-1">
             {timestamp}
           </span>
         )}
