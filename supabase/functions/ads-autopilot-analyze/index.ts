@@ -1854,9 +1854,10 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                             if (imageHash) {
                               console.log(`[ads-autopilot-analyze][${VERSION}] Step 3: Image uploaded to Meta, hash=${imageHash}`);
 
-                              // Build destination URL
-                              const { data: tenantInfo } = await supabase.from("tenants").select("slug, custom_domain").eq("id", tenant_id).single();
-                              const storeHost = tenantInfo?.custom_domain || (tenantInfo?.slug ? `${tenantInfo.slug}.shops.comandocentral.com.br` : null);
+                              // Build destination URL from tenant_domains
+                              const { data: tenantInfo } = await supabase.from("tenants").select("slug").eq("id", tenant_id).single();
+                              const { data: tenantDomainInfo } = await supabase.from("tenant_domains").select("domain").eq("tenant_id", tenant_id).eq("type", "custom").eq("is_primary", true).maybeSingle();
+                              const storeHost = tenantDomainInfo?.domain || (tenantInfo?.slug ? `${tenantInfo.slug}.shops.comandocentral.com.br` : null);
                               
                               let productSlug = topProduct.slug || topProduct.id;
                               if (!topProduct.slug) {

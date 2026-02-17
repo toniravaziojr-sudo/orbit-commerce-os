@@ -925,9 +925,17 @@ async function getStoreContext(supabase: any, tenantId: string) {
   // Tenant info (domain, slug)
   const { data: tenant } = await supabase
     .from("tenants")
-    .select("name, slug, custom_domain")
+    .select("name, slug")
     .eq("id", tenantId)
     .single();
+  // Fetch primary custom domain from tenant_domains
+  const { data: tenantCustomDomain } = await supabase
+    .from("tenant_domains")
+    .select("domain")
+    .eq("tenant_id", tenantId)
+    .eq("type", "custom")
+    .eq("is_primary", true)
+    .maybeSingle();
 
   // Categories
   const { data: categories } = await supabase
@@ -991,7 +999,7 @@ async function getStoreContext(supabase: any, tenantId: string) {
     .eq("tenant_id", tenantId)
     .maybeSingle();
 
-  const storeUrl = tenant?.custom_domain || (tenant?.slug ? `${tenant.slug}.comandocentral.com.br` : null);
+  const storeUrl = tenantCustomDomain?.domain || (tenant?.slug ? `${tenant.slug}.shops.comandocentral.com.br` : null);
 
   return JSON.stringify({
     store: {
@@ -2106,8 +2114,9 @@ async function createMetaCampaign(supabase: any, tenantId: string, args: any, ch
     const creativeBody: any = { name: `[AI] ${product.name} - ${new Date().toISOString().split("T")[0]}`, access_token: conn.access_token };
     if (pageId) {
       // Build destination URL for the ad
-      const { data: tenantInfo } = await supabase.from("tenants").select("slug, custom_domain").eq("id", tenantId).single();
-      const storeHost = tenantInfo?.custom_domain || (tenantInfo?.slug ? `${tenantInfo.slug}.shops.comandocentral.com.br` : null);
+      const { data: tenantInfo } = await supabase.from("tenants").select("slug").eq("id", tenantId).single();
+      const { data: tenantDomainInfo } = await supabase.from("tenant_domains").select("domain").eq("tenant_id", tenantId).eq("type", "custom").eq("is_primary", true).maybeSingle();
+      const storeHost = tenantDomainInfo?.domain || (tenantInfo?.slug ? `${tenantInfo.slug}.shops.comandocentral.com.br` : null);
       const productSlug = product.slug || product.id;
       const destinationUrl = storeHost ? `https://${storeHost}/produto/${productSlug}` : `https://comandocentral.com.br`;
       console.log(`[ads-chat][${VERSION}] Destination URL for ad: ${destinationUrl}`);
@@ -2209,9 +2218,10 @@ async function collectBaseContext(supabase: any, tenantId: string, scope: string
   const context: any = {};
 
   // Tenant + store_settings
-  const { data: tenant } = await supabase.from("tenants").select("name, slug, custom_domain").eq("id", tenantId).single();
+  const { data: tenant } = await supabase.from("tenants").select("name, slug").eq("id", tenantId).single();
+  const { data: ctxCustomDomain } = await supabase.from("tenant_domains").select("domain").eq("tenant_id", tenantId).eq("type", "custom").eq("is_primary", true).maybeSingle();
   context.storeName = tenant?.name || "Loja";
-  context.storeUrl = tenant?.custom_domain || (tenant?.slug ? `${tenant.slug}.comandocentral.com.br` : null);
+  context.storeUrl = ctxCustomDomain?.domain || (tenant?.slug ? `${tenant.slug}.shops.comandocentral.com.br` : null);
 
   const { data: settings } = await supabase.from("store_settings").select("store_name, store_description").eq("tenant_id", tenantId).maybeSingle();
   if (settings?.store_description) context.storeDescription = settings.store_description;
