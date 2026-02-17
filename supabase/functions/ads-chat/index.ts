@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.9.3"; // Hardened anti-permission-loop: execute-first even on technical errors
+const VERSION = "v5.9.4"; // Fix creative generation: auth header + better logging
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -1938,18 +1938,40 @@ async function triggerCreativeGeneration(supabase: any, tenantId: string, chatSe
     const result = await response.text();
     let parsed; try { parsed = JSON.parse(result); } catch { parsed = { raw: result }; }
 
+    const isSuccess = response.ok && parsed?.success;
+    const createdCount = parsed?.data?.created || 0;
+
     // Log action (synchronous)
     const { error: logErr } = await supabase.from("ads_autopilot_actions").insert({
       tenant_id: tenantId, session_id: chatSessionId || crypto.randomUUID(), channel: "meta",
-      action_type: "generate_creative", status: response.ok ? "executed" : "failed",
-      executed_at: response.ok ? new Date().toISOString() : null,
-      error_message: !response.ok ? `HTTP ${response.status}` : null,
-      action_data: { type: "text_copy", created_by: "ads_chat", details: parsed },
-      reasoning: "Geração de textos criativos (headlines e copys) disparada via Chat IA",
+      action_type: "generate_creative", status: isSuccess ? "executed" : "failed",
+      executed_at: isSuccess ? new Date().toISOString() : null,
+      error_message: !isSuccess ? (parsed?.error || `HTTP ${response.status}`) : null,
+      action_data: { type: "text_copy", created_by: "ads_chat", created_count: createdCount, details: parsed },
+      reasoning: isSuccess && createdCount > 0
+        ? `Geração de ${createdCount} brief(s) criativos (headlines e copys) via Chat IA`
+        : "Geração de textos criativos (headlines e copys) disparada via Chat IA",
     });
     if (logErr) console.error(`[ads-chat][${VERSION}] Action log error:`, logErr.message);
 
-    return JSON.stringify({ success: response.ok, message: response.ok ? "Geração de textos criativos disparada." : `Falha (HTTP ${response.status})`, details: parsed });
+    if (isSuccess && createdCount > 0) {
+      // Fetch the generated assets to show details
+      const { data: newAssets } = await supabase.from("ads_creative_assets")
+        .select("id, headline, copy_text, format, angle, meta")
+        .eq("tenant_id", tenantId)
+        .eq("status", "draft")
+        .order("created_at", { ascending: false })
+        .limit(createdCount);
+
+      return JSON.stringify({ 
+        success: true, 
+        message: `${createdCount} briefs criativos gerados com sucesso. Eles estão na aba "Estúdio de Criativos" e em "Ações da IA".`,
+        created: createdCount,
+        assets: (newAssets || []).map((a: any) => ({ id: a.id, headline: a.headline, copy: a.copy_text, format: a.format, angle: a.angle })),
+      });
+    }
+
+    return JSON.stringify({ success: isSuccess, message: isSuccess ? (parsed?.data?.message || "Geração processada, mas nenhum novo criativo foi sugerido.") : `Falha (HTTP ${response.status})`, details: parsed });
   } catch (err: any) { return JSON.stringify({ success: false, error: err.message }); }
 }
 

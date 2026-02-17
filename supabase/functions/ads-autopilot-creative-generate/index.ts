@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.1.0"; // Fallback to catalog when no sales data
+const VERSION = "v1.2.0"; // Fix: add LOVABLE_API_KEY auth header
 // ===================
 
 const corsHeaders = {
@@ -172,11 +172,20 @@ Responda APENAS com JSON válido:
   ]
 }`;
 
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      console.error(`[ads-autopilot-creative-generate][${VERSION}] LOVABLE_API_KEY not configured`);
+      return fail("LOVABLE_API_KEY não configurada");
+    }
+
     const aiResponse = await fetch(LOVABLE_AI_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      },
       body: JSON.stringify({
-        model: "openai/gpt-5-mini",
+        model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Produtos vencedores:\n${JSON.stringify(productContext, null, 2)}` },
