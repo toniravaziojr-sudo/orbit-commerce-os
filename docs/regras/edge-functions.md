@@ -731,6 +731,7 @@ A sync diária permite que ferramentas como `get_performance_trend` mostrem time
 | v5.3.6 | 2026-02-17 | Fix: colunas `meta_audience_id` em `createCustomAudience`/`createLookalikeAudience`; erros de insert não mais silenciados |
 | v5.3.7 | 2026-02-17 | Fix: loop multi-rodada de tool calls — IA agora executa leitura E escrita em até 5 rounds por interação |
 | v5.4.0 | 2026-02-17 | **Strategy Mode Guardrails**: IA obrigada a validar ações contra `strategy_mode` configurado (conservative/balanced/aggressive). Regras de budget por modo injetadas no prompt. `get_autopilot_config` obrigatório antes de propor mudanças. Alerta obrigatório quando ação viola regra manual. |
+| v5.5.0 | 2026-02-17 | **Action Logging + Anti-Hallucination**: Todas as tools de escrita (toggle_entity_status, update_budget, generate_creative_image, trigger_creative_generation) agora logam na tabela `ads_autopilot_actions`. Novas regras de prompt: proibido "Posso seguir?", obrigatório reportar resultados reais das ferramentas, respeitar mapeamento produto→funil das instruções estratégicas, distribuir budget conforme funnel_splits. |
 
 ### Regras de Strategy Mode — `ads-chat` v5.4.0
 
@@ -744,3 +745,19 @@ A sync diária permite que ferramentas como `get_performance_trend` mostrem time
 1. A IA avisa qual regra seria violada (valor atual vs proposto)
 2. Pede confirmação explícita
 3. Se confirmado, persiste em `chat_overrides` como Override
+
+### Regras de Action Logging — `ads-chat` v5.5.0
+
+**Toda ferramenta de escrita DEVE registrar uma entrada em `ads_autopilot_actions`** com:
+- `status`: "executed" (sucesso) ou "failed" (falha)
+- `action_data`: detalhes da ação incluindo `created_by: "ads_chat"`
+- `reasoning`: descrição humanizada da ação
+- `executed_at`: timestamp de execução (quando sucesso)
+- `error_message`: mensagem de erro real (quando falha)
+
+### Regras Anti-Alucinação Comportamental — `ads-chat` v5.5.0
+
+1. **Proibido "loop de permissão"**: IA NUNCA pode perguntar "Posso seguir?", "Quer que eu faça?" etc para ações de leitura/preparação
+2. **Reportar resultados reais**: NUNCA dizer "estou executando" sem ter chamado a ferramenta. Reportar resultado ✅/❌ de cada ação
+3. **Respeitar mapeamento produto→funil**: Seguir as instruções estratégicas do lojista sobre qual produto usar em cada estágio
+4. **Distribuir budget por funnel_splits**: Respeitar os percentuais configurados (cold/remarketing/tests/leads)

@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.4.0"; // Fix: strategy mode guardrails — AI must validate actions against config before proposing
+const VERSION = "v5.5.0"; // Fix: all write tools now log to ads_autopilot_actions + anti-hallucination prompt hardening
 // ===========================================================
 
 const corsHeaders = {
@@ -1038,6 +1038,14 @@ async function toggleEntityStatus(supabase: any, tenantId: string, args: any) {
   const result = await res.json();
 
   if (result.error) {
+    // Log failed action
+    await supabase.from("ads_autopilot_actions").insert({
+      tenant_id: tenantId, session_id: crypto.randomUUID(), channel: "meta",
+      action_type: new_status === "PAUSED" ? "pause_entity" : "activate_entity",
+      status: "failed", error_message: result.error.message,
+      action_data: { entity_type, entity_id, new_status, created_by: "ads_chat" },
+      reasoning: `Tentativa de ${new_status === "PAUSED" ? "pausar" : "reativar"} ${entity_type} ${entity_id} via Chat IA`,
+    }).then(() => {}).catch(() => {});
     return JSON.stringify({ success: false, error: result.error.message });
   }
 
@@ -1053,7 +1061,21 @@ async function toggleEntityStatus(supabase: any, tenantId: string, args: any) {
   const statusLabel = new_status === "ACTIVE" ? "reativado" : "pausado";
   const typeLabel = entity_type === "campaign" ? "Campanha" : entity_type === "adset" ? "Conjunto" : "Anúncio";
 
-  return JSON.stringify({ success: true, message: `${typeLabel} ${statusLabel} com sucesso.` });
+  // Get entity name for better logging
+  let entityName = entity_id;
+  const { data: entityData } = await supabase.from(table).select("name").eq("tenant_id", tenantId).eq(idCol, entity_id).maybeSingle();
+  if (entityData?.name) entityName = entityData.name;
+
+  // Log successful action
+  await supabase.from("ads_autopilot_actions").insert({
+    tenant_id: tenantId, session_id: crypto.randomUUID(), channel: "meta",
+    action_type: new_status === "PAUSED" ? "pause_entity" : "activate_entity",
+    status: "executed", executed_at: new Date().toISOString(), confidence: "high",
+    action_data: { entity_type, entity_id, entity_name: entityName, new_status, created_by: "ads_chat" },
+    reasoning: `${typeLabel} "${entityName}" ${statusLabel} via Chat IA`,
+  }).then(() => {}).catch((e: any) => console.error(`[ads-chat][${VERSION}] Action log error:`, e));
+
+  return JSON.stringify({ success: true, message: `${typeLabel} "${entityName}" ${statusLabel} com sucesso.` });
 }
 
 // --- Frente 4: update_budget ---
@@ -1070,6 +1092,13 @@ async function updateBudget(supabase: any, tenantId: string, args: any) {
 
   if (!conn) return JSON.stringify({ success: false, error: "Meta não conectada" });
 
+  // Get current budget for logging
+  const table = entity_type === "campaign" ? "meta_ad_campaigns" : "meta_ad_adsets";
+  const idCol = entity_type === "campaign" ? "meta_campaign_id" : "meta_adset_id";
+  const { data: entityData } = await supabase.from(table).select("name, daily_budget_cents").eq("tenant_id", tenantId).eq(idCol, entity_id).maybeSingle();
+  const oldBudgetCents = entityData?.daily_budget_cents || 0;
+  const entityName = entityData?.name || entity_id;
+
   // Meta API uses daily_budget in the account currency's smallest unit
   const res = await fetch(`https://graph.facebook.com/v21.0/${entity_id}`, {
     method: "POST",
@@ -1079,19 +1108,30 @@ async function updateBudget(supabase: any, tenantId: string, args: any) {
   const result = await res.json();
 
   if (result.error) {
+    await supabase.from("ads_autopilot_actions").insert({
+      tenant_id: tenantId, session_id: crypto.randomUUID(), channel: "meta",
+      action_type: "update_budget", status: "failed", error_message: result.error.message,
+      action_data: { entity_type, entity_id, entity_name: entityName, old_budget_cents: oldBudgetCents, new_daily_budget_cents, created_by: "ads_chat" },
+      reasoning: `Tentativa de alterar budget de "${entityName}" de R$ ${(oldBudgetCents / 100).toFixed(2)} para R$ ${(new_daily_budget_cents / 100).toFixed(2)} via Chat IA`,
+    }).then(() => {}).catch(() => {});
     return JSON.stringify({ success: false, error: result.error.message });
   }
 
   // Update local DB
-  const table = entity_type === "campaign" ? "meta_ad_campaigns" : "meta_ad_adsets";
-  const idCol = entity_type === "campaign" ? "meta_campaign_id" : "meta_adset_id";
-
   await supabase.from(table).update({ daily_budget_cents: new_daily_budget_cents, synced_at: new Date().toISOString() })
     .eq("tenant_id", tenantId).eq(idCol, entity_id);
 
+  // Log successful action
+  await supabase.from("ads_autopilot_actions").insert({
+    tenant_id: tenantId, session_id: crypto.randomUUID(), channel: "meta",
+    action_type: "update_budget", status: "executed", executed_at: new Date().toISOString(), confidence: "high",
+    action_data: { entity_type, entity_id, entity_name: entityName, old_budget_cents: oldBudgetCents, new_daily_budget_cents, change_pct: oldBudgetCents > 0 ? `${(((new_daily_budget_cents - oldBudgetCents) / oldBudgetCents) * 100).toFixed(0)}%` : "N/A", created_by: "ads_chat" },
+    reasoning: `Budget de "${entityName}" alterado de R$ ${(oldBudgetCents / 100).toFixed(2)} para R$ ${(new_daily_budget_cents / 100).toFixed(2)}/dia via Chat IA`,
+  }).then(() => {}).catch((e: any) => console.error(`[ads-chat][${VERSION}] Action log error:`, e));
+
   return JSON.stringify({
     success: true,
-    message: `Orçamento atualizado para R$ ${(new_daily_budget_cents / 100).toFixed(2)}/dia.`,
+    message: `Orçamento de "${entityName}" atualizado de R$ ${(oldBudgetCents / 100).toFixed(2)} para R$ ${(new_daily_budget_cents / 100).toFixed(2)}/dia.`,
   });
 }
 
@@ -1888,6 +1928,17 @@ async function triggerCreativeGeneration(supabase: any, tenantId: string) {
     });
     const result = await response.text();
     let parsed; try { parsed = JSON.parse(result); } catch { parsed = { raw: result }; }
+
+    // Log action
+    await supabase.from("ads_autopilot_actions").insert({
+      tenant_id: tenantId, session_id: crypto.randomUUID(), channel: "meta",
+      action_type: "generate_creative", status: response.ok ? "executed" : "failed",
+      executed_at: response.ok ? new Date().toISOString() : null,
+      error_message: !response.ok ? `HTTP ${response.status}` : null,
+      action_data: { type: "text_copy", created_by: "ads_chat", details: parsed },
+      reasoning: "Geração de textos criativos (headlines e copys) disparada via Chat IA",
+    }).then(() => {}).catch(() => {});
+
     return JSON.stringify({ success: response.ok, message: response.ok ? "Geração de textos criativos disparada." : `Falha (HTTP ${response.status})`, details: parsed });
   } catch (err: any) { return JSON.stringify({ success: false, error: err.message }); }
 }
@@ -1915,7 +1966,19 @@ async function generateCreativeImage(supabase: any, tenantId: string, args: any)
     });
     const result = await response.text();
     let parsed; try { parsed = JSON.parse(result); } catch { parsed = { raw: result }; }
-    if (!response.ok || !parsed?.success) return JSON.stringify({ success: false, error: `Falha ao gerar imagens (HTTP ${response.status})`, details: parsed });
+
+    // Log action
+    const isSuccess = response.ok && parsed?.success;
+    await supabase.from("ads_autopilot_actions").insert({
+      tenant_id: tenantId, session_id: crypto.randomUUID(), channel: args.channel || "meta",
+      action_type: "generate_creative", status: isSuccess ? "executed" : "failed",
+      executed_at: isSuccess ? new Date().toISOString() : null,
+      error_message: !isSuccess ? (parsed?.error || `HTTP ${response.status}`) : null,
+      action_data: { type: "image", product_name: product.name, product_id: product.id, format: args.format || "1:1", variations: args.variations || 2, style: args.style_preference || "promotional", job_id: parsed?.data?.job_id, created_by: "ads_chat" },
+      reasoning: `Geração de ${args.variations || 2} imagem(ns) para "${product.name}" via Chat IA`,
+    }).then(() => {}).catch((e: any) => console.error(`[ads-chat][${VERSION}] Action log error:`, e));
+
+    if (!isSuccess) return JSON.stringify({ success: false, error: `Falha ao gerar imagens (HTTP ${response.status})`, details: parsed });
     return JSON.stringify({ success: true, message: `Geração de ${args.variations || 2} imagem(ns) disparada para "${product.name}".`, job_id: parsed?.data?.job_id });
   } catch (err: any) { return JSON.stringify({ success: false, error: err.message }); }
 }
@@ -2490,6 +2553,9 @@ Se modo = BALANCED e o lojista pede "coloca R$420 na CJ3 que está com R$66":
 - ❌ "Quer que eu gere as artes?" → Simplesmente gere.
 - ❌ "Preciso da sua autorização para buscar imagens" → Simplesmente busque.
 - ❌ Listar "bloqueios" que você mesmo pode resolver → Resolva e informe o resultado.
+- ❌ "Posso seguir?" / "Posso prosseguir?" / "Deseja que eu continue?" → EXECUTE E REPORTE.
+- ❌ "Estou disparando agora..." sem chamar ferramentas → CHAME a ferramenta ANTES de dizer que disparou.
+- ❌ Descrever planos em múltiplos passos sem executar nenhum → Execute primeiro, reporte depois.
 
 ### Comportamento CORRETO:
 - ✅ Identificou que não há públicos → chame create_custom_audience e create_lookalike_audience automaticamente.
@@ -2504,6 +2570,50 @@ Se modo = BALANCED e o lojista pede "coloca R$420 na CJ3 que está com R$66":
 ### Regra de "Bloqueio":
 - Um bloqueio REAL é algo que você NÃO CONSEGUE resolver (ex: conta bloqueada pelo Meta, sem acesso à API).
 - Se você TEM uma ferramenta para resolver, NÃO É UM BLOQUEIO — é um passo a executar.
+
+## REGRA CRÍTICA: REPORTAR RESULTADOS REAIS, NÃO PROMESSAS
+
+**NUNCA diga que está "executando" ou "disparando" algo sem ter CHAMADO a ferramenta correspondente.**
+- Se você disse "Estou gerando criativos agora" mas NÃO chamou generate_creative_image, isso é MENTIRA.
+- Se você disse "Campanha criada" mas NÃO chamou create_meta_campaign, isso é MENTIRA.
+- Após cada chamada de ferramenta, reporte o RESULTADO REAL (sucesso/falha/detalhes).
+- Se uma ferramenta falhou, NÃO diga que funcionou — reporte o erro exato.
+
+**Formato obrigatório para reportar ações executadas:**
+Para cada ação de escrita que você executar, inclua na resposta:
+- ✅ ou ❌ — Status real
+- O que foi feito (em linguagem do lojista)
+- Resultado retornado pela ferramenta
+
+Exemplo correto:
+> ✅ **Orçamento ajustado**: CJ3 de R$ 66 para R$ 80/dia
+> ✅ **Campanha pausada**: CJ2 (ROI 1.70)
+> ❌ **Geração de criativo falhou**: "Imagem não encontrada" — vou tentar com outra imagem
+
+## REGRA CRÍTICA: RESPEITAR INSTRUÇÕES ESTRATÉGICAS DO LOJISTA
+
+As **Instruções Estratégicas** (campo user_instructions) contêm a ESTRATÉGIA do lojista. Você DEVE:
+1. **Ler e respeitar** o mapeamento de produtos por estágio de funil indicado nas instruções
+2. **NÃO fixar em um único produto** — distribuir esforços conforme a estratégia indicada
+3. **Priorizar produtos de entrada** para público frio (se indicado nas instruções)
+4. **Reservar kits de maior ticket** para remarketing (se indicado nas instruções)
+5. Se as instruções mencionam produtos específicos para cada etapa, SEGUI-LAS à risca
+
+**Se as instruções mencionam** "Shampoo para público frio" e "Kit 3x para remarketing", você NÃO deve criar campanhas frias com Kit 3x.
+
+## REGRA: RESPEITAR DIVISÃO DE FUNIL (funnel_splits)
+
+As configurações da conta incluem \`funnel_splits\` com percentuais para cada estágio. DISTRIBUA o orçamento conforme esses percentuais:
+- \`cold\`: Público Frio / Prospecção
+- \`remarketing\`: Público Quente / Retargeting
+- \`tests\`: Testes de Criativos
+- \`leads\`: Captação de Leads
+
+Exemplo: Se budget = R$ 600/dia e splits = {cold: 40, remarketing: 25, tests: 25, leads: 10}:
+- Frio: R$ 240/dia
+- Remarketing: R$ 150/dia
+- Testes: R$ 150/dia
+- Leads: R$ 60/dia
 
 ## FLUXO PARA CRIAR CAMPANHAS
 1. Consultar catálogo (ver produtos)
