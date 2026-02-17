@@ -1,107 +1,81 @@
 
 
-# Teste E2E: Bug Critico Encontrado - URL de Destino Incorreta
+# Diagnóstico E2E: 3 Bugs Encontrados no Fluxo de Criativos e Campanhas
 
-## Resultado do Teste
+## Resumo Executivo
 
-Ao rastrear o fluxo completo no tenant **respeiteohomem**, identifiquei que os 3 fixes anteriores (Tarefas 1, 2 e 3) foram implementados corretamente em termos de lógica, mas compartilham um **bug critico** que impede o funcionamento correto.
-
----
-
-## Status dos Assets
-
-- 15 criativos com `status = ready` e `asset_url` preenchido -- Pipeline de geração OK
-- Nenhum com `platform_ad_id` -- Nenhum foi publicado no Meta ainda
-- Domínio correto do tenant: `loja.respeiteohomem.com.br` (tabela `tenant_domains`)
-- Produtos possuem `slug` -- OK
+A geração de imagens funciona (as imagens existem no storage), mas o fluxo completo falha por 3 bugs distintos que impedem a IA de criar campanhas do zero com sucesso.
 
 ---
 
-## Bug Critico: `tenants.custom_domain` NAO EXISTE
+## Bug 1: Imagens vão para a pasta errada no Drive
 
-### O Problema
+**Sintoma**: A pasta "Gestor de Tráfego IA" está vazia no Meu Drive (como mostra seu screenshot).
 
-Tanto `ads-chat` (linhas 928, 2109, 2212) quanto `ads-autopilot-analyze` (linha 1858) fazem:
+**Causa**: A edge function `creative-image-generate` ignora o parâmetro `output_folder_id` que recebe do `ads-autopilot-creative`. Em vez de usar a pasta "Gestor de Tráfego IA", ela sempre cria/usa sua propia pasta fixa chamada "Criativos com IA" (dentro de "Uploads do sistema").
 
-```text
-supabase.from("tenants").select("slug, custom_domain")
-```
+**Prova**: As 4 imagens geradas as 23:25 estao na pasta "Criativos com IA" (folder_id: `26a7cca5`), NAO na pasta "Gestor de Tráfego IA" (folder_id: `bce0665a`).
 
-A tabela `tenants` **não possui** a coluna `custom_domain`. O domínio customizado está na tabela `tenant_domains`:
-
-```text
-tenant_domains: domain = 'loja.respeiteohomem.com.br', type = 'custom', is_primary = true
-```
-
-O PostgREST do Supabase **não gera erro** ao selecionar colunas inexistentes -- simplesmente retorna `null`. Resultado: `custom_domain` é sempre `undefined`, e o fallback gera a URL errada.
-
-### URL Gerada (ERRADA)
-```
-https://respeite-o-homem.shops.comandocentral.com.br/produto/{slug}
-```
-
-### URL Correta (ESPERADA)
-```
-https://loja.respeiteohomem.com.br/produto/{slug}
-```
-
-### Impacto
-
-Mesmo que os criativos sejam publicados no Meta, os anúncios redirecionariam para a URL errada. Se o subdomínio da plataforma não estiver configurado com SSL/DNS, os cliques resultariam em erro de conexão.
+**Correção**: Na `creative-image-generate`, ao extrair o body, incluir `output_folder_id`. Se fornecido, usar esse folder em vez do padrão "Criativos com IA". Isso afeta 2 pontos no codigo (linhas 539-546 e 596-621).
 
 ---
 
-## Plano de Correção
+## Bug 2: Geração de imagem é assincrona, mas criação de campanha é sincrona (Race Condition)
 
-### Correção Unica: Buscar domínio da tabela `tenant_domains`
+**Sintoma**: A IA chama `generate_creative_image` e `create_meta_campaign` no MESMO round de ferramentas (Tool round 2). A geração de imagem usa `EdgeRuntime.waitUntil()` e retorna imediatamente. Quando `create_meta_campaign` tenta buscar o criativo na tabela `ads_creative_assets`, ele ainda nao existe (o job está rodando em background), entao cai no fallback de imagem do catalogo.
 
-Em **todos** os pontos que constroem `storeHost`, substituir:
-
-```text
-// ANTES (errado):
-const { data: tenantInfo } = await supabase
-  .from("tenants")
-  .select("slug, custom_domain")
-  .eq("id", tenantId)
-  .single();
-const storeHost = tenantInfo?.custom_domain || tenantInfo?.slug + ".shops...";
-
-// DEPOIS (correto):
-const { data: tenantInfo } = await supabase
-  .from("tenants")
-  .select("slug")
-  .eq("id", tenantId)
-  .single();
-const { data: customDomain } = await supabase
-  .from("tenant_domains")
-  .select("domain")
-  .eq("tenant_id", tenantId)
-  .eq("type", "custom")
-  .eq("is_primary", true)
-  .maybeSingle();
-const storeHost = customDomain?.domain 
-  || (tenantInfo?.slug ? `${tenantInfo.slug}.shops.comandocentral.com.br` : null);
+**Prova nos logs**:
+```
+Tool round 2: get_product_images, generate_creative_image, create_meta_campaign, create_meta_campaign
+Using catalog image for Kit Banho Calvície Zero (2x) Noite: [URL do catalogo]
 ```
 
-### Arquivos e Locais Afetados
+**Causa**: `generate_creative_image` dispara a edge function `ads-autopilot-creative` que chama `creative-image-generate` que processa em background (~69 segundos). O `create_meta_campaign` roda em paralelo e nao encontra os assets.
 
-1. **`supabase/functions/ads-chat/index.ts`** -- 3 locais:
-   - Linha 928: Context collector (`select("name, slug, custom_domain")`)
-   - Linha 2109: `create_full_campaign_for_product`
-   - Linha 2212: Outro context collector
+**Correção**: No prompt do sistema da IA (dentro de `ads-chat`), adicionar instrução explícita: "NUNCA chame `generate_creative_image` e `create_meta_campaign` no mesmo round. Primeiro gere as imagens, aguarde confirmação, e só no round seguinte crie a campanha." Alternativamente, no codigo de `createMetaCampaign`, adicionar um polling/wait curto nos `ads_creative_assets` antes de cair no fallback.
 
-2. **`supabase/functions/ads-autopilot-analyze/index.ts`** -- 1 local:
-   - Linha 1858: Step 3 (criação de criativo no Meta)
+---
 
-### Resultado Esperado Após Fix
+## Bug 3: Erro de permissão no upload de imagens para Meta (adimages API)
 
-Para o tenant respeiteohomem:
-```
-URL de destino: https://loja.respeiteohomem.com.br/produto/kit-banho-calvicie-zero-3x
-```
+**Sintoma**: A IA reportou "erro de permissão no upload de imagens" e desistiu de criar campanhas novas, usando apenas campanhas existentes.
 
-### Edge Functions para Redeploy
+**Causa provável**: A URL da imagem passada para `/act_{id}/adimages` (endpoint da Meta para upload) é uma URL interna do Supabase storage. A Meta precisa baixar essa URL, mas se o bucket `media-assets` estiver configurado como privado ou a URL nao for acessivel publicamente, a Meta retorna erro.
 
+**Verificação necessaria**: Confirmar se o bucket `media-assets` tem acesso publico habilitado. As URLs geradas usam o path `/storage/v1/object/public/media-assets/...` — o "public" no path indica acesso publico, mas se o bucket nao estiver configurado assim, a Meta nao consegue baixar.
+
+**Correção**: Se o bucket nao for publico, ou usar signed URLs (com token temporario de 30 dias) para o upload, ou usar a API da Meta com upload direto (multipart) em vez de URL.
+
+---
+
+## Plano de Correção (Ordem de Execução)
+
+### Passo 1: Fix creative-image-generate (Bug 1)
+- Extrair `output_folder_id` do body na `creative-image-generate`
+- Se fornecido, usar em vez do folder padrao "Criativos com IA"
+- Incrementar VERSION para v3.2.0
+
+### Passo 2: Fix Race Condition (Bug 2)
+- Adicionar instrução no system prompt do `ads-chat` proibindo gerar imagem e criar campanha no mesmo round
+- Alternativamente: no `createMetaCampaign`, antes de usar fallback, verificar se ha `creative_jobs` recentes em status `running` para o produto e aguardar ou avisar
+
+### Passo 3: Diagnosticar/Fix permissão Meta (Bug 3)
+- Verificar configuração do bucket `media-assets`
+- Se necessario, usar signed URLs ou upload direto multipart para a API da Meta
+
+### Passo 4: Atualizar VERSION do ads-chat
+- De v5.9.5 para v5.9.7
+
+### Passo 5: Redeploy
+- `creative-image-generate`
 - `ads-chat`
-- `ads-autopilot-analyze`
+
+---
+
+## Arquivos Afetados
+
+| Arquivo | Mudança |
+|---------|---------|
+| `supabase/functions/creative-image-generate/index.ts` | Respeitar `output_folder_id` do body |
+| `supabase/functions/ads-chat/index.ts` | Instrução no prompt + VERSION update |
 
