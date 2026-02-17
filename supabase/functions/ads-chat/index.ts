@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.3.5"; // Fix: getAudiences auto-sync + getCreativeAssets includes meta_ad_creatives
+const VERSION = "v5.3.6"; // Fix: createCustomAudience/createLookalikeAudience wrong column names (audience_id→meta_audience_id, remove non-existent status column)
 // ===========================================================
 
 const corsHeaders = {
@@ -1404,17 +1404,17 @@ async function createCustomAudience(supabase: any, tenantId: string, args: any) 
   }
 
   // Save to local DB
-  await supabase.from("meta_ad_audiences").insert({
+  const { error: insertErr } = await supabase.from("meta_ad_audiences").insert({
     tenant_id: tenantId,
     ad_account_id: adAccountId,
-    audience_id: result.id,
+    meta_audience_id: result.id,
     name,
     audience_type: source === "website" ? "website_custom" : source === "engagement" ? "engagement" : "customer_list",
     subtype: body.subtype || "CUSTOM",
-    approximate_count: 0,
-    status: "creating",
+    description: description || `Público criado via IA — ${source}`,
     synced_at: new Date().toISOString(),
-  }).then(() => {}).catch((e: any) => console.error(`[ads-chat][${VERSION}] Save audience error:`, e));
+  });
+  if (insertErr) console.error(`[ads-chat][${VERSION}] Save audience error:`, insertErr.message);
 
   return JSON.stringify({
     success: true,
@@ -1470,17 +1470,17 @@ async function createLookalikeAudience(supabase: any, tenantId: string, args: an
   }
 
   // Save to local DB
-  await supabase.from("meta_ad_audiences").insert({
+  const { error: insertErr } = await supabase.from("meta_ad_audiences").insert({
     tenant_id: tenantId,
     ad_account_id: adAccountId,
-    audience_id: result.id,
+    meta_audience_id: result.id,
     name: audienceName,
     audience_type: "lookalike",
     subtype: "LOOKALIKE",
-    approximate_count: 0,
-    status: "creating",
+    description: `Lookalike ${pctLabel} — ${country || "BR"}`,
     synced_at: new Date().toISOString(),
-  }).then(() => {}).catch((e: any) => console.error(`[ads-chat][${VERSION}] Save lookalike error:`, e));
+  });
+  if (insertErr) console.error(`[ads-chat][${VERSION}] Save lookalike error:`, insertErr.message);
 
   return JSON.stringify({
     success: true,
