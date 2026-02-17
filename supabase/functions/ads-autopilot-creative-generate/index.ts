@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.0.0"; // Weekly creative asset generation for winning products
+const VERSION = "v1.1.0"; // Fallback to catalog when no sales data
 // ===================
 
 const corsHeaders = {
@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
       return ok({ message: "Nenhuma conta ativa para geração de criativos" });
     }
 
-    // 2. Get top products by revenue (last 30 days)
+    // 2. Get top products by revenue (last 30 days) — with fallback to catalog
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
     const { data: orders } = await supabase
       .from("orders")
@@ -79,17 +79,39 @@ Deno.serve(async (req) => {
     }
 
     // Top 5 products by revenue
-    const topProducts = Object.entries(productSales)
+    let topProducts = Object.entries(productSales)
       .sort((a, b) => b[1].revenue - a[1].revenue)
       .slice(0, 5);
 
+    let usedFallback = false;
+    let productIds: string[];
+
     if (topProducts.length === 0) {
-      console.log(`[ads-autopilot-creative-generate][${VERSION}] No product sales data`);
-      return ok({ message: "Sem dados de vendas para gerar criativos" });
+      // FALLBACK: No sales data — use newest active products from catalog
+      console.log(`[ads-autopilot-creative-generate][${VERSION}] No sales data, falling back to catalog products`);
+      const { data: catalogProducts } = await supabase
+        .from("products")
+        .select("id, name, price")
+        .eq("tenant_id", tenant_id)
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      if (!catalogProducts?.length) {
+        return ok({ message: "Nenhum produto ativo no catálogo para gerar criativos" });
+      }
+
+      productIds = catalogProducts.map((p: any) => p.id);
+      // Populate productSales with catalog info (no revenue data)
+      for (const p of catalogProducts) {
+        productSales[p.id] = { revenue: 0, units: 0, name: p.name };
+      }
+      usedFallback = true;
+    } else {
+      productIds = topProducts.map(([id]) => id);
     }
 
     // 3. Get product details + images
-    const productIds = topProducts.map(([id]) => id);
     const { data: products } = await supabase
       .from("products")
       .select("id, name, price, images, description")
