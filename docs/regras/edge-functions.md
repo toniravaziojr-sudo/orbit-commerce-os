@@ -470,10 +470,10 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v3.0.0
+### Versão Atual: v4.0.0
 
 ### Visão Geral
-Edge Function de chat conversacional **multimodal** com **tool calling real** para o Gestor de Tráfego IA. Opera como assistente de tráfego pago com acesso a dados reais do sistema, sem alucinações. Suporta análise de imagens, arquivos e URLs.
+Edge Function de chat conversacional **multimodal** com **tool calling real** para o Gestor de Tráfego IA. Opera como assistente de tráfego pago com acesso completo de leitura e escrita ao módulo de tráfego, sem alucinações. Suporta análise de imagens, arquivos e URLs.
 
 ### Arquitetura: Tool Calling em 3 Etapas
 1. **Chamada Inicial (não-streaming, timeout 45s)**: Envia mensagem do usuário + histórico (últimas 15 mensagens) + definições de ferramentas → IA decide se precisa chamar ferramentas
@@ -527,22 +527,41 @@ O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe
 - Inventar nomes de produtos, preços ou descrições (deve usar APENAS o catálogo real)
 - Contornar erros de ferramentas com texto inventado
 
-### Ferramentas Disponíveis (Tool Calling)
+### Ferramentas Disponíveis (Tool Calling) — v4.0.0
 | Ferramenta | Descrição | Tipo |
 |-----------|-----------|------|
-| `get_campaign_performance` | Métricas reais 7d (spend, ROAS, CPA, cliques, conversões) | Leitura |
+| `get_campaign_performance` | Métricas reais 7d de campanhas Meta (spend, ROAS, CPA, cliques, conversões) | Leitura |
+| `get_google_campaigns` | Performance de campanhas Google Ads (spend, clicks, conversions, ROAS) | Leitura |
+| `get_tiktok_campaigns` | Performance de campanhas TikTok Ads (spend, impressions, clicks, conversions) | Leitura |
+| `get_meta_adsets` | Lista ad sets Meta com targeting, budget e status | Leitura |
+| `get_meta_ads` | Lista anúncios Meta com status, criativo e preview URL | Leitura |
+| `get_audiences` | Lista públicos/audiências Meta (Custom Audiences, Lookalikes) | Leitura |
 | `get_creative_assets` | Lista criativos existentes e status | Leitura |
-| `trigger_creative_generation` | Dispara geração de briefs criativos (headlines + copy). Usa fallback de catálogo quando sem vendas (v1.1.0) | Execução |
-| `trigger_autopilot_analysis` | Dispara análise completa do Autopilot por canal | Execução |
+| `get_autopilot_config` | Lê configurações do Autopilot para uma conta (ROI, budget, estratégia, splits) | Leitura |
 | `get_autopilot_actions` | Lista ações executadas/agendadas pelo Autopilot | Leitura |
 | `get_autopilot_insights` | Lista insights e diagnósticos reais | Leitura |
+| `get_autopilot_sessions` | Histórico de sessões de análise do Autopilot | Leitura |
+| `get_tracking_health` | Status de saúde do tracking (pixels, conversões) | Leitura |
+| `get_experiments` | Lista experimentos/testes A/B ativos e finalizados | Leitura |
+| `update_autopilot_config` | Atualiza config do Autopilot (ROI, budget, estratégia, instruções) | Escrita |
+| `trigger_creative_generation` | Dispara geração de briefs criativos (headlines + copy) | Execução |
+| `trigger_autopilot_analysis` | Dispara análise completa do Autopilot por canal | Execução |
 | `analyze_url` | Analisa conteúdo de URL via Firecrawl (landing page, concorrente, artigo) | Leitura |
+
+### Campos Editáveis via `update_autopilot_config`
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `target_roi` | number | Meta de ROI alvo |
+| `budget_cents` | number | Orçamento em centavos |
+| `strategy_mode` | string | Modo de estratégia (`conservative`, `balanced`, `aggressive`) |
+| `is_ai_enabled` | boolean | Ativa/desativa IA na conta |
+| `user_instructions` | string | Prompt de instruções estratégicas |
 
 ### O que o Chat NÃO Pode Fazer
 - Gerar imagens diretamente
 - Upload de mídia para Meta/Google/TikTok
 - Criar/alterar campanhas diretamente (delega ao Autopilot)
-- Alterar orçamentos diretamente
+- Alterar orçamentos de campanhas diretamente (usa `trigger_autopilot_analysis`)
 - Acessar APIs de plataformas diretamente
 - Renderizar, processar ou finalizar qualquer coisa fora das ferramentas acima
 
@@ -572,8 +591,18 @@ O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe
 | `ads_autopilot_account_configs` | `ads-chat` |
 | `ads_autopilot_actions` | `ads-chat` |
 | `ads_autopilot_insights` | `ads-chat` |
+| `ads_autopilot_sessions` | `ads-chat` |
+| `ads_autopilot_experiments` | `ads-chat` |
+| `ads_tracking_health` | `ads-chat` |
 | `meta_ad_campaigns` | `ads-chat` |
+| `meta_ad_adsets` | `ads-chat` |
+| `meta_ad_ads` | `ads-chat` |
+| `meta_ad_audiences` | `ads-chat` |
 | `meta_ad_insights` | `ads-chat` |
+| `google_ad_campaigns` | `ads-chat` |
+| `google_ad_insights` | `ads-chat` |
+| `tiktok_ad_campaigns` | `ads-chat` |
+| `tiktok_ad_insights` | `ads-chat` |
 | `ads_creative_assets` | `ads-chat` |
 | `orders` | `ads-chat` |
 | `tenants` | `ads-chat` |
