@@ -470,15 +470,31 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v2.2.0
+### Versão Atual: v2.3.0
 
 ### Visão Geral
 Edge Function de chat conversacional com **tool calling real** para o Gestor de Tráfego IA. Opera como assistente de tráfego pago com acesso a dados reais do sistema, sem alucinações.
 
 ### Arquitetura: Tool Calling em 3 Etapas
-1. **Chamada Inicial (não-streaming)**: Envia mensagem do usuário + histórico + definições de ferramentas → IA decide se precisa chamar ferramentas
+1. **Chamada Inicial (não-streaming, timeout 45s)**: Envia mensagem do usuário + histórico (últimas 15 mensagens) + definições de ferramentas → IA decide se precisa chamar ferramentas
 2. **Execução de Tools**: Se a IA requisitou ferramentas, executa cada uma contra o banco/APIs reais e coleta resultados
 3. **Resposta Final (streaming)**: Injeta resultados reais como contexto `[DADOS REAIS DO SISTEMA]` e faz chamada final com streaming SSE
+
+### Tratamento de Falhas (v2.3.0 — CRÍTICO)
+| Cenário | Comportamento |
+|---------|--------------|
+| **Timeout (>45s)** | Retorna mensagem visível: "O processamento demorou mais que o esperado — crie uma nova conversa" |
+| **Rate limit (429)** | Salva mensagem de erro no chat + retorna HTTP 429 |
+| **Créditos (402)** | Salva mensagem de erro no chat + retorna HTTP 402 |
+| **Erro genérico** | Retorna erro como SSE para que o cliente exiba no chat |
+| **Sem resposta da IA** | NUNCA falha silenciosamente — sempre há uma mensagem para o usuário |
+
+**REGRA**: Erros NUNCA devem ser silenciosos. Toda falha DEVE produzir uma mensagem visível no chat para que o usuário saiba o que aconteceu.
+
+### Histórico de Conversa (v2.3.0)
+- Carrega apenas as **últimas 15 mensagens** (com conteúdo não-nulo) em ordem cronológica
+- Evita bloat de contexto que causava timeouts em conversas longas
+- Se a conversa ficar muito longa, o sistema sugere criar uma nova conversa
 
 ### Contexto Injetado no System Prompt (v2.2.0)
 O system prompt é construído dinamicamente com:
@@ -519,8 +535,8 @@ O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe
 2. Edge function cria/recupera conversa em `ads_chat_conversations`
 3. Salva mensagem do usuário em `ads_chat_messages`
 4. Coleta contexto base (tenant, configs, **user_instructions**, **catálogo de produtos**, pedidos 30d)
-5. Executa pipeline de 3 etapas (tool calling)
-6. Salva resposta da IA em `ads_chat_messages`
+5. Executa pipeline de 3 etapas (tool calling) com **timeout de 45s**
+6. Salva resposta da IA em `ads_chat_messages` (inclusive erros)
 7. Retorna streaming SSE para o frontend
 
 ### Escopos
