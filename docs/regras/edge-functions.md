@@ -470,10 +470,10 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v4.2.0
+### Versão Atual: v5.0.0
 
 ### Visão Geral
-Edge Function de chat conversacional **multimodal** com **tool calling real** para o Gestor de Tráfego IA. Opera como assistente de tráfego pago com acesso completo de leitura e escrita ao módulo de tráfego, sem alucinações. Suporta análise de imagens, arquivos e URLs.
+Edge Function de chat conversacional **multimodal** com **tool calling real** para o Gestor de Tráfego IA. Opera como assistente de tráfego pago com acesso completo de leitura e escrita ao módulo de tráfego. Suporta análise de imagens, arquivos e URLs. Implementa **auto-sync fire-and-forget**, **contexto de negócio enriquecido** e **passo de verificação obrigatório** para eliminar alucinações.
 
 ### Arquitetura: Tool Calling em 3 Etapas
 1. **Chamada Inicial (não-streaming, timeout 45s)**: Envia mensagem do usuário + histórico (últimas 15 mensagens) + definições de ferramentas → IA decide se precisa chamar ferramentas
@@ -511,12 +511,36 @@ Edge Function de chat conversacional **multimodal** com **tool calling real** pa
 - Evita bloat de contexto que causava timeouts em conversas longas
 - Se a conversa ficar muito longa, o sistema sugere criar uma nova conversa
 
-### Contexto Injetado no System Prompt (v2.2.0)
+### Contexto Injetado no System Prompt (v5.0.0)
 O system prompt é construído dinamicamente com:
-1. **user_instructions**: O prompt estratégico configurado pelo lojista na conta de anúncios (ex: nicho, produtos prioritários, compliance, tom)
-2. **Catálogo de Produtos**: Top 10 produtos ativos com nome, preço e descrição — obrigatório para evitar que a IA invente nomes de produtos
+1. **user_instructions**: O prompt estratégico configurado pelo lojista na conta de anúncios
+2. **Catálogo de Produtos**: Top 10 produtos ativos com nome, preço, custo (`cost_price`) e margem calculada
 3. **Configurações de conta**: Budget, ROI alvo, splits de funil, modo de estratégia
-4. **Vendas 30d**: Pedidos pagos, receita, ticket médio
+4. **Vendas 30d**: Pedidos pagos, receita, ticket médio, top 5 produtos por receita
+5. **Contexto de Negócio** (v5.0.0): Nicho, descrição, público-alvo, URLs da loja (via `store_settings` e `tenant_domains`)
+6. **Descontos Ativos**: Cupons vigentes com tipo, valor e validade
+7. **Categorias**: Mix de categorias ativas para entender o catálogo
+
+### Auto-Sync Fire-and-Forget (v5.0.0 — CRÍTICO)
+- No `collectBaseContext`, verifica a data do último insight em `meta_ad_insights`
+- Se a última sync for > 1 hora, dispara sync fire-and-forget de campanhas, adsets e insights
+- Garante que a IA sempre tenha dados frescos sem bloquear a resposta
+- A sync roda em background — a resposta atual pode usar dados levemente antigos, mas a próxima terá dados frescos
+
+### Limites de Busca (v5.0.0 — Anti-Alucinação)
+| Recurso | Limite Anterior | Limite Atual | Ordenação |
+|---------|----------------|-------------|-----------|
+| Campanhas (`get_campaign_performance`) | 30 | 200 | `effective_status ASC` (ACTIVE primeiro) |
+| AdSets (`get_meta_adsets`) | 30 | 100 | — |
+| Ads (`get_meta_ads`) | 30 | 100 | — |
+
+### Passo de Verificação Obrigatório (v5.0.0 — CRÍTICO)
+**REGRA**: Antes de qualquer diagnóstico, estratégia ou sugestão, a IA DEVE obrigatoriamente chamar:
+- `get_campaign_performance` — para ver o estado REAL das campanhas
+- `get_meta_adsets` — para entender a segmentação atual
+- `get_tracking_health` — para validar a saúde do rastreamento
+
+Se o usuário pedir diagnóstico ou estratégia sem que a IA tenha chamado essas ferramentas, a IA DEVE chamar antes de responder. Nunca confiar apenas no contexto base.
 
 ### Regra Anti-Alucinação (CRÍTICA)
 O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe a IA de:
@@ -527,14 +551,19 @@ O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe
 - Inventar nomes de produtos, preços ou descrições (deve usar APENAS o catálogo real)
 - Contornar erros de ferramentas com texto inventado
 
-### Ferramentas Disponíveis (Tool Calling) — v4.2.0
+### Ferramentas Disponíveis (Tool Calling) — v5.0.0
 | Ferramenta | Descrição | Tipo |
 |-----------|-----------|------|
-| `get_campaign_performance` | Métricas reais 7d de campanhas Meta (spend, ROAS, CPA, cliques, conversões) | Leitura |
+| `get_campaign_performance` | Métricas reais 7d de até 200 campanhas Meta (ACTIVE primeiro) — spend, ROAS, CPA, cliques, conversões | Leitura |
+| `get_campaign_details` | Drill-down: campanha específica com todos os seus conjuntos e anúncios | Leitura |
+| `get_performance_trend` | Time-series diário de uma campanha (gasto/conversões por dia, últimos 14-30 dias) | Leitura |
+| `get_adset_performance` | Métricas por conjunto de anúncios (essencial para otimizar segmentação) | Leitura |
+| `get_ad_performance` | Métricas por anúncio individual (essencial para saber qual criativo performa melhor) | Leitura |
+| `get_store_context` | Contexto completo do negócio: nicho, público-alvo, URLs, ofertas ativas, categorias | Leitura |
 | `get_google_campaigns` | Performance de campanhas Google Ads (spend, clicks, conversions, ROAS) | Leitura |
 | `get_tiktok_campaigns` | Performance de campanhas TikTok Ads (spend, impressions, clicks, conversions) | Leitura |
-| `get_meta_adsets` | Lista ad sets Meta com targeting, budget e status | Leitura |
-| `get_meta_ads` | Lista anúncios Meta com status, criativo e preview URL | Leitura |
+| `get_meta_adsets` | Lista até 100 ad sets Meta com targeting, budget e status | Leitura |
+| `get_meta_ads` | Lista até 100 anúncios Meta com status, criativo e preview URL | Leitura |
 | `get_audiences` | Lista públicos/audiências Meta (Custom Audiences, Lookalikes) | Leitura |
 | `get_creative_assets` | Lista criativos existentes e status | Leitura |
 | `get_autopilot_config` | Lê configurações do Autopilot para uma conta (ROI, budget, estratégia, splits) | Leitura |
@@ -543,10 +572,13 @@ O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe
 | `get_autopilot_sessions` | Histórico de sessões de análise do Autopilot | Leitura |
 | `get_tracking_health` | Status de saúde do tracking (pixels, conversões) | Leitura |
 | `get_experiments` | Lista experimentos/testes A/B ativos e finalizados | Leitura |
+| `get_products` | Lista produtos ativos com nome, preço, custo, estoque e imagens | Leitura |
 | `update_autopilot_config` | Atualiza config do Autopilot (ROI, budget, estratégia, instruções) | Escrita |
+| `toggle_entity_status` | Pausa/reativa campanha, conjunto ou anúncio no Meta via API | Escrita |
+| `update_budget` | Altera orçamento (em centavos) de campanha ou conjunto existente no Meta | Escrita |
 | `trigger_creative_generation` | Dispara geração de briefs criativos (headlines + copy) | Execução |
 | `generate_creative_image` | Gera IMAGENS reais via IA (Gemini) para criativos de anúncios | Execução |
-| `create_meta_campaign` | Cria campanha COMPLETA no Meta (Campaign→AdSet→Ad com criativo do Drive). Busca criativos automaticamente, faz upload de imagem, cria ad creative, e agenda ativação para 00:01-04:00 BRT | Execução |
+| `create_meta_campaign` | Cria campanha COMPLETA no Meta (Campaign→AdSet→Ad com criativo do Drive). Agenda ativação para 00:01-04:00 BRT | Execução |
 | `trigger_autopilot_analysis` | Dispara análise completa do Autopilot por canal | Execução |
 | `analyze_url` | Analisa conteúdo de URL via Firecrawl (landing page, concorrente, artigo) | Leitura |
 
@@ -565,6 +597,9 @@ O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe
 ### O que o Chat NÃO Pode Fazer
 - Criar campanhas Google/TikTok diretamente (somente Meta por enquanto)
 - Acessar APIs de plataformas diretamente (usa edge functions intermediárias)
+- Duplicar campanhas ou conjuntos (pendente — Frente 4.3 do plano)
+- Alterar segmentação de conjuntos existentes (pendente — Frente 4.4 do plano)
+- Criar/editar públicos customizados (pendente)
 - Renderizar ou finalizar qualquer coisa fora das ferramentas acima
 
 ### Fluxo de Conversação
@@ -572,12 +607,13 @@ O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe
 2. Anexos são uploadados para `store-assets` via `useSystemUpload`
 3. Edge function cria/recupera conversa em `ads_chat_conversations`
 4. Salva mensagem do usuário em `ads_chat_messages` (com attachments JSONB)
-5. Coleta contexto base (tenant, configs, **user_instructions**, **catálogo de produtos**, pedidos 30d)
-6. Monta mensagem multimodal (imagens como `image_url`, arquivos como texto)
-7. Seleciona modelo (vision vs text) baseado nos anexos
-8. Executa pipeline de 3 etapas (tool calling) com **timeout de 45s**
-9. Salva resposta da IA em `ads_chat_messages` (inclusive erros)
-10. Retorna streaming SSE para o frontend
+5. Coleta contexto base (tenant, configs, **user_instructions**, **catálogo c/ margens**, pedidos 30d, **nicho/público/URLs/descontos**)
+6. **Verifica freshness dos dados** — dispara sync fire-and-forget se > 1h
+7. Monta mensagem multimodal (imagens como `image_url`, arquivos como texto)
+8. Seleciona modelo (vision vs text) baseado nos anexos
+9. Executa pipeline de 3 etapas (tool calling) com **timeout de 45s**
+10. Salva resposta da IA em `ads_chat_messages` (inclusive erros)
+11. Retorna streaming SSE para o frontend
 
 ### Escopos
 | Escopo | Descrição |
@@ -612,5 +648,18 @@ O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe
 | `products` | `ads-chat` |
 | `product_images` | `ads-chat` |
 | `files` | `ads-chat` |
+| `store_settings` | `ads-chat` |
+| `tenant_domains` | `ads-chat` |
+| `categories` | `ads-chat` |
+| `discounts` | `ads-chat` |
 | `marketplace_connections` | `ads-chat` |
 | `marketing_integrations` | `ads-chat` |
+
+### Sync de Insights (`meta-ads-insights`) — v1.4.0
+| Parâmetro | Anterior | Atual |
+|-----------|----------|-------|
+| `time_increment` | Não usado (agregado) | `1` (dados diários) |
+| `date_preset` | `last_30d` | `last_30d` com granularidade diária |
+| Níveis | Apenas `campaign` | `campaign` + `adset` + `ad` |
+
+A sync diária permite que ferramentas como `get_performance_trend` mostrem time-series reais de gasto/conversões por dia.
