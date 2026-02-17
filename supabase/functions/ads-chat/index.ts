@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.9.4"; // Fix creative generation: auth header + better logging
+const VERSION = "v5.9.5"; // Add link to link_data + fix storage bucket fallback
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -2022,7 +2022,7 @@ async function createMetaCampaign(supabase: any, tenantId: string, args: any, ch
   const headers = { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` };
 
   try {
-    const { data: products } = await supabase.from("products").select("id, name").eq("tenant_id", tenantId).eq("status", "active");
+    const { data: products } = await supabase.from("products").select("id, name, slug").eq("tenant_id", tenantId).eq("status", "active");
     const product = (products || []).find((p: any) => p.name.toLowerCase().includes((args.product_name || "").toLowerCase())) || products?.[0];
     if (!product) return JSON.stringify({ success: false, error: "Produto não encontrado no catálogo." });
 
@@ -2045,7 +2045,7 @@ async function createMetaCampaign(supabase: any, tenantId: string, args: any, ch
       creativeHeadline = best.headline || null;
       creativeCopy = best.copy_text || null;
       if (!creativeImageUrl && best.storage_path) {
-        const { data: signedData } = await supabase.storage.from("files").createSignedUrl(best.storage_path, 86400 * 30);
+        const { data: signedData } = await supabase.storage.from("media-assets").createSignedUrl(best.storage_path, 86400 * 30);
         if (signedData?.signedUrl) creativeImageUrl = signedData.signedUrl;
       }
     }
@@ -2057,7 +2057,7 @@ async function createMetaCampaign(supabase: any, tenantId: string, args: any, ch
         const { data: driveFiles } = await supabase.from("files").select("id, storage_path, filename").eq("tenant_id", tenantId).eq("folder_id", folder.id).eq("is_folder", false).order("created_at", { ascending: false }).limit(5);
         const imageFile = (driveFiles || []).find((f: any) => f.storage_path);
         if (imageFile && imageFile.storage_path) {
-          const { data: signedData } = await supabase.storage.from("files").createSignedUrl(imageFile.storage_path, 86400 * 30);
+          const { data: signedData } = await supabase.storage.from("media-assets").createSignedUrl(imageFile.storage_path, 86400 * 30);
           if (signedData?.signedUrl) creativeImageUrl = signedData.signedUrl;
         }
       }
@@ -2105,7 +2105,14 @@ async function createMetaCampaign(supabase: any, tenantId: string, args: any, ch
     const objective = args.objective || "OUTCOME_SALES";
     const creativeBody: any = { name: `[AI] ${product.name} - ${new Date().toISOString().split("T")[0]}`, access_token: conn.access_token };
     if (pageId) {
-      creativeBody.object_story_spec = { page_id: pageId, link_data: { image_hash: imageHash, message: creativeCopy || `Conheça ${product.name}! Aproveite agora.`, name: creativeHeadline || product.name, call_to_action: { type: objective === "OUTCOME_SALES" ? "SHOP_NOW" : "LEARN_MORE" } } };
+      // Build destination URL for the ad
+      const { data: tenantInfo } = await supabase.from("tenants").select("slug, custom_domain").eq("id", tenantId).single();
+      const storeHost = tenantInfo?.custom_domain || (tenantInfo?.slug ? `${tenantInfo.slug}.shops.comandocentral.com.br` : null);
+      const productSlug = product.slug || product.id;
+      const destinationUrl = storeHost ? `https://${storeHost}/produto/${productSlug}` : `https://comandocentral.com.br`;
+      console.log(`[ads-chat][${VERSION}] Destination URL for ad: ${destinationUrl}`);
+
+      creativeBody.object_story_spec = { page_id: pageId, link_data: { image_hash: imageHash, message: creativeCopy || `Conheça ${product.name}! Aproveite agora.`, name: creativeHeadline || product.name, link: destinationUrl, call_to_action: { type: objective === "OUTCOME_SALES" ? "SHOP_NOW" : "LEARN_MORE", value: { link: destinationUrl } } } };
     } else {
       creativeBody.image_hash = imageHash; creativeBody.title = creativeHeadline || product.name; creativeBody.body = creativeCopy || `Conheça ${product.name}!`;
     }

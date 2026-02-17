@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.10.0"; // Use Meta native start_time for scheduled campaigns instead of internal activation
+const VERSION = "v5.10.1"; // Integrate ads_creative_assets into campaign creation flow
 // ===========================================================
 
 const corsHeaders = {
@@ -1810,16 +1810,133 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 let creativeJobId: string | null = null;
                 if (newMetaAdsetId) {
                   try {
-                    // Find best creative from existing active ads in this account
-                    const { data: existingAds } = await supabase
-                      .from("meta_ad_ads")
-                      .select("creative_id, name")
-                      .eq("tenant_id", tenant_id)
-                      .eq("ad_account_id", acctConfig.ad_account_id)
-                      .not("creative_id", "is", null)
-                      .limit(10);
+                    // === PRIORITY 1: Use AI-generated creative assets (ads_creative_assets with status=ready) ===
+                    let bestCreativeId: string | null = null;
+                    let usedAiAsset = false;
 
-                    const bestCreativeId = existingAds?.[0]?.creative_id;
+                    const topProduct = context.products?.[0];
+                    if (topProduct) {
+                      const { data: aiAssets } = await supabase
+                        .from("ads_creative_assets")
+                        .select("id, asset_url, headline, copy_text, cta_type, product_id")
+                        .eq("tenant_id", tenant_id)
+                        .eq("status", "ready")
+                        .not("asset_url", "is", null)
+                        .order("created_at", { ascending: false })
+                        .limit(5);
+
+                      const aiAsset = aiAssets?.find((a: any) => a.product_id === topProduct.id) || aiAssets?.[0];
+
+                      if (aiAsset?.asset_url) {
+                        console.log(`[ads-autopilot-analyze][${VERSION}] Step 3: Found AI creative asset ${aiAsset.id} with image URL`);
+                        try {
+                          // Get Meta connection for image upload
+                          const { data: metaConnForCreative } = await supabase
+                            .from("marketplace_connections")
+                            .select("access_token, metadata")
+                            .eq("tenant_id", tenant_id)
+                            .eq("marketplace", "meta")
+                            .eq("is_active", true)
+                            .maybeSingle();
+
+                          if (metaConnForCreative?.access_token) {
+                            const accountIdClean = acctConfig.ad_account_id.replace("act_", "");
+
+                            // Upload image to Meta
+                            const imgUploadRes = await fetch(`https://graph.facebook.com/v21.0/act_${accountIdClean}/adimages`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ url: aiAsset.asset_url, access_token: metaConnForCreative.access_token }),
+                            });
+                            const imgUploadData = await imgUploadRes.json();
+                            const imageHash = imgUploadData?.images?.[Object.keys(imgUploadData?.images || {})[0]]?.hash;
+
+                            if (imageHash) {
+                              console.log(`[ads-autopilot-analyze][${VERSION}] Step 3: Image uploaded to Meta, hash=${imageHash}`);
+
+                              // Build destination URL
+                              const { data: tenantInfo } = await supabase.from("tenants").select("slug, custom_domain").eq("id", tenant_id).single();
+                              const storeHost = tenantInfo?.custom_domain || (tenantInfo?.slug ? `${tenantInfo.slug}.shops.comandocentral.com.br` : null);
+                              
+                              let productSlug = topProduct.slug || topProduct.id;
+                              if (!topProduct.slug) {
+                                const { data: prodData } = await supabase.from("products").select("slug").eq("id", topProduct.id).single();
+                                productSlug = prodData?.slug || topProduct.id;
+                              }
+                              const destinationUrl = storeHost ? `https://${storeHost}/produto/${productSlug}` : `https://comandocentral.com.br`;
+
+                              // Get page_id
+                              const pages = metaConnForCreative.metadata?.assets?.pages || [];
+                              const pageId = pages[0]?.id || null;
+
+                              // Create adcreative on Meta
+                              const creativeBody: any = {
+                                name: `[AI] ${topProduct.name} - ${new Date().toISOString().split("T")[0]}`,
+                                access_token: metaConnForCreative.access_token,
+                              };
+                              if (pageId) {
+                                creativeBody.object_story_spec = {
+                                  page_id: pageId,
+                                  link_data: {
+                                    image_hash: imageHash,
+                                    message: aiAsset.copy_text || `Conheça ${topProduct.name}!`,
+                                    name: aiAsset.headline || topProduct.name,
+                                    link: destinationUrl,
+                                    call_to_action: { type: "SHOP_NOW", value: { link: destinationUrl } },
+                                  },
+                                };
+                              } else {
+                                creativeBody.image_hash = imageHash;
+                                creativeBody.title = aiAsset.headline || topProduct.name;
+                                creativeBody.body = aiAsset.copy_text || `Conheça ${topProduct.name}!`;
+                              }
+
+                              const creativeRes = await fetch(`https://graph.facebook.com/v21.0/act_${accountIdClean}/adcreatives`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify(creativeBody),
+                              });
+                              const creativeData = await creativeRes.json();
+
+                              if (creativeData.id) {
+                                bestCreativeId = creativeData.id;
+                                usedAiAsset = true;
+                                console.log(`[ads-autopilot-analyze][${VERSION}] Step 3: Meta adcreative created: ${bestCreativeId} from AI asset ${aiAsset.id}`);
+
+                                // Mark asset as published
+                                await supabase.from("ads_creative_assets").update({
+                                  status: "published",
+                                  platform_ad_id: bestCreativeId,
+                                  updated_at: new Date().toISOString(),
+                                }).eq("id", aiAsset.id);
+                              } else {
+                                console.error(`[ads-autopilot-analyze][${VERSION}] Step 3: Meta adcreative creation failed:`, creativeData.error?.message);
+                              }
+                            } else {
+                              console.error(`[ads-autopilot-analyze][${VERSION}] Step 3: Image upload to Meta failed:`, imgUploadData?.error?.message);
+                            }
+                          }
+                        } catch (aiCreativeErr: any) {
+                          console.error(`[ads-autopilot-analyze][${VERSION}] Step 3: AI creative upload error:`, aiCreativeErr.message);
+                        }
+                      }
+                    }
+
+                    // === PRIORITY 2: Fallback to existing creative from account ===
+                    if (!bestCreativeId) {
+                      const { data: existingAds } = await supabase
+                        .from("meta_ad_ads")
+                        .select("creative_id, name")
+                        .eq("tenant_id", tenant_id)
+                        .eq("ad_account_id", acctConfig.ad_account_id)
+                        .not("creative_id", "is", null)
+                        .limit(10);
+
+                      bestCreativeId = existingAds?.[0]?.creative_id || null;
+                      if (bestCreativeId) {
+                        console.log(`[ads-autopilot-analyze][${VERSION}] Step 3: Using existing creative ${bestCreativeId} from account`);
+                      }
+                    }
 
                     if (bestCreativeId) {
                       const adName = args.campaign_name.replace("[AI]", "[AI] Ad -");
@@ -1832,7 +1949,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                           meta_campaign_id: newMetaCampaignId,
                           name: adName,
                           creative_id: bestCreativeId,
-                          status: isAutoMode ? "ACTIVE" : "PAUSED", // Auto: ACTIVE inherits campaign's start_time
+                          status: isAutoMode ? "ACTIVE" : "PAUSED",
                         },
                       });
 
@@ -1842,12 +1959,11 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                         console.error(`[ads-autopilot-analyze][${VERSION}] Step 3/3 failed (ad):`, adResult.error);
                       } else {
                         newMetaAdId = adResult?.data?.meta_ad_id;
-                        console.log(`[ads-autopilot-analyze][${VERSION}] Step 3/3: Ad created: ${adName} (${newMetaAdId}) with creative ${bestCreativeId} status=${isAutoMode ? "ACTIVE" : "PAUSED"}`);
+                        console.log(`[ads-autopilot-analyze][${VERSION}] Step 3/3: Ad created: ${adName} (${newMetaAdId}) with creative ${bestCreativeId} (AI=${usedAiAsset}) status=${isAutoMode ? "ACTIVE" : "PAUSED"}`);
                       }
                     } else {
-                      // No existing creative — auto-generate via ads-autopilot-creative
+                      // No existing creative AND no AI creative — auto-generate via ads-autopilot-creative
                       console.log(`[ads-autopilot-analyze][${VERSION}] Step 3/3: No creative found — triggering auto-generation`);
-                      const topProduct = context.products?.[0];
                       if (topProduct) {
                         try {
                           const { data: creativeResult, error: creativeErr } = await supabase.functions.invoke("ads-autopilot-creative", {
