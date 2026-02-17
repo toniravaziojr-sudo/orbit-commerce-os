@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v3.0.0"; // Multimodal: image analysis, file upload, URL scraping
+const VERSION = "v4.0.0"; // Full module access: all channels, configs R/W, experiments, tracking, adsets/ads
 // ===========================================================
 
 const corsHeaders = {
@@ -119,6 +119,168 @@ const TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "get_google_campaigns",
+      description: "Busca campanhas e performance do Google Ads. Use para perguntas sobre Google Ads.",
+      parameters: {
+        type: "object",
+        properties: {
+          ad_account_id: { type: "string", description: "ID da conta Google Ads (opcional)" },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_tiktok_campaigns",
+      description: "Busca campanhas e performance do TikTok Ads. Use para perguntas sobre TikTok Ads.",
+      parameters: {
+        type: "object",
+        properties: {
+          advertiser_id: { type: "string", description: "ID do advertiser TikTok (opcional)" },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_meta_adsets",
+      description: "Lista os conjuntos de anúncios (Ad Sets) da Meta com status, orçamento, segmentação e pixel. Use para perguntas detalhadas sobre conjuntos.",
+      parameters: {
+        type: "object",
+        properties: {
+          ad_account_id: { type: "string", description: "ID da conta Meta (opcional)" },
+          status: { type: "string", enum: ["ACTIVE", "PAUSED", "DELETED"], description: "Filtrar por status" },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_meta_ads",
+      description: "Lista os anúncios individuais da Meta com status e criativos vinculados. Use para detalhes de anúncios específicos.",
+      parameters: {
+        type: "object",
+        properties: {
+          ad_account_id: { type: "string", description: "ID da conta Meta (opcional)" },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_audiences",
+      description: "Lista os públicos/audiências configurados (Meta e Google). Use para perguntas sobre segmentação.",
+      parameters: {
+        type: "object",
+        properties: {
+          channel: { type: "string", enum: ["meta", "google"], description: "Canal (default: todos)" },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_autopilot_config",
+      description: "Retorna as configurações atuais do Autopilot (globais e por conta). Use para mostrar settings, ROI alvo, modo de aprovação, orçamento, etc.",
+      parameters: {
+        type: "object",
+        properties: {
+          ad_account_id: { type: "string", description: "ID da conta específica (opcional, retorna todas se omitido)" },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_autopilot_config",
+      description: "Atualiza configurações do Autopilot para uma conta específica. Use APENAS quando o usuário pedir explicitamente para alterar configurações (ROI, orçamento, estratégia, etc).",
+      parameters: {
+        type: "object",
+        properties: {
+          ad_account_id: { type: "string", description: "ID da conta de anúncios" },
+          channel: { type: "string", description: "Canal da conta" },
+          updates: {
+            type: "object",
+            description: "Campos a atualizar",
+            properties: {
+              target_roi: { type: "number", description: "ROI alvo (ex: 3.0)" },
+              budget_cents: { type: "number", description: "Orçamento diário em centavos" },
+              strategy_mode: { type: "string", enum: ["conservative", "balanced", "aggressive"], description: "Modo de estratégia" },
+              is_ai_enabled: { type: "boolean", description: "Ativar/desativar IA" },
+              user_instructions: { type: "string", description: "Instruções estratégicas do lojista" },
+              human_approval_mode: { type: "string", enum: ["auto", "high_impact"], description: "Modo de aprovação" },
+            },
+          },
+        },
+        required: ["ad_account_id", "channel", "updates"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_experiments",
+      description: "Lista os experimentos/testes A/B em andamento ou finalizados.",
+      parameters: {
+        type: "object",
+        properties: {
+          status: { type: "string", enum: ["draft", "running", "completed", "cancelled"], description: "Filtrar por status" },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_tracking_health",
+      description: "Retorna o status de saúde do tracking/pixel (Meta, Google, TikTok). Use para diagnosticar problemas de rastreamento.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_autopilot_sessions",
+      description: "Lista as sessões de execução do Autopilot (histórico de análises). Mostra quando rodou, quantas ações fez, custo, etc.",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: { type: "number", description: "Quantidade (default 10)" },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
 ];
 
 // ============ TOOL EXECUTORS ============
@@ -145,6 +307,26 @@ async function executeTool(
         return await getAutopilotInsights(supabase, tenantId, args.status);
       case "analyze_url":
         return await analyzeUrl(args.url);
+      case "get_google_campaigns":
+        return await getGoogleCampaigns(supabase, tenantId, args.ad_account_id);
+      case "get_tiktok_campaigns":
+        return await getTikTokCampaigns(supabase, tenantId, args.advertiser_id);
+      case "get_meta_adsets":
+        return await getMetaAdsets(supabase, tenantId, args.ad_account_id, args.status);
+      case "get_meta_ads":
+        return await getMetaAds(supabase, tenantId, args.ad_account_id);
+      case "get_audiences":
+        return await getAudiences(supabase, tenantId, args.channel);
+      case "get_autopilot_config":
+        return await getAutopilotConfig(supabase, tenantId, args.ad_account_id);
+      case "update_autopilot_config":
+        return await updateAutopilotConfig(supabase, tenantId, args.ad_account_id, args.channel, args.updates);
+      case "get_experiments":
+        return await getExperiments(supabase, tenantId, args.status);
+      case "get_tracking_health":
+        return await getTrackingHealth(supabase, tenantId);
+      case "get_autopilot_sessions":
+        return await getAutopilotSessions(supabase, tenantId, args.limit);
       default:
         return JSON.stringify({ error: `Ferramenta desconhecida: ${toolName}` });
     }
@@ -352,6 +534,284 @@ async function analyzeUrl(url: string): Promise<string> {
   }
 }
 
+// ============ NEW TOOL EXECUTORS (v4.0) ============
+
+async function getGoogleCampaigns(supabase: any, tenantId: string, adAccountId?: string) {
+  const query = supabase
+    .from("google_ad_campaigns")
+    .select("id, google_campaign_id, name, status, campaign_type, daily_budget_cents, ad_account_id, created_at")
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: false })
+    .limit(30);
+  if (adAccountId) query.eq("ad_account_id", adAccountId);
+  const { data: campaigns, error } = await query;
+  if (error) return JSON.stringify({ error: error.message });
+
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+  const { data: insights } = await supabase
+    .from("google_ad_insights")
+    .select("google_campaign_id, spend_cents, impressions, clicks, conversions, ctr, cpc_cents, date_start")
+    .eq("tenant_id", tenantId)
+    .gte("date_start", sevenDaysAgo)
+    .limit(500);
+
+  const insightMap: Record<string, any> = {};
+  for (const i of (insights || [])) {
+    if (!insightMap[i.google_campaign_id]) insightMap[i.google_campaign_id] = { spend: 0, impressions: 0, clicks: 0, conversions: 0 };
+    const m = insightMap[i.google_campaign_id];
+    m.spend += (i.spend_cents || 0) / 100;
+    m.impressions += i.impressions || 0;
+    m.clicks += i.clicks || 0;
+    m.conversions += i.conversions || 0;
+  }
+
+  return JSON.stringify({
+    total: campaigns?.length || 0,
+    campaigns: (campaigns || []).map((c: any) => {
+      const perf = insightMap[c.google_campaign_id] || {};
+      return {
+        name: c.name, status: c.status, type: c.campaign_type,
+        daily_budget: `R$ ${((c.daily_budget_cents || 0) / 100).toFixed(2)}`,
+        spend_7d: `R$ ${(perf.spend || 0).toFixed(2)}`,
+        impressions_7d: perf.impressions || 0, clicks_7d: perf.clicks || 0, conversions_7d: perf.conversions || 0,
+      };
+    }),
+  });
+}
+
+async function getTikTokCampaigns(supabase: any, tenantId: string, advertiserId?: string) {
+  const query = supabase
+    .from("tiktok_ad_campaigns")
+    .select("id, tiktok_campaign_id, campaign_name, status, objective_type, budget_cents, advertiser_id, created_at")
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: false })
+    .limit(30);
+  if (advertiserId) query.eq("advertiser_id", advertiserId);
+  const { data: campaigns, error } = await query;
+  if (error) return JSON.stringify({ error: error.message });
+
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+  const { data: insights } = await supabase
+    .from("tiktok_ad_insights")
+    .select("tiktok_campaign_id, spend_cents, impressions, clicks, conversions, date_start")
+    .eq("tenant_id", tenantId)
+    .gte("date_start", sevenDaysAgo)
+    .limit(500);
+
+  const insightMap: Record<string, any> = {};
+  for (const i of (insights || [])) {
+    if (!insightMap[i.tiktok_campaign_id]) insightMap[i.tiktok_campaign_id] = { spend: 0, impressions: 0, clicks: 0, conversions: 0 };
+    const m = insightMap[i.tiktok_campaign_id];
+    m.spend += (i.spend_cents || 0) / 100;
+    m.impressions += i.impressions || 0;
+    m.clicks += i.clicks || 0;
+    m.conversions += i.conversions || 0;
+  }
+
+  return JSON.stringify({
+    total: campaigns?.length || 0,
+    campaigns: (campaigns || []).map((c: any) => {
+      const perf = insightMap[c.tiktok_campaign_id] || {};
+      return {
+        name: c.campaign_name, status: c.status, objective: c.objective_type,
+        budget: `R$ ${((c.budget_cents || 0) / 100).toFixed(2)}`,
+        spend_7d: `R$ ${(perf.spend || 0).toFixed(2)}`,
+        impressions_7d: perf.impressions || 0, clicks_7d: perf.clicks || 0, conversions_7d: perf.conversions || 0,
+      };
+    }),
+  });
+}
+
+async function getMetaAdsets(supabase: any, tenantId: string, adAccountId?: string, status?: string) {
+  const query = supabase
+    .from("meta_ad_adsets")
+    .select("id, meta_adset_id, name, status, daily_budget_cents, lifetime_budget_cents, targeting, pixel_id, ad_account_id, optimization_goal, bid_strategy, created_at")
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: false })
+    .limit(30);
+  if (adAccountId) query.eq("ad_account_id", adAccountId);
+  if (status) query.eq("status", status);
+  const { data, error } = await query;
+  if (error) return JSON.stringify({ error: error.message });
+  return JSON.stringify({
+    total: data?.length || 0,
+    adsets: (data || []).map((a: any) => ({
+      name: a.name, status: a.status, meta_adset_id: a.meta_adset_id,
+      daily_budget: a.daily_budget_cents ? `R$ ${(a.daily_budget_cents / 100).toFixed(2)}` : null,
+      lifetime_budget: a.lifetime_budget_cents ? `R$ ${(a.lifetime_budget_cents / 100).toFixed(2)}` : null,
+      has_pixel: !!a.pixel_id, optimization_goal: a.optimization_goal, bid_strategy: a.bid_strategy,
+      targeting_summary: a.targeting ? JSON.stringify(a.targeting).substring(0, 200) : null,
+    })),
+  });
+}
+
+async function getMetaAds(supabase: any, tenantId: string, adAccountId?: string) {
+  const query = supabase
+    .from("meta_ad_ads")
+    .select("id, meta_ad_id, name, status, effective_status, meta_adset_id, meta_campaign_id, ad_account_id, created_at")
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: false })
+    .limit(30);
+  if (adAccountId) query.eq("ad_account_id", adAccountId);
+  const { data, error } = await query;
+  if (error) return JSON.stringify({ error: error.message });
+
+  const adIds = (data || []).map((a: any) => a.meta_ad_id).filter(Boolean);
+  let creatives: any[] = [];
+  if (adIds.length > 0) {
+    const { data: cData } = await supabase
+      .from("meta_ad_creatives")
+      .select("meta_ad_id, name, title, body, image_url, thumbnail_url, call_to_action_type")
+      .eq("tenant_id", tenantId)
+      .in("meta_ad_id", adIds);
+    creatives = cData || [];
+  }
+  const creativeMap: Record<string, any> = {};
+  for (const c of creatives) creativeMap[c.meta_ad_id] = c;
+
+  return JSON.stringify({
+    total: data?.length || 0,
+    ads: (data || []).map((a: any) => {
+      const cr = creativeMap[a.meta_ad_id];
+      return {
+        name: a.name, status: a.status, effective_status: a.effective_status, meta_ad_id: a.meta_ad_id,
+        creative: cr ? { title: cr.title, body: cr.body?.substring(0, 100), cta: cr.call_to_action_type, has_image: !!cr.image_url } : null,
+      };
+    }),
+  });
+}
+
+async function getAudiences(supabase: any, tenantId: string, channel?: string) {
+  const result: any = {};
+  if (!channel || channel === "meta") {
+    const { data } = await supabase
+      .from("meta_ad_audiences")
+      .select("id, name, audience_type, approximate_count, ad_account_id, created_at")
+      .eq("tenant_id", tenantId).limit(30);
+    result.meta = (data || []).map((a: any) => ({ name: a.name, type: a.audience_type, size: a.approximate_count }));
+  }
+  if (!channel || channel === "google") {
+    const { data } = await supabase
+      .from("google_ad_audiences")
+      .select("id, name, audience_type, size_estimate, ad_account_id, created_at")
+      .eq("tenant_id", tenantId).limit(30);
+    result.google = (data || []).map((a: any) => ({ name: a.name, type: a.audience_type, size: a.size_estimate }));
+  }
+  return JSON.stringify(result);
+}
+
+async function getAutopilotConfig(supabase: any, tenantId: string, adAccountId?: string) {
+  const { data: globalConfigs } = await supabase
+    .from("ads_autopilot_configs")
+    .select("*")
+    .eq("tenant_id", tenantId);
+
+  const accQuery = supabase
+    .from("ads_autopilot_account_configs")
+    .select("*")
+    .eq("tenant_id", tenantId);
+  if (adAccountId) accQuery.eq("ad_account_id", adAccountId);
+  const { data: accountConfigs } = await accQuery;
+
+  return JSON.stringify({
+    global: (globalConfigs || []).map((g: any) => ({
+      channel: g.channel, is_enabled: g.is_enabled, kill_switch: g.kill_switch,
+      budget: `R$ ${((g.budget_cents || 0) / 100).toFixed(2)}/dia`,
+      total_budget: g.total_budget_cents ? `R$ ${(g.total_budget_cents / 100).toFixed(2)}` : null,
+      objective: g.objective, strategy_mode: g.strategy_mode,
+      human_approval_mode: g.human_approval_mode, funnel_splits: g.funnel_splits,
+      user_instructions: g.user_instructions?.substring(0, 300),
+      last_analysis: g.last_analysis_at, total_actions: g.total_actions_executed,
+    })),
+    accounts: (accountConfigs || []).map((a: any) => ({
+      ad_account_id: a.ad_account_id, channel: a.channel,
+      is_ai_enabled: a.is_ai_enabled, kill_switch: a.kill_switch,
+      budget: `R$ ${((a.budget_cents || 0) / 100).toFixed(2)}/dia`,
+      target_roi: a.target_roi, strategy_mode: a.strategy_mode,
+      human_approval_mode: a.human_approval_mode, funnel_splits: a.funnel_splits,
+      user_instructions: a.user_instructions?.substring(0, 300),
+    })),
+  });
+}
+
+async function updateAutopilotConfig(supabase: any, tenantId: string, adAccountId: string, channel: string, updates: any) {
+  if (!adAccountId || !channel) return JSON.stringify({ error: "ad_account_id e channel são obrigatórios" });
+  const safeFields: Record<string, any> = {};
+  const allowed = ["target_roi", "budget_cents", "strategy_mode", "is_ai_enabled", "user_instructions", "human_approval_mode"];
+  for (const key of allowed) {
+    if (updates[key] !== undefined) safeFields[key] = updates[key];
+  }
+  if (Object.keys(safeFields).length === 0) return JSON.stringify({ error: "Nenhum campo válido para atualizar" });
+  safeFields.updated_at = new Date().toISOString();
+
+  const { error } = await supabase
+    .from("ads_autopilot_account_configs")
+    .update(safeFields)
+    .eq("tenant_id", tenantId)
+    .eq("ad_account_id", adAccountId)
+    .eq("channel", channel);
+
+  if (error) return JSON.stringify({ error: error.message });
+  return JSON.stringify({ success: true, updated_fields: Object.keys(safeFields).filter(k => k !== "updated_at"), message: "Configurações atualizadas com sucesso." });
+}
+
+async function getExperiments(supabase: any, tenantId: string, status?: string) {
+  const query = supabase
+    .from("ads_autopilot_experiments")
+    .select("id, hypothesis, variable_type, channel, status, start_at, end_at, budget_cents, results, winner_variant_id, created_at")
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: false })
+    .limit(15);
+  if (status) query.eq("status", status);
+  const { data, error } = await query;
+  if (error) return JSON.stringify({ error: error.message });
+  return JSON.stringify({
+    total: data?.length || 0,
+    experiments: (data || []).map((e: any) => ({
+      hypothesis: e.hypothesis, variable: e.variable_type, channel: e.channel,
+      status: e.status, budget: e.budget_cents ? `R$ ${(e.budget_cents / 100).toFixed(2)}` : null,
+      has_winner: !!e.winner_variant_id, start: e.start_at, end: e.end_at,
+    })),
+  });
+}
+
+async function getTrackingHealth(supabase: any, tenantId: string) {
+  const { data, error } = await supabase
+    .from("ads_tracking_health")
+    .select("channel, status, indicators, alerts, ad_account_id, created_at")
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: false })
+    .limit(10);
+  if (error) return JSON.stringify({ error: error.message });
+  return JSON.stringify({
+    total: data?.length || 0,
+    tracking: (data || []).map((t: any) => ({
+      channel: t.channel, status: t.status, ad_account_id: t.ad_account_id,
+      indicators: t.indicators, alerts: t.alerts, checked_at: t.created_at,
+    })),
+  });
+}
+
+async function getAutopilotSessions(supabase: any, tenantId: string, limit?: number) {
+  const { data, error } = await supabase
+    .from("ads_autopilot_sessions")
+    .select("id, channel, trigger_type, motor_type, actions_planned, actions_executed, actions_rejected, cost_credits, duration_ms, created_at, insights_generated")
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: false })
+    .limit(limit || 10);
+  if (error) return JSON.stringify({ error: error.message });
+  return JSON.stringify({
+    total: data?.length || 0,
+    sessions: (data || []).map((s: any) => ({
+      channel: s.channel, trigger: s.trigger_type, motor: s.motor_type,
+      planned: s.actions_planned, executed: s.actions_executed, rejected: s.actions_rejected,
+      credits: s.cost_credits, duration_ms: s.duration_ms,
+      insights_count: Array.isArray(s.insights_generated) ? s.insights_generated.length : 0,
+      ran_at: s.created_at,
+    })),
+  });
+}
+
 // ============ CONTEXT COLLECTOR ============
 
 async function collectBaseContext(supabase: any, tenantId: string, scope: string, adAccountId?: string, channel?: string) {
@@ -438,13 +898,29 @@ function buildSystemPrompt(scope: string, adAccountId?: string, channel?: string
 - Suas únicas capacidades de execução são as FERRAMENTAS listadas abaixo. Tudo que não está nas ferramentas, você NÃO PODE FAZER.
 
 ## SUAS FERRAMENTAS (o que você PODE fazer de verdade)
-1. **get_campaign_performance** → Buscar métricas reais de campanhas
-2. **get_creative_assets** → Listar criativos existentes e seus status
-3. **trigger_creative_generation** → Disparar geração de BRIEFS criativos (headlines + copy)
-4. **trigger_autopilot_analysis** → Disparar uma análise do Autopilot para um canal
-5. **get_autopilot_actions** → Ver ações reais executadas/agendadas pela IA
-6. **get_autopilot_insights** → Ver insights e diagnósticos reais
-7. **analyze_url** → Analisar o conteúdo de uma URL (landing page, concorrente, anúncio, artigo)
+
+### Leitura de Dados
+1. **get_campaign_performance** → Métricas reais de campanhas Meta (7d)
+2. **get_google_campaigns** → Campanhas e performance do Google Ads (7d)
+3. **get_tiktok_campaigns** → Campanhas e performance do TikTok Ads (7d)
+4. **get_meta_adsets** → Conjuntos de anúncios Meta (orçamento, segmentação, pixel)
+5. **get_meta_ads** → Anúncios individuais Meta (status, criativos vinculados)
+6. **get_audiences** → Públicos/audiências configurados (Meta e Google)
+7. **get_creative_assets** → Criativos existentes e seus status
+8. **get_autopilot_config** → Configurações atuais do Autopilot (global + por conta)
+9. **get_autopilot_actions** → Ações reais executadas/agendadas pela IA
+10. **get_autopilot_insights** → Insights e diagnósticos reais
+11. **get_autopilot_sessions** → Histórico de sessões de execução do Autopilot
+12. **get_experiments** → Experimentos/testes A/B
+13. **get_tracking_health** → Saúde do tracking/pixel
+
+### Execução
+14. **trigger_creative_generation** → Disparar geração de BRIEFS criativos (headlines + copy)
+15. **trigger_autopilot_analysis** → Disparar análise do Autopilot para um canal
+16. **update_autopilot_config** → Alterar configurações do Autopilot (ROI, orçamento, estratégia, etc)
+
+### Análise Externa
+17. **analyze_url** → Analisar conteúdo de uma URL (landing page, concorrente, artigo)
 
 ## CAPACIDADES MULTIMODAIS
 - Você PODE analisar imagens enviadas pelo usuário (screenshots de anúncios, criativos, métricas, etc.)
@@ -457,7 +933,6 @@ function buildSystemPrompt(scope: string, adAccountId?: string, channel?: string
 - Não pode gerar imagens diretamente
 - Não pode fazer upload de mídia para a Meta/Google/TikTok
 - Não pode criar campanhas diretamente (quem faz é o Autopilot via trigger_autopilot_analysis)
-- Não pode alterar orçamentos diretamente
 - Não pode acessar a API da Meta/Google/TikTok diretamente
 - Não pode "renderizar", "processar" ou "finalizar" nada fora das ferramentas acima
 ${userInstructionsBlock}
@@ -477,9 +952,17 @@ ${configSummary || "Nenhuma conta configurada."}
 - Respostas diretas, objetivas e em Português BR
 - Use Markdown para formatação
 - Sempre baseie suas respostas nos dados REAIS das ferramentas
-- Quando o usuário perguntar sobre performance, USE a ferramenta get_campaign_performance
+- Quando o usuário perguntar sobre performance, USE get_campaign_performance, get_google_campaigns ou get_tiktok_campaigns conforme o canal
+- Quando perguntar sobre conjuntos/ad sets, USE get_meta_adsets
+- Quando perguntar sobre anúncios específicos, USE get_meta_ads
+- Quando perguntar sobre públicos/audiências, USE get_audiences
+- Quando perguntar sobre configurações, USE get_autopilot_config
+- Quando pedir para ALTERAR configurações, USE update_autopilot_config
 - Quando pedir criativos, USE trigger_creative_generation e informe que são BRIEFS (textos), não imagens
 - Quando pedir análise, USE trigger_autopilot_analysis
+- Quando perguntar sobre tracking/pixel, USE get_tracking_health
+- Quando perguntar sobre histórico de execuções, USE get_autopilot_sessions
+- Quando perguntar sobre experimentos/testes A/B, USE get_experiments
 - Quando enviar link/URL, USE analyze_url
 - SEMPRE referencie produtos pelo nome real do catálogo acima`;
 }
