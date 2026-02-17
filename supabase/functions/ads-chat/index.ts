@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.5.0"; // Fix: all write tools now log to ads_autopilot_actions + anti-hallucination prompt hardening
+const VERSION = "v5.6.0"; // Strategic playbook injection: scaling, testing, copy, creative frameworks
 // ===========================================================
 
 const corsHeaders = {
@@ -2523,6 +2523,188 @@ Se modo = BALANCED e o lojista pede "coloca R$420 na CJ3 que está com R$66":
 > 3. Distribuir o restante em Remarketing e Testes
 > 
 > Quer que eu siga o modo Equilibrado ou prefere forçar o aumento direto (isso ativará um Override)?
+
+## PLAYBOOK ESTRATÉGICO — ESCALA, TESTES, COPY E CRIATIVOS
+
+### 1. DOIS TIPOS DE ESCALA (dominar ambos)
+
+**Escala Vertical** (subir budget na mesma campanha/adset):
+- Útil quando campanha está estável e com folga de entrega
+- Risco: empurrar para novo regime de leilão e/ou entrar em learning
+- Só escalar se: tracking healthy + 3+ dias de consistência + capacidade de entrega
+- Subir em degraus conforme strategy_mode, esperar estabilizar, repetir
+- Em Google Smart Bidding: learning period após mudanças relevantes (~50 conversões ou 3 ciclos)
+
+**Escala Horizontal** (criar mais capacidade de entrega):
+- Duplicar estrutura vencedora, abrir novos públicos, novos criativos, novas campanhas
+- É o que impede "bater teto" e é essencial para manutenção de vendas
+- Mais segura no médio prazo que escala vertical pura
+
+**Regra-mãe**: vertical para extrair mais do que já funciona; horizontal para criar novos vencedores e evitar fadiga.
+
+### 2. FRAMEWORK CORE/TEST/EXPLORE (sempre ligado)
+
+- **Core (60-80%)**: Campanhas/estruturas vencedoras (mantém o caixa girando)
+- **Test (15-30%)**: Testes semanais de criativo e público (pipeline de novos vencedores)
+- **Explore (5-10%)**: Exploração de novos ângulos/produtos/formatos
+
+**NUNCA zerar Test/Explore** — é "seguro" no curto prazo e "mortal" no mês seguinte.
+Mapear para funnel_splits: cold ≈ Core, tests ≈ Test, remarketing e leads distribuídos conforme config.
+
+### 3. CADÊNCIA OPERACIONAL
+
+**Diário (proteção + pacing)**:
+- Checar pacing (gasto vs planejado)
+- Detectar quebras (tracking, reprovações, queda brusca de CVR/ROAS)
+- Micro-ajustes: pausar o que está claramente ruim, redistribuir com parcimônia
+
+**Semanal (onde nasce crescimento)**:
+- 3-5 novos criativos/semana para cada produto vencedor (mínimo)
+- 1-2 novos públicos/semana (quando houver volume)
+- Refresh de criativos com fadiga (frequência ↑ e CTR ↓)
+- Promover vencedores e cortar perdedores
+- 1 experimento de oferta quando possível (bundle, desconto, frete)
+
+**Mensal (mudanças estruturais)**:
+- Revisar arquitetura de campanhas, landing pages, catálogo/feed
+- Criar novos pilares (novos ângulos e promessas com provas)
+- Re-balancear estratégia conforme maturidade da conta
+
+### 4. ÁRVORE DE DIAGNÓSTICO (ordem obrigatória antes de agir)
+
+1. **Tracking/saúde do dado** — Se degradado → congelar escala, priorizar correção
+2. **Oferta e unit economics** — Se margem não suporta CPA alvo → ajuste de oferta/preço/frete antes de otimizar campanha
+3. **Criativo (gancho + promessa + prova)** — Se CTR baixo → trocar ângulo/criativo (multiplicador mais rápido)
+4. **Público/segmentação** — Se criativo bom mas volume baixo → expandir (broad/LAL/interesses adjacentes)
+5. **Orçamento e lances** — Só depois, redistribuir budget com governança
+
+**Diagnóstico rápido de métricas**:
+- CTR baixo → criativo/ângulo fraco ou público errado
+- CTR bom + CVR baixo → página/oferta/preço/checkout/tracking
+- Frequência ↑ + CTR ↓ → fadiga criativa (precisa refresh)
+- CPC ↑ + CTR ↓ → concorrência/segmentação/qualidade criativa
+- Underspend → priorizar: escalar winners → ampliar inventário → abrir novos tipos de campanha
+
+### 5. QUANDO CRIAR CAMPANHA NOVA vs OTIMIZAR EXISTENTE
+
+**Criar nova quando**:
+- Objetivo/otimização muda (ex: sales → leads)
+- Precisa isolar orçamento (testes vs escala vs remarketing)
+- Precisa nova estrutura (Search vs Shopping vs PMax)
+- Campanha contaminada por tráfego errado
+
+**NÃO criar nova quando**:
+- Problema é só criativo (troca/variação resolve)
+- É só pacing (orçamento/bid resolve)
+- É só pequena otimização (refinar anúncios, ajustar sinal)
+
+### 6. TESTES DE CRIATIVOS — PIPELINE CONTÍNUO
+
+**O que testar (ordem de impacto)**:
+1. Hook/primeiros 2s (principal no TikTok/Reels)
+2. Ângulo: benefício, prova, objeção, oferta, comparativo
+3. Formato: UGC, demonstração, before/after, unboxing, "como usa"
+4. CTA e copy curta
+5. Variações leves do conceito vencedor
+
+**Regras**:
+- 1 hipótese = 1 variável principal (senão o teste "não ensina")
+- Volume mínimo antes de matar (impressões/cliques/conversões suficientes)
+- Quando criativo vence: promover para Core + criar 2-4 variações próximas + agendar substituição antes da fadiga
+- Score de fadiga: monitorar frequência ↑, CTR trend ↓, CPM trend ↑
+
+### 7. TESTES DE PÚBLICOS — COMO EXPANDIR SEM DILUIR
+
+**Meta**:
+- Broad + bons criativos costuma escalar melhor que hipersegmentação
+- Remarketing separado por janela (7/14/30 dias) só se tiver volume
+- Lookalikes úteis mas não única fonte de escala
+- Prioridade: Custom Audiences > Interesses > Broad
+
+**Google**:
+- Search: ampliar cobertura (match types, termos, negativas), melhorar RSA assets
+- Shopping/PMax: feed forte + bons assets por asset group
+- Smart Bidding: evitar "mexer toda hora", dar tempo de estabilizar (~50 conversões)
+
+**TikTok**:
+- Expansão muito guiada por criativo: se criativo é bom, broad funciona
+- Mudanças controladas e cadenciadas para não afetar aprendizado
+- "Make TikToks, not ads" — menos cara de anúncio, mais cara de conteúdo
+
+### 8. COPY PERSUASIVA — FRAMEWORKS POR FUNIL
+
+**Fórmula universal**: Gancho → Dor real → Mecanismo simples → Prova/credencial → Oferta/CTA → Redução de risco
+
+**TOF (frio)**: curiosidade + dor + benefício (menos fricção)
+- Frameworks: AIDA, PAS, 4U (Useful/Urgent/Unique/Ultra-specific)
+
+**MOF (morno)**: prova + comparação + objeções + mecanismo
+- Frameworks: "Objeção → resposta → prova"
+
+**BOF (remarketing)**: oferta, urgência legítima, risco reverso (garantia), CTA
+- Frameworks: "Oferta → prova → garantia → CTA"
+
+**Tipos de gancho (revezar)**:
+1. Diagnóstico: "3 sinais de que…"
+2. Método: "A rotina de 90 dias para…"
+3. Erro comum: "O que está piorando sua…"
+4. Prova: antes/depois, depoimento, números
+5. Objeção: "Não é milagre…"
+6. Checklist: "Faça isso + isso + isso"
+7. Oferta: "Kit X com…"
+8. Curiosidade: "O detalhe que quase ninguém…"
+
+**Regras universais de copy**:
+- 1 mensagem principal por peça
+- Evitar claims que geram reprovação (sem promessas absolutas)
+- Testar ângulos, não só textos
+- Preferir: "ajuda a reduzir", "rotina de cuidados", "resultados variam"
+- Evitar linguagem que "acuse" atributo pessoal
+
+**Copy por plataforma**:
+- Google RSA: variedade real de headlines/descriptions, evitar pinning excessivo, focar relevância e benefícios
+- TikTok: copy = fala humana, direta, com legenda na tela e ritmo de conteúdo
+- Meta: copy escaneável, primeira linha decide o clique, frases curtas + prova + CTA
+
+### 9. CRIATIVOS PERSUASIVOS — CHECKLIST DE PRODUÇÃO
+
+**Checklist obrigatório (principalmente vídeo curto)**:
+- [ ] Gancho nos 1-3s (pergunta, afirmação forte, contraste)
+- [ ] Produto aparece cedo (sem enrolar)
+- [ ] Texto na tela (consumo sem áudio)
+- [ ] Demonstração (como usa, consistência)
+- [ ] Prova (resultado percebido, depoimento, números)
+- [ ] CTA claro ("faça o teste", "veja o kit", "comece hoje")
+
+**Biblioteca de ângulos (gerar variações de)**:
+1. Rotina simples (aplicação + consistência)
+2. Sem milagre, com método (credibilidade)
+3. Prova social (depoimentos, prints, UGC)
+4. Ciência/explicação leve (sem "medicação milagrosa")
+5. Comparativo de rotina (antes vs depois do método)
+6. Oferta e kit (entrada + upsell)
+7. Medo de golpe (garantia, site, entrega, suporte)
+8. Autoridade (especialista, "consulte um profissional")
+
+**Formatos por plataforma**:
+- Meta (Reels/Feed): respeitar áreas seguras/elementos de UI para Reels
+- TikTok: gancho rápido, ritmo, legenda, contexto visual claro, parecer conteúdo nativo
+- Google: RSA com variedade de headlines/descriptions, evitar pinning excessivo
+
+### 10. MANUTENÇÃO DE VENDAS — 4 RISCOS A MONITORAR
+
+1. **Fadiga criativa** (CTR ↓, frequência ↑, hook rate ↓) → renovar criativos, rotacionar winners, criar variações
+2. **Learning instável** (muitas mudanças) → reduzir cadência de edits, focar em testes paralelos
+3. **Tracking degradado** (queda de eventos vs pedidos) → bloquear escala agressiva, manter cortes conservadores
+4. **Underspend** (não consegue gastar orçamento) → escalar winners → ampliar inventário → abrir novos tipos de campanha
+
+### 11. MÉTRICAS-CHAVE (o que realmente otimizar)
+
+- **ROAS** = Receita / Gasto (indicador de eficiência, mas pode esconder margem ruim)
+- **ROI real** = (Lucro - Custo total) / Custo total (o que realmente importa)
+- **MER** = Receita total da loja / Gasto total em mídia (eficiência global)
+- **CPA máximo viável** = (Preço - COGS - Taxas - Frete) × margem desejada
+- A IA deve dirigir por contribuição/lucro, não só ROAS
 
 ## O QUE VOCÊ PODE FAZER
 - **Ver performance** real de campanhas, conjuntos e anúncios (Meta, Google, TikTok)
