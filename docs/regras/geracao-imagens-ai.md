@@ -338,6 +338,11 @@ A edge function `ads-autopilot-creative-generate` atua como **bridge** entre o s
 - `creative_jobs.created_by` é nullable (permite jobs sem usuário)
 - `userId = null` em chamadas M2M
 
+### Atualização Automática de Assets (v2.0.1)
+- Após pipeline completar, `creative-image-generate` busca `ads_creative_assets` com `meta.image_job_id` correspondente
+- Atualiza `asset_url`, `storage_path` e `status = 'ready'`
+- Tabela `files` **não possui** coluna `file_type` — apenas `mime_type` é utilizado no insert
+
 ---
 
 ## Vídeos (DESATIVADOS)
