@@ -470,7 +470,14 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v5.2.1
+### Versão Atual: v5.3.0
+
+### v5.3.0: Imagens de Produtos + Anti-Alucinação Reforçada
+- **Nova ferramenta `get_product_images`**: Busca imagens do catálogo (`product_images`) + pasta "Imagens de Produtos" no Meu Drive
+- **Pasta "Imagens de Produtos" auto-criada** no Meu Drive na primeira interação do chat
+- **Imagens incluídas no contexto base** (`collectBaseContext`) — cada produto agora mostra quantidade de imagens
+- **Anti-alucinação reforçada**: IA proibida de inventar estatísticas, pedir ao lojista para "verificar dados", ou expressar dúvidas sobre seus próprios dados
+- **UI Language enforcement**: Proibida exposição de UUIDs/IDs e nomes de ferramentas nas respostas
 
 ### Correção Crítica v5.2.1: Formatação de Preços
 - Os preços de produtos no banco estão em **BRL (reais)**, NÃO em centavos
