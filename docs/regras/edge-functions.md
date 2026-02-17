@@ -464,4 +464,71 @@ A IA pode criar e gerenciar públicos automaticamente:
 | `tiktok_ad_insights` | `ads-autopilot-analyze` |
 | `products` | `ads-autopilot-analyze` |
 | `orders` | `ads-autopilot-analyze` |
-| `ads_creative_assets` | `ads-autopilot-analyze` |
+| `ads_creative_assets` | `ads-autopilot-analyze`, `ads-chat` |
+
+---
+
+## AI Ads Chat (`ads-chat`)
+
+### Versão Atual: v2.1.0
+
+### Visão Geral
+Edge Function de chat conversacional com **tool calling real** para o Gestor de Tráfego IA. Opera como assistente de tráfego pago com acesso a dados reais do sistema, sem alucinações.
+
+### Arquitetura: Tool Calling em 3 Etapas
+1. **Chamada Inicial (não-streaming)**: Envia mensagem do usuário + histórico + definições de ferramentas → IA decide se precisa chamar ferramentas
+2. **Execução de Tools**: Se a IA requisitou ferramentas, executa cada uma contra o banco/APIs reais e coleta resultados
+3. **Resposta Final (streaming)**: Injeta resultados reais como contexto `[DADOS REAIS DO SISTEMA]` e faz chamada final com streaming SSE
+
+### Regra Anti-Alucinação (CRÍTICA)
+O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe a IA de:
+- Inventar métricas, status ou resultados
+- Fingir que está gerando imagens, renderizando ou processando
+- Dizer "estou finalizando" sem ter executado uma ferramenta
+- Afirmar capacidades que não possui
+
+### Ferramentas Disponíveis (Tool Calling)
+| Ferramenta | Descrição | Tipo |
+|-----------|-----------|------|
+| `get_campaign_performance` | Métricas reais 7d (spend, ROAS, CPA, cliques, conversões) | Leitura |
+| `get_creative_assets` | Lista criativos existentes e status | Leitura |
+| `trigger_creative_generation` | Dispara geração de briefs criativos (headlines + copy) | Execução |
+| `trigger_autopilot_analysis` | Dispara análise completa do Autopilot por canal | Execução |
+| `get_autopilot_actions` | Lista ações executadas/agendadas pelo Autopilot | Leitura |
+| `get_autopilot_insights` | Lista insights e diagnósticos reais | Leitura |
+
+### O que o Chat NÃO Pode Fazer
+- Gerar imagens diretamente
+- Upload de mídia para Meta/Google/TikTok
+- Criar/alterar campanhas diretamente (delega ao Autopilot)
+- Alterar orçamentos diretamente
+- Acessar APIs de plataformas diretamente
+
+### Fluxo de Conversação
+1. Usuário envia mensagem via `useAdsChat` hook
+2. Edge function cria/recupera conversa em `ads_chat_conversations`
+3. Salva mensagem do usuário em `ads_chat_messages`
+4. Coleta contexto base (tenant, configs, pedidos 30d)
+5. Executa pipeline de 3 etapas (tool calling)
+6. Salva resposta da IA em `ads_chat_messages`
+7. Retorna streaming SSE para o frontend
+
+### Escopos
+| Escopo | Descrição |
+|--------|-----------|
+| `global` | Visão geral de todas as contas de anúncios |
+| `account` | Focado em uma conta específica (`ad_account_id` + `channel`) |
+
+### Mapeamento Tabela → Edge Function
+| Tabela | Edge Function |
+|--------|---------------|
+| `ads_chat_conversations` | `ads-chat` |
+| `ads_chat_messages` | `ads-chat` |
+| `ads_autopilot_account_configs` | `ads-chat` |
+| `ads_autopilot_actions` | `ads-chat` |
+| `ads_autopilot_insights` | `ads-chat` |
+| `meta_ad_campaigns` | `ads-chat` |
+| `meta_ad_insights` | `ads-chat` |
+| `ads_creative_assets` | `ads-chat` |
+| `orders` | `ads-chat` |
+| `tenants` | `ads-chat` |
