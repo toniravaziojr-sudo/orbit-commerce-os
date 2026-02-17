@@ -813,10 +813,29 @@ A sync diária permite que ferramentas como `get_performance_trend` mostrem time
    - `status` → `'ready'`
    - `meta.image_status` → `'completed'`
 
+### v5.9.5 — `ads-chat` — URL de destino + bucket corrigido
+
+1. **Campo `link` obrigatório no `link_data`**: O `object_story_spec.link_data` agora inclui `link` (URL de destino do anúncio) e `call_to_action.value.link`. A URL é construída como `https://{storeHost}/produto/{productSlug}` usando `custom_domain` ou `slug.shops.comandocentral.com.br`
+2. **Busca de `slug` do produto**: O select de produtos inclui campo `slug` para construir a URL de destino
+3. **Bucket corrigido**: Fallbacks de `createSignedUrl` agora usam `media-assets` em vez de `files` (imagens geradas pela IA ficam no bucket `media-assets`)
+
+### v5.10.1 — `ads-autopilot-analyze` — Integração com `ads_creative_assets`
+
+**Problema**: O Motor Estrategista ignorava completamente os criativos gerados pela pipeline de IA (`ads_creative_assets`). Usava apenas `creative_id` de anúncios existentes na conta Meta ou disparava a função legada `ads-autopilot-creative`.
+
+**Mudanças — Nova hierarquia de criativos (Step 3)**:
+1. **Prioridade 1 — AI Assets**: Busca `ads_creative_assets` com `status = 'ready'` e `asset_url` preenchido. Se encontrar:
+   - Upload da imagem para Meta via `/adimages` → obtém `image_hash`
+   - Construção de URL de destino (`https://{storeHost}/produto/{slug}`)
+   - Criação de `adcreative` no Meta com `link_data` completo (incluindo `link`)
+   - Atualização do asset para `status = 'published'` com `platform_ad_id`
+2. **Prioridade 2 — Creative existente**: Fallback para `creative_id` de anúncios já existentes na conta
+3. **Prioridade 3 — Auto-geração**: Dispara `ads-autopilot-creative` para gerar novos criativos
+
 ### Mapeamento Tabela → Edge Function (atualizado)
 | Tabela | Edge Function |
 |--------|---------------|
-| `ads_creative_assets` | `ads-autopilot-creative-generate`, `ads-chat`, `creative-image-generate` (update após pipeline) |
+| `ads_creative_assets` | `ads-autopilot-creative-generate`, `ads-chat`, `ads-autopilot-analyze`, `creative-image-generate` (update após pipeline) |
 | `creative_jobs` | `creative-image-generate`, `ads-autopilot-creative-generate` (via bridge) |
 | `product_images` | `ads-autopilot-creative-generate`, `creative-image-generate` |
 | `files` | `ads-autopilot-creative-generate` (pasta Drive), `creative-image-generate` (registro no Drive) |

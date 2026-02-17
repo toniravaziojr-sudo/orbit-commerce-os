@@ -343,6 +343,24 @@ A edge function `ads-autopilot-creative-generate` atua como **bridge** entre o s
 - Atualiza `asset_url`, `storage_path` e `status = 'ready'`
 - Tabela `files` **não possui** coluna `file_type` — apenas `mime_type` é utilizado no insert
 
+### Publicação no Meta (v5.9.5 / v5.10.1)
+
+Quando um `ads_creative_assets` atinge `status = 'ready'`, tanto o `ads-chat` quanto o `ads-autopilot-analyze` podem publicá-lo no Meta:
+
+1. **Upload da imagem** para Meta via `POST /act_{id}/adimages` → obtém `image_hash`
+2. **URL de destino obrigatória**: `https://{custom_domain || slug.shops.comandocentral.com.br}/produto/{product_slug}`
+3. **Criação de `adcreative`** com `object_story_spec.link_data` contendo `image_hash`, `message`, `name`, `link` e `call_to_action`
+4. **Atualização do asset**: `status → 'published'`, `platform_ad_id → creative_id` do Meta
+
+**Ciclo de vida do `status`**:
+```
+draft → ready → published
+  ↑              ↓
+  └── (falha) ←──┘
+```
+
+**Bucket de imagens**: As imagens geradas ficam no bucket `media-assets` (NÃO `files`). Fallbacks de `createSignedUrl` devem usar `supabase.storage.from("media-assets")`.
+
 ---
 
 ## Vídeos (DESATIVADOS)
