@@ -470,7 +470,7 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v4.0.0
+### Versão Atual: v4.2.0
 
 ### Visão Geral
 Edge Function de chat conversacional **multimodal** com **tool calling real** para o Gestor de Tráfego IA. Opera como assistente de tráfego pago com acesso completo de leitura e escrita ao módulo de tráfego, sem alucinações. Suporta análise de imagens, arquivos e URLs.
@@ -527,7 +527,7 @@ O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe
 - Inventar nomes de produtos, preços ou descrições (deve usar APENAS o catálogo real)
 - Contornar erros de ferramentas com texto inventado
 
-### Ferramentas Disponíveis (Tool Calling) — v4.1.0
+### Ferramentas Disponíveis (Tool Calling) — v4.2.0
 | Ferramenta | Descrição | Tipo |
 |-----------|-----------|------|
 | `get_campaign_performance` | Métricas reais 7d de campanhas Meta (spend, ROAS, CPA, cliques, conversões) | Leitura |
@@ -546,23 +546,25 @@ O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe
 | `update_autopilot_config` | Atualiza config do Autopilot (ROI, budget, estratégia, instruções) | Escrita |
 | `trigger_creative_generation` | Dispara geração de briefs criativos (headlines + copy) | Execução |
 | `generate_creative_image` | Gera IMAGENS reais via IA (Gemini) para criativos de anúncios | Execução |
+| `create_meta_campaign` | Cria campanha COMPLETA no Meta (Campaign→AdSet→Ad com criativo do Drive). Busca criativos automaticamente, faz upload de imagem, cria ad creative, e agenda ativação para 00:01-04:00 BRT | Execução |
 | `trigger_autopilot_analysis` | Dispara análise completa do Autopilot por canal | Execução |
 | `analyze_url` | Analisa conteúdo de URL via Firecrawl (landing page, concorrente, artigo) | Leitura |
 
-### Campos Editáveis via `update_autopilot_config`
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| `target_roi` | number | Meta de ROI alvo |
-| `budget_cents` | number | Orçamento em centavos |
-| `strategy_mode` | string | Modo de estratégia (`conservative`, `balanced`, `aggressive`) |
-| `is_ai_enabled` | boolean | Ativa/desativa IA na conta |
-| `user_instructions` | string | Prompt de instruções estratégicas |
+### Fluxo Completo de Criação de Campanha (v4.2.0)
+1. IA gera criativos visuais via `generate_creative_image` (Gemini → pasta "Gestor de Tráfego IA")
+2. IA chama `create_meta_campaign` que automaticamente:
+   a. Busca criativos prontos em `ads_creative_assets` → fallback Drive → fallback imagem do produto
+   b. Faz upload da imagem para Meta via `adimages` endpoint
+   c. Cria Ad Creative com `object_story_spec` (page link ad)
+   d. Cria Campanha PAUSED via `meta-ads-campaigns`
+   e. Cria AdSet PAUSED com pixel/promoted_object via `meta-ads-adsets`
+   f. Cria Ad PAUSED com creative via `meta-ads-ads`
+   g. Agenda ativação (`activate_campaign`) para janela 00:01-04:00 BRT
+3. `scheduler-tick` ativa a campanha no horário agendado
 
 ### O que o Chat NÃO Pode Fazer
-- Upload de mídia para Meta/Google/TikTok diretamente
-- Criar/alterar campanhas diretamente (delega ao Autopilot)
-- Alterar orçamentos de campanhas diretamente (usa `trigger_autopilot_analysis`)
-- Acessar APIs de plataformas diretamente
+- Criar campanhas Google/TikTok diretamente (somente Meta por enquanto)
+- Acessar APIs de plataformas diretamente (usa edge functions intermediárias)
 - Renderizar ou finalizar qualquer coisa fora das ferramentas acima
 
 ### Fluxo de Conversação
@@ -599,6 +601,7 @@ O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe
 | `meta_ad_ads` | `ads-chat` |
 | `meta_ad_audiences` | `ads-chat` |
 | `meta_ad_insights` | `ads-chat` |
+| `meta_ad_creatives` | `ads-chat` |
 | `google_ad_campaigns` | `ads-chat` |
 | `google_ad_insights` | `ads-chat` |
 | `tiktok_ad_campaigns` | `ads-chat` |
@@ -607,3 +610,7 @@ O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe
 | `orders` | `ads-chat` |
 | `tenants` | `ads-chat` |
 | `products` | `ads-chat` |
+| `product_images` | `ads-chat` |
+| `files` | `ads-chat` |
+| `marketplace_connections` | `ads-chat` |
+| `marketing_integrations` | `ads-chat` |
