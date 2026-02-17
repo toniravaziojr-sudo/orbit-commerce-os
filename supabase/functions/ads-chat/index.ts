@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.2.0"; // Add create_custom_audience + create_lookalike_audience + user override system
+const VERSION = "v5.2.1"; // Fix price formatting (values already in BRL, not cents) + fix order_items column name
 // ===========================================================
 
 const corsHeaders = {
@@ -928,18 +928,18 @@ async function getStoreContext(supabase: any, tenantId: string) {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
   const { data: topOrderItems } = await supabase
     .from("order_items")
-    .select("product_id, quantity, price, orders!inner(tenant_id, payment_status, created_at)")
+    .select("product_id, quantity, unit_price, orders!inner(tenant_id, payment_status, created_at)")
     .eq("orders.tenant_id", tenantId)
     .eq("orders.payment_status", "paid")
     .gte("orders.created_at", thirtyDaysAgo)
     .limit(500);
 
-  // Aggregate by product
+  // Aggregate by product (values already in BRL, NOT cents)
   const prodRevenue: Record<string, { revenue: number; qty: number }> = {};
   for (const item of (topOrderItems || [])) {
     const pid = item.product_id;
     if (!prodRevenue[pid]) prodRevenue[pid] = { revenue: 0, qty: 0 };
-    prodRevenue[pid].revenue += (item.price || 0) * (item.quantity || 1);
+    prodRevenue[pid].revenue += (item.unit_price || 0) * (item.quantity || 1);
     prodRevenue[pid].qty += item.quantity || 1;
   }
   const topProductIds = Object.entries(prodRevenue)
@@ -955,10 +955,10 @@ async function getStoreContext(supabase: any, tenantId: string) {
       .in("id", topProductIds);
     topProducts = (prods || []).map((p: any) => ({
       name: p.name,
-      price: `R$ ${((p.price || 0) / 100).toFixed(2)}`,
-      cost_price: p.cost_price ? `R$ ${(p.cost_price / 100).toFixed(2)}` : null,
+      price: `R$ ${(p.price || 0).toFixed(2)}`,
+      cost_price: p.cost_price ? `R$ ${p.cost_price.toFixed(2)}` : null,
       margin_pct: p.cost_price && p.price ? `${(((p.price - p.cost_price) / p.price) * 100).toFixed(0)}%` : null,
-      revenue_30d: `R$ ${((prodRevenue[p.id]?.revenue || 0) / 100).toFixed(2)}`,
+      revenue_30d: `R$ ${(prodRevenue[p.id]?.revenue || 0).toFixed(2)}`,
       units_sold_30d: prodRevenue[p.id]?.qty || 0,
     }));
   }
@@ -1499,11 +1499,12 @@ async function getProducts(supabase: any, tenantId: string, search?: string, lim
 
   return JSON.stringify({
     total: products?.length || 0,
+    // Prices are stored in BRL (NOT cents)
     products: (products || []).map((p: any) => ({
       id: p.id, name: p.name,
-      price_brl: `R$ ${((p.price || 0) / 100).toFixed(2)}`,
-      compare_at_price_brl: p.compare_at_price ? `R$ ${(p.compare_at_price / 100).toFixed(2)}` : null,
-      cost_price_brl: p.cost_price ? `R$ ${(p.cost_price / 100).toFixed(2)}` : null,
+      price_brl: `R$ ${(p.price || 0).toFixed(2)}`,
+      compare_at_price_brl: p.compare_at_price ? `R$ ${p.compare_at_price.toFixed(2)}` : null,
+      cost_price_brl: p.cost_price ? `R$ ${p.cost_price.toFixed(2)}` : null,
       margin_pct: p.cost_price && p.price ? `${(((p.price - p.cost_price) / p.price) * 100).toFixed(0)}%` : null,
       status: p.status, sku: p.sku, stock: p.stock_quantity,
       description: p.description?.substring(0, 200) || "",
@@ -1969,18 +1970,19 @@ async function collectBaseContext(supabase: any, tenantId: string, scope: string
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
   const { data: orders } = await supabase.from("orders").select("total, payment_status").eq("tenant_id", tenantId).gte("created_at", thirtyDaysAgo);
   const paid = (orders || []).filter((o: any) => o.payment_status === "paid");
+  // Orders total is already in BRL (NOT cents)
   context.orderStats = {
     paid: paid.length,
-    revenue_brl: (paid.reduce((s: number, o: any) => s + (o.total || 0), 0) / 100).toFixed(2),
-    avg_ticket_brl: paid.length ? (paid.reduce((s: number, o: any) => s + (o.total || 0), 0) / paid.length / 100).toFixed(2) : "0",
+    revenue_brl: paid.reduce((s: number, o: any) => s + (o.total || 0), 0).toFixed(2),
+    avg_ticket_brl: paid.length ? (paid.reduce((s: number, o: any) => s + (o.total || 0), 0) / paid.length).toFixed(2) : "0",
   };
 
-  // Products (top 10)
+  // Products (top 10) — prices already in BRL (NOT cents)
   const { data: products } = await supabase.from("products").select("id, name, price, cost_price, status, description").eq("tenant_id", tenantId).eq("status", "active").order("created_at", { ascending: false }).limit(10);
   context.products = (products || []).map((p: any) => ({
     id: p.id, name: p.name,
-    price_brl: `R$ ${((p.price || 0) / 100).toFixed(2)}`,
-    cost_price_brl: p.cost_price ? `R$ ${(p.cost_price / 100).toFixed(2)}` : null,
+    price_brl: `R$ ${(p.price || 0).toFixed(2)}`,
+    cost_price_brl: p.cost_price ? `R$ ${p.cost_price.toFixed(2)}` : null,
     margin_pct: p.cost_price && p.price ? `${(((p.price - p.cost_price) / p.price) * 100).toFixed(0)}%` : null,
     description: p.description?.substring(0, 120) || "",
   }));
