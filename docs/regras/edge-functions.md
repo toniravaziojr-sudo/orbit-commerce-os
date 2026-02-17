@@ -723,3 +723,24 @@ O lojista pode sobrepor QUALQUER configuração do sistema via chat com confirma
 | Níveis | Apenas `campaign` | `campaign` + `adset` + `ad` |
 
 A sync diária permite que ferramentas como `get_performance_trend` mostrem time-series reais de gasto/conversões por dia.
+
+### Changelog — `ads-chat`
+
+| Versão | Data | Mudança |
+|--------|------|---------|
+| v5.3.6 | 2026-02-17 | Fix: colunas `meta_audience_id` em `createCustomAudience`/`createLookalikeAudience`; erros de insert não mais silenciados |
+| v5.3.7 | 2026-02-17 | Fix: loop multi-rodada de tool calls — IA agora executa leitura E escrita em até 5 rounds por interação |
+| v5.4.0 | 2026-02-17 | **Strategy Mode Guardrails**: IA obrigada a validar ações contra `strategy_mode` configurado (conservative/balanced/aggressive). Regras de budget por modo injetadas no prompt. `get_autopilot_config` obrigatório antes de propor mudanças. Alerta obrigatório quando ação viola regra manual. |
+
+### Regras de Strategy Mode — `ads-chat` v5.4.0
+
+| Modo | Budget ±max/ciclo | Intervalo mín | Criação de campanhas | Pausa por ROI |
+|------|-------------------|---------------|----------------------|---------------|
+| `conservative` | ±10% | 72h | 14+ dias histórico | ROI < 80% meta (3d) |
+| `balanced` | ±20% | 48-72h | 7+ dias histórico | ROI < meta (7d) |
+| `aggressive` | ±40% | 24-48h | Imediato | ROI < 50% meta (5d) |
+
+**Regra de Conflito**: Se o lojista pede uma ação via chat que viola o modo configurado:
+1. A IA avisa qual regra seria violada (valor atual vs proposto)
+2. Pede confirmação explícita
+3. Se confirmado, persiste em `chat_overrides` como Override

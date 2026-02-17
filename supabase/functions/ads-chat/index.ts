@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.3.7"; // Fix: multi-round tool call loop — AI can now call read AND write tools across multiple rounds
+const VERSION = "v5.4.0"; // Fix: strategy mode guardrails — AI must validate actions against config before proposing
 // ===========================================================
 
 const corsHeaders = {
@@ -2103,7 +2103,7 @@ async function collectBaseContext(supabase: any, tenantId: string, scope: string
 
   // Account configs
   const configQuery = supabase.from("ads_autopilot_account_configs")
-    .select("channel, ad_account_id, is_ai_enabled, budget_cents, target_roi, strategy_mode, funnel_splits, user_instructions")
+    .select("channel, ad_account_id, is_ai_enabled, budget_cents, target_roi, strategy_mode, funnel_splits, user_instructions, roas_scaling_threshold, min_roi_cold, min_roi_warm, chat_overrides, human_approval_mode, budget_mode")
     .eq("tenant_id", tenantId);
   if (scope === "account" && adAccountId) configQuery.eq("ad_account_id", adAccountId);
   const { data: configs } = await configQuery;
@@ -2266,8 +2266,12 @@ function buildSystemPrompt(scope: string, adAccountId?: string, channel?: string
 
   const configs = context?.accountConfigs || [];
   const configSummary = configs.map((c: any) =>
-    `- ${c.channel} / ${c.ad_account_id}: IA ${c.is_ai_enabled ? "ON" : "OFF"}, Budget R$ ${((c.budget_cents || 0) / 100).toFixed(2)}/dia, ROI alvo ${c.target_roi || "N/D"}, Splits: ${JSON.stringify(c.funnel_splits || {})}`
+    `- ${c.channel} / ${c.ad_account_id}: IA ${c.is_ai_enabled ? "ON" : "OFF"}, Budget R$ ${((c.budget_cents || 0) / 100).toFixed(2)}/dia, ROI alvo ${c.target_roi || "N/D"}, Modo: ${c.strategy_mode || "balanced"}, Splits: ${JSON.stringify(c.funnel_splits || {})}, ROAS escala: ${c.roas_scaling_threshold || "N/D"}, ROI mín frio: ${c.min_roi_cold || "N/D"}, ROI mín quente: ${c.min_roi_warm || "N/D"}`
   ).join("\n");
+
+  // Determine active strategy mode for rules injection
+  const activeConfig = configs.find((c: any) => c.ad_account_id === adAccountId) || configs[0];
+  const strategyMode = activeConfig?.strategy_mode || "balanced";
 
   const productsList = (context?.products || []).map((p: any) =>
     `- ${p.name} (${p.price_brl}${p.margin_pct ? `, margem ${p.margin_pct}` : ""}${p.has_images ? `, ${p.images.length} imagem(ns)` : ", SEM IMAGEM"}) ${p.description ? `— ${p.description}` : ""}`
@@ -2308,10 +2312,13 @@ ${context?.storeUrl ? `**URL da loja**: ${context.storeUrl}` : ""}
 1. Chamar **get_campaign_performance** para ver o estado REAL das campanhas (ativas vs pausadas, métricas)
 2. Chamar **get_adset_performance** para ver conjuntos de anúncios ativos
 3. Chamar **get_tracking_health** para verificar saúde do pixel
+4. Chamar **get_autopilot_config** para verificar as configurações manuais (modo de estratégia, ROI, budget, funil)
 
 **NUNCA confie apenas no contexto base** — ele pode ter dados limitados. Sempre consulte as ferramentas.
 
-Quando o usuário pedir "estratégia", "diagnóstico", "análise" ou "plano", chame TODAS essas ferramentas ANTES de responder.
+Quando o usuário pedir "estratégia", "diagnóstico", "análise", "plano" ou propuser mudanças de orçamento, chame TODAS essas ferramentas ANTES de responder.
+
+**REGRA ANTI-CONTRADIÇÃO**: Quando você lê as configurações e identifica o modo de estratégia, suas propostas DEVEM respeitar esse modo. Se o lojista pede algo que viola o modo configurado, avise e peça confirmação.
 
 ## REGRA: PRIORIZAR CAMPANHAS ATIVAS
 - Sempre liste campanhas ATIVAS primeiro, com destaque
@@ -2397,6 +2404,62 @@ Use os nomes dos menus: "Marketing → Tráfego Pago", "Galeria de Criativos", "
 - "Ignora o limite de orçamento e coloca R$ 2000/dia"
 
 **NUNCA aplique um override sem confirmação explícita do lojista.**
+
+## REGRA CRÍTICA: VALIDAÇÃO DE CONFIGURAÇÕES ANTES DE AGIR
+
+**ANTES de propor ou executar QUALQUER ação de budget, criação de campanha ou mudança estrutural, você DEVE:**
+1. Verificar o **strategy_mode** ativo (conservative/balanced/aggressive) nas configurações
+2. Verificar o **budget_cents** configurado para a conta
+3. Verificar as **metas de ROI** (target_roi, min_roi_cold, min_roi_warm)
+4. Verificar as **regras de funil** (funnel_splits)
+5. Comparar a ação proposta com essas configurações
+
+**Se a ação proposta CONTRADIZ as configurações manuais, você DEVE:**
+- ⚠️ Avisar explicitamente qual regra seria violada
+- Mostrar o valor configurado vs o valor proposto
+- Explicar o risco
+- Pedir confirmação ANTES de executar
+- Se confirmado, usar o sistema de Override
+
+### MODO DE ESTRATÉGIA ATIVO: ${strategyMode.toUpperCase()}
+
+#### Regras por modo de estratégia:
+
+**CONSERVATIVE (Conservador)**:
+- Ajustes de orçamento: máximo ±10% a cada 72h
+- Criação de novas campanhas: somente após 14+ dias de dados históricos
+- Duplicação de campanhas preferida sobre aumento de budget
+- Pausa imediata se ROI < 80% da meta por 3 dias
+- Foco em proteger o que já funciona
+
+**BALANCED (Equilibrado)** — PADRÃO:
+- Ajustes de orçamento: máximo ±20% a cada 48-72h
+- Novas campanhas permitidas após 7+ dias de dados
+- Distribuição de risco: espalhar orçamento entre diferentes frentes (Prospecção, Remarketing, Testes) em vez de concentrar em uma única campanha
+- Duplicar campanhas vencedoras para escalar em vez de aumentar budget direto
+- Pausa se ROI < meta por 7 dias consecutivos
+
+**AGGRESSIVE (Agressivo)**:
+- Ajustes de orçamento: até ±40% a cada 24-48h
+- Novas campanhas permitidas imediatamente
+- Concentração de orçamento em campanhas vencedoras permitida
+- Pausa somente se ROI < 50% da meta por 5 dias
+- Foco em escala rápida
+
+### Exemplo de violação e aviso obrigatório:
+Se modo = BALANCED e o lojista pede "coloca R$420 na CJ3 que está com R$66":
+> ⚠️ **Atenção: essa ação viola o modo Equilibrado.**
+> - **Regra**: Ajustes máximos de ±20% por ciclo (48-72h)
+> - **Budget atual**: R$ 66,00/dia
+> - **Aumento solicitado**: R$ 420,00/dia (+536%)
+> - **Risco**: Reset da fase de aprendizado da campanha
+> 
+> **Alternativa recomendada no modo Equilibrado:**
+> 1. Subir CJ3 para R$ 80 (+20%)
+> 2. Criar nova campanha duplicada com R$ 200/dia
+> 3. Distribuir o restante em Remarketing e Testes
+> 
+> Quer que eu siga o modo Equilibrado ou prefere forçar o aumento direto (isso ativará um Override)?
 
 ## O QUE VOCÊ PODE FAZER
 - **Ver performance** real de campanhas, conjuntos e anúncios (Meta, Google, TikTok)
