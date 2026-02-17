@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.3.3"; // Fix permission loop: auto-execute tools instead of asking permission
+const VERSION = "v5.3.4"; // Fix position→sort_order column name in product_images queries
 // ===========================================================
 
 const corsHeaders = {
@@ -1508,7 +1508,7 @@ async function getProducts(supabase: any, tenantId: string, search?: string, lim
   const productIds = (products || []).map((p: any) => p.id);
   let imageMap: Record<string, string[]> = {};
   if (productIds.length > 0) {
-    const { data: imgs } = await supabase.from("product_images").select("product_id, url, position").in("product_id", productIds).order("position", { ascending: true });
+    const { data: imgs } = await supabase.from("product_images").select("product_id, url, sort_order").in("product_id", productIds).order("sort_order", { ascending: true });
     for (const img of (imgs || [])) {
       if (!imageMap[img.product_id]) imageMap[img.product_id] = [];
       imageMap[img.product_id].push(img.url);
@@ -2087,7 +2087,7 @@ async function collectBaseContext(supabase: any, tenantId: string, scope: string
   let productImageMap: Record<string, string[]> = {};
   let allProductImageRows: any[] = [];
   if (productIds.length > 0) {
-    const { data: imgs } = await supabase.from("product_images").select("id, product_id, url, is_primary, position").in("product_id", productIds).order("position", { ascending: true });
+    const { data: imgs } = await supabase.from("product_images").select("id, product_id, url, is_primary, sort_order").in("product_id", productIds).order("sort_order", { ascending: true });
     allProductImageRows = imgs || [];
     for (const img of allProductImageRows) {
       if (!productImageMap[img.product_id]) productImageMap[img.product_id] = [];
