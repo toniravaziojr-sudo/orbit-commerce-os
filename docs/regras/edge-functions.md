@@ -470,7 +470,11 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v5.3.0
+### Versão Atual: v5.3.1
+
+### v5.3.1: Criatividade de Marketing + Sync de Imagens ao Drive
+- **Regra de honestidade refinada**: Distingue "dados reais da loja" (nunca inventar) vs "textos de marketing" (criatividade incentivada — slogans, CTAs, frases de efeito)
+- **Sincronização automática de imagens ao Drive**: Ao carregar contexto, copia imagens existentes de `product_images` para a pasta "Imagens de Produtos" no Meu Drive (evita duplicatas via `storage_path` único)
 
 ### v5.3.0: Imagens de Produtos + Anti-Alucinação Reforçada
 - **Nova ferramenta `get_product_images`**: Busca imagens do catálogo (`product_images`) + pasta "Imagens de Produtos" no Meu Drive
