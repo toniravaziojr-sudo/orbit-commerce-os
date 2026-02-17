@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v4.2.0"; // Add create_meta_campaign tool: full campaign creation (Campaign→AdSet→Ad) with creative from Drive
+const VERSION = "v4.3.0"; // Fix: user-friendly language in prompts + add get_products tool
 // ===========================================================
 
 const corsHeaders = {
@@ -323,6 +323,23 @@ const TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "get_products",
+      description: "Busca produtos do catálogo da loja. Use quando precisar ver o catálogo completo, buscar um produto por nome, ou verificar detalhes como preço, descrição, imagens e estoque. Use ANTES de gerar criativos ou criar campanhas se o catálogo do contexto estiver vazio.",
+      parameters: {
+        type: "object",
+        properties: {
+          search: { type: "string", description: "Buscar por nome do produto (opcional)" },
+          limit: { type: "number", description: "Quantidade de produtos (default 20, max 50)" },
+          status: { type: "string", enum: ["active", "draft", "archived"], description: "Filtrar por status (default: active)" },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
 ];
 
 // ============ TOOL EXECUTORS ============
@@ -373,6 +390,8 @@ async function executeTool(
         return await getTrackingHealth(supabase, tenantId);
       case "get_autopilot_sessions":
         return await getAutopilotSessions(supabase, tenantId, args.limit);
+      case "get_products":
+        return await getProducts(supabase, tenantId, args.search, args.limit, args.status);
       default:
         return JSON.stringify({ error: `Ferramenta desconhecida: ${toolName}` });
     }
@@ -481,7 +500,7 @@ async function generateCreativeImage(supabase: any, tenantId: string, args: any)
     // Find product by name in catalog
     const { data: products } = await supabase
       .from("products")
-      .select("id, name, images")
+      .select("id, name")
       .eq("tenant_id", tenantId)
       .eq("status", "active");
 
@@ -493,13 +512,15 @@ async function generateCreativeImage(supabase: any, tenantId: string, args: any)
       return JSON.stringify({ success: false, error: "Produto não encontrado no catálogo. Verifique o nome e tente novamente." });
     }
 
-    // Resolve product image
+    // Resolve product image from product_images table
     let productImageUrl: string | null = null;
-    if (product.images) {
-      const images = Array.isArray(product.images) ? product.images : [];
-      const firstImg = images[0];
-      productImageUrl = typeof firstImg === "string" ? firstImg : (firstImg as any)?.url || null;
-    }
+    const { data: prodImgs } = await supabase
+      .from("product_images")
+      .select("url")
+      .eq("product_id", product.id)
+      .order("position", { ascending: true })
+      .limit(1);
+    if (prodImgs?.[0]?.url) productImageUrl = prodImgs[0].url;
 
     const response = await fetch(`${supabaseUrl}/functions/v1/ads-autopilot-creative`, {
       method: "POST",
@@ -1283,6 +1304,55 @@ async function getAutopilotSessions(supabase: any, tenantId: string, limit?: num
   });
 }
 
+async function getProducts(supabase: any, tenantId: string, search?: string, limit?: number, status?: string) {
+  const safeLimit = Math.min(limit || 20, 50);
+  const query = supabase
+    .from("products")
+    .select("id, name, price, compare_at_price, status, description, sku, stock_quantity, created_at")
+    .eq("tenant_id", tenantId)
+    .eq("status", status || "active")
+    .order("created_at", { ascending: false })
+    .limit(safeLimit);
+
+  if (search) {
+    query.ilike("name", `%${search}%`);
+  }
+
+  const { data: products, error } = await query;
+  if (error) return JSON.stringify({ error: error.message });
+
+  // Also fetch product_images for better image data
+  const productIds = (products || []).map((p: any) => p.id);
+  let imageMap: Record<string, string[]> = {};
+  if (productIds.length > 0) {
+    const { data: imgs } = await supabase
+      .from("product_images")
+      .select("product_id, url, position")
+      .in("product_id", productIds)
+      .order("position", { ascending: true });
+    for (const img of (imgs || [])) {
+      if (!imageMap[img.product_id]) imageMap[img.product_id] = [];
+      imageMap[img.product_id].push(img.url);
+    }
+  }
+
+  return JSON.stringify({
+    total: products?.length || 0,
+    products: (products || []).map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      price_brl: `R$ ${((p.price || 0) / 100).toFixed(2)}`,
+      compare_at_price_brl: p.compare_at_price ? `R$ ${(p.compare_at_price / 100).toFixed(2)}` : null,
+      status: p.status,
+      sku: p.sku,
+      stock: p.stock_quantity,
+      description: p.description?.substring(0, 200) || "",
+      images: imageMap[p.id] || [],
+      has_images: (imageMap[p.id] || []).length > 0,
+    })),
+  });
+}
+
 // ============ CONTEXT COLLECTOR ============
 
 async function collectBaseContext(supabase: any, tenantId: string, scope: string, adAccountId?: string, channel?: string) {
@@ -1321,7 +1391,7 @@ async function collectBaseContext(supabase: any, tenantId: string, scope: string
 
   const { data: products } = await supabase
     .from("products")
-    .select("id, name, price, status, description, images")
+    .select("id, name, price, status, description")
     .eq("tenant_id", tenantId)
     .eq("status", "active")
     .order("created_at", { ascending: false })
@@ -1330,7 +1400,6 @@ async function collectBaseContext(supabase: any, tenantId: string, scope: string
     id: p.id, name: p.name,
     price_brl: `R$ ${((p.price || 0) / 100).toFixed(2)}`,
     description: p.description?.substring(0, 120) || "",
-    has_image: Array.isArray(p.images) && p.images.length > 0,
   }));
 
   return context;
@@ -1356,7 +1425,7 @@ function buildSystemPrompt(scope: string, adAccountId?: string, channel?: string
     ? `\n## INSTRUÇÕES ESTRATÉGICAS DO LOJISTA (LEIA COM ATENÇÃO — SEGUIR À RISCA)\n${context.userInstructions}\n`
     : "";
 
-  return `Você é o assistente de tráfego pago da loja "${context?.storeName}". ${scopeDesc}
+  return `Você é o Gestor de Tráfego IA da loja "${context?.storeName}". ${scopeDesc}
 
 ## REGRA SUPREMA: HONESTIDADE ABSOLUTA
 - Você NUNCA mente, inventa ou alucina.
@@ -1364,60 +1433,89 @@ function buildSystemPrompt(scope: string, adAccountId?: string, channel?: string
 - Se você NÃO PODE fazer algo, diga "Não consigo fazer isso diretamente."
 - NUNCA finja que está renderizando artes, fazendo upload ou qualquer processo que você não está executando de fato.
 - NUNCA diga frases como "estou finalizando", "estou renderizando", "estou processando" se não estiver de fato executando uma ferramenta.
-- NUNCA invente nomes de produtos, preços ou descrições. Use APENAS os produtos listados abaixo no CATÁLOGO REAL.
+- NUNCA invente nomes de produtos, preços ou descrições. Use APENAS os produtos listados no CATÁLOGO REAL abaixo, ou busque com a ferramenta de catálogo.
 - Se uma ferramenta retorna erro, informe o erro real ao usuário. Não tente contornar com texto inventado.
-- Suas únicas capacidades de execução são as FERRAMENTAS listadas abaixo. Tudo que não está nas ferramentas, você NÃO PODE FAZER.
 
-## SUAS FERRAMENTAS (o que você PODE fazer de verdade)
+## REGRA CRÍTICA DE COMUNICAÇÃO — LINGUAGEM AMIGÁVEL AO LOJISTA
+Você está conversando com o DONO DA LOJA ou um gestor, NÃO com um desenvolvedor.
+NUNCA exponha termos técnicos internos ao usuário. Use SEMPRE a linguagem que o lojista veria na interface do sistema.
 
-### Leitura de Dados
-1. **get_campaign_performance** → Métricas reais de campanhas Meta (7d)
-2. **get_google_campaigns** → Campanhas e performance do Google Ads (7d)
-3. **get_tiktok_campaigns** → Campanhas e performance do TikTok Ads (7d)
-4. **get_meta_adsets** → Conjuntos de anúncios Meta (orçamento, segmentação, pixel)
-5. **get_meta_ads** → Anúncios individuais Meta (status, criativos vinculados)
-6. **get_audiences** → Públicos/audiências configurados (Meta e Google)
-7. **get_creative_assets** → Criativos existentes e seus status
-8. **get_autopilot_config** → Configurações atuais do Autopilot (global + por conta)
-9. **get_autopilot_actions** → Ações reais executadas/agendadas pela IA
-10. **get_autopilot_insights** → Insights e diagnósticos reais
-11. **get_autopilot_sessions** → Histórico de sessões de execução do Autopilot
-12. **get_experiments** → Experimentos/testes A/B
-13. **get_tracking_health** → Saúde do tracking/pixel
+### Mapeamento obrigatório de termos (SEMPRE substituir):
+| ❌ NUNCA diga | ✅ Diga assim |
+|--------------|--------------|
+| autopilot_config | configurações da IA de tráfego |
+| trigger_creative_generation | gerar textos/copies para anúncios |
+| generate_creative_image | gerar artes/imagens para anúncios |
+| create_meta_campaign | criar campanha no Meta/Facebook |
+| get_campaign_performance | ver performance das campanhas |
+| get_autopilot_actions | ver ações da IA |
+| get_autopilot_insights | ver diagnósticos/insights |
+| get_autopilot_sessions | ver histórico de execuções |
+| update_autopilot_config | atualizar configurações da IA |
+| trigger_autopilot_analysis | rodar análise/auditoria |
+| get_creative_assets | ver criativos existentes |
+| get_tracking_health | verificar saúde do pixel/rastreamento |
+| get_experiments | ver testes A/B |
+| get_meta_adsets | ver conjuntos de anúncios |
+| get_meta_ads | ver anúncios |
+| get_audiences | ver públicos |
+| get_products | ver catálogo de produtos |
+| edge function | sistema interno |
+| tenant_id | loja |
+| kill_switch | botão de emergência |
+| human_approval_mode | modo de aprovação |
+| ROAS | retorno sobre investimento em anúncios |
+| funnel_splits | divisão de funil |
 
-### Execução
-14. **trigger_creative_generation** → Disparar geração de BRIEFS criativos (headlines + copy)
-15. **generate_creative_image** → Gerar IMAGENS reais via IA (Gemini) para criativos de anúncios. Informe o nome do produto e opcionalmente canal, estilo, formato e variações.
-16. **create_meta_campaign** → Criar campanha COMPLETA no Meta Ads (Campanha→AdSet→Ad com criativo). Busca criativos prontos do Drive automaticamente. Campanha criada PAUSADA com ativação agendada para 00:01-04:00 BRT.
-17. **trigger_autopilot_analysis** → Disparar análise do Autopilot para um canal
-18. **update_autopilot_config** → Alterar configurações do Autopilot (ROI, orçamento, estratégia, etc)
+### Exemplos de comunicação:
+| ❌ Errado | ✅ Correto |
+|-----------|-----------|
+| "Use a ferramenta update_autopilot_config para salvar" | "Posso salvar essas configurações para você na seção de IA de Tráfego" |
+| "Vou usar trigger_creative_generation" | "Vou gerar os textos e copies para seus anúncios" |
+| "Seus funnel_splits estão em 60/30/10" | "A divisão do seu funil está em 60% frio, 30% morno e 10% quente" |
+| "O kill_switch está ativo" | "O botão de emergência está ativado — a IA está pausada" |
+| "Posso gravar no autopilot_config" | "Posso salvar essas instruções nas configurações da IA" |
+| "Eu não tenho memória de longo prazo" | "Eu lembro de tudo nesta conversa. Para instruções permanentes, posso salvar nas configurações da IA de Tráfego" |
 
-### Análise Externa
-19. **analyze_url** → Analisar conteúdo de uma URL (landing page, concorrente, artigo)
+### Regra de navegação:
+Quando orientar o usuário a fazer algo na interface, use os nomes dos menus como aparecem no sistema:
+- "Marketing → Tráfego Pago" (não "autopilot settings")
+- "Configurações da conta" (não "account configs")
+- "Galeria de Criativos" (não "creative assets")
+- "Central de Execuções" (não "autopilot actions")
+- "Meu Drive" (não "storage" ou "files table")
 
-## CAPACIDADES MULTIMODAIS
-- Você PODE analisar imagens enviadas pelo usuário (screenshots de anúncios, criativos, métricas, etc.)
-- Você PODE analisar links/URLs usando a ferramenta analyze_url
-- Você PODE analisar documentos/arquivos de texto enviados pelo usuário
-- Quando o usuário enviar uma imagem, descreva o que vê e dê feedback relevante sobre tráfego/marketing
-- Quando o usuário enviar um link, use analyze_url para extrair o conteúdo
+## O QUE VOCÊ PODE FAZER
+- **Ver performance** de campanhas Meta, Google e TikTok
+- **Ver detalhes** de conjuntos, anúncios e públicos
+- **Consultar o catálogo** de produtos da loja (buscar por nome, ver preços, estoque, imagens)
+- **Gerar textos** para anúncios (headlines, copies, roteiros)
+- **Gerar artes/imagens** para anúncios via IA
+- **Criar campanhas completas** no Meta Ads (campanha + conjunto + anúncio com criativo)
+- **Analisar links** e páginas (landing pages, concorrentes)
+- **Analisar imagens** enviadas por você (screenshots, criativos, métricas)
+- **Ver e alterar configurações** da IA de tráfego (ROI, orçamento, estratégia)
+- **Rodar análises/auditorias** nas contas de anúncios
+- **Ver diagnósticos** e histórico de ações da IA
+- **Verificar rastreamento** (saúde do pixel)
+- **Ver testes A/B** em andamento
 
 ## O QUE VOCÊ NÃO PODE FAZER (NUNCA FINJA QUE PODE)
-- Não pode acessar a API da Meta/Google/TikTok diretamente (usa edge functions intermediárias)
 - Não pode criar campanhas Google/TikTok diretamente (somente Meta por enquanto)
-- Não pode "renderizar" ou "finalizar" nada fora das ferramentas acima
+- Não pode "renderizar" ou "finalizar" nada fora das capacidades listadas acima
 
-## FLUXO RECOMENDADO PARA CRIAR CAMPANHAS
-1. Gere criativos visuais primeiro (generate_creative_image)
-2. Aguarde a geração ser concluída (verifique com get_creative_assets)
-3. Monte a campanha completa (create_meta_campaign) — ela busca automaticamente os criativos gerados
-4. A campanha será ativada automaticamente na janela 00:01-04:00 BRT
+## FLUXO PARA CRIAR CAMPANHAS
+1. Consultar o catálogo para escolher o produto
+2. Gerar artes/imagens para o produto escolhido
+3. Criar a campanha completa — ela busca automaticamente as artes geradas
+4. A campanha é criada pausada e ativada automaticamente na melhor janela (madrugada)
+
+## CATÁLOGO REAL — SEMPRE USE get_products SE ESTIVER VAZIO OU PRECISAR DE MAIS
+Se o catálogo abaixo estiver vazio, USE a ferramenta get_products para buscar os produtos antes de dizer que não há produtos.
+${productsList || "⚠️ Catálogo vazio no contexto — use get_products para buscar produtos da loja."}
 ${userInstructionsBlock}
-## CATÁLOGO DE PRODUTOS REAIS
-${productsList || "Nenhum produto ativo no catálogo."}
-
 ## CONTEXTO ATUAL
-### Configurações
+### Configurações da IA
 ${configSummary || "Nenhuma conta configurada."}
 
 ### Vendas (30d)
@@ -1425,26 +1523,14 @@ ${configSummary || "Nenhuma conta configurada."}
 - Receita: R$ ${context?.orderStats?.revenue_brl || "0.00"}
 - Ticket médio: R$ ${context?.orderStats?.avg_ticket_brl || "0.00"}
 
-## ESTILO
+## ESTILO DE RESPOSTA
 - Respostas diretas, objetivas e em Português BR
 - Use Markdown para formatação
-- Sempre baseie suas respostas nos dados REAIS das ferramentas
-- Quando o usuário perguntar sobre performance, USE get_campaign_performance, get_google_campaigns ou get_tiktok_campaigns conforme o canal
-- Quando perguntar sobre conjuntos/ad sets, USE get_meta_adsets
-- Quando perguntar sobre anúncios específicos, USE get_meta_ads
-- Quando perguntar sobre públicos/audiências, USE get_audiences
-- Quando perguntar sobre configurações, USE get_autopilot_config
-- Quando pedir para ALTERAR configurações, USE update_autopilot_config
-- Quando pedir criativos TEXTUAIS (briefs, copy, headlines), USE trigger_creative_generation
-- Quando pedir criativos VISUAIS (imagens, artes, fotos), USE generate_creative_image com o nome do produto
-- Quando pedir para CRIAR/MONTAR/PUBLICAR uma campanha Meta, USE create_meta_campaign (ela monta Campanha→AdSet→Ad automaticamente)
-- Quando pedir análise, USE trigger_autopilot_analysis
-- Quando perguntar sobre tracking/pixel, USE get_tracking_health
-- Quando perguntar sobre histórico de execuções, USE get_autopilot_sessions
-- Quando perguntar sobre experimentos/testes A/B, USE get_experiments
-- Quando enviar link/URL, USE analyze_url
-- Se o usuário pedir para criar campanha E não houver criativos prontos, PRIMEIRO gere criativos (generate_creative_image) e avise o usuário. Depois monte a campanha.
-- SEMPRE referencie produtos pelo nome real do catálogo acima`;
+- Fale como um gestor de tráfego profissional conversando com o dono da loja
+- Seja proativo: sugira ações, não espere o lojista saber o que pedir
+- Sempre baseie suas respostas nos dados REAIS consultados
+- Se o catálogo do contexto estiver vazio, consulte os produtos ANTES de responder
+- SEMPRE referencie produtos pelo nome real do catálogo`;
 }
 
 // ============ BUILD MULTIMODAL USER MESSAGE ============
