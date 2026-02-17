@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.1.0"; // Fix tool calling flow - inject results as context
+const VERSION = "v2.2.0"; // Inject user_instructions + product catalog into context
 // ===========================================================
 
 const corsHeaders = {
@@ -356,14 +356,18 @@ async function collectBaseContext(supabase: any, tenantId: string, scope: string
     .single();
   context.storeName = tenant?.name || "Loja";
 
-  // Account configs summary
+  // Account configs summary (INCLUDING user_instructions)
   const configQuery = supabase
     .from("ads_autopilot_account_configs")
-    .select("channel, ad_account_id, is_ai_enabled, budget_cents, target_roi, strategy_mode, funnel_splits")
+    .select("channel, ad_account_id, is_ai_enabled, budget_cents, target_roi, strategy_mode, funnel_splits, user_instructions")
     .eq("tenant_id", tenantId);
   if (scope === "account" && adAccountId) configQuery.eq("ad_account_id", adAccountId);
   const { data: configs } = await configQuery;
   context.accountConfigs = configs || [];
+
+  // Extract user_instructions from active account (critical for product knowledge)
+  const activeConfig = (configs || []).find((c: any) => c.is_ai_enabled && c.ad_account_id === adAccountId);
+  context.userInstructions = activeConfig?.user_instructions || (configs || [])?.[0]?.user_instructions || null;
 
   // Quick order stats
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
@@ -378,6 +382,22 @@ async function collectBaseContext(supabase: any, tenantId: string, scope: string
     revenue_brl: (paid.reduce((s: number, o: any) => s + (o.total || 0), 0) / 100).toFixed(2),
     avg_ticket_brl: paid.length ? (paid.reduce((s: number, o: any) => s + (o.total || 0), 0) / paid.length / 100).toFixed(2) : "0",
   };
+
+  // Product catalog (top 10 active products for context)
+  const { data: products } = await supabase
+    .from("products")
+    .select("id, name, price, status, description, images")
+    .eq("tenant_id", tenantId)
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .limit(10);
+  context.products = (products || []).map((p: any) => ({
+    id: p.id,
+    name: p.name,
+    price_brl: `R$ ${((p.price || 0) / 100).toFixed(2)}`,
+    description: p.description?.substring(0, 120) || "",
+    has_image: Array.isArray(p.images) && p.images.length > 0,
+  }));
 
   return context;
 }
@@ -394,6 +414,16 @@ function buildSystemPrompt(scope: string, adAccountId?: string, channel?: string
     `- ${c.channel} / ${c.ad_account_id}: IA ${c.is_ai_enabled ? "ON" : "OFF"}, Budget R$ ${((c.budget_cents || 0) / 100).toFixed(2)}/dia, ROI alvo ${c.target_roi || "N/D"}, Splits: ${JSON.stringify(c.funnel_splits || {})}`
   ).join("\n");
 
+  // Product catalog context
+  const productsList = (context?.products || []).map((p: any) =>
+    `- ${p.name} (${p.price_brl}) ${p.description ? `— ${p.description}` : ""}`
+  ).join("\n");
+
+  // User instructions (strategic prompt)
+  const userInstructionsBlock = context?.userInstructions
+    ? `\n## INSTRUÇÕES ESTRATÉGICAS DO LOJISTA (LEIA COM ATENÇÃO — SEGUIR À RISCA)\n${context.userInstructions}\n`
+    : "";
+
   return `Você é o assistente de tráfego pago da loja "${context?.storeName}". ${scopeDesc}
 
 ## REGRA SUPREMA: HONESTIDADE ABSOLUTA
@@ -402,22 +432,28 @@ function buildSystemPrompt(scope: string, adAccountId?: string, channel?: string
 - Se você NÃO PODE fazer algo, diga "Não consigo fazer isso diretamente."
 - NUNCA finja que está gerando imagens, renderizando artes, fazendo upload ou qualquer processo que você não está executando de fato.
 - NUNCA diga frases como "estou finalizando", "estou renderizando", "estou processando" se não estiver de fato executando uma ferramenta.
+- NUNCA invente nomes de produtos, preços ou descrições. Use APENAS os produtos listados abaixo no CATÁLOGO REAL.
+- Se uma ferramenta retorna erro, informe o erro real ao usuário. Não tente contornar com texto inventado.
 - Suas únicas capacidades de execução são as FERRAMENTAS listadas abaixo. Tudo que não está nas ferramentas, você NÃO PODE FAZER.
 
 ## SUAS FERRAMENTAS (o que você PODE fazer de verdade)
 1. **get_campaign_performance** → Buscar métricas reais de campanhas (spend, ROAS, CPA, impressões, cliques, conversões)
 2. **get_creative_assets** → Listar criativos existentes e seus status
-3. **trigger_creative_generation** → Disparar geração de BRIEFS criativos (headlines + copy) para top produtos. Isso NÃO gera imagens — gera textos para anúncios.
+3. **trigger_creative_generation** → Disparar geração de BRIEFS criativos (headlines + copy) para produtos do catálogo. Isso NÃO gera imagens — gera textos para anúncios.
 4. **trigger_autopilot_analysis** → Disparar uma análise do Autopilot para um canal
 5. **get_autopilot_actions** → Ver ações reais executadas/agendadas pela IA
 6. **get_autopilot_insights** → Ver insights e diagnósticos reais
 
-## O QUE VOCÊ NÃO PODE FAZER
+## O QUE VOCÊ NÃO PODE FAZER (NUNCA FINJA QUE PODE)
 - Não pode gerar imagens diretamente
 - Não pode fazer upload de mídia para a Meta/Google/TikTok
 - Não pode criar campanhas diretamente (quem faz é o Autopilot via trigger_autopilot_analysis)
 - Não pode alterar orçamentos diretamente
 - Não pode acessar a API da Meta/Google/TikTok diretamente
+- Não pode "renderizar", "processar" ou "finalizar" nada fora das ferramentas acima
+${userInstructionsBlock}
+## CATÁLOGO DE PRODUTOS REAIS
+${productsList || "Nenhum produto ativo no catálogo."}
 
 ## CONTEXTO ATUAL
 ### Configurações
@@ -434,7 +470,8 @@ ${configSummary || "Nenhuma conta configurada."}
 - Sempre baseie suas respostas nos dados REAIS das ferramentas
 - Quando o usuário perguntar sobre performance, USE a ferramenta get_campaign_performance
 - Quando pedir criativos, USE trigger_creative_generation e informe que são BRIEFS (textos), não imagens
-- Quando pedir análise, USE trigger_autopilot_analysis`;
+- Quando pedir análise, USE trigger_autopilot_analysis
+- SEMPRE referencie produtos pelo nome real do catálogo acima`;
 }
 
 // ============ MAIN HANDLER ============
