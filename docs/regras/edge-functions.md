@@ -470,7 +470,7 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v2.1.0
+### Versão Atual: v2.2.0
 
 ### Visão Geral
 Edge Function de chat conversacional com **tool calling real** para o Gestor de Tráfego IA. Opera como assistente de tráfego pago com acesso a dados reais do sistema, sem alucinações.
@@ -480,19 +480,28 @@ Edge Function de chat conversacional com **tool calling real** para o Gestor de 
 2. **Execução de Tools**: Se a IA requisitou ferramentas, executa cada uma contra o banco/APIs reais e coleta resultados
 3. **Resposta Final (streaming)**: Injeta resultados reais como contexto `[DADOS REAIS DO SISTEMA]` e faz chamada final com streaming SSE
 
+### Contexto Injetado no System Prompt (v2.2.0)
+O system prompt é construído dinamicamente com:
+1. **user_instructions**: O prompt estratégico configurado pelo lojista na conta de anúncios (ex: nicho, produtos prioritários, compliance, tom)
+2. **Catálogo de Produtos**: Top 10 produtos ativos com nome, preço e descrição — obrigatório para evitar que a IA invente nomes de produtos
+3. **Configurações de conta**: Budget, ROI alvo, splits de funil, modo de estratégia
+4. **Vendas 30d**: Pedidos pagos, receita, ticket médio
+
 ### Regra Anti-Alucinação (CRÍTICA)
 O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe a IA de:
 - Inventar métricas, status ou resultados
 - Fingir que está gerando imagens, renderizando ou processando
 - Dizer "estou finalizando" sem ter executado uma ferramenta
 - Afirmar capacidades que não possui
+- Inventar nomes de produtos, preços ou descrições (deve usar APENAS o catálogo real)
+- Contornar erros de ferramentas com texto inventado
 
 ### Ferramentas Disponíveis (Tool Calling)
 | Ferramenta | Descrição | Tipo |
 |-----------|-----------|------|
 | `get_campaign_performance` | Métricas reais 7d (spend, ROAS, CPA, cliques, conversões) | Leitura |
 | `get_creative_assets` | Lista criativos existentes e status | Leitura |
-| `trigger_creative_generation` | Dispara geração de briefs criativos (headlines + copy) | Execução |
+| `trigger_creative_generation` | Dispara geração de briefs criativos (headlines + copy). Usa fallback de catálogo quando sem vendas (v1.1.0) | Execução |
 | `trigger_autopilot_analysis` | Dispara análise completa do Autopilot por canal | Execução |
 | `get_autopilot_actions` | Lista ações executadas/agendadas pelo Autopilot | Leitura |
 | `get_autopilot_insights` | Lista insights e diagnósticos reais | Leitura |
@@ -503,12 +512,13 @@ O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe
 - Criar/alterar campanhas diretamente (delega ao Autopilot)
 - Alterar orçamentos diretamente
 - Acessar APIs de plataformas diretamente
+- Renderizar, processar ou finalizar qualquer coisa fora das ferramentas acima
 
 ### Fluxo de Conversação
 1. Usuário envia mensagem via `useAdsChat` hook
 2. Edge function cria/recupera conversa em `ads_chat_conversations`
 3. Salva mensagem do usuário em `ads_chat_messages`
-4. Coleta contexto base (tenant, configs, pedidos 30d)
+4. Coleta contexto base (tenant, configs, **user_instructions**, **catálogo de produtos**, pedidos 30d)
 5. Executa pipeline de 3 etapas (tool calling)
 6. Salva resposta da IA em `ads_chat_messages`
 7. Retorna streaming SSE para o frontend
@@ -532,3 +542,4 @@ O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe
 | `ads_creative_assets` | `ads-chat` |
 | `orders` | `ads-chat` |
 | `tenants` | `ads-chat` |
+| `products` | `ads-chat` |
