@@ -257,6 +257,8 @@ Deno.serve(async (req) => {
           daily_budget_cents,
           lifetime_budget_cents,
           special_ad_categories: special_ad_categories || [],
+          start_time: start_time || null,
+          stop_time: stop_time || null,
           synced_at: new Date().toISOString(),
         })
         .select()
