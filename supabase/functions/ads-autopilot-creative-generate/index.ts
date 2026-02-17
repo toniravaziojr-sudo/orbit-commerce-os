@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.3.0"; // Fix: validate product_id UUIDs from AI response
+const VERSION = "v2.0.0"; // Bridge: generate text briefs + trigger image generation via creative-image-generate
 // ===================
 
 const corsHeaders = {
@@ -83,11 +83,9 @@ Deno.serve(async (req) => {
       .sort((a, b) => b[1].revenue - a[1].revenue)
       .slice(0, 5);
 
-    let usedFallback = false;
     let productIds: string[];
 
     if (topProducts.length === 0) {
-      // FALLBACK: No sales data — use newest active products from catalog
       console.log(`[ads-autopilot-creative-generate][${VERSION}] No sales data, falling back to catalog products`);
       const { data: catalogProducts } = await supabase
         .from("products")
@@ -102,16 +100,14 @@ Deno.serve(async (req) => {
       }
 
       productIds = catalogProducts.map((p: any) => p.id);
-      // Populate productSales with catalog info (no revenue data)
       for (const p of catalogProducts) {
         productSales[p.id] = { revenue: 0, units: 0, name: p.name };
       }
-      usedFallback = true;
     } else {
       productIds = topProducts.map(([id]) => id);
     }
 
-    // 3. Get product details (without images column - it doesn't exist)
+    // 3. Get product details
     console.log(`[ads-autopilot-creative-generate][${VERSION}] productIds: ${JSON.stringify(productIds)}`);
     const { data: products, error: productsError } = await supabase
       .from("products")
@@ -161,7 +157,6 @@ Deno.serve(async (req) => {
       };
     });
 
-    // Build valid product ID list for prompt reinforcement
     const validProductIds = (products || []).map(p => p.id);
 
     const systemPrompt = `Você é um diretor criativo de anúncios para e-commerce.
@@ -171,13 +166,14 @@ REGRA CRÍTICA: O campo "product_id" DEVE ser copiado EXATAMENTE do campo "id" d
 IDs válidos: ${JSON.stringify(validProductIds)}
 NÃO invente IDs como "prod_001". Use APENAS os UUIDs reais listados acima.
 
-Para cada produto, sugira até 3 variações de criativos com:
+Para cada produto, sugira até 2 variações de criativos com:
 - product_id: UUID REAL do produto (copiar do campo "id")
 - format: "feed" (1:1), "story" (9:16), ou "carousel"
 - angle: "benefit" (destaque benefício), "proof" (prova social), "offer" (oferta/desconto), "ugc" (estilo user-generated)
 - headline: Título curto e impactante (max 40 chars)
 - copy_text: Texto do anúncio (max 125 chars)
 - cta_type: "SHOP_NOW", "LEARN_MORE", "GET_OFFER"
+- generation_style: "product_natural" (foto produto em cenário), "person_interacting" (pessoa usando), ou "promotional" (visual impactante)
 
 Evite combinações que já existem: ${JSON.stringify([...recentSet])}
 
@@ -193,6 +189,7 @@ Responda APENAS com JSON válido:
       "headline": "...",
       "copy_text": "...",
       "cta_type": "SHOP_NOW",
+      "generation_style": "promotional",
       "generation_prompt": "Prompt detalhado para gerar a imagem publicitária"
     }
   ]
@@ -240,7 +237,7 @@ Responda APENAS com JSON válido:
       return ok({ message: "IA não sugeriu novos criativos", trigger_type });
     }
 
-    // 5.5. Validate and sanitize product_ids — reject any that aren't real UUIDs from our query
+    // 5.5. Validate and sanitize product_ids
     const validIdSet = new Set(validProductIds);
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     
@@ -258,7 +255,7 @@ Responda APENAS com JSON válido:
 
     if (validCreatives.length === 0) {
       console.error(`[ads-autopilot-creative-generate][${VERSION}] All ${creatives.length} creatives had invalid product_ids`);
-      return fail(`IA gerou ${creatives.length} criativos mas todos com product_id inválido. IDs válidos: ${validProductIds.join(", ")}`);
+      return fail(`IA gerou ${creatives.length} criativos mas todos com product_id inválido`);
     }
 
     console.log(`[ads-autopilot-creative-generate][${VERSION}] ${validCreatives.length}/${creatives.length} creatives passed validation`);
@@ -267,7 +264,7 @@ Responda APENAS com JSON válido:
     const assetsToInsert = validCreatives.map((c: any) => ({
       tenant_id,
       product_id: c.product_id,
-      channel: "meta", // Default channel
+      channel: "meta",
       format: c.format,
       aspect_ratio: c.aspect_ratio || "1:1",
       angle: c.angle,
@@ -278,16 +275,18 @@ Responda APENAS com JSON válido:
       compliance_status: "pending",
       meta: {
         generation_prompt: c.generation_prompt,
+        generation_style: c.generation_style || "promotional",
         product_name: c.product_name,
         trigger_type,
         generated_by: "autopilot",
+        image_status: "pending", // Track image generation status
       },
     }));
 
     const { data: inserted, error: insertError } = await supabase
       .from("ads_creative_assets")
       .insert(assetsToInsert)
-      .select("id");
+      .select("id, product_id, meta");
 
     if (insertError) {
       console.error(`[ads-autopilot-creative-generate][${VERSION}] Insert error:`, insertError);
@@ -296,10 +295,128 @@ Responda APENAS com JSON válido:
 
     console.log(`[ads-autopilot-creative-generate][${VERSION}] Created ${inserted?.length || 0} creative briefs`);
 
+    // ====================================================
+    // 7. BRIDGE: Trigger image generation for each product
+    // ====================================================
+    // Group creatives by product_id to avoid duplicate image generation
+    const productCreativeMap: Record<string, { asset_ids: string[]; style: string; prompt: string; name: string }> = {};
+    
+    for (const asset of inserted || []) {
+      const pid = asset.product_id;
+      const meta = asset.meta as any;
+      if (!productCreativeMap[pid]) {
+        productCreativeMap[pid] = {
+          asset_ids: [],
+          style: meta?.generation_style || "promotional",
+          prompt: meta?.generation_prompt || "",
+          name: meta?.product_name || "Produto",
+        };
+      }
+      productCreativeMap[pid].asset_ids.push(asset.id);
+    }
+
+    const imageJobResults: { product_id: string; job_id?: string; error?: string }[] = [];
+
+    // For each unique product, call creative-image-generate
+    for (const [productId, info] of Object.entries(productCreativeMap)) {
+      const imageUrl = productImageMap[productId];
+      
+      if (!imageUrl) {
+        console.warn(`[ads-autopilot-creative-generate][${VERSION}] No image for product ${productId}, skipping image generation`);
+        // Update assets to mark image generation as skipped
+        await supabase.from("ads_creative_assets").update({
+          meta: { ...(assetsToInsert[0]?.meta || {}), image_status: "no_product_image" },
+        }).in("id", info.asset_ids);
+        imageJobResults.push({ product_id: productId, error: "Produto sem imagem" });
+        continue;
+      }
+
+      try {
+        console.log(`[ads-autopilot-creative-generate][${VERSION}] Triggering image generation for product: ${info.name} (${productId})`);
+        
+        // Call creative-image-generate via M2M (service role)
+        const imageGenResponse = await fetch(`${supabaseUrl}/functions/v1/creative-image-generate`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${supabaseKey}`, // service role = M2M auth
+            "apikey": supabaseKey,
+          },
+          body: JSON.stringify({
+            tenant_id,
+            product_id: productId,
+            product_name: info.name,
+            product_image_url: imageUrl,
+            prompt: info.prompt,
+            settings: {
+              providers: ["gemini"], // Use gemini for autopilot (faster + cheaper)
+              generation_style: info.style,
+              format: "1:1", // Default for ads
+              variations: 1, // 1 variation per product to save credits
+              enable_qa: true,
+              enable_fallback: true,
+              label_lock: true,
+              style_config: {
+                tone: "premium",
+                channel: "meta",
+              },
+            },
+          }),
+        });
+
+        const imageGenText = await imageGenResponse.text();
+        console.log(`[ads-autopilot-creative-generate][${VERSION}] Image gen response status: ${imageGenResponse.status}, body preview: ${imageGenText.substring(0, 300)}`);
+        
+        let imageGenResult: any;
+        try {
+          imageGenResult = JSON.parse(imageGenText);
+        } catch {
+          console.error(`[ads-autopilot-creative-generate][${VERSION}] Image gen parse error: ${imageGenText.substring(0, 200)}`);
+          imageJobResults.push({ product_id: productId, error: "Parse error" });
+          continue;
+        }
+
+        if (imageGenResult?.success && imageGenResult?.data?.job_id) {
+          const jobId = imageGenResult.data.job_id;
+          console.log(`[ads-autopilot-creative-generate][${VERSION}] Image job created: ${jobId} for product ${productId}`);
+          
+          // Update assets with job reference
+          for (const assetId of info.asset_ids) {
+            await supabase.from("ads_creative_assets").update({
+              meta: {
+                ...((inserted || []).find(a => a.id === assetId)?.meta as any || {}),
+                image_status: "generating",
+                image_job_id: jobId,
+              },
+            }).eq("id", assetId);
+          }
+
+          imageJobResults.push({ product_id: productId, job_id: jobId });
+        } else {
+          const errorMsg = imageGenResult?.error || "Resposta inesperada";
+          console.error(`[ads-autopilot-creative-generate][${VERSION}] Image gen failed for ${productId}: ${errorMsg}`);
+          imageJobResults.push({ product_id: productId, error: errorMsg });
+        }
+      } catch (err: any) {
+        console.error(`[ads-autopilot-creative-generate][${VERSION}] Image gen error for ${productId}:`, err);
+        imageJobResults.push({ product_id: productId, error: err.message || "Erro desconhecido" });
+      }
+    }
+
+    const successfulJobs = imageJobResults.filter(r => r.job_id);
+    const failedJobs = imageJobResults.filter(r => r.error);
+
+    console.log(`[ads-autopilot-creative-generate][${VERSION}] Image generation summary: ${successfulJobs.length} jobs created, ${failedJobs.length} failed`);
+
     return ok({
       created: inserted?.length || 0,
       trigger_type,
-      products_analyzed: topProducts.length,
+      products_analyzed: productIds.length,
+      image_jobs: {
+        created: successfulJobs.length,
+        failed: failedJobs.length,
+        details: imageJobResults,
+      },
     });
   } catch (err: any) {
     console.error(`[ads-autopilot-creative-generate][${VERSION}] Error:`, err);

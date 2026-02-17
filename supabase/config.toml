@@ -569,7 +569,7 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.creative-image-generate]
-verify_jwt = true
+verify_jwt = false
 
 [functions.creative-video-generate]
 verify_jwt = true
