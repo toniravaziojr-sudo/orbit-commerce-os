@@ -470,7 +470,11 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v5.3.4
+### Versão Atual: v5.3.5
+
+### v5.3.5: Fix Audiences + Creatives invisíveis
+- **getAudiences auto-sync**: Se `meta_ad_audiences` estiver vazia, faz sync inline (aguarda resultado) antes de retornar. Resolve o "Bloqueio de Públicos" — dezenas de públicos existiam no Meta mas nunca foram sincronizados para o banco local
+- **getCreativeAssets inclui meta_ad_creatives**: Agora consulta AMBAS as tabelas (`ads_creative_assets` para criativos internos + `meta_ad_creatives` para 197 criativos reais sincronizados do Meta). Resolve o "Galeria Vazia" falso
 
 ### v5.3.4: Fix Coluna `position` → `sort_order` em product_images
 - **Bug fix crítico**: Queries em `getProducts` e `collectBaseContext` usavam `.order("position")` mas a coluna real é `sort_order`. Erro silencioso retornava `[]` para todas as imagens (251 imagens existem no banco mas nenhuma era retornada)
