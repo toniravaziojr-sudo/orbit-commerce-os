@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.7.0"; // Fix: timeout 45s→90s, logging síncrono de ações, fallback imagem catálogo
+const VERSION = "v5.8.0"; // Fix: product_images sort_order, session_id FK para action logging
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -572,7 +572,8 @@ async function executeTool(
   supabase: any,
   tenantId: string,
   toolName: string,
-  args: any
+  args: any,
+  chatSessionId?: string
 ): Promise<string> {
   try {
     switch (toolName) {
@@ -617,23 +618,23 @@ async function executeTool(
       case "get_tiktok_campaigns":
         return await getTikTokCampaigns(supabase, tenantId, args.advertiser_id);
       case "trigger_creative_generation":
-        return await triggerCreativeGeneration(supabase, tenantId);
+        return await triggerCreativeGeneration(supabase, tenantId, chatSessionId);
       case "generate_creative_image":
-        return await generateCreativeImage(supabase, tenantId, args);
+        return await generateCreativeImage(supabase, tenantId, args, chatSessionId);
       case "create_meta_campaign":
-        return await createMetaCampaign(supabase, tenantId, args);
+        return await createMetaCampaign(supabase, tenantId, args, chatSessionId);
       case "toggle_entity_status":
-        return await toggleEntityStatus(supabase, tenantId, args);
+        return await toggleEntityStatus(supabase, tenantId, args, chatSessionId);
       case "update_budget":
-        return await updateBudget(supabase, tenantId, args);
+        return await updateBudget(supabase, tenantId, args, chatSessionId);
       case "duplicate_campaign":
-        return await duplicateCampaign(supabase, tenantId, args);
+        return await duplicateCampaign(supabase, tenantId, args, chatSessionId);
       case "update_adset_targeting":
-        return await updateAdsetTargeting(supabase, tenantId, args);
+        return await updateAdsetTargeting(supabase, tenantId, args, chatSessionId);
       case "create_custom_audience":
-        return await createCustomAudience(supabase, tenantId, args);
+        return await createCustomAudience(supabase, tenantId, args, chatSessionId);
       case "create_lookalike_audience":
-        return await createLookalikeAudience(supabase, tenantId, args);
+        return await createLookalikeAudience(supabase, tenantId, args, chatSessionId);
       case "update_autopilot_config":
         return await updateAutopilotConfig(supabase, tenantId, args.ad_account_id, args.channel, args.updates);
       case "trigger_autopilot_analysis":
@@ -1018,7 +1019,7 @@ async function getStoreContext(supabase: any, tenantId: string) {
 }
 
 // --- Frente 4: toggle_entity_status ---
-async function toggleEntityStatus(supabase: any, tenantId: string, args: any) {
+async function toggleEntityStatus(supabase: any, tenantId: string, args: any, chatSessionId?: string) {
   const { entity_type, entity_id, new_status } = args;
 
   // Get Meta connection
@@ -1042,7 +1043,7 @@ async function toggleEntityStatus(supabase: any, tenantId: string, args: any) {
   if (result.error) {
     // Log failed action
     const { error: logErr } = await supabase.from("ads_autopilot_actions").insert({
-      tenant_id: tenantId, session_id: crypto.randomUUID(), channel: "meta",
+      tenant_id: tenantId, session_id: chatSessionId || crypto.randomUUID(), channel: "meta",
       action_type: new_status === "PAUSED" ? "pause_entity" : "activate_entity",
       status: "failed", error_message: result.error.message,
       action_data: { entity_type, entity_id, new_status, created_by: "ads_chat" },
@@ -1071,7 +1072,7 @@ async function toggleEntityStatus(supabase: any, tenantId: string, args: any) {
 
   // Log successful action
   const { error: logErr2 } = await supabase.from("ads_autopilot_actions").insert({
-    tenant_id: tenantId, session_id: crypto.randomUUID(), channel: "meta",
+    tenant_id: tenantId, session_id: chatSessionId || crypto.randomUUID(), channel: "meta",
     action_type: new_status === "PAUSED" ? "pause_entity" : "activate_entity",
     status: "executed", executed_at: new Date().toISOString(), confidence: "high",
     action_data: { entity_type, entity_id, entity_name: entityName, new_status, created_by: "ads_chat" },
@@ -1083,7 +1084,7 @@ async function toggleEntityStatus(supabase: any, tenantId: string, args: any) {
 }
 
 // --- Frente 4: update_budget ---
-async function updateBudget(supabase: any, tenantId: string, args: any) {
+async function updateBudget(supabase: any, tenantId: string, args: any, chatSessionId?: string) {
   const { entity_type, entity_id, new_daily_budget_cents } = args;
 
   const { data: conn } = await supabase
@@ -1113,7 +1114,7 @@ async function updateBudget(supabase: any, tenantId: string, args: any) {
 
   if (result.error) {
     const { error: budgetLogErr } = await supabase.from("ads_autopilot_actions").insert({
-      tenant_id: tenantId, session_id: crypto.randomUUID(), channel: "meta",
+      tenant_id: tenantId, session_id: chatSessionId || crypto.randomUUID(), channel: "meta",
       action_type: "update_budget", status: "failed", error_message: result.error.message,
       action_data: { entity_type, entity_id, entity_name: entityName, old_budget_cents: oldBudgetCents, new_daily_budget_cents, created_by: "ads_chat" },
       reasoning: `Tentativa de alterar budget de "${entityName}" de R$ ${(oldBudgetCents / 100).toFixed(2)} para R$ ${(new_daily_budget_cents / 100).toFixed(2)} via Chat IA`,
@@ -1128,7 +1129,7 @@ async function updateBudget(supabase: any, tenantId: string, args: any) {
 
   // Log successful action
   const { error: budgetLogErr2 } = await supabase.from("ads_autopilot_actions").insert({
-    tenant_id: tenantId, session_id: crypto.randomUUID(), channel: "meta",
+    tenant_id: tenantId, session_id: chatSessionId || crypto.randomUUID(), channel: "meta",
     action_type: "update_budget", status: "executed", executed_at: new Date().toISOString(), confidence: "high",
     action_data: { entity_type, entity_id, entity_name: entityName, old_budget_cents: oldBudgetCents, new_daily_budget_cents, change_pct: oldBudgetCents > 0 ? `${(((new_daily_budget_cents - oldBudgetCents) / oldBudgetCents) * 100).toFixed(0)}%` : "N/A", created_by: "ads_chat" },
     reasoning: `Budget de "${entityName}" alterado de R$ ${(oldBudgetCents / 100).toFixed(2)} para R$ ${(new_daily_budget_cents / 100).toFixed(2)}/dia via Chat IA`,
@@ -1142,7 +1143,7 @@ async function updateBudget(supabase: any, tenantId: string, args: any) {
 }
 
 // --- Frente 4.3: duplicate_campaign ---
-async function duplicateCampaign(supabase: any, tenantId: string, args: any) {
+async function duplicateCampaign(supabase: any, tenantId: string, args: any, chatSessionId?: string) {
   const { source_campaign_id, new_name, new_daily_budget_cents } = args;
 
   // Get source campaign
@@ -1312,7 +1313,7 @@ async function duplicateCampaign(supabase: any, tenantId: string, args: any) {
     status: "scheduled", confidence: "high",
     action_data: { meta_campaign_id: newCampaignId, campaign_name: campName, scheduled_for: activateAt.toISOString() },
     reasoning: `Ativação agendada da cópia de "${source.name}" para ${activateAt.toISOString()}`,
-    session_id: crypto.randomUUID(),
+    session_id: chatSessionId || crypto.randomUUID(),
   });
 
   return JSON.stringify({
@@ -1325,7 +1326,7 @@ async function duplicateCampaign(supabase: any, tenantId: string, args: any) {
 }
 
 // --- Frente 4.4: update_adset_targeting ---
-async function updateAdsetTargeting(supabase: any, tenantId: string, args: any) {
+async function updateAdsetTargeting(supabase: any, tenantId: string, args: any, chatSessionId?: string) {
   const { adset_id, age_min, age_max, genders, geo_locations, interests } = args;
 
   const { data: conn } = await supabase
@@ -1385,7 +1386,7 @@ async function updateAdsetTargeting(supabase: any, tenantId: string, args: any) 
 }
 
 // --- Frente 5: create_custom_audience ---
-async function createCustomAudience(supabase: any, tenantId: string, args: any) {
+async function createCustomAudience(supabase: any, tenantId: string, args: any, chatSessionId?: string) {
   const { name, description, source, subtype, retention_days, rule } = args;
 
   const { data: conn } = await supabase
@@ -1471,7 +1472,7 @@ async function createCustomAudience(supabase: any, tenantId: string, args: any) 
 }
 
 // --- Frente 5: create_lookalike_audience ---
-async function createLookalikeAudience(supabase: any, tenantId: string, args: any) {
+async function createLookalikeAudience(supabase: any, tenantId: string, args: any, chatSessionId?: string) {
   const { source_audience_id, country, ratio } = args;
 
   const { data: conn } = await supabase
@@ -1924,7 +1925,7 @@ async function updateAutopilotConfig(supabase: any, tenantId: string, adAccountI
 }
 
 // --- Creative generation (kept) ---
-async function triggerCreativeGeneration(supabase: any, tenantId: string) {
+async function triggerCreativeGeneration(supabase: any, tenantId: string, chatSessionId?: string) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   try {
@@ -1937,7 +1938,7 @@ async function triggerCreativeGeneration(supabase: any, tenantId: string) {
 
     // Log action (synchronous)
     const { error: logErr } = await supabase.from("ads_autopilot_actions").insert({
-      tenant_id: tenantId, session_id: crypto.randomUUID(), channel: "meta",
+      tenant_id: tenantId, session_id: chatSessionId || crypto.randomUUID(), channel: "meta",
       action_type: "generate_creative", status: response.ok ? "executed" : "failed",
       executed_at: response.ok ? new Date().toISOString() : null,
       error_message: !response.ok ? `HTTP ${response.status}` : null,
@@ -1950,7 +1951,7 @@ async function triggerCreativeGeneration(supabase: any, tenantId: string) {
   } catch (err: any) { return JSON.stringify({ success: false, error: err.message }); }
 }
 
-async function generateCreativeImage(supabase: any, tenantId: string, args: any) {
+async function generateCreativeImage(supabase: any, tenantId: string, args: any, chatSessionId?: string) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   try {
@@ -1977,7 +1978,7 @@ async function generateCreativeImage(supabase: any, tenantId: string, args: any)
     // Log action (synchronous)
     const isSuccess = response.ok && parsed?.success;
     const { error: imgLogErr } = await supabase.from("ads_autopilot_actions").insert({
-      tenant_id: tenantId, session_id: crypto.randomUUID(), channel: args.channel || "meta",
+      tenant_id: tenantId, session_id: chatSessionId || crypto.randomUUID(), channel: args.channel || "meta",
       action_type: "generate_creative", status: isSuccess ? "executed" : "failed",
       executed_at: isSuccess ? new Date().toISOString() : null,
       error_message: !isSuccess ? (parsed?.error || `HTTP ${response.status}`) : null,
@@ -1991,7 +1992,7 @@ async function generateCreativeImage(supabase: any, tenantId: string, args: any)
   } catch (err: any) { return JSON.stringify({ success: false, error: err.message }); }
 }
 
-async function createMetaCampaign(supabase: any, tenantId: string, args: any) {
+async function createMetaCampaign(supabase: any, tenantId: string, args: any, chatSessionId?: string) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const headers = { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` };
@@ -2043,7 +2044,7 @@ async function createMetaCampaign(supabase: any, tenantId: string, args: any) {
 
     // Fallback: product image from catalog (ALWAYS available)
     if (!creativeImageUrl) {
-      const { data: prodImages } = await supabase.from("product_images").select("url").eq("product_id", product.id).order("position", { ascending: true }).limit(1);
+      const { data: prodImages } = await supabase.from("product_images").select("url").eq("product_id", product.id).order("sort_order", { ascending: true }).limit(1);
       if (prodImages?.[0]?.url) {
         creativeImageUrl = prodImages[0].url;
         console.log(`[ads-chat][${VERSION}] Using catalog image for ${product.name}: ${creativeImageUrl}`);
@@ -2054,7 +2055,7 @@ async function createMetaCampaign(supabase: any, tenantId: string, args: any) {
       console.error(`[ads-chat][${VERSION}] No image found for product ${product.name} (${product.id})`);
       // Log the failure as an action
       await supabase.from("ads_autopilot_actions").insert({
-        tenant_id: tenantId, session_id: crypto.randomUUID(), channel: "meta",
+        tenant_id: tenantId, session_id: chatSessionId || crypto.randomUUID(), channel: "meta",
         action_type: "create_campaign", status: "failed",
         error_message: `Nenhuma imagem encontrada para "${product.name}". Adicione imagens ao produto no catálogo.`,
         action_data: { product_name: product.name, product_id: product.id, created_by: "ads_chat" },
@@ -2128,7 +2129,7 @@ async function createMetaCampaign(supabase: any, tenantId: string, args: any) {
     else { if (brtHour >= 4) scheduleDate.setDate(scheduleDate.getDate() + 1); scheduleDate.setUTCHours(3, 1 + Math.floor(Math.random() * 59), 0, 0); }
 
     await supabase.from("ads_autopilot_actions").insert({
-      tenant_id: tenantId, session_id: crypto.randomUUID(), channel: "meta", action_type: "activate_campaign",
+      tenant_id: tenantId, session_id: chatSessionId || crypto.randomUUID(), channel: "meta", action_type: "activate_campaign",
       action_data: { campaign_id: metaCampaignId, adset_id: metaAdsetId, ad_id: metaAdId, ad_account_id: adAccountId, campaign_name: campName, product_name: product.name, creative_id: metaCreativeId, scheduled_for: scheduleDate.toISOString(), daily_budget_cents: dailyBudgetCents, created_by: "ads_chat" },
       reasoning: `Campanha criada via Chat IA para "${product.name}". Ativação agendada.`, status: "scheduled",
       action_hash: `chat_activate_${metaCampaignId}_${Date.now()}`,
@@ -2916,6 +2917,13 @@ Deno.serve(async (req) => {
       convId = conv.id;
     }
 
+    // Create a chat session for action logging (avoids FK violation)
+    const { data: chatSession } = await supabase.from("ads_autopilot_sessions").insert({
+      tenant_id, channel: channel || "meta", trigger_type: "chat",
+      motor_type: "chat", actions_planned: 0, actions_executed: 0, actions_rejected: 0, cost_credits: 0,
+    }).select("id").single();
+    const chatSessionId = chatSession?.id || crypto.randomUUID();
+
     // Save user message
     await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "user", content: message || null, attachments: attachments?.length > 0 ? attachments : null });
 
@@ -3004,7 +3012,7 @@ Deno.serve(async (req) => {
         for (const tc of currentToolCalls) {
           let args = {};
           try { args = JSON.parse(tc.function.arguments || "{}"); } catch { /* empty */ }
-          const result = await executeTool(supabase, tenant_id, tc.function.name, args);
+          const result = await executeTool(supabase, tenant_id, tc.function.name, args, chatSessionId);
           
           // Save tool call to DB
           await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: null, tool_calls: [{ id: tc.id, function: { name: tc.function.name, arguments: tc.function.arguments } }] });
