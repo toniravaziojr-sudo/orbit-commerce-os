@@ -133,7 +133,7 @@ function getRoasColorClass(roas: number, targetRoi: number | null, minRoiCold: n
 
 // ========== STATUS ==========
 
-type StatusFilter = "all" | "active" | "paused";
+type StatusFilter = "all" | "active" | "paused" | "scheduled";
 
 function isStatusActive(status: string, effectiveStatus?: string): boolean {
   const s = effectiveStatus || status;
@@ -145,12 +145,25 @@ function isStatusPaused(status: string, effectiveStatus?: string): boolean {
   return s === "PAUSED" || s === "DISABLE" || s === "ARCHIVED" || s === "CAMPAIGN_PAUSED" || s === "ADSET_PAUSED";
 }
 
+// A campaign is scheduled if status is ACTIVE but start_time is in the future
+function isCampaignScheduled(campaign: any): boolean {
+  if (!isStatusActive(campaign.status, campaign.effective_status)) return false;
+  const startTime = campaign.start_time;
+  if (!startTime) return false;
+  try {
+    return new Date(startTime) > new Date();
+  } catch { return false; }
+}
+
 // A campaign is truly active if:
 // 1. effective_status is ACTIVE
 // 2. stop_time is NOT in the past (otherwise it's "Concluída")
-// 3. Has at least 1 active adset (or adsets not synced yet)
+// 3. NOT scheduled (start_time not in the future)
+// 4. Has at least 1 active adset (or adsets not synced yet)
 function isCampaignTrulyActive(campaign: any, adsets: AdSetData[]): boolean {
   if (!isStatusActive(campaign.status, campaign.effective_status)) return false;
+  // Scheduled campaigns are not "active" yet
+  if (isCampaignScheduled(campaign)) return false;
   // Check if campaign has ended (stop_time in the past)
   if (campaign.stop_time) {
     try {
@@ -175,25 +188,28 @@ function isCampaignCompleted(campaign: any): boolean {
 
 function matchesStatus(campaign: any, adsets: AdSetData[], filter: StatusFilter): boolean {
   if (filter === "all") return true;
+  if (filter === "scheduled") return isCampaignScheduled(campaign);
   if (filter === "active") return isCampaignTrulyActive(campaign, adsets);
-  // Paused = not truly active (campaign paused OR no active adsets)
-  return !isCampaignTrulyActive(campaign, adsets);
+  // Paused = not truly active AND not scheduled
+  return !isCampaignTrulyActive(campaign, adsets) && !isCampaignScheduled(campaign);
 }
 
-function StatusDot({ status, effectiveStatus, stopTime }: { status: string; effectiveStatus?: string; stopTime?: string | null }) {
+function StatusDot({ status, effectiveStatus, stopTime, startTime }: { status: string; effectiveStatus?: string; stopTime?: string | null; startTime?: string | null }) {
   const displayStatus = effectiveStatus || status;
   const isActive = displayStatus === "ACTIVE" || displayStatus === "ENABLE";
   const isPaused = displayStatus === "PAUSED" || displayStatus === "DISABLE" || displayStatus === "CAMPAIGN_PAUSED" || displayStatus === "ADSET_PAUSED";
+  // Check if scheduled (start_time in the future)
+  const isScheduled = isActive && startTime ? (() => { try { return new Date(startTime) > new Date(); } catch { return false; } })() : false;
   // Check if completed (end date passed)
-  const isCompleted = isActive && stopTime ? (() => { try { return new Date(stopTime) < new Date(); } catch { return false; } })() : false;
+  const isCompleted = isActive && !isScheduled && stopTime ? (() => { try { return new Date(stopTime) < new Date(); } catch { return false; } })() : false;
   return (
     <div className="flex items-center gap-2">
       <span className={cn(
         "h-2 w-2 rounded-full flex-shrink-0",
-        isCompleted ? "bg-muted-foreground/40" : isActive ? "bg-green-500" : isPaused ? "bg-muted-foreground/40" : "bg-destructive/50"
+        isCompleted ? "bg-muted-foreground/40" : isScheduled ? "bg-blue-500" : isActive ? "bg-green-500" : isPaused ? "bg-muted-foreground/40" : "bg-destructive/50"
       )} />
       <span className="text-xs text-muted-foreground">
-        {isCompleted ? "Concluída" : isActive ? "Ativo" : isPaused ? "Pausada" : displayStatus}
+        {isCompleted ? "Concluída" : isScheduled ? "Agendada" : isActive ? "Ativo" : isPaused ? "Pausada" : displayStatus}
       </span>
     </div>
   );
@@ -434,9 +450,10 @@ export function AdsCampaignsTab({
     });
   }, [accountFiltered, statusFilter, searchQuery, adsets]);
 
-  // Count by status: truly active = campaign ACTIVE + has active adset
+  // Count by status
+  const scheduledCount = accountFiltered.filter(c => isCampaignScheduled(c)).length;
   const activeCount = accountFiltered.filter(c => isCampaignTrulyActive(c, adsets)).length;
-  const pausedCount = accountFiltered.filter(c => !isCampaignTrulyActive(c, adsets)).length;
+  const pausedCount = accountFiltered.filter(c => !isCampaignTrulyActive(c, adsets) && !isCampaignScheduled(c)).length;
 
   // ===== Filter insights by selected accounts + date range =====
   const campaignInsights = useMemo(() => {
@@ -844,6 +861,7 @@ export function AdsCampaignsTab({
                 {([
                   { value: "all" as StatusFilter, label: "Todas", count: accountFiltered.length },
                   { value: "active" as StatusFilter, label: "Ativas", count: activeCount },
+                  { value: "scheduled" as StatusFilter, label: "Agendadas", count: scheduledCount },
                   { value: "paused" as StatusFilter, label: "Pausadas", count: pausedCount },
                 ] as const).map(tab => (
                   <button
@@ -1026,7 +1044,7 @@ export function AdsCampaignsTab({
           {/* ===== TABLE ===== */}
           {filteredCampaigns.length === 0 ? (
             <div className="text-center py-12 text-sm text-muted-foreground">
-              Nenhuma campanha {statusFilter === "active" ? "ativa" : statusFilter === "paused" ? "pausada" : ""} encontrada
+              Nenhuma campanha {statusFilter === "active" ? "ativa" : statusFilter === "paused" ? "pausada" : statusFilter === "scheduled" ? "agendada" : ""} encontrada
               {searchQuery && ` para "${searchQuery}"`}
             </div>
           ) : (
@@ -1091,7 +1109,7 @@ export function AdsCampaignsTab({
 
                           {/* Status */}
                           <TableCell className="w-20">
-                            <StatusDot status={status} effectiveStatus={effectiveStatus} stopTime={c.stop_time} />
+                            <StatusDot status={status} effectiveStatus={effectiveStatus} stopTime={c.stop_time} startTime={c.start_time} />
                           </TableCell>
 
                           {/* Metrics */}
