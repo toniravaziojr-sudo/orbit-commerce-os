@@ -114,6 +114,25 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
   const sendMessage = useCallback(async (message: string, attachments?: AdsChatAttachment[]) => {
     if (!tenantId || (!message.trim() && (!attachments || attachments.length === 0))) return;
 
+    // Optimistically add user message to the cache
+    const optimisticMsg: AdsChatMessage = {
+      id: `optimistic-${Date.now()}`,
+      conversation_id: currentConversationId || "",
+      tenant_id: tenantId,
+      role: "user",
+      content: message,
+      attachments: attachments || null,
+      created_at: new Date().toISOString(),
+    };
+
+    const convIdForCache = currentConversationId;
+    if (convIdForCache) {
+      queryClient.setQueryData<AdsChatMessage[]>(
+        ["ads-chat-messages", convIdForCache],
+        (old) => [...(old || []), optimisticMsg]
+      );
+    }
+
     setIsStreaming(true);
     setStreamingContent("");
 
@@ -151,6 +170,11 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
       const newConvId = resp.headers.get("X-Conversation-Id");
       if (newConvId && !currentConversationId) {
         setCurrentConversationId(newConvId);
+        // Move optimistic message to the new conversation cache
+        queryClient.setQueryData<AdsChatMessage[]>(
+          ["ads-chat-messages", newConvId],
+          [{ ...optimisticMsg, conversation_id: newConvId }]
+        );
         queryClient.invalidateQueries({ queryKey: ["ads-chat-conversations"] });
       }
 
@@ -191,6 +215,13 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
     } catch (err: any) {
       if (err.name === "AbortError") return;
       console.error("[useAdsChat] Error:", err);
+      // Remove optimistic message on error
+      if (convIdForCache) {
+        queryClient.setQueryData<AdsChatMessage[]>(
+          ["ads-chat-messages", convIdForCache],
+          (old) => (old || []).filter(m => m.id !== optimisticMsg.id)
+        );
+      }
       throw err;
     } finally {
       setIsStreaming(false);
