@@ -527,7 +527,7 @@ O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe
 - Inventar nomes de produtos, preços ou descrições (deve usar APENAS o catálogo real)
 - Contornar erros de ferramentas com texto inventado
 
-### Ferramentas Disponíveis (Tool Calling) — v4.0.0
+### Ferramentas Disponíveis (Tool Calling) — v4.1.0
 | Ferramenta | Descrição | Tipo |
 |-----------|-----------|------|
 | `get_campaign_performance` | Métricas reais 7d de campanhas Meta (spend, ROAS, CPA, cliques, conversões) | Leitura |
@@ -545,6 +545,7 @@ O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe
 | `get_experiments` | Lista experimentos/testes A/B ativos e finalizados | Leitura |
 | `update_autopilot_config` | Atualiza config do Autopilot (ROI, budget, estratégia, instruções) | Escrita |
 | `trigger_creative_generation` | Dispara geração de briefs criativos (headlines + copy) | Execução |
+| `generate_creative_image` | Gera IMAGENS reais via IA (Gemini) para criativos de anúncios | Execução |
 | `trigger_autopilot_analysis` | Dispara análise completa do Autopilot por canal | Execução |
 | `analyze_url` | Analisa conteúdo de URL via Firecrawl (landing page, concorrente, artigo) | Leitura |
 
@@ -558,12 +559,11 @@ O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe
 | `user_instructions` | string | Prompt de instruções estratégicas |
 
 ### O que o Chat NÃO Pode Fazer
-- Gerar imagens diretamente
-- Upload de mídia para Meta/Google/TikTok
+- Upload de mídia para Meta/Google/TikTok diretamente
 - Criar/alterar campanhas diretamente (delega ao Autopilot)
 - Alterar orçamentos de campanhas diretamente (usa `trigger_autopilot_analysis`)
 - Acessar APIs de plataformas diretamente
-- Renderizar, processar ou finalizar qualquer coisa fora das ferramentas acima
+- Renderizar ou finalizar qualquer coisa fora das ferramentas acima
 
 ### Fluxo de Conversação
 1. Usuário envia mensagem (com ou sem anexos) via `useAdsChat` hook

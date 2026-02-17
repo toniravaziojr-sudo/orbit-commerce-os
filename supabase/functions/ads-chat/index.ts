@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v4.0.0"; // Full module access: all channels, configs R/W, experiments, tracking, adsets/ads
+const VERSION = "v4.1.0"; // Add generate_creative_image tool for visual creative generation via ads-autopilot-creative
 // ===========================================================
 
 const corsHeaders = {
@@ -49,11 +49,32 @@ const TOOLS = [
     type: "function",
     function: {
       name: "trigger_creative_generation",
-      description: "Dispara a geração REAL de briefs criativos (headlines + copy) para os top produtos por receita. NÃO gera imagens diretamente — gera os briefs que depois podem ter imagens geradas. Só use quando o usuário explicitamente pedir para gerar criativos.",
+      description: "Dispara a geração REAL de briefs criativos (headlines + copy) para os top produtos por receita. Gera textos estratégicos (roteiros, headlines, copy). Para gerar IMAGENS use generate_creative_image.",
       parameters: {
         type: "object",
         properties: {},
         required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "generate_creative_image",
+      description: "Gera IMAGENS reais de criativos para anúncios usando IA (Gemini). Cria imagens publicitárias baseadas no produto selecionado. Use quando o usuário pedir para gerar imagens, artes, criativos visuais ou quando precisar de mídia para campanhas.",
+      parameters: {
+        type: "object",
+        properties: {
+          product_name: { type: "string", description: "Nome do produto do catálogo real (obrigatório)" },
+          channel: { type: "string", enum: ["meta", "google", "tiktok"], description: "Canal de destino (default: meta)" },
+          campaign_objective: { type: "string", enum: ["sales", "leads", "traffic", "awareness"], description: "Objetivo da campanha" },
+          target_audience: { type: "string", description: "Descrição do público-alvo" },
+          style_preference: { type: "string", enum: ["promotional", "product_natural", "person_interacting"], description: "Estilo visual (default: promotional)" },
+          format: { type: "string", enum: ["1:1", "9:16", "16:9"], description: "Formato da imagem (default: 1:1)" },
+          variations: { type: "number", description: "Número de variações (1-4, default: 2)" },
+        },
+        required: ["product_name"],
         additionalProperties: false,
       },
     },
@@ -299,6 +320,8 @@ async function executeTool(
         return await getCreativeAssets(supabase, tenantId, args.status);
       case "trigger_creative_generation":
         return await triggerCreativeGeneration(supabase, tenantId);
+      case "generate_creative_image":
+        return await generateCreativeImage(supabase, tenantId, args);
       case "trigger_autopilot_analysis":
         return await triggerAutopilotAnalysis(supabase, tenantId, args.channel);
       case "get_autopilot_actions":
@@ -423,6 +446,71 @@ async function triggerCreativeGeneration(supabase: any, tenantId: string) {
       return JSON.stringify({ success: false, error: `Falha ao gerar criativos (HTTP ${response.status})`, details: parsed });
     }
     return JSON.stringify({ success: true, message: "Geração de briefs criativos disparada com sucesso.", details: parsed });
+  } catch (err: any) {
+    return JSON.stringify({ success: false, error: err.message });
+  }
+}
+
+async function generateCreativeImage(supabase: any, tenantId: string, args: any) {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  try {
+    // Find product by name in catalog
+    const { data: products } = await supabase
+      .from("products")
+      .select("id, name, images")
+      .eq("tenant_id", tenantId)
+      .eq("status", "active");
+
+    const product = (products || []).find((p: any) => 
+      p.name.toLowerCase().includes((args.product_name || "").toLowerCase())
+    ) || products?.[0];
+
+    if (!product) {
+      return JSON.stringify({ success: false, error: "Produto não encontrado no catálogo. Verifique o nome e tente novamente." });
+    }
+
+    // Resolve product image
+    let productImageUrl: string | null = null;
+    if (product.images) {
+      const images = Array.isArray(product.images) ? product.images : [];
+      const firstImg = images[0];
+      productImageUrl = typeof firstImg === "string" ? firstImg : (firstImg as any)?.url || null;
+    }
+
+    const response = await fetch(`${supabaseUrl}/functions/v1/ads-autopilot-creative`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+      body: JSON.stringify({
+        tenant_id: tenantId,
+        channel: args.channel || "meta",
+        product_id: product.id,
+        product_name: product.name,
+        product_image_url: productImageUrl,
+        campaign_objective: args.campaign_objective || "sales",
+        target_audience: args.target_audience,
+        style_preference: args.style_preference || "promotional",
+        format: args.format || "1:1",
+        variations: Math.min(args.variations || 2, 4),
+      }),
+    });
+
+    const result = await response.text();
+    let parsed;
+    try { parsed = JSON.parse(result); } catch { parsed = { raw: result }; }
+
+    if (!response.ok || !parsed?.success) {
+      return JSON.stringify({ success: false, error: `Falha ao gerar imagens (HTTP ${response.status})`, details: parsed });
+    }
+
+    return JSON.stringify({
+      success: true,
+      message: `Geração de ${args.variations || 2} imagem(ns) criativa(s) disparada com sucesso para "${product.name}". As imagens estão sendo geradas via IA e ficarão disponíveis na pasta "Gestor de Tráfego IA" do Drive e na galeria de criativos.`,
+      job_id: parsed?.data?.job_id,
+      product_name: product.name,
+      style: args.style_preference || "promotional",
+      format: args.format || "1:1",
+    });
   } catch (err: any) {
     return JSON.stringify({ success: false, error: err.message });
   }
@@ -891,7 +979,7 @@ function buildSystemPrompt(scope: string, adAccountId?: string, channel?: string
 - Você NUNCA mente, inventa ou alucina.
 - Se você NÃO SABE algo, diga "Não tenho essa informação agora."
 - Se você NÃO PODE fazer algo, diga "Não consigo fazer isso diretamente."
-- NUNCA finja que está gerando imagens, renderizando artes, fazendo upload ou qualquer processo que você não está executando de fato.
+- NUNCA finja que está renderizando artes, fazendo upload ou qualquer processo que você não está executando de fato.
 - NUNCA diga frases como "estou finalizando", "estou renderizando", "estou processando" se não estiver de fato executando uma ferramenta.
 - NUNCA invente nomes de produtos, preços ou descrições. Use APENAS os produtos listados abaixo no CATÁLOGO REAL.
 - Se uma ferramenta retorna erro, informe o erro real ao usuário. Não tente contornar com texto inventado.
@@ -916,11 +1004,12 @@ function buildSystemPrompt(scope: string, adAccountId?: string, channel?: string
 
 ### Execução
 14. **trigger_creative_generation** → Disparar geração de BRIEFS criativos (headlines + copy)
-15. **trigger_autopilot_analysis** → Disparar análise do Autopilot para um canal
-16. **update_autopilot_config** → Alterar configurações do Autopilot (ROI, orçamento, estratégia, etc)
+15. **generate_creative_image** → Gerar IMAGENS reais via IA (Gemini) para criativos de anúncios. Informe o nome do produto e opcionalmente canal, estilo, formato e variações.
+16. **trigger_autopilot_analysis** → Disparar análise do Autopilot para um canal
+17. **update_autopilot_config** → Alterar configurações do Autopilot (ROI, orçamento, estratégia, etc)
 
 ### Análise Externa
-17. **analyze_url** → Analisar conteúdo de uma URL (landing page, concorrente, artigo)
+18. **analyze_url** → Analisar conteúdo de uma URL (landing page, concorrente, artigo)
 
 ## CAPACIDADES MULTIMODAIS
 - Você PODE analisar imagens enviadas pelo usuário (screenshots de anúncios, criativos, métricas, etc.)
@@ -930,11 +1019,10 @@ function buildSystemPrompt(scope: string, adAccountId?: string, channel?: string
 - Quando o usuário enviar um link, use analyze_url para extrair o conteúdo
 
 ## O QUE VOCÊ NÃO PODE FAZER (NUNCA FINJA QUE PODE)
-- Não pode gerar imagens diretamente
-- Não pode fazer upload de mídia para a Meta/Google/TikTok
+- Não pode fazer upload de mídia para a Meta/Google/TikTok diretamente
 - Não pode criar campanhas diretamente (quem faz é o Autopilot via trigger_autopilot_analysis)
 - Não pode acessar a API da Meta/Google/TikTok diretamente
-- Não pode "renderizar", "processar" ou "finalizar" nada fora das ferramentas acima
+- Não pode "renderizar" ou "finalizar" nada fora das ferramentas acima
 ${userInstructionsBlock}
 ## CATÁLOGO DE PRODUTOS REAIS
 ${productsList || "Nenhum produto ativo no catálogo."}
@@ -958,7 +1046,8 @@ ${configSummary || "Nenhuma conta configurada."}
 - Quando perguntar sobre públicos/audiências, USE get_audiences
 - Quando perguntar sobre configurações, USE get_autopilot_config
 - Quando pedir para ALTERAR configurações, USE update_autopilot_config
-- Quando pedir criativos, USE trigger_creative_generation e informe que são BRIEFS (textos), não imagens
+- Quando pedir criativos TEXTUAIS (briefs, copy, headlines), USE trigger_creative_generation
+- Quando pedir criativos VISUAIS (imagens, artes, fotos), USE generate_creative_image com o nome do produto
 - Quando pedir análise, USE trigger_autopilot_analysis
 - Quando perguntar sobre tracking/pixel, USE get_tracking_health
 - Quando perguntar sobre histórico de execuções, USE get_autopilot_sessions
