@@ -470,15 +470,30 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v2.3.0
+### Versão Atual: v3.0.0
 
 ### Visão Geral
-Edge Function de chat conversacional com **tool calling real** para o Gestor de Tráfego IA. Opera como assistente de tráfego pago com acesso a dados reais do sistema, sem alucinações.
+Edge Function de chat conversacional **multimodal** com **tool calling real** para o Gestor de Tráfego IA. Opera como assistente de tráfego pago com acesso a dados reais do sistema, sem alucinações. Suporta análise de imagens, arquivos e URLs.
 
 ### Arquitetura: Tool Calling em 3 Etapas
 1. **Chamada Inicial (não-streaming, timeout 45s)**: Envia mensagem do usuário + histórico (últimas 15 mensagens) + definições de ferramentas → IA decide se precisa chamar ferramentas
 2. **Execução de Tools**: Se a IA requisitou ferramentas, executa cada uma contra o banco/APIs reais e coleta resultados
 3. **Resposta Final (streaming)**: Injeta resultados reais como contexto `[DADOS REAIS DO SISTEMA]` e faz chamada final com streaming SSE
+
+### Capacidades Multimodais (v3.0.0)
+| Capacidade | Modelo | Descrição |
+|-----------|--------|-----------|
+| **Análise de Imagens** | `google/gemini-2.5-pro` | Screenshots de anúncios, criativos, métricas — análise visual via multimodal |
+| **Análise de URLs** | Firecrawl API | Landing pages, concorrentes, artigos — extração de conteúdo via tool `analyze_url` |
+| **Upload de Arquivos** | N/A | PDF, CSV, XLSX, TXT — referenciados na mensagem para contexto |
+| **Seleção de Modelo** | Automática | Se imagem presente → `gemini-2.5-pro`; texto → `gemini-3-flash-preview` |
+
+### Attachments (v3.0.0)
+- Coluna `attachments JSONB` em `ads_chat_messages`
+- Formato: `[{url, filename, mimeType}]`
+- Upload via `useSystemUpload` → storage `store-assets/tenants/{id}/ads-chat/`
+- Imagens são enviadas ao modelo como `image_url` multimodal
+- Arquivos não-imagem são referenciados como texto
 
 ### Tratamento de Falhas (v2.3.0 — CRÍTICO)
 | Cenário | Comportamento |
@@ -521,6 +536,7 @@ O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe
 | `trigger_autopilot_analysis` | Dispara análise completa do Autopilot por canal | Execução |
 | `get_autopilot_actions` | Lista ações executadas/agendadas pelo Autopilot | Leitura |
 | `get_autopilot_insights` | Lista insights e diagnósticos reais | Leitura |
+| `analyze_url` | Analisa conteúdo de URL via Firecrawl (landing page, concorrente, artigo) | Leitura |
 
 ### O que o Chat NÃO Pode Fazer
 - Gerar imagens diretamente
@@ -531,13 +547,16 @@ O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe
 - Renderizar, processar ou finalizar qualquer coisa fora das ferramentas acima
 
 ### Fluxo de Conversação
-1. Usuário envia mensagem via `useAdsChat` hook
-2. Edge function cria/recupera conversa em `ads_chat_conversations`
-3. Salva mensagem do usuário em `ads_chat_messages`
-4. Coleta contexto base (tenant, configs, **user_instructions**, **catálogo de produtos**, pedidos 30d)
-5. Executa pipeline de 3 etapas (tool calling) com **timeout de 45s**
-6. Salva resposta da IA em `ads_chat_messages` (inclusive erros)
-7. Retorna streaming SSE para o frontend
+1. Usuário envia mensagem (com ou sem anexos) via `useAdsChat` hook
+2. Anexos são uploadados para `store-assets` via `useSystemUpload`
+3. Edge function cria/recupera conversa em `ads_chat_conversations`
+4. Salva mensagem do usuário em `ads_chat_messages` (com attachments JSONB)
+5. Coleta contexto base (tenant, configs, **user_instructions**, **catálogo de produtos**, pedidos 30d)
+6. Monta mensagem multimodal (imagens como `image_url`, arquivos como texto)
+7. Seleciona modelo (vision vs text) baseado nos anexos
+8. Executa pipeline de 3 etapas (tool calling) com **timeout de 45s**
+9. Salva resposta da IA em `ads_chat_messages` (inclusive erros)
+10. Retorna streaming SSE para o frontend
 
 ### Escopos
 | Escopo | Descrição |

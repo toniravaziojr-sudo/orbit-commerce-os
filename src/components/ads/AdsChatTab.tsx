@@ -1,15 +1,18 @@
 // =============================================
 // ADS CHAT TAB
 // Chat interface for the AI Traffic Manager
+// Multimodal: supports image/file upload + URL analysis
 // =============================================
 
 import { useEffect, useRef, useState } from "react";
-import { Bot, MessageCircle } from "lucide-react";
+import { Bot, MessageCircle, Paperclip, X, Image as ImageIcon, FileText } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Square } from "lucide-react";
-import { useAdsChat } from "@/hooks/useAdsChat";
+import { useAdsChat, AdsChatAttachment } from "@/hooks/useAdsChat";
+import { useSystemUpload } from "@/hooks/useSystemUpload";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { ChatMessageBubble, ChatTypingIndicator, ChatEmptyState, ChatConversationList } from "@/components/chat";
 import { cn } from "@/lib/utils";
@@ -19,6 +22,13 @@ interface AdsChatTabProps {
   adAccountId?: string;
   channel?: string;
 }
+
+const MAX_FILE_SIZE_MB = 10;
+const ALLOWED_TYPES = [
+  "image/jpeg", "image/png", "image/webp", "image/gif",
+  "application/pdf", "text/csv", "text/plain",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+];
 
 export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
   const {
@@ -34,20 +44,59 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
     createConversation,
   } = useAdsChat({ scope, adAccountId, channel });
 
+  const { upload, isUploading } = useSystemUpload({
+    source: "ads_chat_attachment",
+    subPath: "ads-chat",
+  });
+
   const [input, setInput] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [pendingAttachments, setPendingAttachments] = useState<AdsChatAttachment[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingContent]);
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    for (const file of files) {
+      if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+        toast.error(`${file.name} excede ${MAX_FILE_SIZE_MB}MB`);
+        continue;
+      }
+
+      const result = await upload(file);
+      if (result?.publicUrl) {
+        setPendingAttachments(prev => [...prev, {
+          url: result.publicUrl,
+          filename: file.name,
+          mimeType: file.type,
+        }]);
+      } else {
+        toast.error(`Erro ao enviar ${file.name}`);
+      }
+    }
+
+    // Reset input
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const removeAttachment = (idx: number) => {
+    setPendingAttachments(prev => prev.filter((_, i) => i !== idx));
+  };
+
   const handleSend = async () => {
-    if (!input.trim() || isStreaming) return;
+    if ((!input.trim() && pendingAttachments.length === 0) || isStreaming) return;
     const msg = input;
+    const atts = [...pendingAttachments];
     setInput("");
+    setPendingAttachments([]);
     try {
-      await sendMessage(msg);
+      await sendMessage(msg, atts.length > 0 ? atts : undefined);
     } catch (err: any) {
       toast.error(err.message || "Erro ao enviar mensagem");
     }
@@ -112,6 +161,11 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
                     content={msg.content}
                     avatarIcon={msg.role === "user" ? "user" : "bot"}
                     avatarClassName="bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                    attachments={msg.attachments?.map(a => ({
+                      url: a.url,
+                      filename: a.filename,
+                      mimeType: a.mimeType,
+                    }))}
                   />
                 ))}
 
@@ -139,15 +193,64 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
               </div>
             </ScrollArea>
 
+            {/* Pending Attachments Preview */}
+            {pendingAttachments.length > 0 && (
+              <div className="border-t px-5 py-2 flex flex-wrap gap-2 bg-muted/20">
+                {pendingAttachments.map((att, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-muted/60 border border-border/40 text-xs group"
+                  >
+                    {att.mimeType?.startsWith("image/") ? (
+                      <img src={att.url} alt={att.filename} className="h-8 w-8 rounded object-cover" />
+                    ) : (
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                    )}
+                    <span className="max-w-[100px] truncate">{att.filename}</span>
+                    <button
+                      onClick={() => removeAttachment(idx)}
+                      className="ml-1 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Input */}
             <div className="border-t p-3 px-5">
               <div className="flex items-end gap-2">
+                {/* File upload button */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 rounded-xl h-[44px] w-[44px] text-muted-foreground hover:text-foreground"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isStreaming || isUploading}
+                  type="button"
+                >
+                  {isUploading ? (
+                    <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Paperclip className="h-4 w-4" />
+                  )}
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept={ALLOWED_TYPES.join(",")}
+                  multiple
+                  onChange={handleFileSelect}
+                />
+
                 <div className="flex-1 relative">
                   <Textarea
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Pergunte sobre suas campanhas..."
+                    placeholder="Pergunte sobre suas campanhas, envie imagens ou links..."
                     className="min-h-[44px] max-h-[120px] resize-none rounded-xl border-border/60 bg-muted/30 text-[13px] pr-3 focus:bg-background transition-colors"
                     disabled={isStreaming}
                   />
@@ -165,7 +268,7 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
                   <Button
                     size="icon"
                     onClick={handleSend}
-                    disabled={!input.trim()}
+                    disabled={!input.trim() && pendingAttachments.length === 0}
                     className="shrink-0 rounded-xl h-[44px] w-[44px]"
                   >
                     <Send className="h-4 w-4" />
@@ -178,7 +281,7 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
           <ChatEmptyState
             icon={<MessageCircle className="h-7 w-7 text-primary" />}
             title={scope === "account" ? "Chat da Conta" : "Chat Global de Tráfego"}
-            description="Converse com a IA sobre estratégias, peça relatórios, sugira campanhas ou solicite auditorias completas."
+            description="Converse com a IA sobre estratégias, envie imagens de anúncios para análise, cole links de concorrentes ou peça relatórios."
             onNewConversation={handleNewConversation}
             isCreating={isCreating}
           />
