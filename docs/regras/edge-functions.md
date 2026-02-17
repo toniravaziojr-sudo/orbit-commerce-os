@@ -476,7 +476,7 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v5.3.6
+### Versão Atual: v5.6.0
 
 ### v5.3.6: Fix colunas erradas em createCustomAudience/createLookalikeAudience
 - **Bug crítico**: Insert usava `audience_id` mas coluna real é `meta_audience_id`. Insert falhava silenciosamente → públicos criados no Meta nunca eram salvos no banco local
@@ -732,6 +732,7 @@ A sync diária permite que ferramentas como `get_performance_trend` mostrem time
 | v5.3.7 | 2026-02-17 | Fix: loop multi-rodada de tool calls — IA agora executa leitura E escrita em até 5 rounds por interação |
 | v5.4.0 | 2026-02-17 | **Strategy Mode Guardrails**: IA obrigada a validar ações contra `strategy_mode` configurado (conservative/balanced/aggressive). Regras de budget por modo injetadas no prompt. `get_autopilot_config` obrigatório antes de propor mudanças. Alerta obrigatório quando ação viola regra manual. |
 | v5.5.0 | 2026-02-17 | **Action Logging + Anti-Hallucination**: Todas as tools de escrita (toggle_entity_status, update_budget, generate_creative_image, trigger_creative_generation) agora logam na tabela `ads_autopilot_actions`. Novas regras de prompt: proibido "Posso seguir?", obrigatório reportar resultados reais das ferramentas, respeitar mapeamento produto→funil das instruções estratégicas, distribuir budget conforme funnel_splits. |
+| v5.6.0 | 2026-02-17 | **Playbook Estratégico Injetado no System Prompt**: Adicionado bloco completo de diretrizes de escala (vertical/horizontal), framework Core/Test/Explore (60-80%/15-30%/5-10%), árvore diagnóstica (Tracking→Unit Economics→Criativo→Público→Budget), cadência operacional (diária/semanal/mensal), regras de testes (1 variável, volume mínimo, promoção/corte), copy persuasiva (AIDA/PAS/4U, 8 tipos de hooks), checklist de criativos (gancho 0-2s, produto cedo, texto na tela, CTA claro), e métricas de ROI real vs ROAS + MER. |
 
 ### Regras de Strategy Mode — `ads-chat` v5.4.0
 
