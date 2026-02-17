@@ -257,22 +257,27 @@ export default function AdsManager() {
               <TabsTrigger value="meta" className="gap-2">
                 <span className="text-xs font-bold">M</span>
                 Meta Ads
-                {meta.campaigns.length > 0 && (
+                {getChannelIntegration("meta").adAccounts.length > 0 && (
                   <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-xs">
-                    {meta.campaigns.length}
+                    {getChannelIntegration("meta").adAccounts.length}
                   </Badge>
                 )}
               </TabsTrigger>
               <TabsTrigger value="google" className="gap-2">
                 <span className="text-xs font-bold">G</span>
                 Google Ads
+                {getChannelIntegration("google").adAccounts.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-xs">
+                    {getChannelIntegration("google").adAccounts.length}
+                  </Badge>
+                )}
               </TabsTrigger>
               <TabsTrigger value="tiktok" className="gap-2">
                 <span className="text-xs font-bold">T</span>
                 TikTok Ads
-                {tiktok.campaigns.length > 0 && (
+                {getChannelIntegration("tiktok").adAccounts.length > 0 && (
                   <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-xs">
-                    {tiktok.campaigns.length}
+                    {getChannelIntegration("tiktok").adAccounts.length}
                   </Badge>
                 )}
               </TabsTrigger>
