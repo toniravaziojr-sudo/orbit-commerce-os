@@ -706,10 +706,21 @@ Uma campanha só é considerada **ativa** na UI se:
 1. A campanha tem `effective_status` = ACTIVE
 2. **E** possui pelo menos 1 conjunto de anúncios (adset) com `effective_status` = ACTIVE, **OU** os ad sets ainda não foram sincronizados (sem registros locais)
 3. **E** o campo `stop_time` é nulo **OU** está no futuro (campanha ainda em veiculação)
+4. **E** o campo `start_time` é nulo **OU** está no passado (campanha já iniciou)
 
 Campanhas com `stop_time` no passado são marcadas como **"Concluída"** mesmo que `effective_status` permaneça `ACTIVE`. Isso evita que campanhas já encerradas sejam contadas como ativas.
 
-A condição 2 evita que campanhas genuinamente ativas apareçam como pausadas antes da primeira sincronização de ad sets. Após o sync, a regra hierárquica se aplica normalmente.
+### Regra de Campanha Agendada (v5.10.0)
+
+Uma campanha é considerada **agendada** na UI se:
+1. `effective_status` = ACTIVE (ou ENABLE)
+2. **E** `start_time` existe e está **no futuro**
+
+Campanhas agendadas exibem bolinha **azul** e label **"Agendada"** no `StatusDot`. Elas **não** são contadas como "Ativas" nem "Pausadas", possuindo sua própria aba de filtro dedicada.
+
+> **Agendamento Nativo Meta:** A IA cria campanhas com `status: ACTIVE` + `start_time` futuro, fazendo com que apareçam como **"Programada"** no Meta Ads Manager nativamente, sem necessidade de agendamento interno.
+
+A condição 2 (da regra de ativa) evita que campanhas genuinamente ativas apareçam como pausadas antes da primeira sincronização de ad sets. Após o sync, a regra hierárquica se aplica normalmente.
 
 ### Arquivos Frontend
 
@@ -749,7 +760,7 @@ Se falhar → status `BLOCKED`, gera `report_insight` com o que falta.
 | **Auto-sync** | Na primeira visualização de um canal conectado, se a lista de campanhas estiver vazia, dispara `syncCampaigns.mutate()` automaticamente (controlado por `syncedChannelsRef` para evitar re-trigger). Só dispara quando a aba ativa é "Gerenciador". |
 | **Sync sequencial** | Botão "Atualizar" executa sync **sequencial**: primeiro `syncCampaigns` (await), depois `syncInsights` + `syncAdsets` em paralelo — garante que campanhas existam antes de processar insights |
 | **Sync de ad sets** | Ao expandir uma campanha, sincroniza os ad sets automaticamente via `meta-ads-adsets` edge function (ação `sync` com filtro por `meta_campaign_id`) |
-| **Filtro por status** | ToggleGroup com 3 opções: Todas (total), Ativas (ACTIVE/ENABLE), Pausadas (PAUSED/DISABLE/ARCHIVED) — cada uma com badge de contagem |
+| **Filtro por status** | ToggleGroup com 4 opções: Todas (total), Ativas (ACTIVE + adset ativo + não agendada), Agendadas (ACTIVE + `start_time` futuro — bolinha azul), Pausadas (PAUSED/DISABLE/ARCHIVED — exclui agendadas) — cada uma com badge de contagem |
 | **Filtro por datas** | DateRange picker com presets (7d, 14d, 30d, 90d) para filtrar métricas de performance |
 | **Conjuntos expandíveis** | Campanhas Meta expandem para mostrar ad sets com status, orçamento e métricas individuais |
 | **Anúncios expandíveis** | Ad sets expandem para mostrar anúncios individuais com status e botão de pausar/ativar (3 níveis: Campanha > Conjunto > Anúncio) |
@@ -1054,6 +1065,7 @@ CREATE TYPE creative_job_status AS ENUM (
 - [x] Gestor de Tráfego IA — Sprint 15 (Motor Estrategista edge function): Edge function `ads-autopilot-strategist` v1.0.0 com pipeline em 5 fases (Planning → Creatives → Audiences → Assembly → Publication). Triggers: `start` (primeira ativação/reestruturação), `weekly` (sábados, implementação domingo 00:01), `monthly` (dia 1). Tools: `create_campaign`, `create_adset`, `generate_creative`, `create_lookalike_audience`, `adjust_budget`, `strategic_plan`. Modelo: `openai/gpt-5.2`. Context collector profundo (30d insights, audiences, experiments, creative cadence). Cron: `0 3 * * 0,1` (domingo/segunda 00:00 UTC = sábado/domingo 21:00 BRT). Hook `useAdsAutopilot` atualizado com `triggerStrategist` mutation.
 - [x] Gestor de Tráfego IA — Sprint 16 (Cron Jobs Finais): Configuração de cron schedules para os 3 motores semanais pendentes: `ads-autopilot-weekly-insights` (segunda 11:00 UTC = `0 11 * * 1`), `ads-autopilot-experiments-run` (terça 11:00 UTC = `0 11 * * 2`), `ads-autopilot-creative-generate` (quarta 11:00 UTC = `0 11 * * 3`). Todas as edge functions já existiam (Sprints 4, 6a, 6b) mas não tinham schedule configurado em `config.toml`. Pipeline completo do Gestor de Tráfego IA agora tem 7 cron jobs ativos: Guardian (4x/dia), Strategist (sáb/dom), Weekly Insights (seg), Experiments (ter), Creative Generate (qua).
 - [x] Gestor de Tráfego IA — Sprint 17 (Pipeline Criativo Completo): **3 correções críticas**: 1) `ads-autopilot-strategist` v1.1.0 — AdSet agora envia `promoted_object` com `pixel_id` + `custom_event_type` (PURCHASE/LEAD) buscado de `marketing_integrations`, contexto inclui `images` dos produtos e `metaPixelId`; 2) `creative-image-generate` v3.1.0 — bypass de auth M2M (service role) para chamadas entre edge functions, mantendo auth de usuário para chamadas diretas; 3) `ads-autopilot-creative` v1.2.0 — auto-fetch de `product_image_url` via `product_images` ou `products.images` quando não fornecida. Pipeline completo: Strategist → generate_creative (com imagem) → ads-autopilot-creative → creative-image-generate (Gemini+OpenAI) → Storage → Imagem pronta.
+- [x] Gestor de Tráfego IA — Sprint 18 (v5.10.0 Agendamento Nativo Meta): **Agendamento nativo** — campanhas criadas pela IA com `human_approval_mode = "auto"` usam `status: ACTIVE` + `start_time` futuro (00:01-04:00 BRT), fazendo com que apareçam como **"Programada"** no Meta Ads Manager nativamente. Removido o agendamento interno (`activate_campaign`). **Nova aba "Agendadas"** no filtro de campanhas (`AdsCampaignsTab.tsx`) com bolinha azul e contagem dedicada. `StatusDot` atualizado para exibir "Agendada" quando `start_time` está no futuro. `meta-ads-campaigns` v1.6.0 suporta `start_time` e `stop_time` no payload de criação e persistência local.
 - [ ] Relatórios de ROI (avançado — comparativo de períodos)
 - [x] Gestão de Criativos (UI básica)
 - [x] Gestão de Criativos (Tabela creative_jobs)
