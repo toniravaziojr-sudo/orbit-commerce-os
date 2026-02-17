@@ -20,6 +20,7 @@ export type Database = {
           budget_cents: number | null
           budget_mode: string | null
           channel: string
+          chat_overrides: Json | null
           created_at: string | null
           funnel_split_mode: string | null
           funnel_splits: Json | null
@@ -42,6 +43,7 @@ export type Database = {
           budget_cents?: number | null
           budget_mode?: string | null
           channel: string
+          chat_overrides?: Json | null
           created_at?: string | null
           funnel_split_mode?: string | null
           funnel_splits?: Json | null
@@ -64,6 +66,7 @@ export type Database = {
           budget_cents?: number | null
           budget_mode?: string | null
           channel?: string
+          chat_overrides?: Json | null
           created_at?: string | null
           funnel_split_mode?: string | null
           funnel_splits?: Json | null
