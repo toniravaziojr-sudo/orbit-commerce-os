@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.2.0"; // Fix: add LOVABLE_API_KEY auth header
+const VERSION = "v1.3.0"; // Fix: validate product_id UUIDs from AI response
 // ===================
 
 const corsHeaders = {
@@ -111,11 +111,29 @@ Deno.serve(async (req) => {
       productIds = topProducts.map(([id]) => id);
     }
 
-    // 3. Get product details + images
-    const { data: products } = await supabase
+    // 3. Get product details (without images column - it doesn't exist)
+    console.log(`[ads-autopilot-creative-generate][${VERSION}] productIds: ${JSON.stringify(productIds)}`);
+    const { data: products, error: productsError } = await supabase
       .from("products")
-      .select("id, name, price, images, description")
+      .select("id, name, price, description")
       .in("id", productIds);
+    
+    console.log(`[ads-autopilot-creative-generate][${VERSION}] Products found: ${products?.length || 0}, error: ${productsError?.message || 'none'}`);
+
+    // 3.5 Get product images from product_images table (sort_order per memory rules)
+    const { data: productImageRows } = await supabase
+      .from("product_images")
+      .select("product_id, url")
+      .in("product_id", productIds)
+      .order("sort_order", { ascending: true });
+
+    // Build image map: product_id -> first image URL
+    const productImageMap: Record<string, string> = {};
+    for (const img of productImageRows || []) {
+      if (!productImageMap[img.product_id]) {
+        productImageMap[img.product_id] = img.url;
+      }
+    }
 
     // 4. Check existing creative assets to avoid duplicates
     const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
@@ -137,16 +155,24 @@ Deno.serve(async (req) => {
         name: p.name,
         price: p.price,
         description: p.description?.substring(0, 200),
-        image_url: Array.isArray(p.images) ? (p.images[0] as any)?.url || p.images[0] : null,
+        image_url: productImageMap[p.id] || null,
         revenue_30d: sales?.revenue || 0,
         units_30d: sales?.units || 0,
       };
     });
 
+    // Build valid product ID list for prompt reinforcement
+    const validProductIds = (products || []).map(p => p.id);
+
     const systemPrompt = `Você é um diretor criativo de anúncios para e-commerce.
 Sua tarefa é planejar criativos publicitários para os produtos vencedores.
 
+REGRA CRÍTICA: O campo "product_id" DEVE ser copiado EXATAMENTE do campo "id" dos produtos fornecidos abaixo.
+IDs válidos: ${JSON.stringify(validProductIds)}
+NÃO invente IDs como "prod_001". Use APENAS os UUIDs reais listados acima.
+
 Para cada produto, sugira até 3 variações de criativos com:
+- product_id: UUID REAL do produto (copiar do campo "id")
 - format: "feed" (1:1), "story" (9:16), ou "carousel"
 - angle: "benefit" (destaque benefício), "proof" (prova social), "offer" (oferta/desconto), "ugc" (estilo user-generated)
 - headline: Título curto e impactante (max 40 chars)
@@ -159,7 +185,7 @@ Responda APENAS com JSON válido:
 {
   "creatives": [
     {
-      "product_id": "uuid",
+      "product_id": "uuid-real-do-produto",
       "product_name": "nome",
       "format": "feed",
       "aspect_ratio": "1:1",
@@ -196,14 +222,16 @@ Responda APENAS com JSON válido:
     });
 
     const aiText = await aiResponse.text();
+    console.log(`[ads-autopilot-creative-generate][${VERSION}] AI response status: ${aiResponse.status}, length: ${aiText.length}`);
     let aiData: any;
     try {
       const parsed = JSON.parse(aiText);
       const content = parsed.choices?.[0]?.message?.content || "";
+      console.log(`[ads-autopilot-creative-generate][${VERSION}] AI content preview: ${content.substring(0, 200)}`);
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       aiData = jsonMatch ? JSON.parse(jsonMatch[0]) : { creatives: [] };
     } catch (e) {
-      console.error(`[ads-autopilot-creative-generate][${VERSION}] AI parse error:`, e);
+      console.error(`[ads-autopilot-creative-generate][${VERSION}] AI parse error:`, e, `Raw: ${aiText.substring(0, 300)}`);
       return fail("Erro ao interpretar resposta da IA");
     }
 
@@ -212,8 +240,31 @@ Responda APENAS com JSON válido:
       return ok({ message: "IA não sugeriu novos criativos", trigger_type });
     }
 
+    // 5.5. Validate and sanitize product_ids — reject any that aren't real UUIDs from our query
+    const validIdSet = new Set(validProductIds);
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    
+    const validCreatives = creatives.filter((c: any) => {
+      if (!c.product_id || !uuidRegex.test(c.product_id)) {
+        console.warn(`[ads-autopilot-creative-generate][${VERSION}] Rejected invalid product_id: ${c.product_id}`);
+        return false;
+      }
+      if (!validIdSet.has(c.product_id)) {
+        console.warn(`[ads-autopilot-creative-generate][${VERSION}] Rejected unknown product_id: ${c.product_id}`);
+        return false;
+      }
+      return true;
+    });
+
+    if (validCreatives.length === 0) {
+      console.error(`[ads-autopilot-creative-generate][${VERSION}] All ${creatives.length} creatives had invalid product_ids`);
+      return fail(`IA gerou ${creatives.length} criativos mas todos com product_id inválido. IDs válidos: ${validProductIds.join(", ")}`);
+    }
+
+    console.log(`[ads-autopilot-creative-generate][${VERSION}] ${validCreatives.length}/${creatives.length} creatives passed validation`);
+
     // 6. Insert creative assets as drafts
-    const assetsToInsert = creatives.map((c: any) => ({
+    const assetsToInsert = validCreatives.map((c: any) => ({
       tenant_id,
       product_id: c.product_id,
       channel: "meta", // Default channel
