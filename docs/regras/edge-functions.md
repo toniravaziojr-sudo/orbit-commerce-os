@@ -470,7 +470,7 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v5.1.0
+### Versão Atual: v5.2.0
 
 ### Visão Geral
 Edge Function de chat conversacional **multimodal** com **tool calling real** para o Gestor de Tráfego IA. Opera como assistente de tráfego pago com acesso completo de leitura e escrita ao módulo de tráfego. Suporta análise de imagens, arquivos e URLs. Implementa **auto-sync fire-and-forget**, **contexto de negócio enriquecido** e **passo de verificação obrigatório** para eliminar alucinações.
@@ -578,6 +578,8 @@ O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe
 | `update_budget` | Altera orçamento (em centavos) de campanha ou conjunto existente no Meta | Escrita |
 | `duplicate_campaign` | Duplica campanha Meta existente com todos conjuntos e anúncios, agenda ativação | Escrita |
 | `update_adset_targeting` | Atualiza segmentação de conjunto (idade, gênero, localização, interesses) | Escrita |
+| `create_custom_audience` | Cria público personalizado Meta (customer_list, website/pixel, engagement) | Escrita |
+| `create_lookalike_audience` | Cria público semelhante (Lookalike 1%-20%) a partir de público existente | Escrita |
 | `trigger_creative_generation` | Dispara geração de briefs criativos (headlines + copy) | Execução |
 | `generate_creative_image` | Gera IMAGENS reais via IA (Gemini) para criativos de anúncios | Execução |
 | `create_meta_campaign` | Cria campanha COMPLETA no Meta (Campaign→AdSet→Ad com criativo do Drive). Agenda ativação para 00:01-04:00 BRT | Execução |
@@ -599,8 +601,17 @@ O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe
 ### O que o Chat NÃO Pode Fazer
 - Criar campanhas Google/TikTok diretamente (somente Meta por enquanto)
 - Acessar APIs de plataformas diretamente (usa edge functions intermediárias)
-- Criar/editar públicos customizados diretamente (usa targeting no conjunto)
 - Renderizar ou finalizar qualquer coisa fora das ferramentas acima
+
+### Sistema de Override por Comando (v5.2.0 — CRÍTICO)
+O lojista pode sobrepor QUALQUER configuração do sistema via chat com confirmação. Fluxo:
+1. IA identifica que o pedido contradiz uma regra/configuração existente
+2. Mostra aviso claro com valor atual vs novo valor solicitado
+3. Após confirmação, executa `update_autopilot_config` com `chat_overrides` JSONB
+4. O campo `chat_overrides` em `ads_autopilot_account_configs` tem **prioridade máxima** sobre configurações de tela
+5. Todas as alterações via override ficam registradas com timestamp e contagem
+
+**Campos passíveis de override**: `budget_cents`, `target_roi`, `strategy_mode`, `is_ai_enabled`, `human_approval_mode`, `user_instructions`.
 
 ### Fluxo de Conversação
 1. Usuário envia mensagem (com ou sem anexos) via `useAdsChat` hook
