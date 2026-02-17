@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.3.0"; // Fix: use 'today' date_preset, pagination support
+const VERSION = "v1.4.0"; // Fix: daily granularity with time_increment=1
 // ===========================================================
 
 const corsHeaders = {
@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
         const accountId = account.id.replace("act_", "");
         
         for (const preset of presetsToSync) {
-          let insightsUrl = `act_${accountId}/insights?fields=campaign_id,campaign_name,impressions,clicks,spend,reach,cpc,cpm,ctr,actions,action_values,cost_per_action_type,frequency&level=campaign&limit=500`;
+          let insightsUrl = `act_${accountId}/insights?fields=campaign_id,campaign_name,impressions,clicks,spend,reach,cpc,cpm,ctr,actions,action_values,cost_per_action_type,frequency&level=campaign&time_increment=1&limit=500`;
 
           if (timeRange) {
             insightsUrl += `&time_range=${JSON.stringify(timeRange)}`;
