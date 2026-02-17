@@ -153,7 +153,7 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
           <>
             {/* Messages */}
             <ScrollArea className="flex-1 px-4 py-4">
-              <div className="space-y-5 max-w-2xl mx-auto">
+              <div className="space-y-5">
                 {messages.map((msg) => (
                   <ChatMessageBubble
                     key={msg.id}
