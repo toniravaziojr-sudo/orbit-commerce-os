@@ -302,6 +302,30 @@ assistant: {
 | Executar ação sem confirmação | Sempre mostrar preview + botão confirmar |
 | Ignorar permissões RBAC | Validar server-side antes de executar |
 | Salvar dados sensíveis no content | Usar metadata.proposed_actions |
+| Expor nomes internos de ferramentas (ex: `bulkUpdateProductsNCM`) | Usar linguagem da UI (ex: "atualizar o NCM dos produtos") |
+| Mencionar `tool_name`, `tool_args`, IDs de sistema | Usar linguagem natural que o lojista entende |
+
+---
+
+## Regra de Linguagem UI (OBRIGATÓRIA — Regra Global)
+
+> ⚠️ **Aplicável a TODOS os chats do sistema** (Auxiliar de Comando, ChatGPT, IA de Tráfego)
+
+O assistente NUNCA deve expor nomes internos de ferramentas, variáveis, IDs ou termos técnicos ao usuário. Deve sempre usar a linguagem visível na interface (UI) da plataforma.
+
+### Mapeamento interno → linguagem do lojista
+
+| Interno | Fala do Assistente |
+|---------|-------------------|
+| `bulkUpdateProductsNCM` | "atualizar o NCM dos produtos" |
+| `bulkUpdateProductsPrice` | "ajustar os preços dos produtos" |
+| `createDiscount` | "criar um cupom de desconto" |
+| `updateOrderStatus` | "atualizar o status do pedido" |
+| `salesReport` | "gerar um relatório de vendas" |
+| `createAgendaTask` | "criar uma tarefa na Agenda" |
+| `tool_name` / `tool_args` | NUNCA mencionar |
+| `tenant_id`, `user_id` | NUNCA mencionar |
+| `autopilot_config` | "Configurações da IA de Tráfego" |
 
 ---
 
@@ -313,3 +337,4 @@ assistant: {
 - [ ] Ações propostas são exibidas
 - [ ] Confirmação executa ação
 - [ ] Permissões RBAC respeitadas
+- [ ] Linguagem UI-friendly (sem jargão técnico)
