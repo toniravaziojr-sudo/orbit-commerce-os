@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.3.1"; // Distinguish data honesty vs marketing creativity + product images Drive sync
+const VERSION = "v5.3.2"; // Fix product_images tenant_id filter bug + robust image retrieval
 // ===========================================================
 
 const corsHeaders = {
@@ -1534,11 +1534,11 @@ async function getProducts(supabase: any, tenantId: string, search?: string, lim
 // --- get_product_images: Fetch product images from catalog + Drive ---
 async function getProductImages(supabase: any, tenantId: string, productId: string, productName?: string) {
   // 1. Get catalog images from product_images table
+  // Query by product_id only (tenant isolation guaranteed via product ownership)
   const { data: catalogImages, error: imgErr } = await supabase
     .from("product_images")
     .select("url, alt_text, is_primary, sort_order")
     .eq("product_id", productId)
-    .eq("tenant_id", tenantId)
     .order("sort_order", { ascending: true });
   if (imgErr) return JSON.stringify({ error: imgErr.message });
 

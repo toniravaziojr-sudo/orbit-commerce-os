@@ -470,7 +470,11 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v5.3.1
+### Versão Atual: v5.3.2
+
+### v5.3.2: Fix Busca de Imagens de Produtos
+- **Bug fix crítico**: `getProductImages` filtrava por `tenant_id` em `product_images`, mas 100% dos registros tinham `tenant_id = NULL` (resultado: 0 imagens retornadas). Removido filtro — busca agora é por `product_id` apenas (isolamento garantido via ownership do produto)
+- **Backfill de dados**: Migration para preencher `tenant_id` em todas as 252 imagens existentes a partir do `products.tenant_id`
 
 ### v5.3.1: Criatividade de Marketing + Sync de Imagens ao Drive
 - **Regra de honestidade refinada**: Distingue "dados reais da loja" (nunca inventar) vs "textos de marketing" (criatividade incentivada — slogans, CTAs, frases de efeito)
