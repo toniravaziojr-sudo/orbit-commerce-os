@@ -400,7 +400,11 @@ export function ChatGPTChatInput({ onSend, isStreaming, onCancel, disabled }: Ch
           </div>
         )}
 
-        <div className="relative flex items-end gap-2 rounded-2xl border bg-background p-2 shadow-sm">
+        <div className={cn(
+          "relative flex items-end gap-1 rounded-2xl border border-border/60 bg-muted/20 p-1.5",
+          "focus-within:border-primary/30 focus-within:bg-background transition-all duration-200",
+          "shadow-sm"
+        )}>
           <TooltipProvider>
             {/* Attachment button */}
             <Tooltip>
@@ -408,7 +412,7 @@ export function ChatGPTChatInput({ onSend, isStreaming, onCancel, disabled }: Ch
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="flex-shrink-0 h-9 w-9"
+                  className="flex-shrink-0 h-8 w-8 rounded-xl text-muted-foreground hover:text-foreground"
                   disabled={isStreaming || isRecording}
                   onClick={() => fileInputRef.current?.click()}
                 >
@@ -426,7 +430,7 @@ export function ChatGPTChatInput({ onSend, isStreaming, onCancel, disabled }: Ch
                 <Button
                   variant={isRecording ? "destructive" : "ghost"}
                   size="icon"
-                  className="flex-shrink-0 h-9 w-9"
+                  className="flex-shrink-0 h-8 w-8 rounded-xl text-muted-foreground hover:text-foreground"
                   disabled={isStreaming || disabled}
                   onClick={handleMicClick}
                 >
@@ -454,7 +458,7 @@ export function ChatGPTChatInput({ onSend, isStreaming, onCancel, disabled }: Ch
           />
 
           {/* Message input */}
-          <Textarea
+          <textarea
             ref={textareaRef}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
@@ -462,7 +466,8 @@ export function ChatGPTChatInput({ onSend, isStreaming, onCancel, disabled }: Ch
             onInput={handleInput}
             placeholder="Pergunte alguma coisa..."
             className={cn(
-              "min-h-[44px] max-h-[200px] resize-none border-0 bg-transparent shadow-none focus-visible:ring-0 px-2"
+              "flex-1 min-h-[36px] max-h-[200px] resize-none bg-transparent text-[13px] leading-relaxed",
+              "placeholder:text-muted-foreground/50 focus:outline-none py-2 px-1"
             )}
             rows={1}
             disabled={isStreaming || isRecording}
@@ -474,27 +479,27 @@ export function ChatGPTChatInput({ onSend, isStreaming, onCancel, disabled }: Ch
               size="icon"
               variant="ghost"
               onClick={onCancel}
-              className="h-9 w-9 flex-shrink-0"
+              className="h-8 w-8 flex-shrink-0 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10"
             >
-              <StopCircle className="h-5 w-5" />
+              <Square className="h-3.5 w-3.5 fill-current" />
             </Button>
           ) : (
             <Button
               size="icon"
               onClick={handleSend}
               disabled={(!message.trim() && !hasAttachments) || isUploadingAny || isRecording}
-              className="h-9 w-9 flex-shrink-0 rounded-full"
+              className="h-8 w-8 flex-shrink-0 rounded-xl"
             >
               {isUploadingAny ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
-                <Send className="h-4 w-4" />
+                <Send className="h-3.5 w-3.5" />
               )}
             </Button>
           )}
         </div>
 
-        <p className="text-xs text-muted-foreground text-center mt-2">
+        <p className="text-[11px] text-muted-foreground/50 text-center mt-2">
           ChatGPT pode cometer erros. Verifique informações importantes.
         </p>
       </div>

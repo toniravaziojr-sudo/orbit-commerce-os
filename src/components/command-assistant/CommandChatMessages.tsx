@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Loader2, Bot, User, Wrench } from "lucide-react";
+import { Loader2, Bot } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { CommandMessage, ProposedAction } from "@/hooks/useCommandAssistant";
@@ -32,14 +32,14 @@ export function CommandChatMessages({
   if (isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-      <div className="space-y-4 max-w-3xl mx-auto">
+    <ScrollArea className="flex-1 px-4 py-4" ref={scrollRef}>
+      <div className="space-y-5 max-w-2xl mx-auto">
         {messages.map((message) => {
           const proposedActions = message.metadata?.proposed_actions || [];
           const toolResult = message.metadata?.tool_result;
@@ -57,7 +57,7 @@ export function CommandChatMessages({
                 <>
                   {/* Tool result */}
                   {message.role === "tool" && toolResult && (
-                    <div className="px-1">
+                    <div className="px-1 mt-1">
                       {toolResult.success ? (
                         <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
                           <CheckCircle2 className="h-3.5 w-3.5" />
@@ -74,11 +74,11 @@ export function CommandChatMessages({
 
                   {/* Proposed actions */}
                   {proposedActions.length > 0 && (
-                    <div className="space-y-2">
+                    <div className="space-y-2 mt-2">
                       {proposedActions.map((action: ProposedAction) => (
                         <div
                           key={action.id}
-                          className="rounded-xl border border-border/60 bg-card p-3"
+                          className="rounded-xl border border-border/50 bg-muted/30 p-3"
                         >
                           <p className="mb-2 text-xs font-medium">{action.description}</p>
                           <div className="flex gap-2">
@@ -113,10 +113,10 @@ export function CommandChatMessages({
 
         {isStreaming && !streamingContent && (
           <div className="flex gap-3">
-            <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10">
+            <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 ring-1 ring-primary/20">
               <Bot className="h-3.5 w-3.5 text-primary" />
             </div>
-            <div className="rounded-2xl rounded-tl-md bg-muted/60 border border-border/40 px-4 py-3">
+            <div className="pt-1.5">
               <ChatTypingIndicator />
             </div>
           </div>

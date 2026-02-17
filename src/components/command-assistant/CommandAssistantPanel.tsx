@@ -63,19 +63,19 @@ export function CommandAssistantPanel() {
         {/* Header */}
         <div className="flex items-center justify-between border-b px-4 py-3">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-primary/15 to-primary/5 ring-1 ring-primary/15">
               <Bot className="h-4 w-4 text-primary" />
             </div>
             <div>
               <h2 className="text-sm font-semibold">Auxiliar de Comando</h2>
-              <p className="text-[10px] text-muted-foreground">Seu assistente inteligente</p>
+              <p className="text-[10px] text-muted-foreground/70">Seu assistente inteligente</p>
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleNewConversation} title="Nova conversa">
+            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={handleNewConversation} title="Nova conversa">
               <MessageSquarePlus className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={closeAssistant}>
+            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={closeAssistant}>
               <X className="h-4 w-4" />
             </Button>
           </div>

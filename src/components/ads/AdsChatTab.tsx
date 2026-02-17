@@ -152,15 +152,15 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
         {currentConversationId ? (
           <>
             {/* Messages */}
-            <ScrollArea className="flex-1 px-5 py-4">
-              <div className="space-y-5">
+            <ScrollArea className="flex-1 px-4 py-4">
+              <div className="space-y-5 max-w-2xl mx-auto">
                 {messages.map((msg) => (
                   <ChatMessageBubble
                     key={msg.id}
                     role={msg.role as "user" | "assistant"}
                     content={msg.content}
                     avatarIcon={msg.role === "user" ? "user" : "bot"}
-                    avatarClassName="bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                    avatarClassName="bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20"
                     attachments={msg.attachments?.map(a => ({
                       url: a.url,
                       filename: a.filename,
@@ -170,21 +170,20 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
                   />
                 ))}
 
-                {/* Streaming */}
                 {isStreaming && streamingContent && (
                   <ChatMessageBubble
                     role="assistant"
                     content={streamingContent}
-                    avatarClassName="bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                    avatarClassName="bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20"
                   />
                 )}
 
                 {isStreaming && !streamingContent && (
                   <div className="flex gap-3">
-                    <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
+                    <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-blue-500/10 ring-1 ring-blue-500/20">
                       <Bot className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
                     </div>
-                    <div className="rounded-2xl rounded-tl-md bg-muted/60 border border-border/40 px-4 py-3">
+                    <div className="pt-1.5">
                       <ChatTypingIndicator label="Analisando" />
                     </div>
                   </div>
@@ -220,19 +219,23 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
             )}
 
             {/* Input */}
-            <div className="border-t p-3 px-5">
-              <div className="flex items-end gap-2">
+            <div className="border-t p-3 px-4">
+              <div className={cn(
+                "flex items-end gap-1 rounded-2xl border border-border/60 bg-muted/20 p-1.5",
+                "focus-within:border-primary/30 focus-within:bg-background transition-all duration-200",
+                "shadow-sm"
+              )}>
                 {/* File upload button */}
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="shrink-0 rounded-xl h-[44px] w-[44px] text-muted-foreground hover:text-foreground"
+                  className="shrink-0 rounded-xl h-8 w-8 text-muted-foreground hover:text-foreground"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isStreaming || isUploading}
                   type="button"
                 >
                   {isUploading ? (
-                    <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    <div className="h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
                   ) : (
                     <Paperclip className="h-4 w-4" />
                   )}
@@ -246,33 +249,35 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
                   onChange={handleFileSelect}
                 />
 
-                <div className="flex-1 relative">
-                  <Textarea
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Pergunte sobre suas campanhas, envie imagens ou links..."
-                    className="min-h-[44px] max-h-[120px] resize-none rounded-xl border-border/60 bg-muted/30 text-[13px] pr-3 focus:bg-background transition-colors"
-                    disabled={isStreaming}
-                  />
-                </div>
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Pergunte sobre suas campanhas..."
+                  className={cn(
+                    "flex-1 min-h-[36px] max-h-[120px] resize-none bg-transparent text-[13px] leading-relaxed",
+                    "placeholder:text-muted-foreground/50 focus:outline-none py-2 px-1"
+                  )}
+                  rows={1}
+                  disabled={isStreaming}
+                />
                 {isStreaming ? (
                   <Button
-                    variant="destructive"
+                    variant="ghost"
                     size="icon"
                     onClick={cancelStreaming}
-                    className="shrink-0 rounded-xl h-[44px] w-[44px]"
+                    className="shrink-0 rounded-xl h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                   >
-                    <Square className="h-4 w-4" />
+                    <Square className="h-3.5 w-3.5 fill-current" />
                   </Button>
                 ) : (
                   <Button
                     size="icon"
                     onClick={handleSend}
                     disabled={!input.trim() && pendingAttachments.length === 0}
-                    className="shrink-0 rounded-xl h-[44px] w-[44px]"
+                    className="shrink-0 rounded-xl h-8 w-8"
                   >
-                    <Send className="h-4 w-4" />
+                    <Send className="h-3.5 w-3.5" />
                   </Button>
                 )}
               </div>
