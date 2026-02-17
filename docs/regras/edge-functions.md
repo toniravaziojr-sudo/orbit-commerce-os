@@ -761,16 +761,26 @@ A sync diária permite que ferramentas como `get_performance_trend` mostrem time
 - `error_message`: mensagem de erro real (quando falha)
 - `rollback_data`: **OBRIGATÓRIO** — dados necessários para reverter a ação manualmente (ex: `revert_to_status`, `revert_to_budget_cents`, `campaign_id` para pausar)
 
-### Regras de Transparência — `ads-chat` v5.9.2
+### Regras de Transparência — `ads-chat` v5.9.2+
 
 1. **Progresso em lotes**: Quando criando campanhas em batches (máx 2 por rodada), informar progresso "X de N criadas"
 2. **Resumo de ações**: Ao final de cada resposta com ações, listar todas com ✅/❌
 3. **Aba Ações**: Informar que todas ficam registradas na aba Ações com opção de reversão
 4. **Sem jargões**: Explicar limitações técnicas de forma clara, sem termos internos
 
-### Regras Anti-Alucinação Comportamental — `ads-chat` v5.5.0
+### Regras Anti-Alucinação Comportamental — `ads-chat` v5.5.0+
 
 1. **Proibido "loop de permissão"**: IA NUNCA pode perguntar "Posso seguir?", "Quer que eu faça?" etc para ações de leitura/preparação
 2. **Reportar resultados reais**: NUNCA dizer "estou executando" sem ter chamado a ferramenta. Reportar resultado ✅/❌ de cada ação
 3. **Respeitar mapeamento produto→funil**: Seguir as instruções estratégicas do lojista sobre qual produto usar em cada estágio
 4. **Distribuir budget por funnel_splits**: Respeitar os percentuais configurados (cold/remarketing/tests/leads)
+
+### Correção v5.9.4 — `ads-autopilot-creative-generate` v1.2.0
+
+**Bug corrigido**: A chamada ao Lovable AI Gateway **não incluía o header `Authorization`**, fazendo a IA retornar vazio silenciosamente. A ação era registrada como "Executada" apesar de nada ter sido gerado.
+
+**Mudanças**:
+1. **Auth header obrigatório**: `Authorization: Bearer ${LOVABLE_API_KEY}` adicionado à chamada do gateway
+2. **Modelo atualizado**: De `openai/gpt-5-mini` para `google/gemini-2.5-flash` (mais rápido e confiável)
+3. **Log enriquecido**: `triggerCreativeGeneration` agora inclui `created_count` e detalhes dos assets gerados no `action_data`
+4. **Feedback real**: A resposta da ferramenta inclui os briefs gerados (headline, copy, formato, ângulo) para a IA reportar ao lojista
