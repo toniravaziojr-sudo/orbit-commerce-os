@@ -207,7 +207,7 @@ Deno.serve(async (req) => {
     // CREATE — Create campaign on Meta + local
     // ========================
     if (action === "create") {
-      const { name, objective, status: campaignStatus, daily_budget_cents, lifetime_budget_cents, special_ad_categories, bid_strategy } = body;
+      const { name, objective, status: campaignStatus, daily_budget_cents, lifetime_budget_cents, special_ad_categories, bid_strategy, start_time, stop_time } = body;
       const adAccountId = targetAccountId || adAccounts[0].id;
 
       if (!name || !objective) {
@@ -227,6 +227,8 @@ Deno.serve(async (req) => {
 
       if (daily_budget_cents) createBody.daily_budget = String(daily_budget_cents);
       if (lifetime_budget_cents) createBody.lifetime_budget = String(lifetime_budget_cents);
+      if (start_time) createBody.start_time = start_time;
+      if (stop_time) createBody.stop_time = stop_time;
 
       const result = await graphApi(
         `act_${adAccountId.replace("act_", "")}/campaigns`,
