@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.9.1"; // Fix: sort_order in generateCreativeImage, campaign limit per round, Drive img.position fix
+const VERSION = "v5.9.2"; // Transparency rules: batch progress reporting, rollback_data in all actions
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -1077,6 +1077,7 @@ async function toggleEntityStatus(supabase: any, tenantId: string, args: any, ch
     status: "executed", executed_at: new Date().toISOString(), confidence: "high",
     action_data: { entity_type, entity_id, entity_name: entityName, new_status, created_by: "ads_chat" },
     reasoning: `${typeLabel} "${entityName}" ${statusLabel} via Chat IA`,
+    rollback_data: { action: "toggle_status", entity_type, entity_id, revert_to_status: new_status === "PAUSED" ? "ACTIVE" : "PAUSED", entity_name: entityName },
   });
   if (logErr2) console.error(`[ads-chat][${VERSION}] Action log error:`, logErr2.message);
 
@@ -1133,6 +1134,7 @@ async function updateBudget(supabase: any, tenantId: string, args: any, chatSess
     action_type: "update_budget", status: "executed", executed_at: new Date().toISOString(), confidence: "high",
     action_data: { entity_type, entity_id, entity_name: entityName, old_budget_cents: oldBudgetCents, new_daily_budget_cents, change_pct: oldBudgetCents > 0 ? `${(((new_daily_budget_cents - oldBudgetCents) / oldBudgetCents) * 100).toFixed(0)}%` : "N/A", created_by: "ads_chat" },
     reasoning: `Budget de "${entityName}" alterado de R$ ${(oldBudgetCents / 100).toFixed(2)} para R$ ${(new_daily_budget_cents / 100).toFixed(2)}/dia via Chat IA`,
+    rollback_data: { action: "update_budget", entity_type, entity_id, revert_to_budget_cents: oldBudgetCents, entity_name: entityName },
   });
   if (budgetLogErr2) console.error(`[ads-chat][${VERSION}] Action log error:`, budgetLogErr2.message);
 
@@ -2130,6 +2132,7 @@ async function createMetaCampaign(supabase: any, tenantId: string, args: any, ch
       action_data: { campaign_id: metaCampaignId, adset_id: metaAdsetId, ad_id: metaAdId, ad_account_id: adAccountId, campaign_name: campName, product_name: product.name, creative_id: metaCreativeId, scheduled_for: scheduleDate.toISOString(), daily_budget_cents: dailyBudgetCents, created_by: "ads_chat" },
       reasoning: `Campanha criada via Chat IA para "${product.name}". Ativação agendada.`, status: "scheduled",
       action_hash: `chat_activate_${metaCampaignId}_${Date.now()}`,
+      rollback_data: { action: "pause_campaign", campaign_id: metaCampaignId, adset_id: metaAdsetId, ad_id: metaAdId, ad_account_id: adAccountId, campaign_name: campName },
     });
 
     return JSON.stringify({
@@ -2829,10 +2832,28 @@ Exemplo: Se budget = R$ 600/dia e splits = {cold: 40, remarketing: 25, tests: 25
 
 ## REGRA CRÍTICA: LIMITE DE CAMPANHAS POR INTERAÇÃO (ANTI-TIMEOUT)
 - Crie no **MÁXIMO 2 campanhas por rodada de ferramentas** (por chamada de create_meta_campaign)
-- Se o plano exige 5 campanhas, crie 2 agora e DIGA ao lojista: "Criei as 2 primeiras campanhas. Envie 'continuar' para eu criar as próximas."
 - Cada create_meta_campaign faz ~5 chamadas HTTP sequenciais à API do Meta. Criar mais de 2 em paralelo causa timeout.
 - **NUNCA chame create_meta_campaign mais de 2 vezes em uma mesma rodada de ferramentas.**
 - Priorize a ordem: primeiro campanhas de público frio, depois remarketing.
+
+## REGRA OBRIGATÓRIA: TRANSPARÊNCIA TOTAL COM O LOJISTA
+Toda vez que executar ações (criar campanhas, pausar, alterar budget, gerar criativos, etc.), você DEVE:
+
+1. **Informar o progresso em lotes**: Se o plano exige N campanhas e você só pode criar 2 por vez, SEMPRE diga:
+   - "✅ Criei as campanhas 1 e 2 de 5. Envie **continuar** para eu criar as próximas 2."
+   - Nunca omita o total planejado nem a quantidade já criada.
+
+2. **Listar TODAS as ações executadas**: Ao final de cada resposta que envolveu ações, inclua um resumo estruturado:
+   - 📋 **Ações realizadas nesta rodada:**
+   - ✅ Campanha "Nome" criada (pausada, ativação às 00:01)
+   - ✅ Budget de "Nome" alterado de R$ X para R$ Y
+   - ✅ Criativo gerado para "Produto"
+   - ❌ Falha: descrição do erro
+   - Informe que todas as ações ficam registradas na **aba Ações** do painel com opção de reversão.
+
+3. **Explicar limitações técnicas quando relevantes**: Se algo não pode ser feito imediatamente (batching, timeout, erro de API), explique de forma clara e simples, sem jargões técnicos internos.
+
+4. **Nunca ocultar erros**: Se uma ação falhou, diga exatamente o que falhou e qual o próximo passo.
 
 ## IMAGENS DE PRODUTOS
 - As imagens dos produtos estão disponíveis via catálogo (product_images) e no **Meu Drive** (pasta "Imagens de Produtos")
