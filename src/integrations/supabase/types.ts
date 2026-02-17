@@ -3172,7 +3172,7 @@ export type Database = {
           completed_at: string | null
           cost_cents: number | null
           created_at: string
-          created_by: string
+          created_by: string | null
           current_step: number | null
           error_message: string | null
           external_model_id: string | null
@@ -3204,7 +3204,7 @@ export type Database = {
           completed_at?: string | null
           cost_cents?: number | null
           created_at?: string
-          created_by: string
+          created_by?: string | null
           current_step?: number | null
           error_message?: string | null
           external_model_id?: string | null
@@ -3236,7 +3236,7 @@ export type Database = {
           completed_at?: string | null
           cost_cents?: number | null
           created_at?: string
-          created_by?: string
+          created_by?: string | null
           current_step?: number | null
           error_message?: string | null
           external_model_id?: string | null
