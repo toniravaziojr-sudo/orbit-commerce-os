@@ -751,14 +751,22 @@ A sync diária permite que ferramentas como `get_performance_trend` mostrem time
 2. Pede confirmação explícita
 3. Se confirmado, persiste em `chat_overrides` como Override
 
-### Regras de Action Logging — `ads-chat` v5.5.0
+### Regras de Action Logging — `ads-chat` v5.9.2
 
 **Toda ferramenta de escrita DEVE registrar uma entrada em `ads_autopilot_actions`** com:
-- `status`: "executed" (sucesso) ou "failed" (falha)
+- `status`: "executed" (sucesso), "failed" (falha) ou "scheduled" (agendada)
 - `action_data`: detalhes da ação incluindo `created_by: "ads_chat"`
 - `reasoning`: descrição humanizada da ação
 - `executed_at`: timestamp de execução (quando sucesso)
 - `error_message`: mensagem de erro real (quando falha)
+- `rollback_data`: **OBRIGATÓRIO** — dados necessários para reverter a ação manualmente (ex: `revert_to_status`, `revert_to_budget_cents`, `campaign_id` para pausar)
+
+### Regras de Transparência — `ads-chat` v5.9.2
+
+1. **Progresso em lotes**: Quando criando campanhas em batches (máx 2 por rodada), informar progresso "X de N criadas"
+2. **Resumo de ações**: Ao final de cada resposta com ações, listar todas com ✅/❌
+3. **Aba Ações**: Informar que todas ficam registradas na aba Ações com opção de reversão
+4. **Sem jargões**: Explicar limitações técnicas de forma clara, sem termos internos
 
 ### Regras Anti-Alucinação Comportamental — `ads-chat` v5.5.0
 
