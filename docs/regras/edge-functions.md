@@ -470,7 +470,11 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v5.3.3
+### Versão Atual: v5.3.4
+
+### v5.3.4: Fix Coluna `position` → `sort_order` em product_images
+- **Bug fix crítico**: Queries em `getProducts` e `collectBaseContext` usavam `.order("position")` mas a coluna real é `sort_order`. Erro silencioso retornava `[]` para todas as imagens (251 imagens existem no banco mas nenhuma era retornada)
+- **Impacto**: Resolverá de vez o "Bloqueio de Mídia" — IA agora verá as 251 imagens do catálogo
 
 ### v5.3.3: Fix Loop de Permissão (Auto-Execute)
 - **Regra anti-loop**: IA proibida de pedir permissão para usar suas próprias ferramentas. Deve executar automaticamente ações de leitura e preparação (buscar imagens, criar públicos, gerar artes)
