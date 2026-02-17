@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.0.0"; // Major: Fix hallucination (5 frentes) — limits, context, new tools, prompt rules
+const VERSION = "v5.1.0"; // Add duplicate_campaign + update_adset_targeting (Frente 4.3/4.4)
 // ===========================================================
 
 const corsHeaders = {
@@ -405,6 +405,45 @@ const TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "duplicate_campaign",
+      description: "Duplica uma campanha Meta existente: cria nova campanha com os mesmos conjuntos e anúncios, podendo alterar nome, orçamento ou público.",
+      parameters: {
+        type: "object",
+        properties: {
+          source_campaign_id: { type: "string", description: "meta_campaign_id da campanha a duplicar" },
+          new_name: { type: "string", description: "Nome da nova campanha (opcional, auto-gerado se vazio)" },
+          new_daily_budget_cents: { type: "number", description: "Novo orçamento diário em centavos (opcional, mantém o original)" },
+          ad_account_id: { type: "string", description: "ID da conta Meta (opcional, busca automática)" },
+        },
+        required: ["source_campaign_id"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_adset_targeting",
+      description: "Atualiza a segmentação (targeting) de um conjunto de anúncios existente no Meta. Pode alterar faixa etária, gênero, localização e interesses.",
+      parameters: {
+        type: "object",
+        properties: {
+          adset_id: { type: "string", description: "meta_adset_id do conjunto a atualizar" },
+          age_min: { type: "number", description: "Idade mínima (13-65)" },
+          age_max: { type: "number", description: "Idade máxima (13-65)" },
+          genders: { type: "array", items: { type: "number" }, description: "Gêneros: [0]=todos, [1]=masculino, [2]=feminino" },
+          geo_locations: { type: "object", description: "Localização: {countries: ['BR'], regions: [{key:'123'}], cities: [{key:'456'}]}" },
+          interests: { type: "array", items: { type: "object", properties: { id: { type: "string" }, name: { type: "string" } } }, description: "Interesses: [{id:'123', name:'Cosmetics'}]" },
+          ad_account_id: { type: "string", description: "ID da conta Meta (opcional)" },
+        },
+        required: ["adset_id"],
+        additionalProperties: false,
+      },
+    },
+  },
   // ===== ESCRITA: Autopilot Config =====
   {
     type: "function",
@@ -525,6 +564,10 @@ async function executeTool(
         return await toggleEntityStatus(supabase, tenantId, args);
       case "update_budget":
         return await updateBudget(supabase, tenantId, args);
+      case "duplicate_campaign":
+        return await duplicateCampaign(supabase, tenantId, args);
+      case "update_adset_targeting":
+        return await updateAdsetTargeting(supabase, tenantId, args);
       case "update_autopilot_config":
         return await updateAutopilotConfig(supabase, tenantId, args.ad_account_id, args.channel, args.updates);
       case "trigger_autopilot_analysis":
@@ -985,6 +1028,249 @@ async function updateBudget(supabase: any, tenantId: string, args: any) {
   return JSON.stringify({
     success: true,
     message: `Orçamento atualizado para R$ ${(new_daily_budget_cents / 100).toFixed(2)}/dia.`,
+  });
+}
+
+// --- Frente 4.3: duplicate_campaign ---
+async function duplicateCampaign(supabase: any, tenantId: string, args: any) {
+  const { source_campaign_id, new_name, new_daily_budget_cents } = args;
+
+  // Get source campaign
+  const { data: source } = await supabase
+    .from("meta_ad_campaigns")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .eq("meta_campaign_id", source_campaign_id)
+    .maybeSingle();
+
+  if (!source) return JSON.stringify({ success: false, error: "Campanha original não encontrada." });
+
+  // Get Meta connection
+  const { data: conn } = await supabase
+    .from("marketplace_connections")
+    .select("access_token, metadata")
+    .eq("tenant_id", tenantId)
+    .eq("marketplace", "meta")
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!conn) return JSON.stringify({ success: false, error: "Meta não conectada." });
+
+  const adAccountId = args.ad_account_id || source.ad_account_id;
+  const accountIdClean = adAccountId.replace("act_", "");
+  const campName = new_name || `[Cópia] ${source.name} — ${new Date().toISOString().split("T")[0]}`;
+  const dailyBudget = new_daily_budget_cents || source.daily_budget_cents || 3000;
+
+  // Create new campaign PAUSED
+  const campRes = await fetch(`https://graph.facebook.com/v21.0/act_${accountIdClean}/campaigns`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: campName,
+      objective: source.objective || "OUTCOME_SALES",
+      status: "PAUSED",
+      special_ad_categories: [],
+      daily_budget: dailyBudget,
+      access_token: conn.access_token,
+    }),
+  });
+  const campData = await campRes.json();
+  if (campData.error) return JSON.stringify({ success: false, error: `Falha ao criar campanha: ${campData.error.message}` });
+  const newCampaignId = campData.id;
+
+  // Save to local DB
+  await supabase.from("meta_ad_campaigns").insert({
+    tenant_id: tenantId, ad_account_id: adAccountId, meta_campaign_id: newCampaignId,
+    name: campName, status: "PAUSED", objective: source.objective,
+    daily_budget_cents: dailyBudget, synced_at: new Date().toISOString(),
+  });
+
+  // Get source adsets
+  const { data: sourceAdsets } = await supabase
+    .from("meta_ad_adsets")
+    .select("meta_adset_id, name, daily_budget_cents, targeting, pixel_id, optimization_goal, bid_strategy")
+    .eq("tenant_id", tenantId)
+    .eq("meta_campaign_id", source_campaign_id)
+    .limit(20);
+
+  let adsetsCreated = 0;
+  let adsCreated = 0;
+
+  for (const adset of (sourceAdsets || [])) {
+    // Get original adset details from Meta to copy targeting properly
+    const adsetBody: any = {
+      campaign_id: newCampaignId,
+      name: `[Cópia] ${adset.name}`,
+      status: "PAUSED",
+      optimization_goal: adset.optimization_goal || "OFFSITE_CONVERSIONS",
+      billing_event: "IMPRESSIONS",
+      access_token: conn.access_token,
+      targeting_automation: JSON.stringify({ advantage_audience: 0 }),
+    };
+
+    if (adset.daily_budget_cents) adsetBody.daily_budget = adset.daily_budget_cents;
+    if (adset.targeting) adsetBody.targeting = JSON.stringify(adset.targeting);
+    if (adset.pixel_id) {
+      adsetBody.promoted_object = JSON.stringify({ pixel_id: adset.pixel_id, custom_event_type: "PURCHASE" });
+    }
+    if (adset.bid_strategy) adsetBody.bid_strategy = adset.bid_strategy;
+
+    const adsetRes = await fetch(`https://graph.facebook.com/v21.0/act_${accountIdClean}/adsets`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(adsetBody),
+    });
+    const adsetData = await adsetRes.json();
+    if (adsetData.error) {
+      console.error(`[ads-chat][${VERSION}] Duplicate adset error:`, adsetData.error.message);
+      continue;
+    }
+    adsetsCreated++;
+    const newAdsetId = adsetData.id;
+
+    // Save adset locally
+    await supabase.from("meta_ad_adsets").insert({
+      tenant_id: tenantId, ad_account_id: adAccountId, meta_adset_id: newAdsetId,
+      meta_campaign_id: newCampaignId, name: `[Cópia] ${adset.name}`, status: "PAUSED",
+      daily_budget_cents: adset.daily_budget_cents, targeting: adset.targeting,
+      pixel_id: adset.pixel_id, optimization_goal: adset.optimization_goal,
+      synced_at: new Date().toISOString(),
+    });
+
+    // Get source ads for this adset
+    const { data: sourceAds } = await supabase
+      .from("meta_ad_ads")
+      .select("meta_ad_id, name")
+      .eq("tenant_id", tenantId)
+      .eq("meta_adset_id", adset.meta_adset_id)
+      .limit(20);
+
+    for (const ad of (sourceAds || [])) {
+      // Get creative from original ad
+      const adDetailsRes = await fetch(`https://graph.facebook.com/v21.0/${ad.meta_ad_id}?fields=creative{id}&access_token=${conn.access_token}`);
+      const adDetails = await adDetailsRes.json();
+      const creativeId = adDetails?.creative?.id;
+      if (!creativeId) continue;
+
+      const newAdBody: any = {
+        name: `[Cópia] ${ad.name}`,
+        adset_id: newAdsetId,
+        creative: JSON.stringify({ creative_id: creativeId }),
+        status: "PAUSED",
+        access_token: conn.access_token,
+      };
+
+      const adRes = await fetch(`https://graph.facebook.com/v21.0/act_${accountIdClean}/ads`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newAdBody),
+      });
+      const adData = await adRes.json();
+      if (adData.error) {
+        console.error(`[ads-chat][${VERSION}] Duplicate ad error:`, adData.error.message);
+        continue;
+      }
+      adsCreated++;
+
+      await supabase.from("meta_ad_ads").insert({
+        tenant_id: tenantId, ad_account_id: adAccountId, meta_ad_id: adData.id,
+        meta_adset_id: newAdsetId, meta_campaign_id: newCampaignId,
+        name: `[Cópia] ${ad.name}`, status: "PAUSED",
+        synced_at: new Date().toISOString(),
+      });
+    }
+  }
+
+  // Schedule activation
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const now = new Date();
+  const brtOffset = -3;
+  const brtHour = (now.getUTCHours() + brtOffset + 24) % 24;
+  let activateAt: Date;
+  if (brtHour >= 0 && brtHour < 4) {
+    activateAt = new Date(now.getTime() + (Math.random() * 60 + 5) * 60000);
+  } else {
+    const tomorrow = new Date(now);
+    tomorrow.setUTCHours(3 - brtOffset, Math.floor(Math.random() * 59) + 1, 0, 0);
+    if (tomorrow <= now) tomorrow.setDate(tomorrow.getDate() + 1);
+    activateAt = tomorrow;
+  }
+
+  await supabase.from("ads_autopilot_actions").insert({
+    tenant_id: tenantId, channel: "meta", action_type: "activate_campaign",
+    status: "scheduled", confidence: "high",
+    action_data: { meta_campaign_id: newCampaignId, campaign_name: campName, scheduled_for: activateAt.toISOString() },
+    reasoning: `Ativação agendada da cópia de "${source.name}" para ${activateAt.toISOString()}`,
+    session_id: crypto.randomUUID(),
+  });
+
+  return JSON.stringify({
+    success: true,
+    message: `Campanha duplicada com sucesso! "${campName}" criada com ${adsetsCreated} conjunto(s) e ${adsCreated} anúncio(s). Ativação agendada para a madrugada.`,
+    new_campaign_id: newCampaignId,
+    adsets_created: adsetsCreated,
+    ads_created: adsCreated,
+  });
+}
+
+// --- Frente 4.4: update_adset_targeting ---
+async function updateAdsetTargeting(supabase: any, tenantId: string, args: any) {
+  const { adset_id, age_min, age_max, genders, geo_locations, interests } = args;
+
+  const { data: conn } = await supabase
+    .from("marketplace_connections")
+    .select("access_token")
+    .eq("tenant_id", tenantId)
+    .eq("marketplace", "meta")
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!conn) return JSON.stringify({ success: false, error: "Meta não conectada." });
+
+  // Build targeting object
+  const targeting: any = {};
+  if (age_min) targeting.age_min = Math.max(13, Math.min(65, age_min));
+  if (age_max) targeting.age_max = Math.max(13, Math.min(65, age_max));
+  if (genders) targeting.genders = genders;
+  if (geo_locations) targeting.geo_locations = geo_locations;
+  if (interests && interests.length > 0) {
+    targeting.flexible_spec = [{ interests }];
+  }
+
+  if (Object.keys(targeting).length === 0) {
+    return JSON.stringify({ success: false, error: "Nenhuma alteração de segmentação fornecida." });
+  }
+
+  const res = await fetch(`https://graph.facebook.com/v21.0/${adset_id}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      targeting: JSON.stringify(targeting),
+      access_token: conn.access_token,
+    }),
+  });
+  const result = await res.json();
+
+  if (result.error) {
+    return JSON.stringify({ success: false, error: `Falha ao atualizar segmentação: ${result.error.message}` });
+  }
+
+  // Update local DB
+  await supabase.from("meta_ad_adsets")
+    .update({ targeting, synced_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId)
+    .eq("meta_adset_id", adset_id);
+
+  const changes: string[] = [];
+  if (age_min || age_max) changes.push(`Idade: ${age_min || "?"}–${age_max || "?"}`);
+  if (genders) changes.push(`Gênero: ${genders.includes(1) ? "M" : ""}${genders.includes(2) ? "F" : ""}${genders.includes(0) ? "Todos" : ""}`);
+  if (geo_locations) changes.push("Localização atualizada");
+  if (interests) changes.push(`${interests.length} interesse(s) definido(s)`);
+
+  return JSON.stringify({
+    success: true,
+    message: `Segmentação do conjunto atualizada: ${changes.join(", ")}.`,
   });
 }
 
@@ -1596,6 +1882,8 @@ NUNCA exponha termos técnicos internos. Use SEMPRE a linguagem da interface.
 | get_products | ver catálogo |
 | toggle_entity_status | pausar/reativar |
 | update_budget | alterar orçamento |
+| duplicate_campaign | duplicar campanha |
+| update_adset_targeting | alterar segmentação |
 | edge function | sistema interno |
 | tenant_id | loja |
 | kill_switch | botão de emergência |
@@ -1613,6 +1901,8 @@ Use os nomes dos menus: "Marketing → Tráfego Pago", "Galeria de Criativos", "
 - **Contexto do negócio**: ver nicho, categorias, ofertas ativas, margens, top produtos
 - **Pausar/Reativar** campanhas, conjuntos ou anúncios no Meta
 - **Alterar orçamento** de campanhas e conjuntos existentes
+- **Duplicar campanhas** existentes (com todos os conjuntos e anúncios)
+- **Alterar segmentação** de conjuntos existentes (idade, gênero, localização, interesses)
 - **Gerar textos** e **artes/imagens** para anúncios
 - **Criar campanhas completas** no Meta Ads
 - **Analisar links** e **imagens** enviadas
@@ -1621,8 +1911,7 @@ Use os nomes dos menus: "Marketing → Tráfego Pago", "Galeria de Criativos", "
 
 ## O QUE VOCÊ NÃO PODE FAZER (NUNCA FINJA)
 - Criar campanhas Google/TikTok diretamente (somente Meta)
-- Duplicar campanhas (use criar nova + ajustar)
-- Alterar segmentação de conjuntos existentes diretamente na Meta
+- Criar/editar públicos customizados diretamente (use targeting no conjunto)
 
 ## FLUXO PARA CRIAR CAMPANHAS
 1. Consultar catálogo (get_products)
