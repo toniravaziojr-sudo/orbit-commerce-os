@@ -88,7 +88,7 @@ export function ChatMessageBubble({
       </div>
 
       {/* Content */}
-      <div className={cn("flex flex-col gap-1.5 min-w-0", isUser ? "items-end" : "items-start", "max-w-[85%]")}>
+      <div className={cn("flex flex-col gap-1.5 min-w-0", isUser ? "items-end" : "items-start", "max-w-[95%]")}>
         {modeIndicator}
         
         <div

@@ -74,9 +74,9 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
     : "Chat IA — Global";
 
   return (
-    <div className="grid gap-3 lg:grid-cols-4 h-[calc(100vh-380px)] min-h-[400px]">
+    <div className="grid gap-3 lg:grid-cols-[280px_1fr] h-[calc(100vh-380px)] min-h-[400px]">
       {/* Sidebar */}
-      <div className="lg:col-span-1 bg-card border rounded-xl overflow-hidden flex flex-col">
+      <div className="bg-card border rounded-xl overflow-hidden flex flex-col">
         <ChatConversationList
           conversations={conversations}
           currentId={currentConversationId}
@@ -88,7 +88,7 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
       </div>
 
       {/* Chat Area */}
-      <div className="lg:col-span-3 bg-card border rounded-xl overflow-hidden flex flex-col">
+      <div className="bg-card border rounded-xl overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center gap-2.5 border-b px-4 py-2.5">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
@@ -103,8 +103,8 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
         {currentConversationId ? (
           <>
             {/* Messages */}
-            <ScrollArea className="flex-1 p-4">
-              <div className="space-y-4 max-w-3xl mx-auto">
+            <ScrollArea className="flex-1 px-5 py-4">
+              <div className="space-y-5">
                 {messages.map((msg) => (
                   <ChatMessageBubble
                     key={msg.id}
@@ -140,8 +140,8 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
             </ScrollArea>
 
             {/* Input */}
-            <div className="border-t p-3">
-              <div className="flex items-end gap-2 max-w-3xl mx-auto">
+            <div className="border-t p-3 px-5">
+              <div className="flex items-end gap-2">
                 <div className="flex-1 relative">
                   <Textarea
                     value={input}
