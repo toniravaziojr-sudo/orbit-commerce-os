@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.2.1"; // Fix price formatting (values already in BRL, not cents) + fix order_items column name
+const VERSION = "v5.3.0"; // Product images in context + Drive folder + anti-hallucination + UI language enforcement
 // ===========================================================
 
 const corsHeaders = {
@@ -125,6 +125,22 @@ const TOOLS = [
           status: { type: "string", enum: ["active", "draft", "archived"], description: "Filtrar por status (default: active)" },
         },
         required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_product_images",
+      description: "Busca todas as imagens de um produto específico (catálogo + Meu Drive). Use quando precisar das imagens reais do produto para criar criativos.",
+      parameters: {
+        type: "object",
+        properties: {
+          product_id: { type: "string", description: "ID do produto" },
+          product_name: { type: "string", description: "Nome do produto (para buscar no Drive)" },
+        },
+        required: ["product_id"],
         additionalProperties: false,
       },
     },
@@ -572,6 +588,8 @@ async function executeTool(
         return await getStoreContext(supabase, tenantId);
       case "get_products":
         return await getProducts(supabase, tenantId, args.search, args.limit, args.status);
+      case "get_product_images":
+        return await getProductImages(supabase, tenantId, args.product_id, args.product_name);
       case "get_creative_assets":
         return await getCreativeAssets(supabase, tenantId, args.status);
       case "get_meta_adsets":
@@ -1513,6 +1531,90 @@ async function getProducts(supabase: any, tenantId: string, search?: string, lim
   });
 }
 
+// --- get_product_images: Fetch product images from catalog + Drive ---
+async function getProductImages(supabase: any, tenantId: string, productId: string, productName?: string) {
+  // 1. Get catalog images from product_images table
+  const { data: catalogImages, error: imgErr } = await supabase
+    .from("product_images")
+    .select("url, alt_text, is_primary, sort_order")
+    .eq("product_id", productId)
+    .eq("tenant_id", tenantId)
+    .order("sort_order", { ascending: true });
+  if (imgErr) return JSON.stringify({ error: imgErr.message });
+
+  // 2. Get product name if not provided
+  let name = productName;
+  if (!name) {
+    const { data: prod } = await supabase.from("products").select("name").eq("id", productId).single();
+    name = prod?.name;
+  }
+
+  // 3. Search Drive for images in "Imagens de Produtos" folder
+  let driveImages: any[] = [];
+  const { data: driveFolder } = await supabase
+    .from("files")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("is_folder", true)
+    .eq("filename", "Imagens de Produtos")
+    .maybeSingle();
+
+  if (driveFolder) {
+    const { data: driveFiles } = await supabase
+      .from("files")
+      .select("id, filename, storage_path, mime_type")
+      .eq("tenant_id", tenantId)
+      .eq("folder_id", driveFolder.id)
+      .eq("is_folder", false)
+      .ilike("mime_type", "image/%")
+      .limit(20);
+
+    // Also check for product-specific subfolder
+    const { data: productFolder } = await supabase
+      .from("files")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("folder_id", driveFolder.id)
+      .eq("is_folder", true)
+      .ilike("filename", `%${(name || "").substring(0, 30)}%`)
+      .maybeSingle();
+
+    if (productFolder) {
+      const { data: subFiles } = await supabase
+        .from("files")
+        .select("id, filename, storage_path, mime_type")
+        .eq("tenant_id", tenantId)
+        .eq("folder_id", productFolder.id)
+        .eq("is_folder", false)
+        .ilike("mime_type", "image/%")
+        .limit(20);
+      driveImages = [...(driveFiles || []), ...(subFiles || [])];
+    } else {
+      driveImages = driveFiles || [];
+    }
+  }
+
+  // Build public URLs for drive images
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const driveImageUrls = driveImages.map((f: any) => ({
+    filename: f.filename,
+    url: f.storage_path ? `${supabaseUrl}/storage/v1/object/public/media-assets/${f.storage_path}` : null,
+    source: "drive",
+  })).filter((d: any) => d.url);
+
+  return JSON.stringify({
+    product_name: name,
+    catalog_images: (catalogImages || []).map((img: any) => ({
+      url: img.url,
+      alt: img.alt_text,
+      is_primary: img.is_primary,
+    })),
+    drive_images: driveImageUrls,
+    total: (catalogImages?.length || 0) + driveImageUrls.length,
+    tip: driveImageUrls.length === 0 ? "Nenhuma imagem encontrada no Meu Drive. Considere criar a pasta 'Imagens de Produtos' no Meu Drive e adicionar as fotos dos produtos lá." : null,
+  });
+}
+
 async function getCreativeAssets(supabase: any, tenantId: string, status?: string) {
   const query = supabase.from("ads_creative_assets")
     .select("id, headline, copy_text, format, status, angle, channel, asset_url, storage_path, created_at")
@@ -1979,13 +2081,45 @@ async function collectBaseContext(supabase: any, tenantId: string, scope: string
 
   // Products (top 10) — prices already in BRL (NOT cents)
   const { data: products } = await supabase.from("products").select("id, name, price, cost_price, status, description").eq("tenant_id", tenantId).eq("status", "active").order("created_at", { ascending: false }).limit(10);
+  
+  // Fetch images for these products
+  const productIds = (products || []).map((p: any) => p.id);
+  let productImageMap: Record<string, string[]> = {};
+  if (productIds.length > 0) {
+    const { data: imgs } = await supabase.from("product_images").select("product_id, url, is_primary").in("product_id", productIds).order("sort_order", { ascending: true });
+    for (const img of (imgs || [])) {
+      if (!productImageMap[img.product_id]) productImageMap[img.product_id] = [];
+      productImageMap[img.product_id].push(img.url);
+    }
+  }
+  
   context.products = (products || []).map((p: any) => ({
     id: p.id, name: p.name,
     price_brl: `R$ ${(p.price || 0).toFixed(2)}`,
     cost_price_brl: p.cost_price ? `R$ ${p.cost_price.toFixed(2)}` : null,
     margin_pct: p.cost_price && p.price ? `${(((p.price - p.cost_price) / p.price) * 100).toFixed(0)}%` : null,
     description: p.description?.substring(0, 120) || "",
+    images: productImageMap[p.id] || [],
+    has_images: (productImageMap[p.id] || []).length > 0,
   }));
+  
+  // Ensure "Imagens de Produtos" folder exists in Drive
+  try {
+    const { data: existingFolder } = await supabase.from("files").select("id").eq("tenant_id", tenantId).eq("is_folder", true).eq("filename", "Imagens de Produtos").maybeSingle();
+    if (!existingFolder) {
+      await supabase.from("files").insert({
+        tenant_id: tenantId,
+        filename: "Imagens de Produtos",
+        original_name: "Imagens de Produtos",
+        is_folder: true,
+        is_system_folder: false,
+        metadata: { source: "ads_chat", system_managed: true, description: "Pasta padrão para imagens dos produtos usadas pela IA de tráfego" },
+      });
+      console.log(`[ads-chat][${VERSION}] Created 'Imagens de Produtos' folder in Drive`);
+    }
+  } catch (e) {
+    console.error(`[ads-chat][${VERSION}] Error creating Drive folder (non-blocking):`, e);
+  }
 
   // Categories
   const { data: categories } = await supabase.from("categories").select("name").eq("tenant_id", tenantId).eq("is_active", true).limit(10);
@@ -2035,7 +2169,7 @@ function buildSystemPrompt(scope: string, adAccountId?: string, channel?: string
   ).join("\n");
 
   const productsList = (context?.products || []).map((p: any) =>
-    `- ${p.name} (${p.price_brl}${p.margin_pct ? `, margem ${p.margin_pct}` : ""}) ${p.description ? `— ${p.description}` : ""}`
+    `- ${p.name} (${p.price_brl}${p.margin_pct ? `, margem ${p.margin_pct}` : ""}${p.has_images ? `, ${p.images.length} imagem(ns)` : ", SEM IMAGEM"}) ${p.description ? `— ${p.description}` : ""}`
   ).join("\n");
 
   const categoriesList = (context?.categories || []).join(", ");
@@ -2056,6 +2190,9 @@ ${context?.storeUrl ? `**URL da loja**: ${context.storeUrl}` : ""}
 - NUNCA finja que está processando algo que não está executando de fato.
 - NUNCA invente nomes de produtos, preços ou descrições — use APENAS o catálogo real.
 - Se uma ferramenta retorna erro, informe o erro real.
+- **NUNCA invente estatísticas** (ex: "5 mil clientes já usaram", "92% de satisfação") — se não veio de uma ferramenta ou do contexto, NÃO EXISTE.
+- **NUNCA peça ao lojista para verificar dados** que você já possui. Se o preço está no catálogo, ele está correto — apresente com confiança.
+- **NUNCA exponha dúvidas sobre seus próprios dados** — se os dados vieram de uma ferramenta, confie neles.
 
 ## REGRA OBRIGATÓRIA: BUSCAR DADOS ANTES DE DIAGNOSTICAR (ANTI-ALUCINAÇÃO)
 **ANTES de fazer QUALQUER diagnóstico, estratégia ou análise, você DEVE obrigatoriamente:**
@@ -2075,6 +2212,8 @@ Quando o usuário pedir "estratégia", "diagnóstico", "análise" ou "plano", ch
 ## REGRA CRÍTICA DE COMUNICAÇÃO — LINGUAGEM AMIGÁVEL AO LOJISTA
 Você conversa com o DONO DA LOJA, NÃO com um desenvolvedor.
 NUNCA exponha termos técnicos internos. Use SEMPRE a linguagem da interface.
+**NUNCA mostre IDs (UUIDs)** na resposta — use SEMPRE o nome do produto, campanha, conta, etc.
+**NUNCA exponha nomes de ferramentas** (ex: get_products, trigger_creative_generation) — descreva a ação em linguagem natural.
 
 ### Mapeamento obrigatório de termos (SEMPRE substituir):
 | ❌ NUNCA diga | ✅ Diga assim |
@@ -2171,10 +2310,16 @@ Use os nomes dos menus: "Marketing → Tráfego Pago", "Galeria de Criativos", "
 - Criar campanhas Google/TikTok diretamente (somente Meta)
 
 ## FLUXO PARA CRIAR CAMPANHAS
-1. Consultar catálogo (get_products)
-2. Gerar artes (generate_creative_image)
-3. Criar campanha completa (create_meta_campaign)
-4. Campanha criada pausada → ativação automática na madrugada
+1. Consultar catálogo (ver produtos)
+2. Buscar imagens do produto (get_product_images para obter fotos reais do Meu Drive)
+3. Gerar artes (gerar imagens para anúncios)
+4. Criar campanha completa no Meta
+5. Campanha criada pausada → ativação automática na madrugada
+
+## IMAGENS DE PRODUTOS
+- As imagens dos produtos estão disponíveis via catálogo (product_images) e no **Meu Drive** (pasta "Imagens de Produtos")
+- ANTES de gerar criativos, use get_product_images para buscar as fotos reais do produto
+- Priorize sempre as fotos reais do produto para compor os criativos
 
 ## CATÁLOGO REAL (Top 10 produtos)
 ${productsList || "⚠️ Catálogo vazio no contexto — use get_products para buscar produtos."}
