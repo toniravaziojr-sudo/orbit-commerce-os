@@ -470,7 +470,13 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v5.3.5
+### Versão Atual: v5.3.6
+
+### v5.3.6: Fix colunas erradas em createCustomAudience/createLookalikeAudience
+- **Bug crítico**: Insert usava `audience_id` mas coluna real é `meta_audience_id`. Insert falhava silenciosamente → públicos criados no Meta nunca eram salvos no banco local
+- **Coluna inexistente**: Removido `status: "creating"` (coluna não existe na tabela `meta_ad_audiences`)
+- **Coluna inexistente**: Removido `approximate_count: 0` do insert (campo é populado apenas pelo sync)
+- **Logging**: Erros de insert agora são logados explicitamente em vez de silenciados com `.catch()`
 
 ### v5.3.5: Fix Audiences + Creatives invisíveis
 - **getAudiences auto-sync**: Se `meta_ad_audiences` estiver vazia, faz sync inline (aguarda resultado) antes de retornar. Resolve o "Bloqueio de Públicos" — dezenas de públicos existiam no Meta mas nunca foram sincronizados para o banco local
