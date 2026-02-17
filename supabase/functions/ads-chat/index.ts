@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.2.0"; // Inject user_instructions + product catalog into context
+const VERSION = "v2.3.0"; // Fix silent failures: reduce history, add timeout, error SSE
 // ===========================================================
 
 const corsHeaders = {
@@ -541,14 +541,16 @@ Deno.serve(async (req) => {
       content: message,
     });
 
-    // Load conversation history (only text messages, not tool calls for simplicity)
-    const { data: history } = await supabase
+    // Load conversation history (last 15 messages with content only — prevents context bloat)
+    const { data: allHistory } = await supabase
       .from("ads_chat_messages")
       .select("role, content")
       .eq("conversation_id", convId)
       .not("content", "is", null)
-      .order("created_at", { ascending: true })
-      .limit(30);
+      .order("created_at", { ascending: false })
+      .limit(15);
+    // Reverse to chronological order
+    const history = (allHistory || []).reverse();
 
     // Collect base context
     const context = await collectBaseContext(supabase, tenant_id, scope, ad_account_id, channel);
@@ -563,38 +565,63 @@ Deno.serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    // === STEP 1: Non-streaming call WITH tools to get tool calls or direct response ===
-    const initialResponse = await fetch(LOVABLE_AI_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: aiMessages,
-        tools: TOOLS,
-        stream: false,
-      }),
-    });
+    // === STEP 1: Non-streaming call WITH tools (with 45s timeout to avoid edge fn timeout) ===
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), 45000);
 
-    if (!initialResponse.ok) {
-      const errText = await initialResponse.text();
-      console.error(`[ads-chat][${VERSION}] AI error: ${initialResponse.status} ${errText}`);
-      if (initialResponse.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded" }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    let initialResult: any;
+    try {
+      const initialResponse = await fetch(LOVABLE_AI_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-3-flash-preview",
+          messages: aiMessages,
+          tools: TOOLS,
+          stream: false,
+        }),
+        signal: abortController.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (!initialResponse.ok) {
+        const errText = await initialResponse.text();
+        console.error(`[ads-chat][${VERSION}] AI error: ${initialResponse.status} ${errText}`);
+        if (initialResponse.status === 429 || initialResponse.status === 402) {
+          const errorMsg = initialResponse.status === 429 ? "Rate limit exceeded" : "Credits required";
+          // Save error as assistant message so user sees it
+          await supabase.from("ads_chat_messages").insert({
+            conversation_id: convId, tenant_id, role: "assistant",
+            content: `⚠️ Erro temporário: ${errorMsg}. Tente novamente em alguns segundos.`,
+          });
+          return new Response(JSON.stringify({ error: errorMsg }), {
+            status: initialResponse.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        throw new Error(`AI gateway error: ${initialResponse.status}`);
+      }
+
+      initialResult = await initialResponse.json();
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      if (err.name === "AbortError") {
+        console.error(`[ads-chat][${VERSION}] Timeout after 45s`);
+        // Save timeout error as visible message
+        const timeoutMsg = "⚠️ O processamento demorou mais que o esperado. A conversa está muito longa — tente criar uma **nova conversa** para continuar.";
+        await supabase.from("ads_chat_messages").insert({
+          conversation_id: convId, tenant_id, role: "assistant", content: timeoutMsg,
+        });
+        const sseData = `data: ${JSON.stringify({ choices: [{ delta: { content: timeoutMsg } }] })}\n\ndata: [DONE]\n\n`;
+        return new Response(sseData, {
+          headers: { ...corsHeaders, "Content-Type": "text/event-stream", "X-Conversation-Id": convId },
         });
       }
-      if (initialResponse.status === 402) {
-        return new Response(JSON.stringify({ error: "Credits required" }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      throw new Error(`AI gateway error: ${initialResponse.status}`);
+      throw err;
     }
 
-    const initialResult = await initialResponse.json();
     const firstChoice = initialResult.choices?.[0];
 
     if (!firstChoice) throw new Error("Empty AI response");
@@ -703,6 +730,19 @@ Deno.serve(async (req) => {
     return streamAndSave(streamResponse, supabase, convId, tenant_id, message, history);
   } catch (e: any) {
     console.error(`[ads-chat][${VERSION}] Error:`, e);
+    // Try to save error as visible message so user isn't left hanging
+    try {
+      const errMsg = `⚠️ Ocorreu um erro ao processar sua mensagem: ${e.message || "Erro interno"}. Tente novamente.`;
+      const supabaseForError = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      // We may not have convId here if error happened early
+      if (body?.conversation_id || body?.tenant_id) {
+        // Return error as SSE so the client can display it
+        const sseData = `data: ${JSON.stringify({ choices: [{ delta: { content: errMsg } }] })}\n\ndata: [DONE]\n\n`;
+        return new Response(sseData, {
+          headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+        });
+      }
+    } catch { /* ignore secondary errors */ }
     return new Response(JSON.stringify({ error: e.message || "Internal error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
