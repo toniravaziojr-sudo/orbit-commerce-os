@@ -784,3 +784,30 @@ A sync diária permite que ferramentas como `get_performance_trend` mostrem time
 2. **Modelo atualizado**: De `openai/gpt-5-mini` para `google/gemini-2.5-flash` (mais rápido e confiável)
 3. **Log enriquecido**: `triggerCreativeGeneration` agora inclui `created_count` e detalhes dos assets gerados no `action_data`
 4. **Feedback real**: A resposta da ferramenta inclui os briefs gerados (headline, copy, formato, ângulo) para a IA reportar ao lojista
+
+### v2.0.0 — `ads-autopilot-creative-generate` Bridge para Geração de Imagens
+
+**Problema**: A função `ads-autopilot-creative-generate` gerava apenas **briefs de texto** (headline + copy) em `ads_creative_assets`, mas **não gerava imagens reais**. Os criativos ficavam com `asset_url: null` e `storage_path: null`, impossibilitando o upload para Meta.
+
+**Mudanças**:
+1. **Bridge para `creative-image-generate`**: Após gerar os briefs de texto, a função agora agrupa por `product_id` e dispara `creative-image-generate` via `fetch()` com `service_role` key (chamada M2M)
+2. **Auto-fetch de imagem do produto**: Se `product_image_url` não fornecido, busca automaticamente de `product_images` (ordenado por `sort_order`) ou fallback para `products.images` JSONB
+3. **Pasta "Gestor de Tráfego IA" no Drive**: Cria automaticamente a pasta no Drive do tenant para armazenar os criativos gerados
+4. **Atualização de `ads_creative_assets`**: Após geração, atualiza `asset_url` e `storage_path` dos assets com as URLs das imagens geradas
+
+### M2M Auth em `creative-image-generate`
+
+**Mudança**: A edge function `creative-image-generate` agora aceita chamadas Machine-to-Machine (M2M) autenticadas com `service_role` key. Quando detecta o token como service role:
+- `isM2M = true`
+- `userId = null` (não há usuário real)
+- `creative_jobs.created_by` aceita `NULL` (migration: `ALTER TABLE public.creative_jobs ALTER COLUMN created_by DROP NOT NULL`)
+
+**Config**: `verify_jwt = false` em `supabase/config.toml` para `creative-image-generate`
+
+### Mapeamento Tabela → Edge Function (atualizado)
+| Tabela | Edge Function |
+|--------|---------------|
+| `ads_creative_assets` | `ads-autopilot-creative-generate`, `ads-chat` |
+| `creative_jobs` | `creative-image-generate`, `ads-autopilot-creative-generate` (via bridge) |
+| `product_images` | `ads-autopilot-creative-generate`, `creative-image-generate` |
+| `files` | `ads-autopilot-creative-generate` (pasta Drive) |

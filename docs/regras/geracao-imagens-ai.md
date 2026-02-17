@@ -320,6 +320,26 @@ Authorization: Bearer <token>
 
 ---
 
+## Integração com Ads Autopilot (v2.0.0)
+
+A edge function `ads-autopilot-creative-generate` atua como **bridge** entre o sistema de tráfego e a geração de imagens:
+
+### Fluxo
+1. `ads-autopilot-creative-generate` gera briefs de texto (headline + copy) em `ads_creative_assets`
+2. Agrupa briefs por `product_id`
+3. Para cada produto, chama `creative-image-generate` via M2M (Machine-to-Machine) com `service_role` key
+4. `creative-image-generate` gera imagens reais via Lovable AI Gateway (Gemini)
+5. Imagens são salvas no Storage e registradas no Drive (pasta "Gestor de Tráfego IA")
+6. `ads_creative_assets` é atualizado com `asset_url` e `storage_path`
+
+### Autenticação M2M
+- `creative-image-generate` aceita chamadas com `service_role` key
+- `verify_jwt = false` no `config.toml`
+- `creative_jobs.created_by` é nullable (permite jobs sem usuário)
+- `userId = null` em chamadas M2M
+
+---
+
 ## Vídeos (DESATIVADOS)
 
 > ⚠️ **Funcionalidades de vídeo estão temporariamente desativadas** enquanto migramos de fal.ai para alternativa (Runway, HeyGen, Akool, Sync Labs).
