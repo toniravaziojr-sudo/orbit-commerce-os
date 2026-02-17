@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.9.1"; // Fix: generate_creative exempt from data sufficiency + manual trigger bypass for chat orders
+const VERSION = "v5.10.0"; // Use Meta native start_time for scheduled campaigns instead of internal activation
 // ===========================================================
 
 const corsHeaders = {
@@ -1634,11 +1634,13 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 console.log(`[ads-autopilot-analyze][${VERSION}] Budget adjustment scheduled for ${scheduledFor}`);
                 totalActionsExecuted++;
               } else if (tc.function.name === "create_campaign") {
-                // ===== v5.2: Full campaign creation chain — ALWAYS create PAUSED, schedule activation for 00:01-04:00 =====
+                // ===== v5.10: Use Meta native start_time for scheduled activation =====
+                // Instead of creating PAUSED + internal scheduling, we create with status=ACTIVE
+                // and a future start_time so Meta shows the campaign as "Scheduled" (Programada)
                 const isAutoMode = acctConfig.human_approval_mode === "auto";
                 const scheduledActivationTime = getNextSchedulingTime();
                 
-                // Step 1: Create campaign — ALWAYS PAUSED initially, activation scheduled
+                // Step 1: Create campaign with native start_time
                 const objectiveMap: Record<string, string> = {
                   conversions: "OUTCOME_SALES",
                   traffic: "OUTCOME_TRAFFIC",
@@ -1647,24 +1649,33 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 };
                 const metaObjective = objectiveMap[args.objective] || "OUTCOME_SALES";
                 
+                // Auto mode: ACTIVE + future start_time = "Scheduled" in Meta
+                // Manual/approval mode: PAUSED (requires manual activation)
+                const campaignCreateBody: any = {
+                  tenant_id,
+                  action: "create",
+                  ad_account_id: acctConfig.ad_account_id,
+                  name: args.campaign_name,
+                  objective: metaObjective,
+                  status: isAutoMode ? "ACTIVE" : "PAUSED",
+                  daily_budget_cents: args.daily_budget_cents,
+                  special_ad_categories: [],
+                };
+                
+                // Set future start_time for auto mode — Meta will show as "Scheduled"
+                if (isAutoMode) {
+                  campaignCreateBody.start_time = scheduledActivationTime;
+                }
+                
                 const { data: createResult, error: createErr } = await supabase.functions.invoke("meta-ads-campaigns", {
-                  body: {
-                    tenant_id,
-                    action: "create",
-                    ad_account_id: acctConfig.ad_account_id,
-                    name: args.campaign_name,
-                    objective: metaObjective,
-                    status: "PAUSED", // Always PAUSED — activation scheduled
-                    daily_budget_cents: args.daily_budget_cents,
-                    special_ad_categories: [],
-                  },
+                  body: campaignCreateBody,
                 });
 
                 if (createErr) throw createErr;
                 if (createResult && !createResult.success) throw new Error(createResult.error || "Erro ao criar campanha");
 
                 const newMetaCampaignId = createResult?.data?.meta_campaign_id;
-                console.log(`[ads-autopilot-analyze][${VERSION}] Step 1/3: Campaign created: ${args.campaign_name} (${newMetaCampaignId}) status=PAUSED, activation scheduled for ${scheduledActivationTime}`);
+                console.log(`[ads-autopilot-analyze][${VERSION}] Step 1/3: Campaign created: ${args.campaign_name} (${newMetaCampaignId}) status=${isAutoMode ? "ACTIVE (scheduled)" : "PAUSED"}, start_time=${isAutoMode ? scheduledActivationTime : "N/A"}`);
 
                 // Step 2: Create ad set with SMART targeting (prefer saved audiences)
                 let newMetaAdsetId: string | null = null;
@@ -1758,8 +1769,13 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                       optimization_goal: optimizationGoal,
                       billing_event: billingEventMap[args.objective] || "IMPRESSIONS",
                       targeting,
-                      status: "PAUSED",
+                      status: isAutoMode ? "ACTIVE" : "PAUSED",
                     };
+                    
+                    // Set future start_time for auto mode — matches campaign scheduling
+                    if (isAutoMode) {
+                      adsetCreateBody.start_time = scheduledActivationTime;
+                    }
 
                     // Add promoted_object for conversion/lead objectives
                     if (pixelId && (optimizationGoal === "OFFSITE_CONVERSIONS" || optimizationGoal === "LEAD_GENERATION")) {
@@ -1816,7 +1832,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                           meta_campaign_id: newMetaCampaignId,
                           name: adName,
                           creative_id: bestCreativeId,
-                          status: "PAUSED", // Always PAUSED — activated with campaign
+                          status: isAutoMode ? "ACTIVE" : "PAUSED", // Auto: ACTIVE inherits campaign's start_time
                         },
                       });
 
@@ -1864,29 +1880,10 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                   }
                 }
 
-                // Schedule campaign activation for 00:01-04:00 window (if auto mode)
-                if (isAutoMode && newMetaCampaignId) {
-                  // Insert scheduled activation action
-                  await supabase.from("ads_autopilot_actions").insert({
-                    tenant_id,
-                    session_id: sessionId,
-                    channel,
-                    action_type: "activate_campaign",
-                    action_data: {
-                      campaign_id: newMetaCampaignId,
-                      ad_account_id: acctConfig.ad_account_id,
-                      campaign_name: args.campaign_name,
-                      scheduled_for: scheduledActivationTime,
-                      adset_id: newMetaAdsetId,
-                    },
-                    reasoning: `Ativação agendada para ${scheduledActivationTime} (janela 00:01-04:00 BRT)`,
-                    status: "scheduled",
-                    action_hash: `${sessionId}_activate_${newMetaCampaignId}`,
-                  });
-                  console.log(`[ads-autopilot-analyze][${VERSION}] Campaign activation scheduled for ${scheduledActivationTime}`);
-                }
+                // No internal activation scheduling needed — Meta handles it via start_time
+                // Campaign will show as "Scheduled" (Programada) in Meta Ads Manager
 
-                actionRecord.status = isAutoMode ? "scheduled" : "executed";
+                actionRecord.status = "executed";
                 actionRecord.executed_at = new Date().toISOString();
                 actionRecord.action_data = {
                   ...actionRecord.action_data,
@@ -1894,8 +1891,8 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                   meta_adset_id: newMetaAdsetId,
                   meta_ad_id: newMetaAdId,
                   creative_job_id: creativeJobId,
-                  created_status: "PAUSED",
-                  scheduled_activation: isAutoMode ? scheduledActivationTime : null,
+                  created_status: isAutoMode ? "ACTIVE_SCHEDULED" : "PAUSED",
+                  start_time: isAutoMode ? scheduledActivationTime : null,
                   chain_steps: {
                     campaign: !!newMetaCampaignId,
                     adset: !!newMetaAdsetId,
@@ -1903,7 +1900,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                     creative_generating: !!creativeJobId,
                   },
                 };
-                console.log(`[ads-autopilot-analyze][${VERSION}] Full chain: campaign=${!!newMetaCampaignId} adset=${!!newMetaAdsetId} ad=${!!newMetaAdId} creative=${!!creativeJobId} activation=${isAutoMode ? scheduledActivationTime : "PAUSED"}`);
+                console.log(`[ads-autopilot-analyze][${VERSION}] Full chain: campaign=${!!newMetaCampaignId} adset=${!!newMetaAdsetId} ad=${!!newMetaAdId} creative=${!!creativeJobId} start_time=${isAutoMode ? scheduledActivationTime : "PAUSED"}`);
                 totalActionsExecuted++;
               } else if (tc.function.name === "create_adset") {
                 // Standalone adset creation with smart audiences
