@@ -470,7 +470,14 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v5.2.0
+### Versão Atual: v5.2.1
+
+### Correção Crítica v5.2.1: Formatação de Preços
+- Os preços de produtos no banco estão em **BRL (reais)**, NÃO em centavos
+- Removida divisão `/100` em todas as formatações de preço de produtos (`getProducts`, `getStoreContext`, `buildSystemPrompt`)
+- Corrigido nome da coluna `order_items.price` → `order_items.unit_price`
+- Receita e ticket médio de pedidos (`orders.total`) também já em BRL — removida divisão
+- **Exceção**: Campos `*_cents` (budget_cents, daily_budget_cents, etc.) continuam divididos por 100 corretamente
 
 ### Visão Geral
 Edge Function de chat conversacional **multimodal** com **tool calling real** para o Gestor de Tráfego IA. Opera como assistente de tráfego pago com acesso completo de leitura e escrita ao módulo de tráfego. Suporta análise de imagens, arquivos e URLs. Implementa **auto-sync fire-and-forget**, **contexto de negócio enriquecido** e **passo de verificação obrigatório** para eliminar alucinações.
