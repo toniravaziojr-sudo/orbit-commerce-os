@@ -515,7 +515,7 @@ serve(async (req) => {
       // Check if it's the service role key (M2M call from other edge functions)
       if (token === supabaseServiceKey) {
         isM2M = true;
-        userId = 'system'; // M2M calls use system user
+        userId = '00000000-0000-0000-0000-000000000000'; // M2M system placeholder UUID
         console.log(`[creative-image-generate v${VERSION}] M2M auth (service role)`);
       } else {
         const { data: authData, error: authError } = await supabase.auth.getUser(token);
