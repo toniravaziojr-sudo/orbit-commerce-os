@@ -1,7 +1,6 @@
 import { useState, useRef, KeyboardEvent, ChangeEvent } from "react";
-import { Send, Paperclip, X, Loader2, Image as ImageIcon, FileText } from "lucide-react";
+import { Send, Square, Paperclip, X, Loader2, Image as ImageIcon, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Tooltip,
   TooltipContent,
@@ -54,18 +53,15 @@ export function CommandChatInput({ onSend, isStreaming, onCancel }: CommandChatI
         continue;
       }
 
-      // Create preview for images
       let preview: string | undefined;
       if (file.type.startsWith("image/")) {
         preview = URL.createObjectURL(file);
       }
 
-      // Add to state as uploading
       const newFile: AttachedFile = { file, preview, isUploading: true };
       setAttachedFiles(prev => [...prev, newFile]);
 
       try {
-        // Upload file
         const result = await uploadAndRegisterToSystemDrive({
           tenantId: currentTenant.id,
           userId: user.id,
@@ -75,9 +71,9 @@ export function CommandChatInput({ onSend, isStreaming, onCancel }: CommandChatI
         });
 
         if (result) {
-          setAttachedFiles(prev => 
-            prev.map(f => 
-              f.file === file 
+          setAttachedFiles(prev =>
+            prev.map(f =>
+              f.file === file
                 ? { ...f, publicUrl: result.publicUrl, isUploading: false }
                 : f
             )
@@ -93,7 +89,6 @@ export function CommandChatInput({ onSend, isStreaming, onCancel }: CommandChatI
       }
     }
 
-    // Clear input
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -102,9 +97,7 @@ export function CommandChatInput({ onSend, isStreaming, onCancel }: CommandChatI
   const removeFile = (file: File) => {
     setAttachedFiles(prev => {
       const toRemove = prev.find(f => f.file === file);
-      if (toRemove?.preview) {
-        URL.revokeObjectURL(toRemove.preview);
-      }
+      if (toRemove?.preview) URL.revokeObjectURL(toRemove.preview);
       return prev.filter(f => f.file !== file);
     });
   };
@@ -112,8 +105,7 @@ export function CommandChatInput({ onSend, isStreaming, onCancel }: CommandChatI
   const handleSend = () => {
     const trimmed = message.trim();
     if ((!trimmed && !hasAttachments) || isStreaming || isUploadingAny) return;
-    
-    // Prepare attachments
+
     const attachments = attachedFiles
       .filter(f => f.publicUrl)
       .map(f => ({
@@ -124,14 +116,12 @@ export function CommandChatInput({ onSend, isStreaming, onCancel }: CommandChatI
 
     onSend(trimmed, attachments.length > 0 ? attachments : undefined);
     setMessage("");
-    
-    // Clear attachments and revoke previews
+
     attachedFiles.forEach(f => {
       if (f.preview) URL.revokeObjectURL(f.preview);
     });
     setAttachedFiles([]);
-    
-    // Reset textarea height
+
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
@@ -144,7 +134,6 @@ export function CommandChatInput({ onSend, isStreaming, onCancel }: CommandChatI
     }
   };
 
-  // Auto-resize textarea
   const handleInput = () => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -158,29 +147,23 @@ export function CommandChatInput({ onSend, isStreaming, onCancel }: CommandChatI
   };
 
   return (
-    <div>
-      {/* Attached files preview */}
+    <div className="relative">
+      {/* Attached files preview — above the input card */}
       {hasAttachments && (
-        <div className="flex flex-wrap gap-2 mb-3">
+        <div className="flex flex-wrap gap-2 mb-2 px-1">
           {attachedFiles.map((af, idx) => {
             const FileIcon = getFileIcon(af.file.type);
             return (
-              <div 
+              <div
                 key={idx}
-                className="relative group flex items-center gap-2 px-2 py-1.5 bg-muted/50 rounded-lg border border-border/40"
+                className="relative group flex items-center gap-2 px-2.5 py-1.5 bg-muted/40 rounded-lg border border-border/40"
               >
                 {af.preview ? (
-                  <img 
-                    src={af.preview} 
-                    alt={af.file.name} 
-                    className="h-8 w-8 object-cover rounded"
-                  />
+                  <img src={af.preview} alt={af.file.name} className="h-8 w-8 object-cover rounded" />
                 ) : (
                   <FileIcon className="h-4 w-4 text-muted-foreground" />
                 )}
-                <span className="text-[11px] max-w-[100px] truncate">
-                  {af.file.name}
-                </span>
+                <span className="text-[11px] max-w-[100px] truncate">{af.file.name}</span>
                 {af.isUploading ? (
                   <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
                 ) : (
@@ -197,14 +180,19 @@ export function CommandChatInput({ onSend, isStreaming, onCancel }: CommandChatI
         </div>
       )}
 
-      <div className="flex items-end gap-2">
+      {/* ChatGPT-style unified input card */}
+      <div className={cn(
+        "flex items-end gap-1 rounded-2xl border border-border/60 bg-muted/20 p-1.5",
+        "focus-within:border-primary/30 focus-within:bg-background transition-all duration-200",
+        "shadow-sm"
+      )}>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="flex-shrink-0 h-9 w-9 rounded-xl" 
+              <Button
+                variant="ghost"
+                size="icon"
+                className="flex-shrink-0 h-8 w-8 rounded-xl text-muted-foreground hover:text-foreground"
                 disabled={isStreaming}
                 onClick={() => fileInputRef.current?.click()}
               >
@@ -212,7 +200,7 @@ export function CommandChatInput({ onSend, isStreaming, onCancel }: CommandChatI
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Anexar arquivo ou imagem</p>
+              <p>Anexar arquivo</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -226,43 +214,41 @@ export function CommandChatInput({ onSend, isStreaming, onCancel }: CommandChatI
           className="hidden"
         />
 
-        <div className="flex-1">
-          <Textarea
-            ref={textareaRef}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onInput={handleInput}
-            placeholder="Digite sua mensagem..."
-            className={cn(
-              "min-h-[44px] max-h-[200px] resize-none rounded-xl text-[13px]",
-              "bg-muted/30 border-border/60 focus:bg-background transition-colors"
-            )}
-            rows={1}
-            disabled={isStreaming}
-          />
-        </div>
+        <textarea
+          ref={textareaRef}
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onInput={handleInput}
+          placeholder="Envie uma mensagem..."
+          className={cn(
+            "flex-1 min-h-[36px] max-h-[200px] resize-none bg-transparent text-[13px] leading-relaxed",
+            "placeholder:text-muted-foreground/50 focus:outline-none py-2 px-1"
+          )}
+          rows={1}
+          disabled={isStreaming}
+        />
 
         {isStreaming ? (
           <Button
-            variant="destructive"
+            variant="ghost"
             size="icon"
-            className="flex-shrink-0 rounded-xl h-[44px] w-[44px]"
+            className="flex-shrink-0 rounded-xl h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
             onClick={onCancel}
           >
-            <X className="h-4 w-4" />
+            <Square className="h-3.5 w-3.5 fill-current" />
           </Button>
         ) : (
           <Button
             size="icon"
-            className="flex-shrink-0 rounded-xl h-[44px] w-[44px]"
+            className="flex-shrink-0 rounded-xl h-8 w-8"
             onClick={handleSend}
             disabled={(!message.trim() && !hasAttachments) || isUploadingAny}
           >
             {isUploadingAny ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
-              <Send className="h-4 w-4" />
+              <Send className="h-3.5 w-3.5" />
             )}
           </Button>
         )}

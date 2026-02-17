@@ -122,6 +122,10 @@ export default {
           from: { transform: "translateX(0)" },
           to: { transform: "translateX(-50%)" },
         },
+        "pulse-dot": {
+          "0%, 80%, 100%": { opacity: "0.3", transform: "scale(0.8)" },
+          "40%": { opacity: "1", transform: "scale(1)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -131,6 +135,7 @@ export default {
         "slide-in-right": "slide-in-from-right 0.3s ease-out",
         "slide-in-bottom": "slide-in-from-bottom 0.3s ease-out",
         "marquee": "marquee 15s linear infinite",
+        "pulse-dot": "pulse-dot 1.4s ease-in-out infinite",
       },
     },
   },

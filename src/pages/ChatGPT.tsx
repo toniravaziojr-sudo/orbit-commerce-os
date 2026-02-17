@@ -90,8 +90,8 @@ export default function ChatGPT() {
       <div className="flex-1 flex flex-col bg-card border rounded-xl overflow-hidden min-w-0">
         {currentConversationId ? (
           <>
-            <ScrollArea className="flex-1 p-4">
-              <div className="space-y-4 max-w-3xl mx-auto">
+            <ScrollArea className="flex-1 px-4 py-4">
+              <div className="space-y-5 max-w-2xl mx-auto">
                 {messages.map((message) => {
                   const attachments = message.metadata?.attachments as ChatGPTAttachment[] | undefined;
                   
@@ -106,7 +106,7 @@ export default function ChatGPT() {
                       }
                       avatarIcon={message.role === "user" ? "user" : "sparkles"}
                       avatarLabel={message.role === "user" ? user?.email?.charAt(0).toUpperCase() || "U" : undefined}
-                      avatarClassName={message.role !== "user" ? "bg-emerald-500/10 text-emerald-500" : undefined}
+                      avatarClassName={message.role !== "user" ? "bg-emerald-500/10 text-emerald-500 ring-1 ring-emerald-500/20" : undefined}
                       attachments={attachments}
                       modeIndicator={message.role === "assistant" ? renderModeIndicator(message) : undefined}
                       timestamp={message.created_at ? new Date(message.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : undefined}
@@ -119,16 +119,16 @@ export default function ChatGPT() {
                     role="assistant"
                     content={streamingContent}
                     avatarIcon="sparkles"
-                    avatarClassName="bg-emerald-500/10 text-emerald-500"
+                    avatarClassName="bg-emerald-500/10 text-emerald-500 ring-1 ring-emerald-500/20"
                   />
                 )}
 
                 {isStreaming && !streamingContent && (
                   <div className="flex gap-3">
-                    <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-500/10">
+                    <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500/10 ring-1 ring-emerald-500/20">
                       <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
                     </div>
-                    <div className="rounded-2xl rounded-tl-md bg-muted/60 border border-border/40 px-4 py-3">
+                    <div className="pt-1.5">
                       <ChatTypingIndicator />
                     </div>
                   </div>
