@@ -60,18 +60,27 @@ Assistente de IA integrado à **Central de Execuções** para execução de tare
 | `src/hooks/useCommandAssistant.ts` | Lógica de conversas e streaming |
 | `src/contexts/CommandAssistantContext.tsx` | Context global |
 
-### Componentes Compartilhados de Chat (`src/components/chat/`)
+### Componentes Compartilhados de Chat (`src/components/chat/`) — v2 Modern
 
-Todos os 3 chats do sistema (Auxiliar de Comando, ChatGPT, IA de Tráfego) utilizam componentes visuais compartilhados:
+Todos os 3 chats do sistema (Auxiliar de Comando, ChatGPT, IA de Tráfego) utilizam componentes visuais compartilhados com design inspirado em ChatGPT/Claude/Gemini:
 
 | Componente | Propósito |
 |------------|-----------|
-| `ChatMessageBubble` | Bolha de mensagem moderna com markdown (remarkGfm), avatares, anexos e timestamps |
-| `ChatTypingIndicator` | Indicador animado de digitação (3 dots bounce) |
-| `ChatEmptyState` | Estado vazio unificado com ícone, título, descrição e botão |
-| `ChatConversationList` | Lista de conversas com seleção, criação e exclusão |
+| `ChatMessageBubble` | Mensagens: **usuário** com bolha `bg-primary` alinhada à direita; **assistente** sem bolha (texto direto, estilo ChatGPT); **tool** com borda amber. Avatares redondos com `ring-1`. Timestamps visíveis no hover (assistente) ou fixos (usuário). Suporta markdown (remarkGfm), anexos (imagem, áudio, arquivo) e slot `actions`. |
+| `ChatTypingIndicator` | Animação `pulse-dot` suave (keyframe customizado no tailwind) com label configurável ("Pensando", "Analisando", etc.) |
+| `ChatEmptyState` | Estado vazio com ícone gradiente (`from-primary/15 to-primary/5` + `ring-1`), título, descrição, botão "Nova conversa" e **props opcionais**: `suggestions: string[]` e `onSuggestionClick` para chips de sugestão rápida |
+| `ChatConversationList` | Lista de conversas com timestamps relativos ("agora", "5min", "2h", "3d"), indicador lateral ativo (`w-[3px] bg-primary`), dropdown de exclusão no hover |
 
-> ⚠️ **IMPORTANTE**: Ao criar novos chats no sistema, SEMPRE utilizar os componentes de `src/components/chat/` para manter consistência visual. Nunca criar bolhas/listas de conversa customizadas.
+### Input Unificado (Estilo ChatGPT)
+
+Todos os inputs de chat usam o padrão **card pill**:
+- Container `rounded-2xl border bg-muted/20` com `focus-within:border-primary/30`
+- Botões (anexo, mic, enviar) integrados dentro do card
+- `<textarea>` nativo sem borda (`bg-transparent focus:outline-none`)
+- Botão stop: ícone `Square` preenchido com hover destrutivo
+- Botão enviar: `rounded-xl h-8 w-8`
+
+> ⚠️ **IMPORTANTE**: Ao criar novos chats no sistema, SEMPRE utilizar os componentes de `src/components/chat/` para manter consistência visual. Nunca criar bolhas/listas de conversa customizadas. O input deve seguir o padrão card pill.
 | `supabase/functions/command-assistant-chat/` | Processamento de mensagens |
 | `supabase/functions/command-assistant-execute/` | Execução de ações |
 
