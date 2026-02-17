@@ -476,7 +476,7 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v5.7.0
+### Versão Atual: v5.8.0
 
 ### v5.3.6: Fix colunas erradas em createCustomAudience/createLookalikeAudience
 - **Bug crítico**: Insert usava `audience_id` mas coluna real é `meta_audience_id`. Insert falhava silenciosamente → públicos criados no Meta nunca eram salvos no banco local
@@ -734,6 +734,7 @@ A sync diária permite que ferramentas como `get_performance_trend` mostrem time
 | v5.5.0 | 2026-02-17 | **Action Logging + Anti-Hallucination**: Todas as tools de escrita (toggle_entity_status, update_budget, generate_creative_image, trigger_creative_generation) agora logam na tabela `ads_autopilot_actions`. Novas regras de prompt: proibido "Posso seguir?", obrigatório reportar resultados reais das ferramentas, respeitar mapeamento produto→funil das instruções estratégicas, distribuir budget conforme funnel_splits. |
 | v5.6.0 | 2026-02-17 | **Playbook Estratégico Injetado no System Prompt**: Adicionado bloco completo de diretrizes de escala (vertical/horizontal), framework Core/Test/Explore (60-80%/15-30%/5-10%), árvore diagnóstica (Tracking→Unit Economics→Criativo→Público→Budget), cadência operacional (diária/semanal/mensal), regras de testes (1 variável, volume mínimo, promoção/corte), copy persuasiva (AIDA/PAS/4U, 8 tipos de hooks), checklist de criativos (gancho 0-2s, produto cedo, texto na tela, CTA claro), e métricas de ROI real vs ROAS + MER. |
 | v5.7.0 | 2026-02-17 | **Timeout 90s + Logging Síncrono + Reconciliação de Campanhas**: Timeout da chamada de IA aumentado de 45s para 90s para suportar tarefas multi-campanha. Logging de ações em `ads_autopilot_actions` agora é `await` (síncrono) em vez de fire-and-forget, garantindo que todas as ações apareçam na aba "Ações da IA". Fallback de imagem melhorado em `createMetaCampaign` — loga ação de falha se nenhuma imagem encontrada. Sync de campanhas/adsets/ads agora reconcilia exclusões (deleta do banco local registros que não existem mais no Meta). |
+| v5.8.0 | 2026-02-17 | **Fix Crítico: Imagens de Produto + Session ID FK**: Corrigido bug onde `createMetaCampaign` usava coluna inexistente `position` em vez de `sort_order` na tabela `product_images` — fazia com que a IA NUNCA encontrasse imagens do catálogo. Corrigido FK violation em `ads_autopilot_actions.session_id` — agora cria uma sessão real em `ads_autopilot_sessions` (trigger_type='chat') no início de cada request e propaga o ID para todas as tools de escrita. Todas as ações agora aparecem corretamente na aba "Ações da IA". |
 
 ### Regras de Strategy Mode — `ads-chat` v5.4.0
 
