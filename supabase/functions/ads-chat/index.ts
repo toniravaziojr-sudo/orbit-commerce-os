@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.9.5"; // Add link to link_data + fix storage bucket fallback
+const VERSION = "v5.9.7"; // Fix race condition (image gen + campaign in same round) + signed URLs for Meta upload
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -2041,20 +2041,31 @@ async function createMetaCampaign(supabase: any, tenantId: string, args: any, ch
     const adAccountId = args.ad_account_id || adAccounts[0]?.id;
     if (!adAccountId) return JSON.stringify({ success: false, error: "Nenhuma conta de anúncios Meta encontrada." });
 
-    // Find creative image
+    // Find creative image — prefer signed URLs for Meta API compatibility
     let creativeImageUrl: string | null = null;
     let creativeHeadline: string | null = null;
     let creativeCopy: string | null = null;
 
     const { data: creativeAssets } = await supabase.from("ads_creative_assets").select("id, asset_url, storage_path, headline, copy_text, cta_type, product_id").eq("tenant_id", tenantId).eq("product_id", product.id).in("status", ["ready", "draft"]).order("created_at", { ascending: false }).limit(5);
     if (creativeAssets?.length) {
-      const best = creativeAssets.find((c: any) => c.asset_url) || creativeAssets[0];
-      creativeImageUrl = best.asset_url || null;
+      const best = creativeAssets.find((c: any) => c.asset_url || c.storage_path) || creativeAssets[0];
       creativeHeadline = best.headline || null;
       creativeCopy = best.copy_text || null;
-      if (!creativeImageUrl && best.storage_path) {
+      
+      // Always prefer signed URL for Meta API (even if public URL exists)
+      if (best.storage_path) {
         const { data: signedData } = await supabase.storage.from("media-assets").createSignedUrl(best.storage_path, 86400 * 30);
         if (signedData?.signedUrl) creativeImageUrl = signedData.signedUrl;
+      }
+      // Fallback to asset_url if no storage_path or signed URL failed
+      if (!creativeImageUrl && best.asset_url) {
+        // If asset_url points to our storage, extract path and generate signed URL
+        const storageMatch = best.asset_url.match(/\/storage\/v1\/object\/public\/media-assets\/(.+)$/);
+        if (storageMatch) {
+          const { data: signedData } = await supabase.storage.from("media-assets").createSignedUrl(storageMatch[1], 86400 * 30);
+          if (signedData?.signedUrl) creativeImageUrl = signedData.signedUrl;
+        }
+        if (!creativeImageUrl) creativeImageUrl = best.asset_url;
       }
     }
 
@@ -2886,6 +2897,14 @@ Exemplo: Se budget = R$ 600/dia e splits = {cold: 40, remarketing: 25, tests: 25
 6. Campanha criada pausada → ativação automática na madrugada
 
 **IMPORTANTE**: Os passos 2, 3 e 4 devem ser executados AUTOMATICAMENTE, sem pedir permissão.
+
+## REGRA CRÍTICA: SEQUÊNCIA OBRIGATÓRIA — GERAÇÃO DE IMAGEM ANTES DE CAMPANHA
+- **NUNCA chame generate_creative_image e create_meta_campaign na MESMA rodada de ferramentas.**
+- A geração de imagem é ASSÍNCRONA (~60-90 segundos em background). Se você chamar create_meta_campaign no mesmo round, as imagens ainda NÃO estarão prontas e a campanha usará fallback do catálogo.
+- **Fluxo correto em 2 rodadas:**
+  1. Rodada 1: Chame get_product_images + generate_creative_image
+  2. Aguarde confirmação ("imagens sendo geradas") e informe ao lojista
+  3. Rodada 2 (na PRÓXIMA interação): Chame create_meta_campaign — agora as imagens estarão prontas em ads_creative_assets
 
 ## REGRA CRÍTICA: LIMITE DE CAMPANHAS POR INTERAÇÃO (ANTI-TIMEOUT)
 - Crie no **MÁXIMO 2 campanhas por rodada de ferramentas** (por chamada de create_meta_campaign)
