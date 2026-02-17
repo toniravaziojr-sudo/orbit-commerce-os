@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.1.0"; // Add duplicate_campaign + update_adset_targeting (Frente 4.3/4.4)
+const VERSION = "v5.2.0"; // Add create_custom_audience + create_lookalike_audience + user override system
 // ===========================================================
 
 const corsHeaders = {
@@ -444,6 +444,47 @@ const TOOLS = [
       },
     },
   },
+  // ===== ESCRITA: Públicos Customizados =====
+  {
+    type: "function",
+    function: {
+      name: "create_custom_audience",
+      description: "Cria um público personalizado no Meta a partir de dados de clientes (emails/telefones) ou de engajamento (pixel, vídeo, página). Retorna o ID do público criado.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Nome do público" },
+          description: { type: "string", description: "Descrição do público" },
+          source: { type: "string", enum: ["customer_list", "website", "engagement"], description: "Fonte do público (customer_list = upload de emails/tel, website = pixel, engagement = interações)" },
+          subtype: { type: "string", enum: ["CUSTOM", "WEBSITE", "ENGAGEMENT", "LOOKALIKE"], description: "Subtipo Meta (default: CUSTOM)" },
+          retention_days: { type: "number", description: "Dias de retenção para website/engagement (default: 30, max: 180)" },
+          rule: { type: "object", description: "Regra para website audiences: {url_contains: 'string'} ou {event_name: 'Purchase'}" },
+          ad_account_id: { type: "string", description: "ID da conta Meta (opcional)" },
+        },
+        required: ["name", "source"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_lookalike_audience",
+      description: "Cria um público semelhante (Lookalike) no Meta a partir de um público personalizado existente. Especifique o ratio (1-10%) e o país.",
+      parameters: {
+        type: "object",
+        properties: {
+          source_audience_id: { type: "string", description: "ID do público de origem (Custom Audience)" },
+          name: { type: "string", description: "Nome do Lookalike (opcional, auto-gerado)" },
+          country: { type: "string", description: "Código do país (default: BR)" },
+          ratio: { type: "number", description: "Percentual de similaridade (0.01 a 0.20, default: 0.01 = 1%)" },
+          ad_account_id: { type: "string", description: "ID da conta Meta (opcional)" },
+        },
+        required: ["source_audience_id"],
+        additionalProperties: false,
+      },
+    },
+  },
   // ===== ESCRITA: Autopilot Config =====
   {
     type: "function",
@@ -465,6 +506,7 @@ const TOOLS = [
               is_ai_enabled: { type: "boolean" },
               user_instructions: { type: "string" },
               human_approval_mode: { type: "string", enum: ["auto", "high_impact"] },
+              chat_overrides: { type: "object", description: "Override via comando do chat. Inclua os campos sobrescritos com uma descrição. Ex: {budget_cents: 80000, reason: 'Lojista solicitou aumento para R$800/dia'}" },
             },
           },
         },
@@ -568,6 +610,10 @@ async function executeTool(
         return await duplicateCampaign(supabase, tenantId, args);
       case "update_adset_targeting":
         return await updateAdsetTargeting(supabase, tenantId, args);
+      case "create_custom_audience":
+        return await createCustomAudience(supabase, tenantId, args);
+      case "create_lookalike_audience":
+        return await createLookalikeAudience(supabase, tenantId, args);
       case "update_autopilot_config":
         return await updateAutopilotConfig(supabase, tenantId, args.ad_account_id, args.channel, args.updates);
       case "trigger_autopilot_analysis":
@@ -1274,6 +1320,158 @@ async function updateAdsetTargeting(supabase: any, tenantId: string, args: any) 
   });
 }
 
+// --- Frente 5: create_custom_audience ---
+async function createCustomAudience(supabase: any, tenantId: string, args: any) {
+  const { name, description, source, subtype, retention_days, rule } = args;
+
+  const { data: conn } = await supabase
+    .from("marketplace_connections")
+    .select("access_token, metadata")
+    .eq("tenant_id", tenantId)
+    .eq("marketplace", "meta")
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!conn) return JSON.stringify({ success: false, error: "Meta não conectada." });
+
+  const adAccounts = conn.metadata?.assets?.ad_accounts || [];
+  const adAccountId = args.ad_account_id || adAccounts[0]?.id;
+  if (!adAccountId) return JSON.stringify({ success: false, error: "Nenhuma conta de anúncios encontrada." });
+  const accountIdClean = adAccountId.replace("act_", "");
+
+  const body: any = {
+    name,
+    description: description || `Público criado via IA — ${source}`,
+    access_token: conn.access_token,
+  };
+
+  if (source === "customer_list") {
+    body.subtype = "CUSTOM";
+    body.customer_file_source = "USER_PROVIDED_ONLY";
+    // For customer_list, we create empty audience — users upload data later via Meta UI
+  } else if (source === "website") {
+    body.subtype = "WEBSITE";
+    const retDays = Math.min(retention_days || 30, 180);
+    const pixelData = await supabase.from("marketing_integrations").select("meta_pixel_id").eq("tenant_id", tenantId).maybeSingle();
+    const pixelId = pixelData?.data?.meta_pixel_id;
+    if (!pixelId) return JSON.stringify({ success: false, error: "Pixel Meta não configurado. Configure em Marketing → Integrações." });
+    
+    const ruleObj = rule?.event_name
+      ? { event_sources: [{ id: pixelId, type: "pixel" }], retention_seconds: retDays * 86400, filter: { operator: "or", filters: [{ field: "event", operator: "eq", value: rule.event_name }] } }
+      : rule?.url_contains
+        ? { event_sources: [{ id: pixelId, type: "pixel" }], retention_seconds: retDays * 86400, filter: { operator: "or", filters: [{ field: "url", operator: "i_contains", value: rule.url_contains }] } }
+        : { event_sources: [{ id: pixelId, type: "pixel" }], retention_seconds: retDays * 86400 };
+    body.rule = JSON.stringify(ruleObj);
+  } else if (source === "engagement") {
+    body.subtype = "ENGAGEMENT";
+    // Page engagement — requires page_id
+    const pages = conn.metadata?.assets?.pages || [];
+    const pageId = pages[0]?.id;
+    if (!pageId) return JSON.stringify({ success: false, error: "Nenhuma Página do Facebook conectada." });
+    body.rule = JSON.stringify({
+      event_sources: [{ id: pageId, type: "page" }],
+      retention_seconds: (retention_days || 30) * 86400,
+    });
+  }
+
+  const res = await fetch(`https://graph.facebook.com/v21.0/act_${accountIdClean}/customaudiences`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const result = await res.json();
+
+  if (result.error) {
+    return JSON.stringify({ success: false, error: `Falha ao criar público: ${result.error.message}` });
+  }
+
+  // Save to local DB
+  await supabase.from("meta_ad_audiences").insert({
+    tenant_id: tenantId,
+    ad_account_id: adAccountId,
+    audience_id: result.id,
+    name,
+    audience_type: source === "website" ? "website_custom" : source === "engagement" ? "engagement" : "customer_list",
+    subtype: body.subtype || "CUSTOM",
+    approximate_count: 0,
+    status: "creating",
+    synced_at: new Date().toISOString(),
+  }).then(() => {}).catch((e: any) => console.error(`[ads-chat][${VERSION}] Save audience error:`, e));
+
+  return JSON.stringify({
+    success: true,
+    message: `Público "${name}" criado com sucesso! O Meta pode levar algumas horas para popular este público.`,
+    audience_id: result.id,
+    source,
+  });
+}
+
+// --- Frente 5: create_lookalike_audience ---
+async function createLookalikeAudience(supabase: any, tenantId: string, args: any) {
+  const { source_audience_id, country, ratio } = args;
+
+  const { data: conn } = await supabase
+    .from("marketplace_connections")
+    .select("access_token, metadata")
+    .eq("tenant_id", tenantId)
+    .eq("marketplace", "meta")
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!conn) return JSON.stringify({ success: false, error: "Meta não conectada." });
+
+  const adAccounts = conn.metadata?.assets?.ad_accounts || [];
+  const adAccountId = args.ad_account_id || adAccounts[0]?.id;
+  if (!adAccountId) return JSON.stringify({ success: false, error: "Nenhuma conta de anúncios encontrada." });
+  const accountIdClean = adAccountId.replace("act_", "");
+
+  const safeRatio = Math.max(0.01, Math.min(ratio || 0.01, 0.20));
+  const pctLabel = `${Math.round(safeRatio * 100)}%`;
+  const audienceName = args.name || `Lookalike ${pctLabel} — ${country || "BR"} — ${new Date().toISOString().split("T")[0]}`;
+
+  const body = {
+    name: audienceName,
+    origin_audience_id: source_audience_id,
+    lookalike_spec: JSON.stringify({
+      type: "similarity",
+      country: country || "BR",
+      ratio: safeRatio,
+    }),
+    access_token: conn.access_token,
+  };
+
+  const res = await fetch(`https://graph.facebook.com/v21.0/act_${accountIdClean}/customaudiences`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const result = await res.json();
+
+  if (result.error) {
+    return JSON.stringify({ success: false, error: `Falha ao criar Lookalike: ${result.error.message}` });
+  }
+
+  // Save to local DB
+  await supabase.from("meta_ad_audiences").insert({
+    tenant_id: tenantId,
+    ad_account_id: adAccountId,
+    audience_id: result.id,
+    name: audienceName,
+    audience_type: "lookalike",
+    subtype: "LOOKALIKE",
+    approximate_count: 0,
+    status: "creating",
+    synced_at: new Date().toISOString(),
+  }).then(() => {}).catch((e: any) => console.error(`[ads-chat][${VERSION}] Save lookalike error:`, e));
+
+  return JSON.stringify({
+    success: true,
+    message: `Público semelhante "${audienceName}" (${pctLabel}) criado! O Meta leva de 1 a 24 horas para popular o público.`,
+    audience_id: result.id,
+    ratio: safeRatio,
+  });
+}
+
 // --- Existing tools (kept) ---
 
 async function getProducts(supabase: any, tenantId: string, search?: string, limit?: number, status?: string) {
@@ -1505,11 +1703,32 @@ async function updateAutopilotConfig(supabase: any, tenantId: string, adAccountI
   const safeFields: Record<string, any> = {};
   const allowed = ["target_roi", "budget_cents", "strategy_mode", "is_ai_enabled", "user_instructions", "human_approval_mode"];
   for (const key of allowed) { if (updates[key] !== undefined) safeFields[key] = updates[key]; }
+  
+  // Handle chat overrides — records user commands that override system rules
+  if (updates.chat_overrides) {
+    // Merge with existing overrides
+    const { data: existing } = await supabase.from("ads_autopilot_account_configs")
+      .select("chat_overrides")
+      .eq("tenant_id", tenantId).eq("ad_account_id", adAccountId).eq("channel", channel)
+      .maybeSingle();
+    
+    const currentOverrides = existing?.chat_overrides || {};
+    const newOverrides = {
+      ...currentOverrides,
+      ...updates.chat_overrides,
+      _last_override_at: new Date().toISOString(),
+      _override_count: (currentOverrides._override_count || 0) + 1,
+    };
+    safeFields.chat_overrides = newOverrides;
+  }
+  
   if (Object.keys(safeFields).length === 0) return JSON.stringify({ error: "Nenhum campo válido" });
   safeFields.updated_at = new Date().toISOString();
   const { error } = await supabase.from("ads_autopilot_account_configs").update(safeFields).eq("tenant_id", tenantId).eq("ad_account_id", adAccountId).eq("channel", channel);
   if (error) return JSON.stringify({ error: error.message });
-  return JSON.stringify({ success: true, message: "Configurações atualizadas com sucesso." });
+  
+  const overrideApplied = updates.chat_overrides ? " (via comando do lojista — prioridade máxima)" : "";
+  return JSON.stringify({ success: true, message: `Configurações atualizadas com sucesso${overrideApplied}.` });
 }
 
 // --- Creative generation (kept) ---
@@ -1884,6 +2103,8 @@ NUNCA exponha termos técnicos internos. Use SEMPRE a linguagem da interface.
 | update_budget | alterar orçamento |
 | duplicate_campaign | duplicar campanha |
 | update_adset_targeting | alterar segmentação |
+| create_custom_audience | criar público personalizado |
+| create_lookalike_audience | criar público semelhante |
 | edge function | sistema interno |
 | tenant_id | loja |
 | kill_switch | botão de emergência |
@@ -1894,6 +2115,39 @@ NUNCA exponha termos técnicos internos. Use SEMPRE a linguagem da interface.
 ### Regra de navegação:
 Use os nomes dos menus: "Marketing → Tráfego Pago", "Galeria de Criativos", "Meu Drive", etc.
 
+## SISTEMA DE OVERRIDE POR COMANDO (PRIORIDADE MÁXIMA)
+
+**REGRA CRÍTICA**: O lojista tem autoridade TOTAL sobre a IA via chat. Quando ele dá uma ORDEM direta que contradiz configurações existentes (orçamento, ROI, estratégia, etc.), você DEVE:
+
+1. **Identificar a ordem**: Reconhecer que o pedido sobrepõe uma regra/configuração existente.
+2. **Avisar e pedir confirmação**: Explique claramente qual regra será sobreposta, o valor atual e o novo valor desejado. Use um formato claro:
+   > ⚠️ **Atenção**: Isso altera a configuração atual.
+   > - **Regra atual**: Orçamento R$ 500/dia
+   > - **Novo valor solicitado**: R$ 800/dia
+   > 
+   > Essa mudança será aplicada **acima das regras automáticas** e a IA passará a respeitar este novo valor como verdade absoluta.
+   > 
+   > **Confirma a alteração?**
+3. **Após confirmação**: Execute a alteração usando \`update_autopilot_config\` com o campo \`chat_overrides\` e aplique imediatamente. A IA passa a tratar o valor do override como **prioridade máxima**, acima de qualquer configuração de tela.
+4. **Registro**: Toda alteração via override fica registrada no campo \`chat_overrides\` da configuração da conta, com timestamp e descrição.
+
+### Campos passíveis de override via chat:
+- \`budget_cents\` — Orçamento diário
+- \`target_roi\` — Meta de ROI/ROAS
+- \`strategy_mode\` — Modo de estratégia (conservador/equilibrado/agressivo)
+- \`is_ai_enabled\` — Ligar/desligar IA
+- \`human_approval_mode\` — Modo de aprovação
+- \`user_instructions\` — Instruções estratégicas
+
+### Exemplos de ordens que ativam o override:
+- "Aumenta o orçamento para R$ 800"
+- "Coloca o ROI mínimo em 3"
+- "Muda a estratégia para agressiva"
+- "Desliga a IA nessa conta"
+- "Ignora o limite de orçamento e coloca R$ 2000/dia"
+
+**NUNCA aplique um override sem confirmação explícita do lojista.**
+
 ## O QUE VOCÊ PODE FAZER
 - **Ver performance** real de campanhas, conjuntos e anúncios (Meta, Google, TikTok)
 - **Drill-down**: ver detalhes de uma campanha específica com todos conjuntos/anúncios
@@ -1903,15 +2157,16 @@ Use os nomes dos menus: "Marketing → Tráfego Pago", "Galeria de Criativos", "
 - **Alterar orçamento** de campanhas e conjuntos existentes
 - **Duplicar campanhas** existentes (com todos os conjuntos e anúncios)
 - **Alterar segmentação** de conjuntos existentes (idade, gênero, localização, interesses)
+- **Criar públicos personalizados** (clientes, pixel, engajamento) e **públicos semelhantes** (Lookalike)
 - **Gerar textos** e **artes/imagens** para anúncios
 - **Criar campanhas completas** no Meta Ads
 - **Analisar links** e **imagens** enviadas
 - **Ver e alterar configurações** da IA de tráfego
+- **Sobrepor regras via comando** (com confirmação do lojista)
 - **Rodar análises/auditorias** e ver histórico
 
 ## O QUE VOCÊ NÃO PODE FAZER (NUNCA FINJA)
 - Criar campanhas Google/TikTok diretamente (somente Meta)
-- Criar/editar públicos customizados diretamente (use targeting no conjunto)
 
 ## FLUXO PARA CRIAR CAMPANHAS
 1. Consultar catálogo (get_products)
