@@ -256,7 +256,13 @@ Edge function para geração de landing pages via IA usando Lovable AI Gateway (
 
 ## AI Ads Autopilot (`ads-autopilot-analyze`)
 
-### Versão Atual: v5.9.0
+### Versão Atual: v5.9.1
+
+### v5.9.1: Fix rejeição de ações vindas do Chat + generate_creative
+- **Bug crítico**: `trigger_type: "manual"` (disparado pelo Chat AI) NÃO tinha bypass de data sufficiency. Resultado: TODAS as ações planejadas pelo Chat eram rejeitadas com "Dados insuficientes (1 dias). Mínimo: 3 dias."
+- **Fix**: `manual` agora recebe o mesmo tratamento que `first_activation` — bypass completo de data sufficiency, limites de budget por ciclo e restrições de fase
+- **generate_creative isento**: `generate_creative` é ação de PREPARAÇÃO (sem risco financeiro), agora NUNCA é bloqueada por data sufficiency independente do trigger_type
+- **Budget**: Triggers manuais agora permitem alterações de budget maiores (até +20% por campanha em vez de ±10%)
 
 ### Visão Geral
 Edge Function autônoma de gestão de tráfego pago multi-canal (Meta, Google, TikTok). Opera como media buyer sênior com pipeline de 5 etapas, camada de segurança determinística, **conhecimento específico por plataforma**, **metas de ROAS por canal definidas pelo usuário**, **planejamento estratégico completo** e **janela de publicação 00:01-04:00 BRT**.

@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.9.0"; // Fix funnel split key mapping: cold/remarketing/tests/leads instead of tof/mof/bof
+const VERSION = "v5.9.1"; // Fix: generate_creative exempt from data sufficiency + manual trigger bypass for chat orders
 // ===========================================================
 
 const corsHeaders = {
@@ -627,8 +627,11 @@ function validateAction(
   trackingHealth?: Record<string, any>,
   triggerType?: string
 ): { valid: boolean; reason?: string } {
-  // FIRST ACTIVATION: bypass data sufficiency, phase restrictions, and budget change limits
+  // FIRST ACTIVATION or MANUAL (chat orders): bypass data sufficiency, phase restrictions, and budget change limits
+  // Manual triggers come from the Chat AI where the store owner explicitly requested the action
   const isFirstActivation = triggerType === "first_activation";
+  const isManualTrigger = triggerType === "manual";
+  const bypassDataCheck = isFirstActivation || isManualTrigger;
   
   // Kill switch — ALWAYS checked, even on first activation
   if (acctConfig.kill_switch) {
@@ -636,7 +639,7 @@ function validateAction(
   }
 
   // Max actions per session (doubled for first activation to allow full restructuring)
-  const maxActions = isFirstActivation ? DEFAULT_SAFETY.max_actions_per_session * 2 : DEFAULT_SAFETY.max_actions_per_session;
+  const maxActions = (isFirstActivation || isManualTrigger) ? DEFAULT_SAFETY.max_actions_per_session * 2 : DEFAULT_SAFETY.max_actions_per_session;
   if (sessionActionsCount >= maxActions) {
     return { valid: false, reason: `Limite de ${maxActions} ações por sessão atingido.` };
   }
@@ -644,7 +647,7 @@ function validateAction(
   // Tracking health gate: ONLY block budget INCREASES for non-order-based degradation
   // Order discrepancy NEVER blocks ANY action
   const channelKey = acctConfig.channel;
-  if (!isFirstActivation && trackingHealth?.[channelKey]) {
+  if (!bypassDataCheck && trackingHealth?.[channelKey]) {
     const health = trackingHealth[channelKey];
     const hasNonOrderIssues = health.alerts?.some((a: string) => !a.startsWith("ℹ️ Info:"));
     if (hasNonOrderIssues && (health.status === "critical" || health.status === "degraded") && action.name === "adjust_budget") {
@@ -655,13 +658,16 @@ function validateAction(
     }
   }
 
-  // Check if action type is allowed — first activation allows ALL actions
-  if (!isFirstActivation && !DEFAULT_SAFETY.allowed_actions.includes(action.name)) {
+  // Check if action type is allowed — first activation and manual allow ALL actions
+  if (!bypassDataCheck && !DEFAULT_SAFETY.allowed_actions.includes(action.name)) {
     return { valid: false, reason: `Ação '${action.name}' não habilitada.` };
   }
 
-  // Data sufficiency check — SKIP entirely on first activation
-  if (!isFirstActivation && channelKey && context?.channels?.[channelKey]) {
+  // generate_creative is a PREPARATION action (no financial risk) — NEVER block by data sufficiency
+  const isPreparationAction = action.name === "generate_creative";
+
+  // Data sufficiency check — SKIP on first activation, manual trigger, or preparation actions
+  if (!bypassDataCheck && !isPreparationAction && channelKey && context?.channels?.[channelKey]) {
     const trend = context.channels[channelKey].trend;
     const daysWithData = trend?.current_period?.days_with_data || 0;
     const totalConversions = trend?.current_period?.total_conversions || 0;
@@ -693,7 +699,7 @@ function validateAction(
     const changePct = args.change_pct || 0;
     const absChange = Math.abs(changePct);
 
-    if (isFirstActivation) {
+    if (isFirstActivation || isManualTrigger) {
       // First activation: allow larger moves but STILL cap per campaign to protect learning
       const firstActivationMax = DEFAULT_SAFETY.first_activation_max_increase_pct; // 20%
       if (changePct > firstActivationMax) {
