@@ -29,6 +29,8 @@ export type Database = {
           is_ai_enabled: boolean | null
           kill_switch: boolean | null
           last_budget_adjusted_at: string | null
+          lock_expires_at: string | null
+          lock_session_id: string | null
           min_roi_cold: number | null
           min_roi_warm: number | null
           roas_scaling_threshold: number | null
@@ -52,6 +54,8 @@ export type Database = {
           is_ai_enabled?: boolean | null
           kill_switch?: boolean | null
           last_budget_adjusted_at?: string | null
+          lock_expires_at?: string | null
+          lock_session_id?: string | null
           min_roi_cold?: number | null
           min_roi_warm?: number | null
           roas_scaling_threshold?: number | null
@@ -75,6 +79,8 @@ export type Database = {
           is_ai_enabled?: boolean | null
           kill_switch?: boolean | null
           last_budget_adjusted_at?: string | null
+          lock_expires_at?: string | null
+          lock_session_id?: string | null
           min_roi_cold?: number | null
           min_roi_warm?: number | null
           roas_scaling_threshold?: number | null
