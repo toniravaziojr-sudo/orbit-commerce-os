@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.9.8"; // Fix product matching (exact name), AI autonomy (no "continuar"), name precision prompt
+const VERSION = "v5.11.0"; // Pipeline criativos: funnel_stage, session_id, strategy_run_id propagation + deterministic creative selection
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -348,7 +348,7 @@ const TOOLS = [
     type: "function",
     function: {
       name: "generate_creative_image",
-      description: "Gera IMAGENS de criativos para anúncios via IA. Use quando precisar de artes visuais.",
+      description: "Gera IMAGENS de criativos para anúncios via IA. Use quando precisar de artes visuais. Informe funnel_stage para classificar o criativo.",
       parameters: {
         type: "object",
         properties: {
@@ -359,6 +359,7 @@ const TOOLS = [
           style_preference: { type: "string", enum: ["promotional", "product_natural", "person_interacting"], description: "Estilo visual" },
           format: { type: "string", enum: ["1:1", "9:16", "16:9"], description: "Formato (default: 1:1)" },
           variations: { type: "number", description: "Variações (1-4, default: 2)" },
+          funnel_stage: { type: "string", enum: ["tof", "mof", "bof", "test", "leads"], description: "Estágio de funil do criativo (default: tof)" },
         },
         required: ["product_name"],
         additionalProperties: false,
@@ -573,7 +574,8 @@ async function executeTool(
   tenantId: string,
   toolName: string,
   args: any,
-  chatSessionId?: string
+  chatSessionId?: string,
+  strategyRunId?: string
 ): Promise<string> {
   try {
     switch (toolName) {
@@ -620,9 +622,9 @@ async function executeTool(
       case "trigger_creative_generation":
         return await triggerCreativeGeneration(supabase, tenantId, chatSessionId);
       case "generate_creative_image":
-        return await generateCreativeImage(supabase, tenantId, args, chatSessionId);
+        return await generateCreativeImage(supabase, tenantId, args, chatSessionId, strategyRunId);
       case "create_meta_campaign":
-        return await createMetaCampaign(supabase, tenantId, args, chatSessionId);
+        return await createMetaCampaign(supabase, tenantId, args, chatSessionId, strategyRunId);
       case "toggle_entity_status":
         return await toggleEntityStatus(supabase, tenantId, args, chatSessionId);
       case "update_budget":
@@ -1983,7 +1985,7 @@ async function triggerCreativeGeneration(supabase: any, tenantId: string, chatSe
   } catch (err: any) { return JSON.stringify({ success: false, error: err.message }); }
 }
 
-async function generateCreativeImage(supabase: any, tenantId: string, args: any, chatSessionId?: string) {
+async function generateCreativeImage(supabase: any, tenantId: string, args: any, chatSessionId?: string, strategyRunId?: string) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   try {
@@ -1999,6 +2001,10 @@ async function generateCreativeImage(supabase: any, tenantId: string, args: any,
     if (!product) product = products?.[0];
     if (!product) return JSON.stringify({ success: false, error: "Produto não encontrado no catálogo." });
 
+    // Normalize funnel_stage
+    const validFunnelStages = ["tof", "mof", "bof", "test", "leads"];
+    const funnelStage = validFunnelStages.includes(args.funnel_stage) ? args.funnel_stage : "tof";
+
     let productImageUrl: string | null = null;
     const { data: prodImgs } = await supabase.from("product_images").select("url").eq("product_id", product.id).order("sort_order", { ascending: true }).limit(1);
     if (prodImgs?.[0]?.url) productImageUrl = prodImgs[0].url;
@@ -2010,6 +2016,8 @@ async function generateCreativeImage(supabase: any, tenantId: string, args: any,
         product_image_url: productImageUrl, campaign_objective: args.campaign_objective || "sales",
         target_audience: args.target_audience, style_preference: args.style_preference || "promotional",
         format: args.format || "1:1", variations: Math.min(args.variations || 2, 4),
+        funnel_stage: funnelStage,
+        session_id: chatSessionId || null,
       }),
     });
     const result = await response.text();
@@ -2022,17 +2030,17 @@ async function generateCreativeImage(supabase: any, tenantId: string, args: any,
       action_type: "generate_creative", status: isSuccess ? "executed" : "failed",
       executed_at: isSuccess ? new Date().toISOString() : null,
       error_message: !isSuccess ? (parsed?.error || `HTTP ${response.status}`) : null,
-      action_data: { type: "image", product_name: product.name, product_id: product.id, format: args.format || "1:1", variations: args.variations || 2, style: args.style_preference || "promotional", job_id: parsed?.data?.job_id, created_by: "ads_chat" },
-      reasoning: `Geração de ${args.variations || 2} imagem(ns) para "${product.name}" via Chat IA`,
+      action_data: { type: "image", product_name: product.name, product_id: product.id, format: args.format || "1:1", variations: args.variations || 2, style: args.style_preference || "promotional", job_id: parsed?.data?.job_id, created_by: "ads_chat", funnel_stage: funnelStage, strategy_run_id: strategyRunId || null },
+      reasoning: `Geração de ${args.variations || 2} imagem(ns) para "${product.name}" (funil: ${funnelStage}) via Chat IA`,
     });
     if (imgLogErr) console.error(`[ads-chat][${VERSION}] Action log error:`, imgLogErr.message);
 
     if (!isSuccess) return JSON.stringify({ success: false, error: `Falha ao gerar imagens (HTTP ${response.status})`, details: parsed });
-    return JSON.stringify({ success: true, message: `Geração de ${args.variations || 2} imagem(ns) disparada para "${product.name}".`, job_id: parsed?.data?.job_id });
+    return JSON.stringify({ success: true, message: `Geração de ${args.variations || 2} imagem(ns) disparada para "${product.name}" (funil: ${funnelStage}).`, job_id: parsed?.data?.job_id, funnel_stage: funnelStage });
   } catch (err: any) { return JSON.stringify({ success: false, error: err.message }); }
 }
 
-async function createMetaCampaign(supabase: any, tenantId: string, args: any, chatSessionId?: string) {
+async function createMetaCampaign(supabase: any, tenantId: string, args: any, chatSessionId?: string, strategyRunId?: string) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const headers = { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` };
@@ -2062,26 +2070,115 @@ async function createMetaCampaign(supabase: any, tenantId: string, args: any, ch
     let creativeHeadline: string | null = null;
     let creativeCopy: string | null = null;
 
-    const { data: creativeAssets } = await supabase.from("ads_creative_assets").select("id, asset_url, storage_path, headline, copy_text, cta_type, product_id").eq("tenant_id", tenantId).eq("product_id", product.id).in("status", ["ready", "draft"]).order("created_at", { ascending: false }).limit(5);
-    if (creativeAssets?.length) {
-      const best = creativeAssets.find((c: any) => c.asset_url || c.storage_path) || creativeAssets[0];
+    // Deterministic creative selection with funnel_stage filtering (v5.11.0)
+    const funnelStage = args.funnel_stage || "cold";
+    // Map cold/warm/hot to funnel_stage values for creative matching
+    const funnelStageMap: Record<string, string[]> = {
+      cold: ["tof"], warm: ["mof"], hot: ["bof"],
+      tof: ["tof"], mof: ["mof"], bof: ["bof"], test: ["test"], leads: ["leads"],
+    };
+    const compatibleStages = funnelStageMap[funnelStage] || ["tof"];
+
+    // Load used_asset_ids from session to avoid duplicates
+    let usedAssetIds: string[] = [];
+    let usedAdcreativeIds: string[] = [];
+    if (chatSessionId) {
+      const { data: sessionData } = await supabase.from("ads_autopilot_sessions")
+        .select("used_asset_ids, used_adcreative_ids")
+        .eq("id", chatSessionId).maybeSingle();
+      usedAssetIds = (sessionData?.used_asset_ids || []) as string[];
+      usedAdcreativeIds = (sessionData?.used_adcreative_ids || []) as string[];
+    }
+
+    // Level 1: Ready assets (not yet published)
+    let selectedAsset: any = null;
+    const { data: readyAssets } = await supabase.from("ads_creative_assets")
+      .select("id, asset_url, storage_path, headline, copy_text, cta_type, product_id, funnel_stage, platform_adcreative_id")
+      .eq("tenant_id", tenantId).eq("product_id", product.id)
+      .in("status", ["ready"])
+      .not("asset_url", "is", null)
+      .order("created_at", { ascending: false }).limit(20);
+
+    if (readyAssets?.length) {
+      selectedAsset = readyAssets.find((a: any) =>
+        !usedAssetIds.includes(a.id) &&
+        (!a.funnel_stage || compatibleStages.includes(a.funnel_stage))
+      );
+    }
+
+    // Level 2: Published assets with platform_adcreative_id
+    let selectedPublished: any = null;
+    if (!selectedAsset) {
+      const { data: publishedAssets } = await supabase.from("ads_creative_assets")
+        .select("id, asset_url, storage_path, headline, copy_text, cta_type, product_id, funnel_stage, platform_adcreative_id")
+        .eq("tenant_id", tenantId).eq("product_id", product.id)
+        .eq("status", "published")
+        .not("platform_adcreative_id", "is", null)
+        .order("created_at", { ascending: false }).limit(20);
+
+      if (publishedAssets?.length) {
+        selectedPublished = publishedAssets.find((a: any) =>
+          !usedAdcreativeIds.includes(a.platform_adcreative_id) &&
+          (!a.funnel_stage || compatibleStages.includes(a.funnel_stage))
+        );
+      }
+    }
+
+    const best = selectedAsset || selectedPublished;
+    if (best) {
       creativeHeadline = best.headline || null;
       creativeCopy = best.copy_text || null;
-      
-      // Always prefer signed URL for Meta API (even if public URL exists)
+
+      // Always prefer signed URL for Meta API
       if (best.storage_path) {
         const { data: signedData } = await supabase.storage.from("media-assets").createSignedUrl(best.storage_path, 86400 * 30);
         if (signedData?.signedUrl) creativeImageUrl = signedData.signedUrl;
       }
-      // Fallback to asset_url if no storage_path or signed URL failed
       if (!creativeImageUrl && best.asset_url) {
-        // If asset_url points to our storage, extract path and generate signed URL
         const storageMatch = best.asset_url.match(/\/storage\/v1\/object\/public\/media-assets\/(.+)$/);
         if (storageMatch) {
           const { data: signedData } = await supabase.storage.from("media-assets").createSignedUrl(storageMatch[1], 86400 * 30);
           if (signedData?.signedUrl) creativeImageUrl = signedData.signedUrl;
         }
         if (!creativeImageUrl) creativeImageUrl = best.asset_url;
+      }
+
+      // Track used asset
+      if (chatSessionId && best.id) {
+        if (selectedAsset) {
+          // Atomic append to used_asset_ids
+          await supabase.rpc("append_jsonb_array_dedup", { p_table: "ads_autopilot_sessions", p_id: chatSessionId, p_column: "used_asset_ids", p_value: best.id }).catch(() => {
+            // Fallback: direct update
+            const newList = [...new Set([...usedAssetIds, best.id])];
+            supabase.from("ads_autopilot_sessions").update({ used_asset_ids: newList }).eq("id", chatSessionId).then(() => {}).catch(() => {});
+          });
+        } else if (selectedPublished?.platform_adcreative_id) {
+          const newList = [...new Set([...usedAdcreativeIds, selectedPublished.platform_adcreative_id])];
+          supabase.from("ads_autopilot_sessions").update({ used_adcreative_ids: newList }).eq("id", chatSessionId).then(() => {}).catch(() => {});
+        }
+      }
+
+      console.log(`[ads-chat][${VERSION}] Selected creative asset ${best.id} (funnel: ${best.funnel_stage || 'any'}, level: ${selectedAsset ? '1-ready' : '2-published'}) for ${product.name}`);
+    }
+
+    // If no deterministic match found, fall back to legacy behavior (Drive + catalog)
+    if (!creativeImageUrl) {
+      // Legacy fallback: any creative asset with image
+      const { data: fallbackAssets } = await supabase.from("ads_creative_assets")
+        .select("id, asset_url, storage_path, headline, copy_text")
+        .eq("tenant_id", tenantId).eq("product_id", product.id)
+        .in("status", ["ready", "draft"])
+        .not("asset_url", "is", null)
+        .order("created_at", { ascending: false }).limit(1);
+      if (fallbackAssets?.[0]) {
+        const fb = fallbackAssets[0];
+        creativeHeadline = fb.headline || creativeHeadline;
+        creativeCopy = fb.copy_text || creativeCopy;
+        if (fb.storage_path) {
+          const { data: signedData } = await supabase.storage.from("media-assets").createSignedUrl(fb.storage_path, 86400 * 30);
+          if (signedData?.signedUrl) creativeImageUrl = signedData.signedUrl;
+        }
+        if (!creativeImageUrl && fb.asset_url) creativeImageUrl = fb.asset_url;
       }
     }
 
@@ -2920,6 +3017,9 @@ Ao chamar generate_creative_image ou create_meta_campaign, use o nome **EXATO** 
 ## REGRA CRÍTICA: SEQUÊNCIA OBRIGATÓRIA — GERAÇÃO DE IMAGEM ANTES DE CAMPANHA
 - **NUNCA chame generate_creative_image e create_meta_campaign na MESMA rodada de ferramentas.**
 - A geração de imagem é ASSÍNCRONA (~60-90 segundos em background). Se você chamar create_meta_campaign no mesmo round, as imagens ainda NÃO estarão prontas e a campanha usará fallback do catálogo.
+- **Sempre informe funnel_stage** ao chamar generate_creative_image (tof/mof/bof/test/leads). TOF não serve para BOF e vice-versa.
+- **Unicidade por sessão**: Cada criativo gerado só deve ser usado UMA VEZ por sessão de estratégia. O sistema rastreia automaticamente via used_asset_ids/used_adcreative_ids.
+- **Se não houver criativo compatível** com o funil desejado, NÃO crie a campanha — informe que criativos precisam ser gerados primeiro.
 - **Fluxo correto em 2 rodadas (AUTOMÁTICO):**
   1. Round 1: Chame get_product_images + generate_creative_image
   2. Round 2+: Use o round seguinte AUTOMATICAMENTE para chamar create_meta_campaign — as imagens estarão prontas em ads_creative_assets
@@ -3038,10 +3138,14 @@ Deno.serve(async (req) => {
       convId = conv.id;
     }
 
-    // Create a chat session for action logging (avoids FK violation)
+    // Create a chat session for action logging with strategy_run_id (v5.11.0)
+    const chatStrategyRunId = crypto.randomUUID();
     const { data: chatSession } = await supabase.from("ads_autopilot_sessions").insert({
       tenant_id, channel: channel || "meta", trigger_type: "chat",
       motor_type: "chat", actions_planned: 0, actions_executed: 0, actions_rejected: 0, cost_credits: 0,
+      strategy_run_id: chatStrategyRunId,
+      used_asset_ids: [],
+      used_adcreative_ids: [],
     }).select("id").single();
     const chatSessionId = chatSession?.id || crypto.randomUUID();
 
@@ -3133,7 +3237,7 @@ Deno.serve(async (req) => {
         const toolPromises = currentToolCalls.map(async (tc: any) => {
           let args = {};
           try { args = JSON.parse(tc.function.arguments || "{}"); } catch { /* empty */ }
-          const result = await executeTool(supabase, tenant_id, tc.function.name, args, chatSessionId);
+          const result = await executeTool(supabase, tenant_id, tc.function.name, args, chatSessionId, chatStrategyRunId);
           // Save tool call to DB (fire-and-forget to not block)
           supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: null, tool_calls: [{ id: tc.id, function: { name: tc.function.name, arguments: tc.function.arguments } }] }).then(() => {}).catch((e: any) => console.error(`[ads-chat][${VERSION}] DB save error:`, e));
           return { tc_id: tc.id, result };
