@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.11.2"; // Pipeline orientado a processo + HARD STOP + PAUSED-first + rollback + produto por funil + insights + artifacts
+const VERSION = "v5.11.3"; // Fix artifact persistence: check {error} return instead of try/catch
 // ===========================================================
 
 const corsHeaders = {
@@ -2331,23 +2331,25 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 const campaignKey = `${strategyRunId}:${acctConfig.ad_account_id}:${args.template || 'auto'}:${campaignFunnel}:${topProduct?.id || 'auto'}`;
                 try {
                   // Strategy artifact
-                  await supabase.from("ads_autopilot_artifacts").upsert({
+                  const { error: stratErr } = await supabase.from("ads_autopilot_artifacts").upsert({
                     tenant_id, ad_account_id: acctConfig.ad_account_id, session_id: sessionId, strategy_run_id: strategyRunId,
                     campaign_key: campaignKey, artifact_type: "strategy",
                     data: { objective: args.objective, funnel: campaignFunnel, product: topProduct?.name, template: args.template, budget_cents: args.daily_budget_cents, targeting_description: args.targeting_description },
                     status: "ready",
                   }, { onConflict: "tenant_id,campaign_key,artifact_type" });
+                  if (stratErr) console.error(`[ads-autopilot-analyze][${VERSION}] Artifact strategy error:`, stratErr.message, stratErr.details, stratErr.hint);
 
                   // Copy artifact
-                  await supabase.from("ads_autopilot_artifacts").upsert({
+                  const { error: copyErr } = await supabase.from("ads_autopilot_artifacts").upsert({
                     tenant_id, ad_account_id: acctConfig.ad_account_id, session_id: sessionId, strategy_run_id: strategyRunId,
                     campaign_key: campaignKey, artifact_type: "copy",
                     data: { campaign_name: args.campaign_name, headline: args.headline, primary_text: args.primary_text, cta: args.cta },
                     status: "ready",
                   }, { onConflict: "tenant_id,campaign_key,artifact_type" });
+                  if (copyErr) console.error(`[ads-autopilot-analyze][${VERSION}] Artifact copy error:`, copyErr.message, copyErr.details, copyErr.hint);
 
                   // Campaign plan artifact
-                  await supabase.from("ads_autopilot_artifacts").upsert({
+                  const { error: planErr } = await supabase.from("ads_autopilot_artifacts").upsert({
                     tenant_id, ad_account_id: acctConfig.ad_account_id, session_id: sessionId, strategy_run_id: strategyRunId,
                     campaign_key: campaignKey, artifact_type: "campaign_plan",
                     data: {
@@ -2359,6 +2361,11 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                     },
                     status: actionRecord.status === "executed" ? "ready" : "failed",
                   }, { onConflict: "tenant_id,campaign_key,artifact_type" });
+                  if (planErr) console.error(`[ads-autopilot-analyze][${VERSION}] Artifact plan error:`, planErr.message, planErr.details, planErr.hint);
+
+                  if (!stratErr && !copyErr && !planErr) {
+                    console.log(`[ads-autopilot-analyze][${VERSION}] Artifacts persisted for key=${campaignKey}`);
+                  }
                 } catch (artifactErr: any) {
                   console.error(`[ads-autopilot-analyze][${VERSION}] Artifact save error:`, artifactErr.message);
                 }
