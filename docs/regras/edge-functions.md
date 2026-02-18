@@ -256,7 +256,17 @@ Edge function para geração de landing pages via IA usando Lovable AI Gateway (
 
 ## AI Ads Autopilot (`ads-autopilot-analyze`)
 
-### Versão Atual: v5.11.2
+### Versão Atual: v5.12.3
+
+### v5.12.3: Fallback `image_url` para Upload de Criativos (Standard Access)
+- **Problema**: O endpoint `/adimages` da Meta exige Advanced Access na permissão `ads_management`. Com Standard Access, retorna erro `(#3) Application does not have the capability`.
+- **Solução**: Implementado fallback automático em `ads-autopilot-analyze` (v5.12.3) e `ads-chat` (v5.11.4):
+  1. Tenta upload via `POST /adimages` (método padrão → retorna `image_hash`)
+  2. Se falhar, usa campo `picture` no `link_data` do `object_story_spec` (a Meta baixa a imagem da URL)
+  3. Se **ambos** falharem, aí sim marca `media_blocked=true`
+- **Campo usado**: `link_data.picture` (com `object_story_spec`) ou `image_url` (sem page_id)
+- **Validação Graph API**: Quando usado fallback, `expected_image_hash` é salvo como `null` (não há hash para comparar)
+- **⚠️ TEMPORÁRIO**: Este fallback será removido quando a permissão `ads_management` for aprovada com Advanced Access. Com Advanced Access, o upload via `/adimages` + `image_hash` é o método preferido (mais confiável, imagem permanente nos servidores da Meta).
 
 ### v5.11.2: Pipeline Orientado a Processo + Integridade Operacional
 - **Nova tabela `ads_autopilot_artifacts`**: Persiste cada etapa do pipeline por campanha planejada (`campaign_key`). Tipos: `strategy`, `copy`, `creative_prompt`, `campaign_plan`, `user_command`. Status: `draft` → `ready` / `failed` / `awaiting_confirmation` / `confirmed`. UPSERT por `(tenant_id, campaign_key, artifact_type)`.
