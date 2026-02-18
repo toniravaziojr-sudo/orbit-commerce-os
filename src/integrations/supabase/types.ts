@@ -417,9 +417,14 @@ export type Database = {
           id: string
           insights_generated: Json | null
           integration_status: Json | null
+          media_block_reason: string | null
+          media_blocked: boolean | null
           motor_type: string | null
+          strategy_run_id: string | null
           tenant_id: string
           trigger_type: string
+          used_adcreative_ids: Json | null
+          used_asset_ids: Json | null
         }
         Insert: {
           actions_executed?: number
@@ -434,9 +439,14 @@ export type Database = {
           id?: string
           insights_generated?: Json | null
           integration_status?: Json | null
+          media_block_reason?: string | null
+          media_blocked?: boolean | null
           motor_type?: string | null
+          strategy_run_id?: string | null
           tenant_id: string
           trigger_type?: string
+          used_adcreative_ids?: Json | null
+          used_asset_ids?: Json | null
         }
         Update: {
           actions_executed?: number
@@ -451,9 +461,14 @@ export type Database = {
           id?: string
           insights_generated?: Json | null
           integration_status?: Json | null
+          media_block_reason?: string | null
+          media_blocked?: boolean | null
           motor_type?: string | null
+          strategy_run_id?: string | null
           tenant_id?: string
           trigger_type?: string
+          used_adcreative_ids?: Json | null
+          used_asset_ids?: Json | null
         }
         Relationships: [
           {
@@ -572,14 +587,19 @@ export type Database = {
           copy_text: string | null
           created_at: string | null
           cta_type: string | null
+          expected_image_hash: string | null
+          expected_video_id: string | null
           experiment_id: string | null
           format: string | null
+          funnel_stage: string | null
           headline: string | null
           id: string
           meta: Json | null
           performance: Json | null
           platform_ad_id: string | null
+          platform_adcreative_id: string | null
           product_id: string | null
+          session_id: string | null
           status: string | null
           storage_path: string | null
           tenant_id: string
@@ -597,14 +617,19 @@ export type Database = {
           copy_text?: string | null
           created_at?: string | null
           cta_type?: string | null
+          expected_image_hash?: string | null
+          expected_video_id?: string | null
           experiment_id?: string | null
           format?: string | null
+          funnel_stage?: string | null
           headline?: string | null
           id?: string
           meta?: Json | null
           performance?: Json | null
           platform_ad_id?: string | null
+          platform_adcreative_id?: string | null
           product_id?: string | null
+          session_id?: string | null
           status?: string | null
           storage_path?: string | null
           tenant_id: string
@@ -622,14 +647,19 @@ export type Database = {
           copy_text?: string | null
           created_at?: string | null
           cta_type?: string | null
+          expected_image_hash?: string | null
+          expected_video_id?: string | null
           experiment_id?: string | null
           format?: string | null
+          funnel_stage?: string | null
           headline?: string | null
           id?: string
           meta?: Json | null
           performance?: Json | null
           platform_ad_id?: string | null
+          platform_adcreative_id?: string | null
           product_id?: string | null
+          session_id?: string | null
           status?: string | null
           storage_path?: string | null
           tenant_id?: string
