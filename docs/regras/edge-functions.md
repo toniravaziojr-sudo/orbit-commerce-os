@@ -256,7 +256,16 @@ Edge function para geração de landing pages via IA usando Lovable AI Gateway (
 
 ## AI Ads Autopilot (`ads-autopilot-analyze`)
 
-### Versão Atual: v5.12.3
+### Versão Atual: v5.12.4
+
+### v5.12.4: Guards Programáticos + Controle de Concorrência por Conta
+- **Account Lock por conta**: Implementado `lock_session_id` + `lock_expires_at` em `ads_autopilot_account_configs`. Antes de iniciar sessão, adquire lock (validade 10 min). Sessões concorrentes para o mesmo `ad_account_id` são rejeitadas. Lock liberado ao final (sucesso ou falha).
+- **Budget Guard**: Soma todos os orçamentos diários de campanhas IA ativas (`[AI]` no nome) e rejeita criação se ultrapassar `acctConfig.budget_cents`. Override possível via artefato `user_command` com `override=true` e status `confirmed`.
+- **Targeting Guard**: Rejeita campanhas de remarketing (BOF/MOF) sem `custom_audiences`. Campanhas TOF sem interesses ou Lookalikes são marcadas como `pending_approval`.
+- **Copy Guard**: Bloqueia anúncios com `copy_text` ausente ou que usem templates fallback genéricos (ex: `Conheça [Produto]!`). Status: `pending_creatives`.
+- **Artifacts Gate**: Publicação na Meta bloqueada se artefatos `strategy`, `copy` e `campaign_plan` não estiverem com status `ready` na tabela `ads_autopilot_artifacts`.
+- **First Activation Rule**: `trigger_type=first_activation` força `needsApproval=true` para TODAS as ações de criação, independente do `human_approval_mode`.
+- **Novas colunas**: `ads_autopilot_account_configs` ganhou `lock_session_id` (text) e `lock_expires_at` (timestamptz).
 
 ### v5.12.3: Fallback `image_url` para Upload de Criativos (Standard Access)
 - **Problema**: O endpoint `/adimages` da Meta exige Advanced Access na permissão `ads_management`. Com Standard Access, retorna erro `(#3) Application does not have the capability`.
