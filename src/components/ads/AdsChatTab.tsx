@@ -2,19 +2,22 @@
 // ADS CHAT TAB
 // Chat interface for the AI Traffic Manager
 // Multimodal: supports image/file upload + URL analysis
+// With "Aguardando Ação" tab for pending approvals
 // =============================================
 
 import { useEffect, useRef, useState } from "react";
-import { Bot, MessageCircle, Paperclip, X, Image as ImageIcon, FileText } from "lucide-react";
-import { Textarea } from "@/components/ui/textarea";
+import { Bot, MessageCircle, Paperclip, X, FileText, ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Square } from "lucide-react";
 import { useAdsChat, AdsChatAttachment } from "@/hooks/useAdsChat";
+import { useAdsPendingActions } from "@/hooks/useAdsPendingActions";
 import { useSystemUpload } from "@/hooks/useSystemUpload";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { ChatMessageBubble, ChatTypingIndicator, ChatEmptyState, ChatConversationList } from "@/components/chat";
+import { AdsPendingActionsTab } from "@/components/ads/AdsPendingActionsTab";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 interface AdsChatTabProps {
@@ -44,6 +47,8 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
     createConversation,
   } = useAdsChat({ scope, adAccountId, channel });
 
+  const { pendingCount } = useAdsPendingActions(scope === "account" ? channel : undefined);
+
   const { upload, isUploading } = useSystemUpload({
     source: "ads_chat_attachment",
     subPath: "ads-chat",
@@ -52,6 +57,7 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
   const [input, setInput] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<AdsChatAttachment[]>([]);
+  const [activeInnerTab, setActiveInnerTab] = useState<"chat" | "pending">("chat");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -81,7 +87,6 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
       }
     }
 
-    // Reset input
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -126,14 +131,55 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
     <div className="grid gap-3 lg:grid-cols-[280px_1fr] h-[calc(100vh-380px)] min-h-[400px]">
       {/* Sidebar */}
       <div className="bg-card border rounded-xl overflow-hidden flex flex-col">
-        <ChatConversationList
-          conversations={conversations}
-          currentId={currentConversationId}
-          onSelect={setCurrentConversationId}
-          onNew={handleNewConversation}
-          isCreating={isCreating}
-          className="flex-1"
-        />
+        {/* Inner tab switcher */}
+        <div className="flex border-b">
+          <button
+            onClick={() => setActiveInnerTab("chat")}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-colors",
+              activeInnerTab === "chat"
+                ? "text-primary border-b-2 border-primary"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <MessageCircle className="h-3.5 w-3.5" />
+            Conversas
+          </button>
+          <button
+            onClick={() => setActiveInnerTab("pending")}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-colors",
+              activeInnerTab === "pending"
+                ? "text-primary border-b-2 border-primary"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <ClipboardCheck className="h-3.5 w-3.5" />
+            Aguardando
+            {pendingCount > 0 && (
+              <Badge variant="destructive" className="h-4 min-w-4 px-1 text-[10px] leading-none">
+                {pendingCount}
+              </Badge>
+            )}
+          </button>
+        </div>
+
+        {activeInnerTab === "chat" ? (
+          <ChatConversationList
+            conversations={conversations}
+            currentId={currentConversationId}
+            onSelect={setCurrentConversationId}
+            onNew={handleNewConversation}
+            isCreating={isCreating}
+            className="flex-1"
+          />
+        ) : (
+          <AdsPendingActionsTab
+            scope={scope}
+            adAccountId={adAccountId}
+            channel={channel}
+          />
+        )}
       </div>
 
       {/* Chat Area */}
