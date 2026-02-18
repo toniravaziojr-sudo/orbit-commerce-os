@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.12.3"; // Fallback image_url when /adimages upload fails (Standard Access)
+const VERSION = "v5.12.4"; // Pipeline guards: budget, targeting, copy, lock per-account, first_activation approval, priority products, artifacts gate
 // ===========================================================
 
 const corsHeaders = {
@@ -312,7 +312,7 @@ function selectFocusProducts(products: any[]): { tof: any[]; bof: any[]; remarke
   if (!products || products.length === 0) return { tof: [], bof: [], remarketing: [] };
   
   // Variant detection pattern
-  const variantPatterns = /\s*\(\d+x\)|\s*\(FLEX\)|\s+Dia$|\s+Noite$|\s+dia$|\s+noite$/i;
+  const variantPatterns = /\s*\(\d+x\)|\s*\(FLEX\)|\s*\(Dia\)|\s*\(Noite\)|\s+Dia$|\s+Noite$|\s+dia$|\s+noite$/i;
   const baseProducts = products.filter((p: any) => !variantPatterns.test(p.name.trim()));
   const variantProducts = products.filter((p: any) => variantPatterns.test(p.name.trim()));
   
@@ -333,6 +333,117 @@ function selectFocusProducts(products: any[]): { tof: any[]; bof: any[]; remarke
   const remarketingProducts = [...products].sort((a: any, b: any) => b.price - a.price).slice(0, 6);
   
   return { tof: tofProducts, bof: bofProducts, remarketing: remarketingProducts };
+}
+
+// ============ PRIORITY PRODUCTS FROM user_instructions (v5.12.4) ============
+
+function extractPriorityProducts(userInstructions: string | null, products: any[]): any[] {
+  if (!userInstructions || !products || products.length === 0) return [];
+  const instructionsLower = userInstructions.toLowerCase();
+  const priorityProducts: any[] = [];
+  for (const p of products) {
+    const nameLower = (p.name || "").toLowerCase();
+    // Match if the product name (or a significant part) appears in the instructions
+    if (nameLower.length >= 4 && instructionsLower.includes(nameLower)) {
+      priorityProducts.push(p);
+    }
+  }
+  return priorityProducts;
+}
+
+// ============ BUDGET GUARD (v5.12.4) ============
+
+async function checkBudgetGuard(
+  supabase: any, tenantId: string, acctConfig: AccountConfig, proposedBudgetCents: number, hasOverride: boolean
+): Promise<{ allowed: boolean; total_allocated: number; limit: number; reason?: string }> {
+  if (!acctConfig.budget_cents || acctConfig.budget_cents <= 0) {
+    return { allowed: true, total_allocated: 0, limit: 0 };
+  }
+
+  // Sum daily budgets of all [AI] campaigns (ACTIVE or PAUSED) for this account
+  const { data: aiCampaigns } = await supabase
+    .from("meta_ad_campaigns")
+    .select("daily_budget_cents, name, status")
+    .eq("tenant_id", tenantId)
+    .eq("ad_account_id", acctConfig.ad_account_id)
+    .in("status", ["ACTIVE", "PAUSED"])
+    .ilike("name", "[AI]%");
+
+  const currentAllocated = (aiCampaigns || []).reduce((sum: number, c: any) => sum + (c.daily_budget_cents || 0), 0);
+  const totalAfter = currentAllocated + proposedBudgetCents;
+
+  if (totalAfter > acctConfig.budget_cents) {
+    if (hasOverride) {
+      console.log(`[ads-autopilot-analyze][${VERSION}] Budget guard: OVERRIDE — total ${totalAfter} > limit ${acctConfig.budget_cents}`);
+      return { allowed: true, total_allocated: totalAfter, limit: acctConfig.budget_cents, reason: "override_confirmed" };
+    }
+    return {
+      allowed: false,
+      total_allocated: totalAfter,
+      limit: acctConfig.budget_cents,
+      reason: `Orçamento total (R$ ${(totalAfter / 100).toFixed(2)}) excederia limite de R$ ${(acctConfig.budget_cents / 100).toFixed(2)}`,
+    };
+  }
+
+  return { allowed: true, total_allocated: totalAfter, limit: acctConfig.budget_cents };
+}
+
+// ============ ACCOUNT LOCK (v5.12.4) ============
+
+async function acquireAccountLock(supabase: any, acctConfigId: string, sessionId: string): Promise<boolean> {
+  // Check current lock
+  const { data: current } = await supabase
+    .from("ads_autopilot_account_configs")
+    .select("lock_session_id, lock_expires_at")
+    .eq("id", acctConfigId)
+    .single();
+
+  if (current?.lock_session_id && current?.lock_expires_at && new Date(current.lock_expires_at) > new Date()) {
+    console.log(`[ads-autopilot-analyze][${VERSION}] Account ${acctConfigId} locked by ${current.lock_session_id}, skipping`);
+    return false;
+  }
+
+  const lockExpiry = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  const { error } = await supabase
+    .from("ads_autopilot_account_configs")
+    .update({ lock_session_id: sessionId, lock_expires_at: lockExpiry })
+    .eq("id", acctConfigId);
+
+  if (error) {
+    console.error(`[ads-autopilot-analyze][${VERSION}] Account lock acquire error:`, error.message);
+    return false;
+  }
+  return true;
+}
+
+async function releaseAccountLock(supabase: any, acctConfigId: string, sessionId: string) {
+  await supabase
+    .from("ads_autopilot_account_configs")
+    .update({ lock_session_id: null, lock_expires_at: null })
+    .eq("id", acctConfigId)
+    .eq("lock_session_id", sessionId);
+}
+
+// ============ USER COMMAND OVERRIDE CHECK (v5.12.4) ============
+
+async function getConfirmedUserCommands(supabase: any, tenantId: string, adAccountId: string): Promise<any[]> {
+  const { data } = await supabase
+    .from("ads_autopilot_artifacts")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .eq("artifact_type", "user_command")
+    .eq("status", "confirmed")
+    .eq("ad_account_id", adAccountId)
+    .order("updated_at", { ascending: false })
+    .limit(5);
+  return data || [];
+}
+
+function hasUserOverride(commands: any[], overrideType: string): boolean {
+  return commands.some((c: any) => {
+    const d = c.data || {};
+    return d.detected_conflicts?.some((conflict: string) => conflict.toLowerCase().includes(overrideType));
+  });
 }
 
 async function collectContext(supabase: any, tenantId: string, enabledChannels: string[]) {
@@ -1585,6 +1696,20 @@ Deno.serve(async (req) => {
         const channelData = context.channels[channel];
         if (!channelData) continue;
 
+        // v5.12.4: Account-level lock (anti-concurrency)
+        const acctLockAcquired = await acquireAccountLock(supabase, acctConfig.id, sessionId);
+        if (!acctLockAcquired) {
+          console.log(`[ads-autopilot-analyze][${VERSION}] Skipping account ${acctConfig.ad_account_id} (locked by another session)`);
+          continue;
+        }
+
+        // v5.12.4: Load confirmed user commands for this account
+        const userCommands = await getConfirmedUserCommands(supabase, tenant_id, acctConfig.ad_account_id);
+        const hasBudgetOverride = hasUserOverride(userCommands, "orçamento") || hasUserOverride(userCommands, "budget");
+        const hasTargetingOverride = hasUserOverride(userCommands, "targeting") || hasUserOverride(userCommands, "público");
+
+        try {
+
         // Filter campaigns for this account (Meta has ad_account_id mapping)
         let accountCampaigns = channelData.campaigns;
         let accountCampaignPerf = channelData.campaignPerf;
@@ -1796,14 +1921,19 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
             action_hash: `${strategyRunId}_${acctConfig.ad_account_id}_${tc.function.name}_${args.product_name || args.campaign_id || ''}_${args.funnel_stage || ''}_${args.template || ''}_${getNextBatchIndex(tc.function.name, args.product_name || args.campaign_id || '', args.funnel_stage || '', args.template || '')}`,
           };
 
-          // Human approval mode check
+          // Human approval mode check (v5.12.4: first_activation ALWAYS requires approval for create actions)
           const isCreateAction = tc.function.name === "create_campaign" || tc.function.name === "create_adset" || tc.function.name === "generate_creative" || tc.function.name === "create_lookalike_audience";
           const isBigBudgetChange = tc.function.name === "adjust_budget" && Math.abs(args.change_pct || 0) > 20;
           const isHighImpact = isCreateAction || isBigBudgetChange;
+          
+          // v5.12.4: first_activation ALWAYS forces approval for create actions (never auto-execute)
+          const isFirstActivationCreate = trigger_type === "first_activation" && isCreateAction;
+          
           const needsApproval = validation.valid && (
+            isFirstActivationCreate ||
             acctConfig.human_approval_mode === "all" ||
             (acctConfig.human_approval_mode === "approve_high_impact" && isHighImpact)
-            // When mode is "auto", NOTHING needs approval — AI executes everything
+            // When mode is "auto" AND NOT first_activation create, executes everything
           );
 
           if (needsApproval) {
@@ -1842,10 +1972,25 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 console.log(`[ads-autopilot-analyze][${VERSION}] Budget adjustment scheduled for ${scheduledFor}`);
                 totalActionsExecuted++;
               } else if (tc.function.name === "create_campaign") {
-                // ===== v5.11.2: PIPELINE ORIENTADO A PROCESSO =====
-                // Order: 1) Select product by funnel → 2) Find creative → 3) Persist artifacts → 4) Create campaign PAUSED → 5) Create adset PAUSED → 6) Create ad → 7) Validate → 8) Activate if auto
-                const isAutoMode = acctConfig.human_approval_mode === "auto";
+                // ===== v5.12.4: PIPELINE ORIENTADO A PROCESSO COM GUARDS =====
+                const isAutoMode = acctConfig.human_approval_mode === "auto" && trigger_type !== "first_activation";
                 const scheduledActivationTime = getNextSchedulingTime();
+                const campaignFunnel = args.funnel_stage || "tof";
+
+                // === BUDGET GUARD (v5.12.4) ===
+                const budgetCheck = await checkBudgetGuard(supabase, tenant_id, acctConfig, args.daily_budget_cents || 0, hasBudgetOverride);
+                if (!budgetCheck.allowed) {
+                  actionRecord.status = "rejected";
+                  actionRecord.rejection_reason = budgetCheck.reason || "Budget guard";
+                  actionRecord.action_data = { ...actionRecord.action_data, budget_guard: budgetCheck };
+                  console.log(`[ads-autopilot-analyze][${VERSION}] BUDGET GUARD: rejected — ${budgetCheck.reason}`);
+                  
+                  // Insert action and skip
+                  const { error: bgInsertErr } = await supabase.from("ads_autopilot_actions").insert(actionRecord);
+                  if (bgInsertErr && bgInsertErr.code !== "23505") console.error(`[ads-autopilot-analyze][${VERSION}] Action insert error:`, bgInsertErr);
+                  totalActionsRejected++;
+                  continue;
+                }
                 const campaignFunnel = args.funnel_stage || "tof";
                 
                 // Step 1: Create campaign with native start_time
@@ -1949,6 +2094,29 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                       console.log(`[ads-autopilot-analyze][${VERSION}] Step 2: Using interest targeting: ${args.interests.map((i: any) => i.name).join(", ")}`);
                     }
 
+                    // === TARGETING GUARD (v5.12.4) ===
+                    if ((campaignFunnel === "bof" || args.template === "remarketing") && (!targeting.custom_audiences || targeting.custom_audiences.length === 0)) {
+                      if (!hasTargetingOverride) {
+                        actionRecord.status = "rejected";
+                        actionRecord.rejection_reason = "Remarketing requer Custom Audience. Nenhum público encontrado.";
+                        actionRecord.action_data = { ...actionRecord.action_data, guard: "targeting_remarketing" };
+                        console.log(`[ads-autopilot-analyze][${VERSION}] TARGETING GUARD: rejected — remarketing without custom audience`);
+                        // Rollback campaign
+                        try { await supabase.functions.invoke("meta-ads-campaigns", { body: { tenant_id, action: "update", meta_campaign_id: newMetaCampaignId, status: "PAUSED" } }); } catch {}
+                        actionRecord.rollback_data = { paused_campaign_id: newMetaCampaignId, reason: "targeting_guard_rejected" };
+                        const { error: tgInsertErr } = await supabase.from("ads_autopilot_actions").insert(actionRecord);
+                        if (tgInsertErr && tgInsertErr.code !== "23505") console.error(`Action insert error:`, tgInsertErr);
+                        totalActionsRejected++;
+                        continue;
+                      }
+                    }
+                    if (campaignFunnel === "tof" && !targeting.custom_audiences && !targeting.flexible_spec && !hasTargetingOverride) {
+                      actionRecord.status = "pending_approval";
+                      actionRecord.rejection_reason = "TOF sem interesses nem Lookalike. Defina targeting.";
+                      actionRecord.action_data = { ...actionRecord.action_data, guard: "targeting_tof" };
+                      console.log(`[ads-autopilot-analyze][${VERSION}] TARGETING GUARD: pending_approval — TOF without specific targeting`);
+                    }
+
                     const adsetName = args.campaign_name.replace("[AI]", "[AI] CJ -");
 
                     // Fetch pixel_id for promoted_object (required for OFFSITE_CONVERSIONS)
@@ -2016,10 +2184,16 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 let expectedImageHash: string | null = null;
                 let expectedVideoId: string | null = null;
 
-                // v5.12.2: topProduct MUST be declared OUTSIDE `if (newMetaAdsetId)` to avoid ReferenceError
+                // v5.12.4: topProduct with PRIORITY PRODUCTS from user_instructions
                 const focus = selectFocusProducts(context.products || []);
+                const priorityProducts = extractPriorityProducts(acctConfig.user_instructions, context.products || []);
                 let topProduct: any;
-                if (campaignFunnel === "tof" || campaignFunnel === "cold") {
+                
+                // Priority 1: Products mentioned in user_instructions
+                if (priorityProducts.length > 0 && (campaignFunnel === "tof" || campaignFunnel === "cold")) {
+                  topProduct = priorityProducts[0];
+                  console.log(`[ads-autopilot-analyze][${VERSION}] Priority product from user_instructions: ${topProduct.name}`);
+                } else if (campaignFunnel === "tof" || campaignFunnel === "cold") {
                   topProduct = focus.tof[0];
                 } else if (["bof", "mof", "remarketing"].includes(campaignFunnel)) {
                   topProduct = focus.remarketing[0] || focus.bof[0];
@@ -2269,8 +2443,22 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                       }
                     }
 
-                    // === CREATE AD (only if we have a creative) ===
-                    if (bestCreativeId && newMetaAdsetId) {
+                    // === COPY GUARD (v5.12.4) ===
+                    // Check if copy_text and headline are valid before creating ad
+                    const copyText = aiAsset?.copy_text || args.primary_text;
+                    const headline = aiAsset?.headline || args.headline;
+                    const isFallbackCopy = !copyText || copyText.startsWith("Conheça ") || copyText.length < 20;
+                    const isFallbackHeadline = !headline;
+
+                    if (isFallbackCopy || isFallbackHeadline) {
+                      console.log(`[ads-autopilot-analyze][${VERSION}] COPY GUARD: ${isFallbackCopy ? 'copy' : 'headline'} is fallback/missing — pending_creatives`);
+                      actionRecord.status = "pending_creatives";
+                      actionRecord.error_message = `Copy ou headline ausente/genérica. Gerar copy antes de publicar. copy="${(copyText || '').substring(0, 30)}" headline="${headline || 'null'}"`;
+                      // Don't create ad — will be handled in post-conditions
+                    }
+
+                    // === CREATE AD (only if we have a creative AND copy guard passed) ===
+                    if (bestCreativeId && newMetaAdsetId && actionRecord.status !== "pending_creatives") {
                       const adName = args.campaign_name.replace("[AI]", "[AI] Ad -");
                       const { data: adResult, error: adErr } = await supabase.functions.invoke("meta-ads-ads", {
                         body: {
@@ -2345,13 +2533,35 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                   }
                 }
 
-                // === v5.11.2: STRICT POST-CONDITIONS + ROLLBACK + ACTIVATE ===
+                // === v5.12.4: STRICT POST-CONDITIONS + ROLLBACK + ACTIVATE + ARTIFACTS GATE ===
                 if (newMetaCampaignId && newMetaAdsetId && newMetaAdId && graphValidationResult !== "media_mismatch" && graphValidationResult !== "ad_not_found") {
+                  // v5.12.4: ARTIFACTS GATE — verify all required artifacts are ready before activation
+                  let artifactsReady = true;
+                  try {
+                    const { data: artifacts } = await supabase
+                      .from("ads_autopilot_artifacts")
+                      .select("artifact_type, status")
+                      .eq("tenant_id", tenant_id)
+                      .eq("campaign_key", campaignKey)
+                      .in("artifact_type", ["strategy", "copy", "campaign_plan"]);
+                    
+                    const requiredTypes = ["strategy", "copy", "campaign_plan"];
+                    for (const rt of requiredTypes) {
+                      const found = (artifacts || []).find((a: any) => a.artifact_type === rt && a.status === "ready");
+                      if (!found) {
+                        artifactsReady = false;
+                        console.log(`[ads-autopilot-analyze][${VERSION}] ARTIFACTS GATE: missing ${rt} for key=${campaignKey}`);
+                      }
+                    }
+                  } catch (artErr: any) {
+                    console.error(`[ads-autopilot-analyze][${VERSION}] Artifacts gate error:`, artErr.message);
+                  }
+
                   actionRecord.status = "executed";
                   actionRecord.executed_at = new Date().toISOString();
 
-                  // v5.11.2: ACTIVATE campaign+adset if auto mode (PAUSED-first → ACTIVE)
-                  if (isAutoMode) {
+                  // v5.12.4: ACTIVATE campaign+adset only if auto mode AND artifacts gate passed
+                  if (isAutoMode && artifactsReady) {
                     try {
                       await supabase.functions.invoke("meta-ads-campaigns", {
                         body: { tenant_id, action: "update", meta_campaign_id: newMetaCampaignId, status: "ACTIVE", start_time: scheduledActivationTime },
@@ -2705,6 +2915,10 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
             ai_response_raw: aiText,
             actions_planned: toolCalls.length,
           });
+        }
+        } finally {
+          // v5.12.4: Release account-level lock
+          await releaseAccountLock(supabase, acctConfig.id, sessionId);
         }
       }
 

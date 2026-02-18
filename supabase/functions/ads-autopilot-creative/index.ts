@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.3.0"; // Pipeline v5.11.2: insert asset BEFORE generation + image_job_id + funnel_stage + asset_id return
+const VERSION = "v1.4.0"; // Accept copy/headline/creative_prompt as input, persist on asset
 // ===================
 
 const corsHeaders = {
@@ -48,6 +48,12 @@ Deno.serve(async (req) => {
       variations = 2,
       funnel_stage,
       strategy_run_id,
+      // v1.4.0: Accept copy and creative prompt as input
+      copy_text,
+      headline,
+      description,
+      cta,
+      creative_prompt,
     } = body;
 
     if (!tenant_id) return fail("tenant_id é obrigatório");
@@ -162,7 +168,16 @@ Deno.serve(async (req) => {
         status: "generating",
         format,
         aspect_ratio: format,
-        meta: assetMeta,
+        // v1.4.0: Persist copy and headline on asset
+        copy_text: copy_text || null,
+        headline: headline || null,
+        cta_type: cta || null,
+        meta: {
+          ...assetMeta,
+          creative_prompt_ref: creative_prompt || null,
+          copy_ref: copy_text ? "inline" : null,
+          description: description || null,
+        },
       })
       .select("id")
       .single();
