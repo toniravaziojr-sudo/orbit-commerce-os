@@ -256,7 +256,17 @@ Edge function para geração de landing pages via IA usando Lovable AI Gateway (
 
 ## AI Ads Autopilot (`ads-autopilot-analyze`)
 
-### Versão Atual: v5.11.0
+### Versão Atual: v5.11.2
+
+### v5.11.2: Pipeline Orientado a Processo + Integridade Operacional
+- **Nova tabela `ads_autopilot_artifacts`**: Persiste cada etapa do pipeline por campanha planejada (`campaign_key`). Tipos: `strategy`, `copy`, `creative_prompt`, `campaign_plan`, `user_command`. Status: `draft` → `ready` / `failed` / `awaiting_confirmation` / `confirmed`. UPSERT por `(tenant_id, campaign_key, artifact_type)`.
+- **PAUSED-first (OBRIGATÓRIO)**: Campanhas e AdSets SEMPRE criados como `PAUSED`, independente de `isAutoMode`. Ativação (`ACTIVE` + `start_time`) só ocorre APÓS ad criado e validado via Graph API GET.
+- **Rollback defensivo**: Se `campaign_id` criado mas `ad_id` não: pausa campanha automaticamente, grava `rollback_data` com `reason=no_ad_created`.
+- **Produto por funil (genérico)**: TOF = menor preço (entrada/experimentação). BOF/MOF/Remarketing = maior preço (kits/bundles). Regra determinística por preço, sem hardcode de marca/produto.
+- **Artefatos persistidos**: `strategy`, `copy`, `creative_prompt`, `campaign_plan` salvos em `ads_autopilot_artifacts` por `campaign_key` antes de publicar na Meta. Publicação bloqueada se qualquer artefato estiver faltando/failed.
+- **`config_snapshot`**: `budget_cents`, `funnel_splits`, `strategy_mode`, `human_approval_mode` gravados em `action_data` de cada `create_campaign`.
+- **Insights legíveis**: Prompt atualizado (max 4 frases, sem IDs, R$) + sanitização server-side (regex `/\b120\d{12,}\b/g` → `[campanha]`, limite 500 chars).
+- **Regra de produto por funil no system prompt**: Genérica, sem hardcode de loja.
 
 ### v5.11.0: Pipeline de Criativos Determinístico + Integridade Operacional
 - **Seleção determinística de criativos**: Substituído fallback cego (`existingAds?.[0]?.creative_id`) por seleção em 2 níveis:
@@ -810,6 +820,15 @@ A sync diária permite que ferramentas como `get_performance_trend` mostrem time
 2. **Reportar resultados reais**: NUNCA dizer "estou executando" sem ter chamado a ferramenta. Reportar resultado ✅/❌ de cada ação
 3. **Respeitar mapeamento produto→funil**: Seguir as instruções estratégicas do lojista sobre qual produto usar em cada estágio
 4. **Distribuir budget por funnel_splits**: Respeitar os percentuais configurados (cold/remarketing/tests/leads)
+
+### v1.3.0 — `ads-autopilot-creative` — INSERT antes de gerar + `image_job_id` correto
+
+**Mudanças**:
+1. **Aceita `funnel_stage` e `strategy_run_id`** no body (propagados pelo analyze/chat)
+2. **INSERT em `ads_creative_assets` ANTES de invocar `creative-image-generate`**: Registro criado com `status='generating'` para eliminar race conditions e garantir que o asset existe antes da geração assíncrona
+3. **Chave `meta.image_job_id`** (não `job_id`): A `creative-image-generate` faz match por `meta->>'image_job_id'`, então o campo DEVE ser `image_job_id` no JSONB `meta`
+4. **Marca asset como `failed`** se invoke falhar ou `success=false` — elimina "sucessos fantasma"
+5. **Retorna `asset_id`** no response para rastreabilidade completa
 
 ### Correção v5.9.4 — `ads-autopilot-creative-generate` v1.2.0
 

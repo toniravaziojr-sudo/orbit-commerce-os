@@ -32,6 +32,10 @@
 - Debug log no início do handler (method + url)
 - Redeploy forçado para resolver "Failed to fetch"
 
+### 5. Documentação ✅
+- `docs/regras/edge-functions.md` atualizado com v5.11.2 (analyze) e v1.3.0 (creative)
+- `docs/regras/marketing-integracoes.md` atualizado com tabela `ads_autopilot_artifacts`
+
 ## Pendente (pós-deploy)
 - [ ] Pausar campanhas órfãs: 120241927804640057, 120241927806510057
 - [ ] Rodar queries de aceite após 1-2 ciclos reais
