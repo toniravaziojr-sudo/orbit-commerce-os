@@ -476,7 +476,13 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v5.9.7
+### Versão Atual: v5.9.8
+
+### v5.9.8: Fix matching de produto + autonomia + preview de imagens + nome exato
+- **Matching de produto por nome exato**: Substituído `.includes()` por algoritmo de 3 níveis (exact → startsWith → shortest includes → fallback primeiro produto). Aplicado em `generateCreativeImage` e `createMetaCampaign`. Resolve ambiguidade entre variantes como "Kit Banho Calvície Zero" vs "Kit Banho Calvície Zero (2x) Noite"
+- **Autonomia da IA (sem pedir "continuar")**: A IA agora usa rounds internos (1-5) automaticamente para completar todo o plano. A pausa para pedir "continuar" só existe se o próprio lojista solicitar acompanhamento passo-a-passo (ex: "me avise quando terminar cada etapa"). Fora isso, execução autônoma e contínua entre rounds
+- **Instrução de nome exato no prompt**: Nova regra no system prompt: "Ao chamar generate_creative_image ou create_meta_campaign, use o nome EXATO do produto conforme listado no catálogo. NÃO abrevie, NÃO generalize"
+- **Preview de imagens no ActionDetailDialog**: Quando `creative_job_id` presente mas sem `asset_url`, o componente agora busca `creative_jobs.output_urls` e exibe as imagens prontas. Auto-refresh a cada 5s enquanto o job está em processamento. Exibe estado de erro se o job falhou
 
 ### v5.3.6: Fix colunas erradas em createCustomAudience/createLookalikeAudience
 - **Bug crítico**: Insert usava `audience_id` mas coluna real é `meta_audience_id`. Insert falhava silenciosamente → públicos criados no Meta nunca eram salvos no banco local
