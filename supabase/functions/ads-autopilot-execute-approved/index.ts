@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.0.0"; // Execute approved actions from pending_approval queue
+const VERSION = "v1.1.0"; // Accept pending_approval actions directly, mark executed
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,18 +30,18 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Fetch the approved action
+    // Fetch the pending action (accept both pending_approval and approved statuses)
     const { data: action, error: fetchErr } = await supabase
       .from("ads_autopilot_actions")
       .select("*")
       .eq("id", action_id)
       .eq("tenant_id", tenant_id)
-      .eq("status", "approved")
+      .in("status", ["pending_approval", "approved"])
       .maybeSingle();
 
     if (fetchErr || !action) {
       return new Response(
-        JSON.stringify({ success: false, error: "Action not found or not approved" }),
+        JSON.stringify({ success: false, error: "Action not found or already processed" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
