@@ -256,7 +256,25 @@ Edge function para geração de landing pages via IA usando Lovable AI Gateway (
 
 ## AI Ads Autopilot (`ads-autopilot-analyze`)
 
-### Versão Atual: v5.9.1
+### Versão Atual: v5.11.0
+
+### v5.11.0: Pipeline de Criativos Determinístico + Integridade Operacional
+- **Seleção determinística de criativos**: Substituído fallback cego (`existingAds?.[0]?.creative_id`) por seleção em 2 níveis:
+  - **Nível 1 (Ready)**: Assets IA com `status='ready'`, `asset_url IS NOT NULL`, filtrados por `funnel_stage` compatível e `id NOT IN used_asset_ids`. Bloqueado quando `media_blocked=true`
+  - **Nível 2 (Published)**: Assets com `platform_adcreative_id IS NOT NULL`, filtrados por `funnel_stage` e `platform_adcreative_id NOT IN used_adcreative_ids`. Funciona mesmo com `media_blocked=true`
+  - Se nenhum compatível: status `pending_creatives` (NÃO cria campanha sem criativo)
+- **Classificação de funil**: Helper `classifyCampaignFunnel()` classifica campanhas Meta existentes por estágio (TOF/MOF/BOF/Test/Leads) baseado no nome e objetivo. Enriquece contexto antes do prompt
+- **Estado persistente por sessão**: `used_asset_ids`, `used_adcreative_ids`, `media_blocked`, `strategy_run_id` carregados/persistidos na tabela `ads_autopilot_sessions` (não mais em memória)
+- **Update atômico com dedup**: Append de IDs usados via RPC `append_jsonb_array_dedup` ou fallback SQL direto, evitando lost updates e duplicatas em retries
+- **Pós-condições estritas**: `actionRecord.status = "executed"` APENAS quando `campaign_id + adset_id + ad_id` verificados via Graph API GET. Sem `ad_id` = `pending_creatives`, sem `adset_id` = `partial_failed`, sem nenhum = `failed`
+- **Validação Graph API GET**: Após criar ad, confirma existência e verifica mídia (`image_hash`, `video_id` ou `child_attachments`). Compara com `expected_image_hash`/`expected_video_id`. Mismatch = `partial_failed`
+- **Gravar `platform_adcreative_id`**: Separado de `platform_ad_id` — agora grava o ID real do AdCreative no campo correto
+- **Idempotency v2**: `action_hash` inclui `strategy_run_id` + `batch_index` (contador sequencial por combinação action_type+product_id+funnel_stage+template). Conflito UNIQUE = noop
+- **Detecção de erro de mídia**: Ao detectar falha de upload, persiste `media_blocked=true` + razão. Bloqueia Nível 1 (upload) mas NÃO Nível 2 (published)
+- **Regra `creative_test`**: Campanhas de teste buscam APENAS assets com `session_id` igual ao da sessão atual
+- **System prompt com regras de criativos**: Unicidade por sessão, `generate_creative` antes de `create_campaign`, TOF≠BOF, identificar funil antes de decidir
+- **Novas colunas**: `ads_creative_assets` ganhou `funnel_stage`, `platform_adcreative_id`, `expected_image_hash`, `expected_video_id`. `ads_autopilot_sessions` ganhou `used_asset_ids`, `used_adcreative_ids`, `media_blocked`, `media_block_reason`, `strategy_run_id`
+- **Logs enriquecidos**: `action_data` inclui `selected_asset_id`, `selected_platform_adcreative_id`, `funnel_stage`, `strategy_run_id`, `expected_*`, `graph_validation_result`
 
 ### v5.9.1: Fix rejeição de ações vindas do Chat + generate_creative
 - **Bug crítico**: `trigger_type: "manual"` (disparado pelo Chat AI) NÃO tinha bypass de data sufficiency. Resultado: TODAS as ações planejadas pelo Chat eram rejeitadas com "Dados insuficientes (1 dias). Mínimo: 3 dias."
@@ -476,7 +494,18 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v5.9.8
+### Versão Atual: v5.11.0
+
+### v5.11.0: Pipeline de Criativos + Propagação de Funil + Strategy Run ID
+- **Propagação de `funnel_stage`**: `generateCreativeImage` aceita e normaliza `funnel_stage` (valores válidos: `tof`, `mof`, `bof`, `test`, `leads`). Propaga para `ads-autopilot-creative` junto com `session_id`
+- **Seleção determinística em `createMetaCampaign`**: Mesma lógica de 2 níveis do analyze:
+  - Nível 1 (Ready): Assets com `status='ready'`, `funnel_stage` compatível, `id NOT IN used_asset_ids`
+  - Nível 2 (Published): Assets com `platform_adcreative_id IS NOT NULL`, `funnel_stage` compatível, `platform_adcreative_id NOT IN used_adcreative_ids`
+  - Sem criativo compatível = erro claro (não cria campanha)
+- **`strategy_run_id` no chat**: Gerado no primeiro round de cada interação, reutilizado em "continuar", propagado para todas as tools de escrita via `executeTool`
+- **Persistência atômica**: Após uso de criativo, append atômico com dedup em `used_asset_ids`/`used_adcreative_ids` da sessão
+- **System prompt atualizado**: Regras de criativos injetadas — unicidade por sessão, proibido criar campanha sem criativo compatível, proibido gerar+criar no mesmo round
+- **Tool `generate_creative_image` atualizada**: Novo parâmetro `funnel_stage` na definição da ferramenta
 
 ### v5.9.8: Fix matching de produto + autonomia + preview de imagens + nome exato
 - **Matching de produto por nome exato**: Substituído `.includes()` por algoritmo de 3 níveis (exact → startsWith → shortest includes → fallback primeiro produto). Aplicado em `generateCreativeImage` e `createMetaCampaign`. Resolve ambiguidade entre variantes como "Kit Banho Calvície Zero" vs "Kit Banho Calvície Zero (2x) Noite"
@@ -743,6 +772,7 @@ A sync diária permite que ferramentas como `get_performance_trend` mostrem time
 | v5.8.0 | 2026-02-17 | **Fix Crítico: Imagens de Produto + Session ID FK**: Corrigido bug onde `createMetaCampaign` usava coluna inexistente `position` em vez de `sort_order` na tabela `product_images` — fazia com que a IA NUNCA encontrasse imagens do catálogo. Corrigido FK violation em `ads_autopilot_actions.session_id` — agora cria uma sessão real em `ads_autopilot_sessions` (trigger_type='chat') no início de cada request e propaga o ID para todas as tools de escrita. Todas as ações agora aparecem corretamente na aba "Ações da IA". |
 | v5.9.0 | 2026-02-17 | **Execução Paralela de Tools + Fix files.url**: Tool calls agora executam em `Promise.allSettled` em paralelo (antes era `for...of await` sequencial). 5 campanhas que levavam ~90s+ agora completam em ~20s. Corrigido referência a `files.url` (coluna inexistente) no fallback de Drive — agora usa `storage_path` com signed URL. DB saves de tool_calls mudados para fire-and-forget para não bloquear execução. |
 | v5.9.1 | 2026-02-17 | **Fix sort_order em generateCreativeImage + Limite de Campanhas**: Corrigido bug onde `generateCreativeImage` usava `position` (inexistente) em vez de `sort_order` na tabela `product_images` — mesmo bug do v5.8.0 mas em outra função. Corrigido `img.position` → `img.sort_order` na sync de imagens para o Drive. Adicionada regra no system prompt: **máximo 2 campanhas por rodada de ferramentas** para evitar timeouts (~5 chamadas HTTP por campanha × 5 campanhas = timeout garantido). IA agora pede "continuar" para criar as próximas. |
+| v5.11.0 | 2026-02-18 | **Pipeline de Criativos Determinístico + Integridade Operacional**: Seleção determinística em 2 níveis (Ready/Published) com filtro por `funnel_stage` e unicidade por sessão. Estado persistente (`used_asset_ids`, `used_adcreative_ids`, `media_blocked`, `strategy_run_id`) em `ads_autopilot_sessions`. Pós-condições estritas (executed só com cadeia completa verificada via Graph API GET). Validação de mídia pós-criação. Idempotency v2 com `batch_index`. Detecção/bloqueio seletivo de erro de mídia (Nível 1 bloqueado, Nível 2 continua). Regra `creative_test` por `session_id`. System prompt com regras de criativos. Propagação de `funnel_stage`, `session_id` e `strategy_run_id` no ads-chat. |
 
 ### Regras de Strategy Mode — `ads-chat` v5.4.0
 
