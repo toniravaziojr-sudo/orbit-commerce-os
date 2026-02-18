@@ -992,3 +992,17 @@ try {
   await supabase.from("tabela").upsert({ ... }); // nunca lança
 } catch (e) { /* nunca entra aqui */ }
 ```
+
+### v3.3.0 — `creative-image-generate` — Callback para Analyze
+
+**Problema**: Após os assets serem gerados e marcados como `ready`, nenhum mecanismo disparava o `ads-autopilot-analyze` para completar a cadeia (campanha+adset+ad). O ciclo só era completado no próximo agendamento automático (horas depois).
+
+**Mudança**: Após atualizar `ads_creative_assets` para `status: 'ready'`, a função agora invoca `ads-autopilot-analyze` com `trigger_type: "creative_ready"` (fire-and-forget via `supabase.functions.invoke`).
+
+**Impacto no `ads-autopilot-analyze`**: O `trigger_type: "creative_ready"` foi adicionado ao bypass de suficiência de dados (`bypassDataCheck`), junto com `first_activation` e `manual`.
+
+**Fluxo completo agora**:
+1. `analyze` detecta falta de criativos → dispara `generate_creative` → Hard Stop (sem campanha)
+2. `creative-image-generate` processa imagem → asset vira `ready`
+3. **NOVO**: `creative-image-generate` invoca `analyze` com `trigger_type: "creative_ready"`
+4. `analyze` encontra assets `ready` → completa a cadeia (campanha+adset+ad) → persiste artefatos
