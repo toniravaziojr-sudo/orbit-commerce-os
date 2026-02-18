@@ -971,3 +971,24 @@ const { data: t } = await supabase.from("tenants").select("slug, custom_domain")
 1. **Extração de `output_folder_id` do body**: O parâmetro agora é lido do request body
 2. **Prioridade de pasta**: Se `output_folder_id` fornecido, usa essa pasta em vez da padrão "Criativos com IA"
 3. **Impacto**: Imagens geradas pelo autopilot agora aparecem corretamente na pasta "Gestor de Tráfego IA" do Drive
+
+### v5.11.3 — `ads-autopilot-analyze` — Fix Artifact Persistence
+
+**Bug corrigido**: Os 3 upserts de artefatos (`strategy`, `copy`, `campaign_plan`) na tabela `ads_autopilot_artifacts` falhavam silenciosamente. O cliente Supabase JS retorna `{ data, error }` em vez de lançar exceções, então o bloco `try/catch` nunca capturava os erros — os artefatos simplesmente não eram salvos.
+
+**Mudanças**:
+1. **Verificação explícita de `{ error }`**: Cada upsert agora desestrutura o retorno e verifica `error`, logando `message`, `details` e `hint`
+2. **Log de sucesso**: Quando os 3 artefatos são salvos sem erro, loga confirmação com `campaign_key`
+3. **Regra universal**: O cliente Supabase JS **nunca** lança exceções em operações de banco — sempre verificar `{ error }` no retorno
+
+**Padrão obrigatório para upserts/inserts Supabase**:
+```typescript
+// ✅ CORRETO — verificar { error }
+const { error } = await supabase.from("tabela").upsert({ ... });
+if (error) console.error("Erro:", error.message, error.details, error.hint);
+
+// ❌ ERRADO — try/catch não captura erros do cliente Supabase
+try {
+  await supabase.from("tabela").upsert({ ... }); // nunca lança
+} catch (e) { /* nunca entra aqui */ }
+```
