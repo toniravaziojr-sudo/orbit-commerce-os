@@ -169,6 +169,56 @@ export type Database = {
           },
         ]
       }
+      ads_autopilot_artifacts: {
+        Row: {
+          ad_account_id: string | null
+          artifact_type: string
+          campaign_key: string
+          created_at: string | null
+          data: Json
+          id: string
+          session_id: string | null
+          status: string
+          strategy_run_id: string | null
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          ad_account_id?: string | null
+          artifact_type: string
+          campaign_key: string
+          created_at?: string | null
+          data?: Json
+          id?: string
+          session_id?: string | null
+          status?: string
+          strategy_run_id?: string | null
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          ad_account_id?: string | null
+          artifact_type?: string
+          campaign_key?: string
+          created_at?: string | null
+          data?: Json
+          id?: string
+          session_id?: string | null
+          status?: string
+          strategy_run_id?: string | null
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_autopilot_artifacts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ads_autopilot_configs: {
         Row: {
           ai_model: string

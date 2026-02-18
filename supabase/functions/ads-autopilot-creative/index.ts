@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.2.1"; // Fix sort_order column + logical success checks
+const VERSION = "v1.3.0"; // Pipeline v5.11.2: insert asset BEFORE generation + image_job_id + funnel_stage + asset_id return
 // ===================
 
 const corsHeaders = {
@@ -46,6 +46,8 @@ Deno.serve(async (req) => {
       style_preference,
       format = "1:1",
       variations = 2,
+      funnel_stage,
+      strategy_run_id,
     } = body;
 
     if (!tenant_id) return fail("tenant_id é obrigatório");
@@ -138,6 +140,40 @@ Deno.serve(async (req) => {
         ? "product_natural" 
         : "promotional";
 
+    // ===== v1.3.0: INSERT asset in ads_creative_assets BEFORE generation =====
+    const assetMeta: Record<string, any> = {
+      generation_style: generationStyle,
+      source: "ads-autopilot-creative",
+      version: VERSION,
+      image_job_id: null, // Will be updated after invoke
+      channel: channel || "meta",
+      campaign_objective: campaign_objective || null,
+      strategy_run_id: strategy_run_id || null,
+    };
+
+    const { data: newAsset, error: assetInsertErr } = await supabase
+      .from("ads_creative_assets")
+      .insert({
+        tenant_id,
+        channel: channel || "meta",
+        product_id: product_id || null,
+        funnel_stage: funnel_stage || null,
+        session_id: session_id || null,
+        status: "generating",
+        format,
+        aspect_ratio: format,
+        meta: assetMeta,
+      })
+      .select("id")
+      .single();
+
+    if (assetInsertErr) {
+      console.error(`[ads-autopilot-creative][${VERSION}] Failed to insert asset record:`, assetInsertErr.message);
+      // Non-blocking: continue with generation even if asset insert fails
+    } else {
+      console.log(`[ads-autopilot-creative][${VERSION}] Pre-created asset: ${newAsset.id} status=generating funnel=${funnel_stage || 'unset'}`);
+    }
+
     // Call creative-image-generate edge function
     const { data: result, error: invokeError } = await supabase.functions.invoke("creative-image-generate", {
       body: {
@@ -147,6 +183,7 @@ Deno.serve(async (req) => {
         product_image_url: resolvedImageUrl,
         prompt: promptParts,
         output_folder_id: folderId,
+        asset_id: newAsset?.id || null, // Pass asset_id for direct update if supported
         settings: {
           providers: ["openai", "gemini"],
           generation_style: generationStyle,
@@ -163,9 +200,19 @@ Deno.serve(async (req) => {
       },
     });
 
+    // ===== v1.3.0: Handle invoke result — update asset with image_job_id or mark failed =====
     if (invokeError) {
       console.error(`[ads-autopilot-creative][${VERSION}] creative-image-generate error:`, invokeError);
       
+      // Mark asset as failed
+      if (newAsset?.id) {
+        await supabase.from("ads_creative_assets").update({
+          status: "failed",
+          meta: { ...assetMeta, error: invokeError.message || "invoke_error" },
+          updated_at: new Date().toISOString(),
+        }).eq("id", newAsset.id);
+      }
+
       // Update action status to failed if action_id provided
       if (action_id) {
         await supabase.from("ads_autopilot_actions").update({
@@ -177,14 +224,47 @@ Deno.serve(async (req) => {
       return fail(invokeError.message || "Erro ao gerar criativos");
     }
 
+    // v5.11.1 + v1.3.0: Check logical success (HTTP 200 but success=false)
+    if (result?.success === false) {
+      console.error(`[ads-autopilot-creative][${VERSION}] creative-image-generate logical failure: ${result?.error}`);
+      
+      if (newAsset?.id) {
+        await supabase.from("ads_creative_assets").update({
+          status: "failed",
+          meta: { ...assetMeta, error: result?.error || "logical_failure" },
+          updated_at: new Date().toISOString(),
+        }).eq("id", newAsset.id);
+      }
+
+      if (action_id) {
+        await supabase.from("ads_autopilot_actions").update({
+          status: "failed",
+          error_message: result?.error || "Creative generation failed (success=false)",
+        }).eq("id", action_id);
+      }
+
+      return fail(result?.error || "Creative generation failed");
+    }
+
+    // ===== v1.3.0: Update asset with the CORRECT key: image_job_id =====
+    const jobId = result?.data?.job_id;
+    if (newAsset?.id && jobId) {
+      await supabase.from("ads_creative_assets").update({
+        meta: { ...assetMeta, image_job_id: jobId },
+        updated_at: new Date().toISOString(),
+      }).eq("id", newAsset.id);
+      console.log(`[ads-autopilot-creative][${VERSION}] Asset ${newAsset.id} updated with image_job_id=${jobId}`);
+    }
+
     // Update action status to executed if action_id provided
     if (action_id) {
       await supabase.from("ads_autopilot_actions").update({
         status: "executed",
         executed_at: new Date().toISOString(),
         action_data: {
-          job_id: result?.data?.job_id,
-          creative_job_id: result?.data?.job_id,
+          job_id: jobId,
+          creative_job_id: jobId,
+          asset_id: newAsset?.id || null,
           channel,
           format,
           variations,
@@ -194,18 +274,22 @@ Deno.serve(async (req) => {
           folder_name: ADS_FOLDER_NAME,
           campaign_objective,
           target_audience,
+          funnel_stage: funnel_stage || null,
+          strategy_run_id: strategy_run_id || null,
         },
       }).eq("id", action_id);
     }
 
-    console.log(`[ads-autopilot-creative][${VERSION}] Job created:`, result?.data?.job_id);
+    console.log(`[ads-autopilot-creative][${VERSION}] Job created: ${jobId}, asset_id=${newAsset?.id || 'none'}`);
 
     return ok({
-      job_id: result?.data?.job_id,
+      job_id: jobId,
+      asset_id: newAsset?.id || null,
       status: result?.data?.status || "running",
       message: "Criativos sendo gerados. Acompanhe o progresso na lista de jobs.",
       channel,
       session_id,
+      funnel_stage: funnel_stage || null,
     });
   } catch (err: any) {
     console.error(`[ads-autopilot-creative][${VERSION}] Error:`, err);
