@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.11.0"; // Pipeline de Criativos e Integridade Operacional
+const VERSION = "v5.11.1"; // Fix ghost success: check creative logical success + traceability
 // ===========================================================
 
 const corsHeaders = {
@@ -2121,6 +2121,10 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                             });
                             if (creativeErr) {
                               console.error(`[ads-autopilot-analyze][${VERSION}] Creative generation failed:`, creativeErr.message);
+                            } else if (creativeResult?.success === false) {
+                              // v5.11.1: Check logical success (HTTP 200 but success=false)
+                              console.error(`[ads-autopilot-analyze][${VERSION}] Creative logical failure: ${creativeResult?.error}`);
+                              creativeJobId = null;
                             } else {
                               creativeJobId = creativeResult?.data?.job_id || null;
                               console.log(`[ads-autopilot-analyze][${VERSION}] Creative job started: ${creativeJobId}`);
@@ -2396,11 +2400,19 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
 
                     if (creativeErr) throw creativeErr;
 
+                    // v5.11.1: Check logical success (HTTP 200 but success=false)
+                    if (creativeResult?.success === false) {
+                      throw new Error(creativeResult?.error || "Creative generation failed (success=false)");
+                    }
+
+                    // v5.11.1: Enrich action_data with traceability
                     actionRecord.status = "executed";
                     actionRecord.executed_at = new Date().toISOString();
                     actionRecord.action_data = {
                       ...actionRecord.action_data,
                       creative_job_id: creativeResult?.data?.job_id,
+                      creative_success: true,
+                      creative_error: null,
                       product_id: topProduct.id,
                       product_name: topProduct.name,
                       funnel_stage: args.funnel_stage || null,

@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.2.0"; // Auto-fetch product_image_url when not provided
+const VERSION = "v1.2.1"; // Fix sort_order column + logical success checks
 // ===================
 
 const corsHeaders = {
@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
         .from("product_images")
         .select("url")
         .eq("product_id", product_id)
-        .order("position", { ascending: true })
+        .order("sort_order", { ascending: true })
         .limit(1);
       
       if (productImages?.[0]?.url) {
