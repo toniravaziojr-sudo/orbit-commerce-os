@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.0.0"; // AI-powered strategic prompt generator
+const VERSION = "v1.1.0"; // Fix: use Lovable AI Gateway directly
 // ===================
 
 const corsHeaders = {
@@ -111,42 +111,39 @@ Use a estrutura de um prompt estratégico sênior com as seções:
 Gere o prompt COMPLETO e PERSONALIZADO, sem placeholders.`;
 
     // Call Lovable AI Gateway
-    const aiGatewayUrl = `${supabaseUrl}/functions/v1/ai-gateway`;
-    const aiResponse = await fetch(aiGatewayUrl, {
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      console.error(`[ads-autopilot-generate-prompt][${VERSION}] LOVABLE_API_KEY not configured`);
+      return fail("Chave de IA não configurada");
+    }
+
+    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${supabaseKey}`,
+        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
       },
       body: JSON.stringify({
-        provider: "openai",
-        model: "gpt-5-mini",
+        model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
         temperature: 0.7,
-        max_tokens: 2000,
+        max_completion_tokens: 2000,
       }),
     });
 
-    const aiText = await aiResponse.text();
-    let aiResult: any;
-    try {
-      aiResult = JSON.parse(aiText);
-    } catch {
-      console.error(`[ads-autopilot-generate-prompt][${VERSION}] AI parse error:`, aiText.substring(0, 500));
-      return fail("Erro ao processar resposta da IA");
+    if (!aiResponse.ok) {
+      const errText = await aiResponse.text();
+      console.error(`[ads-autopilot-generate-prompt][${VERSION}] AI gateway error ${aiResponse.status}:`, errText.substring(0, 500));
+      if (aiResponse.status === 429) return fail("Limite de requisições excedido. Aguarde alguns segundos.");
+      if (aiResponse.status === 402) return fail("Créditos de IA esgotados.");
+      return fail("Erro ao chamar IA");
     }
 
-    if (!aiResult.success && aiResult.error) {
-      console.error(`[ads-autopilot-generate-prompt][${VERSION}] AI error:`, aiResult.error);
-      return fail(aiResult.error);
-    }
-
-    const generatedPrompt = aiResult.data?.choices?.[0]?.message?.content 
-      || aiResult.choices?.[0]?.message?.content
-      || "";
+    const aiResult = await aiResponse.json();
+    const generatedPrompt = aiResult.choices?.[0]?.message?.content || "";
 
     if (!generatedPrompt) {
       return fail("IA não retornou conteúdo");
