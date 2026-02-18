@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.11.0"; // Pipeline criativos: funnel_stage, session_id, strategy_run_id propagation + deterministic creative selection
+const VERSION = "v5.11.2"; // Debug logging + redeploy for "Failed to fetch" fix
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -3109,6 +3109,8 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  console.log(`[ads-chat][${VERSION}] ${req.method} request received, url=${req.url}`);
 
   console.log(`[ads-chat][${VERSION}] Request received`);
 

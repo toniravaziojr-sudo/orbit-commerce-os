@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.11.1"; // Fix ghost success: check creative logical success + traceability
+const VERSION = "v5.11.2"; // Pipeline orientado a processo + HARD STOP + PAUSED-first + rollback + produto por funil + insights + artifacts
 // ===========================================================
 
 const corsHeaders = {
@@ -1138,6 +1138,15 @@ Antes de executar qualquer ação, PLANEJE UMA ESTRATÉGIA COMPLETA:
 - Diferencie público frio de quente.
 - Campanhas em Learning Phase → APENAS report_insight.
 
+## FORMATO DE INSIGHTS (OBRIGATÓRIO)
+Insights devem ser CURTOS e em linguagem SIMPLES (para dono de loja, NÃO engenheiro).
+- Máximo 4 frases no "summary"
+- Sem IDs de campanha (use o NOME da campanha)
+- Sem percentuais com mais de 1 casa decimal
+- Linguagem direta: "A campanha X gastou R$ Y sem vender" em vez de "Campaign ID 120... apresentou ROAS de 0.00x"
+- Para "recommendations": máximo 3 itens, cada um com 1 frase de ação clara
+- Valores monetários SEMPRE em R$ (ex: "R$ 150,00" não "15000 cents")
+
 ## ⏰ JANELA DE PUBLICAÇÃO E AJUSTES (00:01 - 04:00 BRT)
 - TODAS as novas campanhas e ajustes de orçamento são AGENDADOS para a janela 00:01-04:00 BRT
 - Campanhas novas são criadas com status PAUSED e ativadas automaticamente na janela
@@ -1209,6 +1218,12 @@ Se dados insuficientes para criação, use report_insight para RECOMENDAR a cria
 - Cada campanha DEVE usar um criativo DIFERENTE (unicidade por sessão — sem repetir creative_id).
 - Criativos de TOF não servem para BOF e vice-versa. Respeite o funnel_stage.
 - Identifique o funil de cada campanha existente antes de tomar decisões.
+
+## REGRA DE PRODUTO POR FUNIL (OBRIGATÓRIO — GENÉRICO, SEM HARDCODE DE LOJA)
+- TOF (Público Frio): Use SEMPRE o produto de MENOR preço (entrada/experimentação). Kits e bundles são para remarketing. NUNCA use kit/bundle caro em campanha de TOF.
+- BOF/MOF/Remarketing: Priorize kits e bundles de maior ticket.
+- Testes: Use o produto que a estratégia definir.
+- A seleção é automática pelo sistema baseada em preço. Não hardcode nenhum nome de produto ou marca.
 
 Analise as campanhas DESTA CONTA e execute.`;
 }
@@ -1623,14 +1638,18 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
           totalActionsPlanned++;
 
           if (tc.function.name === "report_insight") {
-            allInsights.push({ ...args, account_id: acctConfig.ad_account_id });
+            // v5.11.2: Sanitize insight before saving
+            let sanitizedSummary = (args.summary || "").replace(/\b120\d{12,}\b/g, "[campanha]").slice(0, 500);
+            const sanitizedArgs = { ...args, summary: sanitizedSummary, account_id: acctConfig.ad_account_id };
+
+            allInsights.push(sanitizedArgs);
             await supabase.from("ads_autopilot_actions").insert({
               tenant_id,
               session_id: sessionId,
               channel,
               action_type: "report_insight",
-              action_data: { ...args, ad_account_id: acctConfig.ad_account_id },
-              reasoning: args.summary,
+              action_data: { ...sanitizedArgs, ad_account_id: acctConfig.ad_account_id },
+              reasoning: sanitizedSummary,
               status: "executed",
               action_hash: `${sessionId}_insight_${acctConfig.ad_account_id}_${totalActionsPlanned}`,
             });
@@ -1647,7 +1666,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
               channel,
               ad_account_id: acctConfig.ad_account_id,
               title: insightTitle + ` (${acctConfig.ad_account_id})`,
-              body: args.summary,
+              body: sanitizedSummary,
               evidence: { kpi_analysis: args.kpi_analysis, risk_alerts: args.risk_alerts },
               recommended_action: { recommendations: args.recommendations },
               priority: args.risk_alerts?.length > 2 ? "high" : "medium",
@@ -1732,11 +1751,11 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 console.log(`[ads-autopilot-analyze][${VERSION}] Budget adjustment scheduled for ${scheduledFor}`);
                 totalActionsExecuted++;
               } else if (tc.function.name === "create_campaign") {
-                // ===== v5.10: Use Meta native start_time for scheduled activation =====
-                // Instead of creating PAUSED + internal scheduling, we create with status=ACTIVE
-                // and a future start_time so Meta shows the campaign as "Scheduled" (Programada)
+                // ===== v5.11.2: PIPELINE ORIENTADO A PROCESSO =====
+                // Order: 1) Select product by funnel → 2) Find creative → 3) Persist artifacts → 4) Create campaign PAUSED → 5) Create adset PAUSED → 6) Create ad → 7) Validate → 8) Activate if auto
                 const isAutoMode = acctConfig.human_approval_mode === "auto";
                 const scheduledActivationTime = getNextSchedulingTime();
+                const campaignFunnel = args.funnel_stage || "tof";
                 
                 // Step 1: Create campaign with native start_time
                 const objectiveMap: Record<string, string> = {
@@ -1755,15 +1774,12 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                   ad_account_id: acctConfig.ad_account_id,
                   name: args.campaign_name,
                   objective: metaObjective,
-                  status: isAutoMode ? "ACTIVE" : "PAUSED",
+                  status: "PAUSED", // v5.11.2: ALWAYS create PAUSED first
                   daily_budget_cents: args.daily_budget_cents,
                   special_ad_categories: [],
                 };
                 
-                // Set future start_time for auto mode — Meta will show as "Scheduled"
-                if (isAutoMode) {
-                  campaignCreateBody.start_time = scheduledActivationTime;
-                }
+                // v5.11.2: No start_time at creation — will be set AFTER ad validation if auto mode
                 
                 const { data: createResult, error: createErr } = await supabase.functions.invoke("meta-ads-campaigns", {
                   body: campaignCreateBody,
@@ -1867,13 +1883,10 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                       optimization_goal: optimizationGoal,
                       billing_event: billingEventMap[args.objective] || "IMPRESSIONS",
                       targeting,
-                      status: isAutoMode ? "ACTIVE" : "PAUSED",
+                      status: "PAUSED", // v5.11.2: ALWAYS create PAUSED first
                     };
                     
-                    // Set future start_time for auto mode — matches campaign scheduling
-                    if (isAutoMode) {
-                      adsetCreateBody.start_time = scheduledActivationTime;
-                    }
+                    // v5.11.2: No start_time at creation — will be set AFTER ad validation
 
                     // Add promoted_object for conversion/lead objectives
                     if (pixelId && (optimizationGoal === "OFFSITE_CONVERSIONS" || optimizationGoal === "LEAD_GENERATION")) {
@@ -1917,8 +1930,17 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                     let bestCreativeId: string | null = null;
                     let usedAiAsset = false;
 
-                    const topProduct = context.products?.[0];
-                    const campaignFunnel = args.funnel_stage || "tof";
+                    // v5.11.2: Product selection by funnel (generic, no hardcode)
+                    const availableProducts = (context.products || []).filter((p: any) => p.price > 0);
+                    let topProduct: any;
+                    if (campaignFunnel === "tof" || campaignFunnel === "cold") {
+                      topProduct = [...availableProducts].sort((a: any, b: any) => a.price - b.price)[0]; // cheapest = entry product
+                    } else if (["bof", "mof", "remarketing"].includes(campaignFunnel)) {
+                      topProduct = [...availableProducts].sort((a: any, b: any) => b.price - a.price)[0]; // most expensive = kits/bundles
+                    } else {
+                      topProduct = availableProducts[0];
+                    }
+                    if (!topProduct) topProduct = context.products?.[0]; // fallback
                     const compatibleStages = funnelStageCompatible(campaignFunnel);
                     const isCreativeTest = args.template === "creative_test" || (args.campaign_name || "").toLowerCase().includes("teste");
 
@@ -2212,19 +2234,51 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                   }
                 }
 
-                // === v5.11.0: STRICT POST-CONDITIONS ===
+                // === v5.11.2: STRICT POST-CONDITIONS + ROLLBACK + ACTIVATE ===
                 if (newMetaCampaignId && newMetaAdsetId && newMetaAdId && graphValidationResult !== "media_mismatch" && graphValidationResult !== "ad_not_found") {
                   actionRecord.status = "executed";
                   actionRecord.executed_at = new Date().toISOString();
+
+                  // v5.11.2: ACTIVATE campaign+adset if auto mode (PAUSED-first → ACTIVE)
+                  if (isAutoMode) {
+                    try {
+                      await supabase.functions.invoke("meta-ads-campaigns", {
+                        body: { tenant_id, action: "update", meta_campaign_id: newMetaCampaignId, status: "ACTIVE", start_time: scheduledActivationTime },
+                      });
+                      await supabase.functions.invoke("meta-ads-adsets", {
+                        body: { tenant_id, action: "update", meta_adset_id: newMetaAdsetId, status: "ACTIVE", start_time: scheduledActivationTime },
+                      });
+                      console.log(`[ads-autopilot-analyze][${VERSION}] Activated campaign+adset for ${scheduledActivationTime}`);
+                    } catch (activateErr: any) {
+                      console.error(`[ads-autopilot-analyze][${VERSION}] Activation failed (campaign stays PAUSED):`, activateErr.message);
+                    }
+                  }
                 } else if (newMetaCampaignId && newMetaAdsetId && !newMetaAdId) {
-                  // Creative job running or no creative available
                   actionRecord.status = mediaBlocked ? "blocked_media_permission" : "pending_creatives";
                   actionRecord.error_message = mediaBlocked 
                     ? `Media blocked: ${mediaBlockReason}` 
-                    : `No compatible creative found for funnel=${args.funnel_stage || 'unknown'}. Creative job: ${creativeJobId || 'none'}`;
+                    : `No compatible creative found for funnel=${campaignFunnel}. Creative job: ${creativeJobId || 'none'}`;
+
+                  // v5.11.2: ROLLBACK — pause orphan campaign+adset
+                  try {
+                    await supabase.functions.invoke("meta-ads-campaigns", {
+                      body: { tenant_id, action: "update", meta_campaign_id: newMetaCampaignId, status: "PAUSED" },
+                    });
+                    console.log(`[ads-autopilot-analyze][${VERSION}] Rollback: paused orphan campaign ${newMetaCampaignId}`);
+                  } catch (rollbackErr: any) {
+                    console.error(`[ads-autopilot-analyze][${VERSION}] Rollback failed:`, rollbackErr.message);
+                  }
+                  actionRecord.rollback_data = { paused_campaign_id: newMetaCampaignId, paused_adset_id: newMetaAdsetId, reason: "no_ad_created" };
                 } else if (newMetaCampaignId && !newMetaAdsetId) {
                   actionRecord.status = "partial_failed";
                   actionRecord.error_message = "Campaign created but adset creation failed";
+                  // Rollback orphan campaign
+                  try {
+                    await supabase.functions.invoke("meta-ads-campaigns", {
+                      body: { tenant_id, action: "update", meta_campaign_id: newMetaCampaignId, status: "PAUSED" },
+                    });
+                  } catch {}
+                  actionRecord.rollback_data = { paused_campaign_id: newMetaCampaignId, reason: "no_adset_created" };
                 } else if (!newMetaCampaignId) {
                   actionRecord.status = "failed";
                   actionRecord.error_message = "Campaign creation failed";
@@ -2235,6 +2289,15 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                     : "Graph API validation: ad not found";
                 }
 
+                // v5.11.2: config_snapshot for auditability
+                const configSnapshot = {
+                  budget_cents: acctConfig.budget_cents,
+                  funnel_splits: acctConfig.funnel_splits,
+                  strategy_mode: acctConfig.strategy_mode,
+                  human_approval_mode: acctConfig.human_approval_mode,
+                  kill_switch: acctConfig.kill_switch,
+                };
+
                 actionRecord.action_data = {
                   ...actionRecord.action_data,
                   meta_campaign_id: newMetaCampaignId,
@@ -2243,13 +2306,18 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                   creative_job_id: creativeJobId,
                   selected_asset_id: selectedAssetId,
                   selected_platform_adcreative_id: selectedPlatformAdcreativeId,
-                  funnel_stage: args.funnel_stage || null,
+                  funnel_stage: campaignFunnel,
                   strategy_run_id: strategyRunId,
                   expected_image_hash: expectedImageHash,
                   expected_video_id: expectedVideoId,
                   graph_validation_result: graphValidationResult,
-                  created_status: isAutoMode ? "ACTIVE_SCHEDULED" : "PAUSED",
-                  start_time: isAutoMode ? scheduledActivationTime : null,
+                  product_name: topProduct?.name || null,
+                  product_id: topProduct?.id || null,
+                  product_price: topProduct?.price || null,
+                  created_status: "PAUSED_FIRST",
+                  activated: actionRecord.status === "executed" && isAutoMode,
+                  start_time: isAutoMode && actionRecord.status === "executed" ? scheduledActivationTime : null,
+                  config_snapshot: configSnapshot,
                   chain_steps: {
                     campaign: !!newMetaCampaignId,
                     adset: !!newMetaAdsetId,
@@ -2258,6 +2326,44 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                     graph_validated: graphValidationResult === "ok",
                   },
                 };
+
+                // v5.11.2: Persist artifacts for this campaign
+                const campaignKey = `${strategyRunId}:${acctConfig.ad_account_id}:${args.template || 'auto'}:${campaignFunnel}:${topProduct?.id || 'auto'}`;
+                try {
+                  // Strategy artifact
+                  await supabase.from("ads_autopilot_artifacts").upsert({
+                    tenant_id, ad_account_id: acctConfig.ad_account_id, session_id: sessionId, strategy_run_id: strategyRunId,
+                    campaign_key: campaignKey, artifact_type: "strategy",
+                    data: { objective: args.objective, funnel: campaignFunnel, product: topProduct?.name, template: args.template, budget_cents: args.daily_budget_cents, targeting_description: args.targeting_description },
+                    status: "ready",
+                  }, { onConflict: "tenant_id,campaign_key,artifact_type" });
+
+                  // Copy artifact
+                  await supabase.from("ads_autopilot_artifacts").upsert({
+                    tenant_id, ad_account_id: acctConfig.ad_account_id, session_id: sessionId, strategy_run_id: strategyRunId,
+                    campaign_key: campaignKey, artifact_type: "copy",
+                    data: { campaign_name: args.campaign_name, headline: args.headline, primary_text: args.primary_text, cta: args.cta },
+                    status: "ready",
+                  }, { onConflict: "tenant_id,campaign_key,artifact_type" });
+
+                  // Campaign plan artifact
+                  await supabase.from("ads_autopilot_artifacts").upsert({
+                    tenant_id, ad_account_id: acctConfig.ad_account_id, session_id: sessionId, strategy_run_id: strategyRunId,
+                    campaign_key: campaignKey, artifact_type: "campaign_plan",
+                    data: {
+                      meta_campaign_id: newMetaCampaignId, meta_adset_id: newMetaAdsetId, meta_ad_id: newMetaAdId,
+                      creative_id: selectedPlatformAdcreativeId, asset_id: selectedAssetId,
+                      objective: args.objective, funnel: campaignFunnel, budget_cents: args.daily_budget_cents,
+                      product: topProduct?.name, config_snapshot: configSnapshot,
+                      status: actionRecord.status,
+                    },
+                    status: actionRecord.status === "executed" ? "ready" : "failed",
+                  }, { onConflict: "tenant_id,campaign_key,artifact_type" });
+                } catch (artifactErr: any) {
+                  console.error(`[ads-autopilot-analyze][${VERSION}] Artifact save error:`, artifactErr.message);
+                }
+
+                console.log(`[ads-autopilot-analyze][${VERSION}] Full chain: campaign=${!!newMetaCampaignId} adset=${!!newMetaAdsetId} ad=${!!newMetaAdId} creative=${!!creativeJobId} status=${actionRecord.status} graph=${graphValidationResult} product=${topProduct?.name || 'none'} funnel=${campaignFunnel}`);
                 console.log(`[ads-autopilot-analyze][${VERSION}] Full chain: campaign=${!!newMetaCampaignId} adset=${!!newMetaAdsetId} ad=${!!newMetaAdId} creative=${!!creativeJobId} status=${actionRecord.status} graph=${graphValidationResult}`);
                 totalActionsExecuted++;
               } else if (tc.function.name === "create_adset") {
@@ -2371,8 +2477,24 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 }
                 totalActionsExecuted++;
               } else if (tc.function.name === "generate_creative") {
-                // Phase 3: Creative generation — v5.11.0: propagate funnel_stage + strategy_run_id
-                const topProduct = context.products?.find((p: any) => p.name === args.product_name) || context.products?.[0];
+                // Phase 3: Creative generation — v5.11.2: funnel-based product selection
+                const gcFunnel = args.funnel_stage || "tof";
+                const gcAvailable = (context.products || []).filter((p: any) => p.price > 0);
+                let topProduct: any;
+                // Try exact name match first (from AI), then funnel-based selection
+                if (args.product_name) {
+                  topProduct = context.products?.find((p: any) => p.name === args.product_name);
+                }
+                if (!topProduct) {
+                  if (gcFunnel === "tof" || gcFunnel === "cold") {
+                    topProduct = [...gcAvailable].sort((a: any, b: any) => a.price - b.price)[0];
+                  } else if (["bof", "mof", "remarketing"].includes(gcFunnel)) {
+                    topProduct = [...gcAvailable].sort((a: any, b: any) => b.price - a.price)[0];
+                  } else {
+                    topProduct = gcAvailable[0];
+                  }
+                }
+                if (!topProduct) topProduct = context.products?.[0];
                 if (!topProduct) {
                   actionRecord.status = "failed";
                   actionRecord.error_message = "Nenhum produto encontrado para gerar criativo";
