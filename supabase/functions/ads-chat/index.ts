@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.11.4"; // Fallback image_url when /adimages upload fails (Standard Access)
+const VERSION = "v5.12.4"; // Pipeline guards integration: user_command override flow, budget/targeting/copy guards
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
