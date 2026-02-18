@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.11.3"; // Fix artifact persistence: check {error} return instead of try/catch
+const VERSION = "v5.12.0"; // Fix creative_ready loop + product focus SKUs
 // ===========================================================
 
 const corsHeaders = {
@@ -304,7 +304,31 @@ function computeTrend(current: ChannelAggregates, previous: ChannelAggregates): 
   return { current_period: current, previous_period: previous, delta, trend_direction };
 }
 
-// ============ CONTEXT COLLECTOR ============
+// ============ PRODUCT FOCUS SELECTOR ============
+// Selects focus products per funnel, filtering out variants (2x, 3x, Dia, Noite, FLEX)
+
+function selectFocusProducts(products: any[]): { tof: any[]; bof: any[] } {
+  if (!products || products.length === 0) return { tof: [], bof: [] };
+  
+  // Filter out multi-pack variants and day/night variants
+  const variantPatterns = /\s*\(\d+x\)|\s*\(FLEX\)|\s+Dia$|\s+Noite$|\s+dia$|\s+noite$/i;
+  const baseProducts = products.filter((p: any) => !variantPatterns.test(p.name.trim()));
+  
+  // Separate single products from kits/bundles
+  const kitPattern = /^kit\b/i;
+  const singles = baseProducts.filter((p: any) => !kitPattern.test(p.name.trim()));
+  const kits = baseProducts.filter((p: any) => kitPattern.test(p.name.trim()));
+  
+  // TOF: cheapest single products (entry/experimentation)
+  const tofProducts = [...singles].sort((a: any, b: any) => a.price - b.price).slice(0, 3);
+  
+  // BOF: kits/bundles first, then most expensive singles
+  const bofProducts = kits.length > 0 
+    ? [...kits].sort((a: any, b: any) => b.price - a.price).slice(0, 3)
+    : [...singles].sort((a: any, b: any) => b.price - a.price).slice(0, 3);
+  
+  return { tof: tofProducts, bof: bofProducts };
+}
 
 async function collectContext(supabase: any, tenantId: string, enabledChannels: string[]) {
   const { data: products } = await supabase
@@ -673,6 +697,11 @@ function validateAction(
   // Kill switch — ALWAYS checked, even on first activation
   if (acctConfig.kill_switch) {
     return { valid: false, reason: `Kill Switch ATIVO para conta ${acctConfig.ad_account_id}. Todas as ações bloqueadas.` };
+  }
+
+  // v5.12.0: HARD BLOCK — creative_ready trigger must NOT generate more creatives
+  if (isCreativeReady && action.name === "generate_creative") {
+    return { valid: false, reason: "Trigger creative_ready: proibido gerar novos criativos. Use os assets ready existentes para criar campanhas." };
   }
 
   // Max actions per session (doubled for first activation to allow full restructuring)
@@ -1157,6 +1186,19 @@ Insights devem ser CURTOS e em linguagem SIMPLES (para dono de loja, NÃO engenh
 - Você NÃO precisa se preocupar com o agendamento — o sistema faz automaticamente
 - PAUSAS de campanhas são executadas IMEDIATAMENTE (não são agendadas)
 
+${triggerType === "creative_ready" ? `
+## 🎨 CALLBACK: CRIATIVOS PRONTOS — CRIAR CAMPANHAS AGORA
+Este ciclo foi disparado porque criativos gerados anteriormente ficaram PRONTOS (status=ready).
+Sua ÚNICA missão neste ciclo é:
+1. **USAR os assets ready** listados abaixo para criar campanhas (create_campaign)
+2. Distribuir o orçamento ocioso conforme splits de funil
+3. NÃO chamar generate_creative — os criativos já existem e estão prontos
+4. Se não houver orçamento ocioso para novas campanhas, reporte via report_insight
+
+⚠️ PROIBIDO: Chamar generate_creative neste ciclo. Use os criativos que já estão ready.
+⚠️ OBRIGATÓRIO: Chamar create_campaign para cada asset ready que tenha funil definido.
+` : ""}
+
 ${triggerType === "first_activation" ? `
 ## 🚀 PRIMEIRA ATIVAÇÃO — ACESSO TOTAL A TODAS AS FASES
 Esta é a PRIMEIRA VEZ que a IA está sendo ativada nesta conta. Você tem ACESSO TOTAL a TODAS as ferramentas (Fases 1, 2 e 3), sem restrições de fase, dias mínimos de dados ou contagem mínima de conversões. Seu objetivo é "colocar a casa em ordem" COMPLETAMENTE:
@@ -1591,6 +1633,44 @@ ${accountPacing.overspend ? "⚠️ OVERSPEND >10%: Reduza agressividade e revis
 ${channelHealth.alerts?.join("\n") || ""}
 🚨 RESTRIÇÃO: Não escalar budgets. Apenas pausar campanhas problemáticas e gerar insights.` : "";
 
+        // v5.12.0: Product focus selection (filter variants)
+        const focusProducts = selectFocusProducts(context.products || []);
+        const focusSection = `
+## 🎯 PRODUTOS FOCO POR FUNIL (USE ESTES — NÃO VARIANTES)
+### TOF (Entrada/Experimentação) — Produtos mais baratos:
+${focusProducts.tof.map((p: any) => `- ${p.name} (R$ ${(p.price / 100).toFixed(2)}, ID: ${p.id})`).join("\n") || "Nenhum"}
+### BOF/MOF (Remarketing) — Kits/bundles de maior ticket:
+${focusProducts.bof.map((p: any) => `- ${p.name} (R$ ${(p.price / 100).toFixed(2)}, ID: ${p.id})`).join("\n") || "Nenhum"}
+⚠️ Use APENAS estes produtos. Variantes com sufixos (Dia, Noite, 2x, 3x, FLEX) são para a loja, NÃO para anúncios.`;
+
+        // v5.12.0: Ready assets context for creative_ready trigger
+        let readyAssetsSection = "";
+        if (trigger_type === "creative_ready") {
+          const { data: readyAssets } = await supabase
+            .from("ads_creative_assets")
+            .select("id, asset_url, headline, copy_text, funnel_stage, product_id, created_at")
+            .eq("tenant_id", tenant_id)
+            .eq("status", "ready")
+            .order("created_at", { ascending: false })
+            .limit(10);
+          
+          if (readyAssets && readyAssets.length > 0) {
+            readyAssetsSection = `
+
+## 🎨 CRIATIVOS PRONTOS (status=ready) — USE-OS AGORA
+${readyAssets.map((a: any) => `- Asset ID: ${a.id} | Funil: ${a.funnel_stage || "auto"} | URL: ${a.asset_url ? "✅" : "❌"}`).join("\n")}
+
+⚠️ AÇÃO OBRIGATÓRIA: Crie campanhas (create_campaign) usando estes criativos ready.
+⚠️ PROIBIDO: NÃO chame generate_creative neste ciclo.`;
+          } else {
+            readyAssetsSection = `
+
+## 🎨 NENHUM CRIATIVO READY ENCONTRADO
+Os criativos ainda não estão prontos. Use report_insight para registrar o status.
+⚠️ PROIBIDO: NÃO chame generate_creative neste ciclo.`;
+          }
+        }
+
         const plannerMessages = [
           { role: "system", content: buildAccountPlannerPrompt(acctConfig, context, trigger_type) + pacingContext + healthContext },
           {
@@ -1600,6 +1680,8 @@ ${JSON.stringify(accountCampaigns, null, 2)}
 
 ## PERFORMANCE POR CAMPANHA (7d)
 ${JSON.stringify(accountCampaignPerf, null, 2)}
+
+${focusSection}
 
 ## PRODUTOS TOP
 ${JSON.stringify(
@@ -1617,7 +1699,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
   channel === "meta" && channelData.savedAudiences?.[acctConfig.ad_account_id]?.length > 0
     ? `\n\n## 🎯 PÚBLICOS SALVOS (Custom Audiences)\nUse custom_audience_id ao criar ad sets para targeting inteligente.\n${JSON.stringify(channelData.savedAudiences[acctConfig.ad_account_id], null, 2)}`
     : "\n\n## 🎯 PÚBLICOS: Nenhum público salvo encontrado. Use targeting broad (Brasil, 18-65)."
-}`,
+}${readyAssetsSection}`,
           },
         ];
 
@@ -1932,15 +2014,15 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                     let bestCreativeId: string | null = null;
                     let usedAiAsset = false;
 
-                    // v5.11.2: Product selection by funnel (generic, no hardcode)
-                    const availableProducts = (context.products || []).filter((p: any) => p.price > 0);
+                    // v5.12.0: Product selection by funnel using focus products (filtered variants)
+                    const focus = selectFocusProducts(context.products || []);
                     let topProduct: any;
                     if (campaignFunnel === "tof" || campaignFunnel === "cold") {
-                      topProduct = [...availableProducts].sort((a: any, b: any) => a.price - b.price)[0]; // cheapest = entry product
+                      topProduct = focus.tof[0];
                     } else if (["bof", "mof", "remarketing"].includes(campaignFunnel)) {
-                      topProduct = [...availableProducts].sort((a: any, b: any) => b.price - a.price)[0]; // most expensive = kits/bundles
+                      topProduct = focus.bof[0];
                     } else {
-                      topProduct = availableProducts[0];
+                      topProduct = focus.tof[0] || focus.bof[0];
                     }
                     if (!topProduct) topProduct = context.products?.[0]; // fallback
                     const compatibleStages = funnelStageCompatible(campaignFunnel);
@@ -2486,21 +2568,22 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 }
                 totalActionsExecuted++;
               } else if (tc.function.name === "generate_creative") {
-                // Phase 3: Creative generation — v5.11.2: funnel-based product selection
+                // Phase 3: Creative generation — v5.12.0: use focus products (filtered variants)
                 const gcFunnel = args.funnel_stage || "tof";
-                const gcAvailable = (context.products || []).filter((p: any) => p.price > 0);
+                const focus = selectFocusProducts(context.products || []);
                 let topProduct: any;
-                // Try exact name match first (from AI), then funnel-based selection
+                // Try exact name match first (from AI)
                 if (args.product_name) {
                   topProduct = context.products?.find((p: any) => p.name === args.product_name);
                 }
+                // If no match or AI picked a variant, use focus products
                 if (!topProduct) {
                   if (gcFunnel === "tof" || gcFunnel === "cold") {
-                    topProduct = [...gcAvailable].sort((a: any, b: any) => a.price - b.price)[0];
+                    topProduct = focus.tof[0];
                   } else if (["bof", "mof", "remarketing"].includes(gcFunnel)) {
-                    topProduct = [...gcAvailable].sort((a: any, b: any) => b.price - a.price)[0];
+                    topProduct = focus.bof[0];
                   } else {
-                    topProduct = gcAvailable[0];
+                    topProduct = focus.tof[0] || focus.bof[0];
                   }
                 }
                 if (!topProduct) topProduct = context.products?.[0];

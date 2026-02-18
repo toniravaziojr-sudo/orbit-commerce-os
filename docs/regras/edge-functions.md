@@ -1006,3 +1006,17 @@ try {
 2. `creative-image-generate` processa imagem → asset vira `ready`
 3. **NOVO**: `creative-image-generate` invoca `analyze` com `trigger_type: "creative_ready"`
 4. `analyze` encontra assets `ready` → completa a cadeia (campanha+adset+ad) → persiste artefatos
+
+### v5.12.0 — `ads-autopilot-analyze` — Fix creative_ready loop + Product Focus
+
+**Problema 1 — Loop de criativos**: Quando `trigger_type: "creative_ready"` disparava, a IA entrava em loop gerando MAIS criativos em vez de usar os assets ready para criar campanhas. Causa: o prompt não instruía a IA a priorizar criação de campanhas no callback.
+
+**Problema 2 — Produtos errados**: A seleção por preço era não-determinística para produtos com mesmo preço (ex: "Kit Banho Calvície Zero Noite" vs "Kit Banho Calvície Zero"). A IA escolhia variantes (Dia/Noite/2x/3x/FLEX) em vez dos produtos base.
+
+**Mudanças**:
+1. **Hard validation**: `generate_creative` é REJEITADO com erro quando `trigger_type === "creative_ready"` (bloqueio no `validateAction`)
+2. **Prompt de creative_ready**: Seção dedicada instrui a IA a usar assets ready para `create_campaign`, proibindo `generate_creative`
+3. **Ready assets context**: Quando `creative_ready`, busca assets `status=ready` e injeta IDs/funnel no prompt
+4. **`selectFocusProducts()`**: Nova função filtra variantes (regex: `\(2x\)`, `\(3x\)`, `\(FLEX\)`, `Dia$`, `Noite$`) e separa singles de kits
+5. **Seção PRODUTOS FOCO**: Injeta produtos foco por funil (TOF=singles baratos, BOF=kits) com IDs no prompt
+6. **Product selection unificada**: `create_campaign` e `generate_creative` handlers agora usam `selectFocusProducts()` em vez de sort por preço bruto
