@@ -662,11 +662,13 @@ function validateAction(
   trackingHealth?: Record<string, any>,
   triggerType?: string
 ): { valid: boolean; reason?: string } {
-  // FIRST ACTIVATION or MANUAL (chat orders): bypass data sufficiency, phase restrictions, and budget change limits
+  // FIRST ACTIVATION, MANUAL, or CREATIVE_READY: bypass data sufficiency, phase restrictions, and budget change limits
   // Manual triggers come from the Chat AI where the store owner explicitly requested the action
+  // creative_ready triggers come from creative-image-generate callback when assets become ready
   const isFirstActivation = triggerType === "first_activation";
   const isManualTrigger = triggerType === "manual";
-  const bypassDataCheck = isFirstActivation || isManualTrigger;
+  const isCreativeReady = triggerType === "creative_ready";
+  const bypassDataCheck = isFirstActivation || isManualTrigger || isCreativeReady;
   
   // Kill switch — ALWAYS checked, even on first activation
   if (acctConfig.kill_switch) {

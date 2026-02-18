@@ -16,7 +16,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const VERSION = '3.2.0'; // Respect output_folder_id from caller
+const VERSION = '3.3.0'; // Callback to ads-autopilot-analyze when assets become ready
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -927,7 +927,21 @@ serve(async (req) => {
                 },
               }).eq('id', asset.id);
             }
-            console.log(`[creative-image] Updated ${assetsToUpdate.length} ads_creative_assets with image URL`);
+            console.log(`[creative-image][${VERSION}] Updated ${assetsToUpdate.length} ads_creative_assets with image URL`);
+            
+            // v3.3.0: Callback — trigger analyze to complete campaign chain now that assets are ready
+            try {
+              const { error: cbErr } = await supabase.functions.invoke("ads-autopilot-analyze", {
+                body: { tenant_id, trigger_type: "creative_ready" },
+              });
+              if (cbErr) {
+                console.error(`[creative-image][${VERSION}] Analyze callback error:`, cbErr.message);
+              } else {
+                console.log(`[creative-image][${VERSION}] Analyze callback triggered (creative_ready)`);
+              }
+            } catch (cbCatchErr: any) {
+              console.error(`[creative-image][${VERSION}] Analyze callback catch:`, cbCatchErr.message);
+            }
           }
         }
 
