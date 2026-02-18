@@ -504,7 +504,7 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v5.11.0
+### Versão Atual: v5.11.3
 
 ### v5.11.0: Pipeline de Criativos + Propagação de Funil + Strategy Run ID
 - **Propagação de `funnel_stage`**: `generateCreativeImage` aceita e normaliza `funnel_stage` (valores válidos: `tof`, `mof`, `bof`, `test`, `leads`). Propaga para `ads-autopilot-creative` junto com `session_id`
@@ -731,6 +731,7 @@ O lojista pode sobrepor QUALQUER configuração do sistema via chat com confirma
 |--------|---------------|
 | `ads_chat_conversations` | `ads-chat` |
 | `ads_chat_messages` | `ads-chat` |
+| `ads_autopilot_artifacts` | `ads-chat` (user_command), `ads-autopilot-analyze` (strategy/copy/creative_prompt/campaign_plan) |
 | `ads_autopilot_account_configs` | `ads-chat` |
 | `ads_autopilot_actions` | `ads-chat` |
 | `ads_autopilot_insights` | `ads-chat` |
@@ -783,6 +784,47 @@ A sync diária permite que ferramentas como `get_performance_trend` mostrem time
 | v5.9.0 | 2026-02-17 | **Execução Paralela de Tools + Fix files.url**: Tool calls agora executam em `Promise.allSettled` em paralelo (antes era `for...of await` sequencial). 5 campanhas que levavam ~90s+ agora completam em ~20s. Corrigido referência a `files.url` (coluna inexistente) no fallback de Drive — agora usa `storage_path` com signed URL. DB saves de tool_calls mudados para fire-and-forget para não bloquear execução. |
 | v5.9.1 | 2026-02-17 | **Fix sort_order em generateCreativeImage + Limite de Campanhas**: Corrigido bug onde `generateCreativeImage` usava `position` (inexistente) em vez de `sort_order` na tabela `product_images` — mesmo bug do v5.8.0 mas em outra função. Corrigido `img.position` → `img.sort_order` na sync de imagens para o Drive. Adicionada regra no system prompt: **máximo 2 campanhas por rodada de ferramentas** para evitar timeouts (~5 chamadas HTTP por campanha × 5 campanhas = timeout garantido). IA agora pede "continuar" para criar as próximas. |
 | v5.11.0 | 2026-02-18 | **Pipeline de Criativos Determinístico + Integridade Operacional**: Seleção determinística em 2 níveis (Ready/Published) com filtro por `funnel_stage` e unicidade por sessão. Estado persistente (`used_asset_ids`, `used_adcreative_ids`, `media_blocked`, `strategy_run_id`) em `ads_autopilot_sessions`. Pós-condições estritas (executed só com cadeia completa verificada via Graph API GET). Validação de mídia pós-criação. Idempotency v2 com `batch_index`. Detecção/bloqueio seletivo de erro de mídia (Nível 1 bloqueado, Nível 2 continua). Regra `creative_test` por `session_id`. System prompt com regras de criativos. Propagação de `funnel_stage`, `session_id` e `strategy_run_id` no ads-chat. |
+| v5.11.3 | 2026-02-18 | **User Command Artifacts + Override com Confirmação**: Novas tools `persist_user_command` e `confirm_user_command` para fluxo de override seguro. Comandos do usuário persistidos como `artifact_type='user_command'` em `ads_autopilot_artifacts`. Conflitos com guardrails geram `status='awaiting_confirmation'` com alerta ao usuário. Após confirmação explícita, status evolui para `confirmed` e execução prossegue com `override=true`. Auditoria completa: `conflicts_acknowledged`, `confirmation_timestamp`, `confirmed_by`. |
+
+### Regras de User Command Override — `ads-chat` v5.11.3
+
+Comandos explícitos do usuário via chat têm **prioridade máxima** sobre configs/guardrails do Autopilot.
+
+**Fluxo de Override:**
+1. Usuário envia comando (ex: "cria campanha BOF com orçamento R$500")
+2. IA chama `persist_user_command` com intent parseado e conflitos detectados
+3. Se **sem conflitos**: `status='confirmed'`, execução imediata
+4. Se **com conflitos**: `status='awaiting_confirmation'`, IA alerta o usuário com detalhes do conflito e pede confirmação
+5. Usuário confirma → IA chama `confirm_user_command` → `status='confirmed'` → execução prossegue
+
+**Artefato `user_command`:**
+```json
+{
+  "artifact_type": "user_command",
+  "campaign_key": "cmd_{timestamp}_{intent}",
+  "data": {
+    "original_text": "texto original do usuário",
+    "parsed_intent": "create_campaign",
+    "requested_changes": { "budget_cents": 50000, "funnel_stage": "bof" },
+    "detected_conflicts": ["budget exceeds configured limit by 25%"],
+    "requires_confirmation": true,
+    "override_allowed": true,
+    "confirmation_question": "O orçamento solicitado excede o limite configurado em 25%. Confirmar mesmo assim?"
+  },
+  "status": "awaiting_confirmation"
+}
+```
+
+**Tools:**
+| Tool | Descrição |
+|------|-----------|
+| `persist_user_command` | Salva intent + conflitos em `ads_autopilot_artifacts`. Params: `campaign_key`, `original_text`, `parsed_intent`, `requested_changes`, `detected_conflicts[]`, `confirmation_question` |
+| `confirm_user_command` | Atualiza artifact para `confirmed` com timestamp e `confirmed_by`. Params: `campaign_key` |
+
+**Regras:**
+- HARD STOP continua válido: override NÃO permite pular etapas do pipeline (criativo obrigatório)
+- Override apenas dita o **conteúdo** das etapas (produto, budget, funil, objetivo)
+- `action_data` registra: `user_command_id`, `override=true`, `conflicts_acknowledged`, `confirmation_timestamp`
 
 ### Regras de Strategy Mode — `ads-chat` v5.4.0
 
