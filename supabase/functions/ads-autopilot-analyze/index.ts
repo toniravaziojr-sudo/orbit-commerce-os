@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.12.2"; // Fix topProduct scope + creative_ready loop
+const VERSION = "v5.12.3"; // Fallback image_url when /adimages upload fails (Standard Access)
 // ===========================================================
 
 const corsHeaders = {
@@ -2080,7 +2080,10 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                           if (metaConnForCreative?.access_token) {
                             const accountIdClean = acctConfig.ad_account_id.replace("act_", "");
 
-                            // Upload image to Meta
+                            // Upload image to Meta (with fallback to image_url)
+                            let imageHash: string | null = null;
+                            let usedImageUrlFallback = false;
+                            
                             const imgUploadRes = await fetch(`https://graph.facebook.com/v21.0/act_${accountIdClean}/adimages`, {
                               method: "POST",
                               headers: { "Content-Type": "application/json" },
@@ -2088,86 +2091,102 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                             });
                             const imgUploadData = await imgUploadRes.json();
 
-                            // Check for media upload error
+                            // Check for media upload error — try fallback with image_url
                             if (imgUploadData?.error) {
                               const metaErrorCode = imgUploadData.error.code;
                               const metaSubcode = imgUploadData.error.error_subcode;
-                              console.error(`[ads-autopilot-analyze][${VERSION}] Step 3 L1: Image upload FAILED: code=${metaErrorCode} subcode=${metaSubcode} msg=${imgUploadData.error.message}`);
-                              await setMediaBlocked(`Upload failed: code=${metaErrorCode} subcode=${metaSubcode} - ${imgUploadData.error.message}`);
+                              console.warn(`[ads-autopilot-analyze][${VERSION}] Step 3 L1: /adimages upload failed (code=${metaErrorCode}), trying image_url fallback`);
+                              usedImageUrlFallback = true;
                             } else {
-                              const imageHash = imgUploadData?.images?.[Object.keys(imgUploadData?.images || {})[0]]?.hash;
+                              imageHash = imgUploadData?.images?.[Object.keys(imgUploadData?.images || {})[0]]?.hash || null;
+                              if (!imageHash) {
+                                console.warn(`[ads-autopilot-analyze][${VERSION}] Step 3 L1: /adimages returned no hash, trying image_url fallback`);
+                                usedImageUrlFallback = true;
+                              }
+                            }
 
+                            if (imageHash) {
+                              expectedImageHash = imageHash;
+                              console.log(`[ads-autopilot-analyze][${VERSION}] Step 3 L1: Image uploaded via /adimages, hash=${imageHash}`);
+                            }
+
+                            // Build destination URL
+                            const { data: tenantInfo } = await supabase.from("tenants").select("slug").eq("id", tenant_id).single();
+                            const { data: tenantDomainInfo } = await supabase.from("tenant_domains").select("domain").eq("tenant_id", tenant_id).eq("type", "custom").eq("is_primary", true).maybeSingle();
+                            const storeHost = tenantDomainInfo?.domain || (tenantInfo?.slug ? `${tenantInfo.slug}.shops.comandocentral.com.br` : null);
+                            
+                            let productSlug = topProduct.slug || topProduct.id;
+                            if (!topProduct.slug) {
+                              const { data: prodData } = await supabase.from("products").select("slug").eq("id", topProduct.id).single();
+                              productSlug = prodData?.slug || topProduct.id;
+                            }
+                            const destinationUrl = storeHost ? `https://${storeHost}/produto/${productSlug}` : `https://comandocentral.com.br`;
+
+                            const pages = metaConnForCreative.metadata?.assets?.pages || [];
+                            const pageId = pages[0]?.id || null;
+
+                            const creativeBody: any = {
+                              name: `[AI] ${topProduct.name} - ${new Date().toISOString().split("T")[0]}`,
+                              access_token: metaConnForCreative.access_token,
+                            };
+                            if (pageId) {
+                              const linkData: any = {
+                                message: aiAsset.copy_text || `Conheça ${topProduct.name}!`,
+                                name: aiAsset.headline || topProduct.name,
+                                link: destinationUrl,
+                                call_to_action: { type: "SHOP_NOW", value: { link: destinationUrl } },
+                              };
+                              // Use image_hash if available, otherwise fallback to image_url
                               if (imageHash) {
-                                expectedImageHash = imageHash;
-                                console.log(`[ads-autopilot-analyze][${VERSION}] Step 3 L1: Image uploaded, hash=${imageHash}`);
-
-                                // Build destination URL
-                                const { data: tenantInfo } = await supabase.from("tenants").select("slug").eq("id", tenant_id).single();
-                                const { data: tenantDomainInfo } = await supabase.from("tenant_domains").select("domain").eq("tenant_id", tenant_id).eq("type", "custom").eq("is_primary", true).maybeSingle();
-                                const storeHost = tenantDomainInfo?.domain || (tenantInfo?.slug ? `${tenantInfo.slug}.shops.comandocentral.com.br` : null);
-                                
-                                let productSlug = topProduct.slug || topProduct.id;
-                                if (!topProduct.slug) {
-                                  const { data: prodData } = await supabase.from("products").select("slug").eq("id", topProduct.id).single();
-                                  productSlug = prodData?.slug || topProduct.id;
-                                }
-                                const destinationUrl = storeHost ? `https://${storeHost}/produto/${productSlug}` : `https://comandocentral.com.br`;
-
-                                const pages = metaConnForCreative.metadata?.assets?.pages || [];
-                                const pageId = pages[0]?.id || null;
-
-                                const creativeBody: any = {
-                                  name: `[AI] ${topProduct.name} - ${new Date().toISOString().split("T")[0]}`,
-                                  access_token: metaConnForCreative.access_token,
-                                };
-                                if (pageId) {
-                                  creativeBody.object_story_spec = {
-                                    page_id: pageId,
-                                    link_data: {
-                                      image_hash: imageHash,
-                                      message: aiAsset.copy_text || `Conheça ${topProduct.name}!`,
-                                      name: aiAsset.headline || topProduct.name,
-                                      link: destinationUrl,
-                                      call_to_action: { type: "SHOP_NOW", value: { link: destinationUrl } },
-                                    },
-                                  };
-                                } else {
-                                  creativeBody.image_hash = imageHash;
-                                  creativeBody.title = aiAsset.headline || topProduct.name;
-                                  creativeBody.body = aiAsset.copy_text || `Conheça ${topProduct.name}!`;
-                                }
-
-                                const creativeRes = await fetch(`https://graph.facebook.com/v21.0/act_${accountIdClean}/adcreatives`, {
-                                  method: "POST",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify(creativeBody),
-                                });
-                                const creativeData = await creativeRes.json();
-
-                                if (creativeData.id) {
-                                  bestCreativeId = creativeData.id;
-                                  selectedPlatformAdcreativeId = creativeData.id;
-                                  usedAiAsset = true;
-                                  console.log(`[ads-autopilot-analyze][${VERSION}] Step 3 L1: AdCreative created: ${bestCreativeId}`);
-
-                                  // v5.11.0: Save platform_adcreative_id + expected_image_hash
-                                  await supabase.from("ads_creative_assets").update({
-                                    status: "published",
-                                    platform_adcreative_id: creativeData.id,
-                                    platform_ad_id: creativeData.id, // backward compat
-                                    expected_image_hash: imageHash,
-                                    updated_at: new Date().toISOString(),
-                                  }).eq("id", aiAsset.id);
-
-                                  // Track in both lists
-                                  await appendUsedAssetId(aiAsset.id);
-                                  await appendUsedAdcreativeId(creativeData.id);
-                                } else {
-                                  console.error(`[ads-autopilot-analyze][${VERSION}] Step 3 L1: AdCreative creation failed:`, creativeData.error?.message);
-                                }
+                                linkData.image_hash = imageHash;
                               } else {
-                                console.error(`[ads-autopilot-analyze][${VERSION}] Step 3 L1: Image upload returned no hash`);
-                                await setMediaBlocked(`Upload returned no hash: ${JSON.stringify(imgUploadData).substring(0, 200)}`);
+                                linkData.picture = aiAsset.asset_url;
+                                console.log(`[ads-autopilot-analyze][${VERSION}] Step 3 L1: Using image_url fallback: ${aiAsset.asset_url.substring(0, 80)}...`);
+                              }
+                              creativeBody.object_story_spec = {
+                                page_id: pageId,
+                                link_data: linkData,
+                              };
+                            } else {
+                              if (imageHash) {
+                                creativeBody.image_hash = imageHash;
+                              } else {
+                                creativeBody.image_url = aiAsset.asset_url;
+                              }
+                              creativeBody.title = aiAsset.headline || topProduct.name;
+                              creativeBody.body = aiAsset.copy_text || `Conheça ${topProduct.name}!`;
+                            }
+
+                            const creativeRes = await fetch(`https://graph.facebook.com/v21.0/act_${accountIdClean}/adcreatives`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify(creativeBody),
+                            });
+                            const creativeData = await creativeRes.json();
+
+                            if (creativeData.id) {
+                              bestCreativeId = creativeData.id;
+                              selectedPlatformAdcreativeId = creativeData.id;
+                              usedAiAsset = true;
+                              console.log(`[ads-autopilot-analyze][${VERSION}] Step 3 L1: AdCreative created: ${bestCreativeId}${usedImageUrlFallback ? " (via image_url fallback)" : ""}`);
+
+                              // v5.11.0: Save platform_adcreative_id + expected_image_hash
+                              await supabase.from("ads_creative_assets").update({
+                                status: "published",
+                                platform_adcreative_id: creativeData.id,
+                                platform_ad_id: creativeData.id, // backward compat
+                                expected_image_hash: imageHash || null,
+                                updated_at: new Date().toISOString(),
+                              }).eq("id", aiAsset.id);
+
+                              // Track in both lists
+                              await appendUsedAssetId(aiAsset.id);
+                              await appendUsedAdcreativeId(creativeData.id);
+                            } else {
+                              console.error(`[ads-autopilot-analyze][${VERSION}] Step 3 L1: AdCreative creation failed:`, creativeData.error?.message);
+                              if (usedImageUrlFallback) {
+                                // Both methods failed — now block media
+                                await setMediaBlocked(`Both /adimages and image_url fallback failed: ${creativeData.error?.message}`);
                               }
                             }
                           }
