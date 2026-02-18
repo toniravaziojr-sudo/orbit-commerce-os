@@ -305,29 +305,34 @@ function computeTrend(current: ChannelAggregates, previous: ChannelAggregates): 
 }
 
 // ============ PRODUCT FOCUS SELECTOR ============
-// Selects focus products per funnel, filtering out variants (2x, 3x, Dia, Noite, FLEX)
+// Selects focus products per funnel, filtering variants for cold traffic (TOF/Tests)
+// v5.12.1: Variants (Dia, Noite, 2x, 3x, FLEX) are ONLY allowed for remarketing/offers
 
-function selectFocusProducts(products: any[]): { tof: any[]; bof: any[] } {
-  if (!products || products.length === 0) return { tof: [], bof: [] };
+function selectFocusProducts(products: any[]): { tof: any[]; bof: any[]; remarketing: any[] } {
+  if (!products || products.length === 0) return { tof: [], bof: [], remarketing: [] };
   
-  // Filter out multi-pack variants and day/night variants
+  // Variant detection pattern
   const variantPatterns = /\s*\(\d+x\)|\s*\(FLEX\)|\s+Dia$|\s+Noite$|\s+dia$|\s+noite$/i;
   const baseProducts = products.filter((p: any) => !variantPatterns.test(p.name.trim()));
+  const variantProducts = products.filter((p: any) => variantPatterns.test(p.name.trim()));
   
   // Separate single products from kits/bundles
   const kitPattern = /^kit\b/i;
   const singles = baseProducts.filter((p: any) => !kitPattern.test(p.name.trim()));
   const kits = baseProducts.filter((p: any) => kitPattern.test(p.name.trim()));
   
-  // TOF: cheapest single products (entry/experimentation)
+  // TOF: cheapest single products (entry/experimentation) — NO VARIANTS
   const tofProducts = [...singles].sort((a: any, b: any) => a.price - b.price).slice(0, 3);
   
-  // BOF: kits/bundles first, then most expensive singles
+  // BOF: kits/bundles first, then most expensive singles — NO VARIANTS
   const bofProducts = kits.length > 0 
     ? [...kits].sort((a: any, b: any) => b.price - a.price).slice(0, 3)
     : [...singles].sort((a: any, b: any) => b.price - a.price).slice(0, 3);
   
-  return { tof: tofProducts, bof: bofProducts };
+  // REMARKETING/OFFERS: ALL products including variants (cross-sell, upsell)
+  const remarketingProducts = [...products].sort((a: any, b: any) => b.price - a.price).slice(0, 6);
+  
+  return { tof: tofProducts, bof: bofProducts, remarketing: remarketingProducts };
 }
 
 async function collectContext(supabase: any, tenantId: string, enabledChannels: string[]) {
@@ -1636,12 +1641,14 @@ ${channelHealth.alerts?.join("\n") || ""}
         // v5.12.0: Product focus selection (filter variants)
         const focusProducts = selectFocusProducts(context.products || []);
         const focusSection = `
-## 🎯 PRODUTOS FOCO POR FUNIL (USE ESTES — NÃO VARIANTES)
-### TOF (Entrada/Experimentação) — Produtos mais baratos:
+## 🎯 PRODUTOS FOCO POR FUNIL (USE ESTES — NÃO VARIANTES EM TOF/COLD)
+### TOF (Entrada/Experimentação) — Produtos base mais baratos:
 ${focusProducts.tof.map((p: any) => `- ${p.name} (R$ ${(p.price / 100).toFixed(2)}, ID: ${p.id})`).join("\n") || "Nenhum"}
-### BOF/MOF (Remarketing) — Kits/bundles de maior ticket:
+### BOF (Conversão) — Kits/bundles de maior ticket:
 ${focusProducts.bof.map((p: any) => `- ${p.name} (R$ ${(p.price / 100).toFixed(2)}, ID: ${p.id})`).join("\n") || "Nenhum"}
-⚠️ Use APENAS estes produtos. Variantes com sufixos (Dia, Noite, 2x, 3x, FLEX) são para a loja, NÃO para anúncios.`;
+### REMARKETING/OFERTAS — Variantes permitidas (cross-sell, upsell):
+${focusProducts.remarketing.map((p: any) => `- ${p.name} (R$ ${(p.price / 100).toFixed(2)}, ID: ${p.id})`).join("\n") || "Nenhum"}
+⚠️ Variantes (Dia, Noite, 2x, 3x, FLEX) SÓ para remarketing/ofertas. TOF e BOF usam APENAS produtos base.`;
 
         // v5.12.0: Ready assets context for creative_ready trigger
         let readyAssetsSection = "";
@@ -2020,7 +2027,8 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                     if (campaignFunnel === "tof" || campaignFunnel === "cold") {
                       topProduct = focus.tof[0];
                     } else if (["bof", "mof", "remarketing"].includes(campaignFunnel)) {
-                      topProduct = focus.bof[0];
+                      // v5.12.1: Remarketing can use variants
+                      topProduct = focus.remarketing[0] || focus.bof[0];
                     } else {
                       topProduct = focus.tof[0] || focus.bof[0];
                     }
@@ -2581,7 +2589,8 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                   if (gcFunnel === "tof" || gcFunnel === "cold") {
                     topProduct = focus.tof[0];
                   } else if (["bof", "mof", "remarketing"].includes(gcFunnel)) {
-                    topProduct = focus.bof[0];
+                    // v5.12.1: Remarketing can use variants
+                    topProduct = focus.remarketing[0] || focus.bof[0];
                   } else {
                     topProduct = focus.tof[0] || focus.bof[0];
                   }
