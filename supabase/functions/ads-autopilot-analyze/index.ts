@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.12.0"; // Fix creative_ready loop + product focus SKUs
+const VERSION = "v5.12.2"; // Fix topProduct scope + creative_ready loop
 // ===========================================================
 
 const corsHeaders = {
@@ -2016,23 +2016,23 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 let expectedImageHash: string | null = null;
                 let expectedVideoId: string | null = null;
 
+                // v5.12.2: topProduct MUST be declared OUTSIDE `if (newMetaAdsetId)` to avoid ReferenceError
+                const focus = selectFocusProducts(context.products || []);
+                let topProduct: any;
+                if (campaignFunnel === "tof" || campaignFunnel === "cold") {
+                  topProduct = focus.tof[0];
+                } else if (["bof", "mof", "remarketing"].includes(campaignFunnel)) {
+                  topProduct = focus.remarketing[0] || focus.bof[0];
+                } else {
+                  topProduct = focus.tof[0] || focus.bof[0];
+                }
+                if (!topProduct) topProduct = context.products?.[0]; // fallback
+
                 if (newMetaAdsetId) {
                   try {
                     let bestCreativeId: string | null = null;
                     let usedAiAsset = false;
 
-                    // v5.12.0: Product selection by funnel using focus products (filtered variants)
-                    const focus = selectFocusProducts(context.products || []);
-                    let topProduct: any;
-                    if (campaignFunnel === "tof" || campaignFunnel === "cold") {
-                      topProduct = focus.tof[0];
-                    } else if (["bof", "mof", "remarketing"].includes(campaignFunnel)) {
-                      // v5.12.1: Remarketing can use variants
-                      topProduct = focus.remarketing[0] || focus.bof[0];
-                    } else {
-                      topProduct = focus.tof[0] || focus.bof[0];
-                    }
-                    if (!topProduct) topProduct = context.products?.[0]; // fallback
                     const compatibleStages = funnelStageCompatible(campaignFunnel);
                     const isCreativeTest = args.template === "creative_test" || (args.campaign_name || "").toLowerCase().includes("teste");
 
