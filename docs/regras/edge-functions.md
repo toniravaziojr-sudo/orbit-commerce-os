@@ -476,7 +476,7 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v5.9.0
+### Versão Atual: v5.9.7
 
 ### v5.3.6: Fix colunas erradas em createCustomAudience/createLookalikeAudience
 - **Bug crítico**: Insert usava `audience_id` mas coluna real é `meta_audience_id`. Insert falhava silenciosamente → públicos criados no Meta nunca eram salvos no banco local
@@ -859,3 +859,18 @@ const { data: t } = await supabase.from("tenants").select("slug, custom_domain")
 | `product_images` | `ads-autopilot-creative-generate`, `creative-image-generate` |
 | `files` | `ads-autopilot-creative-generate` (pasta Drive), `creative-image-generate` (registro no Drive) |
 | `tenant_domains` | `ads-chat`, `ads-autopilot-analyze` (resolução de domínio para URL de destino) |
+
+### v5.9.7 — `ads-chat` — Fix Race Condition + Signed URLs para Meta
+
+1. **Prevenção de Race Condition (Bug 2)**: Adicionada instrução explícita no system prompt proibindo a IA de chamar `generate_creative_image` e `create_meta_campaign` no mesmo round de ferramentas. A geração de imagens é assíncrona (~60-90s via `EdgeRuntime.waitUntil()`), então a campanha deve ser criada apenas em um round subsequente, após confirmação de assets `ready`
+2. **Signed URLs para Meta API (Bug 3)**: `createMetaCampaign` agora usa `createSignedUrl()` (expiração 30 dias) do bucket `media-assets` em vez de URLs públicas para o upload via `/adimages`. Resolve erro de permissão onde Meta não conseguia buscar imagens do storage
+3. **Governança multi-rodada**: A IA deve sempre: gerar criativos → aguardar confirmação → criar campanha (nunca no mesmo round)
+
+### v3.2.0 — `creative-image-generate` — Respeitar `output_folder_id`
+
+**Bug corrigido (Bug 1)**: A função ignorava o parâmetro `output_folder_id` enviado pelo `ads-autopilot-creative` e sempre criava/usava uma pasta fixa "Criativos com IA". Resultado: imagens geradas pelo Gestor de Tráfego IA iam para a pasta errada no Drive.
+
+**Mudanças**:
+1. **Extração de `output_folder_id` do body**: O parâmetro agora é lido do request body
+2. **Prioridade de pasta**: Se `output_folder_id` fornecido, usa essa pasta em vez da padrão "Criativos com IA"
+3. **Impacto**: Imagens geradas pelo autopilot agora aparecem corretamente na pasta "Gestor de Tráfego IA" do Drive
