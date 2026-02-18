@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.11.2"; // Debug logging + redeploy for "Failed to fetch" fix
+const VERSION = "v5.11.3"; // user_command artifact persistence + override tracking
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -549,6 +549,43 @@ const TOOLS = [
       },
     },
   },
+  // ===== ESCRITA: User Command Artifacts =====
+  {
+    type: "function",
+    function: {
+      name: "persist_user_command",
+      description: "Persiste um comando/override do lojista como artefato rastreável. Use SEMPRE que o lojista dá uma ordem que sobrepõe regras/configs existentes. Se houver conflito, salve com status='awaiting_confirmation' e peça confirmação. Se não houver conflito, salve com status='confirmed' e execute.",
+      parameters: {
+        type: "object",
+        properties: {
+          campaign_key: { type: "string", description: "Chave da campanha afetada (ad_account_id:funnel_stage:context) ou 'global' para configs gerais" },
+          original_text: { type: "string", description: "Texto original do comando do lojista" },
+          parsed_intent: { type: "string", description: "Interpretação estruturada do que o lojista quer" },
+          requested_changes: { type: "object", description: "Mudanças solicitadas em formato estruturado (ex: {budget_cents: 80000, target_roi: 3})" },
+          detected_conflicts: { type: "array", items: { type: "string" }, description: "Lista de conflitos detectados (ex: ['Excede orçamento configurado de R$500/dia'])" },
+          requires_confirmation: { type: "boolean", description: "Se true, salva como awaiting_confirmation e pede confirmação" },
+          ad_account_id: { type: "string", description: "Conta de anúncios afetada (opcional)" },
+        },
+        required: ["campaign_key", "original_text", "parsed_intent", "requires_confirmation"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "confirm_user_command",
+      description: "Confirma um comando do lojista que estava aguardando confirmação. Use quando o lojista responde 'sim', 'confirmo', 'pode fazer', etc. Após confirmar, execute a ação sem impedimentos.",
+      parameters: {
+        type: "object",
+        properties: {
+          campaign_key: { type: "string", description: "Chave do comando a confirmar" },
+        },
+        required: ["campaign_key"],
+        additionalProperties: false,
+      },
+    },
+  },
   // ===== UTILIDADES =====
   {
     type: "function",
@@ -643,6 +680,10 @@ async function executeTool(
         return await triggerAutopilotAnalysis(supabase, tenantId, args.channel);
       case "analyze_url":
         return await analyzeUrl(args.url);
+      case "persist_user_command":
+        return await persistUserCommand(supabase, tenantId, args, chatSessionId, strategyRunId);
+      case "confirm_user_command":
+        return await confirmUserCommand(supabase, tenantId, args.campaign_key);
       default:
         return JSON.stringify({ error: `Ferramenta desconhecida: ${toolName}` });
     }
@@ -650,6 +691,93 @@ async function executeTool(
     console.error(`[ads-chat][${VERSION}] Tool error (${toolName}):`, err);
     return JSON.stringify({ error: err.message || "Erro ao executar ferramenta" });
   }
+}
+
+// ============ USER COMMAND ARTIFACTS ============
+
+async function persistUserCommand(supabase: any, tenantId: string, args: any, sessionId?: string, strategyRunId?: string) {
+  const campaignKey = args.campaign_key || "global";
+  const status = args.requires_confirmation ? "awaiting_confirmation" : "confirmed";
+  
+  const artifactData = {
+    original_text: args.original_text || "",
+    parsed_intent: args.parsed_intent || "",
+    requested_changes: args.requested_changes || {},
+    detected_conflicts: args.detected_conflicts || [],
+    requires_confirmation: !!args.requires_confirmation,
+    override_allowed: true,
+    ad_account_id: args.ad_account_id || null,
+    timestamp: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from("ads_autopilot_artifacts")
+    .upsert({
+      tenant_id: tenantId,
+      campaign_key: campaignKey,
+      artifact_type: "user_command",
+      data: artifactData,
+      status,
+      session_id: sessionId || null,
+      strategy_run_id: strategyRunId || null,
+      ad_account_id: args.ad_account_id || null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "tenant_id,campaign_key,artifact_type" })
+    .select("id, status")
+    .single();
+
+  if (error) {
+    console.error(`[ads-chat][${VERSION}] persistUserCommand error:`, error);
+    return JSON.stringify({ success: false, error: error.message });
+  }
+
+  console.log(`[ads-chat][${VERSION}] User command persisted: ${data.id} status=${data.status} key=${campaignKey}`);
+  
+  if (status === "awaiting_confirmation") {
+    return JSON.stringify({
+      success: true,
+      status: "awaiting_confirmation",
+      artifact_id: data.id,
+      message: "Comando registrado. Aguardando confirmação do lojista antes de executar.",
+      conflicts: args.detected_conflicts || [],
+    });
+  }
+
+  return JSON.stringify({
+    success: true,
+    status: "confirmed",
+    artifact_id: data.id,
+    message: "Comando registrado e confirmado. Pode executar.",
+  });
+}
+
+async function confirmUserCommand(supabase: any, tenantId: string, campaignKey: string) {
+  const { data, error } = await supabase
+    .from("ads_autopilot_artifacts")
+    .update({ status: "confirmed", updated_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId)
+    .eq("campaign_key", campaignKey)
+    .eq("artifact_type", "user_command")
+    .eq("status", "awaiting_confirmation")
+    .select("id, data")
+    .maybeSingle();
+
+  if (error) {
+    console.error(`[ads-chat][${VERSION}] confirmUserCommand error:`, error);
+    return JSON.stringify({ success: false, error: error.message });
+  }
+  if (!data) {
+    return JSON.stringify({ success: false, error: "Nenhum comando pendente encontrado para esta chave." });
+  }
+
+  console.log(`[ads-chat][${VERSION}] User command confirmed: ${data.id}`);
+  return JSON.stringify({
+    success: true,
+    status: "confirmed",
+    artifact_id: data.id,
+    requested_changes: data.data?.requested_changes || {},
+    message: "Comando confirmado pelo lojista. Execute as alterações solicitadas agora.",
+  });
 }
 
 // ============ TOOL IMPLEMENTATIONS ============
