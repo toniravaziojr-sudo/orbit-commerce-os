@@ -1,140 +1,96 @@
 
-# Correcao Estrutural v5.11.0 — Pipeline de Criativos e Integridade Operacional
 
-## Problema
+# Correcao v5.11.1 — Destravar Pipeline de Criativos (2 Bugs + 2 Ajustes do ChatGPT)
 
-O sistema de trafego IA tem 4 falhas estruturais confirmadas no codigo:
+## Diagnostico Confirmado
 
-1. **Linha 2003**: `actionRecord.status = "executed"` e atribuido SEMPRE, mesmo sem `ad_id` ou `adset_id`
-2. **Linhas 1926-1940**: Fallback cego `existingAds?.[0]?.creative_id` pega primeiro criativo aleatorio
-3. **Linha 1910**: `platform_ad_id` recebe o ID do AdCreative (ambiguidade de nomenclatura)
-4. **Sem persistencia**: `usedCreativeIds` e `mediaBlocked` existem apenas em memoria, resetando entre rounds
+O pipeline de geracao de criativos esta **100% parado** por 2 bugs que trabalham juntos:
 
----
+### Bug 1: Coluna errada (`ads-autopilot-creative`, linha 66)
+- Codigo atual: `.order("position", { ascending: true })`
+- A tabela `product_images` nao tem coluna `position`. O nome correto e `sort_order`.
+- Resultado: query retorna vazio, funcao responde `{ success: false, error: "Imagem do produto nao encontrada" }` com HTTP 200.
 
-## FASE 1: Migracao SQL
+### Bug 2: Sucesso fantasma (`ads-autopilot-analyze`, linhas 2397-2408)
+- O bloco `generate_creative_image` (Ponto B, linha 2397) so checa `creativeErr` (erro HTTP de transporte).
+- Quando `ads-autopilot-creative` retorna HTTP 200 com `{ success: false }`, o analyze ignora e marca `executed`.
+- Mesmo problema no Ponto A (linha 2122-2127): auto-generation trigger so checa `creativeErr`.
 
-### 1A. Novas colunas em `ads_creative_assets`
-
-```sql
-ALTER TABLE ads_creative_assets
-  ADD COLUMN IF NOT EXISTS funnel_stage TEXT CHECK (funnel_stage IN ('tof','mof','bof','test','leads')),
-  ADD COLUMN IF NOT EXISTS session_id TEXT,
-  ADD COLUMN IF NOT EXISTS platform_adcreative_id TEXT,
-  ADD COLUMN IF NOT EXISTS expected_image_hash TEXT,
-  ADD COLUMN IF NOT EXISTS expected_video_id TEXT;
-```
-
-### 1B. Novas colunas em `ads_autopilot_sessions`
-
-```sql
-ALTER TABLE ads_autopilot_sessions
-  ADD COLUMN IF NOT EXISTS used_asset_ids JSONB DEFAULT '[]',
-  ADD COLUMN IF NOT EXISTS used_adcreative_ids JSONB DEFAULT '[]',
-  ADD COLUMN IF NOT EXISTS media_blocked BOOLEAN DEFAULT false,
-  ADD COLUMN IF NOT EXISTS media_block_reason TEXT,
-  ADD COLUMN IF NOT EXISTS strategy_run_id TEXT;
-```
-
-Duas listas separadas:
-- `used_asset_ids`: UUIDs internos de `ads_creative_assets.id` (Nivel 1 ready)
-- `used_adcreative_ids`: IDs Meta de AdCreative (Nivel 2 published)
+### Resultado combinado
+- `creative_job_id` = null em todas as acoes
+- `ads_creative_assets` = 0 registros
+- Sistema "acredita" que gerou criativos, mas nao gerou nenhum
 
 ---
 
-## FASE 2: `ads-autopilot-analyze/index.ts` (v5.11.0)
+## Correcoes a Implementar
 
-### 2A. Helper `classifyCampaignFunnel(campaign)`
+### Correcao 1: `ads-autopilot-creative/index.ts`
+**Linha 66**: trocar `"position"` por `"sort_order"`
+- Version bump: v1.2.0 -> v1.2.1
 
-Classifica campanhas existentes na Meta por estagio de funil baseado no nome e objetivo. Enriquece cada campanha com `funnel_classification` antes de enviar ao prompt.
+### Correcao 2: `ads-autopilot-analyze/index.ts` — Ponto B (linhas 2397-2408)
+Bloco `generate_creative_image` tool. Adicionar check de `success === false` apos linha 2397:
 
-### 2B. Estado persistente (antes da linha 1426)
+```text
+if (creativeErr) throw creativeErr;
 
-No inicio do loop de contas:
-1. Carregar `used_asset_ids`, `used_adcreative_ids`, `media_blocked`, `strategy_run_id` da sessao
-2. Inicializar `Set<string>` para cada lista
-3. Se `strategy_run_id` nao existir, gerar e persistir
-4. Se `media_blocked === true`, bloquear APENAS fluxo de upload/generate (Nivel 1)
-5. Nivel 2 (published com `platform_adcreative_id`) continua funcionando com media_blocked
+// v5.11.1: Check logical success (HTTP 200 but success=false)
+if (creativeResult?.success === false) {
+  throw new Error(creativeResult?.error || "Creative generation failed (success=false)");
+}
 
-### 2C. Update atomico de listas
-
-Apos cada uso de criativo, append atomico com dedup via SQL para evitar lost update e duplicatas em retries.
-
-### 2D. Selecao deterministica (substitui linhas 1813-1940)
-
-**Nivel 1 -- Assets IA `ready`:**
-- `ads_creative_assets` com `status='ready'`, `product_id` match, `funnel_stage` compativel, `asset_url IS NOT NULL`
-- **Filtro**: `id NOT IN used_asset_ids` (UUIDs de asset)
-- Se `media_blocked === true`: pular Nivel 1 (depende de upload)
-- Se encontrar: seguir fluxo upload -> AdCreative na Meta
-
-**Nivel 2 -- Assets IA `published`:**
-- `ads_creative_assets` com `status='published'`, `platform_adcreative_id IS NOT NULL`, `product_id` match, `funnel_stage` compativel
-- **Filtro**: `platform_adcreative_id NOT IN used_adcreative_ids`
-- **Funciona mesmo com `media_blocked=true`**
-
-**Se nenhum compativel: NAO criar campanha.** Status = `pending_creatives` com motivo claro.
-
-### 2E. Regra `creative_test`
-
-Para campanhas de teste: buscar APENAS em `ads_creative_assets` com `session_id` igual ao da sessao atual. Se nao houver: status `pending_creatives`.
-
-### 2F. Gravar `platform_adcreative_id` e `expected_image_hash` (linhas 1902-1912)
-
-Ao criar AdCreative na Meta, gravar `platform_adcreative_id` (ID correto) e `expected_image_hash`. Para video, gravar `expected_video_id`.
-
-### 2G. Pos-condicoes estritas (linhas 2003-2021)
-
-Substituir `actionRecord.status = "executed"` fixo por logica condicional:
-
-- campaign_id + adset_id + ad_id verificados via GET = "executed"
-- campaign_id + adset_id sem ad_id (creative job) = "pending_creatives"
-- campaign_id sem adset_id = "partial_failed"
-- Nenhum ID = "failed"
-
-### 2H. Validacao pos-criacao via Graph API GET
-
-Apos criar ad, fazer GET para confirmar existencia e verificar midia:
-- Imagem: `object_story_spec.link_data.image_hash`
-- Video: `object_story_spec.video_data.video_id`
-- Carousel: `child_attachments` ou `asset_feed_spec`
-
-Comparar com `expected_image_hash`/`expected_video_id`. Se nao bater: `partial_failed`.
-
-Salvar no `action_data`: `selected_asset_id`, `selected_platform_adcreative_id`, `funnel_stage`, `strategy_run_id`, `expected_*`, `graph_validation_result`.
-
-### 2I. Idempotency key com batch_index (linha 1588)
-
-```
-action_hash = strategy_run_id + ad_account_id + action_type + product_id + funnel_stage + template + batch_index
+// v5.11.1: Enrich action_data with traceability
+actionRecord.status = "executed";
+actionRecord.executed_at = new Date().toISOString();
+actionRecord.action_data = {
+  ...actionRecord.action_data,
+  creative_job_id: creativeResult?.data?.job_id,
+  creative_success: true,
+  creative_error: null,
+  product_id: topProduct.id,
+  product_name: topProduct.name,
+  funnel_stage: args.funnel_stage || null,
+  strategy_run_id: strategyRunId,
+};
 ```
 
-`batch_index` e um contador sequencial por combinacao unica de (action_type + product_id + funnel_stage + template) no run. Tratar conflito UNIQUE como noop.
+O `throw` garante que o `catch` existente (linhas 2410-2413) trata o caso corretamente: marca `failed` com `error_message`.
 
-### 2J. Deteccao e bloqueio de erro de midia (linhas 1916-1918)
+### Correcao 3: `ads-autopilot-analyze/index.ts` — Ponto A (linhas 2122-2127)
+Bloco auto-generation trigger dentro de `create_campaign`. Adicionar check de `success === false`:
 
-Ao detectar erro de upload: persistir `media_blocked = true` + razao no banco. Bloqueia Nivel 1 (upload) mas NAO Nivel 2 (published). Status: `blocked_media_permission`.
+```text
+if (creativeErr) {
+  console.error(...);
+} else if (creativeResult?.success === false) {
+  console.error(`[ads-autopilot-analyze][${VERSION}] Creative logical failure: ${creativeResult?.error}`);
+  creativeJobId = null;
+} else {
+  creativeJobId = creativeResult?.data?.job_id || null;
+  console.log(...);
+}
+```
 
-### 2K. System prompt (apos linha 1167)
+Aqui o status ja e controlado pelas pos-condicoes estritas (linhas 2211-2232), entao `creativeJobId = null` garante que a acao NAO sera `executed` (caira em `pending_creatives`).
 
-Adicionar regras de criativos: unicidade por sessao, generate_creative antes de create_campaign, TOF nao serve para BOF e vice-versa, identificar funil antes de decidir.
+### Version bump
+- `ads-autopilot-creative`: v1.2.0 -> v1.2.1
+- `ads-autopilot-analyze`: v5.11.0 -> v5.11.1
 
 ---
 
-## FASE 3: `ads-chat/index.ts`
+## Ajustes exigidos pelo ChatGPT (incorporados)
 
-### 3A. Propagar `funnel_stage` e `session_id` (funcao `generateCreativeImage`, linha 2006-2013)
+### Ajuste 1: "success=false NUNCA pode terminar em executed"
+- **Ponto B**: o `throw` garante que cai no `catch` -> `status = "failed"`. Coberto.
+- **Ponto A**: `creativeJobId = null` faz a pos-condicao (linha 2215) definir `pending_creatives`. Coberto.
 
-Aceitar `funnel_stage` como argumento, normalizar para valores validos, gravar no body enviado ao `ads-autopilot-creative`.
-
-### 3B. Selecao deterministica no `createMetaCampaign` (linhas 2065-2086)
-
-Adicionar filtro por `funnel_stage` compativel e unicidade. Se nao houver criativo compativel: retornar erro claro.
-
-### 3C. `strategy_run_id` no chat
-
-Gerar no primeiro round, reutilizar em "continuar", propagar para funcoes de ferramenta.
+### Ajuste 2: "Garantir que generate_creative cria registro em ads_creative_assets"
+- Este registro e criado pela funcao `creative-image-generate` (chamada por `ads-autopilot-creative`).
+- O bug da coluna `position` impedia que `ads-autopilot-creative` chegasse ate essa chamada.
+- Com o fix de `sort_order`, a chamada a `creative-image-generate` vai acontecer, e ESSA funcao e responsavel por inserir em `ads_creative_assets`.
+- Aceite B valida isso: se `ads_creative_assets` continuar vazio apos o fix, o problema esta em `creative-image-generate` (proximo passo).
 
 ---
 
@@ -142,39 +98,48 @@ Gerar no primeiro round, reutilizar em "continuar", propagar para funcoes de fer
 
 ### Arquivos Afetados
 
-| Arquivo | Mudancas |
-|---------|---------|
-| Migracao SQL | Novas colunas em `ads_creative_assets` e `ads_autopilot_sessions` |
-| `supabase/functions/ads-autopilot-analyze/index.ts` | Correcoes 2A-2K, VERSION v5.11.0 |
-| `supabase/functions/ads-chat/index.ts` | Correcoes 3A-3C |
+| Arquivo | Mudanca | Versao |
+|---------|---------|--------|
+| `supabase/functions/ads-autopilot-creative/index.ts` | Linha 66: `position` -> `sort_order` | v1.2.1 |
+| `supabase/functions/ads-autopilot-analyze/index.ts` | Ponto A (L2122-2127): check `success===false`; Ponto B (L2397-2408): check `success===false` + rastreabilidade | v5.11.1 |
 
 ### Sequencia de Implementacao
+1. Fix `sort_order` em `ads-autopilot-creative`
+2. Fix Ponto B (generate_creative tool) em `ads-autopilot-analyze`
+3. Fix Ponto A (auto-generation trigger) em `ads-autopilot-analyze`
+4. Deploy ambas as funcoes
+5. Rodar queries de aceite
 
-1. Executar migracao SQL
-2. Implementar `classifyCampaignFunnel()` e enriquecer contexto
-3. Carregar/persistir estado da sessao (usedAssetIds, usedAdcreativeIds, mediaBlocked, strategyRunId)
-4. Update atomico com dedup para ambas as listas
-5. Substituir fallback cego por selecao deterministica (Nivel 1 ready + Nivel 2 published)
-6. Gravar `platform_adcreative_id` e `expected_image_hash/video_id`
-7. Regra creative_test por session_id exato
-8. Pos-condicoes estritas (executed so com cadeia completa verificada)
-9. Validacao Graph API GET com verificacao de midia
-10. Idempotency com strategy_run_id + batch_index + UNIQUE noop
-11. Deteccao/bloqueio seletivo de erro de midia (Nivel 1 only)
-12. System prompt com regras de criativos
-13. Propagar funnel_stage, session_id e strategy_run_id no ads-chat
-14. Bump version e deploy
+### Queries de Aceite (rodar apos proximo ciclo)
 
-### Checklist de Aceite
+**Aceite A** — `creative_job_id` preenchido:
+```text
+SELECT created_at, status,
+       action_data->>'creative_job_id' as job_id,
+       action_data->>'creative_success' as creative_success,
+       action_data->>'creative_error' as creative_error,
+       error_message
+FROM ads_autopilot_actions
+WHERE action_type = 'generate_creative'
+ORDER BY created_at DESC LIMIT 10;
+```
 
-- Nenhuma acao "executed" sem campaign_id + adset_id + ad_id verificados via GET
-- Validacao Graph confirma image_hash OU video_id OU child_attachments
-- creative_test sem criativos da sessao = pending_creatives
-- Campanhas em lotes: nenhum creative repetido no mesmo run
-- Erro de midia: Nivel 1 bloqueado, Nivel 2 (published) continua funcionando
-- "Continuar" reutiliza strategy_run_id, used_asset_ids e used_adcreative_ids
-- funnel_stage normalizado com CHECK constraint
-- platform_adcreative_id separado de platform_ad_id
-- Assets ready filtrados por used_asset_ids (UUID); published por used_adcreative_ids (Meta ID)
-- Idempotencia com batch_index: >1 acao do mesmo produto+funil+template nao colide
-- Logs incluem: selected_asset_id, selected_platform_adcreative_id, funnel_stage, strategy_run_id, expected_*, graph_validation_result
+**Aceite B** — Assets aparecendo:
+```text
+SELECT id, product_name, funnel_stage, status, session_id, created_at
+FROM ads_creative_assets
+ORDER BY created_at DESC LIMIT 10;
+```
+
+**Aceite C** — Fim do sucesso fantasma:
+```text
+SELECT status, count(*)
+FROM ads_autopilot_actions
+WHERE action_type = 'generate_creative'
+  AND action_data->>'creative_job_id' IS NULL
+  AND status = 'executed'
+  AND created_at > now() - interval '1 hour'
+GROUP BY status;
+-- Resultado esperado: 0 linhas (nenhum executed sem job_id)
+```
+
