@@ -517,6 +517,27 @@ A IA atua como "consultor sênior de tráfego pago" com acesso a:
 
 **Regras do prompt**: Markdown obrigatório, respeitar limites de budget por plataforma, nunca sugerir deletar (apenas pausar), diferenciar público frio/quente, responder em PT-BR.
 
+##### Regras de Matching de Produto (v5.9.8)
+
+O matching de produto nas funções `generateCreativeImage` e `createMetaCampaign` usa um algoritmo de 3 níveis para evitar ambiguidade entre variantes:
+
+1. **Match exato** (case-insensitive, trimmed) — ex: "Kit Banho Calvície Zero" encontra exatamente esse produto
+2. **Starts with** — pega o produto base sem variantes (ex: buscar "Kit Banho" encontra "Kit Banho Calvície Zero" mas não "Kit Banho Calvície Zero (2x) Noite")
+3. **Includes com preferência pelo nome mais curto** — fallback seguro que prioriza o produto base
+4. **Último fallback** — primeiro produto da lista
+
+> **REGRA**: A IA deve usar o nome **EXATO** do produto conforme retornado por `get_catalog_products`. NÃO abreviar, NÃO generalizar. Produtos com nomes similares (ex: "Shampoo Calvície Zero" e "Shampoo Calvície Zero (2x)") são tratados como produtos DIFERENTES.
+
+##### Regra de Autonomia Multi-Rodada (v5.9.8)
+
+A IA usa rounds internos (1-5) **automaticamente** para completar todo o plano sem pedir ao lojista para dizer "continuar":
+
+- **Round 1**: Geração de imagens (`generate_creative_image`)
+- **Round 2+**: Criação de campanhas (`create_meta_campaign`) — máximo 2 por round
+- **Transição entre rounds**: Automática. A IA informa o progresso ("✅ Criei 2 de 5, continuando...") e prossegue
+
+> **EXCEÇÃO**: A IA só pausa e pede confirmação quando o **próprio lojista** solicitar acompanhamento passo-a-passo (ex: "me avise quando terminar cada etapa", "faça isso e quando terminar me avise"). Fora isso, execução autônoma e contínua.
+
 ##### Arquivos
 
 | Arquivo | Propósito |
@@ -583,7 +604,7 @@ Cada ação da IA na aba "Ações" é **clicável** e abre um `Dialog` com previ
 |---|---|
 | `create_campaign` | Nome, objetivo, status, orçamento diário, conjuntos de anúncios (com segmentação) e anúncios (headline, copy, CTA) |
 | `create_adset` | Nome, campanha, orçamento, otimização, segmentação detalhada (idade, gênero, geo, interesses, Custom/Lookalike Audiences), agendamento |
-| `generate_creative` | Produto, canal, formato, variações, estilo de geração, pasta de destino, objetivo e público-alvo. Status do job com indicador de progresso |
+| `generate_creative` | Produto, canal, formato, variações, estilo de geração, pasta de destino, objetivo e público-alvo. **Preview de imagens geradas** (v5.9.8): busca `creative_jobs.output_urls` quando `job_id` presente, com auto-refresh a cada 5s durante processamento e fallback visual para estados de erro |
 | `adjust_budget` / `allocate_budget` | Entidade, orçamento anterior vs novo, variação % |
 | `pause_campaign` | Nome, gasto atual, economia/dia estimada |
 | `report_insight` | Corpo do insight, categoria, prioridade |
@@ -592,7 +613,7 @@ Cada ação da IA na aba "Ações" é **clicável** e abre um `Dialog` com previ
 **Componentes internos:**
 - `CampaignPreview` — Preview hierárquico (campanha → adsets → ads)
 - `AdsetPreview` — Conjunto com `TargetingPreview` integrado
-- `CreativePreview` — Com detalhes enriquecidos (produto, canal, formato, variações, estilo, pasta)
+- `CreativePreview` — Com detalhes enriquecidos (produto, canal, formato, variações, estilo, pasta). **v5.9.8**: Query ao `creative_jobs` para exibir imagens prontas quando `job_id` presente (auto-refresh enquanto `running`/`pending`)
 - `BudgetPreview` — Comparação antes/depois com destaque
 - `PausePreview` — Economia estimada
 - `TargetingPreview` — Breakdown de segmentação (interesses como badges, Custom Audiences, Lookalikes com ratio %)
