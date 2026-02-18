@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bot, DollarSign, Target, Shield, Zap, Scale, AlertTriangle, Info, Globe, TrendingUp, ChevronDown, ChevronUp } from "lucide-react";
+import { Bot, DollarSign, Target, Shield, Zap, Scale, AlertTriangle, Info, Globe, TrendingUp, ChevronDown, ChevronUp, Power } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,9 @@ interface AdsGlobalSettingsTabProps {
   onSave: (config: Partial<AutopilotConfig> & { channel: string }) => void;
   isSaving: boolean;
   hasAccountOverrides: boolean;
+  isGlobalEnabled: boolean;
+  onToggleGlobal: (enabled: boolean) => void;
+  isTogglingGlobal?: boolean;
 }
 
 const STRATEGY_OPTIONS = [
@@ -30,7 +33,7 @@ const APPROVAL_OPTIONS = [
   { value: "approve_high_impact", label: "Aprovar alto impacto", desc: "Criar campanha, budget >20%, trocar objetivo" },
 ];
 
-export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccountOverrides }: AdsGlobalSettingsTabProps) {
+export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccountOverrides, isGlobalEnabled, onToggleGlobal, isTogglingGlobal }: AdsGlobalSettingsTabProps) {
   const [budgetMode, setBudgetMode] = useState(globalConfig?.budget_mode || "monthly");
   const [budgetValue, setBudgetValue] = useState(globalConfig?.budget_cents ? (globalConfig.budget_cents / 100).toString() : "");
   const [targetRoi, setTargetRoi] = useState(
@@ -100,7 +103,32 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
 
   return (
     <div className="space-y-6">
-      {/* Priority System Alert */}
+      {/* Global AI Toggle */}
+      <Card className={`border-2 transition-colors ${isGlobalEnabled ? "border-green-500/30 bg-green-500/5" : "border-muted"}`}>
+        <CardContent className="py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-lg ${isGlobalEnabled ? "bg-green-500/10" : "bg-muted"}`}>
+                <Power className={`h-5 w-5 ${isGlobalEnabled ? "text-green-600" : "text-muted-foreground"}`} />
+              </div>
+              <div>
+                <h3 className="font-semibold text-sm">IA Global</h3>
+                <p className="text-xs text-muted-foreground">
+                  {isGlobalEnabled
+                    ? "A IA está ativa e gerenciando todas as contas sem regras exclusivas"
+                    : "Ative para que a IA gerencie automaticamente as contas sem regras exclusivas"}
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={isGlobalEnabled}
+              onCheckedChange={onToggleGlobal}
+              disabled={isTogglingGlobal}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       <Alert className="border-blue-500/30 bg-blue-500/5">
         <Info className="h-4 w-4 text-blue-500" />
         <AlertTitle className="text-blue-700 dark:text-blue-400 font-semibold">

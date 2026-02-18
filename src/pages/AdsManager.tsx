@@ -1,9 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Bot, BarChart3, Settings2, Lightbulb, MessageCircle } from "lucide-react";
+import { Bot, BarChart3, Settings2, Lightbulb, MessageCircle, Hourglass } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { AdsChatTab } from "@/components/ads/AdsChatTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useMetaAds } from "@/hooks/useMetaAds";
 import { useTikTokAds } from "@/hooks/useTikTokAds";
 import { useAdsAutopilot } from "@/hooks/useAdsAutopilot";
@@ -21,6 +22,7 @@ import { AdsRoiReportsTab } from "@/components/ads/AdsRoiReportsTab";
 import { AdsOverviewTab } from "@/components/ads/AdsOverviewTab";
 import { AdsInsightsTab } from "@/components/ads/AdsInsightsTab";
 import { AdsGlobalSettingsTab } from "@/components/ads/AdsGlobalSettingsTab";
+import { AdsPendingApprovalTab } from "@/components/ads/AdsPendingApprovalTab";
 
 export default function AdsManager() {
   const meta = useMetaAds();
@@ -341,6 +343,15 @@ export default function AdsManager() {
                           </Badge>
                         )}
                       </TabsTrigger>
+                      <TabsTrigger value="pending-approval" className="gap-2">
+                        <Hourglass className="h-3.5 w-3.5" />
+                        Aguardando Ação
+                        {autopilot.actions.filter(a => a.channel === channel && a.status === "pending_approval").length > 0 && (
+                          <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-xs bg-amber-500/20 text-amber-600">
+                            {autopilot.actions.filter(a => a.channel === channel && a.status === "pending_approval").length}
+                          </Badge>
+                        )}
+                      </TabsTrigger>
                       <TabsTrigger value="reports">Relatórios</TabsTrigger>
                       <TabsTrigger value="roi">ROI Real</TabsTrigger>
                       <TabsTrigger value="account-chat" className="gap-2">
@@ -376,6 +387,10 @@ export default function AdsManager() {
                         isLoading={autopilot.actionsLoading}
                         channelFilter={channel}
                       />
+                    </TabsContent>
+
+                    <TabsContent value="pending-approval">
+                      <AdsPendingApprovalTab channelFilter={channel} />
                     </TabsContent>
 
                     <TabsContent value="reports">
@@ -425,13 +440,29 @@ export default function AdsManager() {
         </TabsContent>
 
         {/* === CONFIGURAÇÕES GERAIS === */}
-        <TabsContent value="global-settings">
+        <TabsContent value="global-settings" className="space-y-6">
           <AdsGlobalSettingsTab
             globalConfig={globalConfig}
             onSave={(config) => autopilot.saveConfig.mutate(config)}
             isSaving={autopilot.saveConfig.isPending}
             hasAccountOverrides={accountConfigs.configs.length > 0}
+            isGlobalEnabled={globalConfig?.is_enabled || false}
+            onToggleGlobal={(enabled) => autopilot.toggleChannel.mutate({ channel: "global", enabled })}
+            isTogglingGlobal={autopilot.toggleChannel.isPending}
           />
+          
+          {/* Aguardando Aprovação (global - all channels) */}
+          <Card className="border-amber-500/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Hourglass className="h-4 w-4 text-amber-500" />
+                Aguardando Aprovação (Todas as contas)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <AdsPendingApprovalTab />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* === CHAT IA GLOBAL === */}

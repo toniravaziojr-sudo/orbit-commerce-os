@@ -1026,14 +1026,33 @@ try {
 **Mudança 1 — Variantes restritas**: `selectFocusProducts()` agora retorna 3 listas: `tof` (base singles), `bof` (base kits) e `remarketing` (variantes: Dia, Noite, 2x, 3x, FLEX). Variantes são **terminantemente proibidas** em campanhas TOF/BOF — permitidas apenas em Remarketing e Ofertas.
 
 **Mudança 2 — Fluxo de Aprovação (Aguardando Ação)**:
-- Nova aba "Aguardando" no Chat IA exibe cards de ações pendentes (`status: 'pending_approval'`)
-- Cada card permite: **Aprovar** (executa via `ads-autopilot-execute-approved`), **Ajustar** (rejeita + envia feedback ao chat da IA) ou **Rejeitar** (com motivo obrigatório)
-- Hook `useAdsPendingActions` com auto-refresh a cada 15s
-- Componentes: `AdsPendingActionsTab`, `ActionApprovalCard`
+- Nova aba "Aguardando Ação" no Gerenciador (por conta) e na aba "Configurações Gerais" (global, todas as contas)
+- Componente: `AdsPendingApprovalTab` com polling de 15s
+- Cada card exibe: tipo, canal, justificativa, impacto, copy (se disponível), orçamento
+- 3 controles: **Aprovar** (executa via `ads-autopilot-execute-approved`), **Ajustar** (rejeita + envia feedback para revisão) ou **Rejeitar** (com motivo)
 
-**Mudança 3 — Edge Function `ads-autopilot-execute-approved`** (v1.0.0):
-- Recebe `action_id` aprovado e re-dispara análise com `trigger_type: "approved_action"`
+**Mudança 3 — Edge Function `ads-autopilot-execute-approved`** (v1.1.0):
+- Aceita ações com status `pending_approval` ou `approved`
+- Re-dispara análise com `trigger_type: "approved_action"`
 - Garante que ações aprovadas sejam executadas imediatamente
+
+### v5.12.2 — `ads-autopilot-analyze` — Fix topProduct scope
+
+**Bug**: `topProduct` estava declarado DENTRO de `if (newMetaAdsetId)` mas referenciado FORA do bloco para `actionRecord.action_data` e `campaignKey`, causando `ReferenceError: topProduct is not defined` em todos os callbacks `creative_ready`.
+
+**Fix**: `topProduct` e `selectFocusProducts()` movidos para fora do bloco condicional, garantindo acessibilidade em todo o handler.
+
+### Hierarquia IA Global vs. Per-Account
+
+**Camada Global** (aba "Configurações Gerais"):
+- Toggle "IA Global" ativa/desativa a IA para TODAS as contas que **não** possuem configurações exclusivas
+- Insights globais aparecem SOMENTE quando a IA global está ativada
+- Aba "Aguardando Aprovação" mostra ações de TODAS as contas
+
+**Camada Per-Account** (Gerenciador > Conta > ⚙️):
+- Configurações exclusivas por conta de anúncios prevalecem sobre as globais (Prioridade 1)
+- Quando uma conta tem regras exclusivas, a IA global NÃO a afeta
+- Aba "Aguardando Ação" filtra por canal
 
 **Regra de produto por funil**:
 ```
