@@ -1,81 +1,64 @@
 
 
-# Diagnóstico E2E: 3 Bugs Encontrados no Fluxo de Criativos e Campanhas
+# Implementação v5.9.8: 4 Correções no Ads Chat + Preview de Imagem
 
-## Resumo Executivo
+## Correção 1: Matching de Produto por Nome Exato
 
-A geração de imagens funciona (as imagens existem no storage), mas o fluxo completo falha por 3 bugs distintos que impedem a IA de criar campanhas do zero com sucesso.
+**Arquivo**: `supabase/functions/ads-chat/index.ts` (linhas 1991 e 2034)
 
----
+O `.includes()` atual causa ambiguidade entre variantes como "Kit Banho Calvície Zero", "Kit Banho Calvície Zero (2x) Noite", etc.
 
-## Bug 1: Imagens vão para a pasta errada no Drive
+Novo algoritmo de 3 níveis (aplicado em `generateCreativeImage` e `createMetaCampaign`):
 
-**Sintoma**: A pasta "Gestor de Tráfego IA" está vazia no Meu Drive (como mostra seu screenshot).
-
-**Causa**: A edge function `creative-image-generate` ignora o parâmetro `output_folder_id` que recebe do `ads-autopilot-creative`. Em vez de usar a pasta "Gestor de Tráfego IA", ela sempre cria/usa sua propia pasta fixa chamada "Criativos com IA" (dentro de "Uploads do sistema").
-
-**Prova**: As 4 imagens geradas as 23:25 estao na pasta "Criativos com IA" (folder_id: `26a7cca5`), NAO na pasta "Gestor de Tráfego IA" (folder_id: `bce0665a`).
-
-**Correção**: Na `creative-image-generate`, ao extrair o body, incluir `output_folder_id`. Se fornecido, usar esse folder em vez do padrão "Criativos com IA". Isso afeta 2 pontos no codigo (linhas 539-546 e 596-621).
-
----
-
-## Bug 2: Geração de imagem é assincrona, mas criação de campanha é sincrona (Race Condition)
-
-**Sintoma**: A IA chama `generate_creative_image` e `create_meta_campaign` no MESMO round de ferramentas (Tool round 2). A geração de imagem usa `EdgeRuntime.waitUntil()` e retorna imediatamente. Quando `create_meta_campaign` tenta buscar o criativo na tabela `ads_creative_assets`, ele ainda nao existe (o job está rodando em background), entao cai no fallback de imagem do catalogo.
-
-**Prova nos logs**:
-```
-Tool round 2: get_product_images, generate_creative_image, create_meta_campaign, create_meta_campaign
-Using catalog image for Kit Banho Calvície Zero (2x) Noite: [URL do catalogo]
+```text
+1. Match exato (case-insensitive, trimmed)
+2. Starts with (pega produto base sem variantes)
+3. Includes com preferência pelo nome mais curto (fallback seguro)
+4. Último fallback: primeiro produto da lista
 ```
 
-**Causa**: `generate_creative_image` dispara a edge function `ads-autopilot-creative` que chama `creative-image-generate` que processa em background (~69 segundos). O `create_meta_campaign` roda em paralelo e nao encontra os assets.
+---
 
-**Correção**: No prompt do sistema da IA (dentro de `ads-chat`), adicionar instrução explícita: "NUNCA chame `generate_creative_image` e `create_meta_campaign` no mesmo round. Primeiro gere as imagens, aguarde confirmação, e só no round seguinte crie a campanha." Alternativamente, no codigo de `createMetaCampaign`, adicionar um polling/wait curto nos `ads_creative_assets` antes de cair no fallback.
+## Correção 2: Autonomia da IA (Regra de "continuar")
+
+**Arquivo**: `supabase/functions/ads-chat/index.ts` (linhas 2904-2907 e 2918-2919)
+
+**Regra atual** (errada): A IA sempre pede ao lojista para dizer "continuar" entre rodadas.
+
+**Nova regra**: A IA usa os rounds internos (1-5) automaticamente para completar todo o plano. A pausa para pedir "continuar" so deve existir se o proprio lojista solicitar acompanhamento passo-a-passo (ex: "me avise quando terminar cada etapa"). Fora isso, execucao autonoma e continua.
+
+Mudancas no prompt:
+- Linhas 2904-2907: Trocar "Aguarde confirmação e informe ao lojista" por "Use o round seguinte AUTOMATICAMENTE"
+- Linhas 2918-2919: Trocar "Envie continuar para eu criar as proximas 2" por instrucao de continuar automaticamente, so pausar se o lojista pediu
 
 ---
 
-## Bug 3: Erro de permissão no upload de imagens para Meta (adimages API)
+## Correção 3: Preview de Imagem no Card de Ação
 
-**Sintoma**: A IA reportou "erro de permissão no upload de imagens" e desistiu de criar campanhas novas, usando apenas campanhas existentes.
+**Arquivo**: `src/components/ads/ActionDetailDialog.tsx`
 
-**Causa provável**: A URL da imagem passada para `/act_{id}/adimages` (endpoint da Meta para upload) é uma URL interna do Supabase storage. A Meta precisa baixar essa URL, mas se o bucket `media-assets` estiver configurado como privado ou a URL nao for acessivel publicamente, a Meta retorna erro.
+Quando o card de acao tem `creative_job_id` mas nao `asset_url`, o componente mostra apenas texto "Criativos sendo processados". A correcao adiciona uma query ao banco para buscar o resultado do job (`creative_jobs.output_urls`) e exibir as imagens se ja estiverem prontas.
 
-**Verificação necessaria**: Confirmar se o bucket `media-assets` tem acesso publico habilitado. As URLs geradas usam o path `/storage/v1/object/public/media-assets/...` — o "public" no path indica acesso publico, mas se o bucket nao estiver configurado assim, a Meta nao consegue baixar.
-
-**Correção**: Se o bucket nao for publico, ou usar signed URLs (com token temporario de 30 dias) para o upload, ou usar a API da Meta com upload direto (multipart) em vez de URL.
-
----
-
-## Plano de Correção (Ordem de Execução)
-
-### Passo 1: Fix creative-image-generate (Bug 1)
-- Extrair `output_folder_id` do body na `creative-image-generate`
-- Se fornecido, usar em vez do folder padrao "Criativos com IA"
-- Incrementar VERSION para v3.2.0
-
-### Passo 2: Fix Race Condition (Bug 2)
-- Adicionar instrução no system prompt do `ads-chat` proibindo gerar imagem e criar campanha no mesmo round
-- Alternativamente: no `createMetaCampaign`, antes de usar fallback, verificar se ha `creative_jobs` recentes em status `running` para o produto e aguardar ou avisar
-
-### Passo 3: Diagnosticar/Fix permissão Meta (Bug 3)
-- Verificar configuração do bucket `media-assets`
-- Se necessario, usar signed URLs ou upload direto multipart para a API da Meta
-
-### Passo 4: Atualizar VERSION do ads-chat
-- De v5.9.5 para v5.9.7
-
-### Passo 5: Redeploy
-- `creative-image-generate`
-- `ads-chat`
+Mudancas:
+- Adicionar import de `useQuery` e `supabase`
+- Criar query que busca `creative_jobs` pelo `job_id` quando o dialog abre com acao `generate_creative`
+- No `CreativePreview`, se houver `output_urls` do job, exibir as imagens em grid
+- Se o job ainda estiver `running`, manter o texto de "processando"
 
 ---
 
-## Arquivos Afetados
+## Correção 4: Instrução de Nome Exato no Prompt
 
-| Arquivo | Mudança |
-|---------|---------|
-| `supabase/functions/creative-image-generate/index.ts` | Respeitar `output_folder_id` do body |
-| `supabase/functions/ads-chat/index.ts` | Instrução no prompt + VERSION update |
+**Arquivo**: `supabase/functions/ads-chat/index.ts`
+
+Adicionar instrucao no system prompt: "Ao chamar generate_creative_image ou create_meta_campaign, use o nome EXATO do produto conforme listado no catalogo. NAO abrevie, NAO generalize. Se o catalogo lista 'Shampoo Calvicie Zero' e 'Shampoo Calvicie Zero (2x)', estes sao produtos DIFERENTES."
+
+---
+
+## Resumo de Arquivos
+
+| Arquivo | Mudancas |
+|---------|----------|
+| `supabase/functions/ads-chat/index.ts` | Fix matching (linhas 1991 e 2034) + prompt autonomia (linhas 2904-2907 e 2918-2919) + instrucao nome exato + VERSION v5.9.8 |
+| `src/components/ads/ActionDetailDialog.tsx` | Query para buscar preview de imagem do `creative_jobs` quando `job_id` presente |
 
