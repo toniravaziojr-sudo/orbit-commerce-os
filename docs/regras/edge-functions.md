@@ -1020,3 +1020,24 @@ try {
 4. **`selectFocusProducts()`**: Nova função filtra variantes (regex: `\(2x\)`, `\(3x\)`, `\(FLEX\)`, `Dia$`, `Noite$`) e separa singles de kits
 5. **Seção PRODUTOS FOCO**: Injeta produtos foco por funil (TOF=singles baratos, BOF=kits) com IDs no prompt
 6. **Product selection unificada**: `create_campaign` e `generate_creative` handlers agora usam `selectFocusProducts()` em vez de sort por preço bruto
+
+### v5.12.1 — `ads-autopilot-analyze` — Variantes só para Remarketing + Fluxo de Aprovação
+
+**Mudança 1 — Variantes restritas**: `selectFocusProducts()` agora retorna 3 listas: `tof` (base singles), `bof` (base kits) e `remarketing` (variantes: Dia, Noite, 2x, 3x, FLEX). Variantes são **terminantemente proibidas** em campanhas TOF/BOF — permitidas apenas em Remarketing e Ofertas.
+
+**Mudança 2 — Fluxo de Aprovação (Aguardando Ação)**:
+- Nova aba "Aguardando" no Chat IA exibe cards de ações pendentes (`status: 'pending_approval'`)
+- Cada card permite: **Aprovar** (executa via `ads-autopilot-execute-approved`), **Ajustar** (rejeita + envia feedback ao chat da IA) ou **Rejeitar** (com motivo obrigatório)
+- Hook `useAdsPendingActions` com auto-refresh a cada 15s
+- Componentes: `AdsPendingActionsTab`, `ActionApprovalCard`
+
+**Mudança 3 — Edge Function `ads-autopilot-execute-approved`** (v1.0.0):
+- Recebe `action_id` aprovado e re-dispara análise com `trigger_type: "approved_action"`
+- Garante que ações aprovadas sejam executadas imediatamente
+
+**Regra de produto por funil**:
+```
+TOF/Cold → focus.tof (singles base, ex: "Shampoo Calvície Zero")
+BOF → focus.bof (kits base, ex: "Kit Banho Calvície Zero")  
+Remarketing/Ofertas → focus.remarketing (variantes: "Kit Banho Calvície Zero Noite")
+```
