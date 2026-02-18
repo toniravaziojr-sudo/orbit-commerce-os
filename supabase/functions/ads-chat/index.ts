@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.9.7"; // Fix race condition (image gen + campaign in same round) + signed URLs for Meta upload
+const VERSION = "v5.9.8"; // Fix product matching (exact name), AI autonomy (no "continuar"), name precision prompt
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -1988,7 +1988,15 @@ async function generateCreativeImage(supabase: any, tenantId: string, args: any,
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   try {
     const { data: products } = await supabase.from("products").select("id, name").eq("tenant_id", tenantId).eq("status", "active");
-    const product = (products || []).find((p: any) => p.name.toLowerCase().includes((args.product_name || "").toLowerCase())) || products?.[0];
+    // 3-level matching: exact → startsWith → shortest includes → first product
+    const searchName = (args.product_name || "").trim().toLowerCase();
+    let product = (products || []).find((p: any) => p.name.trim().toLowerCase() === searchName);
+    if (!product) product = (products || []).find((p: any) => p.name.trim().toLowerCase().startsWith(searchName));
+    if (!product) {
+      const matches = (products || []).filter((p: any) => p.name.toLowerCase().includes(searchName));
+      if (matches.length) product = matches.sort((a: any, b: any) => a.name.length - b.name.length)[0];
+    }
+    if (!product) product = products?.[0];
     if (!product) return JSON.stringify({ success: false, error: "Produto não encontrado no catálogo." });
 
     let productImageUrl: string | null = null;
@@ -2031,7 +2039,15 @@ async function createMetaCampaign(supabase: any, tenantId: string, args: any, ch
 
   try {
     const { data: products } = await supabase.from("products").select("id, name, slug").eq("tenant_id", tenantId).eq("status", "active");
-    const product = (products || []).find((p: any) => p.name.toLowerCase().includes((args.product_name || "").toLowerCase())) || products?.[0];
+    // 3-level matching: exact → startsWith → shortest includes → first product
+    const searchName = (args.product_name || "").trim().toLowerCase();
+    let product = (products || []).find((p: any) => p.name.trim().toLowerCase() === searchName);
+    if (!product) product = (products || []).find((p: any) => p.name.trim().toLowerCase().startsWith(searchName));
+    if (!product) {
+      const matches = (products || []).filter((p: any) => p.name.toLowerCase().includes(searchName));
+      if (matches.length) product = matches.sort((a: any, b: any) => a.name.length - b.name.length)[0];
+    }
+    if (!product) product = products?.[0];
     if (!product) return JSON.stringify({ success: false, error: "Produto não encontrado no catálogo." });
 
     const { data: conn } = await supabase.from("marketplace_connections").select("access_token, metadata").eq("tenant_id", tenantId).eq("marketplace", "meta").eq("is_active", true).maybeSingle();
@@ -2896,15 +2912,18 @@ Exemplo: Se budget = R$ 600/dia e splits = {cold: 40, remarketing: 25, tests: 25
 5. Criar campanha completa no Meta
 6. Campanha criada pausada → ativação automática na madrugada
 
+## REGRA CRÍTICA: NOME EXATO DO PRODUTO
+Ao chamar generate_creative_image ou create_meta_campaign, use o nome **EXATO** do produto conforme listado no catálogo. **NÃO abrevie, NÃO generalize**. Se o catálogo lista "Shampoo Calvície Zero" e "Shampoo Calvície Zero (2x)", estes são produtos DIFERENTES. Sempre copie o nome exato retornado por get_catalog_products.
+
 **IMPORTANTE**: Os passos 2, 3 e 4 devem ser executados AUTOMATICAMENTE, sem pedir permissão.
 
 ## REGRA CRÍTICA: SEQUÊNCIA OBRIGATÓRIA — GERAÇÃO DE IMAGEM ANTES DE CAMPANHA
 - **NUNCA chame generate_creative_image e create_meta_campaign na MESMA rodada de ferramentas.**
 - A geração de imagem é ASSÍNCRONA (~60-90 segundos em background). Se você chamar create_meta_campaign no mesmo round, as imagens ainda NÃO estarão prontas e a campanha usará fallback do catálogo.
-- **Fluxo correto em 2 rodadas:**
-  1. Rodada 1: Chame get_product_images + generate_creative_image
-  2. Aguarde confirmação ("imagens sendo geradas") e informe ao lojista
-  3. Rodada 2 (na PRÓXIMA interação): Chame create_meta_campaign — agora as imagens estarão prontas em ads_creative_assets
+- **Fluxo correto em 2 rodadas (AUTOMÁTICO):**
+  1. Round 1: Chame get_product_images + generate_creative_image
+  2. Round 2+: Use o round seguinte AUTOMATICAMENTE para chamar create_meta_campaign — as imagens estarão prontas em ads_creative_assets
+  - **NÃO peça ao lojista para dizer "continuar"** a menos que ELE PRÓPRIO tenha pedido acompanhamento passo-a-passo (ex: "me avise quando terminar cada etapa"). Fora isso, execute o plano completo de forma autônoma e contínua entre rounds.
 
 ## REGRA CRÍTICA: LIMITE DE CAMPANHAS POR INTERAÇÃO (ANTI-TIMEOUT)
 - Crie no **MÁXIMO 2 campanhas por rodada de ferramentas** (por chamada de create_meta_campaign)
@@ -2915,8 +2934,9 @@ Exemplo: Se budget = R$ 600/dia e splits = {cold: 40, remarketing: 25, tests: 25
 ## REGRA OBRIGATÓRIA: TRANSPARÊNCIA TOTAL COM O LOJISTA
 Toda vez que executar ações (criar campanhas, pausar, alterar budget, gerar criativos, etc.), você DEVE:
 
-1. **Informar o progresso em lotes**: Se o plano exige N campanhas e você só pode criar 2 por vez, SEMPRE diga:
-   - "✅ Criei as campanhas 1 e 2 de 5. Envie **continuar** para eu criar as próximas 2."
+1. **Informar o progresso em lotes**: Se o plano exige N campanhas e você só pode criar 2 por vez:
+   - "✅ Criei as campanhas 1 e 2 de 5. Continuando automaticamente..."
+   - Use o round seguinte para criar as próximas 2 SEM pedir "continuar" ao lojista, a menos que ele tenha solicitado acompanhamento passo-a-passo.
    - Nunca omita o total planejado nem a quantidade já criada.
 
 2. **Listar TODAS as ações executadas**: Ao final de cada resposta que envolveu ações, inclua um resumo estruturado:

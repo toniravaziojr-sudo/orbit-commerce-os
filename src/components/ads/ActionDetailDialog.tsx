@@ -4,8 +4,10 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Bot, Pause, DollarSign, TrendingUp, Image, Target, Users,
-  Layers, Calendar, Hash, FileText, ArrowRight, Crosshair,
+  Layers, Calendar, Hash, FileText, ArrowRight, Crosshair, Loader2,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import type { AutopilotAction } from "@/hooks/useAdsAutopilot";
 
 interface ActionDetailDialogProps {
@@ -117,6 +119,28 @@ function AdsetPreview({ data }: { data: Record<string, any> }) {
 
 /** Renders structured preview for creative generation */
 function CreativePreview({ data }: { data: Record<string, any> }) {
+  const jobId = data.job_id || data.creative_job_id;
+
+  // Fetch creative job output when we have a job_id but no asset_url
+  const { data: jobData, isLoading: jobLoading } = useQuery({
+    queryKey: ["creative-job-preview", jobId],
+    queryFn: async () => {
+      const { data: job } = await (supabase as any)
+        .from("creative_jobs")
+        .select("id, status, output_urls, error_message")
+        .eq("id", jobId)
+        .maybeSingle();
+      return job as { id: string; status: string; output_urls: string[] | null; error_message: string | null } | null;
+    },
+    enabled: !!jobId && !data.asset_url,
+    refetchInterval: (query) => {
+      const job = query.state.data;
+      return job?.status === "running" || job?.status === "pending" ? 5000 : false;
+    },
+  });
+
+  const outputUrls = jobData?.output_urls || [];
+
   return (
     <div className="space-y-4">
       <DetailSection icon={<Image className="h-4 w-4" />} title="Criativo">
@@ -128,18 +152,43 @@ function CreativePreview({ data }: { data: Record<string, any> }) {
         {data.angle && <DetailRow label="Ângulo" value={data.angle} />}
         {data.generation_style && <DetailRow label="Estilo" value={data.generation_style} />}
         {data.channel && <DetailRow label="Canal" value={data.channel} />}
-        {data.creative_job_id && <DetailRow label="Job ID" value={data.creative_job_id} mono />}
+        {jobId && <DetailRow label="Job ID" value={jobId} mono />}
         {data.asset_url && (
           <div className="mt-2">
             <p className="text-xs text-muted-foreground mb-1">Imagem:</p>
             <img src={data.asset_url} alt="Criativo" className="rounded-lg border max-h-48 object-contain" />
           </div>
         )}
-        {data.creative_job_id && !data.asset_url && (
+        {/* Show fetched job images */}
+        {!data.asset_url && outputUrls.length > 0 && (
+          <div className="mt-2">
+            <p className="text-xs text-muted-foreground mb-1">Imagens geradas:</p>
+            <div className="grid grid-cols-2 gap-2">
+              {outputUrls.map((url: string, i: number) => (
+                <img key={i} src={url} alt={`Criativo ${i + 1}`} className="rounded-lg border max-h-48 object-contain w-full" />
+              ))}
+            </div>
+          </div>
+        )}
+        {/* Show loading/processing state */}
+        {jobId && !data.asset_url && outputUrls.length === 0 && (
           <div className="mt-2 p-3 rounded-lg bg-muted/50">
-            <p className="text-xs text-muted-foreground">
-              ⏳ Criativos sendo processados. Verifique no <strong>Estúdio de Criativos</strong> ou <strong>Meu Drive → Gestor de Tráfego IA</strong>.
-            </p>
+            {jobLoading || jobData?.status === "running" || jobData?.status === "pending" ? (
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                <p className="text-xs text-muted-foreground">
+                  Criativos sendo processados...
+                </p>
+              </div>
+            ) : jobData?.status === "failed" ? (
+              <p className="text-xs text-destructive">
+                ❌ Falha na geração: {jobData.error_message || "Erro desconhecido"}
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                ⏳ Verifique no <strong>Estúdio de Criativos</strong> ou <strong>Meu Drive → Gestor de Tráfego IA</strong>.
+              </p>
+            )}
           </div>
         )}
       </DetailSection>
