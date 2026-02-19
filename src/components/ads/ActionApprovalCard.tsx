@@ -152,7 +152,7 @@ export function ActionApprovalCard({ action, onApprove, onReject, onAdjust, isAp
 
   return (
     <>
-      <Card className="border-border/60 hover:border-primary/20 transition-colors overflow-hidden">
+      <Card className="border-border/60 hover:border-primary/20 transition-colors overflow-hidden min-w-0">
         {/* Creative + Copy Section */}
         <div className="flex gap-0">
           {/* Thumbnail */}
@@ -177,7 +177,7 @@ export function ActionApprovalCard({ action, onApprove, onReject, onAdjust, isAp
           </div>
 
           {/* Main Info */}
-          <div className="flex-1 p-3 space-y-2">
+          <div className="flex-1 p-3 space-y-2 min-w-0 overflow-hidden">
             {/* Header: Type + Date */}
             <div className="flex items-center gap-2">
               <Icon className="h-3.5 w-3.5 text-primary flex-shrink-0" />
@@ -229,7 +229,7 @@ export function ActionApprovalCard({ action, onApprove, onReject, onAdjust, isAp
             {targeting && (
               <div className="col-span-2">
                 <span className="text-muted-foreground">Público: </span>
-                <span className="font-medium break-words">{sanitizeDisplayText(targeting)}</span>
+                <span className="font-medium break-words break-all">{sanitizeDisplayText(targeting)}</span>
                 {ageRange && <span className="text-muted-foreground"> ({ageRange} anos)</span>}
               </div>
             )}

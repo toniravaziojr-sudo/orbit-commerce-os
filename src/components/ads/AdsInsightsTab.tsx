@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 
-/** Remove technical IDs, account references, and clean up insight text for display */
+/** Remove technical IDs, account references, jargon, and clean up insight text for display */
 function sanitizeInsightText(text: string): string {
   if (!text) return text;
   return text
@@ -19,6 +19,23 @@ function sanitizeInsightText(text: string): string {
     .replace(/\b(asset ready|asset pending)\s+[0-9a-f-]{20,}/gi, "")
     .replace(/\[NOVO\]\s*/gi, "")
     .replace(/\(\s*\)/g, "")
+    // Replace English jargon with Portuguese equivalents
+    .replace(/\bunderinvest(ing|ed|ment)?\b/gi, "investindo abaixo do orçamento")
+    .replace(/\boverinvest(ing|ed|ment)?\b/gi, "investindo acima do orçamento")
+    .replace(/\bunderspend(ing|ed)?\b/gi, "gastando abaixo do planejado")
+    .replace(/\boverspend(ing|ed)?\b/gi, "gastando acima do planejado")
+    .replace(/\bunderdeliver(ing|ed|y)?\b/gi, "entregando abaixo do esperado")
+    .replace(/\boverdeliver(ing|ed|y)?\b/gi, "entregando acima do esperado")
+    .replace(/\bscaling\b/gi, "escalando")
+    .replace(/\bscale up\b/gi, "aumentar escala")
+    .replace(/\bscale down\b/gi, "reduzir escala")
+    .replace(/\btracking degraded\b/gi, "rastreamento degradado")
+    .replace(/\bbroad targeting\b/gi, "segmentação ampla")
+    .replace(/\bfatigue\b/gi, "fadiga")
+    .replace(/\bcreative fatigue\b/gi, "fadiga de criativo")
+    .replace(/\blearning phase\b/gi, "fase de aprendizado")
+    .replace(/\bpacing\b/gi, "ritmo de gasto")
+    .replace(/\bunderspend\b/gi, "gasto abaixo do alvo")
     .replace(/\s{2,}/g, " ")
     .trim();
 }
@@ -156,7 +173,7 @@ export function AdsInsightsTab({ insights, isLoading, onMarkDone, onMarkIgnored,
                           {CATEGORY_LABELS[insight.category] || insight.category}
                         </Badge>
                       </div>
-                      <p className="text-sm text-muted-foreground leading-relaxed">{sanitizeInsightText(insight.body)}</p>
+                      <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{sanitizeInsightText(insight.body)}</p>
                       <div className="flex items-center gap-2 mt-3">
                         <Button size="sm" variant="default" className="h-7 text-xs gap-1" onClick={() => onMarkDone(insight.id)}>
                           <CheckCircle2 className="h-3 w-3" />
