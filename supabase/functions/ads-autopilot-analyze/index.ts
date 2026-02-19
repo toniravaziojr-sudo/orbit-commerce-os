@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.12.8"; // Budget Guard com reserva (pending_approval), dedup por funil, budget_snapshot no preview
+const VERSION = "v5.12.9"; // Audience pagination, campaign limit 200, PT-BR language enforcement, budget filling
 // ===========================================================
 
 const corsHeaders = {
@@ -529,7 +529,7 @@ async function collectContext(supabase: any, tenantId: string, enabledChannels: 
         .from("meta_ad_campaigns")
         .select("meta_campaign_id, name, status, objective, daily_budget_cents, ad_account_id")
         .eq("tenant_id", tenantId)
-        .limit(50);
+        .limit(200);
 
       const { data: insightsCurrent } = await supabase
         .from("meta_ad_insights")
@@ -611,22 +611,38 @@ async function collectContext(supabase: any, tenantId: string, enabledChannels: 
             .maybeSingle();
           
           if (metaConn?.access_token) {
-            const audRes = await fetch(
-              `https://graph.facebook.com/${sevenDaysAgo ? "v21.0" : "v21.0"}/act_${accountId}/customaudiences?fields=id,name,subtype,approximate_count,delivery_status&limit=50&access_token=${metaConn.access_token}`
-            );
-            const audData = await audRes.json();
-            if (audData.data) {
-              savedAudiences[account] = audData.data.map((a: any) => ({
+            // Fetch with pagination to get ALL audiences (not just first 50)
+            let allAudiences: any[] = [];
+            let nextUrl: string | null = `https://graph.facebook.com/v21.0/act_${accountId}/customaudiences?fields=id,name,subtype,approximate_count,delivery_status&limit=200&access_token=${metaConn.access_token}`;
+            let pageCount = 0;
+            const maxPages = 5; // Safety: max 1000 audiences
+            
+            while (nextUrl && pageCount < maxPages) {
+              const audRes = await fetch(nextUrl);
+              const audData = await audRes.json();
+              if (audData.data) {
+                allAudiences = allAudiences.concat(audData.data);
+              }
+              // Follow pagination
+              nextUrl = audData.paging?.next || null;
+              pageCount++;
+            }
+            
+            if (allAudiences.length > 0) {
+              savedAudiences[account] = allAudiences.map((a: any) => ({
                 id: a.id,
                 name: a.name,
                 subtype: a.subtype,
                 size: a.approximate_count,
                 deliverable: a.delivery_status?.status === "ready",
               }));
+              console.log(`[ads-autopilot-analyze][${VERSION}] Found ${allAudiences.length} audiences for ${account} (${pageCount} pages)`);
+            } else {
+              console.log(`[ads-autopilot-analyze][${VERSION}] No audiences found for ${account} (API returned empty, check permissions)`);
             }
           }
         } catch (audErr: any) {
-          console.log(`[ads-autopilot-analyze][${VERSION}] Audience fetch failed for ${account}:`, audErr.message);
+          console.log(`[ads-autopilot-analyze][${VERSION}] Audience fetch failed for ${account}: ${audErr.message}. Check if the app has ads_management permission.`);
         }
       }
 
@@ -638,7 +654,7 @@ async function collectContext(supabase: any, tenantId: string, enabledChannels: 
         .from("google_ad_campaigns")
         .select("google_campaign_id, name, status, advertising_channel_type, budget_amount_micros")
         .eq("tenant_id", tenantId)
-        .limit(50);
+        .limit(200);
 
       const { data: insightsCurrent } = await supabase
         .from("google_ad_insights")
@@ -684,7 +700,7 @@ async function collectContext(supabase: any, tenantId: string, enabledChannels: 
         .from("tiktok_ad_campaigns")
         .select("tiktok_campaign_id, name, status, objective_type, budget_cents")
         .eq("tenant_id", tenantId)
-        .limit(50);
+        .limit(200);
 
       const { data: insightsCurrent } = await supabase
         .from("tiktok_ad_insights")
@@ -1453,9 +1469,33 @@ Se dados insuficientes para criação, use report_insight para RECOMENDAR a cria
 
 ## REGRA DE PRODUTO POR FUNIL (OBRIGATÓRIO — GENÉRICO, SEM HARDCODE DE LOJA)
 - TOF (Público Frio): Use SEMPRE o produto de MENOR preço (entrada/experimentação). Kits e bundles são para remarketing. NUNCA use kit/bundle caro em campanha de TOF.
-- BOF/MOF/Remarketing: Priorize kits e bundles de maior ticket.
-- Testes: Use o produto que a estratégia definir.
+- BOF/MOF/Remarketing: Priorize kits e bundles de maior ticket. Se houver catálogo conectado, priorize campanha de catálogo. Se não, crie múltiplas variações (kits/ângulos diferentes) — NUNCA deixe remarketing "single-ad".
+- Testes: Distribua verba em pelo menos 2 variações criativas quando possível.
 - A seleção é automática pelo sistema baseada em preço. Não hardcode nenhum nome de produto ou marca.
+
+## BUDGET FILLING (OBRIGATÓRIO)
+O orçamento configurado (${budgetStr}) é uma META DE INVESTIMENTO, não apenas um limite máximo.
+Você DEVE planejar ações que busquem utilizar 100% do orçamento:
+1. Calcule: gap = orçamento_total - (ativo + reservado_em_pendentes)
+2. Se gap > R$ 50,00/dia, você DEVE criar propostas para preencher esse gap
+3. Distribua o gap respeitando splits de funil (TOF/BOF/Test)
+4. Se não conseguir preencher, use report_insight para explicar por quê
+5. NUNCA deixe orçamento ocioso sem justificativa
+
+## LINGUAGEM (OBRIGATÓRIO)
+- SEMPRE escreva TUDO em português brasileiro (PT-BR)
+- PROIBIDO usar termos em inglês: underinvest, overspend, pacing, scale up, tracking degraded, broad, learning phase, fatigue, etc.
+- Use equivalentes: "investindo abaixo do orçamento", "gastando acima do planejado", "ritmo de gasto", "aumentar escala", "rastreamento degradado", "segmentação ampla", "fase de aprendizado", "fadiga de criativo"
+- Insights e raciocínios devem ser compreensíveis por um lojista SEM conhecimento técnico de mídia
+- Máximo 4 frases por insight. Sem IDs técnicos. Valores monetários em R$
+
+## CONTEXT DIGEST (OBRIGATÓRIO)
+No início da execução, registre via report_insight (category: "general", priority: "low") um resumo do que foi carregado:
+- Quantas campanhas analisadas
+- Quantos públicos encontrados  
+- Quantos produtos no catálogo
+- O que foi ignorado e por quê
+Isso garante auditabilidade das decisões.
 
 Analise as campanhas DESTA CONTA e execute.`;
 }

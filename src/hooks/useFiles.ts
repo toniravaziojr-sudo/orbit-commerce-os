@@ -93,7 +93,7 @@ export function useFiles(folderId: string | null = null) {
         .eq('tenant_id', currentTenant.id)
         .order('is_system_folder', { ascending: false })
         .order('is_folder', { ascending: false })
-        .order('filename', { ascending: true });
+        .order('created_at', { ascending: false });
 
       if (folderId) {
         query = query.eq('folder_id', folderId);
