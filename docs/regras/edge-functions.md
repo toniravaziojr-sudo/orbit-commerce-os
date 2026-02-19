@@ -1190,3 +1190,104 @@ Remarketing/Ofertas → focus.remarketing (variantes: "Kit Banho Calvície Zero 
 - Mínimo 1 insight positivo quando há bons resultados
 - Máximo 3 frases por body
 - Modelo: `google/gemini-2.5-flash`
+
+---
+
+## Pipeline Sequencial de Implementação (v1.16.0)
+
+### Arquitetura: Execução em Fases com Callback Automático
+
+O Motor Estrategista implementa um **pipeline sequencial obrigatório** para garantir que campanhas nunca sejam criadas sem criativos prontos.
+
+#### Fluxo Completo
+
+```
+[Plano Aprovado]
+    │
+    ▼
+[Fase 1: implement_approved_plan]
+    │  Tools permitidos: generate_creative, create_lookalike_audience
+    │  Objetivo: preparar todos os ativos (imagens, públicos)
+    │
+    ▼
+[creative-image-generate] → gera imagem → status "ready"
+    │
+    ▼
+[Callback automático: último criativo da sessão fica "ready"]
+    │  Verifica: todas as ações generate_creative da sessão estão prontas?
+    │  Se SIM → invoca ads-autopilot-strategist com trigger "implement_campaigns"
+    │
+    ▼
+[Fase 2: implement_campaigns]
+    │  Tools permitidos: create_campaign, create_adset, adjust_budget
+    │  Prompt injetado: {{AVAILABLE_CREATIVES}} com URLs dos ativos prontos
+    │  Objetivo: montar estrutura de campanhas para aprovação (pending_approval)
+    │
+    ▼
+[Usuário aprova] → execute-approved → publicação na Meta API
+```
+
+#### Regras de Restrição de Tools por Trigger
+
+| Trigger | Tools Permitidos | Objetivo |
+|---|---|---|
+| `implement_approved_plan` | `generate_creative`, `create_lookalike_audience` | Preparar ativos |
+| `implement_campaigns` | `create_campaign`, `create_adset`, `adjust_budget` | Montar campanhas |
+| `start` / `weekly` / `monthly` | Todos os tools | Análise completa |
+| `revision` | Todos os tools | Re-análise após feedback |
+
+#### Callback de Sessão Completa (`creative-image-generate` v4.2.0)
+
+Quando um criativo atinge status `ready`:
+1. Busca a sessão (`session_id`) do criativo
+2. Conta quantas ações `generate_creative` existem na sessão
+3. Conta quantas têm `creative_url` preenchido no `action_data`
+4. Se `total === prontos` → dispara `implement_campaigns` automaticamente
+
+```typescript
+// Verificação de completude da sessão
+const { count: totalCreatives } = await supabase
+  .from("ads_autopilot_actions")
+  .select("*", { count: "exact", head: true })
+  .eq("session_id", sessionId)
+  .eq("action_type", "generate_creative");
+
+const { count: readyCreatives } = await supabase
+  .from("ads_autopilot_actions")
+  .select("*", { count: "exact", head: true })
+  .eq("session_id", sessionId)
+  .eq("action_type", "generate_creative")
+  .not("action_data->creative_url", "is", null);
+
+if (totalCreatives === readyCreatives) {
+  // Trigger fase 2
+  await supabase.functions.invoke("ads-autopilot-strategist", {
+    body: { tenant_id, trigger: "implement_campaigns" }
+  });
+}
+```
+
+#### Injeção de Criativos Disponíveis (Fase 2)
+
+Na fase `implement_campaigns`, o prompt recebe a lista de criativos prontos:
+
+```
+{{AVAILABLE_CREATIVES}}
+- Shampoo Calvície Zero: https://storage.../creative-abc.png
+- Kit Banho: https://storage.../creative-def.png
+```
+
+A IA usa essas URLs diretamente no `action_data.preview.creative_url` das campanhas propostas.
+
+#### Fallback: Criativos com Erro
+
+Se um criativo falha (status `failed`), ele **não bloqueia** o pipeline. O callback conta apenas criativos com `creative_url` preenchido. Se todos falharem, o callback ainda dispara `implement_campaigns` e a IA usa imagens do catálogo como fallback.
+
+### Proibições
+
+| Proibido | Motivo |
+|---|---|
+| `create_campaign` durante `implement_approved_plan` | Campanha ficaria sem criativos |
+| `generate_creative` durante `implement_campaigns` | Fase de preparação já encerrada |
+| Pular Fase 1 direto para Fase 2 | Violaria dependência sequencial |
+| Callback manual (sem verificação de completude) | Risco de campanhas parciais |
