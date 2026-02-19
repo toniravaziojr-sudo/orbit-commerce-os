@@ -15,7 +15,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const VERSION = '4.1.0'; // Fix: better error logging, download retry, timeout handling
+const VERSION = '4.2.0'; // Pipeline callback: check session completeness → trigger Phase 2 (campaigns)
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -1004,19 +1004,59 @@ serve(async (req) => {
           }
         }
 
-        // Trigger analyze callback to continue campaign chain (both success and fallback)
+        // v4.2.0: Sequential Pipeline Callback
+        // Check if ALL creatives from this session are ready → trigger Phase 2 (campaign creation)
         if (assetsToUpdate.length > 0) {
           try {
-            const { error: cbErr } = await supabase.functions.invoke("ads-autopilot-analyze", {
-              body: { tenant_id, trigger_type: "creative_ready" },
-            });
-            if (cbErr) {
-              console.error(`[creative-image][${VERSION}] Analyze callback error:`, cbErr.message);
+            // Get session_id from the asset record (column, not meta) to check session completeness
+            const assetId = assetsToUpdate[0]?.id;
+            const { data: assetRecord } = await supabase
+              .from('ads_creative_assets')
+              .select('session_id')
+              .eq('id', assetId)
+              .maybeSingle();
+            
+            const assetSessionId = assetRecord?.session_id || null;
+            
+            if (assetSessionId) {
+              // Check if any creatives from same session are still NOT ready
+              const { data: pendingAssets } = await supabase
+                .from('ads_creative_assets')
+                .select('id')
+                .eq('tenant_id', tenant_id)
+                .eq('session_id', assetSessionId)
+                .neq('status', 'ready')
+                .limit(1);
+
+              if (!pendingAssets || pendingAssets.length === 0) {
+                // ALL creatives from this session are ready! Trigger Phase 2
+                console.log(`[creative-image][${VERSION}] ✅ All session creatives ready. Triggering Phase 2 (implement_campaigns)`);
+                const { error: phase2Err } = await supabase.functions.invoke("ads-autopilot-strategist", {
+                  body: { 
+                    tenant_id, 
+                    trigger: "implement_campaigns",
+                    source_session_id: assetSessionId,
+                  },
+                });
+                if (phase2Err) {
+                  console.error(`[creative-image][${VERSION}] Phase 2 trigger error:`, phase2Err.message);
+                } else {
+                  console.log(`[creative-image][${VERSION}] Phase 2 (implement_campaigns) triggered successfully`);
+                }
+              } else {
+                console.log(`[creative-image][${VERSION}] Session ${assetSessionId} still has pending creatives, waiting...`);
+              }
             } else {
-              console.log(`[creative-image][${VERSION}] Analyze callback triggered (creative_ready)`);
+              // No session_id — fallback to legacy analyze callback
+              const { error: cbErr } = await supabase.functions.invoke("ads-autopilot-analyze", {
+                body: { tenant_id, trigger_type: "creative_ready" },
+              });
+              if (cbErr) {
+                console.error(`[creative-image][${VERSION}] Legacy analyze callback error:`, cbErr.message);
+              }
             }
           } catch (cbCatchErr: any) {
-            console.error(`[creative-image][${VERSION}] Analyze callback catch:`, cbCatchErr.message);
+            console.error(`[creative-image][${VERSION}] Callback catch:`, cbCatchErr.message);
           }
         }
 

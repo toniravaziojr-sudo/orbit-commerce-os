@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.15.0"; // Start trigger = plan-only; implement = full pipeline with multi-copy
+const VERSION = "v1.16.0"; // Sequential pipeline: Phase 1 (creatives) → Phase 2 (campaigns)
 // ===================
 
 const corsHeaders = {
@@ -35,7 +35,7 @@ interface AccountConfig {
   last_budget_adjusted_at: string | null;
 }
 
-type StrategistTrigger = "start" | "weekly" | "monthly" | "implement_approved_plan" | "revision";
+type StrategistTrigger = "start" | "weekly" | "monthly" | "implement_approved_plan" | "implement_campaigns" | "revision";
 
 // ============ HELPERS ============
 
@@ -500,40 +500,56 @@ Análise profunda de TODO o mês anterior:
 FOCO MENSAL: Visão macro. Identifique tendências e pivote estratégia se necessário.`;
       break;
     case "implement_approved_plan":
-      // Will be enriched with actual plan content in runStrategistForTenant
-      triggerInstruction = `## TRIGGER: IMPLEMENTAÇÃO DE PLANO APROVADO
-O usuário APROVOU o Plano Estratégico abaixo. Agora é hora de IMPLEMENTAR EXATAMENTE o que foi planejado.
-NÃO emita um novo strategic_plan. Vá direto para a EXECUÇÃO seguindo o plano aprovado.
+      // Phase 1: ONLY generate creatives and audiences — campaigns come in Phase 2
+      triggerInstruction = `## TRIGGER: IMPLEMENTAÇÃO DE PLANO APROVADO — FASE 1 (CRIATIVOS E PÚBLICOS)
+O usuário APROVOU o Plano Estratégico abaixo. Esta é a FASE 1: preparação de ativos.
 
 {{APPROVED_PLAN_CONTENT}}
 
-REGRAS CRÍTICAS DE IMPLEMENTAÇÃO:
-- NÃO use strategic_plan novamente — o plano já foi aprovado
-- Implemente TODAS as campanhas listadas no plano, não apenas algumas
-- Use EXATAMENTE os produtos especificados no plano para cada campanha/funil
-- NÃO repita o mesmo produto em campanhas diferentes, a menos que o plano especifique isso
+NESTA FASE VOCÊ DEVE:
+1. Gerar criativos (generate_creative) para CADA produto mencionado no plano
+   - Mínimo 2 variações por produto (estilos diferentes: ugc_style, product_natural, person_interacting)
+   - Formatos: 9:16 para Stories/Reels + 1:1 para Feed
+2. Criar públicos Lookalike (create_lookalike_audience) se o plano especificar
 
-REGRAS DE COPY (OBRIGATÓRIO):
-- CADA campanha (create_campaign) DEVE ter no mínimo 2 primary_texts e 2 headlines diferentes
-- Ideal: 3-4 variações de copy para testes A/B automáticos
-- Copys devem atacar ângulos diferentes (benefício, objeção, prova social, urgência)
-- Headlines curtas e diretas (máx 40 chars)
+NESTA FASE VOCÊ NÃO DEVE:
+- NÃO use create_campaign — campanhas serão criadas na FASE 2 (após criativos ficarem prontos)
+- NÃO use create_adset — será feito na FASE 2
+- NÃO use strategic_plan — o plano já foi aprovado
+- NÃO use adjust_budget — será feito na FASE 2
 
-REGRAS DE CRIATIVOS:
-- Gere criativos (generate_creative) para CADA produto ANTES de criar a campanha correspondente
-- Mínimo 2 variações de criativo por produto (estilos diferentes)
+A FASE 2 será disparada AUTOMATICAMENTE quando todos os criativos estiverem prontos.`;
+      break;
+    case "implement_campaigns":
+      // Phase 2: Create campaigns WITH creative URLs already available
+      triggerInstruction = `## TRIGGER: IMPLEMENTAÇÃO DE PLANO APROVADO — FASE 2 (CAMPANHAS)
+Todos os criativos da Fase 1 estão PRONTOS. Agora é hora de criar as campanhas.
 
-REGRAS DE ORÇAMENTO:
-- Aumentos de budget limitados a +20% por campanha existente
-- Se orçamento economizado não cabe em +20%, CRIE novas campanhas
+{{APPROVED_PLAN_CONTENT}}
+
+CRIATIVOS DISPONÍVEIS (já gerados na Fase 1):
+{{AVAILABLE_CREATIVES}}
+
+NESTA FASE VOCÊ DEVE:
+1. Criar TODAS as campanhas do plano aprovado usando create_campaign
+   - CADA campanha DEVE ter entre 2 e 4 primary_texts (variações de copy)
+   - CADA campanha DEVE ter entre 2 e 4 headlines
+   - Copys devem atacar ângulos DIFERENTES (benefício, objeção, prova social, urgência)
+   - Headlines curtas e diretas (máx 40 chars)
+   - Inclua descriptions e CTA adequado
+2. Criar ad sets (create_adset) para segmentações dentro das campanhas, se necessário
+3. Ajustar budgets (adjust_budget) de campanhas existentes, se o plano pedir
+
+REGRAS CRÍTICAS:
+- Use EXATAMENTE os produtos do plano para cada campanha/funil
 - O orçamento TOTAL do plano deve ser RESPEITADO — verba ociosa é proibida
-- Tudo criado PAUSADO. Ativações agendadas para 00:01-04:00 BRT.
+- Tudo criado PAUSADO. Ativações agendadas para 00:01-04:00 BRT
+- Aumentos de budget limitados a +20% por campanha existente
+- NUNCA use copy genérica como "Conheça nosso produto" — seja específico
 
-ORDEM DE EXECUÇÃO:
-1. generate_creative para TODOS os produtos do plano (com variações)
-2. create_lookalike_audience se o plano especificar
-3. create_campaign para CADA campanha do plano (com múltiplas copies)
-4. create_adset para segmentações específicas dentro das campanhas`;
+NESTA FASE VOCÊ NÃO DEVE:
+- NÃO use generate_creative — criativos já foram gerados
+- NÃO use strategic_plan — o plano já foi aprovado`;
       break;
   }
 
@@ -865,7 +881,7 @@ async function executeToolCall(
 
 // ============ RUN STRATEGIST FOR TENANT ============
 
-async function runStrategistForTenant(supabase: any, tenantId: string, trigger: StrategistTrigger, targetAccountId?: string | null, revisionFeedback?: string | null) {
+async function runStrategistForTenant(supabase: any, tenantId: string, trigger: StrategistTrigger, targetAccountId?: string | null, revisionFeedback?: string | null, body?: any) {
   const startTime = Date.now();
   console.log(`[ads-autopilot-strategist][${VERSION}] Starting ${trigger} for tenant ${tenantId}${targetAccountId ? ` (account: ${targetAccountId})` : ""}`);
 
@@ -909,9 +925,9 @@ async function runStrategistForTenant(supabase: any, tenantId: string, trigger: 
   let totalExecuted = 0;
   let totalRejected = 0;
 
-  // If implementing approved plan, fetch the plan content to inject into prompt
+  // If implementing approved plan OR campaigns phase, fetch the plan content
   let approvedPlanContent = "";
-  if (trigger === "implement_approved_plan") {
+  if (trigger === "implement_approved_plan" || trigger === "implement_campaigns") {
     const { data: planActions } = await supabase
       .from("ads_autopilot_actions")
       .select("action_data, reasoning")
@@ -944,6 +960,45 @@ ${budgetAllocation ? `**Alocação de Orçamento:**\n${budgetAllocation}` : ""}`
       console.log(`[ads-autopilot-strategist][${VERSION}] Approved plan loaded: ${(plan.planned_actions || []).length} actions`);
     } else {
       console.warn(`[ads-autopilot-strategist][${VERSION}] No approved plan found, falling back to general context`);
+    }
+  }
+
+  // For implement_campaigns (Phase 2): load available creative URLs
+  let availableCreativesText = "";
+  if (trigger === "implement_campaigns") {
+    const sourceSessionId = body?.source_session_id;
+    let creativeQuery = supabase
+      .from("ads_creative_assets")
+      .select("id, product_id, asset_url, format, status, meta")
+      .eq("tenant_id", tenantId)
+      .eq("status", "ready")
+      .not("asset_url", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    
+    if (sourceSessionId) {
+      creativeQuery = creativeQuery.eq("session_id", sourceSessionId);
+    }
+
+    const { data: readyCreatives } = await creativeQuery;
+    
+    if (readyCreatives && readyCreatives.length > 0) {
+      // Map creatives to product names
+      const productIds = [...new Set(readyCreatives.map((c: any) => c.product_id).filter(Boolean))];
+      const { data: creativeProducts } = productIds.length > 0
+        ? await supabase.from("products").select("id, name").in("id", productIds)
+        : { data: [] };
+      const prodNameMap: Record<string, string> = {};
+      (creativeProducts || []).forEach((p: any) => { prodNameMap[p.id] = p.name; });
+
+      availableCreativesText = readyCreatives.map((c: any) => 
+        `- Produto: ${prodNameMap[c.product_id] || "N/A"} | Formato: ${c.format || "N/A"} | URL: ${c.asset_url}`
+      ).join("\n");
+      
+      console.log(`[ads-autopilot-strategist][${VERSION}] Phase 2: ${readyCreatives.length} creatives available`);
+    } else {
+      availableCreativesText = "Nenhum criativo encontrado — use imagens do catálogo como fallback.";
+      console.warn(`[ads-autopilot-strategist][${VERSION}] Phase 2: No ready creatives found`);
     }
   }
 
@@ -986,6 +1041,13 @@ ${prevDiagnosis.substring(0, 2000)}
       prompt.system = prompt.system.replace("{{APPROVED_PLAN_CONTENT}}", "Nenhum plano específico encontrado. Use o contexto disponível para decidir os produtos e estratégias.");
     }
 
+    // Inject available creatives for Phase 2
+    if (availableCreativesText) {
+      prompt.system = prompt.system.replace("{{AVAILABLE_CREATIVES}}", availableCreativesText);
+    } else {
+      prompt.system = prompt.system.replace("{{AVAILABLE_CREATIVES}}", "Nenhum criativo pré-gerado disponível.");
+    }
+
     try {
       const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
       if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
@@ -1003,7 +1065,9 @@ ${prevDiagnosis.substring(0, 2000)}
             { role: "user", content: prompt.user },
           ],
           tools: trigger === "implement_approved_plan" 
-            ? STRATEGIST_TOOLS.filter((t: any) => t.function?.name !== "strategic_plan")
+            ? STRATEGIST_TOOLS.filter((t: any) => ["generate_creative", "create_lookalike_audience"].includes(t.function?.name))
+            : trigger === "implement_campaigns"
+            ? STRATEGIST_TOOLS.filter((t: any) => ["create_campaign", "create_adset", "adjust_budget"].includes(t.function?.name))
             : trigger === "start"
             ? STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan")
             : STRATEGIST_TOOLS,
@@ -1276,7 +1340,7 @@ Deno.serve(async (req) => {
     }
 
     // Manual invocation (with optional account filter)
-    const result = await runStrategistForTenant(supabase, tenantId, trigger, targetAccountId, revisionFeedback);
+    const result = await runStrategistForTenant(supabase, tenantId, trigger, targetAccountId, revisionFeedback, body);
     return ok(result);
   } catch (err: any) {
     console.error(`[ads-autopilot-strategist][${VERSION}] Fatal:`, err.message);
