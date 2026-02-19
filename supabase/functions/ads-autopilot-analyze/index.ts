@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.12.9"; // Audience pagination, campaign limit 200, PT-BR language enforcement, budget filling
+const VERSION = "v5.13.0"; // Strict exact product name matching in extractPriorityProducts
 // ===========================================================
 
 const corsHeaders = {
@@ -337,14 +337,16 @@ function selectFocusProducts(products: any[]): { tof: any[]; bof: any[]; remarke
 
 // ============ PRIORITY PRODUCTS FROM user_instructions (v5.12.4) ============
 
+// v5.13.0: STRICT EXACT match only — product name must appear exactly in instructions
+// User is responsible for typing the exact product name in their strategic prompt
 function extractPriorityProducts(userInstructions: string | null, products: any[]): any[] {
   if (!userInstructions || !products || products.length === 0) return [];
-  const instructionsLower = userInstructions.toLowerCase();
   const priorityProducts: any[] = [];
   for (const p of products) {
-    const nameLower = (p.name || "").toLowerCase();
-    // Match if the product name (or a significant part) appears in the instructions
-    if (nameLower.length >= 4 && instructionsLower.includes(nameLower)) {
+    const productName = (p.name || "").trim();
+    if (!productName) continue;
+    // Exact match: the full product name must appear as-is in the instructions
+    if (userInstructions.includes(productName)) {
       priorityProducts.push(p);
     }
   }

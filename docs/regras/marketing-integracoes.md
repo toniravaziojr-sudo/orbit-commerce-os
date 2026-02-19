@@ -615,16 +615,17 @@ A IA atua como "consultor sênior de tráfego pago" com acesso a:
 
 **Regras do prompt**: Markdown obrigatório, respeitar limites de budget por plataforma, nunca sugerir deletar (apenas pausar), diferenciar público frio/quente, responder em PT-BR.
 
-##### Regras de Matching de Produto (v5.9.8)
+##### Regras de Matching de Produto (v1.14.0 / v5.13.0 — ATUALIZADO)
 
-O matching de produto nas funções `generateCreativeImage` e `createMetaCampaign` usa um algoritmo de 3 níveis para evitar ambiguidade entre variantes:
+O matching de produto em TODAS as funções do Autopilot é **ESTRITAMENTE EXATO** (`===` com `.trim()`):
 
-1. **Match exato** (case-insensitive, trimmed) — ex: "Kit Banho Calvície Zero" encontra exatamente esse produto
-2. **Starts with** — pega o produto base sem variantes (ex: buscar "Kit Banho" encontra "Kit Banho Calvície Zero" mas não "Kit Banho Calvície Zero (2x) Noite")
-3. **Includes com preferência pelo nome mais curto** — fallback seguro que prioriza o produto base
-4. **Último fallback** — primeiro produto da lista
+- **NÃO há fuzzy matching** — sem `startsWith`, sem `includes`, sem case-insensitive
+- **NÃO há fallback** — se o nome não bater exatamente, o produto NÃO é vinculado
+- **Responsabilidade do usuário** — o lojista DEVE informar o nome exato do produto no Prompt Estratégico ou ao conversar com a IA
+- **`extractPriorityProducts` (analyze)** — busca case-sensitive do nome completo do produto dentro das `user_instructions`
+- **`create_campaign` (strategist)** — `p.name.trim() === args.product_name.trim()`, sem fallback
 
-> **REGRA**: A IA deve usar o nome **EXATO** do produto conforme retornado por `get_catalog_products`. NÃO abreviar, NÃO generalizar. Produtos com nomes similares (ex: "Shampoo Calvície Zero" e "Shampoo Calvície Zero (2x)") são tratados como produtos DIFERENTES.
+> **REGRA ABSOLUTA**: A IA deve usar o nome **EXATO** do produto conforme retornado por `get_catalog_products`. NÃO abreviar, NÃO generalizar, NÃO usar "contém". Produtos com nomes similares (ex: "Shampoo Calvície Zero" e "Shampoo Calvície Zero (2x)") são tratados como produtos DIFERENTES. Se o match falhar, um warning é logado e o produto fica sem vínculo.
 
 ##### Regra de Autonomia Multi-Rodada (v5.9.8)
 

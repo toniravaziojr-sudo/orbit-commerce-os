@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.13.0"; // Fix product ordering: sort by name (neutral) instead of price DESC to avoid variant bias
+const VERSION = "v1.14.0"; // Strict exact product name matching — no fuzzy/startsWith/includes
 // ===================
 
 const corsHeaders = {
@@ -720,14 +720,17 @@ async function executeToolCall(
     // v1.12.0: Enrich campaign action with resolved product data
     console.log(`[ads-autopilot-strategist][${VERSION}] create_campaign → pending_approval (always)`);
     
-    // Resolve product from args.product_name or args.product_id
+    // v1.14.0: STRICT EXACT match only — no fuzzy, no startsWith, no includes
+    // User is responsible for providing the exact product name in strategic prompt
     const matchedProduct = args.product_name 
-      ? context.products.find((p: any) => p.name === args.product_name) 
-        || context.products.find((p: any) => p.name.toLowerCase().startsWith(args.product_name.toLowerCase()))
-        || context.products.find((p: any) => args.product_name.toLowerCase().includes(p.name.toLowerCase()))
+      ? context.products.find((p: any) => p.name.trim() === args.product_name.trim()) 
       : args.product_id 
         ? context.products.find((p: any) => p.id === args.product_id)
         : null;
+    
+    if (args.product_name && !matchedProduct) {
+      console.warn(`[ads-autopilot-strategist][${VERSION}] ⚠️ EXACT match failed for product_name="${args.product_name}". No fuzzy fallback — user must provide exact name.`);
+    }
 
     // Resolve product image
     let productImageUrl: string | null = null;
