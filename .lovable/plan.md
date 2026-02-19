@@ -1,122 +1,92 @@
 
+# Plano Completo: Reorganizacao do Fluxo de Aprovacao + Nomes Unicos de Criativos
 
-## Correcao Definitiva v5.12.8: Budget Guard com Reserva + Aprovacao Redesenhada
+## 1. Nomes unicos para criativos no Drive
 
-### Resumo do Problema
+**Problema:** Todos os criativos sao salvos como `gemini_1.png`, `openai_2.png`, etc., causando repeticao e confusao tanto visual quanto para a IA buscar criativos.
 
-Dois bugs criticos identificados:
+**Arquivo:** `supabase/functions/creative-image-generate/index.ts` (linha 869-870)
 
-1. **Orcamento estoura**: O Budget Guard so soma campanhas ja publicadas na Meta. Propostas `pending_approval` nao sao contabilizadas, permitindo que 4 propostas simultaneas (ex: 2x R$300 + 2x R$75 = R$675) ultrapassem o limite de R$500/dia.
+**Mudanca:** Gerar nomes descritivos e unicos usando o padrao:
+```text
+{NomeProduto}_{estilo}_{provedor}_{timestamp_curto}_{BEST?}.png
+```
 
-2. **Card de aprovacao tecnico**: A UI mostra "raciocinio", "confianca", "impacto esperado" e badges tecnicos. O `preview` (com `creative_url`, `headline`, `copy_text`, `targeting_summary`) ja existe no `action_data` mas nao e priorizado visualmente. Usuario nao tem base para aprovar.
+Exemplo: `Shampoo_Anticaspa_natural_gemini_0219_1430_BEST.png`
+
+- `filename` (exibido no Drive): `{product_name}_{style}_{provider}_{DDMM_HHmm}{_BEST}.png`
+- `original_name` (metadata): mesmo valor para consistencia
+- Timestamp curto (`DDMM_HHmm`) garante unicidade sem poluir o nome
+- O `product_name` vem do parametro ja existente na funcao
+- O `style` (product_natural, person_interacting, promotional) vem do `job.settings.style`
+
+Alem disso, a ordenacao no Drive ja usa `created_at DESC`, entao os mais recentes aparecerao primeiro naturalmente. Validar que a query no `useDriveFiles` mantem `order('original_name', { ascending: true })` — isso pode precisar mudar para `order('created_at', { ascending: false })` para garantir que os mais recentes fiquem no topo.
+
+**Arquivo adicional:** `src/hooks/useDriveFiles.ts` (linha 85-87) — Alterar ordenacao de arquivos de `original_name ASC` para `created_at DESC` para que os mais recentes aparecam primeiro.
 
 ---
 
-### Plano de Implementacao (4 arquivos)
+## 2. "Acoes da IA" — Log historico puro
 
-#### 1. Edge Function: `ads-autopilot-analyze/index.ts` (v5.12.8)
+**Arquivo:** `src/components/ads/AdsActionsTab.tsx`
 
-**1a. Budget Guard com Reserva** — Alterar `checkBudgetGuard` (linhas 354-389):
-- Adicionar query para somar `action_data->>'daily_budget_cents'` de acoes `pending_approval` com `action_type = 'create_campaign'` e `channel = 'meta'` do mesmo `ad_account_id`
-- Filtrar por TTL: ignorar propostas com `created_at < now() - 24h` (reserva expirada)
-- Formula: `remaining = limit - active_meta - pending_reserved`
-- Se `proposed > remaining`, rejeitar com mensagem clara incluindo breakdown (ativo/reservado/restante/limite)
-- Retornar `budget_snapshot` com todos os valores para uso no preview
-
-**1b. Deduplicacao por Funil** — Antes de inserir `pending_approval` (~linha 1971):
-- Query: verificar se ja existe `pending_approval` para mesmo `(tenant_id, ad_account_id, funnel_stage)`
-- Se existir: rejeitar com "Ja existe proposta pendente para este funil. Aprove ou rejeite a existente."
-- Garante maximo 1 proposta pendente por funil por conta
-
-**1c. Budget Snapshot no Preview** — Enriquecer `action_data.preview` (~linha 2031):
-- Adicionar `budget_snapshot: { active_cents, pending_reserved_cents, remaining_cents, limit_cents }`
-- Adicionar `product_price_display` formatado
-- Adicionar `cta_type` de `args.cta`
-
-#### 2. Edge Function: `ads-autopilot-execute-approved/index.ts` (v1.2.0)
-
-**Revalidacao de Budget na Aprovacao**:
-- Antes de invocar `ads-autopilot-analyze`, recalcular budget snapshot
-- Excluir a propria acao do `pending_reserved` (ela esta saindo de reservado para ativo)
-- Se `active + pending_reserved_excl_self + proposed > limit`, bloquear com erro legivel
-- Retornar mensagem: "Aprovar esta campanha excederia o limite diario. Ajuste orcamento ou rejeite outra proposta."
-
-#### 3. Frontend: `ActionApprovalCard.tsx` — Redesign completo
-
-**Visivel por padrao:**
-- Thumbnail do criativo (`preview.creative_url`) — skeleton se ausente
-- Headline em destaque + copy (3-4 linhas) + CTA badge
-- Produto (nome + preco)
-- Chip de funil (Publico Frio / Remarketing / Teste)
-- Publico resumido (`targeting_summary`)
-- Barra de orcamento visual: Ativo (verde) | Reservado (amarelo) | Restante (cinza) | Limite
-- Botoes: Aprovar / Ajustar / Rejeitar
-
-**Oculto (Collapsible "Detalhes tecnicos"):**
-- Confidence, reasoning, expected_impact
-- Session ID, trigger type, tags internas, IDs, payloads
-
-**Remover do layout principal:**
-- Badge de confianca do header
-- Bloco "Por que" (reasoning) como destaque — vai para detalhes
-- "Impacto esperado" como destaque — vai para detalhes
-
-#### 4. Frontend: `AdsPendingActionsTab.tsx` — Barra de orcamento global
-
-- Adicionar no topo da lista um resumo de orcamento da conta:
-  - "Ativo: R$X | Reservado: R$Y | Restante: R$Z | Limite: R$W/dia"
-- Fonte: extrair `budget_snapshot` da primeira acao pendente (ja vem do backend)
+**Mudancas:**
+- Remover as mutations `approveAction` e `rejectAction` (linhas 104-136)
+- Remover botoes "Aprovar" e "Rejeitar" para acoes `pending_approval` (linhas 284-306)
+- Substituir por Badge "Aguardando Aprovacao" com texto "Veja na aba Aguardando Acao"
+- Manter: `rollbackAction`, botao "Desfazer" (para executadas), botao "Detalhes"
 
 ---
 
-### Detalhes Tecnicos
+## 3. "Aguardando Acao" — Centro de aprovacao com preview completo
 
-#### checkBudgetGuard atualizado (pseudo-codigo):
+**Arquivo:** `src/components/ads/AdsPendingApprovalTab.tsx`
 
-```text
-async function checkBudgetGuard(supabase, tenantId, acctConfig, proposedBudgetCents, hasOverride):
-  // 1. Campanhas ativas na Meta (como hoje)
-  active_allocated = SUM(meta_ad_campaigns.daily_budget_cents WHERE [AI]% AND ACTIVE)
-  
-  // 2. NOVO: Propostas pendentes (excl. expiradas >24h)
-  pending_reserved = SUM(ads_autopilot_actions.action_data->daily_budget_cents 
-    WHERE status='pending_approval' AND action_type='create_campaign' 
-    AND channel='meta' AND created_at > now()-24h)
-  
-  // 3. Calcular
-  total = active_allocated + pending_reserved + proposedBudgetCents
-  remaining = limit - active_allocated - pending_reserved
-  
-  // 4. Retornar snapshot
-  return { allowed: total <= limit, budget_snapshot: { active_cents, pending_reserved_cents, remaining_cents, limit_cents } }
-```
+**Mudancas:**
+- Substituir os cards inline atuais (linhas 158-294) pelo componente `ActionApprovalCard`
+- Importar `ActionApprovalCard` e `BudgetSummaryHeader` (extrair de `AdsPendingActionsTab` ou recriar inline)
+- Adicionar barra de orcamento global no topo (usando `budget_snapshot` da primeira acao)
+- Manter a mesma logica de `approveAction` (chama edge function `execute-approved`), `rejectAction` e `adjustAction`
+- Adaptar os callbacks do `ActionApprovalCard` (`onApprove`, `onReject`, `onAdjust`) para as mutations existentes
 
-#### Layout do card redesenhado:
+---
 
-```text
-+------------------------------------------+
-| [THUMB]  Headline em negrito             |
-|          Copy do anuncio (3 linhas)...   |
-|          [CTA: Comprar Agora]            |
-|                                          |
-|  Produto: Nome — R$ 99,90               |
-|  Funil: [Publico Frio]                  |
-|  Publico: Broad, 18-65, Brasil          |
-|                                          |
-|  Orcamento: R$ 300/dia                  |
-|  [====verde====][==amarelo==][cinza] R$500|
-|  Ativo R$0 | Reservado R$375 | Rest R$125|
-|                                          |
-|  [Aprovar] [Ajustar] [Rejeitar]         |
-|  > Detalhes tecnicos (colapsado)         |
-+------------------------------------------+
-```
+## 4. Central de Execucoes — Alerta de aprovacao pendente
 
-### Sequencia de Implementacao
+**Arquivo:** `src/components/dashboard/AdsAlertsWidget.tsx`
 
-1. `ads-autopilot-analyze/index.ts` — Budget Guard + dedup + snapshot
-2. `ads-autopilot-execute-approved/index.ts` — Revalidacao
-3. `ActionApprovalCard.tsx` — Redesign visual
-4. `AdsPendingActionsTab.tsx` — Barra de orcamento global
-5. Deploy e teste
+**Mudancas:**
+- Importar `useAdsPendingActions` (hook existente)
+- Adicionar item de alerta quando `pendingCount > 0`:
+  - Icone: `Hourglass`
+  - Titulo: "X acoes aguardando sua aprovacao"
+  - Descricao: "Propostas da IA precisam da sua decisao"
+  - Variante: `warning`
+- Ao clicar, navegar para `/ads` (aba pending-approval)
 
+---
+
+## 5. ActionDetailDialog — Preview enriquecido com dados do `action_data.preview`
+
+**Arquivo:** `src/components/ads/ActionDetailDialog.tsx`
+
+**Mudancas no `CampaignPreview`:**
+- Quando `data.adsets` e `data.ads` estiverem vazios, fazer fallback para `data.preview`:
+  - Mostrar `preview.headline` como titulo do anuncio
+  - Mostrar `preview.copy_text` como texto do anuncio
+  - Mostrar `preview.creative_url` como imagem
+  - Mostrar `preview.targeting_summary` como publico
+  - Mostrar `preview.funnel_stage` como funil
+  - Mostrar `preview.budget_snapshot` como barra de orcamento
+  - Mostrar `preview.product_name` e `preview.product_price_display`
+
+---
+
+## Sequencia de Implementacao
+
+1. `creative-image-generate/index.ts` — Nomes unicos + deploy
+2. `useDriveFiles.ts` — Ordenacao por `created_at DESC`
+3. `AdsActionsTab.tsx` — Remover botoes de aprovacao
+4. `AdsPendingApprovalTab.tsx` — Usar `ActionApprovalCard` + barra de orcamento
+5. `AdsAlertsWidget.tsx` — Alerta de pendencias
+6. `ActionDetailDialog.tsx` — Fallback para preview
