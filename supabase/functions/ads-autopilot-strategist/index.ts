@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.14.0"; // Strict exact product name matching — no fuzzy/startsWith/includes
+const VERSION = "v1.15.0"; // Start trigger = plan-only; implement = full pipeline with multi-copy
 // ===================
 
 const corsHeaders = {
@@ -91,10 +91,15 @@ const STRATEGIST_TOOLS = [
           daily_budget_cents: { type: "number", description: "Orçamento diário em centavos" },
           targeting_description: { type: "string", description: "Descrição do público-alvo" },
           funnel_stage: { type: "string", enum: ["cold", "warm", "hot"] },
+          product_name: { type: "string", description: "Nome EXATO do produto do catálogo para esta campanha" },
+          primary_texts: { type: "array", items: { type: "string" }, description: "2-4 variações de Primary Text (copy principal). OBRIGATÓRIO ter no mínimo 2." },
+          headlines: { type: "array", items: { type: "string" }, description: "2-4 variações de Headline. OBRIGATÓRIO ter no mínimo 2." },
+          descriptions: { type: "array", items: { type: "string" }, description: "1-2 descrições curtas para o anúncio." },
+          cta: { type: "string", enum: ["SHOP_NOW", "LEARN_MORE", "SIGN_UP", "BUY_NOW", "ORDER_NOW", "GET_OFFER"], description: "Call to Action" },
           reasoning: { type: "string" },
           confidence: { type: "number", minimum: 0, maximum: 1 },
         },
-        required: ["campaign_name", "objective", "daily_budget_cents", "targeting_description", "funnel_stage", "reasoning", "confidence"],
+        required: ["campaign_name", "objective", "daily_budget_cents", "targeting_description", "funnel_stage", "product_name", "primary_texts", "headlines", "reasoning", "confidence"],
         additionalProperties: false,
       },
     },
@@ -451,19 +456,26 @@ function buildStrategistPrompt(trigger: StrategistTrigger, config: AccountConfig
   let triggerInstruction = "";
   switch (trigger) {
     case "start":
-      triggerInstruction = `## TRIGGER: PRIMEIRA ATIVAÇÃO (Colocar a Casa em Ordem)
-Este é o evento de REESTRUTURAÇÃO TOTAL. Analise profundamente:
-1. **PLANNING**: Diagnóstico completo (use strategic_plan). Identifique oportunidades e problemas.
-2. **CRIATIVOS**: Gere criativos para os top 3 produtos (generate_creative). Mín 3 variações.
-3. **PÚBLICOS**: Se há Custom Audiences, crie Lookalikes (create_lookalike_audience). 1-5% ratio.
-4. **MONTAGEM**: Crie campanhas com CBO e ad sets segmentados (create_campaign + create_adset).
-5. **PUBLICAÇÃO**: Tudo criado PAUSADO. Ativações agendadas para 00:01-04:00 BRT.
+      triggerInstruction = `## TRIGGER: PRIMEIRA ATIVAÇÃO (Planejamento Estratégico)
+Nesta fase, você DEVE emitir APENAS um strategic_plan. NÃO crie campanhas, criativos ou públicos agora.
+O usuário precisa APROVAR o plano antes de qualquer implementação.
 
-REGRAS ESPECIAIS:
-- Aumentos de budget limitados a +20% por campanha existente
-- Reduções/pausas livres
-- Se orçamento economizado não cabe em +20%, CRIE novas campanhas
-- Sem restrições de maturidade (min_data_days ignorados)`;
+Seu plano estratégico DEVE incluir:
+1. **Diagnóstico**: Situação atual da conta (campanhas ativas, ROAS, orçamento utilizado vs disponível)
+2. **Ações Planejadas** (lista DETALHADA e ESPECÍFICA):
+   - Para CADA campanha a criar: tipo (TOF/Teste/Remarketing/Duplicação), produto específico, orçamento diário, público-alvo
+   - Campanhas de TESTE: mínimo 3 produtos diferentes, com criativos variados
+   - Campanhas de DUPLICAÇÃO de vencedores: para escalar o que já funciona
+   - Campanha de REMARKETING de catálogo: se houver catálogo conectado
+   - Quantidade de copies por campanha: mínimo 2-4 variações de Primary Text + Headlines
+3. **Alocação de Orçamento**: Distribuição clara entre funis (cold, remarketing, tests)
+4. **Resultados Esperados**: Projeção realista baseada nos dados
+5. **Riscos**: O que pode dar errado
+
+REGRAS:
+- O plano DEVE utilizar 100% do orçamento disponível (R$ ${((config.budget_cents || 0) / 100).toFixed(2)}/dia)
+- NÃO use create_campaign, generate_creative ou qualquer outra ferramenta além de strategic_plan
+- Seja ESPECÍFICO: nomes de produtos reais, valores exatos de orçamento, públicos detalhados`;
       break;
     case "weekly":
       triggerInstruction = `## TRIGGER: REVISÃO SEMANAL (Sábado → implementação Domingo 00:01)
@@ -495,15 +507,33 @@ NÃO emita um novo strategic_plan. Vá direto para a EXECUÇÃO seguindo o plano
 
 {{APPROVED_PLAN_CONTENT}}
 
-REGRAS CRÍTICAS:
+REGRAS CRÍTICAS DE IMPLEMENTAÇÃO:
 - NÃO use strategic_plan novamente — o plano já foi aprovado
+- Implemente TODAS as campanhas listadas no plano, não apenas algumas
 - Use EXATAMENTE os produtos especificados no plano para cada campanha/funil
 - NÃO repita o mesmo produto em campanhas diferentes, a menos que o plano especifique isso
-- Cada campanha deve usar o produto designado no plano aprovado
-- Gere criativos (generate_creative) para cada produto ANTES de criar a campanha correspondente
+
+REGRAS DE COPY (OBRIGATÓRIO):
+- CADA campanha (create_campaign) DEVE ter no mínimo 2 primary_texts e 2 headlines diferentes
+- Ideal: 3-4 variações de copy para testes A/B automáticos
+- Copys devem atacar ângulos diferentes (benefício, objeção, prova social, urgência)
+- Headlines curtas e diretas (máx 40 chars)
+
+REGRAS DE CRIATIVOS:
+- Gere criativos (generate_creative) para CADA produto ANTES de criar a campanha correspondente
+- Mínimo 2 variações de criativo por produto (estilos diferentes)
+
+REGRAS DE ORÇAMENTO:
 - Aumentos de budget limitados a +20% por campanha existente
 - Se orçamento economizado não cabe em +20%, CRIE novas campanhas
-- Tudo criado PAUSADO. Ativações agendadas para 00:01-04:00 BRT.`;
+- O orçamento TOTAL do plano deve ser RESPEITADO — verba ociosa é proibida
+- Tudo criado PAUSADO. Ativações agendadas para 00:01-04:00 BRT.
+
+ORDEM DE EXECUÇÃO:
+1. generate_creative para TODOS os produtos do plano (com variações)
+2. create_lookalike_audience se o plano especificar
+3. create_campaign para CADA campanha do plano (com múltiplas copies)
+4. create_adset para segmentações específicas dentro das campanhas`;
       break;
   }
 
@@ -555,6 +585,20 @@ ${config.user_instructions || "Nenhuma instrução adicional."}
 - Cada tool call deve ter justificativa numérica
 - Use os links reais da loja (landing pages, páginas) como destino dos anúncios
 - Considere as categorias de produtos e o posicionamento da marca ao criar copys
+
+## REGRAS DE COPY (OBRIGATÓRIAS em create_campaign)
+- CADA create_campaign DEVE ter entre 2 e 4 primary_texts (variações de copy principal)
+- CADA create_campaign DEVE ter entre 2 e 4 headlines (variações de título)
+- Copys devem usar ângulos DIFERENTES: benefício principal, objeção comum, prova social, urgência/escassez
+- Headlines curtas e diretas (máx 40 caracteres cada)
+- NUNCA use copy genérica como "Conheça nosso produto" — seja específico sobre o produto e benefícios
+- Inclua sempre 1-2 descriptions curtas e um CTA adequado
+
+## REGRAS DE COMPLETUDE DO PLANO
+- Na primeira ativação, o plano estratégico DEVE cobrir 100% do orçamento disponível
+- Tipos de campanha a considerar: TOF (aquisição), Remarketing (catálogo ou custom), Testes (criativos/produtos), Duplicação de vencedores
+- Cada campanha planejada deve ter: produto específico, orçamento diário, público-alvo, tipo de funil
+- Proibido criar campanhas de remarketing com apenas 1 anúncio — mínimo 2 variações
 
 ${triggerInstruction}
 
@@ -758,8 +802,11 @@ async function executeToolCall(
           targeting_description: args.targeting_description,
           targeting_summary: args.targeting_description,
           funnel_stage: args.funnel_stage,
-          headline: args.headline || args.campaign_name,
-          copy_text: args.primary_text || args.copy_text || null,
+          headline: args.headlines?.[0] || args.headline || args.campaign_name,
+          headlines: args.headlines || (args.headline ? [args.headline] : []),
+          copy_text: args.primary_texts?.[0] || args.primary_text || args.copy_text || null,
+          primary_texts: args.primary_texts || (args.primary_text ? [args.primary_text] : []),
+          descriptions: args.descriptions || [],
           cta_type: args.cta || args.cta_type || null,
           product_name: matchedProduct?.name || args.product_name || null,
           product_price: matchedProduct?.price || null,
@@ -957,6 +1004,8 @@ ${prevDiagnosis.substring(0, 2000)}
           ],
           tools: trigger === "implement_approved_plan" 
             ? STRATEGIST_TOOLS.filter((t: any) => t.function?.name !== "strategic_plan")
+            : trigger === "start"
+            ? STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan")
             : STRATEGIST_TOOLS,
           tool_choice: "auto",
         }),
