@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.12.6"; // Fix: create_campaign ALWAYS pending_approval with full preview data, NEVER executes on Meta directly
+const VERSION = "v5.12.7"; // Fix: audience fetch uses account configs (not campaigns), headline/primary_text required in create_campaign
 // ===========================================================
 
 const corsHeaders = {
@@ -542,11 +542,26 @@ async function collectContext(supabase: any, tenantId: string, enabledChannels: 
       }
 
       // Fetch saved custom audiences per ad account
+      // v5.12.7: Use account configs as primary source (campaigns may be empty after cleanup/first_activation)
       const savedAudiences: Record<string, any[]> = {};
-      for (const account of (campaigns || []).reduce((acc: string[], c: any) => {
+      const accountIdsFromCampaigns = (campaigns || []).reduce((acc: string[], c: any) => {
         if (c.ad_account_id && !acc.includes(c.ad_account_id)) acc.push(c.ad_account_id);
         return acc;
-      }, [] as string[])) {
+      }, [] as string[]);
+      
+      // Also get account IDs from account configs (ensures audiences are found even with empty campaigns)
+      const { data: metaAccountConfigs } = await supabase
+        .from("ads_autopilot_account_configs")
+        .select("ad_account_id")
+        .eq("tenant_id", tenantId)
+        .eq("channel", "meta");
+      const accountIdsFromConfigs = (metaAccountConfigs || []).map((c: any) => c.ad_account_id).filter(Boolean);
+      
+      // Merge unique account IDs from both sources
+      const allAccountIds = [...new Set([...accountIdsFromCampaigns, ...accountIdsFromConfigs])];
+      console.log(`[ads-autopilot-analyze][${VERSION}] Audience fetch: ${allAccountIds.length} accounts (${accountIdsFromCampaigns.length} from campaigns, ${accountIdsFromConfigs.length} from configs)`);
+      
+      for (const account of allAccountIds) {
         try {
           const accountId = account.replace("act_", "");
           const { data: metaConn } = await supabase
@@ -1042,8 +1057,12 @@ const PLANNER_TOOLS = [
           objective: { type: "string", enum: ["conversions", "traffic", "awareness", "leads"], description: "Objetivo da campanha" },
           template: { type: "string", enum: ["cold_conversion", "remarketing", "creative_test", "leads"], description: "Template de campanha" },
           daily_budget_cents: { type: "number", description: "Orçamento diário em centavos" },
-          targeting_description: { type: "string", description: "Descrição do público-alvo" },
+          targeting_description: { type: "string", description: "Descrição detalhada do público-alvo incluindo Custom Audiences se disponíveis" },
           funnel_stage: { type: "string", enum: ["tof", "mof", "bof"], description: "Estágio do funil" },
+          headline: { type: "string", description: "Headline do anúncio (curta, impactante, máx 40 chars). OBRIGATÓRIO." },
+          primary_text: { type: "string", description: "Copy principal do anúncio (texto persuasivo com CTA). OBRIGATÓRIO." },
+          cta: { type: "string", enum: ["SHOP_NOW", "LEARN_MORE", "SIGN_UP", "BUY_NOW", "GET_OFFER", "ORDER_NOW"], description: "Call-to-action button" },
+          custom_audience_id: { type: "string", description: "ID da Custom Audience da Meta para targeting (se disponível). Priorize usar públicos salvos!" },
           interests: { type: "array", items: { type: "object", properties: { id: { type: "string" }, name: { type: "string" } }, required: ["id", "name"] }, description: "Interesses do Meta Ads (ex: [{id:'6003139266461',name:'Cosmetics'}]). Busque IDs válidos via Meta Targeting Search API." },
           age_min: { type: "number", description: "Idade mínima (default 18)" },
           age_max: { type: "number", description: "Idade máxima (default 65)" },
@@ -1052,7 +1071,7 @@ const PLANNER_TOOLS = [
           confidence: { type: "number", minimum: 0, maximum: 1 },
           metric_trigger: { type: "string" },
         },
-        required: ["campaign_name", "objective", "template", "daily_budget_cents", "targeting_description", "funnel_stage", "reason", "confidence", "metric_trigger"],
+        required: ["campaign_name", "objective", "template", "daily_budget_cents", "targeting_description", "funnel_stage", "headline", "primary_text", "reason", "confidence", "metric_trigger"],
         additionalProperties: false,
       },
     },
@@ -1087,7 +1106,7 @@ const PLANNER_TOOLS = [
     type: "function",
     function: {
       name: "generate_creative",
-      description: "Gera criativos publicitários (imagem + copy) para uma campanha. Use quando não há criativos existentes na conta ou quando quer testar novos ângulos. Retorna um job_id que será processado assincronamente.",
+      description: "Gera criativos publicitários (imagem + copy) para uma campanha. Use quando não há criativos existentes na conta ou quando quer testar novos ângulos. OBRIGATÓRIO: forneça headline e copy_text para o anúncio.",
       parameters: {
         type: "object",
         properties: {
@@ -1097,10 +1116,13 @@ const PLANNER_TOOLS = [
           target_audience: { type: "string", description: "Descrição do público-alvo" },
           style_preference: { type: "string", enum: ["promotional", "product_natural", "person_interacting"], description: "Estilo visual" },
           funnel_stage: { type: "string", enum: ["tof", "mof", "bof", "test", "leads"], description: "Estágio do funil para o criativo. TOF não serve para BOF e vice-versa." },
+          headline: { type: "string", description: "Headline do anúncio (curta, impactante, máx 40 chars). OBRIGATÓRIO." },
+          copy_text: { type: "string", description: "Copy principal do anúncio (texto persuasivo com CTA, 50-150 chars). OBRIGATÓRIO." },
+          cta: { type: "string", enum: ["SHOP_NOW", "LEARN_MORE", "SIGN_UP", "BUY_NOW", "GET_OFFER", "ORDER_NOW"], description: "Call-to-action button" },
           reason: { type: "string" },
           confidence: { type: "number", minimum: 0, maximum: 1 },
         },
-        required: ["product_name", "campaign_objective", "reason", "confidence"],
+        required: ["product_name", "campaign_objective", "headline", "copy_text", "reason", "confidence"],
         additionalProperties: false,
       },
     },
@@ -1342,8 +1364,15 @@ Se esta conta tem 7+ dias de dados E 10+ conversões, você PODE usar:
   - Budget inicial respeitando splits de funil
   - Máximo ${DEFAULT_SAFETY.max_new_campaigns_per_day} novas campanhas por sessão
   - O sistema cria automaticamente: campanha → ad set (com público) → ad (com criativo)
-  - PRIORIDADE DE PÚBLICO: 1) Custom Audiences salvas 2) Interesses específicos 3) Broad (último recurso)
-  - Use o campo "interests" para definir interesses específicos: [{id:"6003139266461",name:"Cosmetics"}]
+  - ⚠️ HEADLINE + PRIMARY_TEXT SÃO OBRIGATÓRIOS! Toda campanha PRECISA de uma copy completa:
+    - headline: Curta, impactante, máx 40 chars. Ex: "Kit Banho Anti-Queda 🧴", "Frete Grátis Hoje!"
+    - primary_text: Copy persuasiva com benefício + CTA. Ex: "Elimine a calvície com o Kit completo de tratamento. Resultados visíveis em 30 dias. Compre agora com 25% OFF!"
+    - cta: Botão de ação (SHOP_NOW, LEARN_MORE, BUY_NOW, GET_OFFER, ORDER_NOW)
+  - ⚠️ PRIORIDADE DE PÚBLICO (OBRIGATÓRIO seguir esta ordem):
+    1) Custom Audiences salvas (SEMPRE checar seção 🎯 PÚBLICOS SALVOS abaixo)
+    2) Interesses específicos com IDs válidos
+    3) Broad (ÚLTIMO RECURSO — só se realmente não houver públicos)
+  - Se existem Custom Audiences na seção abaixo, você DEVE usar custom_audience_id!
   - Use age_min/age_max/genders para refinar demografia quando relevante
 - create_adset: Criar novo ad set em campanha existente
   - Se houver custom_audience_id disponível, USE-O
@@ -2933,6 +2962,10 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                         variations: 3,
                         funnel_stage: args.funnel_stage || null,
                         strategy_run_id: strategyRunId,
+                        // v5.12.7: Pass copy data to persist on asset
+                        copy_text: args.copy_text || null,
+                        headline: args.headline || null,
+                        cta: args.cta || "SHOP_NOW",
                       },
                     });
 
@@ -2955,6 +2988,8 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                       product_name: topProduct.name,
                       funnel_stage: args.funnel_stage || null,
                       strategy_run_id: strategyRunId,
+                      headline: args.headline || null,
+                      copy_text: args.copy_text || null,
                     };
                     console.log(`[ads-autopilot-analyze][${VERSION}] Creative job started: ${creativeResult?.data?.job_id} funnel=${args.funnel_stage || 'unset'}`);
                   } catch (creativeErr: any) {
