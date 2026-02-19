@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.12.0"; // Fix product price display (BRL not cents), enrich create_campaign with product data
+const VERSION = "v1.13.0"; // Fix product ordering: sort by name (neutral) instead of price DESC to avoid variant bias
 // ===================
 
 const corsHeaders = {
@@ -250,7 +250,7 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     globalConfigRes,
     categoriesRes,
   ] = await Promise.all([
-    supabase.from("products").select("id, name, price, cost_price, status, stock_quantity, brand, short_description").eq("tenant_id", tenantId).eq("status", "active").order("price", { ascending: false }).limit(20),
+    supabase.from("products").select("id, name, price, cost_price, status, stock_quantity, brand, short_description").eq("tenant_id", tenantId).eq("status", "active").order("name", { ascending: true }).limit(30),
     supabase.from("orders").select("id, total, status, payment_status, created_at").eq("tenant_id", tenantId).gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()).limit(500),
     supabase.from("meta_ad_campaigns").select("meta_campaign_id, name, status, effective_status, objective, daily_budget_cents, ad_account_id").eq("tenant_id", tenantId).limit(200),
     supabase.from("meta_ad_insights").select("meta_campaign_id, impressions, clicks, spend_cents, conversions, roas, date_start").eq("tenant_id", tenantId).gte("date_start", thirtyDaysAgo).limit(1000),
@@ -360,8 +360,10 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     avg_ticket_cents: paidOrders.length > 0 ? Math.round(paidOrders.reduce((s: number, o: any) => s + (o.total || 0), 0) / paidOrders.length) : 0,
   };
 
-  // Creative cadence check (min 3/week per top product)
-  const topProducts = products.slice(0, 5);
+  // Creative cadence check — use all non-variant products (variant filtering via regex)
+  const variantRegex = /\s*\(\d+x\)|\s*\(FLEX\)|\s*\(Dia\)|\s*\(Noite\)/i;
+  const mainProducts = products.filter((p: any) => !variantRegex.test(p.name));
+  const topProducts = mainProducts.slice(0, 8);
   const creativeCadence = topProducts.map((p: any) => ({
     product_id: p.id,
     product_name: p.name,
@@ -559,7 +561,10 @@ ${triggerInstruction}
 ## NEGÓCIO
 - Ticket Médio: R$ ${(context.orderStats.avg_ticket_cents).toFixed(2)}
 - Pedidos 30d: ${context.orderStats.paid_30d} (receita: R$ ${(context.orderStats.revenue_cents_30d).toFixed(2)})
-- Top Produtos: ${context.products.slice(0, 5).map((p: any) => `${p.name} (R$${Number(p.price).toFixed(2)}${p.cost_price ? `, margem ~${Math.round(((p.price - p.cost_price) / p.price) * 100)}%` : ""})`).join(", ")}`;
+- Catálogo Completo (${context.products.length} produtos ativos):
+${context.products.map((p: any) => `  • ${p.name} — R$${Number(p.price).toFixed(2)}${p.cost_price ? ` (margem ~${Math.round(((p.price - p.cost_price) / p.price) * 100)}%)` : ""}${p.stock_quantity != null ? ` [estoque: ${p.stock_quantity}]` : ""}`).join("\n")}
+
+⚠️ IMPORTANTE: A prioridade de produtos para campanhas é definida EXCLUSIVAMENTE pelo Prompt Estratégico do lojista (user_instructions). NÃO use a ordem do catálogo acima como indicador de importância. O catálogo é apenas referência de preços e estoque.`;
 
   // Build ads data per account
   const accountAds = context.ads?.filter((a: any) => a.ad_account_id === config.ad_account_id) || [];
