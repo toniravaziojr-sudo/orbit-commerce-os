@@ -256,7 +256,13 @@ Edge function para geração de landing pages via IA usando Lovable AI Gateway (
 
 ## AI Ads Autopilot (`ads-autopilot-analyze`)
 
-### Versão Atual: v5.12.4
+### Versão Atual: v5.12.7
+
+### v5.12.7:Fix Audiences + Copy Obrigatório + Asset Persistence
+- **Audience Fetching Fix**: Busca de Custom Audiences agora usa `ads_autopilot_account_configs` como fonte primária de `ad_account_id`, em vez de depender de campanhas existentes (que podem estar vazias após cleanup). Fallback para campanhas ativas mantido como secundário.
+- **Copy/Headline Required**: Parâmetros `headline` e `primary_text` agora são `required` nas tool definitions de `create_campaign` e `generate_creative`. A IA é forçada a gerar copy real em vez de deixar `null`.
+- **Asset Copy Propagation**: `generate_creative` agora propaga `copy_text`, `headline` e `cta` para o pipeline `ads-autopilot-creative`, que persiste esses campos em `ads_creative_assets`. Antes, apenas a imagem era salva.
+- **System Prompt**: Atualizado para priorizar `custom_audience_id` quando audiences salvas existem e proibir broad targeting quando há Custom Audiences disponíveis.
 
 ### v5.12.4: Guards Programáticos + Controle de Concorrência por Conta
 - **Account Lock por conta**: Implementado `lock_session_id` + `lock_expires_at` em `ads_autopilot_account_configs`. Antes de iniciar sessão, adquire lock (validade 10 min). Sessões concorrentes para o mesmo `ad_account_id` são rejeitadas. Lock liberado ao final (sucesso ou falha).
