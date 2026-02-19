@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.11.0"; // Post-processing pass: link creative_url to campaign actions after all tool calls complete
+const VERSION = "v1.12.0"; // Fix product price display (BRL not cents), enrich create_campaign with product data
 // ===================
 
 const corsHeaders = {
@@ -559,7 +559,7 @@ ${triggerInstruction}
 ## NEGÓCIO
 - Ticket Médio: R$ ${(context.orderStats.avg_ticket_cents).toFixed(2)}
 - Pedidos 30d: ${context.orderStats.paid_30d} (receita: R$ ${(context.orderStats.revenue_cents_30d).toFixed(2)})
-- Top Produtos: ${context.products.slice(0, 5).map((p: any) => `${p.name} (R$${(p.price / 100).toFixed(2)}${p.cost_price ? `, margem ~${Math.round(((p.price - p.cost_price) / p.price) * 100)}%` : ""})`).join(", ")}`;
+- Top Produtos: ${context.products.slice(0, 5).map((p: any) => `${p.name} (R$${Number(p.price).toFixed(2)}${p.cost_price ? `, margem ~${Math.round(((p.price - p.cost_price) / p.price) * 100)}%` : ""})`).join(", ")}`;
 
   // Build ads data per account
   const accountAds = context.ads?.filter((a: any) => a.ad_account_id === config.ad_account_id) || [];
@@ -577,7 +577,7 @@ ${JSON.stringify(accountAds.slice(0, 50).map((ad: any) => ({ id: ad.meta_ad_id, 
 ${JSON.stringify(accountAudiences.map((a: any) => ({ id: a.meta_audience_id, name: a.name, type: a.audience_type, subtype: a.subtype, size: a.approximate_count })), null, 2)}
 
 ## PRODUTOS DO CATÁLOGO (${context.products.length})
-${JSON.stringify(context.products.slice(0, 15).map((p: any) => ({ id: p.id, name: p.name, price_brl: (p.price / 100).toFixed(2), cost: p.cost_price ? (p.cost_price / 100).toFixed(2) : null, stock: p.stock_quantity, brand: p.brand, description: p.short_description?.substring(0, 100), images: ((context.imagesByProduct || {})[p.id] || []).slice(0, 3), product_url: context.storeUrl ? `${context.storeUrl}/produto/${p.id}` : null })), null, 2)}
+${JSON.stringify(context.products.slice(0, 15).map((p: any) => ({ id: p.id, name: p.name, price_brl: Number(p.price).toFixed(2), cost: p.cost_price ? Number(p.cost_price).toFixed(2) : null, stock: p.stock_quantity, brand: p.brand, description: p.short_description?.substring(0, 100), images: ((context.imagesByProduct || {})[p.id] || []).slice(0, 3), product_url: context.storeUrl ? `${context.storeUrl}/produto/${p.id}` : null })), null, 2)}
 
 ## CADÊNCIA DE CRIATIVOS (últimos 7d)
 ${JSON.stringify(creativeCadence, null, 2)}
@@ -712,19 +712,53 @@ async function executeToolCall(
   }
 
   if (toolName === "create_campaign") {
-    // v1.8.0: ALWAYS require approval for campaign creation — never call Meta API directly from strategist
+    // v1.12.0: Enrich campaign action with resolved product data
     console.log(`[ads-autopilot-strategist][${VERSION}] create_campaign → pending_approval (always)`);
+    
+    // Resolve product from args.product_name or args.product_id
+    const matchedProduct = args.product_name 
+      ? context.products.find((p: any) => p.name === args.product_name) 
+        || context.products.find((p: any) => p.name.toLowerCase().startsWith(args.product_name.toLowerCase()))
+        || context.products.find((p: any) => args.product_name.toLowerCase().includes(p.name.toLowerCase()))
+      : args.product_id 
+        ? context.products.find((p: any) => p.id === args.product_id)
+        : null;
+
+    // Resolve product image
+    let productImageUrl: string | null = null;
+    if (matchedProduct) {
+      const prodImages = (context.imagesByProduct || {})[matchedProduct.id] || [];
+      productImageUrl = prodImages[0]?.url || prodImages[0] || null;
+    }
+
+    // Format price correctly — price is already in BRL, NOT cents (ads-data-scaling-standards)
+    const productPriceDisplay = matchedProduct?.price ? `R$ ${Number(matchedProduct.price).toFixed(2)}` : null;
+
     return { 
       status: "pending_approval", 
       data: { 
         ...args, 
         ad_account_id: config.ad_account_id,
+        product_id: matchedProduct?.id || args.product_id || null,
+        product_name: matchedProduct?.name || args.product_name || null,
+        product_price: matchedProduct?.price || null,
         preview: {
           campaign_name: args.campaign_name,
           objective: args.objective,
           daily_budget_cents: args.daily_budget_cents,
+          daily_budget_display: `R$ ${((args.daily_budget_cents || 0) / 100).toFixed(2)}/dia`,
           targeting_description: args.targeting_description,
+          targeting_summary: args.targeting_description,
           funnel_stage: args.funnel_stage,
+          headline: args.headline || args.campaign_name,
+          copy_text: args.primary_text || args.copy_text || null,
+          cta_type: args.cta || args.cta_type || null,
+          product_name: matchedProduct?.name || args.product_name || null,
+          product_price: matchedProduct?.price || null,
+          product_price_display: productPriceDisplay,
+          product_image: productImageUrl,
+          age_range: `${args.age_min || 18}-${args.age_max || 65}`,
+          genders: args.genders || [],
         },
       } 
     };
