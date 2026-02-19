@@ -9,6 +9,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 
+/** Remove technical IDs, account references, and clean up insight text for display */
+function sanitizeInsightText(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, "")
+    .replace(/\bact_\d{10,}\b/g, "")
+    .replace(/\(act_[^)]+\)/g, "")
+    .replace(/\b(asset ready|asset pending)\s+[0-9a-f-]{20,}/gi, "")
+    .replace(/\[NOVO\]\s*/gi, "")
+    .replace(/\(\s*\)/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 interface Insight {
   id: string;
   channel: string;
@@ -133,16 +147,16 @@ export function AdsInsightsTab({ insights, isLoading, onMarkDone, onMarkIgnored,
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <span className="font-medium text-sm">{insight.title}</span>
+                        <span className="font-medium text-sm">{sanitizeInsightText(insight.title)}</span>
                         <Badge variant="outline" className="text-xs capitalize">{insight.channel}</Badge>
                         <Badge variant={PRIORITY_VARIANTS[insight.priority] || "outline"} className="text-xs capitalize">
-                          {insight.priority}
+                          {insight.priority === "critical" ? "Crítico" : insight.priority === "high" ? "Alto" : insight.priority === "medium" ? "Médio" : "Baixo"}
                         </Badge>
                         <Badge variant="secondary" className="text-xs">
                           {CATEGORY_LABELS[insight.category] || insight.category}
                         </Badge>
                       </div>
-                      <p className="text-sm text-muted-foreground">{insight.body}</p>
+                      <p className="text-sm text-muted-foreground leading-relaxed">{sanitizeInsightText(insight.body)}</p>
                       <div className="flex items-center gap-2 mt-3">
                         <Button size="sm" variant="default" className="h-7 text-xs gap-1" onClick={() => onMarkDone(insight.id)}>
                           <CheckCircle2 className="h-3 w-3" />

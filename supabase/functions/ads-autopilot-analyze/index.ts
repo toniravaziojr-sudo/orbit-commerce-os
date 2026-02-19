@@ -1317,12 +1317,15 @@ ${platformRules[acctConfig.channel] || ""}
 ## TICKET MÉDIO (referência informacional): R$ ${(context.orderStats.avg_ticket_cents / 100).toFixed(2)}
 ## PEDIDOS INTERNOS (30d, apenas referência): ${context.orderStats.paid_orders} pagos, ${context.orderStats.cancellation_rate_pct}% cancelados
 
-## 💰 REGRA DE ORÇAMENTO OBRIGATÓRIA
-O orçamento definido pelo lojista (${budgetStr}/${acctConfig.budget_mode === "daily" ? "dia" : "mês"}) é INVIOLÁVEL:
+## 💰 REGRA DE ORÇAMENTO OBRIGATÓRIA (CRÍTICA)
+O orçamento definido pelo lojista (${budgetStr}/${acctConfig.budget_mode === "daily" ? "dia" : "mês"}) é o valor que ele QUER investir. A IA DEVE usar esse valor INTEIRO:
+- O valor definido é a META DE INVESTIMENTO, não um limite máximo. O lojista QUER gastar esse valor para crescer.
+- PROIBIDO propor campanhas que somem menos que o orçamento total. Se o orçamento é R$ 500/dia, a soma de TODAS as campanhas propostas DEVE ser R$ 500/dia.
 - Se você pausar campanhas que gastavam R$ Y/dia, você DEVE redistribuir esse R$ Y para outras campanhas ativas ou criar novas campanhas para absorver esse orçamento.
 - O investimento diário/mensal definido NÃO PODE ser reduzido nem por um único dia.
 - Ao pausar: calcule o gasto diário das campanhas pausadas e redistribua via adjust_budget nas campanhas vencedoras ou via create_campaign se necessário.
 - Se não houver campanhas vencedoras suficientes para absorver, crie novas campanhas com o orçamento restante.
+- Se você achar que o orçamento é excessivo ou insuficiente, NÃO reduza — use report_insight para SUGERIR ajuste ao lojista.
 
 ## 🧠 PLANEJAMENTO ESTRATÉGICO OBRIGATÓRIO
 Antes de executar qualquer ação, PLANEJE UMA ESTRATÉGIA COMPLETA:
@@ -1330,11 +1333,13 @@ Antes de executar qualquer ação, PLANEJE UMA ESTRATÉGIA COMPLETA:
 2. **Redistribuição**: Calcule quanto orçamento está desperdiçado e quanto precisa ser realocado
 3. **Criação**: Se o orçamento definido (${budgetStr}) não está sendo investido ou há espaço para novos testes:
    - Defina quais campanhas criar (objetivo, público, funil)
-   - Distribua o orçamento de forma estratégica entre as campanhas
+   - Distribua o orçamento de forma estratégica entre as campanhas para atingir o TOTAL de ${budgetStr}
+   - Crie múltiplas campanhas para diferentes estágios do funil (TOF/BOF/Test) até atingir o orçamento total
    - Crie públicos (Lookalikes) quando necessário
    - Gere criativos quando não houver disponíveis
 4. **Execução**: Execute o plano de forma ordenada: pausas → redistribuições → criações
 5. **O orçamento TOTAL definido DEVE estar sempre investido** — nunca deixe verba ociosa
+6. **CONTA FINAL**: Verifique que a soma dos orçamentos de TODAS as campanhas (ativas + novas) = ${budgetStr}
 
 ## CICLO
 - Roda a cada 6h. Ações graduais.
