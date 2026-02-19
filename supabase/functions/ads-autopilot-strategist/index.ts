@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.16.0"; // Sequential pipeline: Phase 1 (creatives) → Phase 2 (campaigns)
+const VERSION = "v1.17.0"; // Multi-round execution: AI loops until all plan actions are created
 // ===================
 
 const corsHeaders = {
@@ -1052,138 +1052,182 @@ ${prevDiagnosis.substring(0, 2000)}
       const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
       if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-      const aiResponse = await fetch(LOVABLE_AI_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "openai/gpt-5.2",
-          messages: [
-            { role: "system", content: prompt.system },
-            { role: "user", content: prompt.user },
-          ],
-          tools: trigger === "implement_approved_plan" 
-            ? STRATEGIST_TOOLS.filter((t: any) => ["generate_creative", "create_lookalike_audience"].includes(t.function?.name))
-            : trigger === "implement_campaigns"
-            ? STRATEGIST_TOOLS.filter((t: any) => ["create_campaign", "create_adset", "adjust_budget"].includes(t.function?.name))
-            : trigger === "start"
-            ? STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan")
-            : STRATEGIST_TOOLS,
-          tool_choice: "auto",
-        }),
-      });
+      // === MULTI-ROUND EXECUTION LOOP ===
+      const MAX_ROUNDS = 8; // Safety limit to prevent infinite loops
+      let round = 0;
+      let allAiText = "";
+      
+      // Build tool set based on trigger
+      const allowedTools = trigger === "implement_approved_plan" 
+        ? STRATEGIST_TOOLS.filter((t: any) => ["generate_creative", "create_lookalike_audience"].includes(t.function?.name))
+        : trigger === "implement_campaigns"
+        ? STRATEGIST_TOOLS.filter((t: any) => ["create_campaign", "create_adset", "adjust_budget"].includes(t.function?.name))
+        : trigger === "start"
+        ? STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan")
+        : STRATEGIST_TOOLS;
 
-      if (!aiResponse.ok) {
-        const errText = await aiResponse.text();
-        console.error(`[ads-autopilot-strategist][${VERSION}] AI error: ${aiResponse.status} ${errText}`);
-        continue;
-      }
-
-      const aiResult = await aiResponse.json();
-      const toolCalls = aiResult.choices?.[0]?.message?.tool_calls || [];
-      const aiText = aiResult.choices?.[0]?.message?.content || "";
+      // Messages history for multi-round conversation
+      const messages: any[] = [
+        { role: "system", content: prompt.system },
+        { role: "user", content: prompt.user },
+      ];
 
       // Track generated creative URLs per product for linking to campaign actions
       const creativeUrlsByProduct: Record<string, string> = {};
 
-      for (const tc of toolCalls) {
-        const args = typeof tc.function.arguments === "string" ? JSON.parse(tc.function.arguments) : tc.function.arguments;
-        totalPlanned++;
+      while (round < MAX_ROUNDS) {
+        round++;
+        console.log(`[ads-autopilot-strategist][${VERSION}] Round ${round}/${MAX_ROUNDS} for account ${config.ad_account_id}`);
 
-        // Execute the tool
-        const result = await executeToolCall(supabase, tenantId, sessionId, config, tc, context);
-
-        // Track creative URLs from generate_creative results
-        if (tc.function.name === "generate_creative" && result.status === "executed") {
-          // Fetch the most recent creative asset for this product/session
-          const productName = args.product_name;
-          const matchedProduct = context.products.find((p: any) => p.name === productName) || context.products[0];
-          if (matchedProduct) {
-            const { data: latestAsset } = await supabase
-              .from("ads_creative_assets")
-              .select("asset_url")
-              .eq("tenant_id", tenantId)
-              .eq("session_id", sessionId)
-              .eq("product_id", matchedProduct.id)
-              .not("asset_url", "is", null)
-              .order("created_at", { ascending: false })
-              .limit(1);
-            if (latestAsset?.[0]?.asset_url) {
-              creativeUrlsByProduct[productName] = latestAsset[0].asset_url;
-            }
-          }
-        }
-
-        // Get campaign name for logging
-        const campaignName = context.campaigns.find((c: any) => c.meta_campaign_id === args.campaign_id)?.name || args.campaign_name || null;
-
-        // For create_campaign, try to attach the creative_url from the same session
-        let creativeUrl: string | null = null;
-        if (tc.function.name === "create_campaign") {
-          // Try to find creative by product name mentioned in targeting or campaign name
-          for (const [prodName, url] of Object.entries(creativeUrlsByProduct)) {
-            if (args.campaign_name?.includes(prodName) || args.targeting_description?.includes(prodName)) {
-              creativeUrl = url;
-              break;
-            }
-          }
-          // Fallback: get ANY creative from this session
-          if (!creativeUrl) {
-            const { data: sessionAsset } = await supabase
-              .from("ads_creative_assets")
-              .select("asset_url")
-              .eq("tenant_id", tenantId)
-              .eq("session_id", sessionId)
-              .not("asset_url", "is", null)
-              .order("created_at", { ascending: false })
-              .limit(1);
-            creativeUrl = sessionAsset?.[0]?.asset_url || null;
-          }
-        }
-
-        // Record action
-        const actionRecord: any = {
-          tenant_id: tenantId,
-          session_id: sessionId,
-          channel: config.channel,
-          action_type: tc.function.name,
-          action_data: { 
-            ...args, 
-            ...(result.data || {}), 
-            ad_account_id: config.ad_account_id, 
-            campaign_name: campaignName,
-            ...(creativeUrl ? { creative_url: creativeUrl } : {}),
+        const aiResponse = await fetch(LOVABLE_AI_URL, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
           },
-          reasoning: args.reasoning || args.reason || args.diagnosis || "",
-          confidence: String(args.confidence || "0.8"),
-          status: result.status,
-          action_hash: `${sessionId}_${tc.function.name}_${config.ad_account_id}_${totalPlanned}`,
-        };
+          body: JSON.stringify({
+            model: "openai/gpt-5.2",
+            messages,
+            tools: allowedTools,
+            tool_choice: "auto",
+          }),
+        });
 
-        if (result.status === "executed" || result.status === "scheduled") {
-          actionRecord.executed_at = new Date().toISOString();
-          if (tc.function.name === "adjust_budget") {
-            actionRecord.rollback_data = { previous_budget_cents: args.current_budget_cents };
-          }
-          totalExecuted++;
-        } else if (result.status === "rejected") {
-          actionRecord.rejection_reason = result.data?.reason || "Rejeitado pelo sistema";
-          totalRejected++;
-        } else if (result.status === "failed") {
-          actionRecord.error_message = result.data?.error || "Erro desconhecido";
-        } else if (result.status === "pending_approval") {
-          // pending_approval counts as planned, not executed
+        if (!aiResponse.ok) {
+          const errText = await aiResponse.text();
+          console.error(`[ads-autopilot-strategist][${VERSION}] AI error round ${round}: ${aiResponse.status} ${errText}`);
+          break;
         }
 
-        const { error: insertErr } = await supabase.from("ads_autopilot_actions").insert(actionRecord);
-        if (insertErr) console.error(`[ads-autopilot-strategist][${VERSION}] Action insert error:`, insertErr);
+        const aiResult = await aiResponse.json();
+        const assistantMessage = aiResult.choices?.[0]?.message;
+        if (!assistantMessage) break;
+
+        const toolCalls = assistantMessage.tool_calls || [];
+        const aiText = assistantMessage.content || "";
+        allAiText += (aiText ? `\n--- Round ${round} ---\n${aiText}` : "");
+
+        // If no tool calls, AI is done
+        if (toolCalls.length === 0) {
+          console.log(`[ads-autopilot-strategist][${VERSION}] Round ${round}: No tool calls, AI finished`);
+          break;
+        }
+
+        console.log(`[ads-autopilot-strategist][${VERSION}] Round ${round}: ${toolCalls.length} tool calls`);
+
+        // Add assistant message to history (with tool calls)
+        messages.push(assistantMessage);
+
+        // Process each tool call and collect results
+        const toolResults: any[] = [];
+        for (const tc of toolCalls) {
+          const args = typeof tc.function.arguments === "string" ? JSON.parse(tc.function.arguments) : tc.function.arguments;
+          totalPlanned++;
+
+          // Execute the tool
+          const result = await executeToolCall(supabase, tenantId, sessionId, config, tc, context);
+
+          // Track creative URLs from generate_creative results
+          if (tc.function.name === "generate_creative" && result.status === "executed") {
+            const productName = args.product_name;
+            const matchedProduct = context.products.find((p: any) => p.name === productName) || context.products[0];
+            if (matchedProduct) {
+              const { data: latestAsset } = await supabase
+                .from("ads_creative_assets")
+                .select("asset_url")
+                .eq("tenant_id", tenantId)
+                .eq("session_id", sessionId)
+                .eq("product_id", matchedProduct.id)
+                .not("asset_url", "is", null)
+                .order("created_at", { ascending: false })
+                .limit(1);
+              if (latestAsset?.[0]?.asset_url) {
+                creativeUrlsByProduct[productName] = latestAsset[0].asset_url;
+              }
+            }
+          }
+
+          // Get campaign name for logging
+          const campaignName = context.campaigns.find((c: any) => c.meta_campaign_id === args.campaign_id)?.name || args.campaign_name || null;
+
+          // For create_campaign, try to attach the creative_url from the same session
+          let creativeUrl: string | null = null;
+          if (tc.function.name === "create_campaign") {
+            for (const [prodName, url] of Object.entries(creativeUrlsByProduct)) {
+              if (args.campaign_name?.includes(prodName) || args.targeting_description?.includes(prodName) || args.product_name === prodName) {
+                creativeUrl = url;
+                break;
+              }
+            }
+            if (!creativeUrl) {
+              const { data: sessionAsset } = await supabase
+                .from("ads_creative_assets")
+                .select("asset_url")
+                .eq("tenant_id", tenantId)
+                .eq("session_id", sessionId)
+                .not("asset_url", "is", null)
+                .order("created_at", { ascending: false })
+                .limit(1);
+              creativeUrl = sessionAsset?.[0]?.asset_url || null;
+            }
+          }
+
+          // Record action in DB
+          const actionRecord: any = {
+            tenant_id: tenantId,
+            session_id: sessionId,
+            channel: config.channel,
+            action_type: tc.function.name,
+            action_data: { 
+              ...args, 
+              ...(result.data || {}), 
+              ad_account_id: config.ad_account_id, 
+              campaign_name: campaignName,
+              ...(creativeUrl ? { creative_url: creativeUrl } : {}),
+            },
+            reasoning: args.reasoning || args.reason || args.diagnosis || "",
+            confidence: String(args.confidence || "0.8"),
+            status: result.status,
+            action_hash: `${sessionId}_${tc.function.name}_${config.ad_account_id}_${totalPlanned}`,
+          };
+
+          if (result.status === "executed" || result.status === "scheduled") {
+            actionRecord.executed_at = new Date().toISOString();
+            if (tc.function.name === "adjust_budget") {
+              actionRecord.rollback_data = { previous_budget_cents: args.current_budget_cents };
+            }
+            totalExecuted++;
+          } else if (result.status === "rejected") {
+            actionRecord.rejection_reason = result.data?.reason || "Rejeitado pelo sistema";
+            totalRejected++;
+          } else if (result.status === "failed") {
+            actionRecord.error_message = result.data?.error || "Erro desconhecido";
+          }
+
+          const { error: insertErr } = await supabase.from("ads_autopilot_actions").insert(actionRecord);
+          if (insertErr) console.error(`[ads-autopilot-strategist][${VERSION}] Action insert error:`, insertErr);
+
+          // Collect tool result for the next round
+          toolResults.push({
+            tool_call_id: tc.id,
+            role: "tool",
+            content: JSON.stringify({ status: result.status, ...result.data }),
+          });
+        }
+
+        // Add tool results to messages for the next round
+        for (const tr of toolResults) {
+          messages.push(tr);
+        }
+
+        console.log(`[ads-autopilot-strategist][${VERSION}] Round ${round} complete: ${toolCalls.length} tools processed, continuing...`);
+      }
+
+      if (round >= MAX_ROUNDS) {
+        console.warn(`[ads-autopilot-strategist][${VERSION}] Hit MAX_ROUNDS (${MAX_ROUNDS}) for account ${config.ad_account_id}`);
       }
 
       // ===== POST-PROCESSING: Link creative URLs to campaign actions =====
-      // This second pass fixes the race condition where generate_creative is async
-      // and asset_url may not be available when create_campaign runs.
       try {
         const { data: pendingCampaigns } = await supabase
           .from("ads_autopilot_actions")
@@ -1196,10 +1240,8 @@ ${prevDiagnosis.substring(0, 2000)}
         for (const campaign of (pendingCampaigns || [])) {
           const cData = campaign.action_data as Record<string, any> || {};
           const cPreview = cData.preview || {};
-          // Skip if already has a creative_url
           if (cData.creative_url || cPreview.creative_url) continue;
 
-          // Try to find creative by product_id
           const productId = cData.product_id || cPreview.product_id;
           let resolvedUrl: string | null = null;
 
@@ -1215,7 +1257,6 @@ ${prevDiagnosis.substring(0, 2000)}
             resolvedUrl = asset?.[0]?.asset_url || null;
           }
 
-          // Fallback: any creative from this session
           if (!resolvedUrl) {
             const { data: sessionAsset } = await supabase
               .from("ads_creative_assets")
@@ -1228,7 +1269,6 @@ ${prevDiagnosis.substring(0, 2000)}
             resolvedUrl = sessionAsset?.[0]?.asset_url || null;
           }
 
-          // Fallback: product catalog image
           if (!resolvedUrl && productId) {
             const { data: prodImg } = await supabase
               .from("product_images")
@@ -1250,17 +1290,17 @@ ${prevDiagnosis.substring(0, 2000)}
       }
 
       // Save per-account session detail
-      if (aiText || toolCalls.length > 0) {
+      if (allAiText || totalPlanned > 0) {
         await supabase.from("ads_autopilot_sessions").insert({
           tenant_id: tenantId,
           channel: config.channel,
           trigger_type: `strategist_${trigger}`,
           motor_type: "strategist",
-          ai_response_raw: aiText,
+          ai_response_raw: allAiText,
           actions_planned: totalPlanned,
           actions_executed: totalExecuted,
           actions_rejected: totalRejected,
-          context_snapshot: { ad_account_id: config.ad_account_id, trigger },
+          context_snapshot: { ad_account_id: config.ad_account_id, trigger, rounds: round },
         });
       }
 
