@@ -378,10 +378,31 @@ Todas as previews de criativos (gerados ou uploaded) devem usar `object-contain`
 
 ---
 
+## Nomes Únicos de Criativos no Drive
+
+Criativos gerados pela IA (edge function `creative-image-generate`) usam nomes descritivos e únicos:
+
+| Item | Valor |
+|------|-------|
+| **Padrão** | `{product_name}_{style}_{provider}_{DDMM_HHmm}{_BEST}.png` |
+| **Exemplo** | `Shampoo_Anticaspa_natural_gemini_0219_1430_BEST.png` |
+| **Unicidade** | Timestamp curto `DDMM_HHmm` garante nomes distintos |
+| **Sanitização** | `product_name` é sanitizado (sem acentos/especiais, underscores) |
+
+### Ordenação no Drive
+
+| Regra | Descrição |
+|-------|-----------|
+| **Ordenação padrão** | `created_at DESC` — mais recentes no topo |
+| **Hook** | `useDriveFiles.ts` ordena por `created_at DESC` após pastas do sistema |
+
+---
+
 ## Histórico de Alterações
 
 | Data | Alteração |
 |------|-----------|
+| 2026-02-19 | Nomes únicos para criativos (`{product}_{style}_{provider}_{timestamp}.png`) e ordenação do Drive por `created_at DESC` |
 | 2026-02-17 | Adicionadas pastas "Imagens de Produtos" e "Gestor de Tráfego IA" — sincronização automática de imagens do catálogo para o Meu Drive |
 | 2026-02-14 | Adicionadas regras de estabilidade do DriveFilePicker: `stopPropagation` no DialogContent e `type="button"` no botão do Drive |
 | 2026-02-14 | Adicionada seção de Visibilidade de Criativos — regras de `object-contain` vs `object-cover` |
