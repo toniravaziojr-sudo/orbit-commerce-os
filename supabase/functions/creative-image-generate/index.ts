@@ -60,6 +60,63 @@ interface QAScores {
 
 // ========== PROMPT BUILDERS ==========
 
+// ========== KIT / MULTI-PRODUCT DETECTION ==========
+
+function detectProductType(productName: string): { isKit: boolean; estimatedItems: number; kitType: string } {
+  const name = productName.toLowerCase().trim();
+  
+  // Detect "Kit" keyword
+  if (/\bkit\b/i.test(name)) {
+    // Try to extract quantity from name like "Kit 3x" or "Kit com 5"
+    const qtyMatch = name.match(/(\d+)\s*(?:x|un|pç|peças|itens|produtos)/i) || name.match(/kit\s+(?:com\s+)?(\d+)/i);
+    const qty = qtyMatch ? parseInt(qtyMatch[1]) : 3; // default 3 for kits
+    return { isKit: true, estimatedItems: qty, kitType: 'kit' };
+  }
+  
+  // Detect multiplier patterns: "2x", "3x", "(2x)", "Pack 2"
+  const multiplierMatch = name.match(/\(?\s*(\d+)\s*x\s*\)?/i) || name.match(/\bpack\s+(\d+)/i);
+  if (multiplierMatch) {
+    const qty = parseInt(multiplierMatch[1]);
+    if (qty >= 2) return { isKit: true, estimatedItems: qty, kitType: 'pack' };
+  }
+  
+  // Detect "combo", "conjunto", "pack"
+  if (/\b(combo|conjunto|pack|coleção)\b/i.test(name)) {
+    return { isKit: true, estimatedItems: 3, kitType: 'combo' };
+  }
+  
+  return { isKit: false, estimatedItems: 1, kitType: 'single' };
+}
+
+function buildHandInstructions(productName: string): string {
+  const { isKit, estimatedItems, kitType } = detectProductType(productName);
+  
+  if (!isKit) {
+    // Single product: can hold in one or two hands
+    return `🖐️ REGRA DE MÃOS:
+- A pessoa pode segurar o produto com UMA ou DUAS mãos
+- Segurar pela base/corpo, rótulo frontal VISÍVEL
+- Mãos devem parecer naturais, não forçadas`;
+  }
+  
+  if (estimatedItems <= 2) {
+    // 2 items: one in each hand max
+    return `🖐️ REGRA DE MÃOS (${kitType.toUpperCase()} com ${estimatedItems} itens):
+- NO MÁXIMO um produto em CADA MÃO (total: 2 nas mãos)
+- Mãos devem segurar com naturalidade
+- Rótulos frontais visíveis em ambos os produtos`;
+  }
+  
+  // 3+ items: this is a kit — check if it comes in a box/package
+  return `🖐️ REGRA DE MÃOS (${kitType.toUpperCase()} com ${estimatedItems}+ itens):
+- SE o kit vier em uma embalagem única (caixa, sacola, pacote) que um humano consiga segurar: a pessoa PODE segurar a embalagem
+- SE forem produtos avulsos: a pessoa segura NO MÁXIMO 1 em cada mão (total: 2)
+- Os produtos restantes devem estar DISPOSTOS em uma superfície próxima (mesa, bancada, prateleira)
+- A composição deve parecer natural e organizada
+- PROIBIDO: empilhar vários produtos nas mãos, parecer desajeitado ou desproporcional
+- Os produtos sobre a mesa devem ter rótulos visíveis`;
+}
+
 function buildPromptForStyle(config: {
   productName: string;
   style: ImageStyle;
@@ -122,6 +179,8 @@ PROIBIDO:
       lifestyle: 'fotografia lifestyle editorial de alta qualidade',
     }[tone] || 'lifestyle editorial';
     
+    const handRules = buildHandInstructions(productName);
+    
     return `FOTOGRAFIA PROFISSIONAL — PESSOA COM PRODUTO — ${formatDesc}
 
 📦 PRODUTO: "${productName}"
@@ -131,12 +190,13 @@ A imagem de referência mostra o produto REAL.
 🎬 AÇÃO: ${actionDesc}
 🎨 TOM: ${toneDesc}
 
+${handRules}
+
 ${contextBrief ? `📝 BRIEF ADICIONAL: ${contextBrief}` : ''}
 
 REGRAS CRÍTICAS DE FIDELIDADE:
 - O produto será SUBSTITUÍDO por composição (Label Lock)
 - Foque em criar a CENA perfeita (pessoa, mãos, iluminação)
-- Mãos devem segurar pela BASE, deixando a FRENTE do rótulo visível
 - Pessoa com aparência fotorrealista, sem cara de IA
 
 QUALIDADE:
