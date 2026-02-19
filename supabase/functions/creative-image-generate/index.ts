@@ -1,22 +1,21 @@
 /**
- * Creative Image Generate — Edge Function v3.0 (Dual Provider)
+ * Creative Image Generate — Edge Function v4.0 (Resilient Pipeline)
  * 
  * Suporta:
- * - OpenAI (GPT Image)
- * - Gemini (Google)
- * - Geração paralela com ambos provedores
- * - Scoring por realismo para seleção automática
+ * - Gemini Flash + Gemini Pro como providers reais distintos
+ * - Retry automático com modelo alternativo se o primeiro falhar
+ * - Fallback final: usa imagem do catálogo para ads_creative_assets
  * - 3 estilos: product_natural, person_interacting, promotional
  * 
  * MODELOS:
- * - Gemini: google/gemini-2.5-flash-image, google/gemini-3-pro-image-preview
- * - OpenAI: (via Lovable AI Gateway)
+ * - Primary: google/gemini-3-pro-image-preview
+ * - Fallback: google/gemini-2.5-flash-image
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const VERSION = '3.3.0'; // Callback to ads-autopilot-analyze when assets become ready
+const VERSION = '4.0.0'; // Resilient pipeline: retry + catalog fallback
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -189,20 +188,23 @@ ESTILO:
   return `Fotografia profissional do produto "${productName}". ${contextBrief}`;
 }
 
-// ========== GENERATE WITH GEMINI ==========
+// ========== MODELS CONFIG ==========
 
-async function generateWithGemini(
+const MODELS = {
+  primary: 'google/gemini-3-pro-image-preview',
+  fallback: 'google/gemini-2.5-flash-image',
+} as const;
+
+// ========== GENERATE WITH MODEL ==========
+
+async function generateWithModel(
   lovableApiKey: string,
+  model: string,
   prompt: string,
   referenceImageBase64: string,
-  quality: 'standard' | 'high' = 'high'
 ): Promise<{ imageBase64: string | null; error?: string }> {
   try {
-    const model = quality === 'high' 
-      ? 'google/gemini-3-pro-image-preview' 
-      : 'google/gemini-2.5-flash-image';
-    
-    console.log(`[creative-image] Generating with Gemini (${model})...`);
+    console.log(`[creative-image] Generating with model: ${model}...`);
     
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -228,116 +230,69 @@ async function generateWithGemini(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[creative-image] Gemini API error: ${response.status}`, errorText);
-      
-      if (response.status === 429) {
-        return { imageBase64: null, error: 'Rate limit Gemini. Aguarde.' };
-      }
-      if (response.status === 402) {
-        return { imageBase64: null, error: 'Créditos insuficientes.' };
-      }
-      
-      return { imageBase64: null, error: `Gemini error: ${response.status}` };
+      console.error(`[creative-image] ${model} API error: ${response.status}`, errorText.substring(0, 300));
+      if (response.status === 429) return { imageBase64: null, error: `Rate limit ${model}` };
+      if (response.status === 402) return { imageBase64: null, error: 'Créditos insuficientes' };
+      return { imageBase64: null, error: `${model} error: ${response.status}` };
     }
 
     const data = await response.json();
     const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
     
     if (!imageUrl) {
-      return { imageBase64: null, error: 'Gemini não gerou imagem' };
+      console.warn(`[creative-image] ${model} returned no image (silent failure)`);
+      return { imageBase64: null, error: `${model} não retornou imagem` };
     }
 
     const base64Match = imageUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
     if (!base64Match) {
-      return { imageBase64: null, error: 'Formato inválido Gemini' };
+      return { imageBase64: null, error: `Formato inválido ${model}` };
     }
 
+    console.log(`[creative-image] ${model} generated image OK (${base64Match[1].length} chars)`);
     return { imageBase64: base64Match[1] };
     
   } catch (error) {
-    console.error(`[creative-image] Gemini error:`, error);
+    console.error(`[creative-image] ${model} error:`, error);
     return { imageBase64: null, error: String(error) };
   }
 }
 
-// ========== GENERATE WITH OPENAI ==========
+// ========== RESILIENT GENERATE (with retry + fallback model) ==========
 
-async function generateWithOpenAI(
+async function resilientGenerate(
   lovableApiKey: string,
   prompt: string,
   referenceImageBase64: string,
-  quality: 'standard' | 'high' = 'high'
-): Promise<{ imageBase64: string | null; error?: string }> {
-  try {
-    // Use Gemini Pro para simular OpenAI (já que ambos passam pelo gateway)
-    // TODO: Quando OpenAI Image estiver disponível no gateway, trocar aqui
-    const model = 'google/gemini-3-pro-image-preview';
-    
-    console.log(`[creative-image] Generating with OpenAI simulation (${model})...`);
-    
-    // Prompt adaptado para estilo OpenAI (mais direto)
-    const openaiStylePrompt = `${prompt}
+  provider: Provider,
+): Promise<{ imageBase64: string | null; model: string; error?: string }> {
+  // Attempt 1: primary model
+  const primaryModel = provider === 'gemini' ? MODELS.primary : MODELS.fallback;
+  const fallbackModel = provider === 'gemini' ? MODELS.fallback : MODELS.primary;
 
-ESTILO OPENAI:
-- Fotorrealismo extremo
-- Iluminação natural cinematográfica
-- Composição equilibrada
-- Cores realistas sem oversaturation`;
-    
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'text', text: openaiStylePrompt },
-            {
-              type: 'image_url',
-              image_url: { url: `data:image/png;base64,${referenceImageBase64}` }
-            }
-          ]
-        }],
-        modalities: ['image', 'text'],
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[creative-image] OpenAI API error: ${response.status}`, errorText);
-      
-      if (response.status === 429) {
-        return { imageBase64: null, error: 'Rate limit OpenAI. Aguarde.' };
-      }
-      if (response.status === 402) {
-        return { imageBase64: null, error: 'Créditos insuficientes.' };
-      }
-      
-      return { imageBase64: null, error: `OpenAI error: ${response.status}` };
-    }
-
-    const data = await response.json();
-    const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    
-    if (!imageUrl) {
-      return { imageBase64: null, error: 'OpenAI não gerou imagem' };
-    }
-
-    const base64Match = imageUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
-    if (!base64Match) {
-      return { imageBase64: null, error: 'Formato inválido OpenAI' };
-    }
-
-    return { imageBase64: base64Match[1] };
-    
-  } catch (error) {
-    console.error(`[creative-image] OpenAI error:`, error);
-    return { imageBase64: null, error: String(error) };
+  const attempt1 = await generateWithModel(lovableApiKey, primaryModel, prompt, referenceImageBase64);
+  if (attempt1.imageBase64) {
+    return { imageBase64: attempt1.imageBase64, model: primaryModel };
   }
+
+  console.warn(`[creative-image] Primary ${primaryModel} failed: ${attempt1.error}. Retrying with ${fallbackModel}...`);
+
+  // Attempt 2: fallback model
+  const attempt2 = await generateWithModel(lovableApiKey, fallbackModel, prompt, referenceImageBase64);
+  if (attempt2.imageBase64) {
+    return { imageBase64: attempt2.imageBase64, model: fallbackModel };
+  }
+
+  console.warn(`[creative-image] Fallback ${fallbackModel} also failed: ${attempt2.error}. Trying simplified prompt...`);
+
+  // Attempt 3: simplified prompt with primary model
+  const simplifiedPrompt = `Crie uma fotografia profissional do produto "${prompt.match(/"([^"]+)"/)?.[1] || 'produto'}" em fundo branco limpo. O produto deve ser IDÊNTICO à imagem de referência. Qualidade editorial.`;
+  const attempt3 = await generateWithModel(lovableApiKey, primaryModel, simplifiedPrompt, referenceImageBase64);
+  if (attempt3.imageBase64) {
+    return { imageBase64: attempt3.imageBase64, model: primaryModel };
+  }
+
+  return { imageBase64: null, model: primaryModel, error: `All 3 attempts failed: ${attempt1.error} | ${attempt2.error} | ${attempt3.error}` };
 }
 
 // ========== REALISM SCORER ==========
@@ -719,10 +674,9 @@ serve(async (req) => {
             ? finalPrompt 
             : `${finalPrompt}\n\n🔄 VARIAÇÃO ${varIdx + 1}: Varie sutilmente ângulo, iluminação ou composição.`;
 
-          // Generate in parallel if both providers enabled
+          // Generate with resilient pipeline (retry + fallback model)
           const providerPromises = enabledProviders.map(async (provider): Promise<ProviderResult> => {
-            const generateFn = provider === 'gemini' ? generateWithGemini : generateWithOpenAI;
-            const result = await generateFn(lovableApiKey, variantPrompt, productBase64, 'high');
+            const result = await resilientGenerate(lovableApiKey, variantPrompt, productBase64, provider);
             
             if (!result.imageBase64) {
               return {
@@ -899,25 +853,26 @@ serve(async (req) => {
           }
         }
 
-        // Update ads_creative_assets that reference this job_id with the generated image URL
+        // Update ads_creative_assets that reference this job_id
+        // Find linked assets first (needed for both success and fallback paths)
+        const { data: linkedAssets } = await supabase
+          .from('ads_creative_assets')
+          .select('id, meta')
+          .eq('tenant_id', tenant_id)
+          .eq('product_id', product_id);
+        
+        const assetsToUpdate = (linkedAssets || []).filter((a: any) => {
+          const m = a.meta as any;
+          return m?.image_job_id === jobId;
+        });
+
         if (uploadedImages.length > 0) {
+          // SUCCESS PATH: use generated image
           const winnerUrl = (winner?.url || uploadedImages[0]?.url);
           const winnerStoragePath = (() => {
             const m = winnerUrl?.match(/\/storage\/v1\/object\/public\/[^/]+\/(.+)$/);
             return m ? m[1] : null;
           })();
-          
-          // Find all ads_creative_assets that have this job_id in their meta
-          const { data: linkedAssets } = await supabase
-            .from('ads_creative_assets')
-            .select('id, meta')
-            .eq('tenant_id', tenant_id)
-            .eq('product_id', product_id);
-          
-          const assetsToUpdate = (linkedAssets || []).filter((a: any) => {
-            const m = a.meta as any;
-            return m?.image_job_id === jobId;
-          });
           
           if (assetsToUpdate.length > 0) {
             for (const asset of assetsToUpdate) {
@@ -934,21 +889,43 @@ serve(async (req) => {
                 },
               }).eq('id', asset.id);
             }
-            console.log(`[creative-image][${VERSION}] Updated ${assetsToUpdate.length} ads_creative_assets with image URL`);
-            
-            // v3.3.0: Callback — trigger analyze to complete campaign chain now that assets are ready
-            try {
-              const { error: cbErr } = await supabase.functions.invoke("ads-autopilot-analyze", {
-                body: { tenant_id, trigger_type: "creative_ready" },
-              });
-              if (cbErr) {
-                console.error(`[creative-image][${VERSION}] Analyze callback error:`, cbErr.message);
-              } else {
-                console.log(`[creative-image][${VERSION}] Analyze callback triggered (creative_ready)`);
-              }
-            } catch (cbCatchErr: any) {
-              console.error(`[creative-image][${VERSION}] Analyze callback catch:`, cbCatchErr.message);
+            console.log(`[creative-image][${VERSION}] Updated ${assetsToUpdate.length} ads_creative_assets with generated image`);
+          }
+        } else {
+          // FALLBACK PATH: ALL generation attempts failed — use catalog image
+          console.warn(`[creative-image][${VERSION}] ALL generation attempts failed. Using catalog image as fallback.`);
+          
+          if (assetsToUpdate.length > 0 && product_image_url) {
+            for (const asset of assetsToUpdate) {
+              const existingMeta = asset.meta as any || {};
+              await supabase.from('ads_creative_assets').update({
+                asset_url: product_image_url,
+                status: 'ready',
+                meta: {
+                  ...existingMeta,
+                  image_status: 'fallback_catalog',
+                  image_job_id: jobId,
+                  fallback_reason: 'All AI generation attempts failed',
+                },
+              }).eq('id', asset.id);
             }
+            console.log(`[creative-image][${VERSION}] Fallback: ${assetsToUpdate.length} ads_creative_assets updated with CATALOG image`);
+          }
+        }
+
+        // Trigger analyze callback to continue campaign chain (both success and fallback)
+        if (assetsToUpdate.length > 0) {
+          try {
+            const { error: cbErr } = await supabase.functions.invoke("ads-autopilot-analyze", {
+              body: { tenant_id, trigger_type: "creative_ready" },
+            });
+            if (cbErr) {
+              console.error(`[creative-image][${VERSION}] Analyze callback error:`, cbErr.message);
+            } else {
+              console.log(`[creative-image][${VERSION}] Analyze callback triggered (creative_ready)`);
+            }
+          } catch (cbCatchErr: any) {
+            console.error(`[creative-image][${VERSION}] Analyze callback catch:`, cbCatchErr.message);
           }
         }
 
