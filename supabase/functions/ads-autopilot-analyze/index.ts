@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.12.5"; // Fix: generate_creative always auto-executes, pending_approval only at create_campaign with full preview
+const VERSION = "v5.12.6"; // Fix: create_campaign ALWAYS pending_approval with full preview data, NEVER executes on Meta directly
 // ===========================================================
 
 const corsHeaders = {
@@ -1921,24 +1921,110 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
             action_hash: `${strategyRunId}_${acctConfig.ad_account_id}_${tc.function.name}_${args.product_name || args.campaign_id || ''}_${args.funnel_stage || ''}_${args.template || ''}_${getNextBatchIndex(tc.function.name, args.product_name || args.campaign_id || '', args.funnel_stage || '', args.template || '')}`,
           };
 
-          // v5.12.5: Approval logic — generate_creative ALWAYS auto-executes (preparation, no financial risk)
-          // pending_approval ONLY at create_campaign (when full campaign preview is ready with creative, targeting, budget)
+          // v5.12.6: Approval logic
+          // - generate_creative, create_lookalike_audience → ALWAYS auto-execute (preparation, no financial risk)
+          // - create_campaign, create_adset → ALWAYS pending_approval (user must see full preview before Meta publish)
+          // - Other actions follow human_approval_mode settings
           const isPublishAction = tc.function.name === "create_campaign" || tc.function.name === "create_adset";
           const isPreparationAction = tc.function.name === "generate_creative" || tc.function.name === "create_lookalike_audience";
           const isBigBudgetChange = tc.function.name === "adjust_budget" && Math.abs(args.change_pct || 0) > 20;
-          const isHighImpact = isPublishAction || isBigBudgetChange;
           
-          // v5.12.5: first_activation forces approval ONLY for publish actions (create_campaign/create_adset)
-          // generate_creative and create_lookalike_audience always auto-execute (they are preparation steps)
-          const isFirstActivationPublish = trigger_type === "first_activation" && isPublishAction;
-          
-          const needsApproval = validation.valid && !isPreparationAction && (
-            isFirstActivationPublish ||
-            acctConfig.human_approval_mode === "all" ||
-            (acctConfig.human_approval_mode === "approve_high_impact" && isHighImpact)
+          // v5.12.6: create_campaign/create_adset ALWAYS requires approval — no exceptions
+          // This ensures user sees creative + targeting + budget preview before anything is published to Meta
+          const needsApproval = validation.valid && (
+            isPublishAction || // ALWAYS for publish actions, regardless of mode or trigger
+            (!isPreparationAction && (
+              acctConfig.human_approval_mode === "all" ||
+              (acctConfig.human_approval_mode === "approve_high_impact" && isBigBudgetChange)
+            ))
           );
 
           if (needsApproval) {
+            // v5.12.6: Enrich action_data with preview info so the approval card shows creative, targeting, budget
+            if (isPublishAction) {
+              const campaignFunnel = args.funnel_stage || "tof";
+              
+              // Find the best creative asset for preview
+              let previewCreativeUrl: string | null = null;
+              let previewCreativeId: string | null = null;
+              let previewHeadline: string | null = args.headline || null;
+              let previewCopyText: string | null = args.primary_text || null;
+              
+              // Priority products
+              const focus = selectFocusProducts(context.products || []);
+              const priorityProducts = extractPriorityProducts(acctConfig.user_instructions, context.products || []);
+              let topProduct: any;
+              if (priorityProducts.length > 0 && (campaignFunnel === "tof" || campaignFunnel === "cold")) {
+                topProduct = priorityProducts[0];
+              } else if (campaignFunnel === "tof" || campaignFunnel === "cold") {
+                topProduct = focus.tof[0];
+              } else if (["bof", "mof", "remarketing"].includes(campaignFunnel)) {
+                topProduct = focus.remarketing[0] || focus.bof[0];
+              } else {
+                topProduct = focus.tof[0] || focus.bof[0];
+              }
+              if (!topProduct) topProduct = context.products?.[0];
+              
+              // Find matching creative asset
+              const compatibleStages = funnelStageCompatible(campaignFunnel);
+              const { data: previewAssets } = await supabase
+                .from("ads_creative_assets")
+                .select("id, asset_url, headline, copy_text, cta_type, product_id, funnel_stage")
+                .eq("tenant_id", tenant_id)
+                .in("status", ["ready", "published"])
+                .not("asset_url", "is", null)
+                .order("created_at", { ascending: false })
+                .limit(10);
+              
+              const matchingPreview = (previewAssets || []).filter((a: any) => {
+                const productMatch = !topProduct || a.product_id === topProduct.id || !a.product_id;
+                const funnelMatch = !a.funnel_stage || compatibleStages.includes(a.funnel_stage);
+                return productMatch && funnelMatch;
+              });
+              
+              if (matchingPreview[0]) {
+                previewCreativeUrl = matchingPreview[0].asset_url;
+                previewCreativeId = matchingPreview[0].id;
+                previewHeadline = matchingPreview[0].headline || previewHeadline;
+                previewCopyText = matchingPreview[0].copy_text || previewCopyText;
+              }
+              
+              // Build targeting summary for preview
+              const targetingSummary = args.targeting_description || (
+                campaignFunnel === "tof" ? "Público aberto (Broad) — Brasil, 18-65" :
+                campaignFunnel === "bof" ? "Remarketing — visitantes e compradores" :
+                "Público personalizado"
+              );
+              
+              actionRecord.action_data = {
+                ...actionRecord.action_data,
+                // Preview data for the approval card
+                preview: {
+                  creative_url: previewCreativeUrl,
+                  creative_asset_id: previewCreativeId,
+                  headline: previewHeadline,
+                  copy_text: previewCopyText,
+                  targeting_summary: targetingSummary,
+                  daily_budget_cents: args.daily_budget_cents,
+                  daily_budget_display: `R$ ${((args.daily_budget_cents || 0) / 100).toFixed(2)}/dia`,
+                  objective: args.objective,
+                  funnel_stage: campaignFunnel,
+                  product_name: topProduct?.name || null,
+                  product_price: topProduct?.price || null,
+                  product_image: topProduct?.image_url || topProduct?.images?.[0] || null,
+                  campaign_name: args.campaign_name,
+                  age_range: `${args.age_min || 18}-${args.age_max || 65}`,
+                  genders: args.genders || [],
+                },
+                funnel_stage: campaignFunnel,
+                product_name: topProduct?.name || null,
+                product_id: topProduct?.id || null,
+                strategy_run_id: strategyRunId,
+              };
+              
+              console.log(`[ads-autopilot-analyze][${VERSION}] PENDING_APPROVAL: ${args.campaign_name} funnel=${campaignFunnel} creative=${previewCreativeUrl ? 'YES' : 'NO'} product=${topProduct?.name || 'none'}`);
+            }
+            
             actionRecord.status = "pending_approval";
           } else if (validation.valid) {
             // Execute
