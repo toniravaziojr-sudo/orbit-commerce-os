@@ -79,7 +79,7 @@ export function AppHeader() {
                 </AvatarFallback>
               </Avatar>
               <div className="hidden flex-col items-start text-left sm:flex">
-                <span className="text-sm font-medium">
+                <span className="text-sm font-medium text-foreground">
                   {profile?.full_name || profile?.email?.split("@")[0] || "Usuário"}
                 </span>
                 <span className="text-xs text-muted-foreground">
