@@ -256,6 +256,7 @@ O sistema detecta automaticamente se o produto é um kit/pack pelo nome:
 |----------------|---------------|---------|
 | `Kit` | kit | "Kit Calvície Zero" |
 | `2x`, `3x`, `(2x)` | pack | "Shampoo (2x)" |
+| `2 Un`, `3 unidades`, `2 unidade` | pack | "Shampoo 2 Un" |
 | `combo`, `conjunto`, `pack` | combo | "Combo Completo" |
 | Nenhum dos acima | single | "Shampoo Calvície Zero" |
 
