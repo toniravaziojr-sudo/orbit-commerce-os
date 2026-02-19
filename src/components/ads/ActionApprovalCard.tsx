@@ -152,120 +152,248 @@ export function ActionApprovalCard({ action, onApprove, onReject, onAdjust, isAp
     setAdjustSuggestion("");
   };
 
+  const isStrategicPlan = action.action_type === "strategic_plan";
+
+  // Strategic plan specific fields
+  const diagnosis = data.diagnosis || preview.copy_text || null;
+  const plannedActions = data.planned_actions || null;
+  const expectedResults = data.expected_results || null;
+  const riskAssessment = data.risk_assessment || null;
+  const timeline = data.timeline || null;
+
   return (
     <>
       <Card className="border-border/60 hover:border-primary/20 transition-colors overflow-hidden min-w-0">
-        {/* Creative + Copy Section */}
-        <div className="flex gap-0">
-          {/* Thumbnail */}
-          <div className="w-[120px] min-h-[120px] flex-shrink-0 bg-muted/20 border-r border-border/40 relative group cursor-pointer" onClick={() => creativeUrl && setZoomOpen(true)}>
-            {creativeUrl ? (
-              <>
-                <img
-                  src={creativeUrl}
-                  alt="Criativo"
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <ZoomIn className="h-5 w-5 text-white" />
+        {isStrategicPlan ? (
+          /* ===== STRATEGIC PLAN LAYOUT ===== */
+          <>
+            <CardContent className="p-4 space-y-4">
+              {/* Header */}
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Bot className="h-4 w-4 text-primary" />
                 </div>
-              </>
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <ImageIcon className="h-8 w-8 text-muted-foreground/30" />
-                <span className="sr-only">Criativo não disponível</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold">Plano Estratégico — Motor Estrategista</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {new Date(action.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                </div>
+                {funnelInfo && (
+                  <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0", funnelInfo.color)}>
+                    {funnelInfo.label}
+                  </Badge>
+                )}
               </div>
-            )}
-          </div>
 
-          {/* Main Info */}
-          <div className="flex-1 p-3 space-y-2 min-w-0 overflow-hidden">
-            {/* Header: Type + Date */}
-            <div className="flex items-center gap-2">
-              <Icon className="h-3.5 w-3.5 text-primary flex-shrink-0" />
-              <span className="text-[11px] text-muted-foreground">
-                {new Date(action.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
-              </span>
-              {funnelInfo && (
-                <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 ml-auto", funnelInfo.color)}>
-                  {funnelInfo.label}
-                </Badge>
+              {/* Diagnosis */}
+              {diagnosis && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                    Diagnóstico
+                  </div>
+                  <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30">
+                    {sanitizeDisplayText(diagnosis)}
+                  </div>
+                </div>
               )}
+
+              {/* Planned Actions */}
+              {plannedActions && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                    <ListChecks className="h-3.5 w-3.5 text-primary" />
+                    Ações Planejadas
+                  </div>
+                  {Array.isArray(plannedActions) ? (
+                    <ul className="space-y-1.5 text-sm text-muted-foreground bg-muted/30 rounded-lg p-3 border border-border/30">
+                      {plannedActions.map((a: string, i: number) => (
+                        <li key={i} className="whitespace-pre-wrap leading-relaxed">{sanitizeDisplayText(a)}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30">
+                      {sanitizeDisplayText(String(plannedActions))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Expected Results */}
+              {expectedResults && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                    <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+                    Resultados Esperados
+                  </div>
+                  <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30">
+                    {sanitizeDisplayText(String(expectedResults))}
+                  </div>
+                </div>
+              )}
+
+              {/* Risk Assessment */}
+              {riskAssessment && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                    <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+                    Riscos
+                  </div>
+                  <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30">
+                    {sanitizeDisplayText(String(riskAssessment))}
+                  </div>
+                </div>
+              )}
+
+              {/* Timeline */}
+              {timeline && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                    <Clock className="h-3.5 w-3.5 text-blue-500" />
+                    Cronograma
+                  </div>
+                  <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30">
+                    {sanitizeDisplayText(String(timeline))}
+                  </div>
+                </div>
+              )}
+
+              {/* Technical Details — Collapsed */}
+              <Collapsible open={techOpen} onOpenChange={setTechOpen}>
+                <CollapsibleTrigger className="flex items-center gap-1 text-[10px] text-muted-foreground/60 hover:text-muted-foreground transition-colors w-full">
+                  <ChevronDown className={cn("h-3 w-3 transition-transform", techOpen && "rotate-180")} />
+                  Detalhes técnicos
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-2">
+                  <div className="bg-muted/20 rounded-lg p-2.5 space-y-1.5 text-[10px] text-muted-foreground">
+                    {action.confidence && (
+                      <div><span className="font-medium">Confiança:</span> {action.confidence === "high" ? "Alta" : action.confidence === "medium" ? "Média" : "Baixa"}</div>
+                    )}
+                    <div><span className="font-medium">Session:</span> {action.session_id?.slice(0, 8)}...</div>
+                    <div><span className="font-medium">ID:</span> {action.id?.slice(0, 8)}...</div>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </CardContent>
+          </>
+        ) : (
+          /* ===== STANDARD ACTION LAYOUT (campaigns, creatives, etc.) ===== */
+          <>
+            {/* Creative + Copy Section */}
+            <div className="flex gap-0">
+              {/* Thumbnail */}
+              <div className="w-[120px] min-h-[120px] flex-shrink-0 bg-muted/20 border-r border-border/40 relative group cursor-pointer" onClick={() => creativeUrl && setZoomOpen(true)}>
+                {creativeUrl ? (
+                  <>
+                    <img src={creativeUrl} alt="Criativo" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <ZoomIn className="h-5 w-5 text-white" />
+                    </div>
+                  </>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <ImageIcon className="h-8 w-8 text-muted-foreground/30" />
+                  </div>
+                )}
+              </div>
+
+              {/* Main Info */}
+              <div className="flex-1 p-3 space-y-2 min-w-0 overflow-hidden">
+                <div className="flex items-center gap-2">
+                  <Icon className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+                  <span className="text-[11px] text-muted-foreground">
+                    {new Date(action.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                  {funnelInfo && (
+                    <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 ml-auto", funnelInfo.color)}>
+                      {funnelInfo.label}
+                    </Badge>
+                  )}
+                </div>
+
+                {headline && (
+                  <p className="text-sm font-semibold leading-tight">{headline}</p>
+                )}
+
+                {copyText && (
+                  <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">{copyText}</p>
+                )}
+
+                {ctaType && (
+                  <Badge variant="secondary" className="text-[10px] px-2 py-0.5">
+                    {CTA_LABELS[ctaType] || ctaType}
+                  </Badge>
+                )}
+              </div>
             </div>
 
-            {/* Headline */}
-            {headline && (
-              <p className="text-sm font-semibold leading-tight line-clamp-2">{headline}</p>
-            )}
-
-            {/* Copy */}
-            {copyText && (
-              <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">{copyText}</p>
-            )}
-
-            {/* CTA Badge */}
-            {ctaType && (
-              <Badge variant="secondary" className="text-[10px] px-2 py-0.5">
-                {CTA_LABELS[ctaType] || ctaType}
-              </Badge>
-            )}
-          </div>
-        </div>
-
-        <CardContent className="px-3 pb-3 pt-0 space-y-2.5 border-t border-border/30">
-          {/* Product + Budget Row */}
-          <div className="grid grid-cols-2 gap-2 text-xs pt-2.5">
-            {productName && (
-              <div>
-                <span className="text-muted-foreground">Produto: </span>
-                <span className="font-medium">{productName}</span>
-                {productPrice && <span className="text-muted-foreground"> — {productPrice}</span>}
-              </div>
-            )}
-            {budgetDisplay && (
-              <div>
-                <span className="text-muted-foreground">Orçamento: </span>
-                <span className="font-semibold text-foreground">{budgetDisplay}</span>
-              </div>
-            )}
-            {targeting && (
-              <div className="col-span-2">
-                <span className="text-muted-foreground">Público: </span>
-                <span className="font-medium break-words break-all">{sanitizeDisplayText(targeting)}</span>
-                {ageRange && <span className="text-muted-foreground"> ({ageRange} anos)</span>}
-              </div>
-            )}
-          </div>
-
-          {/* Budget Bar */}
-          <BudgetBar snapshot={budgetSnapshot} proposedCents={data.daily_budget_cents} />
-
-          {/* Technical Details — Collapsed */}
-          <Collapsible open={techOpen} onOpenChange={setTechOpen}>
-            <CollapsibleTrigger className="flex items-center gap-1 text-[10px] text-muted-foreground/60 hover:text-muted-foreground transition-colors w-full">
-              <ChevronDown className={cn("h-3 w-3 transition-transform", techOpen && "rotate-180")} />
-              Detalhes técnicos
-            </CollapsibleTrigger>
-            <CollapsibleContent className="mt-2">
-              <div className="bg-muted/20 rounded-lg p-2.5 space-y-1.5 text-[10px] text-muted-foreground">
-                {action.confidence && (
-                  <div><span className="font-medium">Confiança:</span> {action.confidence === "high" ? "Alta" : action.confidence === "medium" ? "Média" : "Baixa"}</div>
+            <CardContent className="px-3 pb-3 pt-0 space-y-2.5 border-t border-border/30">
+              {/* Product + Budget Row */}
+              <div className="grid grid-cols-2 gap-2 text-xs pt-2.5">
+                {productName && (
+                  <div>
+                    <span className="text-muted-foreground">Produto: </span>
+                    <span className="font-medium">{productName}</span>
+                    {productPrice && <span className="text-muted-foreground"> — {productPrice}</span>}
+                  </div>
                 )}
-                {action.reasoning && (
-                  <div><span className="font-medium">Raciocínio:</span> {action.reasoning}</div>
+                {budgetDisplay && (
+                  <div>
+                    <span className="text-muted-foreground">Orçamento: </span>
+                    <span className="font-semibold text-foreground">{budgetDisplay}</span>
+                  </div>
                 )}
-                {action.expected_impact && (
-                  <div><span className="font-medium">Impacto esperado:</span> {action.expected_impact}</div>
+                {targeting && (
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground">Público: </span>
+                    <span className="font-medium break-words break-all">{sanitizeDisplayText(targeting)}</span>
+                    {ageRange && <span className="text-muted-foreground"> ({ageRange} anos)</span>}
+                  </div>
                 )}
-                {campaignName && (
-                  <div><span className="font-medium">Campanha:</span> {campaignName}</div>
-                )}
-                <div><span className="font-medium">Session:</span> {action.session_id?.slice(0, 8)}...</div>
-                <div><span className="font-medium">ID:</span> {action.id?.slice(0, 8)}...</div>
               </div>
-            </CollapsibleContent>
-          </Collapsible>
-        </CardContent>
+
+              {/* Reasoning — full content */}
+              {action.reasoning && (
+                <div className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/20 rounded-lg p-2.5">
+                  <span className="font-medium text-foreground">Raciocínio: </span>
+                  {sanitizeDisplayText(action.reasoning)}
+                </div>
+              )}
+
+              {/* Expected Impact — full content */}
+              {action.expected_impact && (
+                <div className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/20 rounded-lg p-2.5">
+                  <span className="font-medium text-foreground">Impacto esperado: </span>
+                  {sanitizeDisplayText(action.expected_impact)}
+                </div>
+              )}
+
+              {/* Budget Bar */}
+              <BudgetBar snapshot={budgetSnapshot} proposedCents={data.daily_budget_cents} />
+
+              {/* Technical Details — Collapsed */}
+              <Collapsible open={techOpen} onOpenChange={setTechOpen}>
+                <CollapsibleTrigger className="flex items-center gap-1 text-[10px] text-muted-foreground/60 hover:text-muted-foreground transition-colors w-full">
+                  <ChevronDown className={cn("h-3 w-3 transition-transform", techOpen && "rotate-180")} />
+                  Detalhes técnicos
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-2">
+                  <div className="bg-muted/20 rounded-lg p-2.5 space-y-1.5 text-[10px] text-muted-foreground">
+                    {action.confidence && (
+                      <div><span className="font-medium">Confiança:</span> {action.confidence === "high" ? "Alta" : action.confidence === "medium" ? "Média" : "Baixa"}</div>
+                    )}
+                    {campaignName && (
+                      <div><span className="font-medium">Campanha:</span> {campaignName}</div>
+                    )}
+                    <div><span className="font-medium">Session:</span> {action.session_id?.slice(0, 8)}...</div>
+                    <div><span className="font-medium">ID:</span> {action.id?.slice(0, 8)}...</div>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </CardContent>
+          </>
+        )}
 
         <CardFooter className="px-3 pb-3 pt-0 gap-2">
           <Button
