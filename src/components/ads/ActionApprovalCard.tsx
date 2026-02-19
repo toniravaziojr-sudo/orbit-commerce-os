@@ -155,8 +155,8 @@ function FullContentDialog({ action, open, onOpenChange }: { action: PendingActi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col p-0">
-        <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/30">
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col p-0 overflow-hidden">
+        <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/30 shrink-0">
           <DialogTitle className="flex items-center gap-2 text-base">
             {isStrategicPlan ? <Bot className="h-4 w-4 text-primary" /> : <Megaphone className="h-4 w-4 text-primary" />}
             {label}
@@ -169,8 +169,8 @@ function FullContentDialog({ action, open, onOpenChange }: { action: PendingActi
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 min-h-0">
-          <div className="space-y-4 px-5 py-4">
+        <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
+          <div className="space-y-4">
             {/* Creative image */}
             {creativeUrl && (
               <div className="rounded-lg overflow-hidden border border-border/40 bg-muted/10">
@@ -252,7 +252,7 @@ function FullContentDialog({ action, open, onOpenChange }: { action: PendingActi
             {/* Budget Bar */}
             {budgetSnapshot && <BudgetBar snapshot={budgetSnapshot} />}
           </div>
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );

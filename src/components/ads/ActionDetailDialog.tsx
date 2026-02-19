@@ -441,8 +441,8 @@ export function ActionDetailDialog({ action, open, onOpenChange }: ActionDetailD
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 min-h-0">
-          <div className="space-y-4 px-5 py-4">
+        <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
+          <div className="space-y-4">
             {/* Reasoning — skip for strategic_plan (already rendered inside StrategicPlanContent) */}
             {action.reasoning && action.action_type !== "strategic_plan" && (
               <div className="rounded-lg bg-muted/50 p-3">
@@ -495,7 +495,7 @@ export function ActionDetailDialog({ action, open, onOpenChange }: ActionDetailD
               </>
             )}
           </div>
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );
