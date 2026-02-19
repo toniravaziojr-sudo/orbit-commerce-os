@@ -336,7 +336,7 @@ export default function AdsManager() {
                       <TabsTrigger value="campaigns">Campanhas</TabsTrigger>
                       <TabsTrigger value="actions" className="gap-2">
                         <Bot className="h-3.5 w-3.5" />
-                        Ações da IA
+                        Plano Estratégico
                         {autopilot.actions.filter(a => a.channel === channel).length > 0 && (
                           <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-xs">
                             {autopilot.actions.filter(a => a.channel === channel).length}

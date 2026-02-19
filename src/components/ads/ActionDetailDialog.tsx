@@ -421,7 +421,7 @@ export function ActionDetailDialog({ action, open, onOpenChange }: ActionDetailD
             <Badge variant="outline" className="text-xs capitalize">{action.channel}</Badge>
           </DialogTitle>
           <DialogDescription className="text-xs">
-            {new Date(action.created_at).toLocaleString("pt-BR")} · Sessão: {action.session_id.slice(0, 8)}
+            {new Date(action.created_at).toLocaleString("pt-BR")}
           </DialogDescription>
         </DialogHeader>
 
