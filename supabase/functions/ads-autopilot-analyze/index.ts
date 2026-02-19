@@ -1991,8 +1991,6 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                   totalActionsRejected++;
                   continue;
                 }
-                const campaignFunnel = args.funnel_stage || "tof";
-                
                 // Step 1: Create campaign with native start_time
                 const objectiveMap: Record<string, string> = {
                   conversions: "OUTCOME_SALES",
