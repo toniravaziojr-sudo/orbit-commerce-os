@@ -828,7 +828,7 @@ async function runStrategistForTenant(supabase: any, tenantId: string, trigger: 
       .select("action_data, reasoning")
       .eq("tenant_id", tenantId)
       .eq("action_type", "strategic_plan")
-      .eq("status", "approved")
+      .in("status", ["approved", "executed"])
       .order("created_at", { ascending: false })
       .limit(1);
 
