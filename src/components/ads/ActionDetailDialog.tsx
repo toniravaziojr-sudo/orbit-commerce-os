@@ -32,6 +32,11 @@ function formatCurrency(cents: number): string {
 
 /** Renders structured preview for campaign creation */
 function CampaignPreview({ data }: { data: Record<string, any> }) {
+  const preview = data.preview || {};
+  const hasAdsets = data.adsets && data.adsets.length > 0;
+  const hasAds = data.ads && data.ads.length > 0;
+  const hasPreviewFallback = !hasAdsets && !hasAds && (preview.headline || preview.copy_text || preview.creative_url || preview.targeting_summary);
+
   return (
     <div className="space-y-4">
       <DetailSection icon={<TrendingUp className="h-4 w-4" />} title="Campanha">
@@ -41,19 +46,60 @@ function CampaignPreview({ data }: { data: Record<string, any> }) {
         {data.special_ad_categories && (
           <DetailRow label="Categorias Especiais" value={data.special_ad_categories?.join(", ") || "Nenhuma"} />
         )}
+        {(preview.funnel_stage || data.funnel_stage) && (
+          <DetailRow label="Funil" value={preview.funnel_stage || data.funnel_stage} />
+        )}
+        {(preview.product_name || data.product_name) && (
+          <DetailRow label="Produto" value={`${preview.product_name || data.product_name}${preview.product_price_display ? ` — ${preview.product_price_display}` : ''}`} />
+        )}
       </DetailSection>
 
-      {data.daily_budget_cents && (
+      {(data.daily_budget_cents || preview.budget_snapshot) && (
         <DetailSection icon={<DollarSign className="h-4 w-4" />} title="Orçamento">
-          <DetailRow label="Orçamento Diário" value={formatCurrency(data.daily_budget_cents)} highlight />
+          {data.daily_budget_cents && (
+            <DetailRow label="Orçamento Diário" value={formatCurrency(data.daily_budget_cents)} highlight />
+          )}
           {data.lifetime_budget_cents && (
             <DetailRow label="Orçamento Vitalício" value={formatCurrency(data.lifetime_budget_cents)} />
           )}
           {data.bid_strategy && <DetailRow label="Estratégia de Lance" value={data.bid_strategy} />}
+          {preview.budget_snapshot && (
+            <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+              <DetailRow label="Ativo na conta" value={formatCurrency(preview.budget_snapshot.active_cents || 0)} />
+              <DetailRow label="Reservado" value={formatCurrency(preview.budget_snapshot.pending_reserved_cents || 0)} />
+              <DetailRow label="Limite" value={formatCurrency(preview.budget_snapshot.limit_cents || 0)} />
+            </div>
+          )}
         </DetailSection>
       )}
 
-      {data.adsets && data.adsets.length > 0 && (
+      {/* Preview fallback: show headline, copy, creative, targeting when adsets/ads are empty */}
+      {hasPreviewFallback && (
+        <>
+          {(preview.headline || preview.copy_text) && (
+            <DetailSection icon={<FileText className="h-4 w-4" />} title="Anúncio (Preview)">
+              {preview.headline && <DetailRow label="Título" value={preview.headline} />}
+              {preview.copy_text && <DetailRow label="Texto" value={preview.copy_text} />}
+              {preview.cta_type && <DetailRow label="CTA" value={preview.cta_type} />}
+              {preview.creative_url && (
+                <div className="mt-2">
+                  <p className="text-xs text-muted-foreground mb-1">Criativo:</p>
+                  <img src={preview.creative_url} alt="Criativo" className="rounded-lg border max-h-48 object-contain" />
+                </div>
+              )}
+            </DetailSection>
+          )}
+
+          {preview.targeting_summary && (
+            <DetailSection icon={<Target className="h-4 w-4" />} title="Público-Alvo">
+              <p className="text-sm">{preview.targeting_summary}</p>
+              {preview.age_range && <DetailRow label="Faixa etária" value={`${preview.age_range} anos`} />}
+            </DetailSection>
+          )}
+        </>
+      )}
+
+      {hasAdsets && (
         <DetailSection icon={<Layers className="h-4 w-4" />} title={`Conjuntos de Anúncios (${data.adsets.length})`}>
           {data.adsets.map((adset: any, i: number) => (
             <div key={i} className="rounded-lg border p-3 space-y-2">
@@ -68,7 +114,7 @@ function CampaignPreview({ data }: { data: Record<string, any> }) {
         </DetailSection>
       )}
 
-      {data.ads && data.ads.length > 0 && (
+      {hasAds && (
         <DetailSection icon={<Image className="h-4 w-4" />} title={`Anúncios (${data.ads.length})`}>
           {data.ads.map((ad: any, i: number) => (
             <div key={i} className="rounded-lg border p-3 space-y-2">

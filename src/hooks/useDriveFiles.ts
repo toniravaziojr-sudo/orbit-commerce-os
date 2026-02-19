@@ -77,7 +77,7 @@ export function useDriveFiles(options: UseDriveFilesOptions = {}) {
       query = query
         .order('is_system_folder', { ascending: false })
         .order('is_folder', { ascending: false })
-        .order('original_name', { ascending: true });
+        .order('created_at', { ascending: false });
 
       const { data, error } = await query;
       if (error) throw error;

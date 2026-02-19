@@ -1,4 +1,4 @@
-import { Clock, CheckCircle2, XCircle, AlertTriangle, Bot, Pause, DollarSign, TrendingUp, Image, ThumbsUp, ThumbsDown, Hourglass, Undo2, Eye } from "lucide-react";
+import { Clock, CheckCircle2, XCircle, AlertTriangle, Bot, Pause, DollarSign, TrendingUp, Image, Hourglass, Undo2, Eye } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,7 +54,7 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
   validated: { label: "Validada", variant: "secondary", icon: Clock },
   pending: { label: "Pendente", variant: "outline", icon: Clock },
   pending_approval: { label: "Aguardando Aprovação", variant: "secondary", icon: Hourglass },
-  approved: { label: "Aprovada", variant: "default", icon: ThumbsUp },
+  approved: { label: "Aprovada", variant: "default", icon: CheckCircle2 },
   failed: { label: "Falha", variant: "destructive", icon: XCircle },
   rejected: { label: "Rejeitada", variant: "destructive", icon: AlertTriangle },
   expired: { label: "Expirada", variant: "outline", icon: Clock },
@@ -101,39 +101,7 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [detailAction, setDetailAction] = useState<AutopilotAction | null>(null);
 
-  const approveAction = useMutation({
-    mutationFn: async (actionId: string) => {
-      setProcessingId(actionId);
-      const { error } = await supabase
-        .from("ads_autopilot_actions" as any)
-        .update({ status: "executed", executed_at: new Date().toISOString() } as any)
-        .eq("id", actionId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ads-autopilot-actions"] });
-      toast.success("Ação aprovada e executada");
-      setProcessingId(null);
-    },
-    onError: (err: Error) => { toast.error(err.message); setProcessingId(null); },
-  });
-
-  const rejectAction = useMutation({
-    mutationFn: async ({ actionId, reason }: { actionId: string; reason: string }) => {
-      setProcessingId(actionId);
-      const { error } = await supabase
-        .from("ads_autopilot_actions" as any)
-        .update({ status: "rejected", rejection_reason: reason } as any)
-        .eq("id", actionId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ads-autopilot-actions"] });
-      toast.success("Ação rejeitada");
-      setProcessingId(null);
-    },
-    onError: (err: Error) => { toast.error(err.message); setProcessingId(null); },
-  });
+  // No approve/reject here — approval happens in "Aguardando Ação" tab
 
   const rollbackAction = useMutation({
     mutationFn: async (action: AutopilotAction) => {
@@ -282,28 +250,10 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
                   )}
                   <div className="flex items-center gap-2 mt-3 flex-wrap" onClick={(e) => e.stopPropagation()}>
                     {isPending && (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="default"
-                          onClick={() => approveAction.mutate(action.id)}
-                          disabled={isProcessing}
-                          className="gap-1"
-                        >
-                          <ThumbsUp className="h-3 w-3" />
-                          Aprovar
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => rejectAction.mutate({ actionId: action.id, reason: "Rejeitado manualmente pelo usuário" })}
-                          disabled={isProcessing}
-                          className="gap-1 text-destructive hover:text-destructive"
-                        >
-                          <ThumbsDown className="h-3 w-3" />
-                          Rejeitar
-                        </Button>
-                      </>
+                      <Badge variant="outline" className="text-xs text-amber-600 border-amber-400 bg-amber-500/5">
+                        <Hourglass className="h-3 w-3 mr-1" />
+                        Veja na aba "Aguardando Ação"
+                      </Badge>
                     )}
                     {canRollback && (
                       <AlertDialog>
