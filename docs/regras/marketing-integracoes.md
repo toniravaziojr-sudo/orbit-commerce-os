@@ -358,7 +358,9 @@ Se incompleto, o Switch fica desabilitado e um Tooltip mostra os campos faltante
 #### Comportamento de Ativação/Desativação da IA (v2026-02-19)
 
 - **Ativação:** Toda ativação do toggle de IA dispara o **Motor Estrategista** (`ads-autopilot-strategist` com trigger `start` e `target_account_id`/`target_channel`), executando análise profunda completa: produtos, campanhas existentes, públicos, métricas, links da loja, instruções do usuário → monta plano estratégico → cria campanhas/criativos se necessário → envia para aprovação. Não há distinção entre primeira vez e reativação — ambas executam ciclo estratégico completo.
-- **Motor chamado:** `ads-autopilot-strategist` v1.4.0+ (aceita `target_account_id` para focar em conta específica)
+- **Motor chamado:** `ads-autopilot-strategist` v1.5.0+ (aceita `target_account_id` para focar em conta específica)
+- **Resolução de URL (v1.5.0):** A URL da loja é resolvida exclusivamente via `tenant_domains` (type=`custom`, is_primary=`true`). A coluna `tenants.custom_domain` **NÃO existe** e não deve ser usada. Fallback: `{slug}.comandocentral.com.br`.
+- **Catálogo (v1.5.0):** Produtos são carregados de `products` (sem coluna `images`). Imagens são carregadas separadamente de `product_images` com `sort_order`. Cada produto no contexto inclui `images[]` (até 3) e `product_url`.
 - **Desativação:** Ao tentar desativar, um `AlertDialog` exibe aviso: "Ao ativar novamente, a IA fará uma varredura completa, re-analisando 7 dias de dados e podendo reestruturar campanhas." O usuário deve confirmar para prosseguir.
 - **Motivo:** Garante que o usuário esteja ciente de que reativações não são "continuações suaves", e sim re-análises completas do estado da conta.
 - **Insight body:** Texto completo salvo sem truncamento (`.slice(0, 500)` removido em v5.13.0).
