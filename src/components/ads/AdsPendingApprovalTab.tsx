@@ -123,17 +123,30 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
 
   const adjustAction = useMutation({
     mutationFn: async ({ actionId, feedback }: { actionId: string; feedback: string }) => {
+      // 1. Reject the action with feedback
       const { error } = await supabase
         .from("ads_autopilot_actions" as any)
         .update({ status: "rejected", rejection_reason: `Ajuste solicitado: ${feedback}` } as any)
         .eq("id", actionId);
       if (error) throw error;
+
+      // 2. Re-trigger strategist with revision feedback
+      const { data, error: stratErr } = await supabase.functions.invoke("ads-autopilot-strategist", {
+        body: { 
+          tenant_id: tenantId, 
+          trigger: "revision",
+          revision_feedback: feedback,
+        },
+      });
+      if (stratErr) console.error("Strategist re-trigger error:", stratErr);
+      if (data && !data.success) console.error("Strategist revision error:", data.error);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ads-pending-approval"] });
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-actions"] });
       queryClient.invalidateQueries({ queryKey: ["ads-pending-actions"] });
-      toast.success("Feedback enviado. A IA irá revisar a proposta.");
+      queryClient.invalidateQueries({ queryKey: ["ads-autopilot-sessions"] });
+      toast.success("Feedback enviado! A IA está gerando um novo plano com seus ajustes...");
     },
     onError: (err: Error) => toast.error(err.message),
   });
