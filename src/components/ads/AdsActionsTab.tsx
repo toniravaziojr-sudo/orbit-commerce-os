@@ -231,34 +231,14 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
                     )}
                   </div>
                   {action.reasoning && (
-                    <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{action.reasoning}</p>
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{action.reasoning}</p>
                   )}
-                  {action.expected_impact && (
-                    <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">
-                      <strong>Impacto esperado:</strong> {action.expected_impact}
-                    </p>
-                  )}
-                  {/* Strategic plan: show diagnosis & planned actions inline */}
                   {action.action_type === "strategic_plan" && action.action_data?.diagnosis && (
-                    <div className="mt-2 space-y-2">
-                      <div className="text-sm text-muted-foreground whitespace-pre-wrap bg-muted/30 rounded-lg p-3 border border-border/30 leading-relaxed">
-                        {action.action_data.diagnosis}
-                      </div>
-                      {action.action_data.planned_actions && (
-                        <div className="text-sm text-muted-foreground whitespace-pre-wrap bg-muted/30 rounded-lg p-3 border border-border/30 leading-relaxed">
-                          <strong className="text-foreground">Ações Planejadas:</strong><br/>
-                          {Array.isArray(action.action_data.planned_actions)
-                            ? action.action_data.planned_actions.join("\n")
-                            : String(action.action_data.planned_actions)}
-                        </div>
-                      )}
-                      {action.action_data.expected_results && (
-                        <div className="text-sm text-muted-foreground whitespace-pre-wrap bg-muted/30 rounded-lg p-3 border border-border/30 leading-relaxed">
-                          <strong className="text-foreground">Resultados Esperados:</strong><br/>
-                          {String(action.action_data.expected_results)}
-                        </div>
-                      )}
-                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                      {action.action_data.diagnosis.length > 150 
+                        ? action.action_data.diagnosis.slice(0, 150).trimEnd() + "…" 
+                        : action.action_data.diagnosis}
+                    </p>
                   )}
                   {action.rejection_reason && (
                     <p className="text-sm text-destructive mt-1">Motivo: {action.rejection_reason}</p>

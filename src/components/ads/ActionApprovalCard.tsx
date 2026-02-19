@@ -1,7 +1,6 @@
 // =============================================
-// ACTION APPROVAL CARD — v5.12.8
-// Preview-first card: creative, copy, audience, budget bar
-// Technical details hidden in collapsible
+// ACTION APPROVAL CARD — v5.12.9
+// Compact preview + "Ver completo" dialog
 // =============================================
 
 import { useState } from "react";
@@ -11,9 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Check, X, MessageSquare, ChevronDown, Megaphone, ImageIcon, DollarSign, Target, Sparkles, ZoomIn, Bot, AlertTriangle, TrendingUp, ListChecks, Clock } from "lucide-react";
+import { Check, X, MessageSquare, ChevronDown, Megaphone, ImageIcon, DollarSign, Target, Sparkles, ZoomIn, Bot, AlertTriangle, TrendingUp, ListChecks, Clock, Eye } from "lucide-react";
 import type { PendingAction } from "@/hooks/useAdsPendingActions";
 import { cn } from "@/lib/utils";
 
@@ -42,7 +40,16 @@ const ACTION_TYPE_ICONS: Record<string, typeof Target> = {
   adjust_budget: DollarSign,
   pause_campaign: Target,
   activate_campaign: Sparkles,
-  strategic_plan: Target,
+  strategic_plan: Bot,
+};
+
+const ACTION_TYPE_LABELS: Record<string, string> = {
+  create_campaign: "Nova Campanha",
+  generate_creative: "Criativo Gerado",
+  adjust_budget: "Ajuste de Orçamento",
+  pause_campaign: "Pausar Campanha",
+  activate_campaign: "Ativar Campanha",
+  strategic_plan: "Plano Estratégico",
 };
 
 function formatCents(cents: number): string {
@@ -61,7 +68,13 @@ function sanitizeDisplayText(text: string): string {
     .trim();
 }
 
-function BudgetBar({ snapshot, proposedCents }: { snapshot: any; proposedCents?: number }) {
+/** Truncate text to N chars, adding ellipsis */
+function truncate(text: string, maxLength: number): string {
+  if (!text || text.length <= maxLength) return text;
+  return text.slice(0, maxLength).trimEnd() + "…";
+}
+
+function BudgetBar({ snapshot }: { snapshot: any }) {
   if (!snapshot || !snapshot.limit_cents) return null;
   const limit = snapshot.limit_cents;
   const active = snapshot.active_cents || 0;
@@ -101,42 +114,228 @@ function BudgetBar({ snapshot, proposedCents }: { snapshot: any; proposedCents?:
   );
 }
 
-export function ActionApprovalCard({ action, onApprove, onReject, onAdjust, isApproving, isRejecting }: ActionApprovalCardProps) {
-  const [rejectOpen, setRejectOpen] = useState(false);
-  const [adjustOpen, setAdjustOpen] = useState(false);
-  const [zoomOpen, setZoomOpen] = useState(false);
-  const [rejectReason, setRejectReason] = useState("");
-  const [adjustSuggestion, setAdjustSuggestion] = useState("");
-  const [techOpen, setTechOpen] = useState(false);
+const CTA_LABELS: Record<string, string> = {
+  SHOP_NOW: "Comprar Agora",
+  BUY_NOW: "Comprar",
+  LEARN_MORE: "Saiba Mais",
+  SIGN_UP: "Cadastre-se",
+  SUBSCRIBE: "Assinar",
+  CONTACT_US: "Fale Conosco",
+  GET_OFFER: "Ver Oferta",
+};
 
+/* ========================================
+   FULL CONTENT DIALOG
+   Shows all fields in a well-formatted view
+   ======================================== */
+function FullContentDialog({ action, open, onOpenChange }: { action: PendingAction; open: boolean; onOpenChange: (o: boolean) => void }) {
   const data = action.action_data || {};
   const preview = data.preview || {};
-  const Icon = ACTION_TYPE_ICONS[action.action_type] || Target;
+  const isStrategicPlan = action.action_type === "strategic_plan";
 
-  // Preview fields
   const creativeUrl = preview.creative_url || data.asset_url || data.creative_url || null;
   const headline = preview.headline || data.headline || null;
   const copyText = preview.copy_text || data.copy_text || null;
   const ctaType = preview.cta_type || data.cta_type || null;
   const productName = preview.product_name || data.product_name || null;
   const productPrice = preview.product_price_display || (preview.product_price ? formatCents(preview.product_price) : null);
-  const funnel = preview.funnel_stage || data.funnel_stage || null;
-  const funnelInfo = funnel ? FUNNEL_LABELS[funnel] || { label: funnel, color: "bg-muted text-muted-foreground" } : null;
   const targeting = preview.targeting_summary || null;
+  const ageRange = preview.age_range || null;
   const budgetDisplay = preview.daily_budget_display || (data.daily_budget_cents ? `R$ ${(data.daily_budget_cents / 100).toFixed(2)}/dia` : null);
   const budgetSnapshot = preview.budget_snapshot || null;
-  const ageRange = preview.age_range || null;
+
+  const diagnosis = data.diagnosis || preview.copy_text || null;
+  const plannedActions = data.planned_actions || null;
+  const expectedResults = data.expected_results || null;
+  const riskAssessment = data.risk_assessment || null;
+  const timeline = data.timeline || null;
+
+  const label = ACTION_TYPE_LABELS[action.action_type] || action.action_type;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col p-0">
+        <DialogHeader className="px-5 pt-5 pb-0">
+          <DialogTitle className="flex items-center gap-2 text-base">
+            {isStrategicPlan ? <Bot className="h-4 w-4 text-primary" /> : <Megaphone className="h-4 w-4 text-primary" />}
+            {label}
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            {new Date(action.created_at).toLocaleString("pt-BR")}
+            {action.confidence && (
+              <> · Confiança: {action.confidence === "high" ? "Alta" : action.confidence === "medium" ? "Média" : "Baixa"}</>
+            )}
+          </DialogDescription>
+        </DialogHeader>
+
+        <ScrollArea className="flex-1 px-5 pb-5">
+          <div className="space-y-4 pt-2">
+            {/* Creative image */}
+            {creativeUrl && (
+              <div className="rounded-lg overflow-hidden border border-border/40 bg-muted/10">
+                <img src={creativeUrl} alt="Criativo" className="w-full max-h-[300px] object-contain" />
+              </div>
+            )}
+
+            {/* Headline & Copy */}
+            {headline && (
+              <div>
+                <SectionLabel icon={<Sparkles className="h-3.5 w-3.5 text-primary" />} label="Headline" />
+                <p className="text-sm font-semibold mt-1">{headline}</p>
+              </div>
+            )}
+            {copyText && !isStrategicPlan && (
+              <div>
+                <SectionLabel icon={<MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />} label="Copy" />
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap mt-1 leading-relaxed">{copyText}</p>
+              </div>
+            )}
+            {ctaType && (
+              <Badge variant="secondary" className="text-xs">{CTA_LABELS[ctaType] || ctaType}</Badge>
+            )}
+
+            {/* Product & Budget */}
+            {(productName || budgetDisplay || targeting) && (
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                {productName && (
+                  <div className="bg-muted/30 rounded-lg p-2.5 border border-border/30">
+                    <span className="text-muted-foreground">Produto</span>
+                    <p className="font-medium mt-0.5">{productName}{productPrice && ` — ${productPrice}`}</p>
+                  </div>
+                )}
+                {budgetDisplay && (
+                  <div className="bg-muted/30 rounded-lg p-2.5 border border-border/30">
+                    <span className="text-muted-foreground">Orçamento</span>
+                    <p className="font-semibold mt-0.5">{budgetDisplay}</p>
+                  </div>
+                )}
+                {targeting && (
+                  <div className="col-span-2 bg-muted/30 rounded-lg p-2.5 border border-border/30">
+                    <span className="text-muted-foreground">Público</span>
+                    <p className="font-medium mt-0.5">{sanitizeDisplayText(targeting)}{ageRange && ` (${ageRange} anos)`}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Strategic Plan Sections */}
+            {isStrategicPlan && diagnosis && (
+              <div>
+                <SectionLabel icon={<AlertTriangle className="h-3.5 w-3.5 text-amber-500" />} label="Diagnóstico" />
+                <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30 mt-1.5">
+                  {sanitizeDisplayText(diagnosis)}
+                </div>
+              </div>
+            )}
+            {plannedActions && (
+              <div>
+                <SectionLabel icon={<ListChecks className="h-3.5 w-3.5 text-primary" />} label="Ações Planejadas" />
+                {Array.isArray(plannedActions) ? (
+                  <ul className="space-y-1.5 text-sm text-muted-foreground bg-muted/30 rounded-lg p-3 border border-border/30 mt-1.5 list-disc list-inside">
+                    {plannedActions.map((a: string, i: number) => (
+                      <li key={i} className="whitespace-pre-wrap leading-relaxed">{sanitizeDisplayText(a)}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30 mt-1.5">
+                    {sanitizeDisplayText(String(plannedActions))}
+                  </div>
+                )}
+              </div>
+            )}
+            {expectedResults && (
+              <div>
+                <SectionLabel icon={<TrendingUp className="h-3.5 w-3.5 text-emerald-500" />} label="Resultados Esperados" />
+                <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30 mt-1.5">
+                  {sanitizeDisplayText(String(expectedResults))}
+                </div>
+              </div>
+            )}
+            {riskAssessment && (
+              <div>
+                <SectionLabel icon={<AlertTriangle className="h-3.5 w-3.5 text-destructive" />} label="Riscos" />
+                <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30 mt-1.5">
+                  {sanitizeDisplayText(String(riskAssessment))}
+                </div>
+              </div>
+            )}
+            {timeline && (
+              <div>
+                <SectionLabel icon={<Clock className="h-3.5 w-3.5 text-blue-500" />} label="Cronograma" />
+                <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30 mt-1.5">
+                  {sanitizeDisplayText(String(timeline))}
+                </div>
+              </div>
+            )}
+
+            {/* Reasoning & Impact (for all action types) */}
+            {action.reasoning && (
+              <div>
+                <SectionLabel icon={<Bot className="h-3.5 w-3.5 text-muted-foreground" />} label="Raciocínio da IA" />
+                <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30 mt-1.5">
+                  {sanitizeDisplayText(action.reasoning)}
+                </div>
+              </div>
+            )}
+            {action.expected_impact && (
+              <div>
+                <SectionLabel icon={<TrendingUp className="h-3.5 w-3.5 text-emerald-500" />} label="Impacto Esperado" />
+                <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30 mt-1.5">
+                  {sanitizeDisplayText(action.expected_impact)}
+                </div>
+              </div>
+            )}
+
+            {/* Budget Bar */}
+            {budgetSnapshot && <BudgetBar snapshot={budgetSnapshot} />}
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SectionLabel({ icon, label }: { icon: React.ReactNode; label: string }) {
+  return (
+    <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+      {icon}
+      {label}
+    </div>
+  );
+}
+
+/* ========================================
+   MAIN CARD COMPONENT
+   Shows compact preview + "Ver completo"
+   ======================================== */
+export function ActionApprovalCard({ action, onApprove, onReject, onAdjust, isApproving, isRejecting }: ActionApprovalCardProps) {
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [zoomOpen, setZoomOpen] = useState(false);
+  const [fullOpen, setFullOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [adjustSuggestion, setAdjustSuggestion] = useState("");
+
+  const data = action.action_data || {};
+  const preview = data.preview || {};
+  const Icon = ACTION_TYPE_ICONS[action.action_type] || Target;
+  const isStrategicPlan = action.action_type === "strategic_plan";
+
+  const creativeUrl = preview.creative_url || data.asset_url || data.creative_url || null;
+  const headline = preview.headline || data.headline || null;
+  const copyText = preview.copy_text || data.copy_text || null;
+  const funnel = preview.funnel_stage || data.funnel_stage || null;
+  const funnelInfo = funnel ? FUNNEL_LABELS[funnel] || { label: funnel, color: "bg-muted text-muted-foreground" } : null;
+  const budgetDisplay = preview.daily_budget_display || (data.daily_budget_cents ? `R$ ${(data.daily_budget_cents / 100).toFixed(2)}/dia` : null);
   const campaignName = preview.campaign_name || data.campaign_name || null;
 
-  const CTA_LABELS: Record<string, string> = {
-    SHOP_NOW: "Comprar Agora",
-    BUY_NOW: "Comprar",
-    LEARN_MORE: "Saiba Mais",
-    SIGN_UP: "Cadastre-se",
-    SUBSCRIBE: "Assinar",
-    CONTACT_US: "Fale Conosco",
-    GET_OFFER: "Ver Oferta",
-  };
+  // For strategic plans, build a summary from diagnosis
+  const diagnosis = data.diagnosis || null;
+  const summaryText = isStrategicPlan
+    ? sanitizeDisplayText(diagnosis || preview.copy_text || "")
+    : sanitizeDisplayText(copyText || action.reasoning || "");
+
+  const label = ACTION_TYPE_LABELS[action.action_type] || action.action_type;
 
   const handleRejectSubmit = () => {
     if (!rejectReason.trim()) return;
@@ -152,250 +351,86 @@ export function ActionApprovalCard({ action, onApprove, onReject, onAdjust, isAp
     setAdjustSuggestion("");
   };
 
-  const isStrategicPlan = action.action_type === "strategic_plan";
-
-  // Strategic plan specific fields
-  const diagnosis = data.diagnosis || preview.copy_text || null;
-  const plannedActions = data.planned_actions || null;
-  const expectedResults = data.expected_results || null;
-  const riskAssessment = data.risk_assessment || null;
-  const timeline = data.timeline || null;
-
   return (
     <>
       <Card className="border-border/60 hover:border-primary/20 transition-colors overflow-hidden min-w-0">
-        {isStrategicPlan ? (
-          /* ===== STRATEGIC PLAN LAYOUT ===== */
-          <>
-            <CardContent className="p-4 space-y-4">
-              {/* Header */}
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <Bot className="h-4 w-4 text-primary" />
+        <div className="flex gap-0">
+          {/* Thumbnail (for standard actions with creatives) */}
+          {!isStrategicPlan && (
+            <div className="w-[100px] min-h-[100px] flex-shrink-0 bg-muted/20 border-r border-border/40 relative group cursor-pointer" onClick={() => creativeUrl && setZoomOpen(true)}>
+              {creativeUrl ? (
+                <>
+                  <img src={creativeUrl} alt="Criativo" className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <ZoomIn className="h-5 w-5 text-white" />
+                  </div>
+                </>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <ImageIcon className="h-6 w-6 text-muted-foreground/30" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold">Plano Estratégico — Motor Estrategista</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {new Date(action.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                  </p>
-                </div>
-                {funnelInfo && (
-                  <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0", funnelInfo.color)}>
-                    {funnelInfo.label}
-                  </Badge>
-                )}
+              )}
+            </div>
+          )}
+
+          {/* Main Info — Compact */}
+          <div className="flex-1 p-3 space-y-1.5 min-w-0 overflow-hidden">
+            {/* Header row */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className={cn("p-1.5 rounded-md", isStrategicPlan ? "bg-primary/10" : "bg-muted/50")}>
+                <Icon className="h-3.5 w-3.5 text-primary" />
               </div>
-
-              {/* Diagnosis */}
-              {diagnosis && (
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                    <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-                    Diagnóstico
-                  </div>
-                  <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30">
-                    {sanitizeDisplayText(diagnosis)}
-                  </div>
-                </div>
+              <span className="text-xs font-semibold">{label}</span>
+              <span className="text-[10px] text-muted-foreground">
+                {new Date(action.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+              </span>
+              {funnelInfo && (
+                <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 ml-auto", funnelInfo.color)}>
+                  {funnelInfo.label}
+                </Badge>
               )}
-
-              {/* Planned Actions */}
-              {plannedActions && (
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                    <ListChecks className="h-3.5 w-3.5 text-primary" />
-                    Ações Planejadas
-                  </div>
-                  {Array.isArray(plannedActions) ? (
-                    <ul className="space-y-1.5 text-sm text-muted-foreground bg-muted/30 rounded-lg p-3 border border-border/30">
-                      {plannedActions.map((a: string, i: number) => (
-                        <li key={i} className="whitespace-pre-wrap leading-relaxed">{sanitizeDisplayText(a)}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30">
-                      {sanitizeDisplayText(String(plannedActions))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Expected Results */}
-              {expectedResults && (
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                    <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
-                    Resultados Esperados
-                  </div>
-                  <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30">
-                    {sanitizeDisplayText(String(expectedResults))}
-                  </div>
-                </div>
-              )}
-
-              {/* Risk Assessment */}
-              {riskAssessment && (
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                    <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
-                    Riscos
-                  </div>
-                  <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30">
-                    {sanitizeDisplayText(String(riskAssessment))}
-                  </div>
-                </div>
-              )}
-
-              {/* Timeline */}
-              {timeline && (
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                    <Clock className="h-3.5 w-3.5 text-blue-500" />
-                    Cronograma
-                  </div>
-                  <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30">
-                    {sanitizeDisplayText(String(timeline))}
-                  </div>
-                </div>
-              )}
-
-              {/* Technical Details — Collapsed */}
-              <Collapsible open={techOpen} onOpenChange={setTechOpen}>
-                <CollapsibleTrigger className="flex items-center gap-1 text-[10px] text-muted-foreground/60 hover:text-muted-foreground transition-colors w-full">
-                  <ChevronDown className={cn("h-3 w-3 transition-transform", techOpen && "rotate-180")} />
-                  Detalhes técnicos
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-2">
-                  <div className="bg-muted/20 rounded-lg p-2.5 space-y-1.5 text-[10px] text-muted-foreground">
-                    {action.confidence && (
-                      <div><span className="font-medium">Confiança:</span> {action.confidence === "high" ? "Alta" : action.confidence === "medium" ? "Média" : "Baixa"}</div>
-                    )}
-                    <div><span className="font-medium">Session:</span> {action.session_id?.slice(0, 8)}...</div>
-                    <div><span className="font-medium">ID:</span> {action.id?.slice(0, 8)}...</div>
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-            </CardContent>
-          </>
-        ) : (
-          /* ===== STANDARD ACTION LAYOUT (campaigns, creatives, etc.) ===== */
-          <>
-            {/* Creative + Copy Section */}
-            <div className="flex gap-0">
-              {/* Thumbnail */}
-              <div className="w-[120px] min-h-[120px] flex-shrink-0 bg-muted/20 border-r border-border/40 relative group cursor-pointer" onClick={() => creativeUrl && setZoomOpen(true)}>
-                {creativeUrl ? (
-                  <>
-                    <img src={creativeUrl} alt="Criativo" className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <ZoomIn className="h-5 w-5 text-white" />
-                    </div>
-                  </>
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <ImageIcon className="h-8 w-8 text-muted-foreground/30" />
-                  </div>
-                )}
-              </div>
-
-              {/* Main Info */}
-              <div className="flex-1 p-3 space-y-2 min-w-0 overflow-hidden">
-                <div className="flex items-center gap-2">
-                  <Icon className="h-3.5 w-3.5 text-primary flex-shrink-0" />
-                  <span className="text-[11px] text-muted-foreground">
-                    {new Date(action.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                  </span>
-                  {funnelInfo && (
-                    <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 ml-auto", funnelInfo.color)}>
-                      {funnelInfo.label}
-                    </Badge>
-                  )}
-                </div>
-
-                {headline && (
-                  <p className="text-sm font-semibold leading-tight">{headline}</p>
-                )}
-
-                {copyText && (
-                  <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">{copyText}</p>
-                )}
-
-                {ctaType && (
-                  <Badge variant="secondary" className="text-[10px] px-2 py-0.5">
-                    {CTA_LABELS[ctaType] || ctaType}
-                  </Badge>
-                )}
-              </div>
             </div>
 
-            <CardContent className="px-3 pb-3 pt-0 space-y-2.5 border-t border-border/30">
-              {/* Product + Budget Row */}
-              <div className="grid grid-cols-2 gap-2 text-xs pt-2.5">
-                {productName && (
-                  <div>
-                    <span className="text-muted-foreground">Produto: </span>
-                    <span className="font-medium">{productName}</span>
-                    {productPrice && <span className="text-muted-foreground"> — {productPrice}</span>}
-                  </div>
-                )}
-                {budgetDisplay && (
-                  <div>
-                    <span className="text-muted-foreground">Orçamento: </span>
-                    <span className="font-semibold text-foreground">{budgetDisplay}</span>
-                  </div>
-                )}
-                {targeting && (
-                  <div className="col-span-2">
-                    <span className="text-muted-foreground">Público: </span>
-                    <span className="font-medium break-words break-all">{sanitizeDisplayText(targeting)}</span>
-                    {ageRange && <span className="text-muted-foreground"> ({ageRange} anos)</span>}
-                  </div>
-                )}
-              </div>
+            {/* Headline */}
+            {headline && !isStrategicPlan && (
+              <p className="text-sm font-semibold leading-tight truncate">{headline}</p>
+            )}
 
-              {/* Reasoning — full content */}
-              {action.reasoning && (
-                <div className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/20 rounded-lg p-2.5">
-                  <span className="font-medium text-foreground">Raciocínio: </span>
-                  {sanitizeDisplayText(action.reasoning)}
-                </div>
+            {/* Compact summary — max 150 chars */}
+            {summaryText && (
+              <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
+                {truncate(summaryText, 200)}
+              </p>
+            )}
+
+            {/* Quick info chips */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {budgetDisplay && (
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1">
+                  <DollarSign className="h-2.5 w-2.5" />
+                  {budgetDisplay}
+                </Badge>
               )}
-
-              {/* Expected Impact — full content */}
-              {action.expected_impact && (
-                <div className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/20 rounded-lg p-2.5">
-                  <span className="font-medium text-foreground">Impacto esperado: </span>
-                  {sanitizeDisplayText(action.expected_impact)}
-                </div>
+              {campaignName && !isStrategicPlan && (
+                <span className="text-[10px] text-muted-foreground truncate max-w-[200px]">{campaignName}</span>
               )}
+            </div>
 
-              {/* Budget Bar */}
-              <BudgetBar snapshot={budgetSnapshot} proposedCents={data.daily_budget_cents} />
+            {/* "Ver completo" button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setFullOpen(true)}
+              className="h-7 text-xs gap-1 text-primary hover:text-primary px-2 -ml-2"
+            >
+              <Eye className="h-3 w-3" />
+              Ver conteúdo completo
+            </Button>
+          </div>
+        </div>
 
-              {/* Technical Details — Collapsed */}
-              <Collapsible open={techOpen} onOpenChange={setTechOpen}>
-                <CollapsibleTrigger className="flex items-center gap-1 text-[10px] text-muted-foreground/60 hover:text-muted-foreground transition-colors w-full">
-                  <ChevronDown className={cn("h-3 w-3 transition-transform", techOpen && "rotate-180")} />
-                  Detalhes técnicos
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-2">
-                  <div className="bg-muted/20 rounded-lg p-2.5 space-y-1.5 text-[10px] text-muted-foreground">
-                    {action.confidence && (
-                      <div><span className="font-medium">Confiança:</span> {action.confidence === "high" ? "Alta" : action.confidence === "medium" ? "Média" : "Baixa"}</div>
-                    )}
-                    {campaignName && (
-                      <div><span className="font-medium">Campanha:</span> {campaignName}</div>
-                    )}
-                    <div><span className="font-medium">Session:</span> {action.session_id?.slice(0, 8)}...</div>
-                    <div><span className="font-medium">ID:</span> {action.id?.slice(0, 8)}...</div>
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-            </CardContent>
-          </>
-        )}
-
-        <CardFooter className="px-3 pb-3 pt-0 gap-2">
+        {/* Action buttons */}
+        <CardFooter className="px-3 pb-3 pt-0 gap-2 border-t border-border/30">
           <Button
             size="sm"
             onClick={() => onApprove(action.id)}
@@ -426,6 +461,9 @@ export function ActionApprovalCard({ action, onApprove, onReject, onAdjust, isAp
           </Button>
         </CardFooter>
       </Card>
+
+      {/* Full Content Dialog */}
+      <FullContentDialog action={action} open={fullOpen} onOpenChange={setFullOpen} />
 
       {/* Reject Dialog */}
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
@@ -474,6 +512,7 @@ export function ActionApprovalCard({ action, onApprove, onReject, onAdjust, isAp
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
       {/* Zoom Dialog */}
       {creativeUrl && (
         <Dialog open={zoomOpen} onOpenChange={setZoomOpen}>
