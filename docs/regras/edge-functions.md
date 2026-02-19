@@ -1122,3 +1122,71 @@ Remarketing/Ofertas → focus.remarketing (variantes: "Kit Banho Calvície Zero 
 **v1.9.0 — Fix Ticket Médio**:
 - `orders.total` já armazena valores em BRL (reais), não em centavos
 - Removida a divisão por 100 em `avg_ticket_cents` e `revenue_cents_30d` no prompt do strategist
+
+---
+
+### v1.15.0: `ads-autopilot-strategist` — Plan-First + Multi-Copy
+
+**Plan-First Enforcement**:
+- Trigger `start` agora restringe ferramentas disponíveis APENAS para `strategic_plan` e `report_insight`
+- Ferramentas de criação (`create_campaign`, `generate_creative`, `create_lookalike_audience`) são BLOQUEADAS na primeira ativação
+- Isso garante que a IA gere primeiro um plano estratégico completo para aprovação antes de qualquer implementação
+
+**Multi-Copy Obrigatório**:
+- `create_campaign` agora aceita arrays: `primary_texts` (2-4 variações) e `headlines` (2-4 variações)
+- Campos legados `primary_text` e `headline` (string única) continuam funcionando como fallback
+- Mínimo 2 variações obrigatórias para testes A/B
+
+**Campos atualizados em `create_campaign`**:
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `product_name` | string | ✅ | Nome exato do produto do catálogo |
+| `primary_texts` | string[] | ✅ | 2-4 variações de texto principal |
+| `headlines` | string[] | ✅ | 2-4 variações de headline |
+| `descriptions` | string[] | ❌ | Descrições curtas |
+| `cta` | string | ❌ | Call-to-action |
+
+**Implementação do Plano Aprovado**:
+- Trigger `implement_approved_plan` agora instrui a IA a criar TODAS as campanhas mencionadas no plano (teste, duplicação, remarketing)
+- Cada campanha deve ter 2-4 copies diferentes
+- Geração de criativos DEVE ocorrer ANTES de criar campanhas
+- 100% do orçamento aprovado deve ser utilizado
+
+---
+
+### `creative-image-generate` v4.1.0 — Download Resiliente
+
+**Melhorias**:
+- Download da imagem do produto com **3 tentativas** (retry com backoff)
+- Timeout de 15s por tentativa via `AbortController`
+- Header `User-Agent` para evitar bloqueio por CDNs (Shopify, etc.)
+- Validação de tamanho mínimo do arquivo (>100 bytes)
+- Logging detalhado em cada etapa do pipeline
+
+---
+
+### `ads-autopilot-weekly-insights` v2.0.0 — Insights Acionáveis
+
+**Mudança principal**: Reescrita completa do prompt para gerar RECOMENDAÇÕES DE NEGÓCIO em vez de dumps de contexto.
+
+**10 tipos de insights suportados**:
+| Tipo | Exemplo |
+|------|---------|
+| `increase_price` | "Aumente o preço do Shampoo X de R$Y para R$Z" |
+| `decrease_price` | "Reduza preço para competitividade" |
+| `increase_budget` | "Aumente orçamento diário para R$X" |
+| `decrease_budget` | "Reduza investimento nesta campanha" |
+| `pause` | "Pause anúncios do Produto X — margem negativa" |
+| `scale` | "Escale Produto X — ROAS alto e margem boa" |
+| `restock` | "Reponha estoque do Produto X (apenas N un)" |
+| `create_offer` | "Crie oferta de tempo limitado" |
+| `create_kit` | "Crie kit combo para aumentar ticket médio" |
+| `adjust_target` | "Ajuste meta de ROAS baseado na margem real" |
+
+**Regras do prompt**:
+- Cada insight DEVE ter valores em R$ e nomes reais de produtos
+- NÃO gera dumps de contexto ("analisei N campanhas...")
+- NÃO usa IDs técnicos
+- Mínimo 1 insight positivo quando há bons resultados
+- Máximo 3 frases por body
+- Modelo: `google/gemini-2.5-flash`
