@@ -66,7 +66,7 @@ serve(async (req) => {
     }
     
     if (input.price) {
-      contextParts.push(`Preço: R$ ${(input.price / 100).toFixed(2)}`);
+      contextParts.push(`Preço: R$ ${Number(input.price).toFixed(2)}`);
     }
     
     if (input.storeName) {

@@ -1916,11 +1916,11 @@ ${channelHealth.alerts?.join("\n") || ""}
         const focusSection = `
 ## 🎯 PRODUTOS FOCO POR FUNIL (USE ESTES — NÃO VARIANTES EM TOF/COLD)
 ### TOF (Entrada/Experimentação) — Produtos base mais baratos:
-${focusProducts.tof.map((p: any) => `- ${p.name} (R$ ${(p.price / 100).toFixed(2)}, ID: ${p.id})`).join("\n") || "Nenhum"}
+${focusProducts.tof.map((p: any) => `- ${p.name} (R$ ${Number(p.price).toFixed(2)}, ID: ${p.id})`).join("\n") || "Nenhum"}
 ### BOF (Conversão) — Kits/bundles de maior ticket:
-${focusProducts.bof.map((p: any) => `- ${p.name} (R$ ${(p.price / 100).toFixed(2)}, ID: ${p.id})`).join("\n") || "Nenhum"}
+${focusProducts.bof.map((p: any) => `- ${p.name} (R$ ${Number(p.price).toFixed(2)}, ID: ${p.id})`).join("\n") || "Nenhum"}
 ### REMARKETING/OFERTAS — Variantes permitidas (cross-sell, upsell):
-${focusProducts.remarketing.map((p: any) => `- ${p.name} (R$ ${(p.price / 100).toFixed(2)}, ID: ${p.id})`).join("\n") || "Nenhum"}
+${focusProducts.remarketing.map((p: any) => `- ${p.name} (R$ ${Number(p.price).toFixed(2)}, ID: ${p.id})`).join("\n") || "Nenhum"}
 ⚠️ Variantes (Dia, Noite, 2x, 3x, FLEX) SÓ para remarketing/ofertas. TOF e BOF usam APENAS produtos base.`;
 
         // v5.12.0: Ready assets context for creative_ready trigger
@@ -1967,9 +1967,9 @@ ${focusSection}
 ${JSON.stringify(
   context.products.slice(0, 10).map((p: any) => ({
     name: p.name,
-    price: `R$ ${(p.price / 100).toFixed(2)}`,
+    price: `R$ ${Number(p.price).toFixed(2)}`,
     stock: p.stock_quantity,
-    cost: p.cost_price ? `R$ ${(p.cost_price / 100).toFixed(2)}` : "N/A",
+    cost: p.cost_price ? `R$ ${Number(p.cost_price).toFixed(2)}` : "N/A",
   })),
   null, 2
 )}

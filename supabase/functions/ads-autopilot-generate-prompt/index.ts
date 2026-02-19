@@ -59,12 +59,12 @@ Deno.serve(async (req) => {
     const categoryNames = categories.map((c: any) => c.name).join(", ");
     const productSummary = products.map((p: any) => {
       const margin = p.cost_price ? Math.round(((p.price - p.cost_price) / p.price) * 100) : null;
-      return `- ${p.name} (R$${(p.price / 100).toFixed(2)}${margin ? `, margem ~${margin}%` : ""}${p.stock_quantity != null ? `, estoque: ${p.stock_quantity}` : ""})`;
+      return `- ${p.name} (R$${Number(p.price).toFixed(2)}${margin ? `, margem ~${margin}%` : ""}${p.stock_quantity != null ? `, estoque: ${p.stock_quantity}` : ""})`;
     }).join("\n");
 
     const topProduct = products[0]?.name || "Produto principal";
     const avgPrice = products.length > 0 
-      ? (products.reduce((s: number, p: any) => s + p.price, 0) / products.length / 100).toFixed(2)
+      ? (products.reduce((s: number, p: any) => s + p.price, 0) / products.length).toFixed(2)
       : "0";
 
     const channelLabel = channel === "meta" ? "Meta (Facebook/Instagram)" 
