@@ -439,6 +439,88 @@ Se incompleto, o Switch fica desabilitado e um Tooltip mostra os campos faltante
 - **Kill Switch:** Verificado no início de cada ciclo (global e por conta)
 - **Human Approval:** Ações high-impact ficam como `pending_approval` quando configurado
 
+### Budget Guard com Reserva (v5.12.8)
+
+O Budget Guard impede que o somatório de campanhas ativas + propostas pendentes exceda o `budget_cents` da conta.
+
+#### Lógica (`checkBudgetGuard` em `ads-autopilot-analyze`)
+
+| Componente | Fonte | Descrição |
+|---|---|---|
+| `active_allocated_cents` | `meta_ad_campaigns` WHERE `[AI]%` AND `ACTIVE` | Soma dos orçamentos diários de campanhas IA ativas |
+| `pending_reserved_cents` | `ads_autopilot_actions` WHERE `pending_approval` AND `create_campaign` AND `channel=meta` AND `created_at > now()-24h` | Soma dos orçamentos de propostas pendentes (TTL 24h) |
+| `limit_cents` | `ads_autopilot_account_configs.budget_cents` | Limite configurado pelo usuário |
+| `remaining_cents` | `limit - active - pending_reserved` | Saldo disponível para novas propostas |
+
+**Regra**: Se `proposed_budget > remaining_cents`, a proposta é rejeitada com mensagem contendo breakdown completo (ativo/reservado/restante/limite).
+
+#### TTL de Reservas
+
+Propostas `pending_approval` com `created_at < now() - 24h` são consideradas expiradas e não contam no `pending_reserved_cents`.
+
+#### Deduplicação por Funil
+
+Máximo **1 proposta pendente** por `(tenant_id, ad_account_id, funnel_stage)`. Se já existir `pending_approval` para o mesmo funil, a nova proposta é rejeitada com: "Já existe proposta pendente para este funil."
+
+#### Budget Snapshot no Preview
+
+Toda proposta `create_campaign` inclui em `action_data.preview.budget_snapshot`:
+
+```jsonc
+{
+  "active_cents": 0,
+  "pending_reserved_cents": 37500,
+  "remaining_cents": 12500,
+  "limit_cents": 50000
+}
+```
+
+#### Revalidação na Aprovação (`ads-autopilot-execute-approved`)
+
+Antes de executar uma ação aprovada:
+1. Recalcula `getBudgetSnapshot` **excluindo a própria ação** do `pending_reserved`
+2. Se `active + pending_excl_self + proposed > limit`: bloqueia e marca como `rejected`
+3. Mensagem: "Aprovar esta campanha excederia o limite diário. Ajuste orçamento ou rejeite outra proposta."
+
+### Fluxo de Aprovação — UI Redesenhada (v5.12.8)
+
+O card de aprovação (`ActionApprovalCard.tsx`) prioriza informações visuais para o usuário aprovar com segurança.
+
+#### Visível por padrão
+
+| Elemento | Fonte (`action_data.preview.*`) |
+|---|---|
+| Thumbnail do criativo | `creative_url` (skeleton se ausente) |
+| Headline + copy (3-4 linhas) | `headline`, `copy_text` |
+| CTA badge | `cta_type` |
+| Produto (nome + preço) | `product_name`, `product_price_display` |
+| Funil (chip colorido) | `funnel_stage` → "Público Frio" / "Remarketing" / "Teste" |
+| Público resumido | `targeting_summary` |
+| Orçamento/dia | `daily_budget_cents` formatado |
+| Barra de orçamento visual | `budget_snapshot` (verde=ativo, amarelo=reservado, cinza=restante) |
+| Botões | Aprovar / Ajustar / Rejeitar |
+
+#### Oculto (Collapsible "Detalhes técnicos")
+
+- `confidence`, `reasoning`, `expected_impact`
+- `session_id`, `trigger_type`, tags internas
+- IDs, payloads, dados brutos
+
+#### Barra de Orçamento Global (`AdsPendingActionsTab.tsx`)
+
+No topo da lista de ações pendentes, um `BudgetSummaryHeader` exibe:
+- Ativo (verde) | Reservado (amarelo) | Restante (cinza)
+- Limite/dia
+- Fonte: `budget_snapshot` da primeira ação pendente
+
+#### Arquivos
+
+| Arquivo | Descrição |
+|---|---|
+| `src/components/ads/ActionApprovalCard.tsx` | Card de aprovação redesenhado (preview-first) |
+| `src/components/ads/AdsPendingActionsTab.tsx` | Lista de ações pendentes com budget summary header |
+| `src/hooks/useAdsPendingActions.ts` | Hook para CRUD de ações pendentes (approve/reject) |
+
 ### Arquitetura Dual-Motor (v6.0)
 
 O sistema opera através de **dois motores independentes** para garantir separação entre proteção de orçamento e implementação estratégica:
