@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.7.0"; // Fix: add implement_approved_plan trigger type, filter strategic_plan tool, fix session counters
+const VERSION = "v1.8.0"; // Fix: create_campaign/create_adset ALWAYS pending_approval, never call Meta API directly
 // ===================
 
 const corsHeaders = {
@@ -709,129 +709,39 @@ async function executeToolCall(
   }
 
   if (toolName === "create_campaign") {
-    const needsApproval = config.human_approval_mode === "all" || config.human_approval_mode === "approve_high_impact";
-    if (needsApproval) {
-      return { status: "pending_approval", data: { ...args, ad_account_id: config.ad_account_id } };
-    }
-
-    try {
-      // Step 1: Create campaign PAUSED via Meta API
-      const { data: campResult, error: campErr } = await supabase.functions.invoke("meta-ads-campaigns", {
-        body: {
-          tenant_id: tenantId,
-          action: "create",
-          ad_account_id: config.ad_account_id,
-          name: args.campaign_name,
+    // v1.8.0: ALWAYS require approval for campaign creation — never call Meta API directly from strategist
+    console.log(`[ads-autopilot-strategist][${VERSION}] create_campaign → pending_approval (always)`);
+    return { 
+      status: "pending_approval", 
+      data: { 
+        ...args, 
+        ad_account_id: config.ad_account_id,
+        preview: {
+          campaign_name: args.campaign_name,
           objective: args.objective,
           daily_budget_cents: args.daily_budget_cents,
-          status: "PAUSED",
-          bid_strategy: "LOWEST_COST_WITHOUT_CAP",
+          targeting_description: args.targeting_description,
+          funnel_stage: args.funnel_stage,
         },
-      });
-      if (campErr) throw campErr;
-      if (campResult && !campResult.success) throw new Error(campResult.error || "Erro ao criar campanha");
-
-      const newCampaignId = campResult?.data?.meta_campaign_id;
-
-      // Step 2: Create default ad set (CBO — no budget at adset level)
-      let newAdsetId = null;
-      if (newCampaignId) {
-        try {
-          const targeting: any = { geo_locations: { countries: ["BR"] }, age_min: 18, age_max: 65 };
-          
-          // Build promoted_object for conversion campaigns
-          const promotedObject: any = {};
-          if (context.metaPixelId && (args.objective === "OUTCOME_SALES" || args.objective === "OUTCOME_LEADS")) {
-            promotedObject.pixel_id = context.metaPixelId;
-            promotedObject.custom_event_type = args.objective === "OUTCOME_SALES" ? "PURCHASE" : "LEAD";
-          }
-
-          const { data: adsetResult } = await supabase.functions.invoke("meta-ads-adsets", {
-            body: {
-              tenant_id: tenantId,
-              action: "create",
-              ad_account_id: config.ad_account_id,
-              meta_campaign_id: newCampaignId,
-              name: `[AI] ${args.funnel_stage} | ${args.targeting_description}`.substring(0, 200),
-              targeting,
-              status: "PAUSED",
-              ...(Object.keys(promotedObject).length > 0 ? { promoted_object: promotedObject } : {}),
-            },
-          });
-          newAdsetId = adsetResult?.data?.meta_adset_id || null;
-        } catch (e: any) {
-          console.error(`[ads-autopilot-strategist][${VERSION}] Adset creation failed:`, e.message);
-        }
-      }
-
-      // Schedule activation for 00:01-04:00 BRT
-      const scheduledFor = getNextSchedulingTime();
-      if (newCampaignId && isAutoMode) {
-        await supabase.from("ads_autopilot_actions").insert({
-          tenant_id: tenantId,
-          session_id: sessionId,
-          channel: config.channel,
-          action_type: "activate_campaign",
-          action_data: { campaign_id: newCampaignId, ad_account_id: config.ad_account_id, campaign_name: args.campaign_name, scheduled_for: scheduledFor },
-          reasoning: `Ativação agendada para ${scheduledFor}`,
-          status: "scheduled",
-          action_hash: `${sessionId}_activate_${newCampaignId}`,
-        });
-      }
-
-      return {
-        status: isAutoMode ? "scheduled" : "executed",
-        data: {
-          meta_campaign_id: newCampaignId,
-          meta_adset_id: newAdsetId,
-          scheduled_activation: isAutoMode ? scheduledFor : null,
-          ad_account_id: config.ad_account_id,
-          campaign_name: args.campaign_name,
-        },
-      };
-    } catch (err: any) {
-      return { status: "failed", data: { error: err.message } };
-    }
+      } 
+    };
   }
 
   if (toolName === "create_adset") {
-    const needsApproval = config.human_approval_mode === "all" || config.human_approval_mode === "approve_high_impact";
-    if (needsApproval) {
-      return { status: "pending_approval", data: { ...args, ad_account_id: config.ad_account_id } };
-    }
-
-    try {
-      const targeting: any = { geo_locations: { countries: ["BR"] }, age_min: args.age_min || 18, age_max: args.age_max || 65 };
-      if (args.genders?.length > 0) targeting.genders = args.genders;
-      if (args.custom_audience_id) targeting.custom_audiences = [{ id: args.custom_audience_id }];
-      else if (args.interests?.length > 0) targeting.flexible_spec = [{ interests: args.interests }];
-
-      // Build promoted_object with pixel for conversion optimization
-      const promotedObject: any = {};
-      if (context.metaPixelId) {
-        promotedObject.pixel_id = context.metaPixelId;
-        promotedObject.custom_event_type = "PURCHASE";
-      }
-
-      const { data: adsetResult, error: adsetErr } = await supabase.functions.invoke("meta-ads-adsets", {
-        body: {
-          tenant_id: tenantId,
-          action: "create",
-          ad_account_id: config.ad_account_id,
-          meta_campaign_id: args.campaign_id,
-          name: args.adset_name,
-          targeting,
-          status: "PAUSED",
-          ...(Object.keys(promotedObject).length > 0 ? { promoted_object: promotedObject } : {}),
+    // v1.8.0: ALWAYS require approval for adset creation
+    console.log(`[ads-autopilot-strategist][${VERSION}] create_adset → pending_approval (always)`);
+    return { 
+      status: "pending_approval", 
+      data: { 
+        ...args, 
+        ad_account_id: config.ad_account_id,
+        preview: {
+          adset_name: args.adset_name,
+          targeting_type: args.targeting_type,
+          daily_budget_cents: args.daily_budget_cents,
         },
-      });
-      if (adsetErr) throw adsetErr;
-      if (adsetResult && !adsetResult.success) throw new Error(adsetResult.error || "Erro ao criar adset");
-
-      return { status: "executed", data: { meta_adset_id: adsetResult?.data?.meta_adset_id, ad_account_id: config.ad_account_id } };
-    } catch (err: any) {
-      return { status: "failed", data: { error: err.message } };
-    }
+      } 
+    };
   }
 
   if (toolName === "adjust_budget") {
