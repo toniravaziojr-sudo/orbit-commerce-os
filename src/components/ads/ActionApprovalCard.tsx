@@ -46,7 +46,17 @@ export function ActionApprovalCard({ action, onApprove, onReject, onAdjust, isAp
   const TypeIcon = typeInfo.icon;
 
   const data = action.action_data || {};
-  const creativeUrl = data.asset_url || data.creative_url || data.image_url || null;
+  const preview = data.preview || {};
+  const creativeUrl = preview.creative_url || data.asset_url || data.creative_url || data.image_url || null;
+  const displayHeadline = preview.headline || data.headline || null;
+  const displayCopyText = preview.copy_text || data.copy_text || null;
+  const displayCampaignName = preview.campaign_name || data.campaign_name || null;
+  const displayProductName = preview.product_name || data.product_name || null;
+  const displayFunnel = preview.funnel_stage || data.funnel_stage || null;
+  const displayBudget = preview.daily_budget_display || (data.daily_budget_cents ? `R$ ${(data.daily_budget_cents / 100).toFixed(2)}/dia` : null);
+  const displayObjective = preview.objective || data.objective || null;
+  const displayTargeting = preview.targeting_summary || null;
+  const displayAgeRange = preview.age_range || null;
 
   const handleRejectSubmit = () => {
     if (!rejectReason.trim()) return;
@@ -97,49 +107,61 @@ export function ActionApprovalCard({ action, onApprove, onReject, onAdjust, isAp
 
           {/* Action Details */}
           <div className="grid grid-cols-2 gap-2 text-xs">
-            {data.campaign_name && (
+            {displayCampaignName && (
               <div className="col-span-2">
                 <span className="text-muted-foreground">Campanha: </span>
-                <span className="font-medium">{data.campaign_name}</span>
+                <span className="font-medium">{displayCampaignName}</span>
               </div>
             )}
-            {data.product_name && (
+            {displayProductName && (
               <div>
                 <span className="text-muted-foreground">Produto: </span>
-                <span className="font-medium">{data.product_name}</span>
+                <span className="font-medium">{displayProductName}</span>
               </div>
             )}
-            {data.funnel_stage && (
+            {displayFunnel && (
               <div>
                 <span className="text-muted-foreground">Funil: </span>
                 <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                  {data.funnel_stage === "tof" || data.funnel_stage === "cold" ? "Público Frio" : 
-                   data.funnel_stage === "remarketing" || data.funnel_stage === "bof" ? "Remarketing" : 
-                   data.funnel_stage}
+                  {displayFunnel === "tof" || displayFunnel === "cold" ? "Público Frio" : 
+                   displayFunnel === "remarketing" || displayFunnel === "bof" ? "Remarketing" : 
+                   displayFunnel}
                 </Badge>
               </div>
             )}
-            {data.daily_budget_cents && (
+            {displayBudget && (
               <div>
                 <span className="text-muted-foreground">Orçamento: </span>
-                <span className="font-medium">R$ {(data.daily_budget_cents / 100).toFixed(2)}/dia</span>
+                <span className="font-medium">{displayBudget}</span>
               </div>
             )}
-            {data.objective && (
+            {displayObjective && (
               <div>
                 <span className="text-muted-foreground">Objetivo: </span>
-                <span className="font-medium">{data.objective}</span>
+                <span className="font-medium">{displayObjective}</span>
+              </div>
+            )}
+            {displayTargeting && (
+              <div className="col-span-2">
+                <span className="text-muted-foreground">Público: </span>
+                <span className="font-medium">{displayTargeting}</span>
+              </div>
+            )}
+            {displayAgeRange && (
+              <div>
+                <span className="text-muted-foreground">Idade: </span>
+                <span className="font-medium">{displayAgeRange}</span>
               </div>
             )}
           </div>
 
           {/* Copy preview */}
-          {data.copy_text && (
+          {displayCopyText && (
             <div className="bg-muted/20 rounded-lg p-3 border border-border/40">
               <p className="text-[10px] text-muted-foreground font-medium mb-1">Copy do anúncio</p>
-              <p className="text-xs leading-relaxed line-clamp-4">{data.copy_text}</p>
-              {data.headline && (
-                <p className="text-xs font-semibold mt-1.5">📌 {data.headline}</p>
+              <p className="text-xs leading-relaxed line-clamp-4">{displayCopyText}</p>
+              {displayHeadline && (
+                <p className="text-xs font-semibold mt-1.5">📌 {displayHeadline}</p>
               )}
             </div>
           )}
