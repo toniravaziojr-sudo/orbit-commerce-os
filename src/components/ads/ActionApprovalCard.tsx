@@ -14,6 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Check, X, MessageSquare, ChevronDown, Megaphone, ImageIcon, DollarSign, Target, Sparkles, ZoomIn, Bot, AlertTriangle, TrendingUp, ListChecks, Clock, Eye } from "lucide-react";
 import type { PendingAction } from "@/hooks/useAdsPendingActions";
 import { cn } from "@/lib/utils";
+import { StrategicPlanContent } from "./StrategicPlanContent";
 
 interface ActionApprovalCardProps {
   action: PendingAction;
@@ -155,7 +156,7 @@ function FullContentDialog({ action, open, onOpenChange }: { action: PendingActi
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col p-0">
-        <DialogHeader className="px-5 pt-5 pb-0">
+        <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/30">
           <DialogTitle className="flex items-center gap-2 text-base">
             {isStrategicPlan ? <Bot className="h-4 w-4 text-primary" /> : <Megaphone className="h-4 w-4 text-primary" />}
             {label}
@@ -169,7 +170,7 @@ function FullContentDialog({ action, open, onOpenChange }: { action: PendingActi
         </DialogHeader>
 
         <ScrollArea className="flex-1 px-5 pb-5">
-          <div className="space-y-4 pt-2">
+          <div className="space-y-4 pt-3">
             {/* Creative image */}
             {creativeUrl && (
               <div className="rounded-lg overflow-hidden border border-border/40 bg-muted/10">
@@ -177,8 +178,8 @@ function FullContentDialog({ action, open, onOpenChange }: { action: PendingActi
               </div>
             )}
 
-            {/* Headline & Copy */}
-            {headline && (
+            {/* Headline & Copy (non-strategic) */}
+            {headline && !isStrategicPlan && (
               <div>
                 <SectionLabel icon={<Sparkles className="h-3.5 w-3.5 text-primary" />} label="Headline" />
                 <p className="text-sm font-semibold mt-1">{headline}</p>
@@ -190,12 +191,12 @@ function FullContentDialog({ action, open, onOpenChange }: { action: PendingActi
                 <p className="text-sm text-muted-foreground whitespace-pre-wrap mt-1 leading-relaxed">{copyText}</p>
               </div>
             )}
-            {ctaType && (
+            {ctaType && !isStrategicPlan && (
               <Badge variant="secondary" className="text-xs">{CTA_LABELS[ctaType] || ctaType}</Badge>
             )}
 
             {/* Product & Budget */}
-            {(productName || budgetDisplay || targeting) && (
+            {(productName || budgetDisplay || targeting) && !isStrategicPlan && (
               <div className="grid grid-cols-2 gap-3 text-xs">
                 {productName && (
                   <div className="bg-muted/30 rounded-lg p-2.5 border border-border/30">
@@ -218,58 +219,20 @@ function FullContentDialog({ action, open, onOpenChange }: { action: PendingActi
               </div>
             )}
 
-            {/* Strategic Plan Sections */}
-            {isStrategicPlan && diagnosis && (
-              <div>
-                <SectionLabel icon={<AlertTriangle className="h-3.5 w-3.5 text-amber-500" />} label="Diagnóstico" />
-                <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30 mt-1.5">
-                  {sanitizeDisplayText(diagnosis)}
-                </div>
-              </div>
-            )}
-            {plannedActions && (
-              <div>
-                <SectionLabel icon={<ListChecks className="h-3.5 w-3.5 text-primary" />} label="Ações Planejadas" />
-                {Array.isArray(plannedActions) ? (
-                  <ul className="space-y-1.5 text-sm text-muted-foreground bg-muted/30 rounded-lg p-3 border border-border/30 mt-1.5 list-disc list-inside">
-                    {plannedActions.map((a: string, i: number) => (
-                      <li key={i} className="whitespace-pre-wrap leading-relaxed">{sanitizeDisplayText(a)}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30 mt-1.5">
-                    {sanitizeDisplayText(String(plannedActions))}
-                  </div>
-                )}
-              </div>
-            )}
-            {expectedResults && (
-              <div>
-                <SectionLabel icon={<TrendingUp className="h-3.5 w-3.5 text-emerald-500" />} label="Resultados Esperados" />
-                <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30 mt-1.5">
-                  {sanitizeDisplayText(String(expectedResults))}
-                </div>
-              </div>
-            )}
-            {riskAssessment && (
-              <div>
-                <SectionLabel icon={<AlertTriangle className="h-3.5 w-3.5 text-destructive" />} label="Riscos" />
-                <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30 mt-1.5">
-                  {sanitizeDisplayText(String(riskAssessment))}
-                </div>
-              </div>
-            )}
-            {timeline && (
-              <div>
-                <SectionLabel icon={<Clock className="h-3.5 w-3.5 text-blue-500" />} label="Cronograma" />
-                <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30 mt-1.5">
-                  {sanitizeDisplayText(String(timeline))}
-                </div>
-              </div>
+            {/* Strategic Plan — Formatted Content */}
+            {isStrategicPlan && (
+              <StrategicPlanContent
+                diagnosis={diagnosis}
+                plannedActions={plannedActions}
+                expectedResults={expectedResults}
+                riskAssessment={riskAssessment}
+                timeline={timeline}
+                reasoning={action.reasoning}
+              />
             )}
 
-            {/* Reasoning & Impact (for all action types) */}
-            {action.reasoning && (
+            {/* Reasoning & Impact (for non-strategic types) */}
+            {!isStrategicPlan && action.reasoning && (
               <div>
                 <SectionLabel icon={<Bot className="h-3.5 w-3.5 text-muted-foreground" />} label="Raciocínio da IA" />
                 <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30 mt-1.5">
