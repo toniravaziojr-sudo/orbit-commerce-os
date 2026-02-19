@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.5.0"; // fix product images, store URL from tenant_domains
+const VERSION = "v1.5.1"; // fix imagesByProduct scope leak in buildStrategistPrompt
 // ===================
 
 const corsHeaders = {
@@ -392,6 +392,7 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     pageLinks,
     lpLinks,
     globalConfig,
+    imagesByProduct,
   };
 }
 
@@ -558,7 +559,7 @@ ${JSON.stringify(accountAds.slice(0, 50).map((ad: any) => ({ id: ad.meta_ad_id, 
 ${JSON.stringify(accountAudiences.map((a: any) => ({ id: a.meta_audience_id, name: a.name, type: a.audience_type, subtype: a.subtype, size: a.approximate_count })), null, 2)}
 
 ## PRODUTOS DO CATÁLOGO (${context.products.length})
-${JSON.stringify(context.products.slice(0, 15).map((p: any) => ({ id: p.id, name: p.name, price_brl: (p.price / 100).toFixed(2), cost: p.cost_price ? (p.cost_price / 100).toFixed(2) : null, stock: p.stock_quantity, brand: p.brand, description: p.short_description?.substring(0, 100), images: (imagesByProduct[p.id] || []).slice(0, 3), product_url: storeUrl ? `${storeUrl}/produto/${p.id}` : null })), null, 2)}
+${JSON.stringify(context.products.slice(0, 15).map((p: any) => ({ id: p.id, name: p.name, price_brl: (p.price / 100).toFixed(2), cost: p.cost_price ? (p.cost_price / 100).toFixed(2) : null, stock: p.stock_quantity, brand: p.brand, description: p.short_description?.substring(0, 100), images: ((context.imagesByProduct || {})[p.id] || []).slice(0, 3), product_url: context.storeUrl ? `${context.storeUrl}/produto/${p.id}` : null })), null, 2)}
 
 ## CADÊNCIA DE CRIATIVOS (últimos 7d)
 ${JSON.stringify(creativeCadence, null, 2)}
