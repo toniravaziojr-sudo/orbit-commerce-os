@@ -73,8 +73,10 @@ function detectProductType(productName: string): { isKit: boolean; estimatedItem
     return { isKit: true, estimatedItems: qty, kitType: 'kit' };
   }
   
-  // Detect multiplier patterns: "2x", "3x", "(2x)", "Pack 2"
-  const multiplierMatch = name.match(/\(?\s*(\d+)\s*x\s*\)?/i) || name.match(/\bpack\s+(\d+)/i);
+  // Detect multiplier patterns: "2x", "3x", "(2x)", "Pack 2", "2 Un", "3 unidades"
+  const multiplierMatch = name.match(/\(?\s*(\d+)\s*x\s*\)?/i) 
+    || name.match(/\bpack\s+(\d+)/i)
+    || name.match(/(\d+)\s*(?:un|unidade|unidades)\b/i);
   if (multiplierMatch) {
     const qty = parseInt(multiplierMatch[1]);
     if (qty >= 2) return { isKit: true, estimatedItems: qty, kitType: 'pack' };

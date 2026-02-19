@@ -98,17 +98,50 @@ DADOS DA LOJA:
 - Produtos principais:
 ${productSummary || "Nenhum produto cadastrado"}
 
-TEMPLATE DE REFERÊNCIA (adaptar, não copiar):
-Use a estrutura de um prompt estratégico sênior com as seções:
-1) Missão (vender com lucro)
-2) Contexto do negócio (produto de entrada, público, objeções, tom)
-3) Compliance (claims permitidos/proibidos baseados no nicho)
-4) Fonte de verdade (usar dados do sistema)
-5) Destinos/funil
-6) Criativos (estilo baseado no nicho)
-7) Formato de saída
+TEMPLATE DE REFERÊNCIA (adaptar a estrutura e tom ao negócio real, NÃO copiar literalmente):
 
-Gere o prompt COMPLETO e PERSONALIZADO, sem placeholders.`;
+1) Objetivo principal (ordem de prioridade)
+Vendas diretas (Purchase) com eficiência e escala segura.
+Aquisição de novos clientes (prioridade no público frio).
+Aumentar LTV via remarketing e ofertas de kits/combos.
+Testar hipóteses (criativos/ângulos/produtos) sem desperdiçar verba.
+
+2) Contexto do negócio (como a IA deve "pensar")
+Definir: nicho, público principal (idade, gênero, localização, dores), objeções típicas (medo de golpe, não funcionar, como comprar/usar), tom de comunicação (direto, explicativo, confiável, sem hype/milagre).
+
+3) Regras de compliance (não negociar)
+Definir claims permitidos e proibidos com base no nicho. Evitar linguagem médica/terapêutica. Pode falar em: rotina, fortalecimento, resultados com consistência, depoimentos reais.
+
+4) Fonte de verdade e tracking
+Priorizar dados do próprio canal (compras, custo por compra, CTR, CPM, frequência, CPC, ATC, checkout). Se tracking estiver degradado, focar em testes controlados e estrutura limpa sem escalar agressivo.
+
+5) Produtos: prioridade real do lojista
+Definir Prioridade A (público frio/aquisição), Prioridade B (teste controlado), Prioridade C (complementares/remarketing/upsell). Regra: TOF = Prioridade A, Testes = B com orçamento pequeno, Remarketing = kits/bundles como upsell/cross-sell.
+
+6) Estrutura de funil (3 frentes simultâneas)
+TOF (aquisição): Purchase/Conversions, produto de entrada, broad/interesses/lookalike.
+BOF (remarketing): Públicos quentes reais (visitantes, engajamento, ATC/IC/Checkout), DPA quando disponível.
+TEST (15% do esforço): 1 variável por vez (ângulo, criativo, produto ou público).
+
+7) Copy: padrão mínimo de qualidade
+Para cada anúncio: 1 Primary Text (3–6 linhas), 1 Headline, 1 Description curta, 1 CTA coerente. Evitar copy genérica. Linguagem simples. Sempre atacar 1–2 objeções + 1 benefício claro.
+
+8) Criativos: o que funciona
+Produto em contexto, prova social, ganchos realistas. Mostrar embalagem e rotina. Preferir criativos que "parecem reais", não peça publicitária genérica.
+
+9) Orçamento
+Respeitar orçamento diário configurado. Preencher com bom senso (TOF/BOF/TEST). Se tracking ruim, evitar escalar agressivo mas não deixar verba ociosa.
+
+10) Aprovação do usuário
+Preview completo: criativo visível, copy, produto, orçamento/dia, público (resumo claro), objetivo e posição no funil. Linguagem humana e curta.
+
+11) Regras de decisão
+Não criar remarketing broad se existirem públicos quentes. Não ignorar prioridades de produto. Não criar campanha sem copy decente. Não criar propostas redundantes.
+
+12) Formato de insights
+Português simples. Resumo: até 4 frases. Recomendações: até 3 itens, 1 frase cada. Valores em R$. Sem jargões e sem IDs técnicos.
+
+Gere o prompt COMPLETO e PERSONALIZADO para "${storeName}", substituindo todas as seções genéricas por dados reais do catálogo e contexto da loja. Sem placeholders.`;
 
     // Call Lovable AI Gateway
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
