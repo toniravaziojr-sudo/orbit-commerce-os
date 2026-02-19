@@ -2176,8 +2176,8 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
               // v5.12.8: Get budget snapshot for preview
               const previewBudgetSnapshot = await getBudgetSnapshot(supabase, tenant_id, acctConfig.ad_account_id, acctConfig.budget_cents || 0);
               
-              // Format product price
-              const productPriceDisplay = topProduct?.price ? `R$ ${(topProduct.price / 100).toFixed(2)}` : null;
+              // Format product price — price is already in BRL, NOT cents (ads-data-scaling-standards)
+              const productPriceDisplay = topProduct?.price ? `R$ ${Number(topProduct.price).toFixed(2)}` : null;
               
               actionRecord.action_data = {
                 ...actionRecord.action_data,
