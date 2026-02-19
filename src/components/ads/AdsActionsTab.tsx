@@ -174,8 +174,8 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
     return (
       <EmptyState
         icon={Bot}
-        title="Nenhuma ação da IA"
-        description="Execute uma análise para a IA começar a tomar decisões"
+        title="Nenhuma ação registrada"
+        description="Quando a IA executar o plano estratégico, as ações aparecerão aqui"
       />
     );
   }
@@ -212,21 +212,15 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
                     <span className="font-medium text-sm">
                       {ACTION_LABELS[action.action_type] || action.action_type}
                     </span>
-                    {entityName && (
-                      <span className="text-xs text-muted-foreground font-mono truncate max-w-[300px]" title={entityName}>
+                    {entityName && !entityName.startsWith("ID:") && (
+                      <span className="text-xs text-muted-foreground truncate max-w-[300px]" title={entityName}>
                         {entityName}
                       </span>
                     )}
-                    <Badge variant="outline" className="text-xs capitalize">{action.channel}</Badge>
                     <Badge variant={statusConfig.variant} className="text-xs gap-1">
                       <StatusIcon className="h-3 w-3" />
                       {statusConfig.label}
                     </Badge>
-                    {action.confidence && (
-                      <Badge variant="outline" className="text-xs">
-                        Confiança: {action.confidence}
-                      </Badge>
-                    )}
                     {budgetImpact && (
                       <Badge variant="outline" className="text-xs gap-1 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-600">
                         <DollarSign className="h-3 w-3" />
@@ -244,9 +238,6 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
                   )}
                   {action.rejection_reason && (
                     <p className="text-sm text-destructive mt-1">Motivo: {action.rejection_reason}</p>
-                  )}
-                  {action.metric_trigger && (
-                    <p className="text-xs text-muted-foreground mt-1">Métrica: {action.metric_trigger}</p>
                   )}
                   <div className="flex items-center gap-2 mt-3 flex-wrap" onClick={(e) => e.stopPropagation()}>
                     {isPending && (
