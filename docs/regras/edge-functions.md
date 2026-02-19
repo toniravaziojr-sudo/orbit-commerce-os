@@ -1097,3 +1097,28 @@ Remarketing/Ofertas → focus.remarketing (variantes: "Kit Banho Calvície Zero 
 2. Alterada referência em `buildStrategistPrompt()` para `context.imagesByProduct`
 
 **Regra derivada:** Toda variável computada em `collectContext` que precise ser usada em `buildStrategistPrompt` DEVE ser incluída no objeto de retorno. Não usar variáveis de escopo externo entre funções.
+
+---
+
+### v1.8.0 → v1.9.0: `ads-autopilot-strategist` — Approval Obrigatório + Plano Injetado + Creative Link
+
+**v1.8.0 — Approval Obrigatório**:
+- `create_campaign` e `create_adset` agora SEMPRE retornam `pending_approval`, independentemente de `human_approval_mode`
+- A Meta API NUNCA é chamada diretamente pelo strategist — execução real ocorre apenas via `execute-approved` após clique do usuário
+- Ações internas como `activate_campaign` e status `scheduled` são filtradas da UI (não relevantes ao lojista)
+
+**v1.9.0 — Injeção do Plano Aprovado**:
+- Quando `trigger = "implement_approved_plan"`, o sistema busca o plano estratégico mais recente com `status = "approved"` da tabela `ads_autopilot_actions`
+- O conteúdo completo (diagnóstico, ações planejadas, resultados esperados, alocação) é injetado no prompt do Motor Estrategista via placeholder `{{APPROVED_PLAN_CONTENT}}`
+- Isso garante que a IA siga EXATAMENTE os produtos/estratégias planejados, em vez de ignorar o plano e repetir o mesmo produto
+- **Regra derivada**: O prompt de `implement_approved_plan` instrui a IA a NÃO repetir o mesmo produto em campanhas diferentes, a menos que o plano especifique isso
+
+**v1.9.0 — Vinculação de Creative URL**:
+- `generate_creative` agora rastreia as URLs dos criativos gerados por produto na sessão (`creativeUrlsByProduct`)
+- Ao registrar uma ação `create_campaign`, o sistema busca o criativo correspondente por nome do produto (no campaign_name ou targeting_description)
+- Fallback: busca qualquer criativo da sessão atual se não houver match por nome
+- A `creative_url` é persistida em `action_data.creative_url` para exibição no `ActionApprovalCard`
+
+**v1.9.0 — Fix Ticket Médio**:
+- `orders.total` já armazena valores em BRL (reais), não em centavos
+- Removida a divisão por 100 em `avg_ticket_cents` e `revenue_cents_30d` no prompt do strategist
