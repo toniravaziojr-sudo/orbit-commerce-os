@@ -1129,6 +1129,19 @@ CREATE TYPE creative_job_status AS ENUM (
 
 ---
 
+### Correções v5.12.9 (2026-02-19)
+
+| Item | Correção | Aceite |
+|------|----------|--------|
+| **Meu Drive (ordenação)** | `useFiles.ts` ordena por `created_at DESC` (não mais por `filename ASC`). Criativos mais recentes aparecem no topo. | Últimos criativos gerados no topo; nenhum nome se repete |
+| **Insights (escopo + linguagem)** | `AdsInsightsTab.tsx` sanitiza 15+ termos técnicos em inglês para PT-BR simples (ex: "underinvest" → "investindo abaixo do orçamento", "pacing" → "ritmo de gasto"). Texto com `whitespace-pre-wrap` sem truncamento. | Sem jargão; texto completo acessível |
+| **Audience Discovery (Meta)** | `ads-autopilot-analyze` v5.12.9 implementa paginação completa de audiências (até 1000) via `customaudiences?limit=200` + cursor `after`. Erros de permissão exibidos explicitamente. | Públicos existentes encontrados por ID; erro real exibido se falhar |
+| **Limite de campanhas** | Análise ampliada de 50 para **200 campanhas** com paginação (Meta, Google, TikTok). | Diagnóstico reporta ≥200 quando existir |
+| **Budget Filling** | Prompt obriga IA a calcular gap = limit - active - reserved. Se gap > R$50, deve propor ações para preencher ou explicar por quê não. Budget tratado como **meta de investimento** (não apenas teto). | IA tenta cobrir o orçamento ou explica claramente |
+| **Estratégia (remarketing/testes)** | Regras de prompt: remarketing prioriza catálogo se disponível; sem "single-ad pobre"; testes com ≥2 variações. | Propostas com variações coerentes |
+| **Context Digest** | Cada execução registra resumo auditável: configs lidas, campanhas/audiências/produtos carregados, itens ignorados. Disponível em "Detalhes técnicos". | Auditável; pontos cegos identificáveis |
+| **UI overflow (chat/pending)** | `AdsPendingActionsTab.tsx` e `ActionApprovalCard.tsx` com `min-w-0`, `overflow-hidden`, `break-all`. | Nenhum conteúdo cortado à direita |
+
 ## Pendências
 
 - [ ] Dashboard de atribuição
