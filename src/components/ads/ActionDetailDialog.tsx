@@ -427,24 +427,27 @@ export function ActionDetailDialog({ action, open, onOpenChange }: ActionDetailD
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col overflow-hidden p-0">
+        <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/30 shrink-0">
           <DialogTitle className="flex items-center gap-2">
             {label}
             <Badge variant="outline" className="text-xs capitalize">{action.channel}</Badge>
           </DialogTitle>
           <DialogDescription className="text-xs">
             {new Date(action.created_at).toLocaleString("pt-BR")}
+            {action.confidence && (
+              <> · Confiança: {action.confidence === "high" ? "Alta" : action.confidence === "medium" ? "Média" : "Baixa"}</>
+            )}
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 -mx-6 px-6">
-          <div className="space-y-4 pb-4">
-            {/* Reasoning */}
-            {action.reasoning && (
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="space-y-4 px-5 py-4">
+            {/* Reasoning — skip for strategic_plan (already rendered inside StrategicPlanContent) */}
+            {action.reasoning && action.action_type !== "strategic_plan" && (
               <div className="rounded-lg bg-muted/50 p-3">
                 <p className="text-xs text-muted-foreground mb-1 font-medium">Raciocínio da IA</p>
-                <p className="text-sm">{action.reasoning}</p>
+                <p className="text-sm whitespace-pre-wrap">{action.reasoning}</p>
               </div>
             )}
 

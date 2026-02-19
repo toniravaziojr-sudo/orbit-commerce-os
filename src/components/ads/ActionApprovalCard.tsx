@@ -169,8 +169,8 @@ function FullContentDialog({ action, open, onOpenChange }: { action: PendingActi
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 px-5 pb-5">
-          <div className="space-y-4 pt-3">
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="space-y-4 px-5 py-4">
             {/* Creative image */}
             {creativeUrl && (
               <div className="rounded-lg overflow-hidden border border-border/40 bg-muted/10">
