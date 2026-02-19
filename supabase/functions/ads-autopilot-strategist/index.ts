@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.8.0"; // Fix: create_campaign/create_adset ALWAYS pending_approval, never call Meta API directly
+const VERSION = "v1.9.0"; // Fix: inject approved plan into prompt + link creative_url to campaign actions + fix ticket medio units
 // ===================
 
 const corsHeaders = {
@@ -486,19 +486,22 @@ Análise profunda de TODO o mês anterior:
 FOCO MENSAL: Visão macro. Identifique tendências e pivote estratégia se necessário.`;
       break;
     case "implement_approved_plan":
+      // Will be enriched with actual plan content in runStrategistForTenant
       triggerInstruction = `## TRIGGER: IMPLEMENTAÇÃO DE PLANO APROVADO
-O usuário APROVOU o Plano Estratégico gerado anteriormente. Agora é hora de IMPLEMENTAR.
-NÃO emita um novo strategic_plan. Vá direto para a EXECUÇÃO:
-1. **CRIATIVOS**: Gere criativos para os top produtos (generate_creative). Mín 3 variações por produto.
-2. **PÚBLICOS**: Se há Custom Audiences, crie Lookalikes (create_lookalike_audience). 1-5% ratio.
-3. **MONTAGEM**: Crie campanhas com CBO e ad sets segmentados (create_campaign + create_adset).
-4. **PUBLICAÇÃO**: Tudo criado PAUSADO. Ativações agendadas para 00:01-04:00 BRT.
+O usuário APROVOU o Plano Estratégico abaixo. Agora é hora de IMPLEMENTAR EXATAMENTE o que foi planejado.
+NÃO emita um novo strategic_plan. Vá direto para a EXECUÇÃO seguindo o plano aprovado.
 
-REGRAS:
+{{APPROVED_PLAN_CONTENT}}
+
+REGRAS CRÍTICAS:
 - NÃO use strategic_plan novamente — o plano já foi aprovado
-- Foque em EXECUTAR as ações planejadas no plano aprovado
+- Use EXATAMENTE os produtos especificados no plano para cada campanha/funil
+- NÃO repita o mesmo produto em campanhas diferentes, a menos que o plano especifique isso
+- Cada campanha deve usar o produto designado no plano aprovado
+- Gere criativos (generate_creative) para cada produto ANTES de criar a campanha correspondente
 - Aumentos de budget limitados a +20% por campanha existente
-- Se orçamento economizado não cabe em +20%, CRIE novas campanhas`;
+- Se orçamento economizado não cabe em +20%, CRIE novas campanhas
+- Tudo criado PAUSADO. Ativações agendadas para 00:01-04:00 BRT.`;
       break;
   }
 
@@ -554,8 +557,8 @@ ${config.user_instructions || "Nenhuma instrução adicional."}
 ${triggerInstruction}
 
 ## NEGÓCIO
-- Ticket Médio: R$ ${(context.orderStats.avg_ticket_cents / 100).toFixed(2)}
-- Pedidos 30d: ${context.orderStats.paid_30d} (receita: R$ ${(context.orderStats.revenue_cents_30d / 100).toFixed(2)})
+- Ticket Médio: R$ ${(context.orderStats.avg_ticket_cents).toFixed(2)}
+- Pedidos 30d: ${context.orderStats.paid_30d} (receita: R$ ${(context.orderStats.revenue_cents_30d).toFixed(2)})
 - Top Produtos: ${context.products.slice(0, 5).map((p: any) => `${p.name} (R$${(p.price / 100).toFixed(2)}${p.cost_price ? `, margem ~${Math.round(((p.price - p.cost_price) / p.price) * 100)}%` : ""})`).join(", ")}`;
 
   // Build ads data per account
@@ -817,9 +820,54 @@ async function runStrategistForTenant(supabase: any, tenantId: string, trigger: 
   let totalExecuted = 0;
   let totalRejected = 0;
 
+  // If implementing approved plan, fetch the plan content to inject into prompt
+  let approvedPlanContent = "";
+  if (trigger === "implement_approved_plan") {
+    const { data: planActions } = await supabase
+      .from("ads_autopilot_actions")
+      .select("action_data, reasoning")
+      .eq("tenant_id", tenantId)
+      .eq("action_type", "strategic_plan")
+      .eq("status", "approved")
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (planActions && planActions.length > 0) {
+      const plan = planActions[0].action_data || {};
+      const diagnosis = plan.diagnosis || "";
+      const plannedActions = (plan.planned_actions || []).map((a: string, i: number) => `${i + 1}. ${a}`).join("\n");
+      const expectedResults = plan.expected_results || "";
+      const budgetAllocation = plan.budget_allocation ? JSON.stringify(plan.budget_allocation, null, 2) : "";
+      
+      approvedPlanContent = `### PLANO APROVADO PELO USUÁRIO (SEGUIR À RISCA):
+
+**Diagnóstico:**
+${diagnosis}
+
+**Ações Planejadas (executar na ordem):**
+${plannedActions}
+
+**Resultados Esperados:**
+${expectedResults}
+
+${budgetAllocation ? `**Alocação de Orçamento:**\n${budgetAllocation}` : ""}`;
+      
+      console.log(`[ads-autopilot-strategist][${VERSION}] Approved plan loaded: ${(plan.planned_actions || []).length} actions`);
+    } else {
+      console.warn(`[ads-autopilot-strategist][${VERSION}] No approved plan found, falling back to general context`);
+    }
+  }
+
   // Analyze each account with full pipeline
   for (const config of activeConfigs) {
     const prompt = buildStrategistPrompt(trigger, config, context);
+    
+    // Inject approved plan content into the prompt if available
+    if (approvedPlanContent) {
+      prompt.system = prompt.system.replace("{{APPROVED_PLAN_CONTENT}}", approvedPlanContent);
+    } else {
+      prompt.system = prompt.system.replace("{{APPROVED_PLAN_CONTENT}}", "Nenhum plano específico encontrado. Use o contexto disponível para decidir os produtos e estratégias.");
+    }
 
     try {
       const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -854,6 +902,9 @@ async function runStrategistForTenant(supabase: any, tenantId: string, trigger: 
       const toolCalls = aiResult.choices?.[0]?.message?.tool_calls || [];
       const aiText = aiResult.choices?.[0]?.message?.content || "";
 
+      // Track generated creative URLs per product for linking to campaign actions
+      const creativeUrlsByProduct: Record<string, string> = {};
+
       for (const tc of toolCalls) {
         const args = typeof tc.function.arguments === "string" ? JSON.parse(tc.function.arguments) : tc.function.arguments;
         totalPlanned++;
@@ -861,8 +912,53 @@ async function runStrategistForTenant(supabase: any, tenantId: string, trigger: 
         // Execute the tool
         const result = await executeToolCall(supabase, tenantId, sessionId, config, tc, context);
 
+        // Track creative URLs from generate_creative results
+        if (tc.function.name === "generate_creative" && result.status === "executed") {
+          // Fetch the most recent creative asset for this product/session
+          const productName = args.product_name;
+          const matchedProduct = context.products.find((p: any) => p.name === productName) || context.products[0];
+          if (matchedProduct) {
+            const { data: latestAsset } = await supabase
+              .from("ads_creative_assets")
+              .select("asset_url")
+              .eq("tenant_id", tenantId)
+              .eq("session_id", sessionId)
+              .eq("product_id", matchedProduct.id)
+              .not("asset_url", "is", null)
+              .order("created_at", { ascending: false })
+              .limit(1);
+            if (latestAsset?.[0]?.asset_url) {
+              creativeUrlsByProduct[productName] = latestAsset[0].asset_url;
+            }
+          }
+        }
+
         // Get campaign name for logging
         const campaignName = context.campaigns.find((c: any) => c.meta_campaign_id === args.campaign_id)?.name || args.campaign_name || null;
+
+        // For create_campaign, try to attach the creative_url from the same session
+        let creativeUrl: string | null = null;
+        if (tc.function.name === "create_campaign") {
+          // Try to find creative by product name mentioned in targeting or campaign name
+          for (const [prodName, url] of Object.entries(creativeUrlsByProduct)) {
+            if (args.campaign_name?.includes(prodName) || args.targeting_description?.includes(prodName)) {
+              creativeUrl = url;
+              break;
+            }
+          }
+          // Fallback: get ANY creative from this session
+          if (!creativeUrl) {
+            const { data: sessionAsset } = await supabase
+              .from("ads_creative_assets")
+              .select("asset_url")
+              .eq("tenant_id", tenantId)
+              .eq("session_id", sessionId)
+              .not("asset_url", "is", null)
+              .order("created_at", { ascending: false })
+              .limit(1);
+            creativeUrl = sessionAsset?.[0]?.asset_url || null;
+          }
+        }
 
         // Record action
         const actionRecord: any = {
@@ -870,7 +966,13 @@ async function runStrategistForTenant(supabase: any, tenantId: string, trigger: 
           session_id: sessionId,
           channel: config.channel,
           action_type: tc.function.name,
-          action_data: { ...args, ...(result.data || {}), ad_account_id: config.ad_account_id, campaign_name: campaignName },
+          action_data: { 
+            ...args, 
+            ...(result.data || {}), 
+            ad_account_id: config.ad_account_id, 
+            campaign_name: campaignName,
+            ...(creativeUrl ? { creative_url: creativeUrl } : {}),
+          },
           reasoning: args.reasoning || args.reason || args.diagnosis || "",
           confidence: String(args.confidence || "0.8"),
           status: result.status,
