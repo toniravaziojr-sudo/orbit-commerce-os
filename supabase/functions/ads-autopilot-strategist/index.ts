@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.6.0"; // strategic_plan now goes to pending_approval instead of auto-executing
+const VERSION = "v1.7.0"; // Fix: add implement_approved_plan trigger type, filter strategic_plan tool, fix session counters
 // ===================
 
 const corsHeaders = {
@@ -35,7 +35,7 @@ interface AccountConfig {
   last_budget_adjusted_at: string | null;
 }
 
-type StrategistTrigger = "start" | "weekly" | "monthly";
+type StrategistTrigger = "start" | "weekly" | "monthly" | "implement_approved_plan";
 
 // ============ HELPERS ============
 
@@ -927,7 +927,9 @@ async function runStrategistForTenant(supabase: any, tenantId: string, trigger: 
             { role: "system", content: prompt.system },
             { role: "user", content: prompt.user },
           ],
-          tools: STRATEGIST_TOOLS,
+          tools: trigger === "implement_approved_plan" 
+            ? STRATEGIST_TOOLS.filter((t: any) => t.function?.name !== "strategic_plan")
+            : STRATEGIST_TOOLS,
           tool_choice: "auto",
         }),
       });
@@ -992,8 +994,9 @@ async function runStrategistForTenant(supabase: any, tenantId: string, trigger: 
           trigger_type: `strategist_${trigger}`,
           motor_type: "strategist",
           ai_response_raw: aiText,
-          actions_planned: toolCalls.length,
-          actions_executed: toolCalls.length,
+          actions_planned: totalPlanned,
+          actions_executed: totalExecuted,
+          actions_rejected: totalRejected,
           context_snapshot: { ad_account_id: config.ad_account_id, trigger },
         });
       }
