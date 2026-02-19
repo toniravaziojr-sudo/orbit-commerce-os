@@ -1085,3 +1085,15 @@ TOF/Cold → focus.tof (singles base, ex: "Shampoo Calvície Zero")
 BOF → focus.bof (kits base, ex: "Kit Banho Calvície Zero")  
 Remarketing/Ofertas → focus.remarketing (variantes: "Kit Banho Calvície Zero Noite")
 ```
+
+---
+
+### Bug Fix: `imagesByProduct` Scope Leak (v1.5.1)
+
+**Problema:** A variável `imagesByProduct` era definida dentro de `collectContext()` (escopo local) mas referenciada diretamente em `buildStrategistPrompt()` como variável livre, causando `ReferenceError: imagesByProduct is not defined`.
+
+**Correção:**
+1. Adicionado `imagesByProduct` ao objeto de retorno de `collectContext()`
+2. Alterada referência em `buildStrategistPrompt()` para `context.imagesByProduct`
+
+**Regra derivada:** Toda variável computada em `collectContext` que precise ser usada em `buildStrategistPrompt` DEVE ser incluída no objeto de retorno. Não usar variáveis de escopo externo entre funções.
