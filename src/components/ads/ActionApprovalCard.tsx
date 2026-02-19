@@ -1,9 +1,12 @@
 // =============================================
-// ACTION APPROVAL CARD — v5.12.9
+// ACTION APPROVAL CARD — v5.13.2
 // Compact preview + "Ver completo" dialog
+// + Fallback creative URL resolution from product
 // =============================================
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +59,54 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
 
 /** Action types that should be hidden from user approval view (internal/technical) */
 const HIDDEN_ACTION_TYPES = new Set(["create_adset", "activate_campaign"]);
+
+/**
+ * Resolves creative URL with fallback chain:
+ * 1. creative_url from action_data/preview (set by strategist post-processing)
+ * 2. Latest creative asset for the product from ads_creative_assets
+ * 3. Product catalog image from product_images
+ * This ensures the card ALWAYS shows a visual preview.
+ */
+function useResolvedCreativeUrl(action: PendingAction): string | null {
+  const data = action.action_data || {};
+  const preview = (data as any).preview || {};
+  const directUrl = preview.creative_url || (data as any).asset_url || (data as any).creative_url || null;
+  const productId = (data as any).product_id || preview.product_id || null;
+  const tenantId = action.tenant_id;
+
+  const { data: fallbackUrl } = useQuery({
+    queryKey: ["creative-fallback", action.id, productId],
+    queryFn: async () => {
+      // Try creative assets first
+      if (productId) {
+        const { data: asset } = await supabase
+          .from("ads_creative_assets" as any)
+          .select("asset_url")
+          .eq("tenant_id", tenantId)
+          .eq("product_id", productId)
+          .not("asset_url", "is", null)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        if ((asset as any)?.[0]?.asset_url) return (asset as any)[0].asset_url as string;
+      }
+      // Fallback to product catalog image
+      if (productId) {
+        const { data: img } = await supabase
+          .from("product_images")
+          .select("url")
+          .eq("product_id", productId)
+          .order("sort_order", { ascending: true })
+          .limit(1);
+        if (img?.[0]?.url) return img[0].url;
+      }
+      return null;
+    },
+    enabled: !directUrl && !!productId,
+    staleTime: 60_000,
+  });
+
+  return directUrl || fallbackUrl || null;
+}
 
 function formatCents(cents: number): string {
   return `R$ ${(cents / 100).toFixed(2)}`;
@@ -138,7 +189,7 @@ function FullContentDialog({ action, open, onOpenChange }: { action: PendingActi
   const preview = data.preview || {};
   const isStrategicPlan = action.action_type === "strategic_plan";
 
-  const creativeUrl = preview.creative_url || data.asset_url || data.creative_url || null;
+  const creativeUrl = useResolvedCreativeUrl(action);
   const headline = preview.headline || data.headline || null;
   const copyText = preview.copy_text || data.copy_text || null;
   const ctaType = preview.cta_type || data.cta_type || null;
@@ -288,7 +339,7 @@ export function ActionApprovalCard({ action, onApprove, onReject, onAdjust, isAp
   const Icon = ACTION_TYPE_ICONS[action.action_type] || Target;
   const isStrategicPlan = action.action_type === "strategic_plan";
 
-  const creativeUrl = preview.creative_url || data.asset_url || data.creative_url || null;
+  const creativeUrl = useResolvedCreativeUrl(action);
   const headline = preview.headline || data.headline || null;
   const copyText = preview.copy_text || data.copy_text || null;
   const funnel = preview.funnel_stage || data.funnel_stage || null;
