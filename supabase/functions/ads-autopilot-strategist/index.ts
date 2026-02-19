@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.4.0"; // target_account_id filter, first_activation → strategist
+const VERSION = "v1.5.0"; // fix product images, store URL from tenant_domains
 // ===================
 
 const corsHeaders = {
@@ -250,7 +250,7 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     globalConfigRes,
     categoriesRes,
   ] = await Promise.all([
-    supabase.from("products").select("id, name, price, cost_price, status, stock_quantity, brand, short_description, images").eq("tenant_id", tenantId).eq("status", "active").order("price", { ascending: false }).limit(20),
+    supabase.from("products").select("id, name, price, cost_price, status, stock_quantity, brand, short_description").eq("tenant_id", tenantId).eq("status", "active").order("price", { ascending: false }).limit(20),
     supabase.from("orders").select("id, total, status, payment_status, created_at").eq("tenant_id", tenantId).gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()).limit(500),
     supabase.from("meta_ad_campaigns").select("meta_campaign_id, name, status, effective_status, objective, daily_budget_cents, ad_account_id").eq("tenant_id", tenantId).limit(200),
     supabase.from("meta_ad_insights").select("meta_campaign_id, impressions, clicks, spend_cents, conversions, roas, date_start").eq("tenant_id", tenantId).gte("date_start", thirtyDaysAgo).limit(1000),
@@ -262,8 +262,8 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     supabase.from("ads_autopilot_actions").select("action_type, action_data, status, channel, created_at").eq("tenant_id", tenantId).gte("created_at", sevenDaysAgo).limit(200),
     supabase.from("ads_autopilot_experiments").select("*").eq("tenant_id", tenantId).in("status", ["active", "completed"]).limit(20),
     supabase.from("marketing_integrations").select("meta_pixel_id").eq("tenant_id", tenantId).maybeSingle(),
-    supabase.from("store_settings").select("store_name, store_description, seo_title, seo_description, store_url, checkout_url").eq("tenant_id", tenantId).maybeSingle(),
-    supabase.from("tenants").select("name, slug, custom_domain, settings").eq("id", tenantId).single(),
+    supabase.from("store_settings").select("store_name, store_description, seo_title, seo_description").eq("tenant_id", tenantId).maybeSingle(),
+    supabase.from("tenants").select("name, slug, settings").eq("id", tenantId).single(),
     supabase.from("store_pages").select("title, slug, type, status, is_published, seo_title").eq("tenant_id", tenantId).eq("is_published", true).limit(30),
     supabase.from("ai_landing_pages").select("name, slug, status, is_published, seo_title, product_ids").eq("tenant_id", tenantId).eq("status", "active").limit(20),
     supabase.from("ads_autopilot_configs").select("*").eq("tenant_id", tenantId).eq("channel", "global").maybeSingle(),
@@ -289,9 +289,21 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
   const globalConfig = globalConfigRes.data || null;
   const categories = categoriesRes.data || [];
 
-  // Build store URL
-  const storeUrl = storeSettings?.store_url || (tenant?.custom_domain ? `https://${tenant.custom_domain}` : (tenant?.slug ? `https://${tenant.slug}.comandocentral.com.br` : null));
-  const checkoutUrl = storeSettings?.checkout_url || (storeUrl ? `${storeUrl}/checkout` : null);
+  // Resolve store URL from tenant_domains (source of truth)
+  const { data: domainRow } = await supabase.from("tenant_domains").select("domain").eq("tenant_id", tenantId).eq("type", "custom").eq("is_primary", true).maybeSingle();
+  const storeUrl = domainRow?.domain ? `https://${domainRow.domain}` : (tenant?.slug ? `https://${tenant.slug}.comandocentral.com.br` : null);
+  const checkoutUrl = storeUrl ? `${storeUrl}/checkout` : null;
+
+  // Fetch product images for top products
+  const productIds = products.map((p: any) => p.id);
+  const { data: productImages } = productIds.length > 0
+    ? await supabase.from("product_images").select("product_id, image_url, sort_order").in("product_id", productIds).order("sort_order", { ascending: true })
+    : { data: [] };
+  const imagesByProduct: Record<string, string[]> = {};
+  (productImages || []).forEach((img: any) => {
+    if (!imagesByProduct[img.product_id]) imagesByProduct[img.product_id] = [];
+    imagesByProduct[img.product_id].push(img.image_url);
+  });
 
   // Build page links for the AI
   const pageLinks = storePages.map((p: any) => ({
@@ -546,7 +558,7 @@ ${JSON.stringify(accountAds.slice(0, 50).map((ad: any) => ({ id: ad.meta_ad_id, 
 ${JSON.stringify(accountAudiences.map((a: any) => ({ id: a.meta_audience_id, name: a.name, type: a.audience_type, subtype: a.subtype, size: a.approximate_count })), null, 2)}
 
 ## PRODUTOS DO CATÁLOGO (${context.products.length})
-${JSON.stringify(context.products.slice(0, 15).map((p: any) => ({ id: p.id, name: p.name, price_brl: (p.price / 100).toFixed(2), cost: p.cost_price ? (p.cost_price / 100).toFixed(2) : null, stock: p.stock_quantity, brand: p.brand, description: p.short_description?.substring(0, 100) })), null, 2)}
+${JSON.stringify(context.products.slice(0, 15).map((p: any) => ({ id: p.id, name: p.name, price_brl: (p.price / 100).toFixed(2), cost: p.cost_price ? (p.cost_price / 100).toFixed(2) : null, stock: p.stock_quantity, brand: p.brand, description: p.short_description?.substring(0, 100), images: (imagesByProduct[p.id] || []).slice(0, 3), product_url: storeUrl ? `${storeUrl}/produto/${p.id}` : null })), null, 2)}
 
 ## CADÊNCIA DE CRIATIVOS (últimos 7d)
 ${JSON.stringify(creativeCadence, null, 2)}
