@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Lightbulb, CheckCircle2, XCircle, TrendingUp, TrendingDown, Minus, Filter, Sparkles, Loader2 } from "lucide-react";
+import { Lightbulb, CheckCircle2, XCircle, TrendingUp, TrendingDown, Minus, Filter, Sparkles, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,6 @@ function sanitizeInsightText(text: string): string {
     .replace(/\b(asset ready|asset pending)\s+[0-9a-f-]{20,}/gi, "")
     .replace(/\[NOVO\]\s*/gi, "")
     .replace(/\(\s*\)/g, "")
-    // Replace English jargon with Portuguese equivalents
     .replace(/\bunderinvest(ing|ed|ment)?\b/gi, "investindo abaixo do orçamento")
     .replace(/\boverinvest(ing|ed|ment)?\b/gi, "investindo acima do orçamento")
     .replace(/\bunderspend(ing|ed)?\b/gi, "gastando abaixo do planejado")
@@ -39,6 +38,8 @@ function sanitizeInsightText(text: string): string {
     .replace(/\s{2,}/g, " ")
     .trim();
 }
+
+const PREVIEW_LENGTH = 150;
 
 interface Insight {
   id: string;
@@ -76,6 +77,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   tracking: "Tracking",
   positive: "Positivo",
   general: "Geral",
+  strategy: "Estratégia",
 };
 
 const PRIORITY_VARIANTS: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -84,6 +86,29 @@ const PRIORITY_VARIANTS: Record<string, "default" | "secondary" | "destructive" 
   medium: "secondary",
   low: "outline",
 };
+
+function InsightBody({ body }: { body: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const sanitized = sanitizeInsightText(body);
+  const isLong = sanitized.length > PREVIEW_LENGTH;
+  const displayText = isLong && !expanded ? sanitized.substring(0, PREVIEW_LENGTH) + "…" : sanitized;
+
+  return (
+    <div>
+      <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{displayText}</p>
+      {isLong && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 px-1 text-xs text-primary gap-1 mt-1"
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? <><ChevronUp className="h-3 w-3" /> Ver menos</> : <><ChevronDown className="h-3 w-3" /> Ver mais</>}
+        </Button>
+      )}
+    </div>
+  );
+}
 
 export function AdsInsightsTab({ insights, isLoading, onMarkDone, onMarkIgnored, onGenerateNow, isGenerating }: AdsInsightsTabProps) {
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -173,7 +198,7 @@ export function AdsInsightsTab({ insights, isLoading, onMarkDone, onMarkIgnored,
                           {CATEGORY_LABELS[insight.category] || insight.category}
                         </Badge>
                       </div>
-                      <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{sanitizeInsightText(insight.body)}</p>
+                      <InsightBody body={insight.body} />
                       <div className="flex items-center gap-2 mt-3">
                         <Button size="sm" variant="default" className="h-7 text-xs gap-1" onClick={() => onMarkDone(insight.id)}>
                           <CheckCircle2 className="h-3 w-3" />

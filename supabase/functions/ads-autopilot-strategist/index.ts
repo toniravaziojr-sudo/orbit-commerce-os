@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.2.0"; // Fix funnel split key mapping: cold/remarketing/tests/leads instead of tof/mof/bof
+const VERSION = "v1.3.0"; // Deep context: ads, store settings, landing pages, store pages, global config
 // ===================
 
 const corsHeaders = {
@@ -229,7 +229,7 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
-  // Parallel data collection
+  // Parallel data collection — DEEP CONTEXT
   const [
     productsRes,
     ordersRes,
@@ -237,11 +237,18 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     insights30dRes,
     insights7dRes,
     adsetsRes,
+    adsRes,
     audiencesRes,
     recentCreativesRes,
     recentActionsRes,
     experimentsRes,
     marketingRes,
+    storeRes,
+    tenantRes,
+    storePagesRes,
+    landingPagesRes,
+    globalConfigRes,
+    categoriesRes,
   ] = await Promise.all([
     supabase.from("products").select("id, name, price, cost_price, status, stock_quantity, brand, short_description, images").eq("tenant_id", tenantId).eq("status", "active").order("price", { ascending: false }).limit(20),
     supabase.from("orders").select("id, total, status, payment_status, created_at").eq("tenant_id", tenantId).gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()).limit(500),
@@ -249,11 +256,18 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     supabase.from("meta_ad_insights").select("meta_campaign_id, impressions, clicks, spend_cents, conversions, roas, date_start").eq("tenant_id", tenantId).gte("date_start", thirtyDaysAgo).limit(1000),
     supabase.from("meta_ad_insights").select("meta_campaign_id, impressions, clicks, spend_cents, conversions, roas, date_start").eq("tenant_id", tenantId).gte("date_start", sevenDaysAgo).limit(500),
     supabase.from("meta_ad_adsets").select("meta_adset_id, name, status, effective_status, meta_campaign_id, daily_budget_cents, ad_account_id").eq("tenant_id", tenantId).limit(500),
+    supabase.from("meta_ad_ads").select("meta_ad_id, name, status, effective_status, meta_adset_id, ad_account_id, creative_id, creative_data").eq("tenant_id", tenantId).limit(500),
     supabase.from("meta_ad_audiences").select("meta_audience_id, name, audience_type, subtype, ad_account_id, approximate_count").eq("tenant_id", tenantId).limit(100),
     supabase.from("ads_creative_assets").select("id, channel, format, status, product_id, created_at").eq("tenant_id", tenantId).gte("created_at", sevenDaysAgo).limit(50),
     supabase.from("ads_autopilot_actions").select("action_type, action_data, status, channel, created_at").eq("tenant_id", tenantId).gte("created_at", sevenDaysAgo).limit(200),
     supabase.from("ads_autopilot_experiments").select("*").eq("tenant_id", tenantId).in("status", ["active", "completed"]).limit(20),
     supabase.from("marketing_integrations").select("meta_pixel_id").eq("tenant_id", tenantId).maybeSingle(),
+    supabase.from("store_settings").select("store_name, store_description, seo_title, seo_description, store_url, checkout_url").eq("tenant_id", tenantId).maybeSingle(),
+    supabase.from("tenants").select("name, slug, custom_domain, settings").eq("id", tenantId).single(),
+    supabase.from("store_pages").select("title, slug, type, status, is_published, seo_title").eq("tenant_id", tenantId).eq("is_published", true).limit(30),
+    supabase.from("ai_landing_pages").select("name, slug, status, is_published, seo_title, product_ids").eq("tenant_id", tenantId).eq("status", "active").limit(20),
+    supabase.from("ads_autopilot_configs").select("*").eq("tenant_id", tenantId).eq("channel", "global").maybeSingle(),
+    supabase.from("categories").select("name, slug").eq("tenant_id", tenantId).limit(30),
   ]);
 
   const products = productsRes.data || [];
@@ -262,11 +276,34 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
   const insights30d = insights30dRes.data || [];
   const insights7d = insights7dRes.data || [];
   const adsets = adsetsRes.data || [];
+  const ads = adsRes.data || [];
   const audiences = audiencesRes.data || [];
   const recentCreatives = recentCreativesRes.data || [];
   const recentActions = recentActionsRes.data || [];
   const experiments = experimentsRes.data || [];
   const metaPixelId = marketingRes.data?.meta_pixel_id || null;
+  const storeSettings = storeRes.data || null;
+  const tenant = tenantRes.data || null;
+  const storePages = storePagesRes.data || [];
+  const landingPages = landingPagesRes.data || [];
+  const globalConfig = globalConfigRes.data || null;
+  const categories = categoriesRes.data || [];
+
+  // Build store URL
+  const storeUrl = storeSettings?.store_url || (tenant?.custom_domain ? `https://${tenant.custom_domain}` : (tenant?.slug ? `https://${tenant.slug}.comandocentral.com.br` : null));
+  const checkoutUrl = storeSettings?.checkout_url || (storeUrl ? `${storeUrl}/checkout` : null);
+
+  // Build page links for the AI
+  const pageLinks = storePages.map((p: any) => ({
+    title: p.title,
+    url: storeUrl ? `${storeUrl}/p/${p.slug}` : `/p/${p.slug}`,
+    type: p.type,
+  }));
+  const lpLinks = landingPages.map((lp: any) => ({
+    name: lp.name,
+    url: storeUrl ? `${storeUrl}/lp/${lp.slug}` : `/lp/${lp.slug}`,
+    products: lp.product_ids,
+  }));
 
   // Compute per-campaign performance
   const buildPerf = (insights: any[]) => {
@@ -322,11 +359,13 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
 
   return {
     products,
+    categories,
     orderStats,
     campaigns,
     perf30d,
     perf7d,
     adsets,
+    ads,
     audiences,
     campaignAccountMap,
     recentActions,
@@ -334,6 +373,13 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     creativeCadence,
     recentCreatives,
     metaPixelId,
+    storeSettings,
+    tenant,
+    storeUrl,
+    checkoutUrl,
+    pageLinks,
+    lpLinks,
+    globalConfig,
   };
 }
 
@@ -428,9 +474,20 @@ FOCO MENSAL: Visão macro. Identifique tendências e pivote estratégia se neces
       break;
   }
 
+  const storeName = context.storeSettings?.store_name || context.tenant?.name || "Loja";
+  const storeDescription = context.storeSettings?.store_description || context.storeSettings?.seo_description || "";
+  const categoryNames = context.categories?.map((c: any) => c.name).join(", ") || "";
+
   const system = `Você é o Motor Estrategista do Autopilot de Tráfego — focado em CRESCIMENTO ESTRATÉGICO.
 
-## CONTA: ${config.ad_account_id} (${config.channel})
+## LOJA / MARCA
+- Nome: ${storeName}
+- Descrição: ${storeDescription || "Não informada"}
+- URL da Loja: ${context.storeUrl || "Não configurada"}
+- URL de Checkout: ${context.checkoutUrl || "Não configurada"}
+- Categorias: ${categoryNames || "Nenhuma"}
+
+## CONTA DE ANÚNCIOS: ${config.ad_account_id} (${config.channel})
 - Orçamento: R$ ${((config.budget_cents || 0) / 100).toFixed(2)} / ${config.budget_mode || "monthly"}
 - ROI Mín Frio: ${minRoiCold}x | ROI Mín Quente: ${minRoiWarm}x | ROI Alvo: ${targetRoi || "N/D"}x
 - ROAS Scaling: ${roasThreshold ? roasThreshold + "x" : "Não definido"}
@@ -440,11 +497,21 @@ FOCO MENSAL: Visão macro. Identifique tendências e pivote estratégia se neces
 - Pode ajustar budget agora: ${budgetAdjustable ? "SIM" : "NÃO"}
 - Modo aprovação: ${config.human_approval_mode || "approve_high_impact"}
 
-## INSTRUÇÕES DO USUÁRIO
+## CONFIGURAÇÃO GLOBAL DO AUTOPILOT
+${context.globalConfig ? `- Habilitado: ${context.globalConfig.is_enabled ? "SIM" : "NÃO"}
+- Modelo AI: ${context.globalConfig.ai_model || "default"}
+- Objetivo global: ${context.globalConfig.objective || "N/D"}
+- Instruções globais: ${context.globalConfig.user_instructions || "Nenhuma"}` : "Sem configuração global"}
+
+## INSTRUÇÕES ESTRATÉGICAS DO USUÁRIO
 ${config.user_instructions || "Nenhuma instrução adicional."}
 
+## LINKS E DESTINOS DISPONÍVEIS
+- Páginas da Loja: ${context.pageLinks?.length > 0 ? context.pageLinks.map((p: any) => `${p.title} (${p.url})`).join(", ") : "Nenhuma publicada"}
+- Landing Pages IA: ${context.lpLinks?.length > 0 ? context.lpLinks.map((lp: any) => `${lp.name} (${lp.url})`).join(", ") : "Nenhuma"}
+
 ## REGRAS DO ESTRATEGISTA
-- Foco em análise profunda e implementação de melhorias estruturais
+- Analise TODO o contexto antes de tomar decisões: produtos, público, campanhas ativas, métricas, links disponíveis e instruções do usuário
 - NUNCA delete campanhas/ad sets/anúncios (proibição permanente)
 - Campanhas criadas sempre PAUSADAS — ativação agendada para 00:01-04:00 BRT
 - Use CBO (Campaign Budget Optimization) por padrão
@@ -453,13 +520,18 @@ ${config.user_instructions || "Nenhuma instrução adicional."}
 - Promoção: variante com CPA < 80% do controle ou ROAS > 120% por 3+ dias → promover
 - Responda SEMPRE em Português do Brasil
 - Cada tool call deve ter justificativa numérica
+- Use os links reais da loja (landing pages, páginas) como destino dos anúncios
+- Considere as categorias de produtos e o posicionamento da marca ao criar copys
 
 ${triggerInstruction}
 
 ## NEGÓCIO
 - Ticket Médio: R$ ${(context.orderStats.avg_ticket_cents / 100).toFixed(2)}
 - Pedidos 30d: ${context.orderStats.paid_30d} (receita: R$ ${(context.orderStats.revenue_cents_30d / 100).toFixed(2)})
-- Top Produtos: ${context.products.slice(0, 5).map((p: any) => p.name).join(", ")}`;
+- Top Produtos: ${context.products.slice(0, 5).map((p: any) => `${p.name} (R$${(p.price / 100).toFixed(2)}${p.cost_price ? `, margem ~${Math.round(((p.price - p.cost_price) / p.price) * 100)}%` : ""})`).join(", ")}`;
+
+  // Build ads data per account
+  const accountAds = context.ads?.filter((a: any) => a.ad_account_id === config.ad_account_id) || [];
 
   const user = `## CAMPANHAS (${campaignData.length} total: ${activeCampaigns.length} ativas, ${pausedCampaigns.length} pausadas)
 ${JSON.stringify(campaignData, null, 2)}
@@ -467,8 +539,14 @@ ${JSON.stringify(campaignData, null, 2)}
 ## AD SETS (${accountAdsets.length})
 ${JSON.stringify(accountAdsets.slice(0, 30).map((as: any) => ({ id: as.meta_adset_id, name: as.name, status: as.status, campaign_id: as.meta_campaign_id })), null, 2)}
 
+## ANÚNCIOS (${accountAds.length})
+${JSON.stringify(accountAds.slice(0, 50).map((ad: any) => ({ id: ad.meta_ad_id, name: ad.name, status: ad.status, effective_status: ad.effective_status, adset_id: ad.meta_adset_id })), null, 2)}
+
 ## PÚBLICOS DISPONÍVEIS (${accountAudiences.length})
 ${JSON.stringify(accountAudiences.map((a: any) => ({ id: a.meta_audience_id, name: a.name, type: a.audience_type, subtype: a.subtype, size: a.approximate_count })), null, 2)}
+
+## PRODUTOS DO CATÁLOGO (${context.products.length})
+${JSON.stringify(context.products.slice(0, 15).map((p: any) => ({ id: p.id, name: p.name, price_brl: (p.price / 100).toFixed(2), cost: p.cost_price ? (p.cost_price / 100).toFixed(2) : null, stock: p.stock_quantity, brand: p.brand, description: p.short_description?.substring(0, 100) })), null, 2)}
 
 ## CADÊNCIA DE CRIATIVOS (últimos 7d)
 ${JSON.stringify(creativeCadence, null, 2)}
