@@ -161,7 +161,11 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
     );
   }
 
-  const filtered = channelFilter ? actions.filter(a => a.channel === channelFilter) : actions;
+  // Filter out internal/system actions not relevant to users
+  const HIDDEN_ACTION_TYPES = ["activate_campaign"];
+  const HIDDEN_STATUSES = ["scheduled"];
+  const filtered = (channelFilter ? actions.filter(a => a.channel === channelFilter) : actions)
+    .filter(a => !HIDDEN_ACTION_TYPES.includes(a.action_type) && !HIDDEN_STATUSES.includes(a.status));
 
   // Sort: pending_approval first, then by date
   const sorted = [...filtered].sort((a, b) => {
