@@ -24,6 +24,7 @@ const ACTION_LABELS: Record<string, string> = {
   generate_creative: "Gerar Criativo",
   allocate_budget: "Alocar Orçamento",
   report_insight: "Insight da IA",
+  strategic_plan: "Plano Estratégico",
 };
 
 function formatCurrency(cents: number): string {
@@ -405,6 +406,29 @@ export function ActionDetailDialog({ action, open, onOpenChange }: ActionDetailD
             <p className="text-sm">{action.reasoning || data.body || data.insight || "Sem detalhes"}</p>
             {data.category && <DetailRow label="Categoria" value={data.category} />}
             {data.priority && <DetailRow label="Prioridade" value={data.priority} />}
+          </DetailSection>
+        );
+      case "strategic_plan":
+        return (
+          <DetailSection icon={<Bot className="h-4 w-4" />} title="Plano Estratégico">
+            {data.diagnosis && (
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Diagnóstico</p>
+                <p className="text-sm whitespace-pre-wrap">{data.diagnosis}</p>
+              </div>
+            )}
+            {data.planned_actions?.length > 0 && (
+              <div className="space-y-1 mt-3">
+                <p className="text-xs font-medium text-muted-foreground">Ações Planejadas</p>
+                <ul className="text-sm space-y-1">
+                  {data.planned_actions.map((a: string, i: number) => (
+                    <li key={i} className="flex gap-1.5"><span className="text-primary">•</span>{a}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {data.expected_results && <DetailRow label="Resultados Esperados" value={data.expected_results} />}
+            {data.risk_assessment && <DetailRow label="Riscos" value={data.risk_assessment} />}
           </DetailSection>
         );
       default:
