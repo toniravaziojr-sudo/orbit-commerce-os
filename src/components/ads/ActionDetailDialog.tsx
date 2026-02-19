@@ -9,6 +9,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { AutopilotAction } from "@/hooks/useAdsAutopilot";
+import { StrategicPlanContent } from "./StrategicPlanContent";
 
 interface ActionDetailDialogProps {
   action: AutopilotAction | null;
@@ -410,26 +411,14 @@ export function ActionDetailDialog({ action, open, onOpenChange }: ActionDetailD
         );
       case "strategic_plan":
         return (
-          <DetailSection icon={<Bot className="h-4 w-4" />} title="Plano Estratégico">
-            {data.diagnosis && (
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Diagnóstico</p>
-                <p className="text-sm whitespace-pre-wrap">{data.diagnosis}</p>
-              </div>
-            )}
-            {data.planned_actions?.length > 0 && (
-              <div className="space-y-1 mt-3">
-                <p className="text-xs font-medium text-muted-foreground">Ações Planejadas</p>
-                <ul className="text-sm space-y-1">
-                  {data.planned_actions.map((a: string, i: number) => (
-                    <li key={i} className="flex gap-1.5"><span className="text-primary">•</span>{a}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {data.expected_results && <DetailRow label="Resultados Esperados" value={data.expected_results} />}
-            {data.risk_assessment && <DetailRow label="Riscos" value={data.risk_assessment} />}
-          </DetailSection>
+          <StrategicPlanContent
+            diagnosis={data.diagnosis}
+            plannedActions={data.planned_actions}
+            expectedResults={data.expected_results}
+            riskAssessment={data.risk_assessment}
+            timeline={data.timeline}
+            reasoning={action.reasoning}
+          />
         );
       default:
         return <RawDataPreview data={data} title="Dados da Ação" />;
