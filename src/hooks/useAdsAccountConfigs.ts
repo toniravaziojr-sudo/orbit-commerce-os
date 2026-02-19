@@ -111,16 +111,16 @@ export function useAdsAccountConfigs() {
       queryClient.invalidateQueries({ queryKey: ["ads-account-configs"] });
       toast.success(`IA ${enabled ? "ativada" : "desativada"} para esta conta`);
       
-      // Always trigger full analysis (first_activation) whenever AI is enabled
+      // First activation triggers the STRATEGIST (full analysis + plan + execution)
       if (enabled) {
         setTimeout(async () => {
           try {
-            const { error } = await supabase.functions.invoke("ads-autopilot-analyze", {
-              body: { tenant_id: tenantId, trigger_type: "first_activation", target_account_id: ad_account_id, target_channel: channel },
+            const { error } = await supabase.functions.invoke("ads-autopilot-strategist", {
+              body: { tenant_id: tenantId, trigger: "start", target_account_id: ad_account_id, target_channel: channel },
             });
-            if (error) console.error("AI activation analysis error:", error);
+            if (error) console.error("AI strategist activation error:", error);
           } catch (e) {
-            console.error("AI activation analysis error:", e);
+            console.error("AI strategist activation error:", e);
           }
         }, 1500);
       }

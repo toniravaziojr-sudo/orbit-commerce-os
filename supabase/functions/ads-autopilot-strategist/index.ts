@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.3.0"; // Deep context: ads, store settings, landing pages, store pages, global config
+const VERSION = "v1.4.0"; // target_account_id filter, first_activation → strategist
 // ===================
 
 const corsHeaders = {
@@ -829,16 +829,23 @@ async function executeToolCall(
 
 // ============ RUN STRATEGIST FOR TENANT ============
 
-async function runStrategistForTenant(supabase: any, tenantId: string, trigger: StrategistTrigger) {
+async function runStrategistForTenant(supabase: any, tenantId: string, trigger: StrategistTrigger, targetAccountId?: string | null) {
   const startTime = Date.now();
-  console.log(`[ads-autopilot-strategist][${VERSION}] Starting ${trigger} for tenant ${tenantId}`);
+  console.log(`[ads-autopilot-strategist][${VERSION}] Starting ${trigger} for tenant ${tenantId}${targetAccountId ? ` (account: ${targetAccountId})` : ""}`);
 
   // Get account configs
-  const { data: configs } = await supabase
+  let query = supabase
     .from("ads_autopilot_account_configs")
     .select("*")
     .eq("tenant_id", tenantId)
     .eq("is_ai_enabled", true);
+
+  // If targeting a specific account, filter to just that one
+  if (targetAccountId) {
+    query = query.eq("ad_account_id", targetAccountId);
+  }
+
+  const { data: configs } = await query;
 
   const activeConfigs = (configs || []).filter((c: any) => !c.kill_switch) as AccountConfig[];
   if (activeConfigs.length === 0) {
@@ -1004,6 +1011,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const tenantId = body.tenant_id;
     const trigger = (body.trigger || "weekly") as StrategistTrigger;
+    const targetAccountId = body.target_account_id || null;
 
     // Cron mode: run for all tenants with active accounts
     if (!tenantId) {
@@ -1030,8 +1038,8 @@ Deno.serve(async (req) => {
       return ok({ trigger, tenants_processed: results.length, results });
     }
 
-    // Manual invocation
-    const result = await runStrategistForTenant(supabase, tenantId, trigger);
+    // Manual invocation (with optional account filter)
+    const result = await runStrategistForTenant(supabase, tenantId, trigger, targetAccountId);
     return ok(result);
   } catch (err: any) {
     console.error(`[ads-autopilot-strategist][${VERSION}] Fatal:`, err.message);
