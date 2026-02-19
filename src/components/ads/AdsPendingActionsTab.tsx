@@ -109,7 +109,7 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
   }
 
   return (
-    <ScrollArea className="flex-1">
+    <ScrollArea className="flex-1 overflow-hidden">
       <div className="py-4 space-y-3">
         {/* Budget Summary Header */}
         <BudgetSummaryHeader pendingActions={pendingActions} />

@@ -128,9 +128,9 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
     : "Chat IA — Global";
 
   return (
-    <div className="grid gap-3 lg:grid-cols-[280px_1fr] h-[calc(100vh-380px)] min-h-[400px]">
+    <div className="grid gap-3 lg:grid-cols-[280px_1fr] h-[calc(100vh-380px)] min-h-[400px] overflow-hidden">
       {/* Sidebar */}
-      <div className="bg-card border rounded-xl overflow-hidden flex flex-col">
+      <div className="bg-card border rounded-xl overflow-hidden flex flex-col min-w-0">
         {/* Inner tab switcher */}
         <div className="flex border-b">
           <button
@@ -183,7 +183,7 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
       </div>
 
       {/* Chat Area */}
-      <div className="bg-card border rounded-xl overflow-hidden flex flex-col">
+      <div className="bg-card border rounded-xl overflow-hidden flex flex-col min-w-0">
         {/* Header */}
         <div className="flex items-center gap-2.5 border-b px-4 py-2.5">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">

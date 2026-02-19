@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogD
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Check, X, MessageSquare, ChevronDown, Megaphone, ImageIcon, DollarSign, Target, Sparkles } from "lucide-react";
+import { Check, X, MessageSquare, ChevronDown, Megaphone, ImageIcon, DollarSign, Target, Sparkles, ZoomIn } from "lucide-react";
 import type { PendingAction } from "@/hooks/useAdsPendingActions";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +45,18 @@ const ACTION_TYPE_ICONS: Record<string, typeof Target> = {
 
 function formatCents(cents: number): string {
   return `R$ ${(cents / 100).toFixed(2)}`;
+}
+
+/** Remove technical IDs (UUIDs, long numbers, act_ prefixes) and clean up text for display */
+function sanitizeDisplayText(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, "")
+    .replace(/\bact_\d{10,}\b/g, "")
+    .replace(/\b(asset ready|asset pending)\s+[0-9a-f-]{20,}/gi, "")
+    .replace(/\(\s*\)/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
 function BudgetBar({ snapshot, proposedCents }: { snapshot: any; proposedCents?: number }) {
@@ -90,6 +102,7 @@ function BudgetBar({ snapshot, proposedCents }: { snapshot: any; proposedCents?:
 export function ActionApprovalCard({ action, onApprove, onReject, onAdjust, isApproving, isRejecting }: ActionApprovalCardProps) {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
+  const [zoomOpen, setZoomOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [adjustSuggestion, setAdjustSuggestion] = useState("");
   const [techOpen, setTechOpen] = useState(false);
@@ -143,16 +156,22 @@ export function ActionApprovalCard({ action, onApprove, onReject, onAdjust, isAp
         {/* Creative + Copy Section */}
         <div className="flex gap-0">
           {/* Thumbnail */}
-          <div className="w-[120px] min-h-[120px] flex-shrink-0 bg-muted/20 border-r border-border/40">
+          <div className="w-[120px] min-h-[120px] flex-shrink-0 bg-muted/20 border-r border-border/40 relative group cursor-pointer" onClick={() => creativeUrl && setZoomOpen(true)}>
             {creativeUrl ? (
-              <img
-                src={creativeUrl}
-                alt="Criativo"
-                className="w-full h-full object-cover"
-              />
+              <>
+                <img
+                  src={creativeUrl}
+                  alt="Criativo"
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <ZoomIn className="h-5 w-5 text-white" />
+                </div>
+              </>
             ) : (
               <div className="w-full h-full flex items-center justify-center">
-                <Skeleton className="w-16 h-16 rounded" />
+                <ImageIcon className="h-8 w-8 text-muted-foreground/30" />
+                <span className="sr-only">Criativo não disponível</span>
               </div>
             )}
           </div>
@@ -210,7 +229,7 @@ export function ActionApprovalCard({ action, onApprove, onReject, onAdjust, isAp
             {targeting && (
               <div className="col-span-2">
                 <span className="text-muted-foreground">Público: </span>
-                <span className="font-medium">{targeting}</span>
+                <span className="font-medium break-words">{sanitizeDisplayText(targeting)}</span>
                 {ageRange && <span className="text-muted-foreground"> ({ageRange} anos)</span>}
               </div>
             )}
@@ -325,6 +344,18 @@ export function ActionApprovalCard({ action, onApprove, onReject, onAdjust, isAp
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Zoom Dialog */}
+      {creativeUrl && (
+        <Dialog open={zoomOpen} onOpenChange={setZoomOpen}>
+          <DialogContent className="sm:max-w-2xl p-2">
+            <img
+              src={creativeUrl}
+              alt="Criativo ampliado"
+              className="w-full h-auto max-h-[80vh] object-contain rounded-lg"
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }
