@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.10.0"; // Add revision trigger: re-run strategist with user feedback from rejected plans
+const VERSION = "v1.11.0"; // Post-processing pass: link creative_url to campaign actions after all tool calls complete
 // ===================
 
 const corsHeaders = {
@@ -1024,6 +1024,74 @@ ${prevDiagnosis.substring(0, 2000)}
 
         const { error: insertErr } = await supabase.from("ads_autopilot_actions").insert(actionRecord);
         if (insertErr) console.error(`[ads-autopilot-strategist][${VERSION}] Action insert error:`, insertErr);
+      }
+
+      // ===== POST-PROCESSING: Link creative URLs to campaign actions =====
+      // This second pass fixes the race condition where generate_creative is async
+      // and asset_url may not be available when create_campaign runs.
+      try {
+        const { data: pendingCampaigns } = await supabase
+          .from("ads_autopilot_actions")
+          .select("id, action_data")
+          .eq("tenant_id", tenantId)
+          .eq("session_id", sessionId)
+          .eq("action_type", "create_campaign")
+          .eq("status", "pending_approval");
+
+        for (const campaign of (pendingCampaigns || [])) {
+          const cData = campaign.action_data as Record<string, any> || {};
+          const cPreview = cData.preview || {};
+          // Skip if already has a creative_url
+          if (cData.creative_url || cPreview.creative_url) continue;
+
+          // Try to find creative by product_id
+          const productId = cData.product_id || cPreview.product_id;
+          let resolvedUrl: string | null = null;
+
+          if (productId) {
+            const { data: asset } = await supabase
+              .from("ads_creative_assets")
+              .select("asset_url")
+              .eq("tenant_id", tenantId)
+              .eq("product_id", productId)
+              .not("asset_url", "is", null)
+              .order("created_at", { ascending: false })
+              .limit(1);
+            resolvedUrl = asset?.[0]?.asset_url || null;
+          }
+
+          // Fallback: any creative from this session
+          if (!resolvedUrl) {
+            const { data: sessionAsset } = await supabase
+              .from("ads_creative_assets")
+              .select("asset_url")
+              .eq("tenant_id", tenantId)
+              .eq("session_id", sessionId)
+              .not("asset_url", "is", null)
+              .order("created_at", { ascending: false })
+              .limit(1);
+            resolvedUrl = sessionAsset?.[0]?.asset_url || null;
+          }
+
+          // Fallback: product catalog image
+          if (!resolvedUrl && productId) {
+            const { data: prodImg } = await supabase
+              .from("product_images")
+              .select("url")
+              .eq("product_id", productId)
+              .order("sort_order", { ascending: true })
+              .limit(1);
+            resolvedUrl = prodImg?.[0]?.url || null;
+          }
+
+          if (resolvedUrl) {
+            const updatedData = { ...cData, creative_url: resolvedUrl, preview: { ...cPreview, creative_url: resolvedUrl } };
+            await supabase.from("ads_autopilot_actions").update({ action_data: updatedData }).eq("id", campaign.id);
+            console.log(`[ads-autopilot-strategist][${VERSION}] Post-process: linked creative_url to campaign ${campaign.id}`);
+          }
+        }
+      } catch (ppErr: any) {
+        console.error(`[ads-autopilot-strategist][${VERSION}] Post-process creative linking error (non-blocking):`, ppErr.message);
       }
 
       // Save per-account session detail
