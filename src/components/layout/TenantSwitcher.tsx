@@ -36,7 +36,7 @@ export function TenantSwitcher() {
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className="flex items-center gap-2 px-2 h-9 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          className="flex items-center gap-2 px-2 h-9 text-sidebar-foreground hover:bg-sidebar-accent/50"
         >
           <div className="h-6 w-6 rounded-md bg-sidebar-primary flex items-center justify-center">
             <Store className="h-3.5 w-3.5 text-sidebar-primary-foreground" />

@@ -740,7 +740,7 @@ export function AppSidebar() {
           size="sm"
           onClick={() => setCollapsed(!collapsed)}
           className={cn(
-            "w-full justify-center text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+            "w-full justify-center text-sidebar-foreground hover:bg-sidebar-accent/50",
             !collapsed && "justify-start"
           )}
         >
