@@ -46,12 +46,16 @@ const ACTION_TYPE_ICONS: Record<string, typeof Target> = {
 
 const ACTION_TYPE_LABELS: Record<string, string> = {
   create_campaign: "Nova Campanha",
+  create_adset: "Novo Conjunto de Anúncios",
   generate_creative: "Criativo Gerado",
   adjust_budget: "Ajuste de Orçamento",
   pause_campaign: "Pausar Campanha",
   activate_campaign: "Ativar Campanha",
   strategic_plan: "Plano Estratégico",
 };
+
+/** Action types that should be hidden from user approval view (internal/technical) */
+const HIDDEN_ACTION_TYPES = new Set(["create_adset", "activate_campaign"]);
 
 function formatCents(cents: number): string {
   return `R$ ${(cents / 100).toFixed(2)}`;
@@ -139,7 +143,7 @@ function FullContentDialog({ action, open, onOpenChange }: { action: PendingActi
   const copyText = preview.copy_text || data.copy_text || null;
   const ctaType = preview.cta_type || data.cta_type || null;
   const productName = preview.product_name || data.product_name || null;
-  const productPrice = preview.product_price_display || (preview.product_price ? formatCents(preview.product_price) : null);
+  const productPrice = preview.product_price_display || (preview.product_price ? `R$ ${Number(preview.product_price).toFixed(2)}` : null);
   const targeting = preview.targeting_summary || null;
   const ageRange = preview.age_range || null;
   const budgetDisplay = preview.daily_budget_display || (data.daily_budget_cents ? `R$ ${(data.daily_budget_cents / 100).toFixed(2)}/dia` : null);
