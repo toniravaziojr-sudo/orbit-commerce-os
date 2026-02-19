@@ -140,10 +140,10 @@ export function useAdsAutopilot() {
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-configs"] });
       toast.success(`${channel === "global" ? "Piloto Automático" : channel} ${enabled ? "ativado" : "desativado"}`);
       
-      // Trigger first analysis immediately when a channel is enabled
+      // Trigger strategist on first channel activation (full analysis + plan)
       if (enabled && channel !== "global") {
         setTimeout(() => {
-          triggerAnalysis.mutate();
+          triggerStrategist.mutate("start");
         }, 1000);
       }
     },

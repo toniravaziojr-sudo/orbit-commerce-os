@@ -2003,7 +2003,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
 
           if (tc.function.name === "report_insight") {
             // v5.11.2: Sanitize insight before saving
-            let sanitizedSummary = (args.summary || "").replace(/\b120\d{12,}\b/g, "[campanha]").slice(0, 500);
+            let sanitizedSummary = (args.summary || "").replace(/\b120\d{12,}\b/g, "[campanha]");
             const sanitizedArgs = { ...args, summary: sanitizedSummary, account_id: acctConfig.ad_account_id };
 
             allInsights.push(sanitizedArgs);
