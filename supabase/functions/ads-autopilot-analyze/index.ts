@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.12.4"; // Pipeline guards: budget, targeting, copy, lock per-account, first_activation approval, priority products, artifacts gate
+const VERSION = "v5.12.5"; // Fix: generate_creative always auto-executes, pending_approval only at create_campaign with full preview
 // ===========================================================
 
 const corsHeaders = {
@@ -1921,19 +1921,21 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
             action_hash: `${strategyRunId}_${acctConfig.ad_account_id}_${tc.function.name}_${args.product_name || args.campaign_id || ''}_${args.funnel_stage || ''}_${args.template || ''}_${getNextBatchIndex(tc.function.name, args.product_name || args.campaign_id || '', args.funnel_stage || '', args.template || '')}`,
           };
 
-          // Human approval mode check (v5.12.4: first_activation ALWAYS requires approval for create actions)
-          const isCreateAction = tc.function.name === "create_campaign" || tc.function.name === "create_adset" || tc.function.name === "generate_creative" || tc.function.name === "create_lookalike_audience";
+          // v5.12.5: Approval logic — generate_creative ALWAYS auto-executes (preparation, no financial risk)
+          // pending_approval ONLY at create_campaign (when full campaign preview is ready with creative, targeting, budget)
+          const isPublishAction = tc.function.name === "create_campaign" || tc.function.name === "create_adset";
+          const isPreparationAction = tc.function.name === "generate_creative" || tc.function.name === "create_lookalike_audience";
           const isBigBudgetChange = tc.function.name === "adjust_budget" && Math.abs(args.change_pct || 0) > 20;
-          const isHighImpact = isCreateAction || isBigBudgetChange;
+          const isHighImpact = isPublishAction || isBigBudgetChange;
           
-          // v5.12.4: first_activation ALWAYS forces approval for create actions (never auto-execute)
-          const isFirstActivationCreate = trigger_type === "first_activation" && isCreateAction;
+          // v5.12.5: first_activation forces approval ONLY for publish actions (create_campaign/create_adset)
+          // generate_creative and create_lookalike_audience always auto-execute (they are preparation steps)
+          const isFirstActivationPublish = trigger_type === "first_activation" && isPublishAction;
           
-          const needsApproval = validation.valid && (
-            isFirstActivationCreate ||
+          const needsApproval = validation.valid && !isPreparationAction && (
+            isFirstActivationPublish ||
             acctConfig.human_approval_mode === "all" ||
             (acctConfig.human_approval_mode === "approve_high_impact" && isHighImpact)
-            // When mode is "auto" AND NOT first_activation create, executes everything
           );
 
           if (needsApproval) {
