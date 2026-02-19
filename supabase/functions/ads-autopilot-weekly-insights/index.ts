@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.1.0"; // Fix AI response parsing
+const VERSION = "v2.0.0"; // Actionable business insights (pricing, budget, product decisions)
 // ===========================================================
 
 const corsHeaders = {
@@ -245,55 +245,54 @@ async function collectWeeklyContext(supabase: any, tenantId: string) {
 // ============ AI PROMPT ============
 
 function buildInsightsPrompt(context: any): string {
-  return `Você é um analista de tráfego pago sênior especializado em e-commerce de produtos físicos.
+  return `Você é um consultor sênior de e-commerce e tráfego pago. Seu trabalho é gerar RECOMENDAÇÕES ACIONÁVEIS de negócio para o lojista.
 
-Analise os dados abaixo e gere insights acionáveis para o lojista. Cada insight deve ser prático e específico.
+NÃO gere "análises da conta" ou dumps de contexto. Cada insight deve ser uma DECISÃO CONCRETA que o lojista pode tomar AGORA.
 
-## CONTEXTO DO NEGÓCIO
+## DADOS DO NEGÓCIO
 
-### Produtos (Top 20)
+### Produtos e Unit Economics
 ${JSON.stringify(context.unitEconomics, null, 2)}
 
-### Pedidos (últimos 30 dias)
+### Vendas (30 dias)
 ${JSON.stringify(context.orderStats)}
 
-### Produtos com Estoque Baixo (≤ 5 unidades)
+### Estoque Baixo (≤ 5 un)
 ${JSON.stringify(context.lowStockProducts)}
 
-### Performance por Canal (últimos 7 dias)
+### Performance de Anúncios (7 dias)
 ${JSON.stringify(context.channels, null, 2)}
 
-### Ações Recentes do Autopilot
-${JSON.stringify(context.recentActions.slice(0, 15), null, 2)}
+### Configs das Contas
+${JSON.stringify(context.accountConfigs.map((c: any) => ({ channel: c.channel, account: c.ad_account_id, ai_enabled: c.is_ai_enabled, budget_cents: c.budget_cents, target_roi: c.target_roi, strategy: c.strategy_mode })), null, 2)}
 
-### Configs por Conta
-${JSON.stringify(context.accountConfigs.map((c: any) => ({ channel: c.channel, account: c.ad_account_id, ai_enabled: c.is_ai_enabled, budget: c.budget_cents, target_roi: c.target_roi, strategy: c.strategy_mode })), null, 2)}
+## TIPOS DE INSIGHTS ESPERADOS (exemplos)
 
-## INSTRUÇÕES
+1. **Ajuste de Preço**: "Aumente o preço do [Produto X] de R$Y para R$Z — sua margem atual é apenas W%, e o CPA está em R$A. Com o novo preço, você terá margem para escalar."
+2. **Realocação de Orçamento**: "Aumente o orçamento diário de R$X para R$Y — seu ROAS está em Z e há espaço para escalar mantendo lucratividade."
+3. **Pausar Produto/Campanha**: "Pause anúncios do [Produto X] — ele tem ROAS de Y mas margem de apenas Z%, resultando em prejuízo de R$W por venda."
+4. **Escalar Vencedor**: "O [Produto X] tem ROAS de Y e margem de Z%. Aumente investimento em +W% gradualmente."
+5. **Alerta de Estoque**: "O [Produto X] tem apenas N unidades. Reduza o orçamento ou reponha estoque para não perder vendas."
+6. **Oportunidade de Preço**: "O [Produto X] tem compare_at_price de R$Y mas está vendendo a R$Z sem desconto ativo. Considere criar uma oferta de tempo limitado."
+7. **Meta de ROAS**: "Seu target ROI está em X, mas o ROAS real dos últimos 7 dias é Y. Ajuste a meta para Z baseado na margem real dos produtos."
+8. **Diversificação**: "80% do investimento está no [Produto X]. Teste o [Produto Y] que tem margem de Z% e pode ser um novo vencedor."
+9. **Ticket Médio**: "O ticket médio atual é R$X. Crie um kit/combo do [Produto X] + [Produto Y] para aumentar para ~R$Z."
+10. **Resultado Positivo**: "[Produto X] vendeu N unidades nos últimos 7 dias com ROAS de Y. Continue escalando com incrementos de 20%."
 
-Gere entre 3 e 8 insights. Cada insight deve ter:
+## REGRAS
 
-1. **title**: Título conciso (máx 60 chars)
-2. **body**: Explicação detalhada com dados específicos (2-4 frases)
-3. **category**: Uma de: budget, funnel, creative, audience, product, tracking, positive
-4. **priority**: low, medium, high ou critical
-5. **sentiment**: positive, negative ou neutral
-6. **channel**: meta, google, tiktok ou cross-channel
-7. **recommended_action**: Objeto com { type, description } sugerindo ação concreta
+- Gere entre 3 e 7 insights
+- CADA insight deve ter uma AÇÃO ESPECÍFICA com números concretos (R$, %, unidades)
+- Use os nomes reais dos produtos
+- NÃO repita dados brutos (ex: "analisei 6 campanhas...")
+- NÃO use IDs técnicos de campanhas
+- Valores sempre em R$ (BRL), NÃO em centavos
+- Priorize insights que impactam diretamente o lucro
+- Inclua pelo menos 1 insight positivo se houver bons resultados
+- Máximo 3 frases por insight no body
 
-### CATEGORIAS DE INSIGHTS
-- **budget**: Realocar entre canais/contas, aumentar/diminuir investimento
-- **funnel**: Problemas de funil (bounce, abandono, conversão)
-- **creative**: Fadiga de criativos (frequência alta + CTR caindo), novos ângulos
-- **audience**: Saturação de público, novos lookalikes
-- **product**: Produtos vencedores para escalar, margem baixa = ROAS ilusório, estoque
-- **tracking**: Queda de eventos, discrepância atribuição
-- **positive**: Boas notícias — produto vendendo bem, campanha escalando, ROAS subindo
-
-IMPORTANTE: Inclua pelo menos 1 insight positivo se houver dados bons. Seja direto e use números.
-
-Responda APENAS com JSON válido no formato:
-{ "insights": [ { "title": "", "body": "", "category": "", "priority": "", "sentiment": "", "channel": "", "recommended_action": { "type": "", "description": "" } } ] }`;
+Responda APENAS com JSON válido:
+{ "insights": [ { "title": "string (max 60 chars, ex: 'Aumentar preço do Shampoo X')", "body": "string (2-3 frases com números)", "category": "budget|funnel|creative|audience|product|tracking|positive", "priority": "low|medium|high|critical", "sentiment": "positive|negative|neutral", "channel": "meta|google|tiktok|cross-channel", "recommended_action": { "type": "increase_price|decrease_price|increase_budget|decrease_budget|pause|scale|restock|create_offer|create_kit|adjust_target|diversify|other", "description": "Ação concreta em 1 frase" } } ] }`;
 }
 
 // ============ MAIN HANDLER ============
@@ -375,13 +374,13 @@ async function processOneTenant(supabase: any, tenantId: string, triggerType: st
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "openai/gpt-5.2",
+      model: "google/gemini-2.5-flash",
       messages: [
-        { role: "system", content: "Você é um analista de tráfego pago sênior. Responda APENAS em JSON válido." },
+        { role: "system", content: "Você é um consultor de e-commerce focado em decisões de negócio. Responda APENAS em JSON válido. NUNCA gere dumps de contexto ou análises genéricas. Cada insight deve ser uma recomendação concreta com valores em R$." },
         { role: "user", content: prompt },
       ],
-      temperature: 0.4,
-      max_tokens: 4000,
+      temperature: 0.5,
+      max_completion_tokens: 4000,
     }),
   });
 

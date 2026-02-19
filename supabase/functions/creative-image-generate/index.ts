@@ -15,7 +15,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const VERSION = '4.0.0'; // Resilient pipeline: retry + catalog fallback
+const VERSION = '4.1.0'; // Fix: better error logging, download retry, timeout handling
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -476,25 +476,50 @@ Responda APENAS em JSON:
 // ========== DOWNLOAD IMAGE ==========
 
 async function downloadImageAsBase64(url: string): Promise<string | null> {
-  try {
-    console.log(`[creative-image] Downloading: ${url.substring(0, 80)}...`);
-    const response = await fetch(url);
-    if (!response.ok) {
-      console.error(`[creative-image] Download failed: ${response.status}`);
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      console.log(`[creative-image] Downloading (attempt ${attempt}/3): ${url.substring(0, 100)}...`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout
+      
+      const response = await fetch(url, { 
+        signal: controller.signal,
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CreativeBot/1.0)' },
+      });
+      clearTimeout(timeout);
+      
+      if (!response.ok) {
+        console.error(`[creative-image] Download failed (attempt ${attempt}): HTTP ${response.status} ${response.statusText}`);
+        if (attempt < 3) { await new Promise(r => setTimeout(r, 1000 * attempt)); continue; }
+        return null;
+      }
+      
+      const contentType = response.headers.get('content-type') || '';
+      const contentLength = response.headers.get('content-length');
+      console.log(`[creative-image] Download response: type=${contentType}, length=${contentLength}`);
+      
+      const arrayBuffer = await response.arrayBuffer();
+      if (arrayBuffer.byteLength < 100) {
+        console.error(`[creative-image] Downloaded image too small: ${arrayBuffer.byteLength} bytes`);
+        if (attempt < 3) { await new Promise(r => setTimeout(r, 1000 * attempt)); continue; }
+        return null;
+      }
+      
+      const uint8Array = new Uint8Array(arrayBuffer);
+      let binary = '';
+      for (let i = 0; i < uint8Array.length; i++) {
+        binary += String.fromCharCode(uint8Array[i]);
+      }
+      const base64 = btoa(binary);
+      console.log(`[creative-image] Downloaded OK: ${arrayBuffer.byteLength} bytes, base64 length: ${base64.length}`);
+      return base64;
+    } catch (error: any) {
+      console.error(`[creative-image] Download error (attempt ${attempt}):`, error?.name, error?.message);
+      if (attempt < 3) { await new Promise(r => setTimeout(r, 1000 * attempt)); continue; }
       return null;
     }
-    
-    const arrayBuffer = await response.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-    let binary = '';
-    for (let i = 0; i < uint8Array.length; i++) {
-      binary += String.fromCharCode(uint8Array[i]);
-    }
-    return btoa(binary);
-  } catch (error) {
-    console.error(`[creative-image] Download error:`, error);
-    return null;
   }
+  return null;
 }
 
 // ========== MAIN HANDLER ==========
@@ -706,15 +731,19 @@ serve(async (req) => {
     const processPipeline = async () => {
       try {
         // Download product image
+        console.log(`[creative-image][${VERSION}] Pipeline start for job ${jobId}, product: ${product_name}, image: ${product_image_url?.substring(0, 100)}`);
         const productBase64 = await downloadImageAsBase64(product_image_url);
         if (!productBase64) {
+          const errMsg = `Não foi possível baixar a imagem do produto: ${product_image_url?.substring(0, 100)}`;
+          console.error(`[creative-image][${VERSION}] ${errMsg}`);
           await supabase.from('creative_jobs').update({ 
             status: 'failed', 
-            error_message: 'Não foi possível baixar a imagem do produto',
+            error_message: errMsg,
             completed_at: new Date().toISOString(),
           }).eq('id', jobId);
           return;
         }
+        console.log(`[creative-image][${VERSION}] Image downloaded OK (${productBase64.length} base64 chars)`);
 
         // Build prompt
         const finalPrompt = buildPromptForStyle({
