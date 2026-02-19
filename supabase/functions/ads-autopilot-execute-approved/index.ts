@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.2.0"; // Revalidação de budget com snapshot (pending_reserved) antes de executar
+const VERSION = "v1.3.0"; // Handle strategic_plan approval: save insight + trigger implementation
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -118,6 +118,49 @@ Deno.serve(async (req) => {
           }
         }
       }
+    }
+
+    // v1.3.0: Handle strategic_plan approval — save as insight and trigger implementation
+    if (action.action_type === "strategic_plan") {
+      console.log(`[ads-autopilot-execute-approved][${VERSION}] Strategic plan approved, saving insight and triggering implementation`);
+
+      const data = action.action_data || {};
+      const planBody = data.diagnosis + "\n\n**Ações Planejadas:**\n" + (data.planned_actions || []).map((a: string) => `• ${a}`).join("\n") + "\n\n**Resultados Esperados:** " + (data.expected_results || "") + "\n\n**Riscos:** " + (data.risk_assessment || "");
+
+      // Save as insight for history
+      await supabase.from("ads_autopilot_insights").insert({
+        tenant_id,
+        channel: action.channel || "global",
+        ad_account_id: data.ad_account_id || null,
+        title: "Plano Estratégico — Aprovado",
+        body: planBody,
+        category: "strategy",
+        priority: "high",
+        sentiment: "positive",
+        status: "open",
+        evidence: { planned_actions: data.planned_actions, timeline: data.timeline, budget_allocation: data.budget_allocation },
+        recommended_action: data.planned_actions?.[0] ? { action: data.planned_actions[0] } : null,
+      });
+
+      // Mark as executed
+      await supabase
+        .from("ads_autopilot_actions")
+        .update({ status: "executed", executed_at: new Date().toISOString() })
+        .eq("id", action_id);
+
+      // Trigger strategist to implement the approved plan
+      const { error: stratErr } = await supabase.functions.invoke("ads-autopilot-strategist", {
+        body: { tenant_id, trigger: "implement_approved_plan" },
+      });
+
+      if (stratErr) {
+        console.error(`[ads-autopilot-execute-approved][${VERSION}] Strategist trigger error (non-blocking):`, stratErr.message);
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, data: { type: "strategic_plan_approved", implementation_triggered: !stratErr } }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // Trigger analysis with the approved action context

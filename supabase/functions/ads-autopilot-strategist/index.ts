@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.5.1"; // fix imagesByProduct scope leak in buildStrategistPrompt
+const VERSION = "v1.6.0"; // strategic_plan now goes to pending_approval instead of auto-executing
 // ===================
 
 const corsHeaders = {
@@ -485,6 +485,21 @@ Análise profunda de TODO o mês anterior:
 
 FOCO MENSAL: Visão macro. Identifique tendências e pivote estratégia se necessário.`;
       break;
+    case "implement_approved_plan":
+      triggerInstruction = `## TRIGGER: IMPLEMENTAÇÃO DE PLANO APROVADO
+O usuário APROVOU o Plano Estratégico gerado anteriormente. Agora é hora de IMPLEMENTAR.
+NÃO emita um novo strategic_plan. Vá direto para a EXECUÇÃO:
+1. **CRIATIVOS**: Gere criativos para os top produtos (generate_creative). Mín 3 variações por produto.
+2. **PÚBLICOS**: Se há Custom Audiences, crie Lookalikes (create_lookalike_audience). 1-5% ratio.
+3. **MONTAGEM**: Crie campanhas com CBO e ad sets segmentados (create_campaign + create_adset).
+4. **PUBLICAÇÃO**: Tudo criado PAUSADO. Ativações agendadas para 00:01-04:00 BRT.
+
+REGRAS:
+- NÃO use strategic_plan novamente — o plano já foi aprovado
+- Foque em EXECUTAR as ações planejadas no plano aprovado
+- Aumentos de budget limitados a +20% por campanha existente
+- Se orçamento economizado não cabe em +20%, CRIE novas campanhas`;
+      break;
   }
 
   const storeName = context.storeSettings?.store_name || context.tenant?.name || "Loja";
@@ -590,21 +605,27 @@ async function executeToolCall(
   const isAutoMode = config.human_approval_mode === "auto";
 
   if (toolName === "strategic_plan") {
-    // Just record the plan as an insight
-    await supabase.from("ads_autopilot_insights").insert({
-      tenant_id: tenantId,
-      channel: config.channel,
-      ad_account_id: config.ad_account_id,
-      title: "Plano Estratégico — Motor Estrategista",
-      body: args.diagnosis + "\n\n**Ações Planejadas:**\n" + (args.planned_actions || []).map((a: string) => `• ${a}`).join("\n") + "\n\n**Resultados Esperados:** " + (args.expected_results || "") + "\n\n**Riscos:** " + (args.risk_assessment || ""),
-      category: "strategy",
-      priority: "high",
-      sentiment: "neutral",
-      status: "open",
-      evidence: { planned_actions: args.planned_actions, timeline: args.timeline, budget_allocation: args.budget_allocation },
-      recommended_action: args.planned_actions?.[0] ? { action: args.planned_actions[0] } : null,
-    });
-    return { status: "executed", data: { type: "strategic_plan" } };
+    // Always send strategic plans for human approval
+    const planBody = args.diagnosis + "\n\n**Ações Planejadas:**\n" + (args.planned_actions || []).map((a: string) => `• ${a}`).join("\n") + "\n\n**Resultados Esperados:** " + (args.expected_results || "") + "\n\n**Riscos:** " + (args.risk_assessment || "");
+    
+    return {
+      status: "pending_approval",
+      data: {
+        type: "strategic_plan",
+        ad_account_id: config.ad_account_id,
+        diagnosis: args.diagnosis,
+        planned_actions: args.planned_actions,
+        expected_results: args.expected_results,
+        risk_assessment: args.risk_assessment,
+        timeline: args.timeline,
+        budget_allocation: args.budget_allocation,
+        preview: {
+          headline: "Plano Estratégico — Motor Estrategista",
+          copy_text: planBody,
+          targeting_summary: `${(args.planned_actions || []).length} ações planejadas`,
+        },
+      },
+    };
   }
 
   if (toolName === "generate_creative") {

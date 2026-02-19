@@ -41,6 +41,7 @@ const ACTION_TYPE_ICONS: Record<string, typeof Target> = {
   adjust_budget: DollarSign,
   pause_campaign: Target,
   activate_campaign: Sparkles,
+  strategic_plan: Target,
 };
 
 function formatCents(cents: number): string {

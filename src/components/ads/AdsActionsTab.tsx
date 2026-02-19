@@ -37,6 +37,7 @@ const ACTION_ICONS: Record<string, any> = {
   generate_creative: Image,
   allocate_budget: TrendingUp,
   report_insight: Bot,
+  strategic_plan: Bot,
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -47,6 +48,7 @@ const ACTION_LABELS: Record<string, string> = {
   generate_creative: "Gerou Criativo",
   allocate_budget: "Alocou Orçamento",
   report_insight: "Insight",
+  strategic_plan: "Plano Estratégico",
 };
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: any }> = {
