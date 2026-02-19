@@ -212,8 +212,19 @@ A página `/ads` utiliza 3 abas de nível superior:
 | Aba | Componente | Descrição |
 |-----|-----------|-----------|
 | **Visão Geral** | `AdsOverviewTab.tsx` | Dashboard cross-channel com métricas agregadas (Investimento Total, ROAS Blended, CPA Médio, Conversões, Receita), barra de pacing mensal e breakdown por canal |
-| **Gerenciador** | Tabs Meta/Google/TikTok (existentes) | Conteúdo anterior reorganizado com sub-tabs: Campanhas, Ações IA, Relatórios |
+| **Gerenciador** | Tabs Meta/Google/TikTok (existentes) | Conteúdo anterior reorganizado com sub-tabs: Campanhas, Plano Estratégico, Relatórios |
 | **Insights** | `AdsInsightsTab.tsx` | Feed de insights semanais da IA com filtros por categoria/canal, botões "Vou fazer"/"Ignorar", histórico colapsável e botão "Gerar Insights Agora" |
+
+### UI: Nomenclatura e Sanitização (v5.13)
+
+| Regra | Descrição |
+|-------|-----------|
+| **Nomenclatura** | A sub-tab de ações chama-se **"Plano Estratégico"** (não "Ações da IA") |
+| **Idioma** | Toda comunicação da IA (insights, cards, chat) é estritamente PT-BR |
+| **Dados ocultos na listagem** | `session_id`, `confidence`, `metric_trigger`, badge de `channel` são removidos da visão do usuário |
+| **Entity names** | Nomes de entidade com prefixo "ID:" (ex: IDs técnicos) são filtrados e não exibidos |
+| **Diálogo de detalhes** | `ActionDetailDialog` não exibe `session_id` na descrição |
+| **Empty state** | Texto: "Nenhuma ação registrada" / "Quando a IA executar o plano estratégico, as ações aparecerão aqui" |
 
 ### Tabelas
 
@@ -221,7 +232,7 @@ A página `/ads` utiliza 3 abas de nível superior:
 |--------|-----------|
 | `ads_autopilot_configs` | Config global (`channel='global'`) + configs por canal. Novas colunas v4.0: `total_budget_cents`, `total_budget_mode`, `channel_limits`, `strategy_mode`, `funnel_split_mode`, `funnel_splits`, `kill_switch`, `human_approval_mode` |
 | `ads_autopilot_sessions` | Histórico de sessões de análise |
-| `ads_autopilot_actions` | Ações da IA com reasoning, rollback_data e action_hash |
+| `ads_autopilot_actions` | Ações do Plano Estratégico com reasoning, rollback_data e action_hash. **UI v5.13:** Metadados técnicos (session_id, confidence, metric_trigger, channel badge) são ocultados da visão do usuário. Entity names com prefixo "ID:" são filtrados. |
 | `ads_autopilot_account_configs` | **NOVA v4.0** — Config normalizada por conta de anúncios (substitui JSONB `safety_rules.account_configs`). Campos: `is_ai_enabled`, `budget_mode`, `budget_cents`, `target_roi`, `min_roi_cold`, `min_roi_warm`, `user_instructions`, `strategy_mode`, `funnel_split_mode`, `funnel_splits`, `kill_switch`, `human_approval_mode` |
 | `ads_autopilot_insights` | **NOVA v4.0** — Insights semanais da IA com `title`, `body`, `evidence`, `recommended_action`, `priority`, `category`, `sentiment`, `status` (open/done/ignored) |
 | `ads_autopilot_experiments` | **NOVA v4.0** — Experimentos A/B com `hypothesis`, `variable_type`, `plan`, `budget_cents`, `duration_days`, `min_spend_cents`, `min_conversions`, `success_criteria`, `status`, `results`, `winner_variant_id` |
