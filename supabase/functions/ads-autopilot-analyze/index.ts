@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.12.7"; // Fix: audience fetch uses account configs (not campaigns), headline/primary_text required in create_campaign
+const VERSION = "v5.12.8"; // Budget Guard com reserva (pending_approval), dedup por funil, budget_snapshot no preview
 // ===========================================================
 
 const corsHeaders = {
@@ -351,41 +351,79 @@ function extractPriorityProducts(userInstructions: string | null, products: any[
   return priorityProducts;
 }
 
-// ============ BUDGET GUARD (v5.12.4) ============
+// ============ BUDGET GUARD (v5.12.8) — com reserva de pending_approval ============
 
-async function checkBudgetGuard(
-  supabase: any, tenantId: string, acctConfig: AccountConfig, proposedBudgetCents: number, hasOverride: boolean
-): Promise<{ allowed: boolean; total_allocated: number; limit: number; reason?: string }> {
-  if (!acctConfig.budget_cents || acctConfig.budget_cents <= 0) {
-    return { allowed: true, total_allocated: 0, limit: 0 };
-  }
+interface BudgetSnapshot {
+  active_cents: number;
+  pending_reserved_cents: number;
+  remaining_cents: number;
+  limit_cents: number;
+}
 
-  // Sum daily budgets of all [AI] campaigns (ACTIVE or PAUSED) for this account
+async function getBudgetSnapshot(
+  supabase: any, tenantId: string, adAccountId: string, limitCents: number, excludeActionId?: string
+): Promise<BudgetSnapshot> {
+  // 1. Campanhas [AI] ativas na Meta (gasto real)
   const { data: aiCampaigns } = await supabase
     .from("meta_ad_campaigns")
     .select("daily_budget_cents, name, status")
     .eq("tenant_id", tenantId)
-    .eq("ad_account_id", acctConfig.ad_account_id)
-    .in("status", ["ACTIVE", "PAUSED"])
+    .eq("ad_account_id", adAccountId)
+    .eq("status", "ACTIVE")
     .ilike("name", "[AI]%");
 
-  const currentAllocated = (aiCampaigns || []).reduce((sum: number, c: any) => sum + (c.daily_budget_cents || 0), 0);
-  const totalAfter = currentAllocated + proposedBudgetCents;
+  const activeCents = (aiCampaigns || []).reduce((sum: number, c: any) => sum + (c.daily_budget_cents || 0), 0);
 
-  if (totalAfter > acctConfig.budget_cents) {
+  // 2. Propostas pending_approval (reserva) — excl. expiradas >24h
+  const ttlCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data: pendingActions } = await supabase
+    .from("ads_autopilot_actions")
+    .select("id, action_data, created_at")
+    .eq("tenant_id", tenantId)
+    .eq("status", "pending_approval")
+    .eq("action_type", "create_campaign")
+    .eq("channel", "meta")
+    .gte("created_at", ttlCutoff);
+
+  let pendingReservedCents = 0;
+  for (const pa of (pendingActions || [])) {
+    if (excludeActionId && pa.id === excludeActionId) continue;
+    const budgetVal = pa.action_data?.daily_budget_cents || pa.action_data?.preview?.daily_budget_cents || 0;
+    pendingReservedCents += Number(budgetVal) || 0;
+  }
+
+  const remainingCents = limitCents - activeCents - pendingReservedCents;
+
+  console.log(`[ads-autopilot-analyze][${VERSION}] BudgetSnapshot: active=${activeCents} pending=${pendingReservedCents} remaining=${remainingCents} limit=${limitCents}`);
+
+  return { active_cents: activeCents, pending_reserved_cents: pendingReservedCents, remaining_cents: remainingCents, limit_cents: limitCents };
+}
+
+async function checkBudgetGuard(
+  supabase: any, tenantId: string, acctConfig: AccountConfig, proposedBudgetCents: number, hasOverride: boolean
+): Promise<{ allowed: boolean; total_allocated: number; limit: number; reason?: string; budget_snapshot?: BudgetSnapshot }> {
+  if (!acctConfig.budget_cents || acctConfig.budget_cents <= 0) {
+    return { allowed: true, total_allocated: 0, limit: 0 };
+  }
+
+  const snapshot = await getBudgetSnapshot(supabase, tenantId, acctConfig.ad_account_id, acctConfig.budget_cents);
+  const totalAfter = snapshot.active_cents + snapshot.pending_reserved_cents + proposedBudgetCents;
+
+  if (proposedBudgetCents > snapshot.remaining_cents) {
     if (hasOverride) {
       console.log(`[ads-autopilot-analyze][${VERSION}] Budget guard: OVERRIDE — total ${totalAfter} > limit ${acctConfig.budget_cents}`);
-      return { allowed: true, total_allocated: totalAfter, limit: acctConfig.budget_cents, reason: "override_confirmed" };
+      return { allowed: true, total_allocated: totalAfter, limit: acctConfig.budget_cents, reason: "override_confirmed", budget_snapshot: snapshot };
     }
     return {
       allowed: false,
       total_allocated: totalAfter,
       limit: acctConfig.budget_cents,
-      reason: `Orçamento total (R$ ${(totalAfter / 100).toFixed(2)}) excederia limite de R$ ${(acctConfig.budget_cents / 100).toFixed(2)}`,
+      reason: `Orçamento excedido. Ativo: R$ ${(snapshot.active_cents / 100).toFixed(2)} | Reservado: R$ ${(snapshot.pending_reserved_cents / 100).toFixed(2)} | Restante: R$ ${(snapshot.remaining_cents / 100).toFixed(2)} | Limite: R$ ${(acctConfig.budget_cents / 100).toFixed(2)}/dia. Proposta: R$ ${(proposedBudgetCents / 100).toFixed(2)}.`,
+      budget_snapshot: snapshot,
     };
   }
 
-  return { allowed: true, total_allocated: totalAfter, limit: acctConfig.budget_cents };
+  return { allowed: true, total_allocated: totalAfter, limit: acctConfig.budget_cents, budget_snapshot: snapshot };
 }
 
 // ============ ACCOUNT LOCK (v5.12.4) ============
@@ -1969,6 +2007,35 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
           );
 
           if (needsApproval) {
+            // v5.12.8: Funnel deduplication — max 1 pending_approval per funnel_stage per ad_account
+            if (isPublishAction) {
+              const proposedFunnel = args.funnel_stage || "tof";
+              const ttlCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+              const { data: existingPending } = await supabase
+                .from("ads_autopilot_actions")
+                .select("id, action_data")
+                .eq("tenant_id", tenant_id)
+                .eq("status", "pending_approval")
+                .eq("action_type", "create_campaign")
+                .eq("channel", channel)
+                .gte("created_at", ttlCutoff)
+                .limit(50);
+
+              const duplicateFunnel = (existingPending || []).find((ep: any) => {
+                const epFunnel = ep.action_data?.funnel_stage || ep.action_data?.preview?.funnel_stage;
+                const epAccountId = ep.action_data?.ad_account_id;
+                return epFunnel === proposedFunnel && epAccountId === acctConfig.ad_account_id;
+              });
+
+              if (duplicateFunnel) {
+                console.log(`[ads-autopilot-analyze][${VERSION}] DEDUP: Já existe pending_approval para funil=${proposedFunnel} account=${acctConfig.ad_account_id}. Rejeitando duplicata.`);
+                actionRecord.status = "rejected";
+                actionRecord.rejection_reason = `Já existe proposta pendente para o funil "${proposedFunnel === "tof" ? "Público Frio" : proposedFunnel === "bof" ? "Remarketing" : proposedFunnel}". Aprove ou rejeite a existente antes de criar outra.`;
+                const { error: insertErr } = await supabase.from("ads_autopilot_actions").insert(actionRecord);
+                if (insertErr) console.error(`[ads-autopilot-analyze][${VERSION}] Insert error:`, insertErr.message);
+                continue;
+              }
+            }
             // v5.12.6: Enrich action_data with preview info so the approval card shows creative, targeting, budget
             if (isPublishAction) {
               const campaignFunnel = args.funnel_stage || "tof";
@@ -2025,6 +2092,12 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 "Público personalizado"
               );
               
+              // v5.12.8: Get budget snapshot for preview
+              const previewBudgetSnapshot = await getBudgetSnapshot(supabase, tenant_id, acctConfig.ad_account_id, acctConfig.budget_cents || 0);
+              
+              // Format product price
+              const productPriceDisplay = topProduct?.price ? `R$ ${(topProduct.price / 100).toFixed(2)}` : null;
+              
               actionRecord.action_data = {
                 ...actionRecord.action_data,
                 // Preview data for the approval card
@@ -2033,6 +2106,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                   creative_asset_id: previewCreativeId,
                   headline: previewHeadline,
                   copy_text: previewCopyText,
+                  cta_type: args.cta || args.cta_type || null,
                   targeting_summary: targetingSummary,
                   daily_budget_cents: args.daily_budget_cents,
                   daily_budget_display: `R$ ${((args.daily_budget_cents || 0) / 100).toFixed(2)}/dia`,
@@ -2040,10 +2114,12 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                   funnel_stage: campaignFunnel,
                   product_name: topProduct?.name || null,
                   product_price: topProduct?.price || null,
+                  product_price_display: productPriceDisplay,
                   product_image: topProduct?.image_url || topProduct?.images?.[0] || null,
                   campaign_name: args.campaign_name,
                   age_range: `${args.age_min || 18}-${args.age_max || 65}`,
                   genders: args.genders || [],
+                  budget_snapshot: previewBudgetSnapshot,
                 },
                 funnel_stage: campaignFunnel,
                 product_name: topProduct?.name || null,
