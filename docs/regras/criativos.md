@@ -18,11 +18,12 @@
 
 ---
 
-## Stack de Ferramentas v2.0
+## Stack de Ferramentas v4.0
 
 | Ferramenta | Função | Uso Principal |
 |------------|--------|---------------|
-| **Runway ML** | Geração de vídeo (I2V/T2V) | UGC 100% IA, Vídeos de Produto |
+| **Gemini Pro** (`gemini-3-pro-image-preview`) | Geração de imagem (primary) | Todos os estilos |
+| **Gemini Flash** (`gemini-2.5-flash-image`) | Geração de imagem (fallback) | Retry automático |
 | **ElevenLabs** | Síntese de voz / Clonagem | TTS PT-BR para todos os tipos |
 | **Sync Labs** | Sincronização labial | Lipsync em vídeos com pessoas |
 | **Akool** | Troca de rostos (Face Swap) | UGC Transformado |
@@ -245,6 +246,56 @@ apresentando o produto em um escritório moderno..."
 
 ---
 
+## Regra de Mãos / Kit (v4.0)
+
+### Detecção Automática de Kit
+
+O sistema detecta automaticamente se o produto é um kit/pack pelo nome:
+
+| Padrão no Nome | Tipo Detectado | Exemplo |
+|----------------|---------------|---------|
+| `Kit` | kit | "Kit Calvície Zero" |
+| `2x`, `3x`, `(2x)` | pack | "Shampoo (2x)" |
+| `combo`, `conjunto`, `pack` | combo | "Combo Completo" |
+| Nenhum dos acima | single | "Shampoo Calvície Zero" |
+
+### Regras de Posicionamento
+
+| Tipo | Nas Mãos | Ambiente |
+|------|----------|----------|
+| **Produto único** | 1 ou 2 mãos | N/A |
+| **Pack 2 itens** | Máx 1 em cada mão | N/A |
+| **Kit 3+ itens (embalagem única)** | Pode segurar a embalagem | N/A |
+| **Kit 3+ itens (avulsos)** | Máx 1 em cada mão | Restante em mesa/bancada |
+
+### Proibições
+
+- Empilhar vários produtos nas mãos
+- Segurar kit avulso de forma desproporcional
+- Mãos com aparência não natural ou forçada
+
+---
+
+## Pipeline Resiliente v4.0
+
+### Retry Automático (3 Tentativas)
+
+| Tentativa | Modelo | Prompt |
+|-----------|--------|--------|
+| 1 | `gemini-3-pro-image-preview` | Prompt completo |
+| 2 | `gemini-2.5-flash-image` | Mesmo prompt (modelo diferente) |
+| 3 | `gemini-3-pro-image-preview` | Prompt simplificado (fundo branco) |
+
+### Fallback Final: Imagem do Catálogo
+
+Se TODAS as 3 tentativas falharem:
+- O `ads_creative_asset` é marcado como `ready` com `image_status: 'fallback_catalog'`
+- A imagem original do produto (catálogo) é usada como criativo
+- O callback `creative_ready` é disparado normalmente
+- **O pipeline de campanhas NUNCA trava**
+
+---
+
 ## Proibições
 
 | Proibido | Motivo |
@@ -252,6 +303,8 @@ apresentando o produto em um escritório moderno..."
 | Campos de personagem na UI | Conflita com prompt |
 | Usar TTS sem `ref_audio_url` | ElevenLabs requer referência |
 | Muxar áudio via Edge Function | Deno não tem ffmpeg |
+| Pipeline sem fallback | Trava o fluxo de campanhas |
+| Segurar kit 3+ avulso nas mãos | Desproporcional/irreal |
 
 ---
 
@@ -259,6 +312,9 @@ apresentando o produto em um escritório moderno..."
 
 - [x] Aba unificada de vídeos com dropdown
 - [x] Formulários específicos por tipo
+- [x] Pipeline resiliente (retry 3x + fallback catálogo)
+- [x] Detecção automática de kit/pack
+- [x] Regras de mãos por tipo de produto
 - [ ] Integração Runway ML (Gen-3 Alpha)
 - [ ] Integração ElevenLabs (conector disponível)
 - [ ] Integração Sync Labs (lipsync)
