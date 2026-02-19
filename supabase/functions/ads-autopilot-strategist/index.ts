@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.9.0"; // Fix: inject approved plan into prompt + link creative_url to campaign actions + fix ticket medio units
+const VERSION = "v1.10.0"; // Add revision trigger: re-run strategist with user feedback from rejected plans
 // ===================
 
 const corsHeaders = {
@@ -35,7 +35,7 @@ interface AccountConfig {
   last_budget_adjusted_at: string | null;
 }
 
-type StrategistTrigger = "start" | "weekly" | "monthly" | "implement_approved_plan";
+type StrategistTrigger = "start" | "weekly" | "monthly" | "implement_approved_plan" | "revision";
 
 // ============ HELPERS ============
 
@@ -776,7 +776,7 @@ async function executeToolCall(
 
 // ============ RUN STRATEGIST FOR TENANT ============
 
-async function runStrategistForTenant(supabase: any, tenantId: string, trigger: StrategistTrigger, targetAccountId?: string | null) {
+async function runStrategistForTenant(supabase: any, tenantId: string, trigger: StrategistTrigger, targetAccountId?: string | null, revisionFeedback?: string | null) {
   const startTime = Date.now();
   console.log(`[ads-autopilot-strategist][${VERSION}] Starting ${trigger} for tenant ${tenantId}${targetAccountId ? ` (account: ${targetAccountId})` : ""}`);
 
@@ -858,6 +858,32 @@ ${budgetAllocation ? `**Alocação de Orçamento:**\n${budgetAllocation}` : ""}`
     }
   }
 
+  // === REVISION: fetch rejected plan + feedback to guide new analysis ===
+  let revisionContext = "";
+  if (trigger === "revision" && revisionFeedback) {
+    const { data: rejectedPlans } = await supabase
+      .from("ads_autopilot_actions")
+      .select("action_data, reasoning")
+      .eq("tenant_id", tenantId)
+      .eq("action_type", "strategic_plan")
+      .eq("status", "rejected")
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    const prevDiagnosis = rejectedPlans?.[0]?.reasoning || "";
+    revisionContext = `### REVISÃO SOLICITADA PELO USUÁRIO:
+
+O plano anterior foi rejeitado com o seguinte feedback:
+"${revisionFeedback}"
+
+**Diagnóstico do plano anterior (para referência, NÃO repetir erros):**
+${prevDiagnosis.substring(0, 2000)}
+
+**INSTRUÇÕES:** Gere um NOVO plano estratégico incorporando obrigatoriamente o feedback do usuário. Mantenha o diagnóstico base mas ajuste a estratégia conforme solicitado.`;
+    
+    console.log(`[ads-autopilot-strategist][${VERSION}] Revision mode with feedback: ${revisionFeedback.substring(0, 100)}`);
+  }
+
   // Analyze each account with full pipeline
   for (const config of activeConfigs) {
     const prompt = buildStrategistPrompt(trigger, config, context);
@@ -865,6 +891,8 @@ ${budgetAllocation ? `**Alocação de Orçamento:**\n${budgetAllocation}` : ""}`
     // Inject approved plan content into the prompt if available
     if (approvedPlanContent) {
       prompt.system = prompt.system.replace("{{APPROVED_PLAN_CONTENT}}", approvedPlanContent);
+    } else if (revisionContext) {
+      prompt.system = prompt.system.replace("{{APPROVED_PLAN_CONTENT}}", revisionContext);
     } else {
       prompt.system = prompt.system.replace("{{APPROVED_PLAN_CONTENT}}", "Nenhum plano específico encontrado. Use o contexto disponível para decidir os produtos e estratégias.");
     }
@@ -1061,6 +1089,7 @@ Deno.serve(async (req) => {
     const tenantId = body.tenant_id;
     const trigger = (body.trigger || "weekly") as StrategistTrigger;
     const targetAccountId = body.target_account_id || null;
+    const revisionFeedback = body.revision_feedback || null;
 
     // Cron mode: run for all tenants with active accounts
     if (!tenantId) {
@@ -1088,7 +1117,7 @@ Deno.serve(async (req) => {
     }
 
     // Manual invocation (with optional account filter)
-    const result = await runStrategistForTenant(supabase, tenantId, trigger, targetAccountId);
+    const result = await runStrategistForTenant(supabase, tenantId, trigger, targetAccountId, revisionFeedback);
     return ok(result);
   } catch (err: any) {
     console.error(`[ads-autopilot-strategist][${VERSION}] Fatal:`, err.message);
