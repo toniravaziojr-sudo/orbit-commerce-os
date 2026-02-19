@@ -863,11 +863,18 @@ serve(async (req) => {
           const urlMatch = img.url.match(/\/storage\/v1\/object\/public\/[^/]+\/(.+)$/);
           const actualStoragePath = urlMatch ? urlMatch[1] : `${tenant_id}/${jobId}/${img.provider}_${i + 1}.png`;
           
+          // Generate unique descriptive filename
+          const now = new Date();
+          const timestamp = `${String(now.getDate()).padStart(2,'0')}${String(now.getMonth()+1).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+          const sanitizedProduct = (product_name || 'Produto').replace(/[^a-zA-Z0-9À-ÿ]/g, '_').substring(0, 30);
+          const style = (job?.settings?.style || 'default').replace(/[^a-zA-Z0-9]/g, '_');
+          const uniqueFilename = `${sanitizedProduct}_${style}_${img.provider}_${timestamp}${img.isWinner ? '_BEST' : ''}.png`;
+
           const { error: fileInsertError } = await supabase.from('files').insert({
             tenant_id,
             folder_id: folderId,
-            filename: `${product_name || 'Produto'}_${img.provider}${img.isWinner ? '_BEST' : ''}_${Date.now()}.png`,
-            original_name: `${img.provider}_${i + 1}.png`,
+            filename: uniqueFilename,
+            original_name: uniqueFilename,
             storage_path: actualStoragePath,
             mime_type: 'image/png',
             size_bytes: null,
