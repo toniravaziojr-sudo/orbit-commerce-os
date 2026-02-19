@@ -611,34 +611,70 @@ async function collectContext(supabase: any, tenantId: string, enabledChannels: 
             .maybeSingle();
           
           if (metaConn?.access_token) {
-            // Fetch with pagination to get ALL audiences (not just first 50)
+            // Fetch BOTH custom audiences AND saved audiences with pagination
             let allAudiences: any[] = [];
-            let nextUrl: string | null = `https://graph.facebook.com/v21.0/act_${accountId}/customaudiences?fields=id,name,subtype,approximate_count,delivery_status&limit=200&access_token=${metaConn.access_token}`;
+            
+            // 1. Fetch Custom Audiences (lookalikes, customer lists, website, engagement)
+            let nextUrl: string | null = `https://graph.facebook.com/v21.0/act_${accountId}/customaudiences?fields=id,name,subtype,approximate_count_lower_bound,approximate_count_upper_bound,delivery_status&limit=200&access_token=${metaConn.access_token}`;
             let pageCount = 0;
-            const maxPages = 5; // Safety: max 1000 audiences
+            const maxPages = 5; // Safety: max 1000 per type
             
             while (nextUrl && pageCount < maxPages) {
               const audRes = await fetch(nextUrl);
-              const audData = await audRes.json();
-              if (audData.data) {
-                allAudiences = allAudiences.concat(audData.data);
+              const audText = await audRes.text();
+              let audData: any;
+              try { audData = JSON.parse(audText); } catch { audData = {}; }
+              
+              if (audData.error) {
+                console.log(`[ads-autopilot-analyze][${VERSION}] Custom audience API error for act_${accountId}: ${JSON.stringify(audData.error)}`);
+                break;
               }
-              // Follow pagination
+              if (audData.data) {
+                allAudiences = allAudiences.concat(audData.data.map((a: any) => ({ ...a, _source: "custom" })));
+              }
               nextUrl = audData.paging?.next || null;
               pageCount++;
             }
+            console.log(`[ads-autopilot-analyze][${VERSION}] Custom audiences for act_${accountId}: ${allAudiences.length} found (${pageCount} pages)`);
             
-            if (allAudiences.length > 0) {
-              savedAudiences[account] = allAudiences.map((a: any) => ({
+            // 2. Fetch Saved Audiences (interest/demographic based)
+            let savedAudList: any[] = [];
+            let savedNextUrl: string | null = `https://graph.facebook.com/v21.0/act_${accountId}/saved_audiences?fields=id,name,approximate_count,targeting&limit=200&access_token=${metaConn.access_token}`;
+            let savedPageCount = 0;
+            
+            while (savedNextUrl && savedPageCount < maxPages) {
+              const savedRes = await fetch(savedNextUrl);
+              const savedText = await savedRes.text();
+              let savedData: any;
+              try { savedData = JSON.parse(savedText); } catch { savedData = {}; }
+              
+              if (savedData.error) {
+                console.log(`[ads-autopilot-analyze][${VERSION}] Saved audience API error for act_${accountId}: ${JSON.stringify(savedData.error)}`);
+                break;
+              }
+              if (savedData.data) {
+                savedAudList = savedAudList.concat(savedData.data.map((a: any) => ({ ...a, _source: "saved" })));
+              }
+              savedNextUrl = savedData.paging?.next || null;
+              savedPageCount++;
+            }
+            console.log(`[ads-autopilot-analyze][${VERSION}] Saved audiences for act_${accountId}: ${savedAudList.length} found (${savedPageCount} pages)`);
+            
+            // Merge both types
+            const mergedAudiences = [...allAudiences, ...savedAudList];
+            
+            if (mergedAudiences.length > 0) {
+              savedAudiences[account] = mergedAudiences.map((a: any) => ({
                 id: a.id,
                 name: a.name,
-                subtype: a.subtype,
-                size: a.approximate_count,
-                deliverable: a.delivery_status?.status === "ready",
+                subtype: a.subtype || a._source,
+                size: a.approximate_count_lower_bound || a.approximate_count || 0,
+                deliverable: a.delivery_status?.status === "ready" || a._source === "saved",
+                source: a._source,
               }));
-              console.log(`[ads-autopilot-analyze][${VERSION}] Found ${allAudiences.length} audiences for ${account} (${pageCount} pages)`);
+              console.log(`[ads-autopilot-analyze][${VERSION}] Total audiences for ${account}: ${mergedAudiences.length} (custom: ${allAudiences.length}, saved: ${savedAudList.length})`);
             } else {
-              console.log(`[ads-autopilot-analyze][${VERSION}] No audiences found for ${account} (API returned empty, check permissions)`);
+              console.log(`[ads-autopilot-analyze][${VERSION}] No audiences found for ${account}. Custom API returned ${allAudiences.length}, Saved API returned ${savedAudList.length}. Check ads_read/ads_management permissions.`);
             }
           }
         } catch (audErr: any) {
