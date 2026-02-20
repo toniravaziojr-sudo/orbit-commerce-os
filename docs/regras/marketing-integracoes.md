@@ -1190,6 +1190,51 @@ CREATE TYPE creative_job_status AS ENUM (
 
 ---
 
+### Ajuste Escopado de Campanhas (v1.20.0 — 2026-02-20)
+
+O botão **"Ajustar"** em cada card de campanha pendente aciona uma revisão restrita diretamente no Motor Estrategista, sem passar pelo chat.
+
+#### Fluxo
+
+1. Usuário clica "Ajustar" em uma campanha específica e digita o feedback (ex: "Transformar em campanha de catálogo com todos os kits")
+2. O frontend invoca `ads-autopilot-strategist` com `trigger: "revision"` e `revision_context` contendo:
+   - `campaign_name`: nome da campanha sendo ajustada
+   - `feedback`: texto do usuário
+   - `other_pending_campaigns`: lista de nomes das demais campanhas pendentes (protegidas)
+3. O motor entra em **modo de revisão restrita**:
+   - A IA recebe instrução explícita para criar APENAS UMA nova campanha substituindo a rejeitada
+   - As demais campanhas pendentes são listadas como **protegidas** — a IA é PROIBIDA de recriá-las ou modificá-las
+   - A ação original é marcada como `rejected` com o feedback como `rejection_reason`
+4. O resultado aparece como nova ação `pending_approval` para o usuário avaliar
+
+#### Regras
+
+| Regra | Descrição |
+|-------|-----------|
+| **Escopo único** | Apenas a campanha solicitada é reprocessada |
+| **Proteção de pendentes** | Outras campanhas pendentes são passadas como `protectedList` e não podem ser tocadas |
+| **Catálogo** | Se o feedback mencionar "catálogo", a IA usa objetivo `OUTCOME_PRODUCT_CATALOG_SALES` |
+| **Rejeição automática** | A ação original + child actions (adsets) são rejeitadas automaticamente antes de gerar a revisão |
+
+#### Correção de Criativos por Funil (v1.20.0)
+
+**Problema identificado:** A IA usava os mesmos criativos para campanhas de público frio (TOF) e remarketing (BOF), pois o matching era apenas por `product_id` sem considerar `funnel_stage`.
+
+**Correção:**
+1. **Fase de geração:** O `generate_creative` agora inclui `funnel_stage` no prompt e nos metadados do criativo
+2. **Fase de montagem:** O matching de criativos para campanhas usa `product_id + funnel_stage` como filtro duplo
+3. **Fallback:** Se não houver criativo específico para o funil, a IA gera um novo com ângulo adequado (urgência para remarketing, educação para público frio)
+
+#### Arquivos Afetados
+
+| Arquivo | Mudança |
+|---------|---------|
+| `src/components/ads/AdsPendingActionsTab.tsx` | Invoca `ads-autopilot-strategist` diretamente com `trigger: "revision"` |
+| `src/components/ads/AdsPendingApprovalTab.tsx` | Passa `other_pending_campaigns` para proteção |
+| `supabase/functions/ads-autopilot-strategist/index.ts` | Lógica de `protectedList` e instrução de escopo único |
+
+---
+
 ### Correções v5.12.9 (2026-02-19)
 
 | Item | Correção | Aceite |
