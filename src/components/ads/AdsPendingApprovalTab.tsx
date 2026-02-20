@@ -139,6 +139,12 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
         .eq("id", actionId);
       if (error) throw error;
 
+      // Collect names of other pending campaigns so the strategist knows NOT to recreate them
+      const otherPendingNames = pendingActions
+        .filter(a => a.id !== actionId && a.action_type === "create_campaign" && a.status === "pending_approval")
+        .map(a => (a.action_data as any)?.campaign_name || (a.action_data as any)?.preview?.campaign_name)
+        .filter(Boolean);
+
       // 2. Re-trigger strategist with revision feedback scoped to this specific action
       const { data, error: stratErr } = await supabase.functions.invoke("ads-autopilot-strategist", {
         body: { 
@@ -152,6 +158,7 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
             product_name: (actionData as any)?.product_name,
             funnel_stage: (actionData as any)?.funnel_stage || (actionData as any)?.preview?.funnel_stage,
           },
+          other_pending_campaigns: otherPendingNames,
         },
       });
       if (stratErr) console.error("Strategist re-trigger error:", stratErr);
