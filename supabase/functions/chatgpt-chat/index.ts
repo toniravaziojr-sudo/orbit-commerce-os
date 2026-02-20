@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getMemoryContext } from "../_shared/ai-memory.ts";
 
-const VERSION = "3.0.0"; // URL reading, document processing, audio transcription
+const VERSION = "4.0.0"; // + AI Memory (long-term + conversation summaries)
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,9 +28,23 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, hasAttachments, mode = "chat", attachments = [] } = await req.json();
+    const { messages, hasAttachments, mode = "chat", attachments = [], tenant_id, user_id, conversation_id } = await req.json();
     
     console.log(`[v${VERSION}] ChatGPT request - mode: ${mode}, messages: ${messages?.length}, attachments: ${attachments?.length || 0}`);
+
+    // Fetch memory context if tenant_id and user_id are available
+    let memoryContext = "";
+    if (tenant_id && user_id) {
+      try {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        memoryContext = await getMemoryContext(supabase, tenant_id, user_id, "chatgpt");
+        if (memoryContext) console.log(`[v${VERSION}] Memory context loaded (${memoryContext.length} chars)`);
+      } catch (e) {
+        console.error(`[v${VERSION}] Memory fetch error:`, e);
+      }
+    }
 
     // Pre-process: Extract URLs from the last user message for chat mode
     let urlContext = "";
@@ -54,11 +70,11 @@ serve(async (req) => {
 
     // Route based on mode
     if (mode === "search") {
-      return await handleSearchMode(enhancedMessages);
+      return await handleSearchMode(enhancedMessages, memoryContext);
     } else if (mode === "thinking") {
-      return await handleThinkingMode(enhancedMessages);
+      return await handleThinkingMode(enhancedMessages, memoryContext);
     } else {
-      return await handleChatMode(enhancedMessages, hasAttachments, urlContext, processedAttachments);
+      return await handleChatMode(enhancedMessages, hasAttachments, urlContext, processedAttachments, memoryContext);
     }
   } catch (error) {
     console.error("ChatGPT chat error:", error);
@@ -381,7 +397,8 @@ async function handleChatMode(
   messages: any[], 
   hasAttachments?: boolean,
   urlContext?: string,
-  processedAttachments?: ProcessedAttachment[]
+  processedAttachments?: ProcessedAttachment[],
+  memoryContext?: string
 ) {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) {
@@ -451,7 +468,7 @@ Diretrizes:
 - Seja conciso mas completo nas respostas
 - Se não souber algo, diga honestamente
 - Mantenha um tom profissional mas amigável
-- Responda sempre no idioma da pergunta do usuário`,
+- Responda sempre no idioma da pergunta do usuário${memoryContext || ""}`,
         },
         ...messages,
       ],
@@ -471,7 +488,7 @@ Diretrizes:
   });
 }
 
-async function handleThinkingMode(messages: any[]) {
+async function handleThinkingMode(messages: any[], memoryContext?: string) {
   const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
   if (!OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY is not configured");
@@ -512,7 +529,7 @@ Diretrizes:
 - Mostre seu processo de raciocínio
 - Verifique sua lógica
 - Admita incertezas quando existirem
-- Responda no idioma da pergunta`,
+- Responda no idioma da pergunta${memoryContext || ""}`,
         },
         ...messages,
       ],
@@ -545,7 +562,7 @@ Diretrizes:
   });
 }
 
-async function handleSearchMode(messages: any[]) {
+async function handleSearchMode(messages: any[], memoryContext?: string) {
   const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   

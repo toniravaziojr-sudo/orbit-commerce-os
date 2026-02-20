@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getMemoryContext } from "../_shared/ai-memory.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -459,7 +460,18 @@ serve(async (req) => {
       .order("created_at", { ascending: true })
       .limit(20);
 
-    const SYSTEM_PROMPT = buildSystemPrompt();
+    let SYSTEM_PROMPT = buildSystemPrompt();
+
+    // Inject AI memory context
+    try {
+      const memoryContext = await getMemoryContext(supabase, tenant_id, user.id, "command_assistant");
+      if (memoryContext) {
+        SYSTEM_PROMPT += memoryContext;
+        console.log(`[command-assistant] Memory context injected (${memoryContext.length} chars)`);
+      }
+    } catch (e) {
+      console.error("[command-assistant] Memory fetch error:", e);
+    }
 
     const messages = [
       { role: "system", content: SYSTEM_PROMPT },

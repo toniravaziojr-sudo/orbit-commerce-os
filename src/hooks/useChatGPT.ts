@@ -240,6 +240,9 @@ export function useChatGPT() {
             hasAttachments: !!attachments && attachments.length > 0,
             mode,
             attachments: attachments || [],
+            tenant_id: currentTenant?.id,
+            user_id: user?.id,
+            conversation_id: currentConversationId,
           }),
           signal: abortControllerRef.current.signal,
         }

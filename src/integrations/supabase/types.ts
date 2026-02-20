@@ -1225,6 +1225,53 @@ export type Database = {
           },
         ]
       }
+      ai_conversation_summaries: {
+        Row: {
+          ai_agent: string
+          conversation_id: string
+          created_at: string
+          id: string
+          key_decisions: Json | null
+          key_topics: string[] | null
+          message_count: number | null
+          summary: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          ai_agent: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          key_decisions?: Json | null
+          key_topics?: string[] | null
+          message_count?: number | null
+          summary: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          ai_agent?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          key_decisions?: Json | null
+          key_topics?: string[] | null
+          message_count?: number | null
+          summary?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_conversation_summaries_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_landing_page_versions: {
         Row: {
           created_at: string
@@ -1434,6 +1481,59 @@ export type Database = {
           },
           {
             foreignKeyName: "ai_media_queue_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_memories: {
+        Row: {
+          ai_agent: string
+          category: string
+          content: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          importance: number
+          metadata: Json | null
+          source_conversation_id: string | null
+          tenant_id: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          ai_agent: string
+          category?: string
+          content: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          importance?: number
+          metadata?: Json | null
+          source_conversation_id?: string | null
+          tenant_id: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          ai_agent?: string
+          category?: string
+          content?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          importance?: number
+          metadata?: Json | null
+          source_conversation_id?: string | null
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_memories_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -17406,6 +17506,22 @@ export type Database = {
         Args: { p_subscriber_id: string; p_tenant_id: string }
         Returns: string
       }
+      get_ai_memories: {
+        Args: {
+          p_ai_agent: string
+          p_limit?: number
+          p_tenant_id: string
+          p_user_id: string
+        }
+        Returns: {
+          category: string
+          content: string
+          created_at: string
+          id: string
+          importance: number
+          scope: string
+        }[]
+      }
       get_auth_user_email: { Args: never; Returns: string }
       get_current_tenant_id: { Args: { _user_id: string }; Returns: string }
       get_current_year_month: { Args: never; Returns: string }
@@ -17440,6 +17556,20 @@ export type Database = {
           meta_pixel_id: string
           tiktok_enabled: boolean
           tiktok_pixel_id: string
+        }[]
+      }
+      get_recent_conversation_summaries: {
+        Args: {
+          p_ai_agent: string
+          p_limit?: number
+          p_tenant_id: string
+          p_user_id: string
+        }
+        Returns: {
+          created_at: string
+          key_decisions: Json
+          key_topics: string[]
+          summary: string
         }[]
       }
       get_tenant_module_access: { Args: { p_tenant_id: string }; Returns: Json }
