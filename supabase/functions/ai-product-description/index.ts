@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v1.0.0"; // Geração de descrições de produto via IA
@@ -19,14 +20,9 @@ serve(async (req) => {
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      console.error("[ai-product-description] LOVABLE_API_KEY not configured");
-      return new Response(
-        JSON.stringify({ success: false, error: "API de IA não configurada" }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    resetAIRouterCache();
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     // Auth check
     const authHeader = req.headers.get("Authorization");
@@ -171,21 +167,17 @@ REGRAS DE FORMATAÇÃO:
       );
     }
 
-    console.log(`[ai-product-description][${VERSION}] Calling AI gateway...`);
+    console.log(`[ai-product-description][${VERSION}] Calling AI...`);
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userContent },
-        ],
-      }),
+    const aiResponse = await aiChatCompletion("google/gemini-2.5-pro", {
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userContent },
+      ],
+    }, {
+      supabaseUrl,
+      supabaseServiceKey,
+      logPrefix: "[ai-product-description]",
     });
 
     if (!aiResponse.ok) {

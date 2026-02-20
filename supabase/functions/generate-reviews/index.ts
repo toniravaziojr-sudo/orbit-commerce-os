@@ -3,6 +3,7 @@
 // =============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -44,14 +45,9 @@ serve(async (req) => {
     }
 
     const validQuantity = Math.min(Math.max(quantity || 10, 5), 50);
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-
-    if (!LOVABLE_API_KEY) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'LOVABLE_API_KEY não configurada' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    resetAIRouterCache();
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
     // Build product context
     const productContext = [
@@ -106,48 +102,44 @@ Retorne as avaliações no seguinte formato JSON (array de objetos):
 
 LEMBRETE FINAL: Certifique-se de que TODOS os nomes sigam a regra de gênero especificada. Varie muito o estilo de escrita entre as avaliações. Alguns títulos podem ser simples como "Recomendo!" ou "Ótimo produto".`;
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        tools: [
-          {
-            type: 'function',
-            function: {
-              name: 'generate_reviews',
-              description: 'Generate product reviews',
-              parameters: {
-                type: 'object',
-                properties: {
-                  reviews: {
-                    type: 'array',
-                    items: {
-                      type: 'object',
-                      properties: {
-                        customer_name: { type: 'string' },
-                        rating: { type: 'number', minimum: 1, maximum: 5 },
-                        title: { type: 'string' },
-                        content: { type: 'string' },
-                      },
-                      required: ['customer_name', 'rating', 'title', 'content'],
+    const response = await aiChatCompletion('google/gemini-2.5-flash', {
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      tools: [
+        {
+          type: 'function',
+          function: {
+            name: 'generate_reviews',
+            description: 'Generate product reviews',
+            parameters: {
+              type: 'object',
+              properties: {
+                reviews: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      customer_name: { type: 'string' },
+                      rating: { type: 'number', minimum: 1, maximum: 5 },
+                      title: { type: 'string' },
+                      content: { type: 'string' },
                     },
+                    required: ['customer_name', 'rating', 'title', 'content'],
                   },
                 },
-                required: ['reviews'],
               },
+              required: ['reviews'],
             },
           },
-        ],
-        tool_choice: { type: 'function', function: { name: 'generate_reviews' } },
-      }),
+        },
+      ],
+      tool_choice: { type: 'function', function: { name: 'generate_reviews' } },
+    }, {
+      supabaseUrl,
+      supabaseServiceKey,
+      logPrefix: '[generate-reviews]',
     });
 
     if (!response.ok) {
@@ -164,7 +156,7 @@ LEMBRETE FINAL: Certifique-se de que TODOS os nomes sigam a regra de gênero esp
         );
       }
       const errorText = await response.text();
-      console.error('AI Gateway error:', response.status, errorText);
+      console.error('AI error:', response.status, errorText);
       throw new Error('Erro ao comunicar com a IA');
     }
 

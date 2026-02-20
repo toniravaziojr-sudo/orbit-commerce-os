@@ -4,6 +4,7 @@
 // =============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,12 +29,10 @@ serve(async (req) => {
   }
 
   try {
+    resetAIRouterCache();
     const input: SeoInput = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
-    }
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     // Build context for AI
     let contextParts: string[] = [];
@@ -101,24 +100,20 @@ Lembre-se: título máximo 60 caracteres, descrição máximo 160 caracteres.`;
 
     console.log("[generate-seo] Calling AI with context:", contextText.substring(0, 500));
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-      }),
+    const response = await aiChatCompletion("google/gemini-2.5-flash", {
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+    }, {
+      supabaseUrl,
+      supabaseServiceKey,
+      logPrefix: "[generate-seo]",
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("[generate-seo] AI gateway error:", response.status, errorText);
+      console.error("[generate-seo] AI error:", response.status, errorText);
       
       if (response.status === 429) {
         return new Response(
@@ -133,7 +128,7 @@ Lembre-se: título máximo 60 caracteres, descrição máximo 160 caracteres.`;
         );
       }
       
-      throw new Error(`AI gateway error: ${response.status}`);
+      throw new Error(`AI error: ${response.status}`);
     }
 
     const data = await response.json();
