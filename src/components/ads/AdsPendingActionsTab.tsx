@@ -70,6 +70,35 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
   // Use the chat hook to send adjustment messages
   const chat = useAdsChat({ scope, adAccountId, channel });
 
+  // Group: campaigns as parents, adsets nested under their parent campaign
+  const campaigns = pendingActions.filter(a => a.action_type !== "create_adset");
+  const adsets = pendingActions.filter(a => a.action_type === "create_adset");
+
+  // Build a map of campaign_name -> child adsets
+  const adsetsByParent = new Map<string, typeof adsets>();
+  for (const adset of adsets) {
+    const parentName = (adset.action_data as any)?.campaign_name || (adset.action_data as any)?.parent_campaign_name || "";
+    if (!adsetsByParent.has(parentName)) adsetsByParent.set(parentName, []);
+    adsetsByParent.get(parentName)!.push(adset);
+  }
+
+  // Find child adsets for a campaign action
+  const getChildActions = (action: typeof campaigns[0]) => {
+    const campaignName = (action.action_data as any)?.campaign_name || (action.action_data as any)?.preview?.campaign_name || "";
+    return adsetsByParent.get(campaignName) || [];
+  };
+
+  // Orphan adsets (no matching parent campaign) — show as standalone
+  const matchedParents = new Set<string>();
+  for (const c of campaigns) {
+    const name = (c.action_data as any)?.campaign_name || (c.action_data as any)?.preview?.campaign_name || "";
+    if (adsetsByParent.has(name)) matchedParents.add(name);
+  }
+  const orphanAdsets = adsets.filter(a => {
+    const parentName = (a.action_data as any)?.campaign_name || (a.action_data as any)?.parent_campaign_name || "";
+    return !matchedParents.has(parentName);
+  });
+
   const handleAdjust = async (actionId: string, suggestion: string) => {
     try {
       const action = pendingActions.find(a => a.id === actionId);
@@ -94,7 +123,9 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
     );
   }
 
-  if (pendingActions.length === 0) {
+  const displayCount = campaigns.length + orphanAdsets.length;
+
+  if (displayCount === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted/40 mb-3">
@@ -118,11 +149,25 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
           <div className="flex items-center gap-2 mb-3">
             <Sparkles className="h-3.5 w-3.5 text-primary" />
             <p className="text-xs font-medium text-muted-foreground">
-              {pendingActions.length} {pendingActions.length === 1 ? "ação aguardando" : "ações aguardando"} aprovação
+              {displayCount} {displayCount === 1 ? "proposta aguardando" : "propostas aguardando"} aprovação
             </p>
           </div>
           <div className="space-y-3">
-            {pendingActions.map((action) => (
+            {/* Campaigns with nested adsets */}
+            {campaigns.map((action) => (
+              <ActionApprovalCard
+                key={action.id}
+                action={action}
+                childActions={getChildActions(action)}
+                onApprove={(id) => approveAction.mutate(id)}
+                onReject={(id, reason) => rejectAction.mutate({ actionId: id, reason })}
+                onAdjust={handleAdjust}
+                isApproving={approveAction.isPending}
+                isRejecting={rejectAction.isPending}
+              />
+            ))}
+            {/* Orphan adsets (no parent campaign found) */}
+            {orphanAdsets.map((action) => (
               <ActionApprovalCard
                 key={action.id}
                 action={action}

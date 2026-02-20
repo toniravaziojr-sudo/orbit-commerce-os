@@ -1,7 +1,6 @@
 // =============================================
-// ACTION APPROVAL CARD — v5.13.2
-// Compact preview + "Ver completo" dialog
-// + Fallback creative URL resolution from product
+// ACTION APPROVAL CARD — v5.14.0
+// Grouped campaign view: creatives gallery + nested adsets
 // =============================================
 
 import { useState } from "react";
@@ -14,13 +13,14 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogD
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Check, X, MessageSquare, ChevronDown, Megaphone, ImageIcon, DollarSign, Target, Sparkles, ZoomIn, Bot, AlertTriangle, TrendingUp, ListChecks, Clock, Eye } from "lucide-react";
+import { Check, X, MessageSquare, ChevronDown, ChevronRight, Megaphone, ImageIcon, DollarSign, Target, Sparkles, ZoomIn, Bot, AlertTriangle, TrendingUp, ListChecks, Clock, Eye, Layers, Users } from "lucide-react";
 import type { PendingAction } from "@/hooks/useAdsPendingActions";
 import { cn } from "@/lib/utils";
 import { StrategicPlanContent } from "./StrategicPlanContent";
 
-interface ActionApprovalCardProps {
+export interface ActionApprovalCardProps {
   action: PendingAction;
+  childActions?: PendingAction[];
   onApprove: (actionId: string) => void;
   onReject: (actionId: string, reason: string) => void;
   onAdjust: (actionId: string, suggestion: string) => void;
@@ -62,58 +62,73 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
 const HIDDEN_ACTION_TYPES = new Set(["activate_campaign"]);
 
 /**
- * Resolves creative URL with fallback chain:
- * 1. creative_url from action_data/preview (set by strategist post-processing)
- * 2. Latest creative asset for the product from ads_creative_assets
- * 3. Product catalog image from product_images
- * This ensures the card ALWAYS shows a visual preview.
+ * Resolves ALL creative URLs for a product (not just one).
+ * Fallback chain per creative: action_data -> creative_assets -> product_images
  */
-function useResolvedCreativeUrl(action: PendingAction): string | null {
+function useAllCreativeUrls(action: PendingAction): string[] {
   const data = action.action_data || {};
   const preview = (data as any).preview || {};
   const directUrl = preview.creative_url || (data as any).asset_url || (data as any).creative_url || null;
   const productId = (data as any).product_id || preview.product_id || null;
   const tenantId = action.tenant_id;
 
-  const { data: fallbackUrl } = useQuery({
-    queryKey: ["creative-fallback", action.id, productId],
+  const { data: allUrls } = useQuery({
+    queryKey: ["all-creatives", action.id, productId, tenantId],
     queryFn: async () => {
-      // Try creative assets first
+      const urls: string[] = [];
+
+      // 1. Get all creative assets for this product
       if (productId) {
-        const { data: asset } = await supabase
+        const { data: assets } = await supabase
           .from("ads_creative_assets" as any)
           .select("asset_url")
           .eq("tenant_id", tenantId)
           .eq("product_id", productId)
           .not("asset_url", "is", null)
           .order("created_at", { ascending: false })
-          .limit(1);
-        if ((asset as any)?.[0]?.asset_url) return (asset as any)[0].asset_url as string;
+          .limit(10);
+        if (assets) {
+          for (const a of assets as any[]) {
+            if (a.asset_url && !urls.includes(a.asset_url)) urls.push(a.asset_url);
+          }
+        }
       }
-      // Fallback to product catalog image
-      if (productId) {
-        const { data: img } = await supabase
+
+      // 2. Add direct URL if not already included
+      if (directUrl && !urls.includes(directUrl)) urls.unshift(directUrl);
+
+      // 3. If still empty, fallback to product catalog images
+      if (urls.length === 0 && productId) {
+        const { data: imgs } = await supabase
           .from("product_images")
           .select("url")
           .eq("product_id", productId)
           .order("sort_order", { ascending: true })
-          .limit(1);
-        if (img?.[0]?.url) return img[0].url;
+          .limit(5);
+        if (imgs) {
+          for (const img of imgs) {
+            if (img.url && !urls.includes(img.url)) urls.push(img.url);
+          }
+        }
       }
-      return null;
+
+      return urls;
     },
-    enabled: !directUrl && !!productId,
+    enabled: !!tenantId,
     staleTime: 60_000,
   });
 
-  return directUrl || fallbackUrl || null;
+  // If query hasn't resolved yet, use directUrl as fallback
+  if (!allUrls || allUrls.length === 0) {
+    return directUrl ? [directUrl] : [];
+  }
+  return allUrls;
 }
 
 function formatCents(cents: number): string {
   return `R$ ${(cents / 100).toFixed(2)}`;
 }
 
-/** Remove technical IDs (UUIDs, long numbers, act_ prefixes) and clean up text for display */
 function sanitizeDisplayText(text: string): string {
   if (!text) return text;
   return text
@@ -125,7 +140,6 @@ function sanitizeDisplayText(text: string): string {
     .trim();
 }
 
-/** Truncate text to N chars, adding ellipsis */
 function truncate(text: string, maxLength: number): string {
   if (!text || text.length <= maxLength) return text;
   return text.slice(0, maxLength).trimEnd() + "…";
@@ -182,31 +196,125 @@ const CTA_LABELS: Record<string, string> = {
 };
 
 /* ========================================
-   FULL CONTENT DIALOG
-   Shows all fields in a well-formatted view
+   CREATIVES GALLERY
+   Shows all creatives in a horizontal scroll
    ======================================== */
-function FullContentDialog({ action, open, onOpenChange }: { action: PendingAction; open: boolean; onOpenChange: (o: boolean) => void }) {
+function CreativesGallery({ urls, onZoom }: { urls: string[]; onZoom: (url: string) => void }) {
+  if (urls.length === 0) return null;
+
+  if (urls.length === 1) {
+    return (
+      <div className="rounded-lg overflow-hidden border border-border/40 bg-muted/10 relative group cursor-pointer" onClick={() => onZoom(urls[0])}>
+        <img src={urls[0]} alt="Criativo" className="w-full max-h-[300px] object-contain" />
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+          <ZoomIn className="h-5 w-5 text-white" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <SectionLabel icon={<ImageIcon className="h-3.5 w-3.5 text-primary" />} label={`Criativos (${urls.length})`} />
+      <div className="flex gap-2 mt-1.5 overflow-x-auto pb-2">
+        {urls.map((url, i) => (
+          <div
+            key={i}
+            className="w-[140px] h-[140px] flex-shrink-0 rounded-lg overflow-hidden border border-border/40 bg-muted/10 relative group cursor-pointer"
+            onClick={() => onZoom(url)}
+          >
+            <img src={url} alt={`Criativo ${i + 1}`} className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <ZoomIn className="h-4 w-4 text-white" />
+            </div>
+            <Badge variant="secondary" className="absolute bottom-1 right-1 text-[9px] px-1 py-0">{i + 1}</Badge>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ========================================
+   ADSETS SECTION (nested inside campaign)
+   ======================================== */
+function AdSetsSection({ adsets }: { adsets: PendingAction[] }) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (adsets.length === 0) return null;
+
+  return (
+    <div className="border border-border/40 rounded-lg overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-2 p-2.5 text-xs font-medium hover:bg-muted/30 transition-colors"
+      >
+        <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+        <span>{adsets.length} Conjunto{adsets.length !== 1 ? "s" : ""} de Anúncios</span>
+        {expanded ? <ChevronDown className="h-3 w-3 ml-auto text-muted-foreground" /> : <ChevronRight className="h-3 w-3 ml-auto text-muted-foreground" />}
+      </button>
+      {expanded && (
+        <div className="border-t border-border/30 divide-y divide-border/20">
+          {adsets.map((adset) => {
+            const ad = adset.action_data || {};
+            const prev = ad.preview || {};
+            const targeting = prev.targeting_summary || ad.targeting_summary || null;
+            const customAudiences = ad.custom_audiences || prev.custom_audiences || null;
+            return (
+              <div key={adset.id} className="p-2.5 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Target className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-xs font-semibold">{ad.adset_name || prev.adset_name || "Conjunto"}</span>
+                </div>
+                {targeting && (
+                  <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
+                    <Users className="h-3 w-3 mt-0.5 shrink-0" />
+                    <span>{sanitizeDisplayText(targeting)}</span>
+                  </div>
+                )}
+                {customAudiences && Array.isArray(customAudiences) && customAudiences.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {customAudiences.map((aud: any, i: number) => (
+                      <Badge key={i} variant="outline" className="text-[9px] px-1 py-0">
+                        {typeof aud === "string" ? aud : aud.name || aud.id}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ========================================
+   FULL CONTENT DIALOG
+   ======================================== */
+function FullContentDialog({ action, childActions, open, onOpenChange }: { action: PendingAction; childActions?: PendingAction[]; open: boolean; onOpenChange: (o: boolean) => void }) {
   const data = action.action_data || {};
   const preview = data.preview || {};
   const isStrategicPlan = action.action_type === "strategic_plan";
   const isAdSet = action.action_type === "create_adset";
+  const [zoomUrl, setZoomUrl] = useState<string | null>(null);
 
-  const creativeUrl = useResolvedCreativeUrl(action);
-  
+  const creativeUrls = useAllCreativeUrls(action);
+
   // Support both single values and arrays of variations
   const primaryTexts: string[] = preview.primary_texts || (preview.copy_text ? [preview.copy_text] : data.copy_text ? [data.copy_text] : []);
   const headlinesList: string[] = preview.headlines || (preview.headline ? [preview.headline] : data.headline ? [data.headline] : []);
   const descriptionsList: string[] = preview.descriptions || [];
   const ctaType = preview.cta || preview.cta_type || data.cta_type || null;
-  
+
   const productName = preview.product_name || data.product_name || null;
   const productPrice = preview.product_price_display || (preview.product_price ? `R$ ${Number(preview.product_price).toFixed(2)}` : null);
   const targeting = preview.targeting_summary || data.targeting_summary || null;
   const ageRange = preview.age_range || null;
   const budgetDisplay = preview.daily_budget_display || (data.daily_budget_cents ? `R$ ${(data.daily_budget_cents / 100).toFixed(2)}/dia` : null);
   const budgetSnapshot = preview.budget_snapshot || null;
-  
-  // AdSet specific fields
+
   const adsetName = data.adset_name || preview.adset_name || null;
   const parentCampaign = data.campaign_name || data.parent_campaign_name || null;
   const customAudiences = data.custom_audiences || preview.custom_audiences || null;
@@ -217,176 +325,180 @@ function FullContentDialog({ action, open, onOpenChange }: { action: PendingActi
   const riskAssessment = data.risk_assessment || null;
   const timeline = data.timeline || null;
 
+  const adsets = (childActions || []).filter(a => a.action_type === "create_adset");
   const label = ACTION_TYPE_LABELS[action.action_type] || action.action_type;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col p-0 overflow-hidden">
-        <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/30 shrink-0">
-          <DialogTitle className="flex items-center gap-2 text-base">
-            {isStrategicPlan ? <Bot className="h-4 w-4 text-primary" /> : <Megaphone className="h-4 w-4 text-primary" />}
-            {label}
-          </DialogTitle>
-          <DialogDescription className="text-xs">
-            {new Date(action.created_at).toLocaleString("pt-BR")}
-            {action.confidence && (
-              <> · Confiança: {action.confidence === "high" ? "Alta" : action.confidence === "medium" ? "Média" : "Baixa"}</>
-            )}
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/30 shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              {isStrategicPlan ? <Bot className="h-4 w-4 text-primary" /> : <Megaphone className="h-4 w-4 text-primary" />}
+              {label}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {new Date(action.created_at).toLocaleString("pt-BR")}
+              {action.confidence && (
+                <> · Confiança: {action.confidence === "high" ? "Alta" : action.confidence === "medium" ? "Média" : "Baixa"}</>
+              )}
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
-          <div className="space-y-4">
-            {/* Creative image */}
-            {creativeUrl && (
-              <div className="rounded-lg overflow-hidden border border-border/40 bg-muted/10">
-                <img src={creativeUrl} alt="Criativo" className="w-full max-h-[300px] object-contain" />
-              </div>
-            )}
+          <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
+            <div className="space-y-4">
+              {/* Creatives Gallery */}
+              {!isStrategicPlan && !isAdSet && (
+                <CreativesGallery urls={creativeUrls} onZoom={setZoomUrl} />
+              )}
 
-            {/* AdSet info */}
-            {isAdSet && (
-              <div className="space-y-3">
-                {adsetName && (
-                  <div>
-                    <SectionLabel icon={<Target className="h-3.5 w-3.5 text-primary" />} label="Conjunto de Anúncios" />
-                    <p className="text-sm font-semibold mt-1">{adsetName}</p>
-                  </div>
-                )}
-                {parentCampaign && (
-                  <div className="bg-muted/30 rounded-lg p-2.5 border border-border/30 text-xs">
-                    <span className="text-muted-foreground">Campanha pai</span>
-                    <p className="font-medium mt-0.5">{parentCampaign}</p>
-                  </div>
-                )}
-                {targeting && (
-                  <div className="bg-muted/30 rounded-lg p-2.5 border border-border/30 text-xs">
-                    <span className="text-muted-foreground">Público-alvo</span>
-                    <p className="font-medium mt-0.5">{sanitizeDisplayText(targeting)}{ageRange && ` (${ageRange} anos)`}</p>
-                  </div>
-                )}
-                {customAudiences && Array.isArray(customAudiences) && customAudiences.length > 0 && (
-                  <div className="bg-muted/30 rounded-lg p-2.5 border border-border/30 text-xs">
-                    <span className="text-muted-foreground">Públicos Personalizados</span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {customAudiences.map((aud: any, i: number) => (
-                        <Badge key={i} variant="outline" className="text-[10px]">{typeof aud === 'string' ? aud : aud.name || aud.id}</Badge>
-                      ))}
+              {/* AdSet info (standalone) */}
+              {isAdSet && (
+                <div className="space-y-3">
+                  {adsetName && (
+                    <div>
+                      <SectionLabel icon={<Target className="h-3.5 w-3.5 text-primary" />} label="Conjunto de Anúncios" />
+                      <p className="text-sm font-semibold mt-1">{adsetName}</p>
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Headlines — show ALL variations */}
-            {headlinesList.length > 0 && !isStrategicPlan && !isAdSet && (
-              <div>
-                <SectionLabel icon={<Sparkles className="h-3.5 w-3.5 text-primary" />} label={`Headlines (${headlinesList.length} variações)`} />
-                <div className="space-y-1.5 mt-1.5">
-                  {headlinesList.map((h, i) => (
-                    <div key={i} className="flex items-start gap-2 text-sm">
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 mt-0.5 shrink-0">{i + 1}</Badge>
-                      <span className="font-semibold">{h}</span>
+                  )}
+                  {parentCampaign && (
+                    <div className="bg-muted/30 rounded-lg p-2.5 border border-border/30 text-xs">
+                      <span className="text-muted-foreground">Campanha pai</span>
+                      <p className="font-medium mt-0.5">{parentCampaign}</p>
                     </div>
-                  ))}
+                  )}
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Primary Texts (Copys) — show ALL variations */}
-            {primaryTexts.length > 0 && !isStrategicPlan && !isAdSet && (
-              <div>
-                <SectionLabel icon={<MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />} label={`Textos Principais (${primaryTexts.length} variações)`} />
-                <div className="space-y-2 mt-1.5">
-                  {primaryTexts.map((t, i) => (
-                    <div key={i} className="bg-muted/20 rounded-lg p-2.5 border border-border/30">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">Versão {i + 1}</Badge>
+              {/* Headlines — show ALL variations */}
+              {headlinesList.length > 0 && !isStrategicPlan && !isAdSet && (
+                <div>
+                  <SectionLabel icon={<Sparkles className="h-3.5 w-3.5 text-primary" />} label={`Headlines (${headlinesList.length} variações)`} />
+                  <div className="space-y-1.5 mt-1.5">
+                    {headlinesList.map((h, i) => (
+                      <div key={i} className="flex items-start gap-2 text-sm">
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 mt-0.5 shrink-0">{i + 1}</Badge>
+                        <span className="font-semibold">{h}</span>
                       </div>
-                      <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{t}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Primary Texts (Copys) — show ALL variations */}
+              {primaryTexts.length > 0 && !isStrategicPlan && !isAdSet && (
+                <div>
+                  <SectionLabel icon={<MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />} label={`Textos Principais (${primaryTexts.length} variações)`} />
+                  <div className="space-y-2 mt-1.5">
+                    {primaryTexts.map((t, i) => (
+                      <div key={i} className="bg-muted/20 rounded-lg p-2.5 border border-border/30">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">Versão {i + 1}</Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{t}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Descriptions */}
+              {descriptionsList.length > 0 && !isStrategicPlan && !isAdSet && (
+                <div>
+                  <SectionLabel icon={<ListChecks className="h-3.5 w-3.5 text-muted-foreground" />} label={`Descrições (${descriptionsList.length})`} />
+                  <div className="space-y-1 mt-1.5">
+                    {descriptionsList.map((d, i) => (
+                      <p key={i} className="text-xs text-muted-foreground">{d}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* CTA */}
+              {ctaType && !isStrategicPlan && !isAdSet && (
+                <Badge variant="secondary" className="text-xs">{CTA_LABELS[ctaType] || ctaType}</Badge>
+              )}
+
+              {/* Product & Budget */}
+              {(productName || budgetDisplay || targeting) && !isStrategicPlan && !isAdSet && (
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  {productName && (
+                    <div className="bg-muted/30 rounded-lg p-2.5 border border-border/30">
+                      <span className="text-muted-foreground">Produto</span>
+                      <p className="font-medium mt-0.5">{productName}{productPrice && ` — ${productPrice}`}</p>
                     </div>
-                  ))}
+                  )}
+                  {budgetDisplay && (
+                    <div className="bg-muted/30 rounded-lg p-2.5 border border-border/30">
+                      <span className="text-muted-foreground">Orçamento</span>
+                      <p className="font-semibold mt-0.5">{budgetDisplay}</p>
+                    </div>
+                  )}
+                  {targeting && (
+                    <div className="col-span-2 bg-muted/30 rounded-lg p-2.5 border border-border/30">
+                      <span className="text-muted-foreground">Público</span>
+                      <p className="font-medium mt-0.5">{sanitizeDisplayText(targeting)}{ageRange && ` (${ageRange} anos)`}</p>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Descriptions */}
-            {descriptionsList.length > 0 && !isStrategicPlan && !isAdSet && (
-              <div>
-                <SectionLabel icon={<ListChecks className="h-3.5 w-3.5 text-muted-foreground" />} label={`Descrições (${descriptionsList.length})`} />
-                <div className="space-y-1 mt-1.5">
-                  {descriptionsList.map((d, i) => (
-                    <p key={i} className="text-xs text-muted-foreground">{d}</p>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* CTA */}
-            {ctaType && !isStrategicPlan && !isAdSet && (
-              <Badge variant="secondary" className="text-xs">{CTA_LABELS[ctaType] || ctaType}</Badge>
-            )}
-
-            {/* Product & Budget */}
-            {(productName || budgetDisplay || targeting) && !isStrategicPlan && !isAdSet && (
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                {productName && (
-                  <div className="bg-muted/30 rounded-lg p-2.5 border border-border/30">
-                    <span className="text-muted-foreground">Produto</span>
-                    <p className="font-medium mt-0.5">{productName}{productPrice && ` — ${productPrice}`}</p>
+              {/* Nested AdSets */}
+              {adsets.length > 0 && (
+                <div>
+                  <SectionLabel icon={<Layers className="h-3.5 w-3.5 text-muted-foreground" />} label={`Conjuntos de Anúncios (${adsets.length})`} />
+                  <div className="mt-1.5">
+                    <AdSetsSection adsets={adsets} />
                   </div>
-                )}
-                {budgetDisplay && (
-                  <div className="bg-muted/30 rounded-lg p-2.5 border border-border/30">
-                    <span className="text-muted-foreground">Orçamento</span>
-                    <p className="font-semibold mt-0.5">{budgetDisplay}</p>
-                  </div>
-                )}
-                {targeting && (
-                  <div className="col-span-2 bg-muted/30 rounded-lg p-2.5 border border-border/30">
-                    <span className="text-muted-foreground">Público</span>
-                    <p className="font-medium mt-0.5">{sanitizeDisplayText(targeting)}{ageRange && ` (${ageRange} anos)`}</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Strategic Plan — Formatted Content */}
-            {isStrategicPlan && (
-              <StrategicPlanContent
-                diagnosis={diagnosis}
-                plannedActions={plannedActions}
-                expectedResults={expectedResults}
-                riskAssessment={riskAssessment}
-                timeline={timeline}
-                reasoning={action.reasoning}
-              />
-            )}
-
-            {/* Reasoning & Impact (for non-strategic types) */}
-            {!isStrategicPlan && action.reasoning && (
-              <div>
-                <SectionLabel icon={<Bot className="h-3.5 w-3.5 text-muted-foreground" />} label="Raciocínio da IA" />
-                <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30 mt-1.5">
-                  {sanitizeDisplayText(action.reasoning)}
                 </div>
-              </div>
-            )}
-            {action.expected_impact && (
-              <div>
-                <SectionLabel icon={<TrendingUp className="h-3.5 w-3.5 text-emerald-500" />} label="Impacto Esperado" />
-                <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30 mt-1.5">
-                  {sanitizeDisplayText(action.expected_impact)}
-                </div>
-              </div>
-            )}
+              )}
 
-            {/* Budget Bar */}
-            {budgetSnapshot && <BudgetBar snapshot={budgetSnapshot} />}
+              {/* Strategic Plan */}
+              {isStrategicPlan && (
+                <StrategicPlanContent
+                  diagnosis={diagnosis}
+                  plannedActions={plannedActions}
+                  expectedResults={expectedResults}
+                  riskAssessment={riskAssessment}
+                  timeline={timeline}
+                  reasoning={action.reasoning}
+                />
+              )}
+
+              {/* Reasoning & Impact */}
+              {!isStrategicPlan && action.reasoning && (
+                <div>
+                  <SectionLabel icon={<Bot className="h-3.5 w-3.5 text-muted-foreground" />} label="Raciocínio da IA" />
+                  <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30 mt-1.5">
+                    {sanitizeDisplayText(action.reasoning)}
+                  </div>
+                </div>
+              )}
+              {action.expected_impact && (
+                <div>
+                  <SectionLabel icon={<TrendingUp className="h-3.5 w-3.5 text-emerald-500" />} label="Impacto Esperado" />
+                  <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30 mt-1.5">
+                    {sanitizeDisplayText(action.expected_impact)}
+                  </div>
+                </div>
+              )}
+
+              {/* Budget Bar */}
+              {budgetSnapshot && <BudgetBar snapshot={budgetSnapshot} />}
+            </div>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      {/* Zoom Dialog */}
+      {zoomUrl && (
+        <Dialog open={!!zoomUrl} onOpenChange={() => setZoomUrl(null)}>
+          <DialogContent className="sm:max-w-2xl p-2">
+            <img src={zoomUrl} alt="Criativo ampliado" className="w-full h-auto max-h-[80vh] object-contain rounded-lg" />
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
   );
 }
 
@@ -403,7 +515,7 @@ function SectionLabel({ icon, label }: { icon: React.ReactNode; label: string })
    MAIN CARD COMPONENT
    Shows compact preview + "Ver completo"
    ======================================== */
-export function ActionApprovalCard({ action, onApprove, onReject, onAdjust, isApproving, isRejecting }: ActionApprovalCardProps) {
+export function ActionApprovalCard({ action, childActions, onApprove, onReject, onAdjust, isApproving, isRejecting }: ActionApprovalCardProps) {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
@@ -416,7 +528,8 @@ export function ActionApprovalCard({ action, onApprove, onReject, onAdjust, isAp
   const Icon = ACTION_TYPE_ICONS[action.action_type] || Target;
   const isStrategicPlan = action.action_type === "strategic_plan";
 
-  const creativeUrl = useResolvedCreativeUrl(action);
+  const creativeUrls = useAllCreativeUrls(action);
+  const primaryCreativeUrl = creativeUrls[0] || null;
   const headline = preview.headline || data.headline || null;
   const copyText = preview.copy_text || data.copy_text || null;
   const funnel = preview.funnel_stage || data.funnel_stage || null;
@@ -424,7 +537,8 @@ export function ActionApprovalCard({ action, onApprove, onReject, onAdjust, isAp
   const budgetDisplay = preview.daily_budget_display || (data.daily_budget_cents ? `R$ ${(data.daily_budget_cents / 100).toFixed(2)}/dia` : null);
   const campaignName = preview.campaign_name || data.campaign_name || null;
 
-  // For strategic plans, build a summary from diagnosis
+  const adsets = (childActions || []).filter(a => a.action_type === "create_adset");
+
   const diagnosis = data.diagnosis || null;
   const summaryText = isStrategicPlan
     ? sanitizeDisplayText(diagnosis || preview.copy_text || "")
@@ -450,15 +564,20 @@ export function ActionApprovalCard({ action, onApprove, onReject, onAdjust, isAp
     <>
       <Card className="border-border/60 hover:border-primary/20 transition-colors overflow-hidden min-w-0">
         <div className="flex gap-0">
-          {/* Thumbnail (for standard actions with creatives) */}
+          {/* Thumbnail (shows first creative or gallery indicator) */}
           {!isStrategicPlan && (
-            <div className="w-[100px] min-h-[100px] flex-shrink-0 bg-muted/20 border-r border-border/40 relative group cursor-pointer" onClick={() => creativeUrl && setZoomOpen(true)}>
-              {creativeUrl ? (
+            <div className="w-[100px] min-h-[100px] flex-shrink-0 bg-muted/20 border-r border-border/40 relative group cursor-pointer" onClick={() => primaryCreativeUrl && setZoomOpen(true)}>
+              {primaryCreativeUrl ? (
                 <>
-                  <img src={creativeUrl} alt="Criativo" className="w-full h-full object-cover" />
+                  <img src={primaryCreativeUrl} alt="Criativo" className="w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <ZoomIn className="h-5 w-5 text-white" />
                   </div>
+                  {creativeUrls.length > 1 && (
+                    <Badge variant="secondary" className="absolute bottom-1 right-1 text-[9px] px-1 py-0">
+                      +{creativeUrls.length - 1}
+                    </Badge>
+                  )}
                 </>
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
@@ -491,7 +610,7 @@ export function ActionApprovalCard({ action, onApprove, onReject, onAdjust, isAp
               <p className="text-sm font-semibold leading-tight truncate">{headline}</p>
             )}
 
-            {/* Compact summary — max 150 chars */}
+            {/* Compact summary */}
             {summaryText && (
               <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
                 {truncate(summaryText, 200)}
@@ -504,6 +623,18 @@ export function ActionApprovalCard({ action, onApprove, onReject, onAdjust, isAp
                 <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1">
                   <DollarSign className="h-2.5 w-2.5" />
                   {budgetDisplay}
+                </Badge>
+              )}
+              {creativeUrls.length > 1 && (
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1">
+                  <ImageIcon className="h-2.5 w-2.5" />
+                  {creativeUrls.length} criativos
+                </Badge>
+              )}
+              {adsets.length > 0 && (
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1">
+                  <Layers className="h-2.5 w-2.5" />
+                  {adsets.length} conjunto{adsets.length !== 1 ? "s" : ""}
                 </Badge>
               )}
               {campaignName && !isStrategicPlan && (
@@ -558,7 +689,7 @@ export function ActionApprovalCard({ action, onApprove, onReject, onAdjust, isAp
       </Card>
 
       {/* Full Content Dialog */}
-      <FullContentDialog action={action} open={fullOpen} onOpenChange={setFullOpen} />
+      <FullContentDialog action={action} childActions={childActions} open={fullOpen} onOpenChange={setFullOpen} />
 
       {/* Reject Dialog */}
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
@@ -609,11 +740,11 @@ export function ActionApprovalCard({ action, onApprove, onReject, onAdjust, isAp
       </Dialog>
 
       {/* Zoom Dialog */}
-      {creativeUrl && (
+      {primaryCreativeUrl && (
         <Dialog open={zoomOpen} onOpenChange={setZoomOpen}>
           <DialogContent className="sm:max-w-2xl p-2">
             <img
-              src={creativeUrl}
+              src={primaryCreativeUrl}
               alt="Criativo ampliado"
               className="w-full h-auto max-h-[80vh] object-contain rounded-lg"
             />
