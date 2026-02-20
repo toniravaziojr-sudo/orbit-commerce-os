@@ -1304,7 +1304,7 @@ ${prevDiagnosis.substring(0, 2000)}
         });
       }
 
-      console.log(`[ads-autopilot-strategist][${VERSION}] Account ${config.ad_account_id}: ${toolCalls.length} tool calls processed`);
+      console.log(`[ads-autopilot-strategist][${VERSION}] Account ${config.ad_account_id}: ${totalPlanned} planned, ${totalExecuted} executed, ${totalRejected} rejected (${round} rounds)`);
     } catch (err: any) {
       console.error(`[ads-autopilot-strategist][${VERSION}] Account ${config.ad_account_id} error:`, err.message);
     }
