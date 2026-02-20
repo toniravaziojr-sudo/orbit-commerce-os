@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAIEndpoint, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.21.0"; // Use centralized ai-router (Gemini/OpenAI native priority)
+const VERSION = "v1.22.0"; // Expand create_campaign/create_adset tools with full Meta Ads params (placements, optimization, billing, destination_url, bid_strategy, conversion_event, locations, ad_name, ad_format, excluded_audiences)
 // ===================
 
 const corsHeaders = {
@@ -81,24 +81,67 @@ const STRATEGIST_TOOLS = [
     type: "function",
     function: {
       name: "create_campaign",
-      description: "Cria nova campanha na plataforma de anúncios. Será criada PAUSADA e AGENDADA para ativação em 00:01-04:00 BRT.",
+      description: "Cria nova campanha completa na plataforma de anúncios (Campanha + Conjunto + Anúncio). Será criada PAUSADA e AGENDADA para ativação em 00:01-04:00 BRT. TODOS os campos devem ser preenchidos como se estivesse configurando manualmente no Meta Ads Manager.",
       parameters: {
         type: "object",
         properties: {
-          campaign_name: { type: "string", description: "Nome da campanha. Padrão: [AI] Objetivo | Público | Data" },
-          objective: { type: "string", enum: ["OUTCOME_SALES", "OUTCOME_LEADS", "OUTCOME_TRAFFIC", "OUTCOME_AWARENESS"] },
-          daily_budget_cents: { type: "number", description: "Orçamento diário em centavos" },
-          targeting_description: { type: "string", description: "Descrição do público-alvo" },
-          funnel_stage: { type: "string", enum: ["cold", "warm", "hot"] },
+          // --- NÍVEL CAMPANHA ---
+          campaign_name: { type: "string", description: "Nome da campanha. Padrão: [AI] Objetivo | Produto | Público | Data" },
+          objective: { type: "string", enum: ["OUTCOME_SALES", "OUTCOME_LEADS", "OUTCOME_TRAFFIC", "OUTCOME_AWARENESS", "OUTCOME_ENGAGEMENT", "OUTCOME_APP_PROMOTION"], description: "Objetivo da campanha Meta Ads" },
+          special_ad_categories: { type: "array", items: { type: "string", enum: ["NONE", "CREDIT", "EMPLOYMENT", "HOUSING", "SOCIAL_ISSUES_ELECTIONS_POLITICS"] }, description: "Categorias especiais de anúncio. Use ['NONE'] se não aplicável." },
+          daily_budget_cents: { type: "number", description: "Orçamento diário em centavos (CBO — Campaign Budget Optimization)" },
+          lifetime_budget_cents: { type: "number", description: "Orçamento vitalício em centavos (alternativa ao diário)" },
+          bid_strategy: { type: "string", enum: ["LOWEST_COST_WITHOUT_CAP", "LOWEST_COST_WITH_BID_CAP", "COST_CAP", "MINIMUM_ROAS"], description: "Estratégia de lance. Padrão: LOWEST_COST_WITHOUT_CAP (menor custo automático)" },
+          bid_amount_cents: { type: "number", description: "Limite de lance em centavos (apenas para BID_CAP ou COST_CAP)" },
+          roas_avg_floor: { type: "number", description: "ROAS mínimo (apenas para MINIMUM_ROAS). Ex: 2.0 = 200%" },
+          
+          // --- NÍVEL CONJUNTO DE ANÚNCIOS ---
+          adset_name: { type: "string", description: "Nome do conjunto de anúncios. Padrão: [AI] CJ - Público | Funil" },
+          optimization_goal: { type: "string", enum: ["OFFSITE_CONVERSIONS", "LINK_CLICKS", "IMPRESSIONS", "REACH", "LANDING_PAGE_VIEWS", "VALUE", "LEAD_GENERATION", "QUALITY_LEAD", "ENGAGED_USERS"], description: "Objetivo de otimização do conjunto. OBRIGATÓRIO." },
+          billing_event: { type: "string", enum: ["IMPRESSIONS", "LINK_CLICKS", "THRUPLAY"], description: "Evento de cobrança. Padrão: IMPRESSIONS" },
+          conversion_event: { type: "string", enum: ["PURCHASE", "ADD_TO_CART", "INITIATED_CHECKOUT", "LEAD", "COMPLETE_REGISTRATION", "VIEW_CONTENT", "SEARCH", "ADD_PAYMENT_INFO", "ADD_TO_WISHLIST", "CONTACT", "SUBSCRIBE", "START_TRIAL"], description: "Evento de conversão do Pixel. OBRIGATÓRIO para campanhas de vendas/leads." },
+          
+          // --- TARGETING / PÚBLICO ---
+          targeting_description: { type: "string", description: "Descrição textual do público-alvo para referência humana" },
+          funnel_stage: { type: "string", enum: ["cold", "warm", "hot"], description: "Etapa do funil" },
+          age_min: { type: "number", description: "Idade mínima. Padrão: 18" },
+          age_max: { type: "number", description: "Idade máxima. Padrão: 65" },
+          genders: { type: "array", items: { type: "number" }, description: "Gêneros: [0]=Todos, [1]=Masculino, [2]=Feminino" },
+          geo_locations: { type: "object", description: "Localização geográfica. Ex: {countries: ['BR']} ou {regions: [{key: '3650'}], cities: [{key: '123456'}]}" },
+          interests: { type: "array", items: { type: "object", properties: { id: { type: "string" }, name: { type: "string" } }, required: ["id", "name"] }, description: "Interesses para segmentação detalhada" },
+          behaviors: { type: "array", items: { type: "object", properties: { id: { type: "string" }, name: { type: "string" } }, required: ["id", "name"] }, description: "Comportamentos para segmentação" },
+          custom_audience_ids: { type: "array", items: { type: "string" }, description: "IDs de públicos personalizados para incluir" },
+          excluded_audience_ids: { type: "array", items: { type: "string" }, description: "IDs de públicos personalizados para excluir" },
+          lookalike_spec: { type: "object", description: "Especificação de Lookalike. Ex: {ratio: 0.03, country: 'BR', source_audience_id: '123'}" },
+          
+          // --- POSICIONAMENTOS ---
+          publisher_platforms: { type: "array", items: { type: "string", enum: ["facebook", "instagram", "audience_network", "messenger"] }, description: "Plataformas. Omitir = Automático (Advantage+)" },
+          position_types: { type: "array", items: { type: "string", enum: ["feed", "story", "reels", "right_hand_column", "instant_article", "marketplace", "video_feeds", "search", "instream_video", "reels_overlay", "explore", "profile_feed", "facebook_stories", "instagram_stories", "instagram_reels", "facebook_reels"] }, description: "Posições específicas. Omitir = Automático" },
+          device_platforms: { type: "array", items: { type: "string", enum: ["mobile", "desktop"] }, description: "Dispositivos. Omitir = Todos" },
+          
+          // --- LINK & DESTINO ---
+          destination_url: { type: "string", description: "URL de destino do anúncio. OBRIGATÓRIO. Use a URL real do produto ou landing page." },
+          display_link: { type: "string", description: "Link exibido no anúncio (opcional, apenas visual)" },
+          utm_params: { type: "object", description: "Parâmetros UTM. Ex: {source: 'meta', medium: 'paid', campaign: 'campanha-x'}" },
+          
+          // --- CRIATIVO / ANÚNCIO ---
           product_name: { type: "string", description: "Nome EXATO do produto do catálogo para esta campanha" },
+          ad_name: { type: "string", description: "Nome do anúncio. Padrão: [AI] Ad - Produto | Variação" },
+          ad_format: { type: "string", enum: ["SINGLE_IMAGE", "SINGLE_VIDEO", "CAROUSEL", "COLLECTION"], description: "Formato do anúncio" },
           primary_texts: { type: "array", items: { type: "string" }, description: "2-4 variações de Primary Text (copy principal). OBRIGATÓRIO ter no mínimo 2." },
           headlines: { type: "array", items: { type: "string" }, description: "2-4 variações de Headline. OBRIGATÓRIO ter no mínimo 2." },
           descriptions: { type: "array", items: { type: "string" }, description: "1-2 descrições curtas para o anúncio." },
-          cta: { type: "string", enum: ["SHOP_NOW", "LEARN_MORE", "SIGN_UP", "BUY_NOW", "ORDER_NOW", "GET_OFFER"], description: "Call to Action" },
-          reasoning: { type: "string" },
+          cta: { type: "string", enum: ["SHOP_NOW", "LEARN_MORE", "SIGN_UP", "BUY_NOW", "ORDER_NOW", "GET_OFFER", "SEND_WHATSAPP_MESSAGE", "CONTACT_US", "SUBSCRIBE", "DOWNLOAD", "WATCH_MORE", "BOOK_NOW", "APPLY_NOW"], description: "Call to Action" },
+
+          // --- AGENDAMENTO ---
+          start_time: { type: "string", description: "Data/hora de início (ISO 8601). Omitir = agendamento automático 00:01 BRT" },
+          end_time: { type: "string", description: "Data/hora de término (ISO 8601). Omitir = sem data de término" },
+
+          // --- META ---
+          reasoning: { type: "string", description: "Justificativa com dados numéricos" },
           confidence: { type: "number", minimum: 0, maximum: 1 },
         },
-        required: ["campaign_name", "objective", "daily_budget_cents", "targeting_description", "funnel_stage", "product_name", "primary_texts", "headlines", "reasoning", "confidence"],
+        required: ["campaign_name", "objective", "daily_budget_cents", "optimization_goal", "conversion_event", "targeting_description", "funnel_stage", "destination_url", "product_name", "primary_texts", "headlines", "reasoning", "confidence"],
         additionalProperties: false,
       },
     },
@@ -107,19 +150,48 @@ const STRATEGIST_TOOLS = [
     type: "function",
     function: {
       name: "create_adset",
-      description: "Cria novo conjunto de anúncios dentro de uma campanha existente.",
+      description: "Cria novo conjunto de anúncios ADICIONAL dentro de uma campanha existente (para múltiplos públicos). Use quando a campanha já foi criada e você quer adicionar segmentações diferentes.",
       parameters: {
         type: "object",
         properties: {
-          campaign_id: { type: "string" },
-          adset_name: { type: "string" },
-          daily_budget_cents: { type: "number" },
-          targeting_type: { type: "string", enum: ["cold_broad", "cold_interest", "warm_custom", "hot_remarketing", "lookalike"] },
+          campaign_id: { type: "string", description: "ID da campanha pai (retornado no create_campaign)" },
+          campaign_name: { type: "string", description: "Nome da campanha pai (fallback para busca)" },
+          adset_name: { type: "string", description: "Nome do conjunto de anúncios" },
+          daily_budget_cents: { type: "number", description: "Orçamento diário em centavos (ABO — Ad Set Budget)" },
+          lifetime_budget_cents: { type: "number", description: "Orçamento vitalício em centavos" },
+          
+          // --- OTIMIZAÇÃO ---
+          optimization_goal: { type: "string", enum: ["OFFSITE_CONVERSIONS", "LINK_CLICKS", "IMPRESSIONS", "REACH", "LANDING_PAGE_VIEWS", "VALUE", "LEAD_GENERATION", "QUALITY_LEAD", "ENGAGED_USERS"], description: "Objetivo de otimização" },
+          billing_event: { type: "string", enum: ["IMPRESSIONS", "LINK_CLICKS", "THRUPLAY"], description: "Evento de cobrança" },
+          conversion_event: { type: "string", enum: ["PURCHASE", "ADD_TO_CART", "INITIATED_CHECKOUT", "LEAD", "COMPLETE_REGISTRATION", "VIEW_CONTENT", "SEARCH", "ADD_PAYMENT_INFO", "CONTACT", "SUBSCRIBE", "START_TRIAL"], description: "Evento de conversão do Pixel" },
+          bid_amount_cents: { type: "number", description: "Limite de lance em centavos" },
+          
+          // --- TARGETING ---
+          targeting_type: { type: "string", enum: ["cold_broad", "cold_interest", "warm_custom", "hot_remarketing", "lookalike"], description: "Tipo de segmentação" },
+          targeting_description: { type: "string", description: "Descrição textual do público" },
           age_min: { type: "number" },
           age_max: { type: "number" },
           genders: { type: "array", items: { type: "number" } },
+          geo_locations: { type: "object", description: "Localização. Ex: {countries: ['BR']}" },
           interests: { type: "array", items: { type: "object", properties: { id: { type: "string" }, name: { type: "string" } }, required: ["id", "name"] } },
-          custom_audience_id: { type: "string" },
+          behaviors: { type: "array", items: { type: "object", properties: { id: { type: "string" }, name: { type: "string" } }, required: ["id", "name"] } },
+          custom_audience_ids: { type: "array", items: { type: "string" }, description: "IDs de públicos personalizados" },
+          excluded_audience_ids: { type: "array", items: { type: "string" }, description: "IDs de públicos para excluir" },
+          lookalike_spec: { type: "object", description: "Spec de Lookalike" },
+          
+          // --- POSICIONAMENTOS ---
+          publisher_platforms: { type: "array", items: { type: "string", enum: ["facebook", "instagram", "audience_network", "messenger"] } },
+          position_types: { type: "array", items: { type: "string" } },
+          device_platforms: { type: "array", items: { type: "string", enum: ["mobile", "desktop"] } },
+          
+          // --- DESTINO ---
+          destination_url: { type: "string", description: "URL de destino dos anúncios deste conjunto" },
+          
+          // --- AGENDAMENTO ---
+          start_time: { type: "string" },
+          end_time: { type: "string" },
+          
+          // --- META ---
           reasoning: { type: "string" },
           confidence: { type: "number", minimum: 0, maximum: 1 },
         },
@@ -601,13 +673,51 @@ ${config.user_instructions || "Nenhuma instrução adicional."}
 - Use os links reais da loja (landing pages, páginas) como destino dos anúncios
 - Considere as categorias de produtos e o posicionamento da marca ao criar copys
 
-## REGRAS DE COPY (OBRIGATÓRIAS em create_campaign)
-- CADA create_campaign DEVE ter entre 2 e 4 primary_texts (variações de copy principal)
-- CADA create_campaign DEVE ter entre 2 e 4 headlines (variações de título)
-- Copys devem usar ângulos DIFERENTES: benefício principal, objeção comum, prova social, urgência/escassez
-- Headlines curtas e diretas (máx 40 caracteres cada)
+## REGRAS DE CONFIGURAÇÃO COMPLETA (OBRIGATÓRIAS em create_campaign)
+Cada create_campaign é uma campanha COMPLETA no Meta Ads. Você DEVE preencher TODOS os campos abaixo como se estivesse configurando manualmente:
+
+### Nível Campanha:
+- campaign_name: Nome descritivo seguindo padrão [AI] Objetivo | Produto | Público | Data
+- objective: Objetivo da campanha (OUTCOME_SALES para e-commerce, OUTCOME_LEADS para captação)
+- daily_budget_cents: Orçamento diário (CBO)
+- bid_strategy: Estratégia de lance (LOWEST_COST_WITHOUT_CAP como padrão)
+- special_ad_categories: ["NONE"] na maioria dos casos
+
+### Nível Conjunto:
+- adset_name: Nome do conjunto (padrão: [AI] CJ - Público | Funil)
+- optimization_goal: OBRIGATÓRIO. Use OFFSITE_CONVERSIONS para vendas, LINK_CLICKS para tráfego, LEAD_GENERATION para leads
+- billing_event: IMPRESSIONS (padrão) ou LINK_CLICKS
+- conversion_event: OBRIGATÓRIO para vendas (PURCHASE) ou leads (LEAD). Sem isso o pixel não otimiza!
+
+### Targeting:
+- geo_locations: Sempre definir. Default: {countries: ["BR"]}
+- age_min / age_max: Faixa etária adequada ao produto
+- genders: [0]=Todos, [1]=Masculino, [2]=Feminino
+- interests: Usar IDs reais de interesses do Meta (disponíveis nos públicos da conta)
+- custom_audience_ids / excluded_audience_ids: Usar IDs reais de públicos da conta
+
+### Posicionamentos:
+- publisher_platforms: Omitir para Automático (Advantage+), ou especificar ["facebook","instagram"]
+- position_types: Omitir para Automático, ou especificar ["feed","story","reels"]
+
+### Link & Destino:
+- destination_url: OBRIGATÓRIO. URL real do produto, landing page ou loja. NUNCA deixar vazio!
+- display_link: Link visual exibido no anúncio (opcional)
+- utm_params: Sempre incluir para rastreamento. Ex: {source:"meta", medium:"paid", campaign:"nome"}
+
+### Criativo:
+- ad_name: Nome do anúncio
+- ad_format: SINGLE_IMAGE (padrão), SINGLE_VIDEO, CAROUSEL ou COLLECTION
+- primary_texts: 2-4 variações com ângulos DIFERENTES (benefício, objeção, prova social, urgência)
+- headlines: 2-4 variações curtas (máx 40 chars)
+- descriptions: 1-2 descrições curtas
+- cta: Call to Action adequado (SHOP_NOW para e-commerce, LEARN_MORE para awareness)
+
+### REGRAS CRÍTICAS:
 - NUNCA use copy genérica como "Conheça nosso produto" — seja específico sobre o produto e benefícios
-- Inclua sempre 1-2 descriptions curtas e um CTA adequado
+- destination_url DEVE ser uma URL real da loja — use os links disponíveis acima
+- conversion_event é OBRIGATÓRIO para campanhas de vendas — sem ele o pixel não registra compras
+- Se não souber os IDs de interesses, use targeting_type broad (segmentação ampla) — é melhor que inventar IDs
 
 ## REGRAS DE COMPLETUDE DO PLANO
 - Na primeira ativação, o plano estratégico DEVE cobrir 100% do orçamento disponível
@@ -841,21 +951,62 @@ async function executeToolCall(
           objective: args.objective,
           daily_budget_cents: args.daily_budget_cents,
           daily_budget_display: `R$ ${((args.daily_budget_cents || 0) / 100).toFixed(2)}/dia`,
+          lifetime_budget_cents: args.lifetime_budget_cents || null,
+          bid_strategy: args.bid_strategy || "LOWEST_COST_WITHOUT_CAP",
+          bid_amount_cents: args.bid_amount_cents || null,
+          roas_avg_floor: args.roas_avg_floor || null,
+          special_ad_categories: args.special_ad_categories || ["NONE"],
+
+          // Adset-level
+          adset_name: args.adset_name || args.campaign_name?.replace("[AI]", "[AI] CJ -"),
+          optimization_goal: args.optimization_goal || "OFFSITE_CONVERSIONS",
+          billing_event: args.billing_event || "IMPRESSIONS",
+          conversion_event: args.conversion_event || null,
+
+          // Targeting
           targeting_description: args.targeting_description,
           targeting_summary: args.targeting_description,
           funnel_stage: args.funnel_stage,
-          headline: args.headlines?.[0] || args.headline || args.campaign_name,
-          headlines: args.headlines || (args.headline ? [args.headline] : []),
-          copy_text: args.primary_texts?.[0] || args.primary_text || args.copy_text || null,
-          primary_texts: args.primary_texts || (args.primary_text ? [args.primary_text] : []),
+          age_min: args.age_min || 18,
+          age_max: args.age_max || 65,
+          age_range: `${args.age_min || 18}-${args.age_max || 65}`,
+          genders: args.genders || [0],
+          geo_locations: args.geo_locations || { countries: ["BR"] },
+          interests: args.interests || [],
+          behaviors: args.behaviors || [],
+          custom_audience_ids: args.custom_audience_ids || [],
+          excluded_audience_ids: args.excluded_audience_ids || [],
+          lookalike_spec: args.lookalike_spec || null,
+
+          // Placements
+          publisher_platforms: args.publisher_platforms || null, // null = Advantage+
+          position_types: args.position_types || null,
+          device_platforms: args.device_platforms || null,
+
+          // Link & destination
+          destination_url: args.destination_url || null,
+          display_link: args.display_link || null,
+          utm_params: args.utm_params || null,
+
+          // Creative
+          headline: args.headlines?.[0] || args.campaign_name,
+          headlines: args.headlines || [],
+          copy_text: args.primary_texts?.[0] || null,
+          primary_texts: args.primary_texts || [],
           descriptions: args.descriptions || [],
-          cta_type: args.cta || args.cta_type || null,
+          cta_type: args.cta || null,
+          ad_name: args.ad_name || null,
+          ad_format: args.ad_format || "SINGLE_IMAGE",
+
+          // Product
           product_name: matchedProduct?.name || args.product_name || null,
           product_price: matchedProduct?.price || null,
           product_price_display: productPriceDisplay,
           product_image: productImageUrl,
-          age_range: `${args.age_min || 18}-${args.age_max || 65}`,
-          genders: args.genders || [],
+
+          // Scheduling
+          start_time: args.start_time || null,
+          end_time: args.end_time || null,
         },
       } 
     };
@@ -872,7 +1023,30 @@ async function executeToolCall(
         preview: {
           adset_name: args.adset_name,
           targeting_type: args.targeting_type,
+          targeting_description: args.targeting_description || null,
           daily_budget_cents: args.daily_budget_cents,
+          daily_budget_display: args.daily_budget_cents ? `R$ ${(args.daily_budget_cents / 100).toFixed(2)}/dia` : null,
+          lifetime_budget_cents: args.lifetime_budget_cents || null,
+          optimization_goal: args.optimization_goal || "OFFSITE_CONVERSIONS",
+          billing_event: args.billing_event || "IMPRESSIONS",
+          conversion_event: args.conversion_event || null,
+          bid_amount_cents: args.bid_amount_cents || null,
+          age_min: args.age_min || 18,
+          age_max: args.age_max || 65,
+          age_range: `${args.age_min || 18}-${args.age_max || 65}`,
+          genders: args.genders || [0],
+          geo_locations: args.geo_locations || { countries: ["BR"] },
+          interests: args.interests || [],
+          behaviors: args.behaviors || [],
+          custom_audience_ids: args.custom_audience_ids || [],
+          excluded_audience_ids: args.excluded_audience_ids || [],
+          lookalike_spec: args.lookalike_spec || null,
+          publisher_platforms: args.publisher_platforms || null,
+          position_types: args.position_types || null,
+          device_platforms: args.device_platforms || null,
+          destination_url: args.destination_url || null,
+          start_time: args.start_time || null,
+          end_time: args.end_time || null,
         },
       } 
     };

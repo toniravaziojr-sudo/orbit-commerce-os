@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v2.2.0"; // Fix: native scheduling + adset lookup by campaign_id + destination_type WEBSITE
+const VERSION = "v3.0.0"; // Propagate full campaign/adset params from action_data (placements, optimization, billing, bid_strategy, destination_url, conversion_event, geo_locations, excluded_audiences)
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -203,14 +203,21 @@ Deno.serve(async (req) => {
         action: "create",
         ad_account_id: adAccountId,
         name: campaignName,
-        objective: objectiveMap[objective] || "OUTCOME_SALES",
+        objective: objectiveMap[objective] || objective || "OUTCOME_SALES",
         destination_type: "WEBSITE",
         status: scheduling.status,
         daily_budget_cents: dailyBudgetCents,
-        special_ad_categories: [],
+        special_ad_categories: data.special_ad_categories || preview.special_ad_categories || [],
+        bid_strategy: data.bid_strategy || preview.bid_strategy || "LOWEST_COST_WITHOUT_CAP",
       };
+      if (data.lifetime_budget_cents || preview.lifetime_budget_cents) {
+        campaignBody.lifetime_budget_cents = data.lifetime_budget_cents || preview.lifetime_budget_cents;
+      }
       if (scheduling.start_time) {
         campaignBody.start_time = scheduling.start_time;
+      }
+      if (data.end_time || preview.end_time) {
+        campaignBody.stop_time = data.end_time || preview.end_time;
       }
 
       const { data: campaignResult, error: campaignErr } = await supabase.functions.invoke("meta-ads-campaigns", {
@@ -223,7 +230,7 @@ Deno.serve(async (req) => {
       const metaCampaignId = campaignResult?.data?.meta_campaign_id;
       console.log(`[ads-autopilot-execute-approved][${VERSION}] Campaign created: ${metaCampaignId}`);
 
-      // Step 2: Create adset if action has targeting data
+      // Step 2: Create adset with full targeting from action_data
       let metaAdsetId: string | null = null;
       const funnelStage = data.funnel_stage || preview.funnel_stage || "tof";
 
@@ -236,43 +243,111 @@ Deno.serve(async (req) => {
       const pixelId = mktConfig?.meta_pixel_id || null;
 
       if (metaCampaignId) {
+        // Build targeting from action_data — NO more hardcoding
+        const geoLocations = data.geo_locations || preview.geo_locations || { countries: ["BR"] };
         const targeting: any = {
-          geo_locations: { countries: ["BR"] },
+          geo_locations: geoLocations,
           age_min: data.age_min || preview.age_min || 18,
           age_max: data.age_max || preview.age_max || 65,
         };
-        if (data.genders?.length > 0) targeting.genders = data.genders;
-        if (preview.genders?.length > 0) targeting.genders = preview.genders;
-
-        // Use custom audiences if specified
-        if (data.custom_audiences?.length > 0) {
-          targeting.custom_audiences = data.custom_audiences.map((a: any) => ({ id: a.id || a }));
+        
+        // Genders
+        const genders = data.genders || preview.genders;
+        if (genders?.length > 0 && !(genders.length === 1 && genders[0] === 0)) {
+          targeting.genders = genders;
         }
 
-        // Use interests if specified
-        if (data.interests?.length > 0) {
-          targeting.flexible_spec = [{ interests: data.interests }];
+        // Custom audiences (include)
+        const customAudienceIds = data.custom_audience_ids || preview.custom_audience_ids || data.custom_audiences;
+        if (customAudienceIds?.length > 0) {
+          targeting.custom_audiences = customAudienceIds.map((a: any) => ({ id: a.id || a }));
+        }
+        
+        // Excluded audiences
+        const excludedAudienceIds = data.excluded_audience_ids || preview.excluded_audience_ids;
+        if (excludedAudienceIds?.length > 0) {
+          targeting.excluded_custom_audiences = excludedAudienceIds.map((a: any) => ({ id: a.id || a }));
         }
 
-        const adsetName = campaignName.replace("[AI]", "[AI] CJ -");
+        // Interests
+        const interests = data.interests || preview.interests;
+        if (interests?.length > 0) {
+          targeting.flexible_spec = [{ interests }];
+        }
+        
+        // Behaviors
+        const behaviors = data.behaviors || preview.behaviors;
+        if (behaviors?.length > 0) {
+          if (targeting.flexible_spec) {
+            targeting.flexible_spec[0].behaviors = behaviors;
+          } else {
+            targeting.flexible_spec = [{ behaviors }];
+          }
+        }
+
+        // Placements (publisher_platforms + position_types)
+        const publisherPlatforms = data.publisher_platforms || preview.publisher_platforms;
+        if (publisherPlatforms?.length > 0) {
+          targeting.publisher_platforms = publisherPlatforms;
+        }
+        const positionTypes = data.position_types || preview.position_types;
+        if (positionTypes?.length > 0) {
+          // Meta API uses specific platform position keys
+          targeting.facebook_positions = positionTypes.filter((p: string) => ["feed", "right_hand_column", "marketplace", "video_feeds", "instant_article", "instream_video", "search", "facebook_stories", "facebook_reels"].includes(p));
+          targeting.instagram_positions = positionTypes.filter((p: string) => ["feed", "story", "reels", "explore", "profile_feed", "instagram_stories", "instagram_reels", "reels_overlay"].includes(p));
+        }
+        const devicePlatforms = data.device_platforms || preview.device_platforms;
+        if (devicePlatforms?.length > 0) {
+          targeting.device_platforms = devicePlatforms;
+        }
+
+        // Lookalike
+        const lookalikeSpec = data.lookalike_spec || preview.lookalike_spec;
+        if (lookalikeSpec) {
+          targeting.lookalike_spec = lookalikeSpec;
+        }
+
+        const adsetName = data.adset_name || preview.adset_name || campaignName.replace("[AI]", "[AI] CJ -");
         const inlineScheduling = getSchedulingParams();
+        
+        // Optimization & billing from action_data — NO more hardcoding
+        const optimizationGoal = data.optimization_goal || preview.optimization_goal || (objective === "traffic" ? "LINK_CLICKS" : "OFFSITE_CONVERSIONS");
+        const billingEvent = data.billing_event || preview.billing_event || "IMPRESSIONS";
+        
         const adsetBody: any = {
           tenant_id,
           action: "create",
           ad_account_id: adAccountId,
           meta_campaign_id: metaCampaignId,
           name: adsetName,
-          optimization_goal: objective === "traffic" ? "LINK_CLICKS" : "OFFSITE_CONVERSIONS",
-          billing_event: "IMPRESSIONS",
+          optimization_goal: optimizationGoal,
+          billing_event: billingEvent,
           targeting,
           status: inlineScheduling.status,
         };
+        
+        // Adset-level budget (ABO)
+        if (data.adset_daily_budget_cents) adsetBody.daily_budget_cents = data.adset_daily_budget_cents;
+        if (data.adset_lifetime_budget_cents) adsetBody.lifetime_budget_cents = data.adset_lifetime_budget_cents;
+        
+        // Bid amount
+        const bidAmountCents = data.bid_amount_cents || preview.bid_amount_cents;
+        if (bidAmountCents) adsetBody.bid_amount_cents = bidAmountCents;
+        
         if (inlineScheduling.start_time) adsetBody.start_time = inlineScheduling.start_time;
+        if (data.end_time || preview.end_time) adsetBody.end_time = data.end_time || preview.end_time;
 
-        if (pixelId && (objective === "conversions" || objective === "leads")) {
+        // Promoted object with conversion event from action_data
+        const conversionEvent = data.conversion_event || preview.conversion_event;
+        if (pixelId && conversionEvent) {
           adsetBody.promoted_object = {
             pixel_id: pixelId,
-            custom_event_type: objective === "leads" ? "LEAD" : "PURCHASE",
+            custom_event_type: conversionEvent,
+          };
+        } else if (pixelId && (objective === "conversions" || objective === "leads" || objective === "OUTCOME_SALES" || objective === "OUTCOME_LEADS")) {
+          adsetBody.promoted_object = {
+            pixel_id: pixelId,
+            custom_event_type: objective === "leads" || objective === "OUTCOME_LEADS" ? "LEAD" : "PURCHASE",
           };
         }
 
@@ -343,17 +418,30 @@ Deno.serve(async (req) => {
 
               const storeHost = tenantDomain?.domain || `${tenantInfo?.slug}.shops.comandocentral.com.br`;
 
-              // Get product slug
-              let productSlug = "";
-              if (productId) {
-                const { data: prodData } = await supabase
-                  .from("products")
-                  .select("slug, name")
-                  .eq("id", productId)
-                  .single();
-                productSlug = prodData?.slug || productId;
+              // v3.0.0: Use destination_url from action_data if provided, otherwise resolve from product
+              let destinationUrl = data.destination_url || preview.destination_url || null;
+              if (!destinationUrl) {
+                let productSlug = "";
+                if (productId) {
+                  const { data: prodData } = await supabase
+                    .from("products")
+                    .select("slug, name")
+                    .eq("id", productId)
+                    .single();
+                  productSlug = prodData?.slug || productId;
+                }
+                destinationUrl = productSlug ? `https://${storeHost}/produto/${productSlug}` : `https://${storeHost}`;
               }
-              const destinationUrl = productSlug ? `https://${storeHost}/produto/${productSlug}` : `https://${storeHost}`;
+              
+              // Append UTM params if provided
+              const utmParams = data.utm_params || preview.utm_params;
+              if (utmParams && typeof utmParams === "object") {
+                const url = new URL(destinationUrl);
+                for (const [key, val] of Object.entries(utmParams)) {
+                  if (val) url.searchParams.set(`utm_${key}`, String(val));
+                }
+                destinationUrl = url.toString();
+              }
 
               const pages = metaConn.metadata?.assets?.pages || [];
               const pageId = pages[0]?.id || null;
@@ -538,44 +626,71 @@ Deno.serve(async (req) => {
         .eq("tenant_id", tenant_id)
         .maybeSingle();
 
+      const preview = data.preview || {};
+      const geoLocations = data.geo_locations || preview.geo_locations || { countries: ["BR"] };
       const targeting: any = {
-        geo_locations: { countries: ["BR"] },
-        age_min: data.age_min || 18,
-        age_max: data.age_max || 65,
+        geo_locations: geoLocations,
+        age_min: data.age_min || preview.age_min || 18,
+        age_max: data.age_max || preview.age_max || 65,
       };
       
-      // Support both array format and single custom_audience_id
-      if (data.custom_audiences?.length > 0) {
-        targeting.custom_audiences = data.custom_audiences.map((a: any) => ({ id: a.id || a }));
+      const genders = data.genders || preview.genders;
+      if (genders?.length > 0 && !(genders.length === 1 && genders[0] === 0)) targeting.genders = genders;
+
+      const customAudienceIds = data.custom_audience_ids || preview.custom_audience_ids || data.custom_audiences;
+      if (customAudienceIds?.length > 0) {
+        targeting.custom_audiences = customAudienceIds.map((a: any) => ({ id: a.id || a }));
       } else if (data.custom_audience_id) {
         targeting.custom_audiences = [{ id: data.custom_audience_id }];
       }
       
-      if (data.interests?.length > 0) {
-        targeting.flexible_spec = [{ interests: data.interests }];
+      const excludedAudienceIds = data.excluded_audience_ids || preview.excluded_audience_ids;
+      if (excludedAudienceIds?.length > 0) {
+        targeting.excluded_custom_audiences = excludedAudienceIds.map((a: any) => ({ id: a.id || a }));
       }
 
-      // Use same scheduling as campaign
+      const interests = data.interests || preview.interests;
+      if (interests?.length > 0) targeting.flexible_spec = [{ interests }];
+      
+      const behaviors = data.behaviors || preview.behaviors;
+      if (behaviors?.length > 0) {
+        if (targeting.flexible_spec) targeting.flexible_spec[0].behaviors = behaviors;
+        else targeting.flexible_spec = [{ behaviors }];
+      }
+
+      const publisherPlatforms = data.publisher_platforms || preview.publisher_platforms;
+      if (publisherPlatforms?.length > 0) targeting.publisher_platforms = publisherPlatforms;
+      const devicePlatforms = data.device_platforms || preview.device_platforms;
+      if (devicePlatforms?.length > 0) targeting.device_platforms = devicePlatforms;
+
       const adsetScheduling = getSchedulingParams();
+      const optimizationGoal = data.optimization_goal || preview.optimization_goal || "OFFSITE_CONVERSIONS";
+      const billingEvent = data.billing_event || preview.billing_event || "IMPRESSIONS";
+      
       const adsetBody: any = {
         tenant_id,
         action: "create",
         ad_account_id: adAccountId,
         meta_campaign_id: metaCampaignId,
         name: adsetName,
-        optimization_goal: data.optimization_goal || "OFFSITE_CONVERSIONS",
-        billing_event: "IMPRESSIONS",
+        optimization_goal: optimizationGoal,
+        billing_event: billingEvent,
         targeting,
         status: adsetScheduling.status,
       };
+      if (data.daily_budget_cents) adsetBody.daily_budget_cents = data.daily_budget_cents;
+      if (data.lifetime_budget_cents) adsetBody.lifetime_budget_cents = data.lifetime_budget_cents;
+      if (data.bid_amount_cents || preview.bid_amount_cents) adsetBody.bid_amount_cents = data.bid_amount_cents || preview.bid_amount_cents;
       if (adsetScheduling.start_time) adsetBody.start_time = adsetScheduling.start_time;
+      if (data.end_time || preview.end_time) adsetBody.end_time = data.end_time || preview.end_time;
 
-      if (mktConfig?.meta_pixel_id) {
-        adsetBody.promoted_object = {
-          pixel_id: mktConfig.meta_pixel_id,
-          custom_event_type: data.custom_event_type || "PURCHASE",
-        };
+      const conversionEvent = data.conversion_event || preview.conversion_event;
+      if (mktConfig?.meta_pixel_id && conversionEvent) {
+        adsetBody.promoted_object = { pixel_id: mktConfig.meta_pixel_id, custom_event_type: conversionEvent };
+      } else if (mktConfig?.meta_pixel_id) {
+        adsetBody.promoted_object = { pixel_id: mktConfig.meta_pixel_id, custom_event_type: data.custom_event_type || "PURCHASE" };
       }
+
 
       console.log(`[ads-autopilot-execute-approved][${VERSION}] Creating adset: ${adsetName} for campaign ${metaCampaignId}`);
 
