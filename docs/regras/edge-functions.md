@@ -1300,6 +1300,62 @@ Remarketing/Ofertas → focus.remarketing (variantes: "Kit Banho Calvície Zero 
 
 ---
 
+### v1.22.0: `ads-autopilot-strategist` — Full Meta Ads Params (Configuração Completa)
+
+**Problema**: As tool definitions de `create_campaign` e `create_adset` tinham ~10 parâmetros, ignorando configurações obrigatórias do Meta Ads Manager (placements, optimization goal, billing event, conversion event, bid strategy, geo_locations, excluded audiences, ad format, destination URL, UTM params).
+
+**Mudanças — `create_campaign` (35+ parâmetros)**:
+
+| Nível | Campos Adicionados |
+|---|---|
+| **Campanha** | `special_ad_categories`, `lifetime_budget_cents`, `bid_strategy` (LOWEST_COST/BID_CAP/COST_CAP/MINIMUM_ROAS), `bid_amount_cents`, `roas_avg_floor` |
+| **Conjunto (inline)** | `adset_name`, `optimization_goal` (9 opções: OFFSITE_CONVERSIONS, LINK_CLICKS, etc.), `billing_event` (IMPRESSIONS/LINK_CLICKS/THRUPLAY), `conversion_event` (12 eventos Pixel: PURCHASE, ADD_TO_CART, etc.) |
+| **Targeting** | `age_min`, `age_max`, `genders`, `geo_locations` (countries/regions/cities), `interests`, `behaviors`, `custom_audience_ids`, `excluded_audience_ids`, `lookalike_spec` |
+| **Posicionamentos** | `publisher_platforms` (facebook/instagram/audience_network/messenger), `position_types` (feed/story/reels/etc — 16 posições), `device_platforms` (mobile/desktop) |
+| **Destino** | `destination_url` (OBRIGATÓRIO), `display_link`, `utm_params` |
+| **Criativo** | `ad_name`, `ad_format` (SINGLE_IMAGE/SINGLE_VIDEO/CAROUSEL/COLLECTION), `cta` (13 CTAs) |
+| **Agendamento** | `start_time`, `end_time` |
+
+**Required fields**: `campaign_name`, `objective`, `daily_budget_cents`, `optimization_goal`, `conversion_event`, `targeting_description`, `funnel_stage`, `destination_url`, `product_name`, `primary_texts`, `headlines`, `reasoning`, `confidence`
+
+**Mudanças — `create_adset` (25+ parâmetros)**:
+
+Campos espelham os de `create_campaign` no nível de conjunto, incluindo: `optimization_goal`, `billing_event`, `conversion_event`, `bid_amount_cents`, `geo_locations`, `interests`, `behaviors`, `custom_audience_ids`, `excluded_audience_ids`, `publisher_platforms`, `position_types`, `device_platforms`, `destination_url`, `start_time`, `end_time`.
+
+**Prompt atualizado**: Instrui a IA a preencher TODOS os campos como se estivesse configurando manualmente no Meta Ads Manager, usando dados reais da loja (URL, pixel, produtos).
+
+---
+
+### v3.0.0: `ads-autopilot-execute-approved` — Propagação Dinâmica de Parâmetros
+
+**Problema**: O executor usava valores hardcoded (`billing_event: "IMPRESSIONS"`, `geo_locations: { countries: ["BR"] }`, `destination_type: "WEBSITE"`) independentemente do que a IA havia planejado.
+
+**Mudanças — Propagação de `action_data` para Meta API**:
+
+| Etapa | Antes (hardcoded) | Agora (dinâmico de `action_data`) |
+|---|---|---|
+| **Campanha** | `bid_strategy` ausente, `special_ad_categories` ausente | `bid_strategy`, `special_ad_categories`, `lifetime_budget_cents`, `start_time`, `end_time` propagados |
+| **AdSet — Targeting** | `geo_locations: {countries: ["BR"]}` fixo | `geo_locations`, `genders`, `age_min/max`, `interests`, `behaviors`, `excluded_audience_ids`, `lookalike_spec` — tudo da `action_data` |
+| **AdSet — Posicionamentos** | Ausente (Automático sempre) | `publisher_platforms`, `position_types` (mapeados para `facebook_positions`/`instagram_positions`), `device_platforms` |
+| **AdSet — Otimização** | `billing_event: "IMPRESSIONS"` fixo | `optimization_goal`, `billing_event`, `bid_amount_cents` da `action_data` |
+| **AdSet — Conversão** | `promoted_object` com `PURCHASE` fixo | `conversion_event` dinâmico (PURCHASE, ADD_TO_CART, LEAD, etc.) |
+| **Anúncio — Destino** | URL construída apenas por slug | `destination_url` da `action_data` com `utm_params` appended automaticamente |
+
+**Lógica de Posicionamentos (Meta API mapping)**:
+```typescript
+// position_types são mapeados para as keys corretas da Meta API:
+targeting.facebook_positions = positionTypes.filter(p => 
+  ["feed", "right_hand_column", "marketplace", "video_feeds", "instant_article", "instream_video", "search", "facebook_stories", "facebook_reels"].includes(p)
+);
+targeting.instagram_positions = positionTypes.filter(p => 
+  ["feed", "story", "reels", "explore", "profile_feed", "instagram_stories", "instagram_reels", "reels_overlay"].includes(p)
+);
+```
+
+**Fallbacks mantidos**: Se a IA não especificar um campo, o executor usa defaults sensatos (ex: `geo_locations` → `{countries: ["BR"]}`, `billing_event` → `"IMPRESSIONS"`).
+
+---
+
 ## Pipeline Sequencial de Implementação (v1.16.0)
 
 ### Arquitetura: Execução em Fases com Callback Automático
