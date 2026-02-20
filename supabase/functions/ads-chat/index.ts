@@ -2449,8 +2449,8 @@ async function createMetaCampaign(supabase: any, tenantId: string, args: any, ch
     const metaCampaignId = campParsed.data?.meta_campaign_id;
 
     // Create AdSet PAUSED
-    const funnelStage = args.funnel_stage || "cold";
-    const adsetName = `[AI] ${funnelStage} | ${args.targeting_description || "Brasil 18-65"} | ${product.name}`.substring(0, 200);
+    const adsetFunnelStage = args.funnel_stage || "cold";
+    const adsetName = `[AI] ${adsetFunnelStage} | ${args.targeting_description || "Brasil 18-65"} | ${product.name}`.substring(0, 200);
     const adsetBody: any = { tenant_id: tenantId, action: "create", ad_account_id: adAccountId, meta_campaign_id: metaCampaignId, name: adsetName, targeting: { geo_locations: { countries: ["BR"] }, age_min: 18, age_max: 65 }, status: "PAUSED" };
     if (pixelId && (objective === "OUTCOME_SALES" || objective === "OUTCOME_LEADS")) {
       adsetBody.promoted_object = { pixel_id: pixelId, custom_event_type: objective === "OUTCOME_SALES" ? "PURCHASE" : "LEAD" };
