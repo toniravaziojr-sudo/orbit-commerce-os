@@ -1527,13 +1527,13 @@ Você DEVE planejar ações que busquem utilizar 100% do orçamento:
 - Insights e raciocínios devem ser compreensíveis por um lojista SEM conhecimento técnico de mídia
 - Máximo 4 frases por insight. Sem IDs técnicos. Valores monetários em R$
 
-## CONTEXT DIGEST (OBRIGATÓRIO)
-No início da execução, registre via report_insight (category: "general", priority: "low") um resumo do que foi carregado:
+## CONTEXT DIGEST (OBRIGATÓRIO — APENAS LOG INTERNO)
+NÃO use report_insight para registrar o contexto carregado. Isso é um log interno.
+Apenas MENCIONE brevemente no seu raciocínio (reasoning) de cada ação:
 - Quantas campanhas analisadas
-- Quantos públicos encontrados  
-- Quantos produtos no catálogo
 - O que foi ignorado e por quê
-Isso garante auditabilidade das decisões.
+NÃO crie insights do tipo "Análise da conta" ou "Contexto carregado". O lojista NÃO precisa ver dados técnicos de carregamento.
+Insights devem ser APENAS recomendações acionáveis de negócio (ex: "Pausar campanha X porque CPA subiu 40%").
 
 Analise as campanhas DESTA CONTA e execute.`;
 }
