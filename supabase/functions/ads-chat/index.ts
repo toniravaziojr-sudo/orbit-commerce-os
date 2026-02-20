@@ -1,7 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getMemoryContext } from "../_shared/ai-memory.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.12.4"; // Pipeline guards integration: user_command override flow, budget/targeting/copy guards
+const VERSION = "v5.13.0"; // + AI Memory (long-term + conversation summaries)
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -3318,7 +3319,18 @@ Deno.serve(async (req) => {
 
     // Collect context (enriched — Frente 2)
     const context = await collectBaseContext(supabase, tenant_id, scope, ad_account_id, channel);
-    const systemPrompt = buildSystemPrompt(scope, ad_account_id, channel, context);
+    let systemPrompt = buildSystemPrompt(scope, ad_account_id, channel, context);
+
+    // Inject AI memory context
+    try {
+      const memoryContext = await getMemoryContext(supabase, tenant_id, user.id, "ads_chat");
+      if (memoryContext) {
+        systemPrompt += memoryContext;
+        console.log(`[ads-chat][${VERSION}] Memory context injected (${memoryContext.length} chars)`);
+      }
+    } catch (e) {
+      console.error(`[ads-chat][${VERSION}] Memory fetch error:`, e);
+    }
 
     // Build AI messages
     const aiMessages: any[] = [{ role: "system", content: systemPrompt }];

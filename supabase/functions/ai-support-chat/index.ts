@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { redactPII } from "../_shared/redact-pii.ts";
+import { getMemoryContext } from "../_shared/ai-memory.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -670,6 +671,17 @@ DIRETRIZES IMPORTANTES:
     systemPrompt += storeContext;
     if (customerContext) {
       systemPrompt += customerContext;
+    }
+
+    // Inject AI memory context (tenant-level business facts for support)
+    try {
+      const memoryContext = await getMemoryContext(supabase, tenant_id, "system", "support", { memoryLimit: 10, summaryLimit: 0 });
+      if (memoryContext) {
+        systemPrompt += memoryContext;
+        console.log(`[ai-support-chat] Memory context injected (${memoryContext.length} chars)`);
+      }
+    } catch (e) {
+      console.error("[ai-support-chat] Memory fetch error:", e);
     }
 
     // Add custom knowledge from config

@@ -338,6 +338,77 @@ O assistente NUNCA deve expor nomes internos de ferramentas, variáveis, IDs ou 
 
 ---
 
+## Sistema de Memória IA (v1.0.0)
+
+Todas as IAs do sistema possuem memória persistente com escopo híbrido (tenant + usuário).
+
+### Tabelas
+
+| Tabela | Descrição |
+|--------|-----------|
+| `ai_memories` | Fatos de longo prazo (negócio, preferências, decisões, insights) |
+| `ai_conversation_summaries` | Resumos automáticos de conversas anteriores |
+
+### Escopo Híbrido
+
+| Escopo | `user_id` | Visibilidade |
+|--------|-----------|-------------|
+| `tenant` | NULL | Compartilhado entre todos os usuários da loja |
+| `user` | preenchido | Apenas o usuário que criou |
+
+### IAs com Memória
+
+| IA | `ai_agent` | Tipo de Memória |
+|----|-----------|-----------------|
+| ChatGPT | `chatgpt` | Fatos + Resumos |
+| Auxiliar de Comando | `command_assistant` | Fatos + Resumos |
+| IA de Tráfego (Chat) | `ads_chat` | Fatos + Resumos |
+| Atendimento IA | `support` | Apenas fatos do tenant (sem resumos) |
+| Autopilot | `ads_autopilot` | Fatos do tenant |
+
+### Categorias de Memória
+
+| Categoria | Descrição | Exemplo |
+|-----------|-----------|---------|
+| `business_fact` | Fato sobre o negócio | "Loja de cosméticos naturais, público 25-45 anos" |
+| `preference` | Preferência do usuário | "Prefere relatórios resumidos com bullet points" |
+| `decision` | Decisão tomada | "Orçamento de tráfego definido em R$ 50/dia" |
+| `product_insight` | Insight de produto | "Kit Hidratação é o best-seller com 40% das vendas" |
+| `persona` | Persona/avatar do cliente | "Cliente ideal: mulher 30+, preocupada com ingredientes" |
+
+### Edge Function: `ai-memory-manager`
+
+| Ação | Descrição |
+|------|-----------|
+| `extract_memories` | Extrai fatos importantes de uma conversa via IA |
+| `summarize_conversation` | Gera resumo conciso de uma conversa |
+| `save_memory` | Salva memória manualmente |
+| `delete_memory` | Remove memória |
+
+### RPCs do Banco
+
+| Função | Descrição |
+|--------|-----------|
+| `get_ai_memories(tenant, user, agent, limit)` | Busca memórias relevantes (tenant + user) |
+| `get_recent_conversation_summaries(tenant, user, agent, limit)` | Busca resumos recentes |
+
+### Shared Helper: `_shared/ai-memory.ts`
+
+```typescript
+import { getMemoryContext } from "../_shared/ai-memory.ts";
+const memoryContext = await getMemoryContext(supabase, tenantId, userId, "chatgpt");
+// Retorna string formatada para injetar no system prompt
+```
+
+### Injeção no Prompt
+
+O `memoryContext` é concatenado ao final do system prompt de cada IA, contendo:
+1. **Fatos do Negócio** (compartilhados) — importância DESC
+2. **Preferências do Usuário** (pessoais)
+3. **Resumos de Conversas Anteriores** — últimas 5
+
+---
+
 ## Checklist
 
 - [ ] Painel abre com ⌘K
@@ -347,3 +418,4 @@ O assistente NUNCA deve expor nomes internos de ferramentas, variáveis, IDs ou 
 - [ ] Confirmação executa ação
 - [ ] Permissões RBAC respeitadas
 - [ ] Linguagem UI-friendly (sem jargão técnico)
+- [ ] Memória persistente funciona entre sessões
