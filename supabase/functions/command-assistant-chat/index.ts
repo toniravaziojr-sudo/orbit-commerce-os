@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMemoryContext } from "../_shared/ai-memory.ts";
+import { getAIEndpoint, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -481,23 +482,26 @@ serve(async (req) => {
       })),
     ];
 
-    // Call Lovable AI Gateway
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      return new Response(
-        JSON.stringify({ success: false, error: "LOVABLE_API_KEY não configurada" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    // Call AI via centralized router (Gemini/OpenAI native → Lovable fallback)
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    resetAIRouterCache();
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const endpoint = await getAIEndpoint("google/gemini-2.5-flash", {
+      supabaseUrl,
+      supabaseServiceKey,
+    });
+
+    console.log(`[command-assistant-chat] Using provider: ${endpoint.provider}, model: ${endpoint.model}`);
+
+    const aiResponse = await fetch(endpoint.url, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${endpoint.apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: endpoint.model,
         messages,
         stream: true,
       }),

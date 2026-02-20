@@ -1,7 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.0.0"; // Actionable business insights (pricing, budget, product decisions)
+const VERSION = "v2.1.0"; // Use centralized ai-router (Gemini/OpenAI native priority)
 // ===========================================================
 
 const corsHeaders = {
@@ -9,8 +10,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
 };
-
-const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 function ok(data: any) {
   return new Response(JSON.stringify({ success: true, data }), {
@@ -368,20 +367,22 @@ async function processOneTenant(supabase: any, tenantId: string, triggerType: st
     return 0;
   }
 
-  // Call AI
+  // Call AI via centralized router
   const prompt = buildInsightsPrompt(context);
-  const aiResponse = await fetch(LOVABLE_AI_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      messages: [
-        { role: "system", content: "Você é um consultor de e-commerce focado em decisões de negócio. Responda APENAS em JSON válido. NUNCA gere dumps de contexto ou análises genéricas. Cada insight deve ser uma recomendação concreta com valores em R$." },
-        { role: "user", content: prompt },
-      ],
-      temperature: 0.5,
-      max_completion_tokens: 4000,
-    }),
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  resetAIRouterCache();
+
+  const aiResponse = await aiChatCompletion("google/gemini-2.5-flash", {
+    messages: [
+      { role: "system", content: "Você é um consultor de e-commerce focado em decisões de negócio. Responda APENAS em JSON válido. NUNCA gere dumps de contexto ou análises genéricas. Cada insight deve ser uma recomendação concreta com valores em R$." },
+      { role: "user", content: prompt },
+    ],
+    temperature: 0.5,
+  }, {
+    supabaseUrl,
+    supabaseServiceKey,
+    logPrefix: `[weekly-insights][${VERSION}]`,
   });
 
   if (!aiResponse.ok) {

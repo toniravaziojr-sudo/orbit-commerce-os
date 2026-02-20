@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -119,10 +120,9 @@ serve(async (req) => {
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
-    }
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    resetAIRouterCache();
 
     const body: AnalyzeRequest = await req.json();
     const { html, pageTitle, pageUrl } = body;
@@ -160,19 +160,12 @@ Identifique:
 HTML:
 ${truncatedHtml}`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userPrompt }
-        ],
-        tools: [
+    const response = await aiChatCompletion("google/gemini-2.5-flash", {
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: userPrompt }
+      ],
+      tools: [
           {
             type: "function",
             function: {
@@ -307,8 +300,11 @@ ${truncatedHtml}`;
           }
         ],
         tool_choice: { type: "function", function: { name: "classify_page" } }
-      }),
-    });
+      }, {
+        supabaseUrl,
+        supabaseServiceKey,
+        logPrefix: "[AI-CLASSIFY]",
+      });
 
     if (!response.ok) {
       const errorText = await response.text();
