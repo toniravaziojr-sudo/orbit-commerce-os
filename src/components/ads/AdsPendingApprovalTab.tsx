@@ -64,6 +64,8 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
   const { currentTenant } = useAuth();
   const queryClient = useQueryClient();
   const tenantId = currentTenant?.id;
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
 
   const { data: pendingActions = [], isLoading } = useQuery({
     queryKey: ["ads-pending-approval", tenantId, channelFilter],
@@ -223,11 +225,11 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
           key={action.id}
           action={action}
           childActions={getChildActions(action)}
-          onApprove={(id) => approveAction.mutate(id)}
-          onReject={(id, reason) => rejectAction.mutate({ actionId: id, reason })}
+          onApprove={(id) => { setApprovingId(id); approveAction.mutate(id, { onSettled: () => setApprovingId(null) }); }}
+          onReject={(id, reason) => { setRejectingId(id); rejectAction.mutate({ actionId: id, reason }, { onSettled: () => setRejectingId(null) }); }}
           onAdjust={(id, suggestion) => adjustAction.mutate({ actionId: id, feedback: suggestion })}
-          isApproving={approveAction.isPending}
-          isRejecting={rejectAction.isPending}
+          approvingId={approvingId}
+          rejectingId={rejectingId}
         />
       ))}
       {/* Orphan adsets grouped by parent campaign */}
@@ -236,11 +238,11 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
           key={`orphan-${parentName}`}
           parentCampaignName={parentName}
           adsets={groupAdsets}
-          onApprove={(id) => approveAction.mutate(id)}
-          onReject={(id, reason) => rejectAction.mutate({ actionId: id, reason })}
+          onApprove={(id) => { setApprovingId(id); approveAction.mutate(id, { onSettled: () => setApprovingId(null) }); }}
+          onReject={(id, reason) => { setRejectingId(id); rejectAction.mutate({ actionId: id, reason }, { onSettled: () => setRejectingId(null) }); }}
           onAdjust={(id, suggestion) => adjustAction.mutate({ actionId: id, feedback: suggestion })}
-          isApproving={approveAction.isPending}
-          isRejecting={rejectAction.isPending}
+          approvingId={approvingId}
+          rejectingId={rejectingId}
         />
       ))}
     </div>
