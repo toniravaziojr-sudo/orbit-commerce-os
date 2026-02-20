@@ -1,7 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getAIEndpoint, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.20.0"; // Strict product matching — remove all products[0] fallbacks // Scoped revision: only regenerate the specific rejected action
+const VERSION = "v1.21.0"; // Use centralized ai-router (Gemini/OpenAI native priority)
 // ===================
 
 const corsHeaders = {
@@ -9,8 +10,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-
-const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 // ============ TYPES ============
 
@@ -1121,8 +1120,16 @@ Feedback: "${revisionFeedback}"
     }
 
     try {
-      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-      if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      resetAIRouterCache();
+
+      const endpoint = await getAIEndpoint("openai/gpt-5.2", {
+        supabaseUrl,
+        supabaseServiceKey,
+      });
+
+      console.log(`[ads-autopilot-strategist][${VERSION}] Using provider: ${endpoint.provider}, model: ${endpoint.model}`);
 
       // === MULTI-ROUND EXECUTION LOOP ===
       const MAX_ROUNDS = 8; // Safety limit to prevent infinite loops
@@ -1154,14 +1161,14 @@ Feedback: "${revisionFeedback}"
         round++;
         console.log(`[ads-autopilot-strategist][${VERSION}] Round ${round}/${MAX_ROUNDS} for account ${config.ad_account_id}`);
 
-        const aiResponse = await fetch(LOVABLE_AI_URL, {
+        const aiResponse = await fetch(endpoint.url, {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            Authorization: `Bearer ${endpoint.apiKey}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "openai/gpt-5.2",
+            model: endpoint.model,
             messages,
             tools: allowedTools,
             tool_choice: "auto",

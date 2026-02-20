@@ -1,8 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.0.0"; // Initial: extract memories + summarize conversations
+const VERSION = "v1.1.0"; // Use centralized ai-router (Gemini/OpenAI native priority)
 // ===================
 
 const corsHeaders = {
@@ -10,8 +11,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-
-const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -63,10 +62,9 @@ async function extractMemories(
     return jsonResponse({ success: true, memories: [], reason: "conversation_too_short" });
   }
 
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) {
-    return jsonResponse({ success: false, error: "LOVABLE_API_KEY not configured" });
-  }
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  resetAIRouterCache();
 
   // Build conversation transcript
   const transcript = messages
@@ -75,18 +73,11 @@ async function extractMemories(
     .join("\n")
     .substring(0, 6000); // Limit to avoid token issues
 
-  const response = await fetch(LOVABLE_AI_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      messages: [
-        {
-          role: "system",
-          content: `Você é um extrator de memórias. Analise a conversa abaixo e extraia FATOS IMPORTANTES que devem ser memorizados pela IA para conversas futuras.
+  const response = await aiChatCompletion("google/gemini-2.5-flash", {
+    messages: [
+      {
+        role: "system",
+        content: `Você é um extrator de memórias. Analise a conversa abaixo e extraia FATOS IMPORTANTES que devem ser memorizados pela IA para conversas futuras.
 
 RETORNE UM JSON VÁLIDO com este formato (sem markdown, sem \`\`\`):
 {
@@ -106,14 +97,16 @@ REGRAS:
 - "tenant" = fato sobre o negócio; "user" = preferência pessoal
 - Se não houver nada relevante para memorizar, retorne {"memories": []}
 - Priorize informações sobre: nicho, público-alvo, produtos, estratégia, preferências operacionais`,
-        },
-        {
-          role: "user",
-          content: `Conversa para análise:\n\n${transcript}`,
-        },
-      ],
-      stream: false,
-    }),
+      },
+      {
+        role: "user",
+        content: `Conversa para análise:\n\n${transcript}`,
+      },
+    ],
+  }, {
+    supabaseUrl,
+    supabaseServiceKey,
+    logPrefix: `[ai-memory-manager][${VERSION}]`,
   });
 
   if (!response.ok) {
@@ -175,10 +168,6 @@ async function summarizeConversation(
     return jsonResponse({ success: true, reason: "conversation_too_short" });
   }
 
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) {
-    return jsonResponse({ success: false, error: "LOVABLE_API_KEY not configured" });
-  }
 
   const transcript = messages
     .filter((m: any) => m.role === "user" || m.role === "assistant")
@@ -186,31 +175,26 @@ async function summarizeConversation(
     .join("\n")
     .substring(0, 6000);
 
-  const response = await fetch(LOVABLE_AI_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash-lite",
-      messages: [
-        {
-          role: "system",
-          content: `Resuma esta conversa em um JSON (sem markdown, sem \`\`\`):
+  const response = await aiChatCompletion("google/gemini-2.5-flash-lite", {
+    messages: [
+      {
+        role: "system",
+        content: `Resuma esta conversa em um JSON (sem markdown, sem \`\`\`):
 {
   "summary": "Resumo conciso de 2-3 frases sobre o que foi discutido e decidido",
   "key_topics": ["tópico1", "tópico2"],
   "key_decisions": [{"decision": "descrição", "outcome": "resultado"}]
 }`,
-        },
-        {
-          role: "user",
-          content: transcript,
-        },
-      ],
-      stream: false,
-    }),
+      },
+      {
+        role: "user",
+        content: transcript,
+      },
+    ],
+  }, {
+    supabaseUrl: Deno.env.get("SUPABASE_URL")!,
+    supabaseServiceKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    logPrefix: `[ai-memory-manager][${VERSION}]`,
   });
 
   if (!response.ok) {

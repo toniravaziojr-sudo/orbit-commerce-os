@@ -6,16 +6,14 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
+import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
-const VERSION = "1.3.1"; // Fix: use sort_order instead of position for product_images
+const VERSION = "1.4.0"; // Use centralized ai-router (Gemini/OpenAI native priority)
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-const AI_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 interface GenerateRequest {
   landingPageId: string;
@@ -268,24 +266,19 @@ O usuário anexou imagens/vídeos no prompt abaixo. As URLs estão marcadas como
       ? `Faça os seguintes ajustes na landing page atual:\n\n${prompt}${userMediaNote}\n\nRetorne o HTML completo atualizado.`
       : `Crie uma landing page baseada nas seguintes instruções:\n\n${prompt}${userMediaNote}\n\nRetorne o HTML completo.`;
 
-    console.log(`[AI-LP-Generate] Calling AI Gateway for ${promptType}...`);
+    console.log(`[AI-LP-Generate] Calling AI via centralized router for ${promptType}...`);
+    resetAIRouterCache();
 
-    // Call Lovable AI Gateway
-    const aiResponse = await fetch(AI_GATEWAY_URL, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ],
-        temperature: 0.7,
-        max_tokens: 16000,
-      }),
+    const aiResponse = await aiChatCompletion("google/gemini-2.5-flash", {
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+      ],
+      temperature: 0.7,
+    }, {
+      supabaseUrl,
+      supabaseServiceKey,
+      logPrefix: "[AI-LP-Generate]",
     });
 
     if (!aiResponse.ok) {

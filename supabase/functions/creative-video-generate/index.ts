@@ -15,8 +15,9 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getAIEndpoint, resetAIRouterCache } from "../_shared/ai-router.ts";
 
-const VERSION = "2.0.0";
+const VERSION = "2.1.0"; // Use centralized ai-router (Gemini/OpenAI native priority)
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -25,7 +26,6 @@ const corsHeaders = {
 };
 
 // Configuração
-const LOVABLE_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const CREDIT_MARKUP = 1.5;
 const USD_TO_BRL = 5.5;
 
@@ -191,11 +191,15 @@ async function processVideoJob(
   categoryProfile: any,
   refAssets: any
 ) {
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) {
-    await updateJobStatus(supabase, job.id, "failed", "LOVABLE_API_KEY não configurada");
-    return;
-  }
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  resetAIRouterCache();
+
+  const endpoint = await getAIEndpoint("google/gemini-2.5-flash", { supabaseUrl, supabaseServiceKey });
+  const AI_API_KEY = endpoint.apiKey;
+  const AI_URL = endpoint.url;
+  const AI_MODEL = endpoint.model;
+  console.log(`[creative-video-generate] Using provider: ${endpoint.provider}, model: ${AI_MODEL}`);
 
   let totalCostUsd = 0;
 
@@ -212,7 +216,7 @@ async function processVideoJob(
     let cutoutUrl = refAssets?.cutout_url;
     if (!cutoutUrl && job.fidelity_mode) {
       console.log("[creative-video-generate] Generating product cutout...");
-      cutoutUrl = await generateProductCutout(LOVABLE_API_KEY, productImageUrl);
+      cutoutUrl = await generateProductCutout(AI_API_KEY, productImageUrl);
       totalCostUsd += COST_ESTIMATES.cutout;
 
       // Salvar no cache
@@ -236,7 +240,7 @@ async function processVideoJob(
     const presetShotPlan = preset?.[shotPlanKey] || preset?.shot_plan_10s;
 
     const rewrittenPrompt = await rewritePrompt(
-      LOVABLE_API_KEY,
+      AI_API_KEY,
       job.user_prompt,
       product,
       preset,
@@ -272,7 +276,7 @@ async function processVideoJob(
         const variationPrompt = `${rewrittenPrompt.prompt_final} (variation ${i + 1}: ${getVariationModifier(i)})`;
 
         const videoResult = await generateVideoWithSora(
-          LOVABLE_API_KEY,
+          AI_API_KEY,
           variationPrompt,
           productImageUrl,
           cutoutUrl,
@@ -319,7 +323,7 @@ async function processVideoJob(
       totalCostUsd += COST_ESTIMATES.qa_per_video;
 
       const qaScores = await evaluateVideoQA(
-        LOVABLE_API_KEY,
+        AI_API_KEY,
         candidate.video_url,
         productImageUrl,
         cutoutUrl,
@@ -360,7 +364,7 @@ async function processVideoJob(
       const hardPrompt = `${rewrittenPrompt.prompt_final}. CRITICAL: Product label must be SHARP, READABLE, and UNCHANGED across all frames. Minimal camera movement. Focus on product visibility.`;
 
       const retryResult = await generateVideoWithSora(
-        LOVABLE_API_KEY,
+          AI_API_KEY,
         hardPrompt,
         productImageUrl,
         cutoutUrl,
@@ -387,7 +391,7 @@ async function processVideoJob(
 
         // QA do retry
         const retryQA = await evaluateVideoQA(
-          LOVABLE_API_KEY,
+            AI_API_KEY,
           retryResult.video_url,
           productImageUrl,
           cutoutUrl,
@@ -420,7 +424,7 @@ async function processVideoJob(
 
       // Gerar vídeo de cenário sem produto + compor cutout real
       const fallbackResult = await generateFallbackVideo(
-        LOVABLE_API_KEY,
+        AI_API_KEY,
         supabase,
         job,
         product,

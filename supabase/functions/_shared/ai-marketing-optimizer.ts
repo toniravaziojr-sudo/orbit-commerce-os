@@ -5,9 +5,7 @@
 import type { StrategicPlan, ExtractionResult, OptimizationResult, ExtractedBlock } from './marketing/types.ts';
 import { optimizePageSchema } from './marketing/types.ts';
 import { FRAMEWORKS, validateFrameworkCompliance } from './marketing/frameworks.ts';
-
-const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-const AI_GATEWAY_URL = 'https://ai.gateway.lovable.dev/v1/chat/completions';
+import { aiChatCompletion, resetAIRouterCache } from './ai-router.ts';
 
 // Prompt do sistema para otimização
 const OPTIMIZATION_SYSTEM_PROMPT = `Você é um copywriter especialista em conversão e páginas de alta performance.
@@ -77,9 +75,9 @@ export async function optimizePage(
     };
   }
 
-  if (!LOVABLE_API_KEY) {
-    throw new Error('LOVABLE_API_KEY não configurada');
-  }
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  resetAIRouterCache();
 
   const frameworkDef = FRAMEWORKS[strategicPlan.framework];
 
@@ -132,22 +130,18 @@ Use a função optimize_page para retornar sua análise.`;
   const startTime = Date.now();
 
   try {
-    const response = await fetch(AI_GATEWAY_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: OPTIMIZATION_SYSTEM_PROMPT },
-          { role: 'user', content: userPrompt }
-        ],
-        tools: [optimizePageSchema],
-        tool_choice: { type: 'function', function: { name: 'optimize_page' } },
-        temperature: 0.4,
-      }),
+    const response = await aiChatCompletion('google/gemini-2.5-flash', {
+      messages: [
+        { role: 'system', content: OPTIMIZATION_SYSTEM_PROMPT },
+        { role: 'user', content: userPrompt }
+      ],
+      tools: [optimizePageSchema],
+      tool_choice: { type: 'function', function: { name: 'optimize_page' } },
+      temperature: 0.4,
+    }, {
+      supabaseUrl,
+      supabaseServiceKey,
+      logPrefix: '[Marketing Optimizer]',
     });
 
     if (!response.ok) {

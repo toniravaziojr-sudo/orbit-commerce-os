@@ -6,9 +6,7 @@
 
 import type { StrategicPlan, MarketingFunction } from './marketing/types.ts';
 import { FRAMEWORKS } from './marketing/frameworks.ts';
-
-const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-const AI_GATEWAY_URL = 'https://ai.gateway.lovable.dev/v1/chat/completions';
+import { aiChatCompletion, resetAIRouterCache } from './ai-router.ts';
 
 // =============================================
 // WHITELIST ESTRITA DE BLOCOS VÁLIDOS
@@ -382,9 +380,9 @@ export async function createPageFromInspiration(
     forceUnique?: boolean;
   }
 ): Promise<{ result: CreationResult; rawResponse?: unknown }> {
-  if (!LOVABLE_API_KEY) {
-    throw new Error('LOVABLE_API_KEY não configurada');
-  }
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  resetAIRouterCache();
 
   const frameworkDef = FRAMEWORKS[strategicPlan.framework];
 
@@ -468,23 +466,19 @@ Use a função create_page_blocks para retornar os 9 blocos.`;
   const startTime = Date.now();
 
   try {
-    const response = await fetch(AI_GATEWAY_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash', // Flash é mais criativo
-        messages: [
-          { role: 'system', content: CREATION_SYSTEM_PROMPT },
-          { role: 'user', content: userPrompt }
-        ],
-        tools: [createPageBlocksSchema],
-        tool_choice: { type: 'function', function: { name: 'create_page_blocks' } },
-        temperature: 1.0, // MÁXIMA criatividade
-        top_p: 0.95,
-      }),
+    const response = await aiChatCompletion('google/gemini-2.5-flash', {
+      messages: [
+        { role: 'system', content: CREATION_SYSTEM_PROMPT },
+        { role: 'user', content: userPrompt }
+      ],
+      tools: [createPageBlocksSchema],
+      tool_choice: { type: 'function', function: { name: 'create_page_blocks' } },
+      temperature: 1.0, // MÁXIMA criatividade
+      top_p: 0.95,
+    }, {
+      supabaseUrl,
+      supabaseServiceKey,
+      logPrefix: '[Content Creator]',
     });
 
     if (!response.ok) {

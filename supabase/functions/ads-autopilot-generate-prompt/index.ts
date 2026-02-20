@@ -1,7 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.1.0"; // Fix: use Lovable AI Gateway directly
+const VERSION = "v1.2.0"; // Use centralized ai-router (Gemini/OpenAI native priority)
 // ===================
 
 const corsHeaders = {
@@ -143,28 +144,21 @@ Português simples. Resumo: até 4 frases. Recomendações: até 3 itens, 1 fras
 
 Gere o prompt COMPLETO e PERSONALIZADO para "${storeName}", substituindo todas as seções genéricas por dados reais do catálogo e contexto da loja. Sem placeholders.`;
 
-    // Call Lovable AI Gateway
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      console.error(`[ads-autopilot-generate-prompt][${VERSION}] LOVABLE_API_KEY not configured`);
-      return fail("Chave de IA não configurada");
-    }
+    // Call AI via centralized router (Gemini/OpenAI native → Lovable fallback)
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    resetAIRouterCache();
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        temperature: 0.7,
-        max_completion_tokens: 2000,
-      }),
+    const aiResponse = await aiChatCompletion("google/gemini-2.5-flash", {
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.7,
+    }, {
+      supabaseUrl,
+      supabaseServiceKey,
+      logPrefix: `[ads-autopilot-generate-prompt][${VERSION}]`,
     });
 
     if (!aiResponse.ok) {
