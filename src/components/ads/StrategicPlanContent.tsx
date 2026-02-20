@@ -99,18 +99,18 @@ function highlightMetrics(text: string): React.ReactNode {
 // ============ TRANSLATIONS ============
 
 const FUNNEL_LABELS: Record<string, string> = {
-  tof: "Público Frio",
-  bof: "Remarketing",
+  tof: "Topo de Funil",
+  bof: "Fundo de Funil",
   mof: "Meio de Funil",
   test: "Teste",
-  cold: "Público Frio",
-  warm: "Público Quente",
-  hot: "Remarketing",
+  cold: "Topo de Funil",
+  warm: "Meio de Funil",
+  hot: "Fundo de Funil",
 };
 
 const CAMPAIGN_TYPE_LABELS: Record<string, string> = {
-  tof: "Público Frio",
-  bof: "Remarketing",
+  tof: "Topo de Funil",
+  bof: "Fundo de Funil",
   mof: "Meio de Funil",
   remarketing: "Remarketing",
   teste: "Teste",
@@ -145,8 +145,8 @@ function getCampaignTypeLabel(campaignType: string, funnelStage?: string): strin
   if (CAMPAIGN_TYPE_LABELS[ct]) return CAMPAIGN_TYPE_LABELS[ct];
   if (ct.includes("remarketing")) return "Remarketing";
   if (ct.includes("teste") || ct.includes("test")) return "Teste";
-  if (ct.includes("tof") || ct.includes("frio") || ct.includes("cold")) return "Público Frio";
-  if (ct.includes("bof") || ct.includes("quente") || ct.includes("hot")) return "Remarketing";
+  if (ct.includes("tof") || ct.includes("frio") || ct.includes("cold")) return "Topo de Funil";
+  if (ct.includes("bof") || ct.includes("quente") || ct.includes("hot")) return "Fundo de Funil";
   // Fallback to funnel stage
   if (funnelStage) {
     const fs = funnelStage.toLowerCase();
@@ -170,9 +170,9 @@ function getActionTypeConfig(actionType: string) {
 
 function getCampaignTypeBadgeColor(campaignType: string, funnelStage?: string): string {
   const label = getCampaignTypeLabel(campaignType, funnelStage);
-  if (label === "Remarketing") return "text-orange-600 bg-orange-50 dark:bg-orange-950/30";
+  if (label === "Remarketing" || label === "Fundo de Funil") return "text-orange-600 bg-orange-50 dark:bg-orange-950/30";
   if (label === "Teste") return "text-violet-600 bg-violet-50 dark:bg-violet-950/30";
-  if (label === "Público Frio") return "text-sky-600 bg-sky-50 dark:bg-sky-950/30";
+  if (label === "Topo de Funil") return "text-sky-600 bg-sky-50 dark:bg-sky-950/30";
   if (label === "Meio de Funil") return "text-amber-600 bg-amber-50 dark:bg-amber-950/30";
   return "text-muted-foreground bg-muted/40";
 }
@@ -357,8 +357,8 @@ function LegacyActionCard({ action, index }: { action: LegacyParsedAction; index
 
 function BudgetAllocationSection({ budget }: { budget: BudgetAllocation }) {
   const segments = [
-    { label: "Público Frio (Aquisição)", pct: budget.tof_pct || 0, brl: budget.tof_brl || 0, color: "bg-sky-500" },
-    { label: "Remarketing", pct: budget.bof_pct || 0, brl: budget.bof_brl || 0, color: "bg-orange-500" },
+    { label: "Topo de Funil (Aquisição)", pct: budget.tof_pct || 0, brl: budget.tof_brl || 0, color: "bg-sky-500" },
+    { label: "Fundo de Funil (Remarketing)", pct: budget.bof_pct || 0, brl: budget.bof_brl || 0, color: "bg-orange-500" },
     { label: "Testes", pct: budget.test_pct || 0, brl: budget.test_brl || 0, color: "bg-violet-500" },
   ].filter(s => s.pct > 0);
 
