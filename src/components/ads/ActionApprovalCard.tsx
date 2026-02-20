@@ -895,6 +895,7 @@ function FullContentDialog({ action, childActions, open, onOpenChange }: { actio
                   riskAssessment={riskAssessment}
                   timeline={timeline}
                   reasoning={action.reasoning}
+                  budgetAllocation={action.action_data?.budget_allocation}
                 />
                 {action.expected_impact && (
                   <div>

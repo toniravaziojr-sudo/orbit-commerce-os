@@ -265,18 +265,56 @@ const STRATEGIST_TOOLS = [
     type: "function",
     function: {
       name: "strategic_plan",
-      description: "Emite plano estratégico detalhado com diagnóstico, ações planejadas e previsão de resultados.",
+      description: "Emite plano estratégico DETALHADO e COMPLETO. Cada ação DEVE ter todos os campos preenchidos com dados específicos — NUNCA genéricos.",
       parameters: {
         type: "object",
         properties: {
-          diagnosis: { type: "string", description: "Diagnóstico da situação atual" },
-          planned_actions: { type: "array", items: { type: "string" }, description: "Lista de ações planejadas" },
-          expected_results: { type: "string", description: "Previsão de resultados esperados" },
-          risk_assessment: { type: "string", description: "Análise de riscos" },
-          timeline: { type: "string", description: "Cronograma de implementação" },
-          budget_allocation: { type: "object", description: "Alocação de orçamento proposta" },
+          diagnosis: { 
+            type: "string", 
+            description: "Diagnóstico DETALHADO: campanhas ativas (nome, ROAS 7d/30d, CPA, orçamento), campanhas pausadas relevantes, orçamento utilizado vs disponível, tracking health, e análise de oportunidades. Mínimo 300 palavras." 
+          },
+          planned_actions: { 
+            type: "array", 
+            items: { 
+              type: "object",
+              properties: {
+                action_type: { type: "string", enum: ["create_campaign", "adjust_budget", "pause_campaign", "test", "scale", "duplicate", "optimize"], description: "Tipo da ação" },
+                campaign_type: { type: "string", enum: ["TOF", "MOF", "BOF", "Remarketing", "Teste", "Catálogo", "Duplicação"], description: "Tipo de campanha" },
+                product_name: { type: "string", description: "Nome EXATO do produto do catálogo" },
+                daily_budget_brl: { type: "number", description: "Orçamento diário em R$" },
+                target_audience: { type: "string", description: "Público-alvo detalhado (idade, gênero, interesses, localização)" },
+                funnel_stage: { type: "string", enum: ["tof", "mof", "bof", "test"], description: "Etapa do funil" },
+                objective: { type: "string", description: "Objetivo da campanha (ex: CONVERSIONS, OUTCOME_SALES)" },
+                bid_strategy: { type: "string", description: "Estratégia de lance (ex: LOWEST_COST_WITHOUT_CAP, COST_CAP)" },
+                creatives_count: { type: "number", description: "Quantidade de variações de criativos (mín 2)" },
+                copy_variations: { type: "number", description: "Quantidade de variações de copy (mín 2)" },
+                rationale: { type: "string", description: "Justificativa detalhada para esta ação específica, com dados de suporte" },
+                expected_roas: { type: "number", description: "ROAS esperado baseado em dados históricos" },
+                placements: { type: "string", description: "Posicionamentos (ex: Feed, Stories, Reels, Advantage+)" },
+              },
+              required: ["action_type", "campaign_type", "product_name", "daily_budget_brl", "target_audience", "funnel_stage", "rationale", "creatives_count"],
+            }, 
+            description: "Lista de ações planejadas — cada uma DEVE ter todos os campos preenchidos com dados ESPECÍFICOS do catálogo e métricas reais." 
+          },
+          budget_allocation: {
+            type: "object",
+            properties: {
+              total_daily_brl: { type: "number", description: "Orçamento diário total em R$" },
+              tof_pct: { type: "number", description: "% alocado para TOF (aquisição)" },
+              bof_pct: { type: "number", description: "% alocado para BOF (remarketing)" },
+              test_pct: { type: "number", description: "% alocado para testes" },
+              tof_brl: { type: "number", description: "Valor em R$ para TOF" },
+              bof_brl: { type: "number", description: "Valor em R$ para BOF" },
+              test_brl: { type: "number", description: "Valor em R$ para testes" },
+            },
+            required: ["total_daily_brl", "tof_pct", "bof_pct", "test_pct", "tof_brl", "bof_brl", "test_brl"],
+            description: "Alocação detalhada de orçamento por funil — DEVE somar 100% do budget disponível",
+          },
+          expected_results: { type: "string", description: "Projeção QUANTITATIVA de resultados: ROAS esperado por campanha, CPA alvo, conversões estimadas, receita projetada. Usar dados históricos como base." },
+          risk_assessment: { type: "string", description: "Riscos específicos com probabilidade e mitigação para cada um" },
+          timeline: { type: "string", description: "Cronograma detalhado: Dia 1 (o quê), Dia 2-3 (o quê), Semana 1 (review), etc." },
         },
-        required: ["diagnosis", "planned_actions", "expected_results", "risk_assessment"],
+        required: ["diagnosis", "planned_actions", "budget_allocation", "expected_results", "risk_assessment", "timeline"],
         additionalProperties: false,
       },
     },
@@ -783,8 +821,12 @@ async function executeToolCall(
   const isAutoMode = config.human_approval_mode === "auto";
 
   if (toolName === "strategic_plan") {
-    // Always send strategic plans for human approval
-    const planBody = args.diagnosis + "\n\n**Ações Planejadas:**\n" + (args.planned_actions || []).map((a: string) => `• ${a}`).join("\n") + "\n\n**Resultados Esperados:** " + (args.expected_results || "") + "\n\n**Riscos:** " + (args.risk_assessment || "");
+    // Build preview text from structured actions
+    const actionsPreview = (args.planned_actions || []).map((a: any) => {
+      if (typeof a === "string") return `• ${a}`;
+      return `• [${a.campaign_type || "Ação"}] ${a.product_name || ""} — R$ ${a.daily_budget_brl || "?"}/dia — ${a.target_audience || ""} (${a.rationale || ""})`;
+    }).join("\n");
+    const planBody = args.diagnosis + "\n\n**Ações Planejadas:**\n" + actionsPreview + "\n\n**Resultados Esperados:** " + (args.expected_results || "") + "\n\n**Riscos:** " + (args.risk_assessment || "");
     
     return {
       status: "pending_approval",
