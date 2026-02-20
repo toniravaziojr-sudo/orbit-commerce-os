@@ -287,7 +287,7 @@ O botão **"✨ Gerar com IA"** no campo de Prompt Estratégico da configuraçã
 | Descrição | `store_settings.store_description` | Tom e nicho |
 | Categorias | `categories` (top 20) | Público-alvo e compliance |
 | Produtos top 10 | `products` (ativos, por preço desc) | Claims, hooks, ticket médio |
-| Margem estimada | `price - cost_price` | Estratégia de lance |
+| Margem estimada | `price - cost_price` | Meta de desempenho e ROAS |
 
 A IA gera um prompt completo seguindo a estrutura: Missão → Contexto → Compliance → Fonte de Verdade → Destinos → Criativos → Formato de Saída. O resultado é inserido no campo `user_instructions` para revisão do cliente antes de salvar.
 
@@ -412,7 +412,7 @@ Se incompleto, o Switch fica desabilitado e um Tooltip mostra os campos faltante
 | `pause_campaign` | 1 | Pausar campanha de baixo desempenho |
 | `adjust_budget` | 1 | Ajustar orçamento de campanha |
 | `report_insight` | 1 | Insight sem execução |
-| `create_campaign` | 2 | Criar campanha completa com 35+ parâmetros (v1.22.0): objetivo, bid_strategy, optimization_goal, billing_event, conversion_event, geo_locations, placements, destination_url, ad_format, UTM params, scheduling |
+| `create_campaign` | 2 | Criar campanha completa com 35+ parâmetros (v1.22.0): objetivo, optimization_goal, billing_event, conversion_event, performance_goal, conversion_location, attribution_model, geo_locations, placements, destination_url, ad_format, UTM params, scheduling |
 | `create_adset` | 2 | Criar conjunto com 25+ parâmetros (v1.22.0): targeting completo, optimization, billing, placements, conversion_event, excluded audiences |
 | `generate_creative` | 3 | Gerar criativos via `ads-autopilot-creative` |
 | `run_experiment` | 3 | Executar teste A/B estruturado |
@@ -503,7 +503,7 @@ A edge function `ads-autopilot-execute-approved` realiza chamadas **diretas** à
 
 | Etapa | Ação | Detalhes |
 |---|---|---|
-| 1 | Criar Campanha | `POST /{ad_account_id}/campaigns` com nome, objetivo, `bid_strategy`, `special_ad_categories` e scheduling nativo |
+| 1 | Criar Campanha | `POST /{ad_account_id}/campaigns` com nome, objetivo, `special_ad_categories` e scheduling nativo |
 | 2 | Criar AdSet | `POST /{ad_account_id}/adsets` com targeting completo (`geo_locations`, `interests`, `behaviors`, `excluded_audiences`, `publisher_platforms`, `position_types`, `device_platforms`), `optimization_goal`, `billing_event`, `conversion_event` (promoted_object) e `bid_amount_cents` |
 | 3 | Upload de Imagem | `POST /{ad_account_id}/adimages` com URL do criativo |
 | 4 | Criar Anúncio | `POST /{ad_account_id}/ads` com `ad_creative_id`, `destination_url` + UTM params e `status` scheduling |
@@ -1315,7 +1315,7 @@ Renderiza todos os detalhes da campanha organizados em **11 seções temáticas*
 | **Campanha** | Target | Nome da Campanha, Objetivo (traduzido), Tipo de Campanha (inferido), Etapa do Funil |
 | **Produto** | Package | Produto, ID do Catálogo, ID do Conjunto de Produtos |
 | **Orçamento** | DollarSign | Orçamento Diário, Orçamento Vitalício, Tipo de Orçamento (CBO/ABO) |
-| **Otimização** | BarChart3 | Otimização (traduzida), Estratégia de Lance, Cobrança por, Meta de Custo por Resultado |
+| **Otimização** | BarChart3 | Otimização (traduzida), Meta de Desempenho (`performance_goal`), Local da Conversão (`conversion_location`), Modelo de Atribuição (`attribution_model`), Cobrança por, Meta de Custo por Resultado |
 | **Posicionamentos** | Globe | Posicionamentos (traduzidos individualmente), Plataformas, Dispositivos, Tipo de Posicionamento. **Fallback:** se nenhum campo de posicionamento estiver presente, exibe "Automático (Advantage+)" |
 | **Link & CTA** | Link2 | Link de Destino (`destination_url`, `website_url`, `link`, `object_url`), Link Exibido, Botão CTA (traduzido), Parâmetros UTM |
 | **Agendamento** | Calendar | Data de Início, Data de Término |
@@ -1341,7 +1341,9 @@ O componente implementa dicionários de tradução para **todos** os valores té
 |------------|---------------------|
 | `OBJECTIVE_LABELS` | `OUTCOME_SALES` → "Vendas", `OUTCOME_LEADS` → "Geração de Leads", `OUTCOME_TRAFFIC` → "Tráfego", `OUTCOME_AWARENESS` → "Reconhecimento", `OUTCOME_ENGAGEMENT` → "Engajamento", `OUTCOME_APP_PROMOTION` → "Promoção de App" |
 | `OPTIMIZATION_LABELS` | `OFFSITE_CONVERSIONS` → "Conversões no site", `LINK_CLICKS` → "Cliques no link", `IMPRESSIONS` → "Impressões", `REACH` → "Alcance", `LANDING_PAGE_VIEWS` → "Visualizações da página", `VALUE` → "Valor da conversão" |
-| `BID_STRATEGY_LABELS` | `LOWEST_COST_WITHOUT_CAP` → "Menor custo (automático)", `LOWEST_COST_WITH_BID_CAP` → "Menor custo com limite de lance", `COST_CAP` → "Custo-alvo", `MINIMUM_ROAS` → "ROAS mínimo" |
+| `PERFORMANCE_GOAL_LABELS` | `Maximizar Conversões` → "Maximizar Conversões", `Maximizar Valor das Conversões` → "Maximizar Valor das Conversões" |
+| `CONVERSION_LOCATION_LABELS` | `Site` → "Site", `Site e App` → "Site e App", `App` → "App" |
+| `ATTRIBUTION_MODEL_LABELS` | `Padrão` → "Padrão", `Incremental` → "Incremental" |
 | `BILLING_EVENT_LABELS` | `IMPRESSIONS` → "Impressões (CPM)", `LINK_CLICKS` → "Cliques no link (CPC)", `THRUPLAY` → "ThruPlay (CPV)" |
 | `CTA_LABELS` | `SHOP_NOW` → "Comprar agora", `LEARN_MORE` → "Saiba mais", `SIGN_UP` → "Cadastre-se", `SEND_WHATSAPP_MESSAGE` → "Enviar mensagem no WhatsApp", `GET_OFFER` → "Obter oferta" |
 | `POSITION_LABELS` | `feed` → "Feed", `story` → "Stories", `reels` → "Reels", `right_hand_column` → "Coluna da direita", `search` → "Resultados de pesquisa", `marketplace` → "Marketplace", `video_feeds` → "Feeds de vídeo", `instream_video` → "Vídeos in-stream", `reels_overlay` → "Sobreposição de Reels" |
