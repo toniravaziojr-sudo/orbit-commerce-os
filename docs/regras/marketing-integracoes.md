@@ -1305,9 +1305,9 @@ O botão **"Ajustar"** em cada card de campanha pendente aciona uma revisão res
 | **Detalhes da Campanha** | Visão exaustiva organizada em seções temáticas (ver tabela abaixo) |
 | **Conjuntos & Público** | Ad sets com nome, orçamento individual, público-alvo, faixa etária, públicos personalizados |
 
-#### Componente `CampaignDetailsTab` (v2)
+#### Componente `CampaignDetailsTab` (v2.1)
 
-Renderiza todos os detalhes da campanha organizados em **9 seções temáticas** com ícones:
+Renderiza todos os detalhes da campanha organizados em **11 seções temáticas** com ícones:
 
 | Seção | Ícone | Campos incluídos |
 |-------|-------|------------------|
@@ -1315,11 +1315,22 @@ Renderiza todos os detalhes da campanha organizados em **9 seções temáticas**
 | **Produto** | Package | Produto, ID do Catálogo, ID do Conjunto de Produtos |
 | **Orçamento** | DollarSign | Orçamento Diário, Orçamento Vitalício, Tipo de Orçamento (CBO/ABO) |
 | **Otimização** | BarChart3 | Otimização (traduzida), Estratégia de Lance, Cobrança por, Meta de Custo por Resultado |
-| **Posicionamentos** | Globe | Posicionamentos (traduzidos individualmente), Plataformas |
-| **Link & CTA** | Link2 | Link de Destino, Link Exibido, Botão CTA (traduzido), Parâmetros UTM |
+| **Posicionamentos** | Globe | Posicionamentos (traduzidos individualmente), Plataformas, Dispositivos, Tipo de Posicionamento. **Fallback:** se nenhum campo de posicionamento estiver presente, exibe "Automático (Advantage+)" |
+| **Link & CTA** | Link2 | Link de Destino (`destination_url`, `website_url`, `link`, `object_url`), Link Exibido, Botão CTA (traduzido), Parâmetros UTM |
 | **Agendamento** | Calendar | Data de Início, Data de Término |
 | **Público** | Users | Público-alvo, Faixa Etária, Gênero, Públicos Personalizados, Lookalikes, Interesses, Localização |
-| **Outros** | Settings2 | Pixel, Evento de Conversão, Raciocínio da IA, Impacto Esperado + **qualquer campo não mapeado** (catch-all automático) |
+| **Conjuntos** | Layers | Nome de cada Conjunto de Anúncios (de `childActions`), Orçamento individual por conjunto |
+| **Criativos** | ImageIcon | Nome do Anúncio (`ad_name`, `creative_name`), Formato do Anúncio (`ad_format`, `creative_format`, `format`) |
+| **Outros** | Settings2 | Pixel, Evento de Conversão + **qualquer campo não mapeado** (catch-all automático) |
+
+#### Fallback de Dados via `childActions`
+
+O helper `f(key)` busca campos na seguinte ordem de prioridade:
+1. `preview` (dados de preview da ação principal)
+2. `data` (action_data da ação principal)
+3. `childActions` (primeiro ad set filho que contenha o campo)
+
+Isso garante que campos como `destination_url`, `placements`, `ad_name` etc. que só existem no nível de ad set sejam exibidos corretamente na visão da campanha.
 
 #### Tradução Exaustiva de Termos Técnicos
 
@@ -1354,7 +1365,7 @@ Isso garante que **nenhum dado é omitido**, mesmo quando a IA envia campos novo
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/components/ads/ActionApprovalCard.tsx` | `CampaignDetailsTab` v2 com 9 seções, 7 dicionários de tradução, catch-all automático, `childActions` prop |
+| `src/components/ads/ActionApprovalCard.tsx` | `CampaignDetailsTab` v2.1 com 11 seções, 7 dicionários de tradução, catch-all automático, `childActions` prop com fallback de dados, seções Conjuntos e Criativos |
 
 ---
 
