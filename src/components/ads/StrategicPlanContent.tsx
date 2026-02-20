@@ -96,35 +96,102 @@ function highlightMetrics(text: string): React.ReactNode {
   });
 }
 
+// ============ TRANSLATIONS ============
+
+const FUNNEL_LABELS: Record<string, string> = {
+  tof: "Público Frio",
+  bof: "Remarketing",
+  mof: "Meio de Funil",
+  test: "Teste",
+  cold: "Público Frio",
+  warm: "Público Quente",
+  hot: "Remarketing",
+};
+
+const CAMPAIGN_TYPE_LABELS: Record<string, string> = {
+  tof: "Público Frio",
+  bof: "Remarketing",
+  mof: "Meio de Funil",
+  remarketing: "Remarketing",
+  teste: "Teste",
+  test: "Teste",
+};
+
+const OBJECTIVE_LABELS: Record<string, string> = {
+  outcome_sales: "Vendas",
+  outcome_traffic: "Tráfego",
+  outcome_awareness: "Reconhecimento",
+  outcome_engagement: "Engajamento",
+  outcome_leads: "Leads",
+  conversions: "Conversões",
+  link_clicks: "Cliques no Link",
+};
+
+const BID_STRATEGY_LABELS: Record<string, string> = {
+  lowest_cost_without_cap: "Menor Custo",
+  lowest_cost: "Menor Custo",
+  bid_cap: "Limite de Lance",
+  cost_cap: "Limite de Custo",
+  minimum_roas: "ROAS Mínimo",
+};
+
+function translateField(value: string, map: Record<string, string>): string {
+  const key = value.toLowerCase().replace(/[\s_-]+/g, "_");
+  return map[key] || value;
+}
+
+function getCampaignTypeLabel(campaignType: string, funnelStage?: string): string {
+  const ct = (campaignType || "").toLowerCase();
+  if (CAMPAIGN_TYPE_LABELS[ct]) return CAMPAIGN_TYPE_LABELS[ct];
+  if (ct.includes("remarketing")) return "Remarketing";
+  if (ct.includes("teste") || ct.includes("test")) return "Teste";
+  if (ct.includes("tof") || ct.includes("frio") || ct.includes("cold")) return "Público Frio";
+  if (ct.includes("bof") || ct.includes("quente") || ct.includes("hot")) return "Remarketing";
+  // Fallback to funnel stage
+  if (funnelStage) {
+    const fs = funnelStage.toLowerCase();
+    if (FUNNEL_LABELS[fs]) return FUNNEL_LABELS[fs];
+  }
+  return campaignType || "Campanha";
+}
+
 // ============ ACTION TYPE CONFIG ============
 
-function getActionTypeConfig(actionType: string, campaignType: string) {
-  const ct = (campaignType || "").toLowerCase();
+function getActionTypeConfig(actionType: string) {
   const at = (actionType || "").toLowerCase();
 
-  if (at.includes("pause")) return { icon: <Pause className="h-3.5 w-3.5" />, label: "Pausar", color: "text-amber-600 bg-amber-50 dark:bg-amber-950/30" };
-  if (at.includes("test") || ct.includes("teste")) return { icon: <FlaskConical className="h-3.5 w-3.5" />, label: "Teste", color: "text-violet-600 bg-violet-50 dark:bg-violet-950/30" };
-  if (at.includes("scale") || ct.includes("duplica")) return { icon: <ArrowUpRight className="h-3.5 w-3.5" />, label: "Escalar", color: "text-cyan-600 bg-cyan-50 dark:bg-cyan-950/30" };
-  if (at.includes("adjust") || at.includes("optimize")) return { icon: <Settings className="h-3.5 w-3.5" />, label: "Ajuste", color: "text-blue-600 bg-blue-50 dark:bg-blue-950/30" };
-  if (ct.includes("remarketing") || ct.includes("bof")) return { icon: <Target className="h-3.5 w-3.5" />, label: "Remarketing", color: "text-orange-600 bg-orange-50 dark:bg-orange-950/30" };
-  if (at.includes("create") || ct.includes("tof")) return { icon: <Rocket className="h-3.5 w-3.5" />, label: "Nova Campanha", color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30" };
-  return { icon: <Lightbulb className="h-3.5 w-3.5" />, label: campaignType || "Ação", color: "text-muted-foreground bg-muted/50" };
+  if (at.includes("pause")) return { icon: <Pause className="h-3.5 w-3.5" />, label: "Pausar Campanha", color: "text-amber-600 bg-amber-50 dark:bg-amber-950/30" };
+  if (at.includes("scale")) return { icon: <ArrowUpRight className="h-3.5 w-3.5" />, label: "Escalar Campanha", color: "text-cyan-600 bg-cyan-50 dark:bg-cyan-950/30" };
+  if (at.includes("adjust") || at.includes("optimize")) return { icon: <Settings className="h-3.5 w-3.5" />, label: "Ajustar Campanha", color: "text-blue-600 bg-blue-50 dark:bg-blue-950/30" };
+  if (at.includes("restructure")) return { icon: <Wrench className="h-3.5 w-3.5" />, label: "Reestruturar", color: "text-indigo-600 bg-indigo-50 dark:bg-indigo-950/30" };
+  if (at.includes("create") || at.includes("new")) return { icon: <Rocket className="h-3.5 w-3.5" />, label: "Criar Campanha", color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30" };
+  return { icon: <Lightbulb className="h-3.5 w-3.5" />, label: "Ação", color: "text-muted-foreground bg-muted/50" };
+}
+
+function getCampaignTypeBadgeColor(campaignType: string, funnelStage?: string): string {
+  const label = getCampaignTypeLabel(campaignType, funnelStage);
+  if (label === "Remarketing") return "text-orange-600 bg-orange-50 dark:bg-orange-950/30";
+  if (label === "Teste") return "text-violet-600 bg-violet-50 dark:bg-violet-950/30";
+  if (label === "Público Frio") return "text-sky-600 bg-sky-50 dark:bg-sky-950/30";
+  if (label === "Meio de Funil") return "text-amber-600 bg-amber-50 dark:bg-amber-950/30";
+  return "text-muted-foreground bg-muted/40";
 }
 
 // ============ STRUCTURED ACTION CARD ============
 
 function StructuredActionCard({ action, index }: { action: StructuredAction; index: number }) {
-  const typeConfig = getActionTypeConfig(action.action_type || "", action.campaign_type || "");
+  const typeConfig = getActionTypeConfig(action.action_type || "");
+  const campaignTypeLabel = getCampaignTypeLabel(action.campaign_type || "", action.funnel_stage);
+  const campaignTypeBadgeColor = getCampaignTypeBadgeColor(action.campaign_type || "", action.funnel_stage);
 
   const details: { icon: string; label: string; value: string }[] = [];
   if (action.product_name) details.push({ icon: "📦", label: "Produto", value: action.product_name });
   if (action.daily_budget_brl) details.push({ icon: "💰", label: "Orçamento diário", value: `R$ ${action.daily_budget_brl.toFixed(2)}` });
   if (action.target_audience) details.push({ icon: "🎯", label: "Público", value: action.target_audience });
-  if (action.funnel_stage) details.push({ icon: "🔀", label: "Funil", value: action.funnel_stage.toUpperCase() });
-  if (action.objective) details.push({ icon: "🏁", label: "Objetivo", value: action.objective });
-  if (action.bid_strategy) details.push({ icon: "⚡", label: "Lance", value: action.bid_strategy });
+  if (action.objective) details.push({ icon: "🏁", label: "Objetivo", value: translateField(action.objective, OBJECTIVE_LABELS) });
+  if (action.bid_strategy) details.push({ icon: "⚡", label: "Estratégia de lance", value: translateField(action.bid_strategy, BID_STRATEGY_LABELS) });
   if (action.creatives_count) details.push({ icon: "🎨", label: "Criativos", value: `${action.creatives_count} variações` });
-  if (action.copy_variations) details.push({ icon: "✍️", label: "Copies", value: `${action.copy_variations} variações` });
+  if (action.copy_variations) details.push({ icon: "✍️", label: "Textos", value: `${action.copy_variations} variações` });
   if (action.expected_roas) details.push({ icon: "📈", label: "ROAS esperado", value: `${action.expected_roas}x` });
   if (action.placements) details.push({ icon: "📱", label: "Posicionamentos", value: action.placements });
 
@@ -140,16 +207,12 @@ function StructuredActionCard({ action, index }: { action: StructuredAction; ind
               {typeConfig.icon}
               {typeConfig.label}
             </span>
-            {action.campaign_type && action.campaign_type !== typeConfig.label && (
-              <span className="text-[11px] text-muted-foreground bg-muted/40 px-2 py-0.5 rounded-full">
-                {action.campaign_type}
-              </span>
-            )}
+            <span className={cn("inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full", campaignTypeBadgeColor)}>
+              {campaignTypeLabel}
+            </span>
           </div>
           <h4 className="text-sm font-semibold text-foreground leading-snug">
-            {action.product_name
-              ? `${action.campaign_type || "Campanha"} — ${action.product_name}`
-              : action.rationale?.substring(0, 80) || "Ação planejada"}
+            {action.product_name || action.rationale?.substring(0, 80) || "Ação planejada"}
           </h4>
         </div>
       </div>
@@ -294,8 +357,8 @@ function LegacyActionCard({ action, index }: { action: LegacyParsedAction; index
 
 function BudgetAllocationSection({ budget }: { budget: BudgetAllocation }) {
   const segments = [
-    { label: "TOF (Aquisição)", pct: budget.tof_pct || 0, brl: budget.tof_brl || 0, color: "bg-emerald-500" },
-    { label: "BOF (Remarketing)", pct: budget.bof_pct || 0, brl: budget.bof_brl || 0, color: "bg-orange-500" },
+    { label: "Público Frio (Aquisição)", pct: budget.tof_pct || 0, brl: budget.tof_brl || 0, color: "bg-sky-500" },
+    { label: "Remarketing", pct: budget.bof_pct || 0, brl: budget.bof_brl || 0, color: "bg-orange-500" },
     { label: "Testes", pct: budget.test_pct || 0, brl: budget.test_brl || 0, color: "bg-violet-500" },
   ].filter(s => s.pct > 0);
 
