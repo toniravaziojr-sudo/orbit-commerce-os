@@ -188,63 +188,107 @@ function splitIntoReadableChunks(text: string): string[] {
 }
 
 /**
- * Smart parser for planned actions — detects campaign boundaries
- * ("Criar uma nova campanha...") and splits into individual cards.
+ * Smart parser for planned actions — detects action boundaries
+ * Supports bullet points (•, -, *), numbered items, and keyword-based splitting.
+ * Recognizes: Criar, Ajustar, Pausar, Escalar, Otimizar, Foco, Lançar, Testar, etc.
  */
 function parsePlannedActionsIntoCampaigns(text: string): { title: string; lines: string[] }[] {
   if (!text) return [];
 
   const normalized = text.replace(/\\n/g, "\n");
 
-  const campaignSplitRegex = /(?=Criar uma nova campanha\b)/gi;
-  const rawBlocks = normalized.split(campaignSplitRegex).map(s => s.trim()).filter(Boolean);
+  // Step 1: Split by bullet points (•, -, *) or numbered items at the start of lines
+  const bulletRegex = /(?:^|\n)\s*(?:[•\-\*]|\d+[\.\)]\s)/;
+  const hasBullets = bulletRegex.test(normalized);
 
-  if (rawBlocks.length <= 1) {
-    return [];
+  let rawItems: string[] = [];
+
+  if (hasBullets) {
+    // Split on bullet/number markers
+    rawItems = normalized
+      .split(/(?:^|\n)\s*(?:[•\-\*]|\d+[\.\)])\s*/)
+      .map(s => s.trim())
+      .filter(s => s.length > 15); // Filter out empty/tiny fragments
   }
+
+  // Step 2: If no bullets, try splitting by action keywords
+  if (rawItems.length <= 1) {
+    const actionKeywordRegex = /(?=(?:Criar\s+(?:Nova\s+)?Campanha|Ajustar\s+orçamento|Pausar\s+campanha|Escalar\s+(?:campanha|orçamento)|Otimizar\s+|Lançar\s+|Testar\s+|Foco\s+n[ao]|Ativar\s+|Desativar\s+|Reduzir\s+|Aumentar\s+))/gi;
+    const keywordSplit = normalized.split(actionKeywordRegex).map(s => s.trim()).filter(s => s.length > 15);
+    if (keywordSplit.length > 1) {
+      rawItems = keywordSplit;
+    }
+  }
+
+  if (rawItems.length <= 1) return [];
 
   const campaigns: { title: string; lines: string[] }[] = [];
 
-  for (const block of rawBlocks) {
-    const firstSentenceMatch = block.match(/^(Criar uma nova campanha\s+de\s+[^,.]+(?:\s+focada?\s+em\s+[^,.]+)?)/i);
-    let title = "Campanha";
+  for (const block of rawItems) {
+    // Extract a concise title from the first sentence/clause
+    const colonMatch = block.match(/^([^:]{10,80}):\s*(.*)/s);
+    let title: string;
+    let bodyText: string;
 
-    if (firstSentenceMatch) {
-      title = firstSentenceMatch[1].trim().replace(/\.$/, "");
+    if (colonMatch) {
+      title = colonMatch[1].trim();
+      bodyText = colonMatch[2].trim();
+    } else {
+      const firstSentence = block.match(/^([^.]{10,100})\.\s*(.*)/s);
+      if (firstSentence) {
+        title = firstSentence[1].trim();
+        bodyText = firstSentence[2]?.trim() || "";
+      } else {
+        title = block.length > 80 ? block.substring(0, 77) + "…" : block;
+        bodyText = "";
+      }
     }
 
+    // Extract structured details from body
     const details: string[] = [];
 
-    const productMatch = block.match(/(?:para o produto|para o lançamento|para\s+(?:Kits?\s+e\s+)?produtos?\s+(?:Complementares?\s+)?)\s*([^,.]+)/i);
+    const productMatch = bodyText.match(/(?:para\s+o\s+(?:produto\s+)?|promovendo\s+)"?([^"(,]{3,60})"?/i);
     if (productMatch) details.push(`📦 Produto: ${productMatch[1].trim()}`);
 
-    const budgetMatch = block.match(/orçamento diário\s+(?:de\s+|será\s+de\s+)?R\$\s*([\d.,]+)/i);
+    const budgetMatch = bodyText.match(/orçamento\s+diário\s+(?:de\s+)?R\$\s*([\d.,]+)/i);
     if (budgetMatch) details.push(`💰 Orçamento diário: R$ ${budgetMatch[1]}`);
 
-    const audienceMatch = block.match(/público-alvo\s+(?:será\s+)?(?:aberto\s+)?\(?([^)]+)\)?/i);
+    const budgetFromTo = block.match(/de\s+R\$\s*([\d.,]+)\s+para\s+R\$\s*([\d.,]+)/i);
+    if (budgetFromTo) details.push(`💰 R$ ${budgetFromTo[1]} → R$ ${budgetFromTo[2]}`);
+
+    const audienceMatch = bodyText.match(/Público:\s*([^.]+)/i);
     if (audienceMatch) details.push(`🎯 Público: ${audienceMatch[1].trim()}`);
 
-    const lalMatch = block.match(/Lookalike\s+de\s+(\d+%)\s+de\s+([^)]+)\)?/i);
-    if (lalMatch) details.push(`👥 Lookalike: ${lalMatch[1]} de ${lalMatch[2].trim()}`);
-
-    const retargetMatch = block.match(/(?:incluirá|incluir)\s+(Visitantes\s+do\s+Site[^.]+)/i);
-    if (retargetMatch) details.push(`🔄 Retargeting: ${retargetMatch[1].trim()}`);
-
-    const variationsMatch = block.match(/(\d+\s+variações?\s+de\s+Primary\s+Text[^.]*)/i);
-    if (variationsMatch) details.push(`✍️ ${variationsMatch[1].trim()}`);
-
-    const funnelMatch = block.match(/\b(TOF|MOF|BOF|Topo de Funil|Fundo de Funil|Remarketing)\b/i);
+    const funnelMatch = block.match(/Funil:\s*(\S+)/i);
     if (funnelMatch) details.push(`🔀 Funil: ${funnelMatch[1]}`);
 
-    if (details.length === 0) {
-      const sentences = block.match(/[^.!?]+[.!?]+/g) || [block];
-      details.push(...sentences.map(s => s.trim()).filter(Boolean));
+    // If no structured data extracted, use body sentences
+    if (details.length === 0 && bodyText) {
+      const sentences = bodyText.match(/[^.!?]+[.!?]+/g) || [bodyText];
+      details.push(...sentences.slice(0, 3).map(s => s.trim()).filter(Boolean));
     }
 
-    campaigns.push({ title, lines: details });
+    // Detect action type for icon/badge
+    const actionType = detectActionType(title);
+    if (actionType) details.unshift(actionType);
+
+    campaigns.push({ title: sanitize(title), lines: details });
   }
 
   return campaigns;
+}
+
+/** Detect action type badge */
+function detectActionType(title: string): string | null {
+  const t = title.toLowerCase();
+  if (t.includes("ajustar") || t.includes("aumentar") || t.includes("reduzir")) return "⚙️ Ajuste";
+  if (t.includes("pausar") || t.includes("desativar")) return "⏸️ Pausar";
+  if (t.includes("criar") || t.includes("lançar")) return "🚀 Nova";
+  if (t.includes("escalar")) return "📈 Escalar";
+  if (t.includes("testar") || t.includes("teste")) return "🧪 Teste";
+  if (t.includes("foco") || t.includes("garantir")) return "🎯 Foco";
+  if (t.includes("otimizar")) return "🔧 Otimizar";
+  return null;
 }
 
 /** Render a campaign card with structured details */
@@ -458,7 +502,7 @@ export function StrategicPlanContent({
             <ListChecks className="h-4 w-4" />
             <h3 className="text-sm font-bold tracking-tight">Ações Planejadas</h3>
             <span className="ml-1 text-[11px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
-              {campaignCards.length} {campaignCards.length === 1 ? "campanha" : "campanhas"}
+              {campaignCards.length} {campaignCards.length === 1 ? "ação" : "ações"}
             </span>
           </div>
           <div className="space-y-3">
