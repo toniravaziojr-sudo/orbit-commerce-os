@@ -175,6 +175,7 @@ Deno.serve(async (req) => {
           ad_account_id: adAccountId,
           name: campaignName,
           objective: objectiveMap[objective] || "OUTCOME_SALES",
+          destination_type: "WEBSITE", // Always website-only, never "site + app"
           status: "PAUSED",
           daily_budget_cents: dailyBudgetCents,
           special_ad_categories: [],

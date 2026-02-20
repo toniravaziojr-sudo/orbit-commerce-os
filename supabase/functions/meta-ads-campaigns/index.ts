@@ -250,7 +250,7 @@ Deno.serve(async (req) => {
     // CREATE — Create campaign on Meta + local
     // ========================
     if (action === "create") {
-      const { name, objective, status: campaignStatus, daily_budget_cents, lifetime_budget_cents, special_ad_categories, bid_strategy, start_time, stop_time } = body;
+      const { name, objective, status: campaignStatus, daily_budget_cents, lifetime_budget_cents, special_ad_categories, bid_strategy, start_time, stop_time, destination_type } = body;
       const adAccountId = targetAccountId || adAccounts[0].id;
 
       if (!name || !objective) {
@@ -267,6 +267,14 @@ Deno.serve(async (req) => {
         special_ad_categories: special_ad_categories || [],
         bid_strategy: bid_strategy || "LOWEST_COST_WITHOUT_CAP",
       };
+
+      // Force WEBSITE destination for conversion/sales/leads campaigns (never "site + app")
+      const salesOrLeadsObjectives = ["OUTCOME_SALES", "OUTCOME_LEADS"];
+      if (destination_type) {
+        createBody.destination_type = destination_type;
+      } else if (salesOrLeadsObjectives.includes(objective)) {
+        createBody.destination_type = "WEBSITE";
+      }
 
       if (daily_budget_cents) createBody.daily_budget = String(daily_budget_cents);
       if (lifetime_budget_cents) createBody.lifetime_budget = String(lifetime_budget_cents);
