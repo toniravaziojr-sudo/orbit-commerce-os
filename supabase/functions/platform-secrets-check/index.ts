@@ -116,6 +116,8 @@ serve(async (req) => {
     const nuvemFiscalClientSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'NUVEM_FISCAL_CLIENT_SECRET');
     // Fal.AI (Geração de Imagens e Vídeos)
     const falApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'FAL_API_KEY');
+    // Google Gemini (Geração de Imagens Nativa)
+    const geminiApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'GEMINI_API_KEY');
     
     const secrets: Record<string, IntegrationConfig & { previews?: Record<string, string>; sources?: Record<string, string> }> = {
       nuvem_fiscal: {
@@ -351,6 +353,21 @@ serve(async (req) => {
         },
         sources: {
           FAL_API_KEY: falApiKey.source || '',
+        },
+      },
+      gemini: {
+        name: 'Google Gemini',
+        description: 'Geração de imagens nativa via Google AI Studio',
+        icon: 'Sparkles',
+        docs: 'https://ai.google.dev/',
+        secrets: {
+          GEMINI_API_KEY: geminiApiKey.exists,
+        },
+        previews: {
+          GEMINI_API_KEY: geminiApiKey.preview || '',
+        },
+        sources: {
+          GEMINI_API_KEY: geminiApiKey.source || '',
         },
       },
     };

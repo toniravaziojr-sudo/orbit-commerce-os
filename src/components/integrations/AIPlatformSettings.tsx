@@ -27,13 +27,15 @@ export function AIPlatformSettings() {
       const firecrawl = response.data.integrations?.find((i: any) => i.key === 'firecrawl');
       const lovableAi = response.data.integrations?.find((i: any) => i.key === 'lovable_ai');
       const openai = response.data.integrations?.find((i: any) => i.key === 'openai');
+      const gemini = response.data.integrations?.find((i: any) => i.key === 'gemini');
       
-      return { firecrawl, lovableAi, openai };
+      return { firecrawl, lovableAi, openai, gemini };
     },
   });
 
   const firecrawlConfigured = secretsStatus?.firecrawl?.status === 'configured';
   const openaiConfigured = secretsStatus?.openai?.status === 'configured';
+  const geminiConfigured = secretsStatus?.gemini?.status === 'configured';
 
   if (isLoading) {
     return (
@@ -60,7 +62,7 @@ export function AIPlatformSettings() {
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          A geração de imagens usa Lovable AI Gateway (Gemini). Não requer configuração manual.
+          OpenAI e Gemini são usados como provedores primários de geração de imagens. O Lovable AI Gateway serve como fallback.
         </AlertDescription>
       </Alert>
 
@@ -159,6 +161,36 @@ export function AIPlatformSettings() {
             isConfigured={openaiConfigured}
             preview={secretsStatus?.openai?.previews?.OPENAI_API_KEY}
             source={secretsStatus?.openai?.sources?.OPENAI_API_KEY as 'db' | 'env' | null}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Google Gemini (Native) */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-500/10">
+                <Sparkles className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Google Gemini</CardTitle>
+                <CardDescription>Geração de imagens nativa via Google AI Studio</CardDescription>
+              </div>
+            </div>
+            <Badge variant="outline" className={geminiConfigured ? "bg-green-500/10 text-green-600" : ""}>
+              {geminiConfigured ? "Configurado" : "Opcional"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <CredentialEditor
+            credentialKey="GEMINI_API_KEY"
+            label="API Key"
+            description="Obtida em ai.google.dev — usada para geração de imagens com Gemini"
+            isConfigured={geminiConfigured}
+            preview={secretsStatus?.gemini?.previews?.GEMINI_API_KEY}
+            source={secretsStatus?.gemini?.sources?.GEMINI_API_KEY as 'db' | 'env' | null}
           />
         </CardContent>
       </Card>

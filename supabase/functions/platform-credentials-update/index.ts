@@ -38,6 +38,8 @@ const EDITABLE_CREDENTIALS = [
   'META_APP_SECRET',
   // Fal.AI (Geração de Imagens e Vídeos)
   'FAL_API_KEY',
+  // Google Gemini (Geração de Imagens Nativa)
+  'GEMINI_API_KEY',
 ];
 
 serve(async (req) => {
