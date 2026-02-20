@@ -28,6 +28,16 @@ export interface ActionApprovalCardProps {
   isRejecting?: boolean;
 }
 
+export interface OrphanAdsetGroupCardProps {
+  parentCampaignName: string;
+  adsets: PendingAction[];
+  onApprove: (actionId: string) => void;
+  onReject: (actionId: string, reason: string) => void;
+  onAdjust: (actionId: string, suggestion: string) => void;
+  isApproving?: boolean;
+  isRejecting?: boolean;
+}
+
 const FUNNEL_LABELS: Record<string, { label: string; color: string }> = {
   tof: { label: "Público Frio", color: "bg-blue-500/10 text-blue-700 border-blue-500/20" },
   cold: { label: "Público Frio", color: "bg-blue-500/10 text-blue-700 border-blue-500/20" },
@@ -748,6 +758,279 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
               alt="Criativo ampliado"
               className="w-full h-auto max-h-[80vh] object-contain rounded-lg"
             />
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
+  );
+}
+
+/* ========================================
+   ORPHAN ADSET GROUP CARD
+   Groups adsets for existing campaigns
+   Shows parent campaign context + all adsets + creatives
+   ======================================== */
+export function OrphanAdsetGroupCard({ parentCampaignName, adsets, onApprove, onReject, onAdjust, isApproving, isRejecting }: OrphanAdsetGroupCardProps) {
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [fullOpen, setFullOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [adjustSuggestion, setAdjustSuggestion] = useState("");
+
+  // Use first adset for creative resolution
+  const primaryAdset = adsets[0];
+  const creativeUrls = useAllCreativeUrls(primaryAdset);
+  const primaryCreativeUrl = creativeUrls[0] || null;
+  const [zoomOpen, setZoomOpen] = useState(false);
+
+  const handleApproveAll = () => {
+    for (const adset of adsets) {
+      onApprove(adset.id);
+    }
+  };
+
+  const handleRejectAll = () => {
+    if (!rejectReason.trim()) return;
+    for (const adset of adsets) {
+      onReject(adset.id, rejectReason);
+    }
+    setRejectOpen(false);
+    setRejectReason("");
+  };
+
+  const handleAdjustAll = () => {
+    if (!adjustSuggestion.trim()) return;
+    for (const adset of adsets) {
+      onAdjust(adset.id, adjustSuggestion);
+    }
+    setAdjustOpen(false);
+    setAdjustSuggestion("");
+  };
+
+  return (
+    <>
+      <Card className="border-border/60 hover:border-primary/20 transition-colors overflow-hidden min-w-0">
+        <div className="flex gap-0">
+          {/* Thumbnail */}
+          <div className="w-[100px] min-h-[100px] flex-shrink-0 bg-muted/20 border-r border-border/40 relative group cursor-pointer" onClick={() => primaryCreativeUrl && setZoomOpen(true)}>
+            {primaryCreativeUrl ? (
+              <>
+                <img src={primaryCreativeUrl} alt="Criativo" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <ZoomIn className="h-5 w-5 text-white" />
+                </div>
+                {creativeUrls.length > 1 && (
+                  <Badge variant="secondary" className="absolute bottom-1 right-1 text-[9px] px-1 py-0">
+                    +{creativeUrls.length - 1}
+                  </Badge>
+                )}
+              </>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <ImageIcon className="h-6 w-6 text-muted-foreground/30" />
+              </div>
+            )}
+          </div>
+
+          {/* Main Info */}
+          <div className="flex-1 p-3 space-y-1.5 min-w-0 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="p-1.5 rounded-md bg-amber-500/10">
+                <Layers className="h-3.5 w-3.5 text-amber-600" />
+              </div>
+              <span className="text-xs font-semibold">Novos Conjuntos</span>
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-500/5 border-amber-500/20 text-amber-700">
+                Campanha existente
+              </Badge>
+            </div>
+
+            {/* Parent campaign name */}
+            <p className="text-sm font-semibold leading-tight truncate">{parentCampaignName}</p>
+
+            {/* Quick info chips */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1">
+                <Layers className="h-2.5 w-2.5" />
+                {adsets.length} conjunto{adsets.length !== 1 ? "s" : ""}
+              </Badge>
+              {creativeUrls.length > 0 && (
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1">
+                  <ImageIcon className="h-2.5 w-2.5" />
+                  {creativeUrls.length} criativo{creativeUrls.length !== 1 ? "s" : ""}
+                </Badge>
+              )}
+            </div>
+
+            {/* Expandable adsets preview */}
+            <AdSetsSection adsets={adsets} />
+
+            {/* Ver completo */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setFullOpen(true)}
+              className="h-7 text-xs gap-1 text-primary hover:text-primary px-2 -ml-2"
+            >
+              <Eye className="h-3 w-3" />
+              Ver conteúdo completo
+            </Button>
+          </div>
+        </div>
+
+        {/* Action buttons */}
+        <CardFooter className="px-3 pb-3 pt-0 gap-2 border-t border-border/30">
+          <Button
+            size="sm"
+            onClick={handleApproveAll}
+            disabled={isApproving}
+            className="flex-1 h-8 text-xs gap-1.5"
+          >
+            <Check className="h-3.5 w-3.5" />
+            Aprovar {adsets.length > 1 ? `(${adsets.length})` : ""}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setAdjustOpen(true)}
+            className="flex-1 h-8 text-xs gap-1.5"
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+            Ajustar
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setRejectOpen(true)}
+            disabled={isRejecting}
+            className="h-8 text-xs gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
+          >
+            <X className="h-3.5 w-3.5" />
+            Rejeitar
+          </Button>
+        </CardFooter>
+      </Card>
+
+      {/* Full Content Dialog for grouped adsets */}
+      <Dialog open={fullOpen} onOpenChange={setFullOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/30 shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Layers className="h-4 w-4 text-amber-600" />
+              Novos Conjuntos — Campanha Existente
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {adsets.length} conjunto{adsets.length !== 1 ? "s" : ""} para a campanha "{parentCampaignName}"
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
+            <div className="space-y-4">
+              {/* Campaign context */}
+              <div className="bg-muted/30 rounded-lg p-3 border border-border/30">
+                <span className="text-xs text-muted-foreground">Campanha</span>
+                <p className="font-semibold text-sm mt-0.5">{parentCampaignName}</p>
+              </div>
+
+              {/* Creatives Gallery */}
+              <CreativesGallery urls={creativeUrls} onZoom={(url) => {}} />
+
+              {/* All AdSets detail */}
+              <div>
+                <SectionLabel icon={<Layers className="h-3.5 w-3.5 text-muted-foreground" />} label={`Conjuntos de Anúncios (${adsets.length})`} />
+                <div className="mt-1.5 space-y-2">
+                  {adsets.map((adset) => {
+                    const ad = adset.action_data || {};
+                    const prev = ad.preview || {};
+                    const targeting = prev.targeting_summary || ad.targeting_summary || null;
+                    const customAudiences = ad.custom_audiences || prev.custom_audiences || null;
+                    const adsetName = ad.adset_name || prev.adset_name || "Conjunto";
+                    return (
+                      <div key={adset.id} className="border border-border/40 rounded-lg p-3 space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <Target className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-xs font-semibold">{adsetName}</span>
+                        </div>
+                        {targeting && (
+                          <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
+                            <Users className="h-3 w-3 mt-0.5 shrink-0" />
+                            <span>{sanitizeDisplayText(targeting)}</span>
+                          </div>
+                        )}
+                        {customAudiences && Array.isArray(customAudiences) && customAudiences.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {customAudiences.map((aud: any, i: number) => (
+                              <Badge key={i} variant="outline" className="text-[9px] px-1 py-0">
+                                {typeof aud === "string" ? aud : aud.name || aud.id}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                        {adset.reasoning && (
+                          <p className="text-[11px] text-muted-foreground mt-1">{sanitizeDisplayText(adset.reasoning)}</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject Dialog */}
+      <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Rejeitar Conjuntos</DialogTitle>
+            <DialogDescription>
+              Rejeitar todos os {adsets.length} conjuntos para "{parentCampaignName}".
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            placeholder="Ex: Não quero este público alvo..."
+            className="min-h-[80px]"
+          />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRejectOpen(false)}>Cancelar</Button>
+            <Button variant="destructive" onClick={handleRejectAll} disabled={!rejectReason.trim()}>
+              Confirmar Rejeição
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Adjust Dialog */}
+      <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Sugerir Ajuste</DialogTitle>
+            <DialogDescription>
+              Descreva o ajuste para os conjuntos de "{parentCampaignName}".
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={adjustSuggestion}
+            onChange={(e) => setAdjustSuggestion(e.target.value)}
+            placeholder="Ex: Alterar targeting, mudar orçamento..."
+            className="min-h-[80px]"
+          />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAdjustOpen(false)}>Cancelar</Button>
+            <Button onClick={handleAdjustAll} disabled={!adjustSuggestion.trim()}>
+              Enviar Ajuste
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Zoom Dialog */}
+      {primaryCreativeUrl && (
+        <Dialog open={zoomOpen} onOpenChange={setZoomOpen}>
+          <DialogContent className="sm:max-w-2xl p-2">
+            <img src={primaryCreativeUrl} alt="Criativo ampliado" className="w-full h-auto max-h-[80vh] object-contain rounded-lg" />
           </DialogContent>
         </Dialog>
       )}

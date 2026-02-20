@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { AutopilotAction } from "@/hooks/useAdsAutopilot";
-import { ActionApprovalCard } from "./ActionApprovalCard";
+import { ActionApprovalCard, OrphanAdsetGroupCard } from "./ActionApprovalCard";
 import type { PendingAction } from "@/hooks/useAdsPendingActions";
 
 interface AdsPendingApprovalTabProps {
@@ -181,12 +181,18 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
     const name = (c.action_data as any)?.campaign_name || (c.action_data as any)?.preview?.campaign_name || "";
     if (adsetsByParent.has(name)) matchedParents.add(name);
   }
-  const orphanAdsets = adsets.filter(a => {
+  // Group orphan adsets by parent campaign name
+  const orphanAdsetGroups = new Map<string, typeof adsets>();
+  for (const a of adsets) {
     const parentName = (a.action_data as any)?.campaign_name || (a.action_data as any)?.parent_campaign_name || "";
-    return !matchedParents.has(parentName);
-  });
+    if (!matchedParents.has(parentName)) {
+      const groupKey = parentName || "Sem campanha";
+      if (!orphanAdsetGroups.has(groupKey)) orphanAdsetGroups.set(groupKey, []);
+      orphanAdsetGroups.get(groupKey)!.push(a);
+    }
+  }
 
-  const displayCount = campaigns.length + orphanAdsets.length;
+  const displayCount = campaigns.length + orphanAdsetGroups.size;
 
   if (displayCount === 0) {
     return (
@@ -224,11 +230,12 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
           isRejecting={rejectAction.isPending}
         />
       ))}
-      {/* Orphan adsets */}
-      {orphanAdsets.map(action => (
-        <ActionApprovalCard
-          key={action.id}
-          action={action}
+      {/* Orphan adsets grouped by parent campaign */}
+      {Array.from(orphanAdsetGroups.entries()).map(([parentName, groupAdsets]) => (
+        <OrphanAdsetGroupCard
+          key={`orphan-${parentName}`}
+          parentCampaignName={parentName}
+          adsets={groupAdsets}
           onApprove={(id) => approveAction.mutate(id)}
           onReject={(id, reason) => rejectAction.mutate({ actionId: id, reason })}
           onAdjust={(id, suggestion) => adjustAction.mutate({ actionId: id, feedback: suggestion })}
