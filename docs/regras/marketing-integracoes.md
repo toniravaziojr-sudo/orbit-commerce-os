@@ -497,22 +497,35 @@ Antes de executar uma ação aprovada:
 2. Se `active + pending_excl_self + proposed > limit`: bloqueia e marca como `rejected`
 3. Mensagem: "Aprovar esta campanha excederia o limite diário. Ajuste orçamento ou rejeite outra proposta."
 
-### Fluxo de Aprovação — UI Redesenhada (v5.12.8)
+### Fluxo de Aprovação — UI Redesenhada (v5.15.0)
 
 O card de aprovação (`ActionApprovalCard.tsx`) prioriza informações visuais para o usuário aprovar com segurança.
+
+#### Dois Cenários de Aprovação
+
+| Cenário | Componente | Descrição |
+|---|---|---|
+| **Campanha Nova** | `ActionApprovalCard` com `childActions` | Card mostra campanha + todos os adsets aninhados + galeria de criativos |
+| **Campanha Existente** | `OrphanAdsetGroupCard` | Adsets sem `create_campaign` correspondente são agrupados por `campaign_name`/`parent_campaign_name` e exibidos com badge "Campanha existente", criativos do produto e detalhes de targeting |
+
+**Lógica de agrupamento:**
+1. Ações `create_adset` com `campaign_name` que corresponda a um `create_campaign` pendente → aninhadas dentro do card da campanha
+2. Ações `create_adset` com `campaign_name` que NÃO corresponda a nenhum `create_campaign` pendente → agrupadas por `campaign_name` em `OrphanAdsetGroupCard`
+3. Aprovação/rejeição/ajuste em `OrphanAdsetGroupCard` aplica-se a todos os adsets do grupo simultaneamente
 
 #### Visível por padrão
 
 | Elemento | Fonte (`action_data.preview.*`) |
 |---|---|
-| Thumbnail do criativo | `creative_url` (skeleton se ausente) |
-| Headline + copy (3-4 linhas) | `headline`, `copy_text` |
+| Galeria de criativos (horizontal scroll) | `useAllCreativeUrls` → `ads_creative_assets` por `product_id` + fallback `product_images` |
+| Headline + variações de copy | `headlines[]`, `primary_texts[]`, `descriptions[]` |
 | CTA badge | `cta_type` |
 | Produto (nome + preço) | `product_name`, `product_price_display` |
 | Funil (chip colorido) | `funnel_stage` → "Público Frio" / "Remarketing" / "Teste" |
 | Público resumido | `targeting_summary` |
 | Orçamento/dia | `daily_budget_cents` formatado |
 | Barra de orçamento visual | `budget_snapshot` (verde=ativo, amarelo=reservado, cinza=restante) |
+| Conjuntos aninhados (expansível) | `AdSetsSection` com targeting e audiences |
 | Botões | Aprovar / Ajustar / Rejeitar |
 
 #### Oculto (Collapsible "Detalhes técnicos")
@@ -532,8 +545,9 @@ No topo da lista de ações pendentes, um `BudgetSummaryHeader` exibe:
 
 | Arquivo | Descrição |
 |---|---|
-| `src/components/ads/ActionApprovalCard.tsx` | Card de aprovação redesenhado (preview-first) |
-| `src/components/ads/AdsPendingActionsTab.tsx` | Lista de ações pendentes com budget summary header |
+| `src/components/ads/ActionApprovalCard.tsx` | Card de aprovação com galeria de criativos, adsets aninhados e `OrphanAdsetGroupCard` para campanhas existentes |
+| `src/components/ads/AdsPendingActionsTab.tsx` | Lista de ações pendentes com agrupamento de adsets órfãos por campanha-pai |
+| `src/components/ads/AdsPendingApprovalTab.tsx` | Aba "Aguardando Ação" com mesmo agrupamento |
 | `src/hooks/useAdsPendingActions.ts` | Hook para CRUD de ações pendentes (approve/reject) |
 
 ### Arquitetura Dual-Motor (v6.0)
