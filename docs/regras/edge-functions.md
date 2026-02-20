@@ -1309,14 +1309,14 @@ Remarketing/Ofertas → focus.remarketing (variantes: "Kit Banho Calvície Zero 
 
 ### v1.22.0: `ads-autopilot-strategist` — Full Meta Ads Params (Configuração Completa)
 
-**Problema**: As tool definitions de `create_campaign` e `create_adset` tinham ~10 parâmetros, ignorando configurações obrigatórias do Meta Ads Manager (placements, optimization goal, billing event, conversion event, bid strategy, geo_locations, excluded audiences, ad format, destination URL, UTM params).
+**Problema**: As tool definitions de `create_campaign` e `create_adset` tinham ~10 parâmetros, ignorando configurações obrigatórias do Meta Ads Manager (placements, optimization goal, billing event, conversion event, performance_goal, conversion_location, attribution_model, geo_locations, excluded audiences, ad format, destination URL, UTM params).
 
 **Mudanças — `create_campaign` (35+ parâmetros)**:
 
 | Nível | Campos Adicionados |
 |---|---|
-| **Campanha** | `special_ad_categories`, `lifetime_budget_cents`, `bid_strategy` (LOWEST_COST/BID_CAP/COST_CAP/MINIMUM_ROAS), `bid_amount_cents`, `roas_avg_floor` |
-| **Conjunto (inline)** | `adset_name`, `optimization_goal` (9 opções: OFFSITE_CONVERSIONS, LINK_CLICKS, etc.), `billing_event` (IMPRESSIONS/LINK_CLICKS/THRUPLAY), `conversion_event` (12 eventos Pixel: PURCHASE, ADD_TO_CART, etc.) |
+| **Campanha** | `special_ad_categories`, `lifetime_budget_cents`, `roas_avg_floor` |
+| **Conjunto (inline)** | `adset_name`, `optimization_goal` (9 opções: OFFSITE_CONVERSIONS, LINK_CLICKS, etc.), `billing_event` (IMPRESSIONS/LINK_CLICKS/THRUPLAY), `conversion_event` (12 eventos Pixel: PURCHASE, ADD_TO_CART, etc.), `performance_goal` ("Maximizar Conversões"/"Maximizar Valor das Conversões"), `conversion_location` ("Site"/"Site e App"/"App"), `attribution_model` ("Padrão"/"Incremental") |
 | **Targeting** | `age_min`, `age_max`, `genders`, `geo_locations` (countries/regions/cities), `interests`, `behaviors`, `custom_audience_ids`, `excluded_audience_ids`, `lookalike_spec` |
 | **Posicionamentos** | `publisher_platforms` (facebook/instagram/audience_network/messenger), `position_types` (feed/story/reels/etc — 16 posições), `device_platforms` (mobile/desktop) |
 | **Destino** | `destination_url` (OBRIGATÓRIO), `display_link`, `utm_params` |
@@ -1341,7 +1341,7 @@ Campos espelham os de `create_campaign` no nível de conjunto, incluindo: `optim
 
 | Etapa | Antes (hardcoded) | Agora (dinâmico de `action_data`) |
 |---|---|---|
-| **Campanha** | `bid_strategy` ausente, `special_ad_categories` ausente | `bid_strategy`, `special_ad_categories`, `lifetime_budget_cents`, `start_time`, `end_time` propagados |
+| **Campanha** | `special_ad_categories` ausente | `special_ad_categories`, `lifetime_budget_cents`, `start_time`, `end_time` propagados |
 | **AdSet — Targeting** | `geo_locations: {countries: ["BR"]}` fixo | `geo_locations`, `genders`, `age_min/max`, `interests`, `behaviors`, `excluded_audience_ids`, `lookalike_spec` — tudo da `action_data` |
 | **AdSet — Posicionamentos** | Ausente (Automático sempre) | `publisher_platforms`, `position_types` (mapeados para `facebook_positions`/`instagram_positions`), `device_platforms` |
 | **AdSet — Otimização** | `billing_event: "IMPRESSIONS"` fixo | `optimization_goal`, `billing_event`, `bid_amount_cents` da `action_data` |
