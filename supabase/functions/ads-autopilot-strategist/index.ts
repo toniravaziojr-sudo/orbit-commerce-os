@@ -282,22 +282,37 @@ const STRATEGIST_TOOLS = [
                 action_type: { type: "string", enum: ["create_campaign", "adjust_budget", "pause_campaign", "test", "scale", "duplicate", "optimize"], description: "Tipo da ação" },
                 campaign_type: { type: "string", enum: ["TOF", "MOF", "BOF", "Remarketing", "Teste", "Catálogo", "Duplicação"], description: "Tipo de campanha" },
                 product_name: { type: "string", description: "Nome EXATO do produto do catálogo" },
-                daily_budget_brl: { type: "number", description: "Orçamento diário em R$" },
-                target_audience: { type: "string", description: "Público-alvo detalhado (idade, gênero, interesses, localização)" },
+                daily_budget_brl: { type: "number", description: "Orçamento diário TOTAL da campanha em R$" },
+                target_audience: { type: "string", description: "Resumo do público-alvo principal (ex: Homens 30-65, Brasil)" },
                 funnel_stage: { type: "string", enum: ["tof", "mof", "bof", "test"], description: "Etapa do funil" },
                 objective: { type: "string", description: "Objetivo da campanha (ex: OUTCOME_SALES, OUTCOME_LEADS)" },
                 performance_goal: { type: "string", enum: ["Maximizar Conversões", "Maximizar Valor das Conversões"], description: "Meta de desempenho do conjunto (como aparece no Meta Ads). Padrão: Maximizar Conversões" },
                 conversion_location: { type: "string", enum: ["Site", "Site e App", "App", "Site e Loja Física"], description: "Local da conversão do conjunto. Padrão: Site" },
                 attribution_model: { type: "string", enum: ["Padrão", "Incremental"], description: "Modelo de atribuição. Padrão: Padrão" },
-                creatives_count: { type: "number", description: "Quantidade de variações de criativos (mín 2)" },
+                creatives_count: { type: "number", description: "Quantidade TOTAL de variações de criativos (mín 2, conta todas as variações de todos os conjuntos)" },
                 copy_variations: { type: "number", description: "Quantidade de variações de copy (mín 2)" },
                 rationale: { type: "string", description: "Justificativa detalhada para esta ação específica, com dados de suporte" },
                 expected_roas: { type: "number", description: "ROAS esperado baseado em dados históricos" },
                 placements: { type: "string", description: "Posicionamentos (ex: Feed, Stories, Reels, Advantage+)" },
+                adsets: {
+                  type: "array",
+                  description: "OBRIGATÓRIO: Lista dos conjuntos de anúncios desta campanha. TOF deve ter ≥2 conjuntos com públicos distintos. Testes devem ter 1 conjunto por anúncio (ABO). BOF deve ter ≥2 conjuntos segmentados.",
+                  items: {
+                    type: "object",
+                    properties: {
+                      adset_name: { type: "string", description: "Nome do conjunto (ex: CJ1 - Broad | TOF)" },
+                      audience_type: { type: "string", enum: ["broad", "interest", "lookalike", "custom", "retargeting"], description: "Tipo de audiência deste conjunto" },
+                      audience_description: { type: "string", description: "Descrição do público deste conjunto (ex: Público amplo Homens 30-65 BR, LAL 1% compradores 180d, Visitantes 14d)" },
+                      budget_brl: { type: "number", description: "Orçamento diário deste conjunto em R$ (ABO) — obrigatório em campanhas de teste; opcional em CBO" },
+                      ads_count: { type: "number", description: "Número de anúncios neste conjunto" },
+                    },
+                    required: ["adset_name", "audience_type", "audience_description", "ads_count"],
+                  },
+                },
               },
-              required: ["action_type", "campaign_type", "product_name", "daily_budget_brl", "target_audience", "funnel_stage", "rationale", "creatives_count"],
+              required: ["action_type", "campaign_type", "product_name", "daily_budget_brl", "target_audience", "funnel_stage", "rationale", "creatives_count", "adsets"],
             }, 
-            description: "Lista de ações planejadas — cada uma DEVE ter todos os campos preenchidos com dados ESPECÍFICOS do catálogo e métricas reais." 
+            description: "Lista de ações planejadas — OBRIGATÓRIO: cada campanha de create_campaign DEVE incluir o campo 'adsets' detalhando TODOS os conjuntos de anúncios com seus públicos. TOF ≥2 conjuntos, Teste = 1 conjunto por anúncio (ABO), BOF ≥2 conjuntos segmentados." 
           },
           budget_allocation: {
             type: "object",
@@ -789,22 +804,28 @@ IMPORTANTE: No planned_actions do plano estratégico, inclua OBRIGATORIAMENTE: p
 - Copys de aquisição (TOF) devem abordar: gancho de atenção, benefício principal, curiosidade, transformação
 - NUNCA copie primary_texts ou headlines de campanhas TOF para campanhas BOF — escreva copys NOVAS com ângulos diferentes
 
-### 2. CAMPANHAS DE TESTE: 1 CONJUNTO POR ANÚNCIO (ABO)
+### 2. CAMPANHAS DE TESTE: 1 CONJUNTO POR ANÚNCIO (ABO) — OBRIGATÓRIO no campo adsets[]
 - Em campanhas de TESTE, cada anúncio DEVE estar em seu próprio conjunto de anúncios (Ad Set)
 - Use ABO (Ad Set Budget Optimization) em vez de CBO para forçar orçamento igual por anúncio
 - Motivo: Evita que a Meta concentre o orçamento em um único anúncio, invalidando o teste
-- Na prática: Use create_campaign para o primeiro anúncio, depois create_adset para cada anúncio adicional dentro da mesma campanha
-- Cada adset de teste deve ter o mesmo orçamento diário (budget do teste ÷ número de variações)
-- NÃO use daily_budget_cents no nível de campanha para testes — use daily_budget_cents em cada adset via create_adset
+- Se o teste tem 3 variações e budget de R$ 125, cada adset terá R$ 41,67/dia
+- NO PLANO (planned_actions): declare CADA conjunto individualmente no array adsets[], com budget_brl = budget_total ÷ nº variações
+- Exemplo: adsets = [{adset_name: "CJ1 - Fast Upgrade Ângulo A", ads_count: 1, budget_brl: 41.67}, {adset_name: "CJ2 - Shampoo Ângulo B", ads_count: 1, budget_brl: 41.67}, ...]
 
-### 3. VENDA DIRETA (NÃO-TESTE): MÚLTIPLOS PÚBLICOS
+### 3. VENDA DIRETA (NÃO-TESTE): MÚLTIPLOS PÚBLICOS — OBRIGATÓRIO no campo adsets[]
 - Campanhas de venda direta (TOF, não-teste) DEVEM ter múltiplos conjuntos de anúncios com PÚBLICOS DIFERENTES
 - Os anúncios podem ser os mesmos em cada conjunto, mas os públicos (targeting) devem ser diferentes
 - Motivo: Testar qual público converte melhor para o mesmo produto, ampliando o alcance qualificado
-- Na prática: Use create_campaign para o conjunto principal, depois create_adset para cada público adicional
 - Públicos sugeridos: Broad (amplo), Interesses específicos, Lookalikes, Custom Audiences
 - Mínimo de 2 conjuntos por campanha de venda direta, idealmente 3-4 quando há budget suficiente
 - Use os públicos disponíveis na conta (Custom Audiences, Lookalikes) como base para segmentação
+- NO PLANO (planned_actions): declare CADA conjunto no array adsets[], com audience_type e audience_description específicos
+- Exemplo: adsets = [{adset_name: "CJ1 - Broad", audience_type: "broad", audience_description: "Homens 30-65 BR sem segmentação", ads_count: 3}, {adset_name: "CJ2 - LAL 1% compradores", audience_type: "lookalike", audience_description: "Lookalike 1% COMPRA 180D", ads_count: 3}]
+
+### 3b. REMARKETING (BOF): SEGMENTOS SEPARADOS — OBRIGATÓRIO no campo adsets[]
+- Campanhas de remarketing DEVEM ter conjuntos separados por temperatura de audiência
+- Exemplo de adsets: Visitantes 14d (mais frio), ATC 7d (quente), IC 7d (mais quente) — EXCLUINDO compradores recentes
+- NO PLANO (planned_actions): declare cada segmento como um conjunto separado no array adsets[]
 
 ### 4. URL DE DESTINO (destination_url)
 - SEMPRE use a URL real do produto (ex: loja.exemplo.com/produto/slug-do-produto)
