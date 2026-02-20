@@ -9,6 +9,7 @@
 // =====================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -17,8 +18,6 @@ const corsHeaders = {
 };
 
 const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
-const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-const AI_GATEWAY_URL = 'https://ai.gateway.lovable.dev/v1/chat/completions';
 
 // =====================================================
 // TYPES
@@ -352,10 +351,8 @@ async function extractContentWithAI(
   html: string, 
   markdown: string
 ): Promise<AIExtractionResult | null> {
-  if (!LOVABLE_API_KEY) {
-    console.error('[Pages] LOVABLE_API_KEY not configured');
-    return null;
-  }
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
   try {
     // Clean HTML for AI analysis - remove script/style/nav/header/footer
@@ -435,20 +432,17 @@ IMPORTANTE:
 
     console.log(`[Pages] Calling AI for: ${pageUrl}`);
 
-    const response = await fetch(AI_GATEWAY_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.1, // Low temperature for consistent extraction
-      }),
+    resetAIRouterCache();
+    const response = await aiChatCompletion('google/gemini-2.5-flash', {
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.1,
+    }, {
+      supabaseUrl,
+      supabaseServiceKey,
+      logPrefix: '[Pages]',
     });
 
     if (!response.ok) {
@@ -850,7 +844,7 @@ Deno.serve(async (req) => {
       // Extract content with AI (or fallback to manual)
       let extraction: AIExtractionResult | null = null;
       
-      if (LOVABLE_API_KEY) {
+      {
         extraction = await extractContentWithAI(candidate.url, pageData.html, pageData.markdown);
       }
       

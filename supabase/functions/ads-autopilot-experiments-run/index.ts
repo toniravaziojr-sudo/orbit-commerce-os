@@ -1,7 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.0.0"; // Initial: evaluate running experiments, promote winners, cancel losers, plan new
+const VERSION = "v1.1.0"; // Use ai-router for native AI priority
 // ===========================================================
 
 const corsHeaders = {
@@ -9,8 +10,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
 };
-
-const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 function ok(data: any) {
   return new Response(JSON.stringify({ success: true, data }), {
@@ -198,22 +197,23 @@ const EXPERIMENT_TOOLS = [
 ];
 
 async function callAI(messages: any[], tools: any[], model: string): Promise<any> {
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-  const response = await fetch(LOVABLE_AI_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ model, messages, tools, tool_choice: "auto" }),
+  const response = await aiChatCompletion(model, {
+    messages,
+    tools,
+    tool_choice: "auto",
+  }, {
+    supabaseUrl,
+    supabaseServiceKey,
+    logPrefix: `[experiments-run][${VERSION}]`,
   });
 
   if (!response.ok) {
     const text = await response.text();
     console.error(`[experiments-run][${VERSION}] AI error: ${response.status} ${text}`);
-    throw new Error(`AI gateway error: ${response.status}`);
+    throw new Error(`AI error: ${response.status}`);
   }
 
   return response.json();

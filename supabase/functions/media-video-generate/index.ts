@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
+import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 const VERSION = "2.0.0";
 
@@ -52,7 +53,7 @@ serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+  resetAIRouterCache();
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -240,8 +241,7 @@ async function processVideoPipeline(
       originalPrompt,
       niche,
       durationSeconds,
-      categoryProfile,
-      lovableApiKey
+      categoryProfile
     );
 
     const rewrittenPrompt = buildVideoPrompt(shotPlan, productImageUrl ? true : false);
@@ -472,23 +472,17 @@ async function rewritePromptToShotPlan(
   niche: string,
   durationSeconds: number,
   categoryProfile: any,
-  lovableApiKey: string | undefined
+  _unused?: any
 ): Promise<ShotPlan> {
-  // If we have Lovable AI, use it to rewrite the prompt
-  if (lovableApiKey) {
-    try {
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${lovableApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          messages: [
-            {
-              role: "system",
-              content: `You are a video production director. Convert user prompts into structured shot plans for ${durationSeconds}-second product videos.
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    const response = await aiChatCompletion("google/gemini-2.5-flash", {
+      messages: [
+        {
+          role: "system",
+          content: `You are a video production director. Convert user prompts into structured shot plans for ${durationSeconds}-second product videos.
               
               Niche: ${niche}
               Context tokens: ${categoryProfile?.context_tokens?.join(", ") || "professional, clean"}
@@ -502,48 +496,50 @@ async function rewritePromptToShotPlan(
               - lighting_notes: Lighting recommendations
               - duration_seconds: Total duration
               - style_tokens: Array of style keywords`,
-            },
-            {
-              role: "user",
-              content: originalPrompt,
-            },
-          ],
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "create_shot_plan",
-                description: "Create a structured video shot plan",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    opening: { type: "string" },
-                    main_action: { type: "string" },
-                    closing: { type: "string" },
-                    camera_movement: { type: "string" },
-                    lighting_notes: { type: "string" },
-                    duration_seconds: { type: "number" },
-                    style_tokens: { type: "array", items: { type: "string" } },
-                  },
-                  required: ["opening", "main_action", "closing", "camera_movement", "lighting_notes", "duration_seconds", "style_tokens"],
-                },
+        },
+        {
+          role: "user",
+          content: originalPrompt,
+        },
+      ],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "create_shot_plan",
+            description: "Create a structured video shot plan",
+            parameters: {
+              type: "object",
+              properties: {
+                opening: { type: "string" },
+                main_action: { type: "string" },
+                closing: { type: "string" },
+                camera_movement: { type: "string" },
+                lighting_notes: { type: "string" },
+                duration_seconds: { type: "number" },
+                style_tokens: { type: "array", items: { type: "string" } },
               },
+              required: ["opening", "main_action", "closing", "camera_movement", "lighting_notes", "duration_seconds", "style_tokens"],
             },
-          ],
-          tool_choice: { type: "function", function: { name: "create_shot_plan" } },
-        }),
-      });
+          },
+        },
+      ],
+      tool_choice: { type: "function", function: { name: "create_shot_plan" } },
+    }, {
+      supabaseUrl,
+      supabaseServiceKey,
+      logPrefix: "[media-video-generate]",
+    });
 
-      if (response.ok) {
-        const data = await response.json();
-        const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-        if (toolCall?.function?.arguments) {
-          return JSON.parse(toolCall.function.arguments);
-        }
+    if (response.ok) {
+      const data = await response.json();
+      const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+      if (toolCall?.function?.arguments) {
+        return JSON.parse(toolCall.function.arguments);
       }
-    } catch (error) {
-      console.error("[media-video-generate] LLM rewrite failed:", error);
     }
+  } catch (error) {
+    console.error("[media-video-generate] LLM rewrite failed:", error);
   }
 
   // Fallback to basic shot plan

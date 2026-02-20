@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -465,19 +466,6 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      console.error('[CLASSIFY] LOVABLE_API_KEY não configurada');
-      return new Response(
-        JSON.stringify({
-          success: true,
-          classification: createFallbackResult(),
-          fallback: true,
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     console.log(`[CLASSIFY] Processando seção: ${html.length} chars`);
     
     // Check for noise early
@@ -489,21 +477,21 @@ serve(async (req) => {
     const cleanedHtml = stripHtmlForAnalysis(html);
     const userPrompt = createUserPrompt(cleanedHtml, pageContext, platformContext);
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: userPrompt },
-        ],
-        tools: [EXTRACTION_FUNCTION],
-        tool_choice: { type: 'function', function: { name: 'extract_and_classify' } },
-      }),
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    resetAIRouterCache();
+
+    const response = await aiChatCompletion('google/gemini-2.5-flash', {
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: userPrompt },
+      ],
+      tools: [EXTRACTION_FUNCTION],
+      tool_choice: { type: 'function', function: { name: 'extract_and_classify' } },
+    }, {
+      supabaseUrl,
+      supabaseServiceKey,
+      logPrefix: '[CLASSIFY]',
     });
 
     if (!response.ok) {
