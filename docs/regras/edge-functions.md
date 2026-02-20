@@ -1479,9 +1479,11 @@ Se um criativo falha (status `failed`), ele **não bloqueia** o pipeline. O call
 | `product_name` | string | ✅ | Nome exato do produto do catálogo |
 | `daily_budget_brl` | number | ✅ | Orçamento diário em R$ |
 | `target_audience` | string | ✅ | Descrição do público-alvo |
-| `funnel_stage` | string | ✅ | cold, warm, hot |
+| `funnel_stage` | string | ✅ | tof, mof, bof, test |
 | `objective` | string | ✅ | Objetivo da campanha |
-| `bid_strategy` | string | ❌ | LOWEST_COST, BID_CAP, COST_CAP, etc. |
+| `performance_goal` | string | ✅ | Meta de desempenho: "Maximizar Conversões" ou "Maximizar Valor das Conversões" |
+| `conversion_location` | string | ✅ | Local da conversão: "Site", "Site e App", "App" |
+| `attribution_model` | string | ❌ | Modelo de atribuição: "Padrão" ou "Incremental" |
 | `creatives_count` | number | ❌ | Qtd de criativos planejados |
 | `copy_variations` | number | ❌ | Qtd de variações de copy |
 | `rationale` | string | ✅ | Justificativa detalhada da ação |
