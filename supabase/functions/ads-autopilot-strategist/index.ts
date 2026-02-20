@@ -331,8 +331,8 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     supabase.from("meta_ad_campaigns").select("meta_campaign_id, name, status, effective_status, objective, daily_budget_cents, ad_account_id").eq("tenant_id", tenantId).limit(200),
     supabase.from("meta_ad_insights").select("meta_campaign_id, impressions, clicks, spend_cents, conversions, roas, date_start").eq("tenant_id", tenantId).gte("date_start", thirtyDaysAgo).limit(1000),
     supabase.from("meta_ad_insights").select("meta_campaign_id, impressions, clicks, spend_cents, conversions, roas, date_start").eq("tenant_id", tenantId).gte("date_start", sevenDaysAgo).limit(500),
-    supabase.from("meta_ad_adsets").select("meta_adset_id, name, status, effective_status, meta_campaign_id, daily_budget_cents, ad_account_id").eq("tenant_id", tenantId).limit(500),
-    supabase.from("meta_ad_ads").select("meta_ad_id, name, status, effective_status, meta_adset_id, ad_account_id, creative_id, creative_data").eq("tenant_id", tenantId).limit(500),
+    supabase.from("meta_ad_adsets").select("meta_adset_id, name, status, effective_status, meta_campaign_id, daily_budget_cents, lifetime_budget_cents, optimization_goal, billing_event, bid_amount_cents, targeting, ad_account_id").eq("tenant_id", tenantId).limit(500),
+    supabase.from("meta_ad_ads").select("meta_ad_id, name, status, effective_status, meta_adset_id, meta_campaign_id, ad_account_id, creative_id, creative_data").eq("tenant_id", tenantId).limit(500),
     supabase.from("meta_ad_audiences").select("meta_audience_id, name, audience_type, subtype, ad_account_id, approximate_count").eq("tenant_id", tenantId).limit(100),
     supabase.from("ads_creative_assets").select("id, channel, format, status, product_id, created_at").eq("tenant_id", tenantId).gte("created_at", sevenDaysAgo).limit(50),
     supabase.from("ads_autopilot_actions").select("action_type, action_data, status, channel, created_at").eq("tenant_id", tenantId).gte("created_at", sevenDaysAgo).limit(200),
@@ -741,11 +741,12 @@ ${context.products.map((p: any) => `  • ${p.name} — R$${Number(p.price).toFi
   const user = `## CAMPANHAS (${campaignData.length} total: ${activeCampaigns.length} ativas, ${pausedCampaigns.length} pausadas)
 ${JSON.stringify(campaignData, null, 2)}
 
-## AD SETS (${accountAdsets.length})
-${JSON.stringify(accountAdsets.slice(0, 30).map((as: any) => ({ id: as.meta_adset_id, name: as.name, status: as.status, campaign_id: as.meta_campaign_id })), null, 2)}
+## AD SETS / CONJUNTOS DE ANÚNCIOS (${accountAdsets.length})
+⚠️ IMPORTANTE: Quando uma campanha não tem daily_budget_cents, o orçamento está definido no nível do conjunto de anúncios (adset). Verifique daily_budget_cents e lifetime_budget_cents dos adsets antes de concluir que não há orçamento.
+${JSON.stringify(accountAdsets.slice(0, 50).map((as: any) => ({ id: as.meta_adset_id, name: as.name, status: as.status, effective_status: as.effective_status, campaign_id: as.meta_campaign_id, daily_budget_cents: as.daily_budget_cents, lifetime_budget_cents: as.lifetime_budget_cents, optimization_goal: as.optimization_goal, billing_event: as.billing_event, bid_amount_cents: as.bid_amount_cents })), null, 2)}
 
-## ANÚNCIOS (${accountAds.length})
-${JSON.stringify(accountAds.slice(0, 50).map((ad: any) => ({ id: ad.meta_ad_id, name: ad.name, status: ad.status, effective_status: ad.effective_status, adset_id: ad.meta_adset_id })), null, 2)}
+## ANÚNCIOS INDIVIDUAIS (${accountAds.length})
+${JSON.stringify(accountAds.slice(0, 50).map((ad: any) => ({ id: ad.meta_ad_id, name: ad.name, status: ad.status, effective_status: ad.effective_status, adset_id: ad.meta_adset_id, campaign_id: ad.meta_campaign_id })), null, 2)}
 
 ## PÚBLICOS DISPONÍVEIS (${accountAudiences.length})
 ${JSON.stringify(accountAudiences.map((a: any) => ({ id: a.meta_audience_id, name: a.name, type: a.audience_type, subtype: a.subtype, size: a.approximate_count })), null, 2)}
