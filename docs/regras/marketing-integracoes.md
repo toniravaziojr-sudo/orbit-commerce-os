@@ -1260,6 +1260,41 @@ O botão **"Ajustar"** em cada card de campanha pendente aciona uma revisão res
 
 ---
 
+### Tag de Tipo de Campanha nos Cards de Aprovação (v5.15.2 — 2026-02-20)
+
+**Funcionalidade:** Os cards de aprovação (`ActionApprovalCard`) agora exibem uma badge colorida com o **tipo de campanha** (ex: Venda Direta, Remarketing, Teste, Catálogo, Tráfego) na área de chips, junto com orçamento, criativos e conjuntos.
+
+**Inferência do tipo** — função `inferCampaignType(data)` usa 3 fontes em ordem de prioridade:
+
+| Prioridade | Fonte | Exemplo |
+|------------|-------|---------|
+| 1 | Campo explícito `campaign_type` ou `objective` em `action_data` / `preview` | `sales`, `catalog_sales`, `traffic` |
+| 2 | Padrão no nome da campanha (`campaign_name`) | `[AI] TESTES | ...` → Teste |
+| 3 | Fallback por `funnel_stage` | `tof` → Venda Direta, `bof` → Remarketing |
+
+**Tipos suportados:**
+
+| Chave(s) | Label | Cor |
+|----------|-------|-----|
+| `sales`, `conversions` | Venda Direta | Emerald |
+| `remarketing`, `retargeting` | Remarketing | Orange |
+| `test`, `testing` | Teste | Purple |
+| `traffic`, `link_clicks` | Tráfego | Sky |
+| `catalog`, `catalog_sales`, `product_catalog_sales` | Catálogo | Amber |
+| `awareness`, `brand_awareness` | Reconhecimento | Indigo |
+| `reach` | Alcance | Teal |
+| `engagement` | Engajamento | Pink |
+| `leads`, `lead_generation` | Geração de Leads | Green |
+| `video_views` | Visualização de Vídeo | Rose |
+
+#### Arquivos Afetados
+
+| Arquivo | Mudança |
+|---------|---------|
+| `src/components/ads/ActionApprovalCard.tsx` | Novo mapa `CAMPAIGN_TYPE_LABELS`, função `inferCampaignType`, badge na área de chips |
+
+---
+
 ### Correções v5.12.9 (2026-02-19)
 
 | Item | Correção | Aceite |
