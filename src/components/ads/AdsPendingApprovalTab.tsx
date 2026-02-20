@@ -187,6 +187,7 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
   const campaigns = pendingActions.filter(a => a.action_type !== "create_adset");
   const adsets = pendingActions.filter(a => a.action_type === "create_adset");
 
+  // Build a map: adset campaign_name → adsets
   const adsetsByParent = new Map<string, typeof adsets>();
   for (const adset of adsets) {
     const parentName = (adset.action_data as any)?.campaign_name || (adset.action_data as any)?.parent_campaign_name || "";
@@ -194,21 +195,61 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
     adsetsByParent.get(parentName)!.push(adset);
   }
 
-  const getChildActions = (action: typeof campaigns[0]) => {
-    const campaignName = (action.action_data as any)?.campaign_name || (action.action_data as any)?.preview?.campaign_name || "";
-    return adsetsByParent.get(campaignName) || [];
-  };
+  // Two-pass matching: 1) exact name match, 2) session_id fallback
+  const campaignChildMap = new Map<string, typeof adsets>();
+  const matchedAdsetIds = new Set<string>();
 
-  const matchedParents = new Set<string>();
+  // Pass 1: exact name match
   for (const c of campaigns) {
-    const name = (c.action_data as any)?.campaign_name || (c.action_data as any)?.preview?.campaign_name || "";
-    if (adsetsByParent.has(name)) matchedParents.add(name);
+    const campaignName = (c.action_data as any)?.campaign_name || (c.action_data as any)?.preview?.campaign_name || "";
+    const matched = adsetsByParent.get(campaignName) || [];
+    if (matched.length > 0) {
+      campaignChildMap.set(c.id, [...(campaignChildMap.get(c.id) || []), ...matched]);
+      matched.forEach(a => matchedAdsetIds.add(a.id));
+    }
   }
-  // Group orphan adsets by parent campaign name
+
+  // Pass 2: session_id fallback for unmatched adsets
+  const unmatchedAdsets = adsets.filter(a => !matchedAdsetIds.has(a.id));
+  if (unmatchedAdsets.length > 0) {
+    const sessionCampaigns = new Map<string, typeof campaigns>();
+    for (const c of campaigns) {
+      const sid = c.session_id;
+      if (!sessionCampaigns.has(sid)) sessionCampaigns.set(sid, []);
+      sessionCampaigns.get(sid)!.push(c);
+    }
+
+    for (const adset of unmatchedAdsets) {
+      const sid = adset.session_id;
+      const sessionCamps = sessionCampaigns.get(sid);
+      if (sessionCamps && sessionCamps.length > 0) {
+        const adsetCampName = ((adset.action_data as any)?.campaign_name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+        let bestCampaign = sessionCamps[0];
+        let bestScore = 0;
+        for (const c of sessionCamps) {
+          const cName = ((c.action_data as any)?.campaign_name || (c.action_data as any)?.preview?.campaign_name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+          let score = 0;
+          const shorter = adsetCampName.length < cName.length ? adsetCampName : cName;
+          const longer = adsetCampName.length < cName.length ? cName : adsetCampName;
+          for (let i = 0; i < shorter.length; i++) {
+            if (longer.includes(shorter.substring(i, i + 3))) score++;
+          }
+          if (score > bestScore) { bestScore = score; bestCampaign = c; }
+        }
+        if (!campaignChildMap.has(bestCampaign.id)) campaignChildMap.set(bestCampaign.id, []);
+        campaignChildMap.get(bestCampaign.id)!.push(adset);
+        matchedAdsetIds.add(adset.id);
+      }
+    }
+  }
+
+  const getChildActions = (action: typeof campaigns[0]) => campaignChildMap.get(action.id) || [];
+
+  // Orphan adsets: still unmatched after both passes
   const orphanAdsetGroups = new Map<string, typeof adsets>();
   for (const a of adsets) {
-    const parentName = (a.action_data as any)?.campaign_name || (a.action_data as any)?.parent_campaign_name || "";
-    if (!matchedParents.has(parentName)) {
+    if (!matchedAdsetIds.has(a.id)) {
+      const parentName = (a.action_data as any)?.campaign_name || (a.action_data as any)?.parent_campaign_name || "";
       const groupKey = parentName || "Sem campanha";
       if (!orphanAdsetGroups.has(groupKey)) orphanAdsetGroups.set(groupKey, []);
       orphanAdsetGroups.get(groupKey)!.push(a);
