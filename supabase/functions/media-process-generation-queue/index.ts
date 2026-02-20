@@ -1,9 +1,10 @@
 /**
- * Media Process Generation Queue — v5.0 (Dual Provider + QA Scorer)
+ * Media Process Generation Queue — v6.0 (Real OpenAI + Gemini Lovable + QA Scorer)
  * 
- * Mesma arquitetura do creative-image-generate v3.0:
- * - Gemini Flash (google/gemini-2.5-flash-image) — padrão rápido
- * - Gemini Pro (google/gemini-3-pro-image-preview) — simulando "OpenAI", alta qualidade
+ * Provedores de imagem:
+ * - OpenAI: Real OpenAI API (gpt-image-1) — provider primário "openai"
+ * - Gemini Flash (google/gemini-2.5-flash-image) via Lovable Gateway — provider "gemini"
+ * - Gemini Pro (google/gemini-3-pro-image-preview) via Lovable Gateway — fallback
  * - QA Scorer (google/gemini-3-flash-preview) — scoring de realismo
  * - Seleção automática do melhor resultado por score
  */
@@ -11,7 +12,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const VERSION = '5.0.0';
+const VERSION = '6.0.0';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -218,16 +219,96 @@ async function generateWithGemini(
   }
 }
 
-// ========== GENERATE WITH "OPENAI" (Gemini Pro) ==========
+// ========== GENERATE WITH REAL OPENAI (gpt-image-1) ==========
 
 async function generateWithOpenAI(
   apiKey: string,
+  openaiApiKey: string | null,
   prompt: string,
   referenceImageBase64: string | null,
 ): Promise<{ imageBase64: string | null; model: string; error?: string }> {
-  const model = "google/gemini-3-pro-image-preview";
+  
+  // Try Real OpenAI first
+  if (openaiApiKey) {
+    const model = "gpt-image-1";
+    try {
+      console.log(`🎨 Real OpenAI ${model} generation (ref: ${!!referenceImageBase64})...`);
+
+      if (referenceImageBase64) {
+        // Use edits endpoint with reference
+        const formData = new FormData();
+        const binaryStr = atob(referenceImageBase64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+        }
+        const imageBlob = new Blob([bytes], { type: 'image/png' });
+        formData.append('image', imageBlob, 'reference.png');
+        formData.append('prompt', prompt);
+        formData.append('model', model);
+        formData.append('n', '1');
+        formData.append('size', '1024x1024');
+        formData.append('response_format', 'b64_json');
+
+        const response = await fetch("https://api.openai.com/v1/images/edits", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${openaiApiKey}` },
+          body: formData,
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const b64 = data.data?.[0]?.b64_json;
+          if (b64) {
+            console.log("✅ Real OpenAI image generated via edits");
+            return { imageBase64: b64, model: `${model} (OpenAI)` };
+          }
+        } else {
+          const errorText = await response.text();
+          console.error(`❌ OpenAI edits error: ${response.status}`, errorText.substring(0, 200));
+        }
+      } else {
+        // Use generations endpoint (no reference)
+        const response = await fetch("https://api.openai.com/v1/images/generations", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${openaiApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model,
+            prompt,
+            n: 1,
+            size: "1024x1024",
+            response_format: "b64_json",
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const b64 = data.data?.[0]?.b64_json;
+          if (b64) {
+            console.log("✅ Real OpenAI image generated via generations");
+            return { imageBase64: b64, model: `${model} (OpenAI)` };
+          }
+        } else {
+          const errorText = await response.text();
+          console.error(`❌ OpenAI generations error: ${response.status}`, errorText.substring(0, 200));
+        }
+      }
+
+      console.warn("⚠️ Real OpenAI failed, falling back to Lovable Gateway (Gemini Pro)...");
+    } catch (error) {
+      console.error("❌ Real OpenAI error:", error);
+    }
+  } else {
+    console.warn("⚠️ OPENAI_API_KEY not available, using Lovable Gateway fallback for OpenAI provider");
+  }
+
+  // Fallback: Lovable Gateway with Gemini Pro
+  const fallbackModel = "google/gemini-3-pro-image-preview";
   try {
-    console.log(`🎨 OpenAI/Pro generation (ref: ${!!referenceImageBase64})...`);
+    console.log(`🎨 Lovable fallback (${fallbackModel}) for OpenAI provider...`);
 
     const openaiPrompt = `${prompt}
 
@@ -252,7 +333,7 @@ ESTILO OPENAI:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model,
+        model: fallbackModel,
         messages: [{ role: "user", content }],
         modalities: ["image", "text"],
       }),
@@ -260,24 +341,24 @@ ESTILO OPENAI:
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`❌ OpenAI/Pro error: ${response.status}`, errorText);
-      if (response.status === 429) return { imageBase64: null, model, error: "Rate limit OpenAI. Aguarde." };
-      if (response.status === 402) return { imageBase64: null, model, error: "Créditos insuficientes." };
-      return { imageBase64: null, model, error: `OpenAI HTTP ${response.status}` };
+      console.error(`❌ Lovable fallback error: ${response.status}`, errorText);
+      if (response.status === 429) return { imageBase64: null, model: fallbackModel, error: "Rate limit. Aguarde." };
+      if (response.status === 402) return { imageBase64: null, model: fallbackModel, error: "Créditos insuficientes." };
+      return { imageBase64: null, model: fallbackModel, error: `Lovable HTTP ${response.status}` };
     }
 
     const data = await response.json();
     const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    if (!imageUrl) return { imageBase64: null, model, error: "OpenAI não gerou imagem" };
+    if (!imageUrl) return { imageBase64: null, model: fallbackModel, error: "Lovable fallback não gerou imagem" };
 
     const base64Match = imageUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
-    if (!base64Match) return { imageBase64: null, model, error: "Formato inválido OpenAI" };
+    if (!base64Match) return { imageBase64: null, model: fallbackModel, error: "Formato inválido Lovable" };
 
-    console.log("✅ OpenAI/Pro image generated");
-    return { imageBase64: base64Match[1], model };
+    console.log("✅ Lovable fallback (Gemini Pro) image generated for OpenAI provider");
+    return { imageBase64: base64Match[1], model: `${fallbackModel} (Lovable fallback)` };
   } catch (error) {
-    console.error("❌ OpenAI/Pro error:", error);
-    return { imageBase64: null, model, error: String(error) };
+    console.error("❌ Lovable fallback error:", error);
+    return { imageBase64: null, model: fallbackModel, error: String(error) };
   }
 }
 
@@ -404,6 +485,7 @@ serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+  const openaiApiKey = Deno.env.get("OPENAI_API_KEY") || null;
 
   if (!lovableApiKey) {
     console.error("❌ LOVABLE_API_KEY not configured");
@@ -411,6 +493,12 @@ serve(async (req) => {
       JSON.stringify({ success: false, error: "LOVABLE_API_KEY não configurada" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+  }
+
+  if (openaiApiKey) {
+    console.log(`[media-process-generation-queue v${VERSION}] OpenAI API key available — real OpenAI enabled`);
+  } else {
+    console.log(`[media-process-generation-queue v${VERSION}] No OPENAI_API_KEY — OpenAI provider will use Lovable fallback`);
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -535,7 +623,9 @@ BRIEFING DO CRIATIVO: ${generation.prompt_final}`;
         // Generate with both providers in parallel
         const providerPromises = enabledProviders.map(async (provider): Promise<ProviderResult> => {
           const generateFn = provider === 'gemini' ? generateWithGemini : generateWithOpenAI;
-          const result = await generateFn(lovableApiKey, finalPrompt, referenceBase64);
+          const result = provider === 'gemini' 
+            ? await generateFn(lovableApiKey, finalPrompt, referenceBase64)
+            : await generateWithOpenAI(lovableApiKey, openaiApiKey, finalPrompt, referenceBase64);
 
           if (!result.imageBase64) {
             return {
