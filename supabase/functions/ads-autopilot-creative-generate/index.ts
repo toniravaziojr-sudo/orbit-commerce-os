@@ -1,7 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v2.0.0"; // Bridge: generate text briefs + trigger image generation via creative-image-generate
+const VERSION = "v2.1.0"; // Use ai-router for native AI priority
 // ===================
 
 const corsHeaders = {
@@ -9,8 +10,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-
-const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 function ok(data: any) {
   return new Response(JSON.stringify({ success: true, data }), {
@@ -195,27 +194,19 @@ Responda APENAS com JSON válido:
   ]
 }`;
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      console.error(`[ads-autopilot-creative-generate][${VERSION}] LOVABLE_API_KEY not configured`);
-      return fail("LOVABLE_API_KEY não configurada");
-    }
+    resetAIRouterCache();
 
-    const aiResponse = await fetch(LOVABLE_AI_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Produtos vencedores:\n${JSON.stringify(productContext, null, 2)}` },
-        ],
-        temperature: 0.7,
-        max_tokens: 4000,
-      }),
+    const aiResponse = await aiChatCompletion("google/gemini-2.5-flash", {
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: `Produtos vencedores:\n${JSON.stringify(productContext, null, 2)}` },
+      ],
+      temperature: 0.7,
+      max_tokens: 4000,
+    }, {
+      supabaseUrl,
+      supabaseServiceKey: supabaseKey,
+      logPrefix: `[ads-autopilot-creative-generate][${VERSION}]`,
     });
 
     const aiText = await aiResponse.text();

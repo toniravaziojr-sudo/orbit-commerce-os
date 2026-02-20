@@ -1,8 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMemoryContext } from "../_shared/ai-memory.ts";
+import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.13.0"; // + AI Memory (long-term + conversation summaries)
+const VERSION = "v5.14.0"; // Use ai-router for native AI priority
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -12,8 +13,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-
-const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 // ============ TOOL DEFINITIONS ============
 
@@ -3374,8 +3373,11 @@ Deno.serve(async (req) => {
     const hasImages = attachments?.some((a: any) => a.mimeType?.startsWith("image/"));
     const modelToUse = hasImages ? "google/gemini-2.5-pro" : "google/gemini-3-flash-preview";
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    resetAIRouterCache();
+    const endpoint = await getAIEndpoint(modelToUse, { supabaseUrl, supabaseServiceKey });
+    console.log(`[ads-chat][${VERSION}] Using AI provider: ${endpoint.provider} (${endpoint.model})`);
 
     // Step 1: Non-streaming call WITH tools
     const abortController = new AbortController();
@@ -3383,10 +3385,10 @@ Deno.serve(async (req) => {
 
     let initialResult: any;
     try {
-      const initialResponse = await fetch(LOVABLE_AI_URL, {
+      const initialResponse = await fetch(endpoint.url, {
         method: "POST",
-        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: modelToUse, messages: aiMessages, tools: TOOLS, stream: false }),
+        headers: { Authorization: `Bearer ${endpoint.apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: endpoint.model, messages: aiMessages, tools: TOOLS, stream: false }),
         signal: abortController.signal,
       });
       clearTimeout(timeoutId);
@@ -3399,7 +3401,7 @@ Deno.serve(async (req) => {
           await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: `⚠️ Erro temporário: ${errorMsg}. Tente novamente.` });
           return new Response(JSON.stringify({ error: errorMsg }), { status: initialResponse.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
-        throw new Error(`AI gateway error: ${initialResponse.status}`);
+        throw new Error(`AI error: ${initialResponse.status}`);
       }
       initialResult = await initialResponse.json();
     } catch (err: any) {
@@ -3460,10 +3462,10 @@ Deno.serve(async (req) => {
         
         let nextResult: any;
         try {
-          const nextResponse = await fetch(LOVABLE_AI_URL, {
+          const nextResponse = await fetch(endpoint.url, {
             method: "POST",
-            headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model: modelToUse, messages: loopMessages, tools: TOOLS, stream: false }),
+            headers: { Authorization: `Bearer ${endpoint.apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: endpoint.model, messages: loopMessages, tools: TOOLS, stream: false }),
             signal: nextAbort.signal,
           });
           clearTimeout(nextTimeout);
@@ -3510,10 +3512,10 @@ Deno.serve(async (req) => {
       
       // Fallback: if loop exhausted without final text, do a streaming call
       console.log(`[ads-chat][${VERSION}] Tool loop exhausted after ${MAX_TOOL_ROUNDS} rounds, streaming final response`);
-      const finalStream = await fetch(LOVABLE_AI_URL, {
+      const finalStream = await fetch(endpoint.url, {
         method: "POST",
-        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: loopMessages, stream: true }),
+        headers: { Authorization: `Bearer ${endpoint.apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: endpoint.model, messages: loopMessages, stream: true }),
       });
       if (!finalStream.ok) throw new Error(`Final stream error: ${finalStream.status}`);
       return streamAndSave(finalStream, supabase, convId, tenant_id, message || "Anexo", history);
@@ -3528,10 +3530,10 @@ Deno.serve(async (req) => {
     }
 
     // Fallback stream
-    const streamResponse = await fetch(LOVABLE_AI_URL, {
+    const streamResponse = await fetch(endpoint.url, {
       method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: modelToUse, messages: aiMessages, stream: true }),
+      headers: { Authorization: `Bearer ${endpoint.apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: endpoint.model, messages: aiMessages, stream: true }),
     });
     if (!streamResponse.ok) throw new Error(`Stream error: ${streamResponse.status}`);
     return streamAndSave(streamResponse, supabase, convId, tenant_id, message || "Anexo", history);
