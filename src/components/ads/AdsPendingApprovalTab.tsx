@@ -127,6 +127,11 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
 
   const adjustAction = useMutation({
     mutationFn: async ({ actionId, feedback }: { actionId: string; feedback: string }) => {
+      // Get the action data to send context to the strategist
+      const targetAction = pendingActions.find(a => a.id === actionId);
+      const actionData = targetAction?.action_data || {};
+      const actionType = targetAction?.action_type || "unknown";
+
       // 1. Reject the action with feedback
       const { error } = await supabase
         .from("ads_autopilot_actions" as any)
@@ -134,12 +139,19 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
         .eq("id", actionId);
       if (error) throw error;
 
-      // 2. Re-trigger strategist with revision feedback
+      // 2. Re-trigger strategist with revision feedback scoped to this specific action
       const { data, error: stratErr } = await supabase.functions.invoke("ads-autopilot-strategist", {
         body: { 
           tenant_id: tenantId, 
           trigger: "revision",
           revision_feedback: feedback,
+          revision_action_id: actionId,
+          revision_action_type: actionType,
+          revision_action_data: {
+            campaign_name: (actionData as any)?.campaign_name || (actionData as any)?.preview?.campaign_name,
+            product_name: (actionData as any)?.product_name,
+            funnel_stage: (actionData as any)?.funnel_stage || (actionData as any)?.preview?.funnel_stage,
+          },
         },
       });
       if (stratErr) console.error("Strategist re-trigger error:", stratErr);
