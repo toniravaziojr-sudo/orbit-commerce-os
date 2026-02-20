@@ -1295,50 +1295,66 @@ O botão **"Ajustar"** em cada card de campanha pendente aciona uma revisão res
 
 ---
 
-### Visão Completa da Campanha — Modal com Abas (v5.15.3 — 2026-02-20)
+### Visão Completa da Campanha — Modal com Abas (v5.15.4 — 2026-02-20)
 
-**Funcionalidade:** O modal "Ver conteúdo completo" (`FullContentDialog`) agora utiliza uma interface com **3 abas** para apresentar uma visão completa da campanha proposta pela IA:
+**Funcionalidade:** O modal "Ver conteúdo completo" (`FullContentDialog`) utiliza uma interface com **3 abas** para apresentar uma visão **100% completa** da campanha proposta pela IA, com todos os campos traduzidos para PT-BR.
 
 | Aba | Conteúdo |
 |-----|----------|
 | **Criativos & Copys** | Galeria de criativos, headlines (variações numeradas), textos principais (versões), descrições, CTA |
-| **Detalhes da Campanha** | Tipo de campanha, objetivo, funil, produto, orçamento, tipo de orçamento (CBO/ABO), otimização, estratégia de lance, cobrança, posicionamentos, janela de atribuição, link de destino, link exibido, UTMs, botão CTA, pixel, evento de conversão, datas, raciocínio da IA, impacto esperado |
-| **Conjuntos & Público** | Ad sets com nome, orçamento individual, público-alvo, faixa etária, públicos personalizados (custom audiences) |
+| **Detalhes da Campanha** | Visão exaustiva organizada em seções temáticas (ver tabela abaixo) |
+| **Conjuntos & Público** | Ad sets com nome, orçamento individual, público-alvo, faixa etária, públicos personalizados |
 
-**Componente `CampaignDetailsTab`:** Renderiza uma lista vertical de detalhes extraídos do `action_data` com ícone + label + valor. Campos suportados:
+#### Componente `CampaignDetailsTab` (v2)
 
-| Campo do `action_data` / `preview` | Label exibido |
-|--------------------------------------|---------------|
-| `campaign_name` | Nome da Campanha |
-| `campaign_type` / `objective` | Tipo de Campanha (via `inferCampaignType`) |
-| `objective` | Objetivo |
-| `funnel_stage` | Etapa do Funil |
-| `product_name` | Produto |
-| `daily_budget_cents` | Orçamento Diário |
-| `budget_type` | Tipo de Orçamento |
-| `optimization_goal` | Otimização |
-| `bid_strategy` / `bidding_strategy` | Estratégia de Lance |
-| `billing_event` | Cobrança por |
-| `placements` / `publisher_platforms` | Posicionamentos |
-| `attribution_window` / `attribution_spec` | Janela de Atribuição |
-| `destination_url` / `website_url` / `link` | Link de Destino |
-| `display_link` | Link Exibido |
-| `cta` / `cta_type` | Botão (CTA) |
-| `url_parameters` / `url_tags` | Parâmetros UTM |
-| `pixel_id` | Pixel |
-| `conversion_event` / `custom_event_type` | Evento de Conversão |
-| `start_time` / `end_time` | Início / Término |
+Renderiza todos os detalhes da campanha organizados em **9 seções temáticas** com ícones:
 
-**Regras:**
+| Seção | Ícone | Campos incluídos |
+|-------|-------|------------------|
+| **Campanha** | Target | Nome da Campanha, Objetivo (traduzido), Tipo de Campanha (inferido), Etapa do Funil |
+| **Produto** | Package | Produto, ID do Catálogo, ID do Conjunto de Produtos |
+| **Orçamento** | DollarSign | Orçamento Diário, Orçamento Vitalício, Tipo de Orçamento (CBO/ABO) |
+| **Otimização** | BarChart3 | Otimização (traduzida), Estratégia de Lance, Cobrança por, Meta de Custo por Resultado |
+| **Posicionamentos** | Globe | Posicionamentos (traduzidos individualmente), Plataformas |
+| **Link & CTA** | Link2 | Link de Destino, Link Exibido, Botão CTA (traduzido), Parâmetros UTM |
+| **Agendamento** | Calendar | Data de Início, Data de Término |
+| **Público** | Users | Público-alvo, Faixa Etária, Gênero, Públicos Personalizados, Lookalikes, Interesses, Localização |
+| **Outros** | Settings2 | Pixel, Evento de Conversão, Raciocínio da IA, Impacto Esperado + **qualquer campo não mapeado** (catch-all automático) |
+
+#### Tradução Exaustiva de Termos Técnicos
+
+O componente implementa dicionários de tradução para **todos** os valores técnicos da Meta Ads API:
+
+| Dicionário | Exemplos de tradução |
+|------------|---------------------|
+| `OBJECTIVE_LABELS` | `OUTCOME_SALES` → "Vendas", `OUTCOME_LEADS` → "Geração de Leads", `OUTCOME_TRAFFIC` → "Tráfego", `OUTCOME_AWARENESS` → "Reconhecimento", `OUTCOME_ENGAGEMENT` → "Engajamento", `OUTCOME_APP_PROMOTION` → "Promoção de App" |
+| `OPTIMIZATION_LABELS` | `OFFSITE_CONVERSIONS` → "Conversões no site", `LINK_CLICKS` → "Cliques no link", `IMPRESSIONS` → "Impressões", `REACH` → "Alcance", `LANDING_PAGE_VIEWS` → "Visualizações da página", `VALUE` → "Valor da conversão" |
+| `BID_STRATEGY_LABELS` | `LOWEST_COST_WITHOUT_CAP` → "Menor custo (automático)", `LOWEST_COST_WITH_BID_CAP` → "Menor custo com limite de lance", `COST_CAP` → "Custo-alvo", `MINIMUM_ROAS` → "ROAS mínimo" |
+| `BILLING_EVENT_LABELS` | `IMPRESSIONS` → "Impressões (CPM)", `LINK_CLICKS` → "Cliques no link (CPC)", `THRUPLAY` → "ThruPlay (CPV)" |
+| `CTA_LABELS` | `SHOP_NOW` → "Comprar agora", `LEARN_MORE` → "Saiba mais", `SIGN_UP` → "Cadastre-se", `SEND_WHATSAPP_MESSAGE` → "Enviar mensagem no WhatsApp", `GET_OFFER` → "Obter oferta" |
+| `POSITION_LABELS` | `feed` → "Feed", `story` → "Stories", `reels` → "Reels", `right_hand_column` → "Coluna da direita", `search` → "Resultados de pesquisa", `marketplace` → "Marketplace", `video_feeds` → "Feeds de vídeo", `instream_video` → "Vídeos in-stream", `reels_overlay` → "Sobreposição de Reels" |
+| `CONVERSION_EVENT_LABELS` | `PURCHASE` → "Compra", `ADD_TO_CART` → "Adição ao carrinho", `INITIATED_CHECKOUT` → "Início de checkout", `LEAD` → "Lead", `COMPLETE_REGISTRATION` → "Cadastro completo", `VIEW_CONTENT` → "Visualização de conteúdo" |
+
+#### Catch-All Automático
+
+Qualquer campo presente em `action_data` que **não** esteja mapeado nas seções conhecidas (`KNOWN_KEYS`) é automaticamente:
+1. Formatado com `formatFieldValue` (arrays → lista, objetos → JSON legível, valores primitivos → tradução genérica)
+2. Exibido na seção "Outros" com label gerado via `formatKey` (snake_case → Title Case PT-BR)
+
+Isso garante que **nenhum dado é omitido**, mesmo quando a IA envia campos novos não previstos.
+
+#### Regras
+
 - Planos Estratégicos (`strategic_plan`) **não** usam abas — mantêm o layout original com `StrategicPlanContent`
 - Se nenhum campo de detalhe estiver preenchido, a aba "Detalhes" exibe um empty state informativo
 - A aba "Conjuntos & Público" só aparece se houver ad sets vinculados ou se a ação for do tipo `create_adset`
+- `childActions` (ad sets agrupados sob a campanha) são passados ao `CampaignDetailsTab` para extrair dados de público e targeting
 
 #### Arquivos Afetados
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/components/ads/ActionApprovalCard.tsx` | Novo componente `CampaignDetailsTab`, `FullContentDialog` com `Tabs`, novos ícones (`Link2`, `MousePointerClick`, `Globe`, `BarChart3`, `Settings2`) |
+| `src/components/ads/ActionApprovalCard.tsx` | `CampaignDetailsTab` v2 com 9 seções, 7 dicionários de tradução, catch-all automático, `childActions` prop |
 
 ---
 
