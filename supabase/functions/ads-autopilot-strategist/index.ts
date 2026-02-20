@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.17.0"; // Multi-round execution: AI loops until all plan actions are created
+const VERSION = "v1.19.0"; // Scoped revision: only regenerate the specific rejected action
 // ===================
 
 const corsHeaders = {
@@ -1027,18 +1027,42 @@ ${budgetAllocation ? `**Alocação de Orçamento:**\n${budgetAllocation}` : ""}`
 
   // === REVISION: fetch rejected plan + feedback to guide new analysis ===
   let revisionContext = "";
+  const revisionActionType = body?.revision_action_type || null;
+  const revisionActionData = body?.revision_action_data || null;
+  
   if (trigger === "revision" && revisionFeedback) {
-    const { data: rejectedPlans } = await supabase
-      .from("ads_autopilot_actions")
-      .select("action_data, reasoning")
-      .eq("tenant_id", tenantId)
-      .eq("action_type", "strategic_plan")
-      .eq("status", "rejected")
-      .order("created_at", { ascending: false })
-      .limit(1);
+    // Scoped revision: only regenerate the specific rejected action
+    if (revisionActionType === "create_campaign" && revisionActionData) {
+      const campaignName = revisionActionData.campaign_name || "campanha";
+      const productName = revisionActionData.product_name || "";
+      const funnelStage = revisionActionData.funnel_stage || "";
+      
+      revisionContext = `### REVISÃO ESPECÍFICA — APENAS UMA CAMPANHA
 
-    const prevDiagnosis = rejectedPlans?.[0]?.reasoning || "";
-    revisionContext = `### REVISÃO SOLICITADA PELO USUÁRIO:
+O usuário pediu ajuste APENAS na campanha "${campaignName}"${productName ? ` (produto: ${productName})` : ""}${funnelStage ? ` (funil: ${funnelStage})` : ""}.
+
+Feedback do usuário: "${revisionFeedback}"
+
+**REGRA ABSOLUTA:** Você deve criar APENAS UMA nova campanha (create_campaign) substituindo a rejeitada.
+- NÃO gere um novo plano estratégico (strategic_plan)
+- NÃO recrie outras campanhas que já existem como pendentes
+- Foque EXCLUSIVAMENTE em atender o feedback do usuário para esta campanha específica
+- Mantenha o mesmo produto/funil a menos que o feedback peça mudança`;
+
+      console.log(`[ads-autopilot-strategist][${VERSION}] Scoped revision for campaign "${campaignName}" feedback: ${revisionFeedback.substring(0, 100)}`);
+    } else if (revisionActionType === "strategic_plan") {
+      // Full plan revision — fetch previous plan
+      const { data: rejectedPlans } = await supabase
+        .from("ads_autopilot_actions")
+        .select("action_data, reasoning")
+        .eq("tenant_id", tenantId)
+        .eq("action_type", "strategic_plan")
+        .eq("status", "rejected")
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      const prevDiagnosis = rejectedPlans?.[0]?.reasoning || "";
+      revisionContext = `### REVISÃO DO PLANO ESTRATÉGICO
 
 O plano anterior foi rejeitado com o seguinte feedback:
 "${revisionFeedback}"
@@ -1047,8 +1071,29 @@ O plano anterior foi rejeitado com o seguinte feedback:
 ${prevDiagnosis.substring(0, 2000)}
 
 **INSTRUÇÕES:** Gere um NOVO plano estratégico incorporando obrigatoriamente o feedback do usuário. Mantenha o diagnóstico base mas ajuste a estratégia conforme solicitado.`;
-    
-    console.log(`[ads-autopilot-strategist][${VERSION}] Revision mode with feedback: ${revisionFeedback.substring(0, 100)}`);
+
+      console.log(`[ads-autopilot-strategist][${VERSION}] Full plan revision with feedback: ${revisionFeedback.substring(0, 100)}`);
+    } else {
+      // Generic revision fallback
+      const { data: rejectedPlans } = await supabase
+        .from("ads_autopilot_actions")
+        .select("action_data, reasoning")
+        .eq("tenant_id", tenantId)
+        .eq("status", "rejected")
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      const prevDiagnosis = rejectedPlans?.[0]?.reasoning || "";
+      revisionContext = `### REVISÃO SOLICITADA PELO USUÁRIO
+
+Feedback: "${revisionFeedback}"
+
+**Contexto anterior:** ${prevDiagnosis.substring(0, 1000)}
+
+**REGRA:** Ajuste APENAS o que o feedback pede. NÃO recrie tudo do zero.`;
+
+      console.log(`[ads-autopilot-strategist][${VERSION}] Generic revision with feedback: ${revisionFeedback.substring(0, 100)}`);
+    }
   }
 
   // Analyze each account with full pipeline
@@ -1081,12 +1126,15 @@ ${prevDiagnosis.substring(0, 2000)}
       let allAiText = "";
       
       // Build tool set based on trigger
+      const isScopedRevision = trigger === "revision" && revisionActionType === "create_campaign";
       const allowedTools = trigger === "implement_approved_plan" 
         ? STRATEGIST_TOOLS.filter((t: any) => ["generate_creative", "create_lookalike_audience"].includes(t.function?.name))
         : trigger === "implement_campaigns"
         ? STRATEGIST_TOOLS.filter((t: any) => ["create_campaign", "create_adset", "adjust_budget"].includes(t.function?.name))
         : trigger === "start"
         ? STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan")
+        : isScopedRevision
+        ? STRATEGIST_TOOLS.filter((t: any) => ["create_campaign", "create_adset", "generate_creative", "create_lookalike_audience"].includes(t.function?.name))
         : STRATEGIST_TOOLS;
 
       // Messages history for multi-round conversation
