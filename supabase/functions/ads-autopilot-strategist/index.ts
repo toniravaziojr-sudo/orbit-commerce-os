@@ -1287,6 +1287,26 @@ Feedback: "${revisionFeedback}"
             actionRecord.error_message = result.data?.error || "Erro desconhecido";
           }
 
+          // DEDUP RULE: Before inserting a new strategic_plan, supersede any existing pending ones for same account
+          if (tc.function.name === "strategic_plan" && result.status === "pending_approval") {
+            const { data: existingPlans, error: fetchErr } = await supabase
+              .from("ads_autopilot_actions")
+              .select("id")
+              .eq("tenant_id", tenantId)
+              .eq("action_type", "strategic_plan")
+              .eq("status", "pending_approval")
+              .neq("session_id", sessionId);
+            
+            if (!fetchErr && existingPlans && existingPlans.length > 0) {
+              const oldPlanIds = existingPlans.map((p: any) => p.id);
+              console.log(`[ads-autopilot-strategist][${VERSION}] Superseding ${oldPlanIds.length} old pending strategic_plan(s)`);
+              await supabase
+                .from("ads_autopilot_actions")
+                .update({ status: "superseded", rejection_reason: "Substituído por novo plano estratégico" })
+                .in("id", oldPlanIds);
+            }
+          }
+
           const { error: insertErr } = await supabase.from("ads_autopilot_actions").insert(actionRecord);
           if (insertErr) console.error(`[ads-autopilot-strategist][${VERSION}] Action insert error:`, insertErr);
 
