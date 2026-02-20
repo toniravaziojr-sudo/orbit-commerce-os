@@ -418,6 +418,7 @@ export function ActionDetailDialog({ action, open, onOpenChange }: ActionDetailD
             riskAssessment={data.risk_assessment}
             timeline={data.timeline}
             reasoning={action.reasoning}
+            budgetAllocation={data.budget_allocation}
           />
         );
       default:
