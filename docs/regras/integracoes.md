@@ -36,7 +36,7 @@ Hub central de integrações com serviços externos: pagamentos, redes sociais, 
 | WhatsApp | Z-API manager, Meta Cloud API (plataforma) |
 | Fiscal | Nuvem Fiscal, Focus NFe |
 | Logística | Loggi OAuth global |
-| IA | Fal.AI, Firecrawl |
+| IA | Gemini Nativa, OpenAI Nativa, Lovable AI Gateway (fallback), Firecrawl |
 | Mercado Livre | Meli platform config |
 | Mercado Livre | Meli platform config |
 | Mercado Pago | MP platform config |

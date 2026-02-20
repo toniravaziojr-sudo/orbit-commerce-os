@@ -149,7 +149,118 @@ function normalizeEmail(email: string): string {
 
 ---
 
-## OpenAI API — Parâmetros por Modelo
+## Sistema Centralizado de Roteamento IA (ai-router.ts)
+
+### Versão Atual: v1.0.0
+
+### Visão Geral
+
+Todas as edge functions que usam IA utilizam o roteador centralizado `supabase/functions/_shared/ai-router.ts`.
+
+**Prioridade de Provedores:**
+1. **Gemini Nativa** (Google AI Studio) — mais barata e rápida
+2. **OpenAI Nativa** — fallback secundário
+3. **Lovable AI Gateway** — fallback final (sempre disponível)
+
+### Resolução de Credenciais
+
+O roteador busca chaves de API automaticamente:
+1. Tabela `platform_credentials` (editável via painel admin `/platform-integrations` → IA)
+2. Variáveis de ambiente (fallback)
+
+| Credencial | Provider | Onde Configurar |
+|------------|----------|-----------------|
+| `GEMINI_API_KEY` | Gemini Nativa | Platform Integrations → IA → Google Gemini |
+| `OPENAI_API_KEY` | OpenAI Nativa | Platform Integrations → IA → OpenAI |
+| `LOVABLE_API_KEY` | Lovable Gateway | Auto-provisionada (nunca editar) |
+
+### API do Router
+
+```typescript
+import { aiChatCompletion, aiChatCompletionJSON, getAIEndpoint, resetAIRouterCache } from "../_shared/ai-router.ts";
+
+// Non-streaming (a maioria das funções)
+const { data, provider, model } = await aiChatCompletionJSON(
+  "google/gemini-2.5-flash", // modelo solicitado
+  { messages, tools, tool_choice },
+  { supabaseUrl, supabaseServiceKey, logPrefix: '[minha-funcao]' }
+);
+
+// Streaming (chat, assistente)
+const endpoint = await getAIEndpoint("google/gemini-2.5-flash", {
+  supabaseUrl, supabaseServiceKey
+});
+const response = await fetch(endpoint.url, {
+  method: "POST",
+  headers: { Authorization: `Bearer ${endpoint.apiKey}`, "Content-Type": "application/json" },
+  body: JSON.stringify({ model: endpoint.model, messages, stream: true }),
+});
+
+// Com fallback completo (tenta todos os provedores)
+const response = await aiChatCompletion("google/gemini-2.5-flash", { messages }, {
+  supabaseUrl, supabaseServiceKey, logPrefix: '[minha-funcao]'
+});
+```
+
+### Mapeamento de Modelos
+
+| Modelo Solicitado | → Gemini Nativo | → OpenAI Nativo |
+|-------------------|-----------------|-----------------|
+| `google/gemini-2.5-flash` | `gemini-2.5-flash` | `gpt-4o-mini` |
+| `google/gemini-2.5-pro` | `gemini-2.5-pro` | `gpt-4o` |
+| `google/gemini-3-flash-preview` | `gemini-2.5-flash` | `gpt-4o-mini` |
+| `openai/gpt-5` | `gemini-2.5-pro` | `gpt-4o` |
+| `openai/gpt-5-mini` | `gemini-2.5-flash` | `gpt-4o-mini` |
+
+### Opções de Preferência
+
+```typescript
+// Forçar provedor específico como primário
+await aiChatCompletionJSON(model, body, { preferProvider: 'openai' }); // OpenAI → Gemini → Lovable
+await aiChatCompletionJSON(model, body, { preferProvider: 'gemini' }); // Gemini → OpenAI → Lovable
+await aiChatCompletionJSON(model, body, { preferProvider: 'lovable' }); // Apenas Lovable
+```
+
+### Funções Migradas (22+)
+
+| Categoria | Funções |
+|-----------|---------|
+| SEO & Conteúdo | `generate-seo`, `ai-product-description`, `classify-content`, `import-institutional-pages` |
+| Reviews | `generate-reviews` |
+| Mídia & Criativos | `media-generate-copys`, `media-generate-suggestions`, `media-video-generate`, `creative-video-generate` |
+| Ads Autopilot | `ads-autopilot-analyze`, `ads-autopilot-creative-generate`, `ads-autopilot-guardian`, `ads-autopilot-experiments-run`, `ads-autopilot-generate-prompt`, `ads-autopilot-weekly-insights`, `ads-autopilot-strategist` |
+| Chat & Assistentes | `ads-chat`, `command-assistant-chat` |
+| Landing Pages | `ai-landing-page-generate` |
+| Análise | `ai-analyze-page`, `ai-memory-manager` |
+| Shared | `_shared/ai-marketing-optimizer.ts`, `_shared/ai-content-creator.ts` |
+
+### Comportamento de Fallback
+
+```
+Request → Gemini (GEMINI_API_KEY disponível?)
+  ├─ ✅ OK → Retorna resposta
+  ├─ ❌ 429/402/erro → Tenta próximo
+  ↓
+Request → OpenAI (OPENAI_API_KEY disponível?)
+  ├─ ✅ OK → Retorna resposta
+  ├─ ❌ 429/402/erro → Tenta próximo
+  ↓
+Request → Lovable Gateway (LOVABLE_API_KEY sempre disponível)
+  ├─ ✅ OK → Retorna resposta
+  └─ ❌ → HTTP 502 "Todos os provedores falharam"
+```
+
+### Checklist para Novas Funções
+
+- [ ] Importar `aiChatCompletion` ou `aiChatCompletionJSON` de `../_shared/ai-router.ts`
+- [ ] Chamar `resetAIRouterCache()` no início do handler (se múltiplas chamadas IA)
+- [ ] Usar `logPrefix` descritivo para debugging
+- [ ] **NÃO** fazer `fetch` direto para provedores de IA
+- [ ] **NÃO** importar `LOVABLE_API_KEY` diretamente (o router resolve)
+
+---
+
+## OpenAI API — Parâmetros por Modelo (Referência)
 
 | Modelo | Parâmetro de Tokens | Temperature |
 |--------|---------------------|-------------|
@@ -157,15 +268,11 @@ function normalizeEmail(email: string): string {
 | `gpt-5`, `gpt-5.2` | `max_completion_tokens` | `0-2` |
 | `gpt-5-mini`, `gpt-5-nano` | `max_completion_tokens` | `1` (fixo!) |
 
-```typescript
-// ✅ CORRETO: Detectar modelo e usar parâmetro apropriado
-const isGpt5Model = model.startsWith("gpt-5");
-const tokenParams = isGpt5Model 
-  ? { max_completion_tokens: 1024 }
-  : { max_tokens: 1024 };
-```
+> **Nota:** O `ai-router.ts` lida automaticamente com a conversão de parâmetros entre OpenAI e Gemini.
 
-### Fallback entre Modelos
+### Fallback entre Modelos (Legado)
+
+> ⚠️ Este padrão é **legado**. Novas funções devem usar `aiChatCompletion()` que já faz fallback automático.
 
 ```typescript
 // ✅ CORRETO: Armazenar erro antes de tentar próximo modelo
