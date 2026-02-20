@@ -1295,6 +1295,53 @@ O botão **"Ajustar"** em cada card de campanha pendente aciona uma revisão res
 
 ---
 
+### Visão Completa da Campanha — Modal com Abas (v5.15.3 — 2026-02-20)
+
+**Funcionalidade:** O modal "Ver conteúdo completo" (`FullContentDialog`) agora utiliza uma interface com **3 abas** para apresentar uma visão completa da campanha proposta pela IA:
+
+| Aba | Conteúdo |
+|-----|----------|
+| **Criativos & Copys** | Galeria de criativos, headlines (variações numeradas), textos principais (versões), descrições, CTA |
+| **Detalhes da Campanha** | Tipo de campanha, objetivo, funil, produto, orçamento, tipo de orçamento (CBO/ABO), otimização, estratégia de lance, cobrança, posicionamentos, janela de atribuição, link de destino, link exibido, UTMs, botão CTA, pixel, evento de conversão, datas, raciocínio da IA, impacto esperado |
+| **Conjuntos & Público** | Ad sets com nome, orçamento individual, público-alvo, faixa etária, públicos personalizados (custom audiences) |
+
+**Componente `CampaignDetailsTab`:** Renderiza uma lista vertical de detalhes extraídos do `action_data` com ícone + label + valor. Campos suportados:
+
+| Campo do `action_data` / `preview` | Label exibido |
+|--------------------------------------|---------------|
+| `campaign_name` | Nome da Campanha |
+| `campaign_type` / `objective` | Tipo de Campanha (via `inferCampaignType`) |
+| `objective` | Objetivo |
+| `funnel_stage` | Etapa do Funil |
+| `product_name` | Produto |
+| `daily_budget_cents` | Orçamento Diário |
+| `budget_type` | Tipo de Orçamento |
+| `optimization_goal` | Otimização |
+| `bid_strategy` / `bidding_strategy` | Estratégia de Lance |
+| `billing_event` | Cobrança por |
+| `placements` / `publisher_platforms` | Posicionamentos |
+| `attribution_window` / `attribution_spec` | Janela de Atribuição |
+| `destination_url` / `website_url` / `link` | Link de Destino |
+| `display_link` | Link Exibido |
+| `cta` / `cta_type` | Botão (CTA) |
+| `url_parameters` / `url_tags` | Parâmetros UTM |
+| `pixel_id` | Pixel |
+| `conversion_event` / `custom_event_type` | Evento de Conversão |
+| `start_time` / `end_time` | Início / Término |
+
+**Regras:**
+- Planos Estratégicos (`strategic_plan`) **não** usam abas — mantêm o layout original com `StrategicPlanContent`
+- Se nenhum campo de detalhe estiver preenchido, a aba "Detalhes" exibe um empty state informativo
+- A aba "Conjuntos & Público" só aparece se houver ad sets vinculados ou se a ação for do tipo `create_adset`
+
+#### Arquivos Afetados
+
+| Arquivo | Mudança |
+|---------|---------|
+| `src/components/ads/ActionApprovalCard.tsx` | Novo componente `CampaignDetailsTab`, `FullContentDialog` com `Tabs`, novos ícones (`Link2`, `MousePointerClick`, `Globe`, `BarChart3`, `Settings2`) |
+
+---
+
 ### Correções v5.12.9 (2026-02-19)
 
 | Item | Correção | Aceite |
