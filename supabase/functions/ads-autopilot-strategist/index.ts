@@ -284,8 +284,10 @@ const STRATEGIST_TOOLS = [
                 daily_budget_brl: { type: "number", description: "Orçamento diário em R$" },
                 target_audience: { type: "string", description: "Público-alvo detalhado (idade, gênero, interesses, localização)" },
                 funnel_stage: { type: "string", enum: ["tof", "mof", "bof", "test"], description: "Etapa do funil" },
-                objective: { type: "string", description: "Objetivo da campanha (ex: CONVERSIONS, OUTCOME_SALES)" },
-                bid_strategy: { type: "string", description: "Estratégia de lance (ex: LOWEST_COST_WITHOUT_CAP, COST_CAP)" },
+                objective: { type: "string", description: "Objetivo da campanha (ex: OUTCOME_SALES, OUTCOME_LEADS)" },
+                performance_goal: { type: "string", enum: ["Maximizar Conversões", "Maximizar Valor das Conversões"], description: "Meta de desempenho do conjunto (como aparece no Meta Ads). Padrão: Maximizar Conversões" },
+                conversion_location: { type: "string", enum: ["Site", "Site e App", "App", "Site e Loja Física"], description: "Local da conversão do conjunto. Padrão: Site" },
+                attribution_model: { type: "string", enum: ["Padrão", "Incremental"], description: "Modelo de atribuição. Padrão: Padrão" },
                 creatives_count: { type: "number", description: "Quantidade de variações de criativos (mín 2)" },
                 copy_variations: { type: "number", description: "Quantidade de variações de copy (mín 2)" },
                 rationale: { type: "string", description: "Justificativa detalhada para esta ação específica, com dados de suporte" },
@@ -718,14 +720,18 @@ Cada create_campaign é uma campanha COMPLETA no Meta Ads. Você DEVE preencher 
 - campaign_name: Nome descritivo seguindo padrão [AI] Objetivo | Produto | Público | Data
 - objective: Objetivo da campanha (OUTCOME_SALES para e-commerce, OUTCOME_LEADS para captação)
 - daily_budget_cents: Orçamento diário (CBO)
-- bid_strategy: Estratégia de lance (LOWEST_COST_WITHOUT_CAP como padrão)
 - special_ad_categories: ["NONE"] na maioria dos casos
 
-### Nível Conjunto:
+### Nível Conjunto (Configurações OBRIGATÓRIAS — como no Meta Ads Manager):
 - adset_name: Nome do conjunto (padrão: [AI] CJ - Público | Funil)
 - optimization_goal: OBRIGATÓRIO. Use OFFSITE_CONVERSIONS para vendas, LINK_CLICKS para tráfego, LEAD_GENERATION para leads
 - billing_event: IMPRESSIONS (padrão) ou LINK_CLICKS
 - conversion_event: OBRIGATÓRIO para vendas (PURCHASE) ou leads (LEAD). Sem isso o pixel não otimiza!
+- conversion_location: Local da conversão — "Site" para e-commerce (padrão). Nunca "Site e App" a menos que tenha app.
+- performance_goal: Meta de desempenho — "Maximizar Conversões" (padrão) ou "Maximizar Valor das Conversões" para ROAS
+- attribution_model: Modelo de atribuição — "Padrão" (padrão) ou "Incremental"
+
+IMPORTANTE: No planned_actions do plano estratégico, inclua OBRIGATORIAMENTE: performance_goal, conversion_location e attribution_model para cada ação. Essas são as configurações reais do Conjunto de Anúncios que o lojista precisa validar.
 
 ### Targeting:
 - geo_locations: Sempre definir. Default: {countries: ["BR"]}
