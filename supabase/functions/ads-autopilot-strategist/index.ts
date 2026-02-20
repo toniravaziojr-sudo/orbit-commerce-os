@@ -1,8 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getAIEndpoint, resetAIRouterCache } from "../_shared/ai-router.ts";
+import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.22.0"; // Expand create_campaign/create_adset tools with full Meta Ads params (placements, optimization, billing, destination_url, bid_strategy, conversion_event, locations, ad_name, ad_format, excluded_audiences)
+const VERSION = "v1.23.0"; // Use aiChatCompletion with auto-fallback (Gemini→OpenAI→Lovable) instead of single endpoint fetch
 // ===================
 
 const corsHeaders = {
@@ -1334,12 +1334,7 @@ Feedback: "${revisionFeedback}"
       const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       resetAIRouterCache();
 
-      const endpoint = await getAIEndpoint("google/gemini-2.5-flash", {
-        supabaseUrl,
-        supabaseServiceKey,
-      });
-
-      console.log(`[ads-autopilot-strategist][${VERSION}] Using provider: ${endpoint.provider}, model: ${endpoint.model}`);
+      console.log(`[ads-autopilot-strategist][${VERSION}] Using aiChatCompletion with auto-fallback (Gemini → OpenAI → Lovable)`);
 
       // === MULTI-ROUND EXECUTION LOOP ===
       const MAX_ROUNDS = 8; // Safety limit to prevent infinite loops
@@ -1371,18 +1366,14 @@ Feedback: "${revisionFeedback}"
         round++;
         console.log(`[ads-autopilot-strategist][${VERSION}] Round ${round}/${MAX_ROUNDS} for account ${config.ad_account_id}`);
 
-        const aiResponse = await fetch(endpoint.url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${endpoint.apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: endpoint.model,
-            messages,
-            tools: allowedTools,
-            tool_choice: "auto",
-          }),
+        const aiResponse = await aiChatCompletion("google/gemini-2.5-flash", {
+          messages,
+          tools: allowedTools,
+          tool_choice: "auto",
+        }, {
+          supabaseUrl,
+          supabaseServiceKey,
+          logPrefix: `[ads-autopilot-strategist][${VERSION}][R${round}]`,
         });
 
         if (!aiResponse.ok) {
