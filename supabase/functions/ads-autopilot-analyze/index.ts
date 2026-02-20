@@ -3016,62 +3016,93 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                 console.log(`[ads-autopilot-analyze][${VERSION}] Adset created: ${args.adset_name} (${adsetResult?.data?.meta_adset_id}) status=${entityStatus}`);
                 totalActionsExecuted++;
               } else if (tc.function.name === "create_lookalike_audience") {
-                // Create Lookalike Audience via Meta API
+                // Create Lookalike Audience via Meta API — with dedup check
                 try {
-                  const metaConn = await supabase
-                    .from("marketplace_connections")
-                    .select("access_token")
+                  const safeRatio = args.ratio || 0.05;
+                  const safeCountry = args.country || "BR";
+
+                  // Dedup: check if LAL with same source + ratio + country already exists
+                  const { data: existingAudiences } = await supabase
+                    .from("meta_ad_audiences")
+                    .select("id, meta_audience_id, name, lookalike_spec")
                     .eq("tenant_id", tenant_id)
-                    .eq("marketplace", "meta")
-                    .eq("is_active", true)
-                    .maybeSingle();
+                    .eq("ad_account_id", acctConfig.ad_account_id)
+                    .eq("audience_type", "lookalike");
 
-                  if (!metaConn?.data?.access_token) throw new Error("Meta não conectada");
-
-                  const accountId = acctConfig.ad_account_id.replace("act_", "");
-                  const lalBody = {
-                    name: args.lookalike_name,
-                    subtype: "LOOKALIKE",
-                    origin_audience_id: args.source_audience_id,
-                    lookalike_spec: JSON.stringify({
-                      type: "similarity",
-                      ratio: args.ratio || 0.05,
-                      country: args.country || "BR",
-                    }),
-                    access_token: metaConn.data.access_token,
-                  };
-
-                  const lalRes = await fetch(`https://graph.facebook.com/v21.0/act_${accountId}/customaudiences`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(lalBody),
+                  const existingMatch = (existingAudiences || []).find((a: any) => {
+                    const spec = a.lookalike_spec;
+                    if (!spec) return false;
+                    return spec.source === args.source_audience_id 
+                      && Math.abs((spec.ratio || 0) - safeRatio) < 0.005
+                      && (spec.country || "BR") === safeCountry;
                   });
-                  const lalResult = await lalRes.json();
 
-                  if (lalResult.error) throw new Error(lalResult.error.message);
+                  if (existingMatch) {
+                    console.log(`[ads-autopilot-analyze][${VERSION}] LAL dedup: "${existingMatch.name}" (${existingMatch.meta_audience_id}) already exists`);
+                    actionRecord.status = "executed";
+                    actionRecord.executed_at = new Date().toISOString();
+                    actionRecord.action_data = {
+                      ...actionRecord.action_data,
+                      lookalike_audience_id: existingMatch.meta_audience_id,
+                      deduplicated: true,
+                      existing_name: existingMatch.name,
+                    };
+                  } else {
+                    const metaConn = await supabase
+                      .from("marketplace_connections")
+                      .select("access_token")
+                      .eq("tenant_id", tenant_id)
+                      .eq("marketplace", "meta")
+                      .eq("is_active", true)
+                      .maybeSingle();
 
-                  // Save to local cache
-                  await supabase.from("meta_ad_audiences").upsert({
-                    tenant_id: tenant_id,
-                    meta_audience_id: lalResult.id,
-                    ad_account_id: acctConfig.ad_account_id,
-                    name: args.lookalike_name,
-                    audience_type: "lookalike",
-                    subtype: "LOOKALIKE",
-                    description: `LAL ${(args.ratio * 100).toFixed(0)}% de ${args.source_audience_name}`,
-                    lookalike_spec: { ratio: args.ratio, country: args.country || "BR", source: args.source_audience_id },
-                    synced_at: new Date().toISOString(),
-                  }, { onConflict: "tenant_id,meta_audience_id" });
+                    if (!metaConn?.data?.access_token) throw new Error("Meta não conectada");
 
-                  actionRecord.status = "executed";
-                  actionRecord.executed_at = new Date().toISOString();
-                  actionRecord.action_data = {
-                    ...actionRecord.action_data,
-                    lookalike_audience_id: lalResult.id,
-                    source_audience_id: args.source_audience_id,
-                    ratio: args.ratio,
-                  };
-                  console.log(`[ads-autopilot-analyze][${VERSION}] Lookalike created: ${args.lookalike_name} (${lalResult.id}) ratio=${args.ratio}`);
+                    const accountId = acctConfig.ad_account_id.replace("act_", "");
+                    const lalBody = {
+                      name: args.lookalike_name,
+                      subtype: "LOOKALIKE",
+                      origin_audience_id: args.source_audience_id,
+                      lookalike_spec: JSON.stringify({
+                        type: "similarity",
+                        ratio: safeRatio,
+                        country: safeCountry,
+                      }),
+                      access_token: metaConn.data.access_token,
+                    };
+
+                    const lalRes = await fetch(`https://graph.facebook.com/v21.0/act_${accountId}/customaudiences`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify(lalBody),
+                    });
+                    const lalResult = await lalRes.json();
+
+                    if (lalResult.error) throw new Error(lalResult.error.message);
+
+                    // Save to local cache
+                    await supabase.from("meta_ad_audiences").upsert({
+                      tenant_id: tenant_id,
+                      meta_audience_id: lalResult.id,
+                      ad_account_id: acctConfig.ad_account_id,
+                      name: args.lookalike_name,
+                      audience_type: "lookalike",
+                      subtype: "LOOKALIKE",
+                      description: `LAL ${(safeRatio * 100).toFixed(0)}% de ${args.source_audience_name}`,
+                      lookalike_spec: { ratio: safeRatio, country: safeCountry, source: args.source_audience_id },
+                      synced_at: new Date().toISOString(),
+                    }, { onConflict: "tenant_id,meta_audience_id" });
+
+                    actionRecord.status = "executed";
+                    actionRecord.executed_at = new Date().toISOString();
+                    actionRecord.action_data = {
+                      ...actionRecord.action_data,
+                      lookalike_audience_id: lalResult.id,
+                      source_audience_id: args.source_audience_id,
+                      ratio: safeRatio,
+                    };
+                    console.log(`[ads-autopilot-analyze][${VERSION}] Lookalike created: ${args.lookalike_name} (${lalResult.id}) ratio=${safeRatio}`);
+                  }
                 } catch (lalErr: any) {
                   actionRecord.status = "failed";
                   actionRecord.error_message = lalErr.message || "Erro ao criar Lookalike";

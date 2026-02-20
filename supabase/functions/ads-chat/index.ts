@@ -1632,15 +1632,42 @@ async function createLookalikeAudience(supabase: any, tenantId: string, args: an
   const accountIdClean = adAccountId.replace("act_", "");
 
   const safeRatio = Math.max(0.01, Math.min(ratio || 0.01, 0.20));
+  const safeCountry = country || "BR";
   const pctLabel = `${Math.round(safeRatio * 100)}%`;
-  const audienceName = args.name || `Lookalike ${pctLabel} — ${country || "BR"} — ${new Date().toISOString().split("T")[0]}`;
+  const audienceName = args.name || `Lookalike ${pctLabel} — ${safeCountry} — ${new Date().toISOString().split("T")[0]}`;
+
+  // Dedup: check if LAL with same source + ratio + country already exists
+  const { data: existingAudiences } = await supabase
+    .from("meta_ad_audiences")
+    .select("id, meta_audience_id, name, lookalike_spec")
+    .eq("tenant_id", tenantId)
+    .eq("ad_account_id", adAccountId)
+    .eq("audience_type", "lookalike");
+
+  const existingMatch = (existingAudiences || []).find((a: any) => {
+    const spec = a.lookalike_spec;
+    if (!spec) return false;
+    return spec.source === source_audience_id 
+      && Math.abs((spec.ratio || 0) - safeRatio) < 0.005
+      && (spec.country || "BR") === safeCountry;
+  });
+
+  if (existingMatch) {
+    return JSON.stringify({
+      success: true,
+      message: `Público semelhante "${existingMatch.name}" já existe com as mesmas configurações (${pctLabel}, ${safeCountry}). Reutilizando o público existente.`,
+      audience_id: existingMatch.meta_audience_id,
+      ratio: safeRatio,
+      deduplicated: true,
+    });
+  }
 
   const body = {
     name: audienceName,
     origin_audience_id: source_audience_id,
     lookalike_spec: JSON.stringify({
       type: "similarity",
-      country: country || "BR",
+      country: safeCountry,
       ratio: safeRatio,
     }),
     access_token: conn.access_token,
@@ -1658,16 +1685,17 @@ async function createLookalikeAudience(supabase: any, tenantId: string, args: an
   }
 
   // Save to local DB
-  const { error: insertErr } = await supabase.from("meta_ad_audiences").insert({
+  const { error: insertErr } = await supabase.from("meta_ad_audiences").upsert({
     tenant_id: tenantId,
     ad_account_id: adAccountId,
     meta_audience_id: result.id,
     name: audienceName,
     audience_type: "lookalike",
     subtype: "LOOKALIKE",
-    description: `Lookalike ${pctLabel} — ${country || "BR"}`,
+    description: `Lookalike ${pctLabel} — ${safeCountry}`,
+    lookalike_spec: { ratio: safeRatio, country: safeCountry, source: source_audience_id },
     synced_at: new Date().toISOString(),
-  });
+  }, { onConflict: "tenant_id,meta_audience_id" });
   if (insertErr) console.error(`[ads-chat][${VERSION}] Save lookalike error:`, insertErr.message);
 
   return JSON.stringify({
