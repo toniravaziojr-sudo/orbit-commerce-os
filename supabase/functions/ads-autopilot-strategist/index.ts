@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.19.0"; // Scoped revision: only regenerate the specific rejected action
+const VERSION = "v1.20.0"; // Strict product matching — remove all products[0] fallbacks // Scoped revision: only regenerate the specific rejected action
 // ===================
 
 const corsHeaders = {
@@ -133,7 +133,7 @@ const STRATEGIST_TOOLS = [
     type: "function",
     function: {
       name: "generate_creative",
-      description: "Gera criativos (imagens) para uma campanha via IA generativa. Mínimo 3 variações/semana para top products.",
+      description: "Gera criativos (imagens) para uma campanha via IA generativa. OBRIGATÓRIO: product_name deve ser IDÊNTICO ao nome no catálogo (case-sensitive, sem abreviações). Se o nome não bater exatamente, a geração FALHARÁ.",
       parameters: {
         type: "object",
         properties: {
@@ -697,8 +697,12 @@ async function executeToolCall(
   }
 
   if (toolName === "generate_creative") {
-    const topProduct = context.products.find((p: any) => p.name === args.product_name) || context.products[0];
-    if (!topProduct) return { status: "failed", data: { error: "Produto não encontrado" } };
+    // v1.20.0: STRICT matching — NO fallback to products[0] to prevent wrong product images
+    const topProduct = context.products.find((p: any) => p.name.trim() === (args.product_name || "").trim());
+    if (!topProduct) {
+      console.error(`[ads-autopilot-strategist][${VERSION}] generate_creative: produto "${args.product_name}" NÃO encontrado no catálogo. Rejeitando para evitar imagem genérica.`);
+      return { status: "failed", data: { error: `Produto "${args.product_name}" não encontrado no catálogo. Use o nome EXATO do catálogo.` } };
+    }
 
     // Resolve product image URL
     let productImageUrl: string | null = null;
@@ -1201,7 +1205,8 @@ Feedback: "${revisionFeedback}"
           // Track creative URLs from generate_creative results
           if (tc.function.name === "generate_creative" && result.status === "executed") {
             const productName = args.product_name;
-            const matchedProduct = context.products.find((p: any) => p.name === productName) || context.products[0];
+            // v1.20.0: STRICT matching — NO fallback to prevent wrong product URL tracking
+            const matchedProduct = context.products.find((p: any) => p.name.trim() === (productName || "").trim());
             if (matchedProduct) {
               const { data: latestAsset } = await supabase
                 .from("ads_creative_assets")
