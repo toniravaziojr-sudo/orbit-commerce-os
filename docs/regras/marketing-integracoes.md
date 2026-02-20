@@ -497,6 +497,30 @@ Antes de executar uma ação aprovada:
 2. Se `active + pending_excl_self + proposed > limit`: bloqueia e marca como `rejected`
 3. Mensagem: "Aprovar esta campanha excederia o limite diário. Ajuste orçamento ou rejeite outra proposta."
 
+#### Execução Direta na Meta (v2.0.0)
+
+A edge function `ads-autopilot-execute-approved` realiza chamadas **diretas** às APIs nativas da Meta, **sem passar pelo loop de análise da IA**. Isso garante 100% de integridade e velocidade na entrega.
+
+| Etapa | Ação | Detalhes |
+|---|---|---|
+| 1 | Criar Campanha | `POST /{ad_account_id}/campaigns` com nome, objetivo e `status: PAUSED` |
+| 2 | Criar AdSet | `POST /{ad_account_id}/adsets` com targeting, orçamento e `status: PAUSED` |
+| 3 | Upload de Imagem | `POST /{ad_account_id}/adimages` com URL do criativo |
+| 4 | Criar Anúncio | `POST /{ad_account_id}/ads` com `ad_creative_id` e `status: PAUSED` |
+
+**Regras:**
+- Toda a cadeia (Campanha → AdSet → Ad) é criada em estado **PAUSED**
+- Revalidação de orçamento é feita **no momento da execução** (não no momento da aprovação)
+- Se qualquer etapa falhar, o erro é registrado e o status da ação é marcado como `error`
+- IDs da Meta (`meta_campaign_id`, `meta_adset_id`, `meta_ad_id`) são registrados em `rollback_data` para reversão futura
+
+#### Filtragem de Insights (v2.0.0)
+
+Insights gerados pela IA (`report_insight`) são filtrados para remover "context dumps" técnicos. A IA é instruída a:
+- **NÃO** incluir diagnósticos técnicos (IDs, logs, snapshots de contexto) nos insights
+- Focar em recomendações **acionáveis** para o lojista
+- Usar linguagem de negócios (ROI, vendas, público) em vez de jargão técnico
+
 ### Fluxo de Aprovação — UI Redesenhada (v5.15.0)
 
 O card de aprovação (`ActionApprovalCard.tsx`) prioriza informações visuais para o usuário aprovar com segurança.
@@ -526,7 +550,14 @@ O card de aprovação (`ActionApprovalCard.tsx`) prioriza informações visuais 
 | Orçamento/dia | `daily_budget_cents` formatado |
 | Barra de orçamento visual | `budget_snapshot` (verde=ativo, amarelo=reservado, cinza=restante) |
 | Conjuntos aninhados (expansível) | `AdSetsSection` com targeting e audiences |
-| Botões | Aprovar / Ajustar / Rejeitar |
+| Botões | Aprovar (com loading per-card) / Ajustar / Rejeitar |
+
+#### Loading per-card (v5.15.1)
+
+Os botões de Aprovar/Rejeitar utilizam estado **per-card** (`approvingId`/`rejectingId`) em vez de boolean global. Ao clicar em "Aprovar" em um card:
+- Apenas aquele card exibe spinner `Loader2` + texto "Aprovando..."
+- Os demais cards ficam com botões desabilitados mas sem spinner
+- O estado é limpo via `onSettled` da mutation (sucesso ou erro)
 
 #### Oculto (Collapsible "Detalhes técnicos")
 
