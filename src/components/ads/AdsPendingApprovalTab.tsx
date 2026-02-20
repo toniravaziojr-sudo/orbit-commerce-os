@@ -82,7 +82,7 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
       const { data } = await query;
       // Filter out internal/technical actions that shouldn't be shown to users
       const actions = (data || []) as unknown as PendingAction[];
-      return actions.filter(a => !["create_adset", "activate_campaign"].includes(a.action_type));
+      return actions.filter(a => !["activate_campaign"].includes(a.action_type));
     },
     enabled: !!tenantId,
     refetchInterval: pollInterval,
