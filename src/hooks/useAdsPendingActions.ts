@@ -45,9 +45,9 @@ export function useAdsPendingActions(channelFilter?: string) {
 
       const { data, error } = await query;
       if (error) throw error;
-      // Filter out internal/technical actions that shouldn't be shown to users
       const actions = (data || []) as unknown as PendingAction[];
-      return actions.filter(a => !["activate_campaign"].includes(a.action_type));
+      // Only filter out activate_campaign; adsets are kept for grouping under campaigns
+      return actions.filter(a => a.action_type !== "activate_campaign");
     },
     enabled: !!tenantId,
     refetchInterval: 15000, // Auto-refresh every 15s

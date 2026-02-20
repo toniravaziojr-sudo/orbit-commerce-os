@@ -80,9 +80,8 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
       }
 
       const { data } = await query;
-      // Filter out internal/technical actions that shouldn't be shown to users
       const actions = (data || []) as unknown as PendingAction[];
-      return actions.filter(a => !["activate_campaign"].includes(a.action_type));
+      return actions.filter(a => a.action_type !== "activate_campaign");
     },
     enabled: !!tenantId,
     refetchInterval: pollInterval,
@@ -161,7 +160,35 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
     );
   }
 
-  if (pendingActions.length === 0) {
+  // Group: campaigns as parents, adsets nested
+  const campaigns = pendingActions.filter(a => a.action_type !== "create_adset");
+  const adsets = pendingActions.filter(a => a.action_type === "create_adset");
+
+  const adsetsByParent = new Map<string, typeof adsets>();
+  for (const adset of adsets) {
+    const parentName = (adset.action_data as any)?.campaign_name || (adset.action_data as any)?.parent_campaign_name || "";
+    if (!adsetsByParent.has(parentName)) adsetsByParent.set(parentName, []);
+    adsetsByParent.get(parentName)!.push(adset);
+  }
+
+  const getChildActions = (action: typeof campaigns[0]) => {
+    const campaignName = (action.action_data as any)?.campaign_name || (action.action_data as any)?.preview?.campaign_name || "";
+    return adsetsByParent.get(campaignName) || [];
+  };
+
+  const matchedParents = new Set<string>();
+  for (const c of campaigns) {
+    const name = (c.action_data as any)?.campaign_name || (c.action_data as any)?.preview?.campaign_name || "";
+    if (adsetsByParent.has(name)) matchedParents.add(name);
+  }
+  const orphanAdsets = adsets.filter(a => {
+    const parentName = (a.action_data as any)?.campaign_name || (a.action_data as any)?.parent_campaign_name || "";
+    return !matchedParents.has(parentName);
+  });
+
+  const displayCount = campaigns.length + orphanAdsets.length;
+
+  if (displayCount === 0) {
     return (
       <EmptyState
         icon={Hourglass}
@@ -180,12 +207,25 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
       <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
         <Hourglass className="h-4 w-4 text-amber-500" />
         <span className="text-sm font-medium text-amber-600 dark:text-amber-400">
-          {pendingActions.length} {pendingActions.length === 1 ? "proposta aguardando" : "propostas aguardando"} sua decisão
+          {displayCount} {displayCount === 1 ? "proposta aguardando" : "propostas aguardando"} sua decisão
         </span>
       </div>
 
-      {/* Action cards */}
-      {pendingActions.map(action => (
+      {/* Campaign cards with nested adsets */}
+      {campaigns.map(action => (
+        <ActionApprovalCard
+          key={action.id}
+          action={action}
+          childActions={getChildActions(action)}
+          onApprove={(id) => approveAction.mutate(id)}
+          onReject={(id, reason) => rejectAction.mutate({ actionId: id, reason })}
+          onAdjust={(id, suggestion) => adjustAction.mutate({ actionId: id, feedback: suggestion })}
+          isApproving={approveAction.isPending}
+          isRejecting={rejectAction.isPending}
+        />
+      ))}
+      {/* Orphan adsets */}
+      {orphanAdsets.map(action => (
         <ActionApprovalCard
           key={action.id}
           action={action}
