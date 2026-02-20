@@ -1,12 +1,40 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v2.1.0"; // Fix budget validation: only count active campaigns, not pending proposals
+const VERSION = "v2.2.0"; // Fix: native scheduling + adset lookup by campaign_id + destination_type WEBSITE
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Helper: determine if we should use native scheduling (ACTIVE + future start_time)
+// Publishing window is 00:01-04:00 BRT. Outside this window → schedule for next 00:01 BRT
+function getSchedulingParams(): { status: string; start_time?: string } {
+  const now = new Date();
+  // BRT = UTC-3
+  const brtHour = (now.getUTCHours() - 3 + 24) % 24;
+  const brtMinute = now.getUTCMinutes();
+
+  // Inside window: 00:01 to 04:00 BRT → create as ACTIVE immediately
+  if ((brtHour === 0 && brtMinute >= 1) || (brtHour >= 1 && brtHour < 4)) {
+    return { status: "ACTIVE" };
+  }
+
+  // Outside window → schedule for next 00:01 BRT
+  const nextPublish = new Date(now);
+  // Set to next day 03:01 UTC (= 00:01 BRT)
+  if (brtHour >= 4) {
+    // Already past 04:00 BRT today → schedule for tomorrow 00:01 BRT
+    nextPublish.setUTCDate(nextPublish.getUTCDate() + 1);
+  }
+  nextPublish.setUTCHours(3, 1, 0, 0); // 03:01 UTC = 00:01 BRT
+
+  return {
+    status: "ACTIVE",
+    start_time: nextPublish.toISOString(),
+  };
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -165,21 +193,28 @@ Deno.serve(async (req) => {
         leads: "OUTCOME_LEADS",
       };
 
-      console.log(`[ads-autopilot-execute-approved][${VERSION}] Creating campaign on Meta: ${campaignName} budget=${dailyBudgetCents}c`);
+      // Determine scheduling: inside 00:01-04:00 BRT → ACTIVE immediately, outside → ACTIVE + future start_time (Scheduled)
+      const scheduling = getSchedulingParams();
+      console.log(`[ads-autopilot-execute-approved][${VERSION}] Creating campaign on Meta: ${campaignName} budget=${dailyBudgetCents}c scheduling=${JSON.stringify(scheduling)}`);
 
-      // Step 1: Create campaign (PAUSED)
+      // Step 1: Create campaign with native scheduling
+      const campaignBody: any = {
+        tenant_id,
+        action: "create",
+        ad_account_id: adAccountId,
+        name: campaignName,
+        objective: objectiveMap[objective] || "OUTCOME_SALES",
+        destination_type: "WEBSITE",
+        status: scheduling.status,
+        daily_budget_cents: dailyBudgetCents,
+        special_ad_categories: [],
+      };
+      if (scheduling.start_time) {
+        campaignBody.start_time = scheduling.start_time;
+      }
+
       const { data: campaignResult, error: campaignErr } = await supabase.functions.invoke("meta-ads-campaigns", {
-        body: {
-          tenant_id,
-          action: "create",
-          ad_account_id: adAccountId,
-          name: campaignName,
-          objective: objectiveMap[objective] || "OUTCOME_SALES",
-          destination_type: "WEBSITE", // Always website-only, never "site + app"
-          status: "PAUSED",
-          daily_budget_cents: dailyBudgetCents,
-          special_ad_categories: [],
-        },
+        body: campaignBody,
       });
 
       if (campaignErr) throw new Error(`Erro ao criar campanha: ${campaignErr.message}`);
@@ -220,6 +255,7 @@ Deno.serve(async (req) => {
         }
 
         const adsetName = campaignName.replace("[AI]", "[AI] CJ -");
+        const inlineScheduling = getSchedulingParams();
         const adsetBody: any = {
           tenant_id,
           action: "create",
@@ -229,8 +265,9 @@ Deno.serve(async (req) => {
           optimization_goal: objective === "traffic" ? "LINK_CLICKS" : "OFFSITE_CONVERSIONS",
           billing_event: "IMPRESSIONS",
           targeting,
-          status: "PAUSED",
+          status: inlineScheduling.status,
         };
+        if (inlineScheduling.start_time) adsetBody.start_time = inlineScheduling.start_time;
 
         if (pixelId && (objective === "conversions" || objective === "leads")) {
           adsetBody.promoted_object = {
@@ -444,27 +481,46 @@ Deno.serve(async (req) => {
     // ====== CREATE ADSET — Direct Meta API execution ======
     if (action.action_type === "create_adset" && action.channel === "meta") {
       const adAccountId = data.ad_account_id;
-      const parentCampaignName = data.campaign_name || data.parent_campaign_name;
-      const adsetName = data.adset_name || data.name || `CJ - ${parentCampaignName}`;
+      const adsetName = data.adset_name || data.name || "Conjunto IA";
 
-      // Find parent campaign meta ID
-      let metaCampaignId: string | null = null;
-      if (parentCampaignName) {
-        const { data: parentCampaign } = await supabase
+      // v2.2.0: Primary lookup by campaign_id (Meta campaign ID) from action_data
+      // Fallback to name-based lookup for backward compatibility
+      let metaCampaignId: string | null = data.campaign_id || null;
+      
+      if (!metaCampaignId) {
+        // Legacy fallback: lookup by name
+        const parentCampaignName = data.campaign_name || data.parent_campaign_name;
+        if (parentCampaignName) {
+          const { data: parentCampaign } = await supabase
+            .from("meta_ad_campaigns")
+            .select("meta_campaign_id")
+            .eq("tenant_id", tenant_id)
+            .eq("ad_account_id", adAccountId)
+            .ilike("name", `%${parentCampaignName}%`)
+            .limit(1)
+            .maybeSingle();
+          metaCampaignId = parentCampaign?.meta_campaign_id || null;
+        }
+      }
+
+      // v2.2.0: Also try matching campaign_id directly against meta_ad_campaigns
+      // (in case it's already a valid meta_campaign_id string like "120246559700000004")
+      if (metaCampaignId && !metaCampaignId.startsWith("120")) {
+        // If it doesn't look like a Meta ID, look it up
+        const { data: lookupCampaign } = await supabase
           .from("meta_ad_campaigns")
           .select("meta_campaign_id")
           .eq("tenant_id", tenant_id)
-          .eq("ad_account_id", adAccountId)
-          .ilike("name", `%${parentCampaignName}%`)
-          .limit(1)
+          .eq("id", metaCampaignId)
           .maybeSingle();
-        metaCampaignId = parentCampaign?.meta_campaign_id || null;
+        if (lookupCampaign) metaCampaignId = lookupCampaign.meta_campaign_id;
       }
 
       if (!metaCampaignId) {
-        console.error(`[ads-autopilot-execute-approved][${VERSION}] Parent campaign not found for adset: ${parentCampaignName}`);
+        const fallbackInfo = `campaign_id=${data.campaign_id}, campaign_name=${data.campaign_name}`;
+        console.error(`[ads-autopilot-execute-approved][${VERSION}] Parent campaign not found for adset. ${fallbackInfo}`);
         await supabase.from("ads_autopilot_actions")
-          .update({ status: "failed", error_message: `Campanha pai "${parentCampaignName}" não encontrada na Meta.` })
+          .update({ status: "failed", error_message: `Campanha pai não encontrada. Dados: ${fallbackInfo}` })
           .eq("id", action_id);
 
         return new Response(
@@ -472,6 +528,8 @@ Deno.serve(async (req) => {
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+
+      console.log(`[ads-autopilot-execute-approved][${VERSION}] Creating adset "${adsetName}" for campaign ${metaCampaignId}`);
 
       // Get pixel
       const { data: mktConfig } = await supabase
@@ -485,13 +543,20 @@ Deno.serve(async (req) => {
         age_min: data.age_min || 18,
         age_max: data.age_max || 65,
       };
+      
+      // Support both array format and single custom_audience_id
       if (data.custom_audiences?.length > 0) {
         targeting.custom_audiences = data.custom_audiences.map((a: any) => ({ id: a.id || a }));
+      } else if (data.custom_audience_id) {
+        targeting.custom_audiences = [{ id: data.custom_audience_id }];
       }
+      
       if (data.interests?.length > 0) {
         targeting.flexible_spec = [{ interests: data.interests }];
       }
 
+      // Use same scheduling as campaign
+      const adsetScheduling = getSchedulingParams();
       const adsetBody: any = {
         tenant_id,
         action: "create",
@@ -501,8 +566,9 @@ Deno.serve(async (req) => {
         optimization_goal: data.optimization_goal || "OFFSITE_CONVERSIONS",
         billing_event: "IMPRESSIONS",
         targeting,
-        status: "PAUSED",
+        status: adsetScheduling.status,
       };
+      if (adsetScheduling.start_time) adsetBody.start_time = adsetScheduling.start_time;
 
       if (mktConfig?.meta_pixel_id) {
         adsetBody.promoted_object = {
