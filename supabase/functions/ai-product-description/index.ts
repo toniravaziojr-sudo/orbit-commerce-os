@@ -48,17 +48,6 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-
-    if (!type || !productName) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Parâmetros inválidos" }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    let systemPrompt: string;
-    let userContent: string;
-
     const { type, productName, fullDescription, userPrompt, referenceLinks } = body;
 
     console.log(`[ai-product-description][${VERSION}] type=${type}, product=${productName}`);

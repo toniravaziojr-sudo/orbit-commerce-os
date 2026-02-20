@@ -156,8 +156,7 @@ serve(async (req) => {
       enable_qa,
       enable_fallback,
       qaThreshold,
-      categoryProfile,
-      lovableApiKey
+      categoryProfile
     );
 
     // Use waitUntil if available (Deno Deploy), otherwise fire-and-forget
@@ -202,8 +201,7 @@ async function processVideoPipeline(
   enableQa: boolean,
   enableFallback: boolean,
   qaThreshold: number,
-  categoryProfile: any,
-  lovableApiKey: string | undefined
+  categoryProfile: any
 ) {
   try {
     // ========================================

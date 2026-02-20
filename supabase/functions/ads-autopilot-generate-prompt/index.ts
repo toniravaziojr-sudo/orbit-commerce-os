@@ -145,8 +145,6 @@ Português simples. Resumo: até 4 frases. Recomendações: até 3 itens, 1 fras
 Gere o prompt COMPLETO e PERSONALIZADO para "${storeName}", substituindo todas as seções genéricas por dados reais do catálogo e contexto da loja. Sem placeholders.`;
 
     // Call AI via centralized router (Gemini/OpenAI native → Lovable fallback)
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     resetAIRouterCache();
 
     const aiResponse = await aiChatCompletion("google/gemini-2.5-flash", {
@@ -157,7 +155,7 @@ Gere o prompt COMPLETO e PERSONALIZADO para "${storeName}", substituindo todas a
       temperature: 0.7,
     }, {
       supabaseUrl,
-      supabaseServiceKey,
+      supabaseServiceKey: supabaseKey,
       logPrefix: `[ads-autopilot-generate-prompt][${VERSION}]`,
     });
 
