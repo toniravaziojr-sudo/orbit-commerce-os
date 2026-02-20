@@ -7,6 +7,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { triggerMemoryExtraction } from "@/lib/triggerMemoryExtraction";
 
 export interface AdsChatAttachment {
   url: string;
@@ -210,8 +211,21 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
       }
 
       // Refresh messages after stream completes
-      queryClient.invalidateQueries({ queryKey: ["ads-chat-messages", newConvId || currentConversationId] });
+      const finalConvId = newConvId || currentConversationId;
+      queryClient.invalidateQueries({ queryKey: ["ads-chat-messages", finalConvId] });
       queryClient.invalidateQueries({ queryKey: ["ads-chat-conversations"] });
+
+      // Trigger async memory extraction
+      if (tenantId && user && finalConvId) {
+        const allMsgs = queryClient.getQueryData<AdsChatMessage[]>(["ads-chat-messages", finalConvId]) || [];
+        triggerMemoryExtraction({
+          tenant_id: tenantId,
+          user_id: user.id,
+          ai_agent: "ads_chat",
+          conversation_id: finalConvId,
+          messages: allMsgs.map(m => ({ role: m.role, content: m.content })),
+        });
+      }
     } catch (err: any) {
       if (err.name === "AbortError") return;
       console.error("[useAdsChat] Error:", err);

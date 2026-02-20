@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { triggerMemoryExtraction } from "@/lib/triggerMemoryExtraction";
 
 export interface CommandMessage {
   id: string;
@@ -275,6 +276,16 @@ export function useCommandAssistant() {
       // Refresh from server
       queryClient.invalidateQueries({ queryKey: ["command-messages", conversationId] });
       queryClient.invalidateQueries({ queryKey: ["command-conversations"] });
+
+      // Trigger async memory extraction (fire-and-forget)
+      const allMsgs = queryClient.getQueryData<CommandMessage[]>(["command-messages", conversationId]) || [];
+      triggerMemoryExtraction({
+        tenant_id: currentTenant.id,
+        user_id: user.id,
+        ai_agent: "command_assistant",
+        conversation_id: conversationId,
+        messages: allMsgs.map(m => ({ role: m.role, content: m.content })),
+      });
 
     } catch (error: any) {
       if (error.name === "AbortError") {
