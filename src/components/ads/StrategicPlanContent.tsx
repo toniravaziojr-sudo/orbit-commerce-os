@@ -35,7 +35,12 @@ interface StructuredAction {
   target_audience?: string;
   funnel_stage?: string;
   objective?: string;
-  bid_strategy?: string;
+  bid_strategy?: string; // legacy — mapped to performance_goal
+  performance_goal?: string;
+  conversion_location?: string;
+  attribution_model?: string;
+  scheduling?: string;
+  spend_limit_brl?: number;
   creatives_count?: number;
   copy_variations?: number;
   rationale?: string;
@@ -135,6 +140,33 @@ const BID_STRATEGY_LABELS: Record<string, string> = {
   minimum_roas: "ROAS Mínimo",
 };
 
+const PERFORMANCE_GOAL_LABELS: Record<string, string> = {
+  offsite_conversions: "Maximizar Conversões",
+  value: "Maximizar Valor das Conversões",
+  landing_page_views: "Maximizar Visualizações da Página",
+  link_clicks: "Maximizar Cliques no Link",
+  impressions: "Maximizar Impressões",
+  reach: "Maximizar Alcance",
+};
+
+const CONVERSION_LOCATION_LABELS: Record<string, string> = {
+  website: "Site",
+  app: "App",
+  website_and_app: "Site e App",
+  messaging: "Destinos das Mensagens",
+  calls: "Ligações",
+  website_and_calls: "Site e Ligações",
+  website_and_shop: "Site e Loja Física",
+};
+
+const ATTRIBUTION_MODEL_LABELS: Record<string, string> = {
+  default: "Padrão",
+  incremental: "Incremental",
+  "1d_click": "1 Dia após o Clique",
+  "7d_click": "7 Dias após o Clique",
+  "1d_view": "1 Dia após a Visualização",
+};
+
 function translateField(value: string, map: Record<string, string>): string {
   const key = value.toLowerCase().replace(/[\s_-]+/g, "_");
   return map[key] || value;
@@ -189,7 +221,26 @@ function StructuredActionCard({ action, index }: { action: StructuredAction; ind
   if (action.daily_budget_brl) details.push({ icon: "💰", label: "Orçamento diário", value: `R$ ${action.daily_budget_brl.toFixed(2)}` });
   if (action.target_audience) details.push({ icon: "🎯", label: "Público", value: action.target_audience });
   if (action.objective) details.push({ icon: "🏁", label: "Objetivo", value: translateField(action.objective, OBJECTIVE_LABELS) });
-  if (action.bid_strategy) details.push({ icon: "⚡", label: "Estratégia de lance", value: translateField(action.bid_strategy, BID_STRATEGY_LABELS) });
+  
+  // AdSet-level configs (Meta)
+  const convLocation = action.conversion_location;
+  if (convLocation) details.push({ icon: "📍", label: "Local da Conversão", value: translateField(convLocation, CONVERSION_LOCATION_LABELS) });
+  
+  const perfGoal = action.performance_goal || action.bid_strategy;
+  if (perfGoal) {
+    // If it's a legacy bid_strategy value, map it; otherwise use performance_goal labels
+    const perfLabel = PERFORMANCE_GOAL_LABELS[perfGoal.toLowerCase().replace(/[\s-]+/g, "_")] 
+      || BID_STRATEGY_LABELS[perfGoal.toLowerCase().replace(/[\s-]+/g, "_")]
+      || perfGoal;
+    details.push({ icon: "⚡", label: "Meta de Desempenho", value: perfLabel });
+  }
+  
+  const attrModel = action.attribution_model;
+  if (attrModel) details.push({ icon: "🔗", label: "Modelo de Atribuição", value: translateField(attrModel, ATTRIBUTION_MODEL_LABELS) });
+  
+  if (action.scheduling) details.push({ icon: "📅", label: "Programação", value: action.scheduling });
+  if (action.spend_limit_brl) details.push({ icon: "🛡️", label: "Limite de Gastos", value: `R$ ${action.spend_limit_brl.toFixed(2)}` });
+  
   if (action.creatives_count) details.push({ icon: "🎨", label: "Criativos", value: `${action.creatives_count} variações` });
   if (action.copy_variations) details.push({ icon: "✍️", label: "Textos", value: `${action.copy_variations} variações` });
   if (action.expected_roas) details.push({ icon: "📈", label: "ROAS esperado", value: `${action.expected_roas}x` });
