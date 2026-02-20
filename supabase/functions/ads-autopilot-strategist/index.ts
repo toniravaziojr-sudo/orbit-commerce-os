@@ -1033,6 +1033,28 @@ ${budgetAllocation ? `**Alocação de Orçamento:**\n${budgetAllocation}` : ""}`
   const revisionActionType = body?.revision_action_type || null;
   const revisionActionData = body?.revision_action_data || null;
   
+  // Collect names of other pending campaigns that should NOT be touched
+  const otherPendingCampaigns = body?.other_pending_campaigns || [];
+  
+  // Also fetch pending campaigns from DB for extra safety
+  if (trigger === "revision") {
+    const { data: dbPending } = await supabase
+      .from("ads_autopilot_actions")
+      .select("id, action_type, action_data")
+      .eq("tenant_id", tenantId)
+      .eq("status", "pending_approval")
+      .eq("action_type", "create_campaign");
+    
+    if (dbPending) {
+      for (const p of dbPending) {
+        const name = (p.action_data as any)?.campaign_name || (p.action_data as any)?.preview?.campaign_name;
+        if (name && !otherPendingCampaigns.includes(name)) {
+          otherPendingCampaigns.push(name);
+        }
+      }
+    }
+  }
+
   if (trigger === "revision" && revisionFeedback) {
     // Scoped revision: only regenerate the specific rejected action
     if (revisionActionType === "create_campaign" && revisionActionData) {
@@ -1040,17 +1062,31 @@ ${budgetAllocation ? `**Alocação de Orçamento:**\n${budgetAllocation}` : ""}`
       const productName = revisionActionData.product_name || "";
       const funnelStage = revisionActionData.funnel_stage || "";
       
+      // Build list of campaigns to NOT recreate
+      const protectedList = otherPendingCampaigns
+        .filter((n: string) => n !== campaignName)
+        .map((n: string) => `  - "${n}"`)
+        .join("\n");
+      
       revisionContext = `### REVISÃO ESPECÍFICA — APENAS UMA CAMPANHA
 
 O usuário pediu ajuste APENAS na campanha "${campaignName}"${productName ? ` (produto: ${productName})` : ""}${funnelStage ? ` (funil: ${funnelStage})` : ""}.
 
 Feedback do usuário: "${revisionFeedback}"
 
-**REGRA ABSOLUTA:** Você deve criar APENAS UMA nova campanha (create_campaign) substituindo a rejeitada.
-- NÃO gere um novo plano estratégico (strategic_plan)
-- NÃO recrie outras campanhas que já existem como pendentes
-- Foque EXCLUSIVAMENTE em atender o feedback do usuário para esta campanha específica
-- Mantenha o mesmo produto/funil a menos que o feedback peça mudança`;
+**REGRA ABSOLUTA — VIOLAÇÃO RESULTA EM FALHA TOTAL:**
+1. Você DEVE criar APENAS UMA nova campanha (create_campaign) substituindo a campanha "${campaignName}" rejeitada
+2. NÃO gere um novo plano estratégico (strategic_plan)
+3. NÃO recrie NEM modifique outras campanhas
+4. Siga LITERALMENTE o feedback do usuário — se ele pedir campanha de catálogo, crie campanha de catálogo
+5. Se o feedback mencionar tipo específico (catálogo, remarketing, etc.), use o objective_type correspondente
+6. Mantenha o mesmo produto/funil a menos que o feedback peça mudança explícita
+7. Gere novos criativos APENAS se o feedback pedir — caso contrário, reutilize existentes
+${protectedList ? `\n**CAMPANHAS EXISTENTES (NÃO TOCAR — já estão pendentes de aprovação):**\n${protectedList}` : ""}
+
+Se o usuário pedir "campanha de catálogo", use:
+- objective_type: "OUTCOME_PRODUCT_CATALOG_SALES"
+- Inclua TODOS os produtos relevantes no targeting`;
 
       console.log(`[ads-autopilot-strategist][${VERSION}] Scoped revision for campaign "${campaignName}" feedback: ${revisionFeedback.substring(0, 100)}`);
     } else if (revisionActionType === "strategic_plan") {

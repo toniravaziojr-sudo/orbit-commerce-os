@@ -8,7 +8,9 @@ import { useState } from "react";
 
 import { useAdsPendingActions } from "@/hooks/useAdsPendingActions";
 import { ActionApprovalCard, OrphanAdsetGroupCard } from "@/components/ads/ActionApprovalCard";
-import { useAdsChat } from "@/hooks/useAdsChat";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useQueryClient } from "@tanstack/react-query";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ClipboardCheck, Sparkles, Wallet } from "lucide-react";
 import { toast } from "sonner";
@@ -68,18 +70,67 @@ function BudgetSummaryHeader({ pendingActions }: { pendingActions: any[] }) {
 export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPendingActionsTabProps) {
   const channelFilter = scope === "account" ? channel : undefined;
   const { pendingActions, isLoading, approveAction, rejectAction } = useAdsPendingActions(channelFilter);
+  const { currentTenant } = useAuth();
+  const queryClient = useQueryClient();
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [adjustingId, setAdjustingId] = useState<string | null>(null);
 
-  // Use the chat hook to send adjustment messages
-  const chat = useAdsChat({ scope, adAccountId, channel });
+  // Direct strategist invocation for scoped revision (same as AdsPendingApprovalTab)
+  const handleAdjust = async (actionId: string, suggestion: string) => {
+    setAdjustingId(actionId);
+    try {
+      const tenantId = currentTenant?.id;
+      if (!tenantId) throw new Error("Tenant não selecionado");
+
+      const targetAction = pendingActions.find(a => a.id === actionId);
+      const actionData = (targetAction?.action_data || {}) as Record<string, any>;
+      const actionType = targetAction?.action_type || "unknown";
+
+      // 1. Reject the action with feedback
+      await rejectAction.mutateAsync({ actionId, reason: `Ajuste solicitado: ${suggestion}` });
+
+      // 2. Collect names of other pending campaigns so the strategist knows NOT to recreate them
+      const otherPendingNames = pendingActions
+        .filter(a => a.id !== actionId && a.action_type === "create_campaign" && a.status === "pending_approval")
+        .map(a => (a.action_data as any)?.campaign_name || (a.action_data as any)?.preview?.campaign_name)
+        .filter(Boolean);
+
+      // 3. Re-trigger strategist with scoped revision
+      const { data, error: stratErr } = await supabase.functions.invoke("ads-autopilot-strategist", {
+        body: { 
+          tenant_id: tenantId, 
+          trigger: "revision",
+          revision_feedback: suggestion,
+          revision_action_id: actionId,
+          revision_action_type: actionType,
+          revision_action_data: {
+            campaign_name: actionData.campaign_name || actionData.preview?.campaign_name,
+            product_name: actionData.product_name,
+            funnel_stage: actionData.funnel_stage || actionData.preview?.funnel_stage,
+          },
+          other_pending_campaigns: otherPendingNames,
+        },
+      });
+      if (stratErr) console.error("Strategist re-trigger error:", stratErr);
+      if (data && !data.success) console.error("Strategist revision error:", data.error);
+
+      queryClient.invalidateQueries({ queryKey: ["ads-pending-actions"] });
+      queryClient.invalidateQueries({ queryKey: ["ads-pending-approval"] });
+      queryClient.invalidateQueries({ queryKey: ["ads-autopilot-actions"] });
+      queryClient.invalidateQueries({ queryKey: ["ads-autopilot-sessions"] });
+      toast.success("Feedback enviado! A IA está gerando um novo plano com seus ajustes...");
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao enviar ajuste");
+    } finally {
+      setAdjustingId(null);
+    }
+  };
 
   // Group: campaigns as parents, adsets nested under their parent campaign
   const campaigns = pendingActions.filter(a => a.action_type !== "create_adset");
   const adsets = pendingActions.filter(a => a.action_type === "create_adset");
 
-  // Build a map of campaign_name -> child adsets
   const adsetsByParent = new Map<string, typeof adsets>();
   for (const adset of adsets) {
     const parentName = (adset.action_data as any)?.campaign_name || (adset.action_data as any)?.parent_campaign_name || "";
@@ -87,13 +138,11 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
     adsetsByParent.get(parentName)!.push(adset);
   }
 
-  // Find child adsets for a campaign action
   const getChildActions = (action: typeof campaigns[0]) => {
     const campaignName = (action.action_data as any)?.campaign_name || (action.action_data as any)?.preview?.campaign_name || "";
     return adsetsByParent.get(campaignName) || [];
   };
 
-  // Group orphan adsets by parent campaign name
   const matchedParents = new Set<string>();
   for (const c of campaigns) {
     const name = (c.action_data as any)?.campaign_name || (c.action_data as any)?.preview?.campaign_name || "";
@@ -109,25 +158,6 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
       orphanAdsetGroups.get(groupKey)!.push(a);
     }
   }
-
-  const handleAdjust = async (actionId: string, suggestion: string) => {
-    setAdjustingId(actionId);
-    try {
-      const action = pendingActions.find(a => a.id === actionId);
-      const actionLabel = action?.action_data?.campaign_name || action?.action_type || actionId;
-      
-      const message = `⚙️ Ajuste solicitado para ação "${actionLabel}" (ID: ${actionId}):\n\n${suggestion}\n\nPor favor, ajuste conforme solicitado e gere uma nova proposta para aprovação.`;
-      
-      await rejectAction.mutateAsync({ actionId, reason: `Ajuste solicitado: ${suggestion}` });
-      await chat.sendMessage(message);
-      
-      toast.success("Ajuste enviado para a IA processar");
-    } catch (err: any) {
-      toast.error(err.message || "Erro ao enviar ajuste");
-    } finally {
-      setAdjustingId(null);
-    }
-  };
 
   if (isLoading) {
     return (
