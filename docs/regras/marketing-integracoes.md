@@ -412,8 +412,8 @@ Se incompleto, o Switch fica desabilitado e um Tooltip mostra os campos faltante
 | `pause_campaign` | 1 | Pausar campanha de baixo desempenho |
 | `adjust_budget` | 1 | Ajustar orçamento de campanha |
 | `report_insight` | 1 | Insight sem execução |
-| `create_campaign` | 2 | Criar campanha com templates fixos |
-| `create_adset` | 2 | Criar conjunto com targeting definido |
+| `create_campaign` | 2 | Criar campanha completa com 35+ parâmetros (v1.22.0): objetivo, bid_strategy, optimization_goal, billing_event, conversion_event, geo_locations, placements, destination_url, ad_format, UTM params, scheduling |
+| `create_adset` | 2 | Criar conjunto com 25+ parâmetros (v1.22.0): targeting completo, optimization, billing, placements, conversion_event, excluded audiences |
 | `generate_creative` | 3 | Gerar criativos via `ads-autopilot-creative` |
 | `run_experiment` | 3 | Executar teste A/B estruturado |
 | `expand_audience` | 4 | Expandir públicos |
@@ -497,22 +497,23 @@ Antes de executar uma ação aprovada:
 2. Se `active + pending_excl_self + proposed > limit`: bloqueia e marca como `rejected`
 3. Mensagem: "Aprovar esta campanha excederia o limite diário. Ajuste orçamento ou rejeite outra proposta."
 
-#### Execução Direta na Meta (v2.0.0)
+#### Execução Direta na Meta (v3.0.0)
 
-A edge function `ads-autopilot-execute-approved` realiza chamadas **diretas** às APIs nativas da Meta, **sem passar pelo loop de análise da IA**. Isso garante 100% de integridade e velocidade na entrega.
+A edge function `ads-autopilot-execute-approved` realiza chamadas **diretas** às APIs nativas da Meta, **sem passar pelo loop de análise da IA**. A partir da v3.0.0, todos os parâmetros técnicos (targeting, posicionamentos, otimização, lance, conversão, destino) são **propagados dinamicamente** da `action_data` gerada pelo Motor Estrategista, sem valores hardcoded.
 
 | Etapa | Ação | Detalhes |
 |---|---|---|
-| 1 | Criar Campanha | `POST /{ad_account_id}/campaigns` com nome, objetivo e `status: PAUSED` |
-| 2 | Criar AdSet | `POST /{ad_account_id}/adsets` com targeting, orçamento e `status: PAUSED` |
+| 1 | Criar Campanha | `POST /{ad_account_id}/campaigns` com nome, objetivo, `bid_strategy`, `special_ad_categories` e scheduling nativo |
+| 2 | Criar AdSet | `POST /{ad_account_id}/adsets` com targeting completo (`geo_locations`, `interests`, `behaviors`, `excluded_audiences`, `publisher_platforms`, `position_types`, `device_platforms`), `optimization_goal`, `billing_event`, `conversion_event` (promoted_object) e `bid_amount_cents` |
 | 3 | Upload de Imagem | `POST /{ad_account_id}/adimages` com URL do criativo |
-| 4 | Criar Anúncio | `POST /{ad_account_id}/ads` com `ad_creative_id` e `status: PAUSED` |
+| 4 | Criar Anúncio | `POST /{ad_account_id}/ads` com `ad_creative_id`, `destination_url` + UTM params e `status` scheduling |
 
 **Regras:**
-- Toda a cadeia (Campanha → AdSet → Ad) é criada em estado **PAUSED**
+- Toda a cadeia (Campanha → AdSet → Ad) usa scheduling nativo: dentro da janela 00:01-04:00 BRT → `ACTIVE` imediato; fora → `ACTIVE` + `start_time` futuro (aparece como "Programada" no Meta Ads Manager)
 - Revalidação de orçamento é feita **no momento da execução** (não no momento da aprovação)
 - Se qualquer etapa falhar, o erro é registrado e o status da ação é marcado como `error`
 - IDs da Meta (`meta_campaign_id`, `meta_adset_id`, `meta_ad_id`) são registrados em `rollback_data` para reversão futura
+- **Fallbacks**: Campos não especificados pela IA usam defaults sensatos (`geo_locations` → `{countries: ["BR"]}`, `billing_event` → `"IMPRESSIONS"`, `conversion_event` → inferido do objetivo)
 
 #### Filtragem de Insights (v2.0.0)
 
@@ -1436,3 +1437,4 @@ Isso garante que **nenhum dado é omitido**, mesmo quando a IA envia campos novo
 - [x] Gestor de Tráfego IA — v5.13.2 (Creative URL Race Condition Fix): **Causa raiz** — `generate_creative` é assíncrono; quando `create_campaign` executa logo em seguida, `asset_url` ainda é `null` no banco, causando cards sem preview visual. **Correção em 2 camadas:** 1. **Backend (Motor Estrategista v1.11.0)** — passo de pós-processamento após TODOS os tool calls que busca ações `pending_approval` do tipo `create_campaign` sem `creative_url` e resolve via: creative asset do produto → imagem do catálogo (`product_images` com `sort_order`). Atualiza `action_data.creative_url` e `action_data.preview.creative_url`. 2. **Frontend (`useResolvedCreativeUrl` hook)** — fallback inteligente no `ActionApprovalCard` (v5.13.2): se `creative_url` é null mas `product_id` existe, busca automaticamente em `ads_creative_assets` e depois em `product_images`. Cache de 60s via `staleTime`. **Garantia anti-regressão** — mesmo que o backend falhe no pós-processamento, o frontend sempre resolve uma imagem.
 - [x] Gestor de Tráfego IA — v1.12.0 (Product Price & Selection Fix): **Bug crítico global** — campo `price` em `products` armazena valores em BRL (ex: 89.70), mas 4 edge functions dividiam por 100, fazendo o LLM ver preços absurdos (R$0.90 em vez de R$89.70). Isso causava confusão na seleção de produtos e preços errados nos cards de aprovação. **Funções corrigidas:** `ads-autopilot-strategist` (prompt + preview), `ads-autopilot-analyze` (prompt + `product_price_display`), `ads-autopilot-generate-prompt` (prompt), `generate-seo` (contexto de preço). **Enriquecimento do `create_campaign`** — no Motor Estrategista, `create_campaign` agora resolve o produto completo: match inteligente por nome (exato → starts with → includes), resolve imagem via `imagesByProduct`, formata preço em BRL, preenche preview com headline, copy, targeting, budget display e `product_price_display`. **Regra reforçada:** `products.price` e `products.cost_price` são SEMPRE em BRL — PROIBIDO dividir por 100 em qualquer edge function.
 - [x] Gestor de Tráfego IA — v1.13.0 (Product Priority Bias Fix): **Causa raiz** — query de produtos ordenava por `price DESC`, fazendo variantes bulk (ex: "Shampoo Preventive Power (12x)" R$499.90) aparecerem como "Top Produto #1" no prompt, induzindo a IA a priorizá-las sobre o produto carro-chefe definido no prompt estratégico do lojista. **Correções:** 1. **Ordenação neutra** — produtos agora ordenados por `name ASC` (sem viés de preço), limite aumentado de 20→30 para catálogo completo. 2. **Rótulo "Catálogo Completo"** — substituído "Top Produtos" (5 itens) por lista completa com preço, margem e estoque. 3. **Instrução explícita no prompt** — aviso mandatório: "A prioridade de produtos é definida EXCLUSIVAMENTE pelo Prompt Estratégico do lojista. NÃO use a ordem do catálogo como indicador de importância." 4. **Filtro de variantes na cadência criativa** — regex `\(\d+x\)|\(FLEX\)|\(Dia\)|\(Noite\)` aplicado para excluir variantes da seleção de "mainProducts" para cadência criativa, focando nos produtos-base. **Regra reforçada:** A IA NUNCA deve inferir importância de produtos pela posição no catálogo ou preço — somente o `user_instructions` (prompt estratégico) define prioridades.
+- [x] Gestor de Tráfego IA — v1.22.0 + v3.0.0 (Full Meta Ads Params): **Strategist v1.22.0** — `create_campaign` expandido de ~10 para 35+ parâmetros, incluindo: `bid_strategy` (LOWEST_COST/BID_CAP/COST_CAP/MINIMUM_ROAS), `optimization_goal` (9 opções), `billing_event` (IMPRESSIONS/LINK_CLICKS/THRUPLAY), `conversion_event` (12 eventos Pixel), `geo_locations` (countries/regions/cities), `interests`, `behaviors`, `excluded_audience_ids`, `publisher_platforms` (4 plataformas), `position_types` (16 posições), `device_platforms`, `destination_url` (OBRIGATÓRIO), `ad_format` (SINGLE_IMAGE/VIDEO/CAROUSEL/COLLECTION), `cta` (13 CTAs), `utm_params`, `special_ad_categories`. `create_adset` expandido com 25+ parâmetros espelhados. Required fields incluem: `optimization_goal`, `conversion_event`, `destination_url`. **Executor v3.0.0** — `ads-autopilot-execute-approved` refatorado para propagar TODOS os parâmetros da `action_data` dinamicamente. Removidos hardcodes: `billing_event: "IMPRESSIONS"`, `geo_locations: {countries: ["BR"]}`, `promoted_object` fixo. Posicionamentos mapeados para keys da Meta API (`facebook_positions`, `instagram_positions`). `destination_url` + UTM params propagados para o anúncio. Scheduling nativo: dentro da janela 00:01-04:00 BRT → ACTIVE imediato; fora → ACTIVE + start_time futuro.
