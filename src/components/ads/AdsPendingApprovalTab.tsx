@@ -66,6 +66,7 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
   const tenantId = currentTenant?.id;
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [adjustingId, setAdjustingId] = useState<string | null>(null);
 
   const { data: pendingActions = [], isLoading } = useQuery({
     queryKey: ["ads-pending-approval", tenantId, channelFilter],
@@ -149,9 +150,10 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-actions"] });
       queryClient.invalidateQueries({ queryKey: ["ads-pending-actions"] });
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-sessions"] });
+      setAdjustingId(null);
       toast.success("Feedback enviado! A IA está gerando um novo plano com seus ajustes...");
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => { setAdjustingId(null); toast.error(err.message); },
   });
 
   if (isLoading) {
@@ -227,9 +229,10 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
           childActions={getChildActions(action)}
           onApprove={(id) => { setApprovingId(id); approveAction.mutate(id, { onSettled: () => setApprovingId(null) }); }}
           onReject={(id, reason) => { setRejectingId(id); rejectAction.mutate({ actionId: id, reason }, { onSettled: () => setRejectingId(null) }); }}
-          onAdjust={(id, suggestion) => adjustAction.mutate({ actionId: id, feedback: suggestion })}
+          onAdjust={(id, suggestion) => { setAdjustingId(id); adjustAction.mutate({ actionId: id, feedback: suggestion }); }}
           approvingId={approvingId}
           rejectingId={rejectingId}
+          adjustingId={adjustingId}
         />
       ))}
       {/* Orphan adsets grouped by parent campaign */}
@@ -240,9 +243,10 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
           adsets={groupAdsets}
           onApprove={(id) => { setApprovingId(id); approveAction.mutate(id, { onSettled: () => setApprovingId(null) }); }}
           onReject={(id, reason) => { setRejectingId(id); rejectAction.mutate({ actionId: id, reason }, { onSettled: () => setRejectingId(null) }); }}
-          onAdjust={(id, suggestion) => adjustAction.mutate({ actionId: id, feedback: suggestion })}
+          onAdjust={(id, suggestion) => { setAdjustingId(id); adjustAction.mutate({ actionId: id, feedback: suggestion }); }}
           approvingId={approvingId}
           rejectingId={rejectingId}
+          adjustingId={adjustingId}
         />
       ))}
     </div>

@@ -70,6 +70,7 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
   const { pendingActions, isLoading, approveAction, rejectAction } = useAdsPendingActions(channelFilter);
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [adjustingId, setAdjustingId] = useState<string | null>(null);
 
   // Use the chat hook to send adjustment messages
   const chat = useAdsChat({ scope, adAccountId, channel });
@@ -110,6 +111,7 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
   }
 
   const handleAdjust = async (actionId: string, suggestion: string) => {
+    setAdjustingId(actionId);
     try {
       const action = pendingActions.find(a => a.id === actionId);
       const actionLabel = action?.action_data?.campaign_name || action?.action_type || actionId;
@@ -122,6 +124,8 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
       toast.success("Ajuste enviado para a IA processar");
     } catch (err: any) {
       toast.error(err.message || "Erro ao enviar ajuste");
+    } finally {
+      setAdjustingId(null);
     }
   };
 
@@ -174,6 +178,7 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
                 onAdjust={handleAdjust}
                 approvingId={approvingId}
                 rejectingId={rejectingId}
+                adjustingId={adjustingId}
               />
             ))}
             {/* Orphan adsets grouped by parent campaign */}
@@ -187,6 +192,7 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
                 onAdjust={handleAdjust}
                 approvingId={approvingId}
                 rejectingId={rejectingId}
+                adjustingId={adjustingId}
               />
             ))}
           </div>

@@ -26,6 +26,7 @@ export interface ActionApprovalCardProps {
   onAdjust: (actionId: string, suggestion: string) => void;
   approvingId?: string | null;
   rejectingId?: string | null;
+  adjustingId?: string | null;
 }
 
 export interface OrphanAdsetGroupCardProps {
@@ -36,6 +37,7 @@ export interface OrphanAdsetGroupCardProps {
   onAdjust: (actionId: string, suggestion: string) => void;
   approvingId?: string | null;
   rejectingId?: string | null;
+  adjustingId?: string | null;
 }
 
 const FUNNEL_LABELS: Record<string, { label: string; color: string }> = {
@@ -525,7 +527,7 @@ function SectionLabel({ icon, label }: { icon: React.ReactNode; label: string })
    MAIN CARD COMPONENT
    Shows compact preview + "Ver completo"
    ======================================== */
-export function ActionApprovalCard({ action, childActions, onApprove, onReject, onAdjust, approvingId, rejectingId }: ActionApprovalCardProps) {
+export function ActionApprovalCard({ action, childActions, onApprove, onReject, onAdjust, approvingId, rejectingId, adjustingId }: ActionApprovalCardProps) {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
@@ -563,11 +565,11 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
     setRejectReason("");
   };
 
+  const isAdjusting = adjustingId === action.id;
+
   const handleAdjustSubmit = () => {
     if (!adjustSuggestion.trim()) return;
     onAdjust(action.id, adjustSuggestion);
-    setAdjustOpen(false);
-    setAdjustSuggestion("");
   };
 
   return (
@@ -684,11 +686,15 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
             variant="outline"
             size="sm"
             onClick={() => setAdjustOpen(true)}
-            disabled={!!approvingId || !!rejectingId}
+            disabled={!!approvingId || !!rejectingId || !!adjustingId}
             className="flex-1 h-8 text-xs gap-1.5"
           >
-            <MessageSquare className="h-3.5 w-3.5" />
-            Ajustar
+            {isAdjusting ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <MessageSquare className="h-3.5 w-3.5" />
+            )}
+            {isAdjusting ? "Reprocessando..." : "Ajustar"}
           </Button>
           <Button
             variant="ghost"
@@ -746,9 +752,16 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
             className="min-h-[80px]"
           />
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setAdjustOpen(false)}>Cancelar</Button>
-            <Button onClick={handleAdjustSubmit} disabled={!adjustSuggestion.trim()}>
-              Enviar Ajuste
+            <Button variant="ghost" onClick={() => setAdjustOpen(false)} disabled={isAdjusting}>Cancelar</Button>
+            <Button onClick={handleAdjustSubmit} disabled={!adjustSuggestion.trim() || isAdjusting}>
+              {isAdjusting ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                  Reprocessando...
+                </>
+              ) : (
+                "Enviar Ajuste"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -775,7 +788,7 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
    Groups adsets for existing campaigns
    Shows parent campaign context + all adsets + creatives
    ======================================== */
-export function OrphanAdsetGroupCard({ parentCampaignName, adsets, onApprove, onReject, onAdjust, approvingId, rejectingId }: OrphanAdsetGroupCardProps) {
+export function OrphanAdsetGroupCard({ parentCampaignName, adsets, onApprove, onReject, onAdjust, approvingId, rejectingId, adjustingId }: OrphanAdsetGroupCardProps) {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [fullOpen, setFullOpen] = useState(false);
@@ -803,13 +816,13 @@ export function OrphanAdsetGroupCard({ parentCampaignName, adsets, onApprove, on
     setRejectReason("");
   };
 
+  const isAdjustingGroup = adsets.some(a => adjustingId === a.id);
+
   const handleAdjustAll = () => {
     if (!adjustSuggestion.trim()) return;
     for (const adset of adsets) {
       onAdjust(adset.id, adjustSuggestion);
     }
-    setAdjustOpen(false);
-    setAdjustSuggestion("");
   };
 
   return (
@@ -1028,9 +1041,16 @@ export function OrphanAdsetGroupCard({ parentCampaignName, adsets, onApprove, on
             className="min-h-[80px]"
           />
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setAdjustOpen(false)}>Cancelar</Button>
-            <Button onClick={handleAdjustAll} disabled={!adjustSuggestion.trim()}>
-              Enviar Ajuste
+            <Button variant="ghost" onClick={() => setAdjustOpen(false)} disabled={isAdjustingGroup}>Cancelar</Button>
+            <Button onClick={handleAdjustAll} disabled={!adjustSuggestion.trim() || isAdjustingGroup}>
+              {isAdjustingGroup ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                  Reprocessando...
+                </>
+              ) : (
+                "Enviar Ajuste"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
