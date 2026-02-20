@@ -733,6 +733,29 @@ async function executeToolCall(
 
   if (toolName === "create_lookalike_audience") {
     try {
+      // v1.18.0: Dedup — check if a LAL with same source + ratio + country already exists
+      const safeRatio = args.ratio || 0.05;
+      const safeCountry = args.country || "BR";
+      const { data: existingAudiences } = await supabase
+        .from("meta_ad_audiences")
+        .select("id, meta_audience_id, name, lookalike_spec")
+        .eq("tenant_id", tenantId)
+        .eq("ad_account_id", config.ad_account_id)
+        .eq("audience_type", "lookalike");
+
+      const existingMatch = (existingAudiences || []).find((a: any) => {
+        const spec = a.lookalike_spec;
+        if (!spec) return false;
+        return spec.source === args.source_audience_id 
+          && Math.abs((spec.ratio || 0) - safeRatio) < 0.005
+          && (spec.country || "BR") === safeCountry;
+      });
+
+      if (existingMatch) {
+        console.log(`[ads-autopilot-strategist][${VERSION}] LAL dedup: "${existingMatch.name}" (${existingMatch.meta_audience_id}) already exists for source=${args.source_audience_id} ratio=${safeRatio}`);
+        return { status: "executed", data: { lookalike_audience_id: existingMatch.meta_audience_id, deduplicated: true, existing_name: existingMatch.name } };
+      }
+
       const metaConn = await supabase
         .from("marketplace_connections")
         .select("access_token")
@@ -751,7 +774,7 @@ async function executeToolCall(
           name: args.lookalike_name,
           subtype: "LOOKALIKE",
           origin_audience_id: args.source_audience_id,
-          lookalike_spec: JSON.stringify({ type: "similarity", ratio: args.ratio || 0.05, country: args.country || "BR" }),
+          lookalike_spec: JSON.stringify({ type: "similarity", ratio: safeRatio, country: safeCountry }),
           access_token: metaConn.data.access_token,
         }),
       });
@@ -765,8 +788,8 @@ async function executeToolCall(
         name: args.lookalike_name,
         audience_type: "lookalike",
         subtype: "LOOKALIKE",
-        description: `LAL ${((args.ratio || 0.05) * 100).toFixed(0)}% de ${args.source_audience_name}`,
-        lookalike_spec: { ratio: args.ratio, country: args.country || "BR", source: args.source_audience_id },
+        description: `LAL ${(safeRatio * 100).toFixed(0)}% de ${args.source_audience_name}`,
+        lookalike_spec: { ratio: safeRatio, country: safeCountry, source: args.source_audience_id },
         synced_at: new Date().toISOString(),
       }, { onConflict: "tenant_id,meta_audience_id" });
 
