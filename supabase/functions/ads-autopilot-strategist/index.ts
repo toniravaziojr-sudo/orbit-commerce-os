@@ -1124,7 +1124,7 @@ Feedback: "${revisionFeedback}"
       const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       resetAIRouterCache();
 
-      const endpoint = await getAIEndpoint("openai/gpt-5.2", {
+      const endpoint = await getAIEndpoint("google/gemini-2.5-flash", {
         supabaseUrl,
         supabaseServiceKey,
       });
