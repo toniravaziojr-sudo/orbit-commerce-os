@@ -5,7 +5,7 @@
 // =============================================
 
 import { useAdsPendingActions } from "@/hooks/useAdsPendingActions";
-import { ActionApprovalCard } from "@/components/ads/ActionApprovalCard";
+import { ActionApprovalCard, OrphanAdsetGroupCard } from "@/components/ads/ActionApprovalCard";
 import { useAdsChat } from "@/hooks/useAdsChat";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ClipboardCheck, Sparkles, Wallet } from "lucide-react";
@@ -88,16 +88,22 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
     return adsetsByParent.get(campaignName) || [];
   };
 
-  // Orphan adsets (no matching parent campaign) — show as standalone
+  // Group orphan adsets by parent campaign name
   const matchedParents = new Set<string>();
   for (const c of campaigns) {
     const name = (c.action_data as any)?.campaign_name || (c.action_data as any)?.preview?.campaign_name || "";
     if (adsetsByParent.has(name)) matchedParents.add(name);
   }
-  const orphanAdsets = adsets.filter(a => {
+
+  const orphanAdsetGroups = new Map<string, typeof adsets>();
+  for (const a of adsets) {
     const parentName = (a.action_data as any)?.campaign_name || (a.action_data as any)?.parent_campaign_name || "";
-    return !matchedParents.has(parentName);
-  });
+    if (!matchedParents.has(parentName)) {
+      const groupKey = parentName || "Sem campanha";
+      if (!orphanAdsetGroups.has(groupKey)) orphanAdsetGroups.set(groupKey, []);
+      orphanAdsetGroups.get(groupKey)!.push(a);
+    }
+  }
 
   const handleAdjust = async (actionId: string, suggestion: string) => {
     try {
@@ -123,7 +129,7 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
     );
   }
 
-  const displayCount = campaigns.length + orphanAdsets.length;
+  const displayCount = campaigns.length + orphanAdsetGroups.size;
 
   if (displayCount === 0) {
     return (
@@ -166,11 +172,12 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
                 isRejecting={rejectAction.isPending}
               />
             ))}
-            {/* Orphan adsets (no parent campaign found) */}
-            {orphanAdsets.map((action) => (
-              <ActionApprovalCard
-                key={action.id}
-                action={action}
+            {/* Orphan adsets grouped by parent campaign */}
+            {Array.from(orphanAdsetGroups.entries()).map(([parentName, groupAdsets]) => (
+              <OrphanAdsetGroupCard
+                key={`orphan-${parentName}`}
+                parentCampaignName={parentName}
+                adsets={groupAdsets}
                 onApprove={(id) => approveAction.mutate(id)}
                 onReject={(id, reason) => rejectAction.mutate({ actionId: id, reason })}
                 onAdjust={handleAdjust}
