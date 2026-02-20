@@ -1461,3 +1461,60 @@ Se um criativo falha (status `failed`), ele **não bloqueia** o pipeline. O call
 | `generate_creative` durante `implement_campaigns` | Fase de preparação já encerrada |
 | Pular Fase 1 direto para Fase 2 | Violaria dependência sequencial |
 | Callback manual (sem verificação de completude) | Risco de campanhas parciais |
+
+---
+
+### v1.25.0: `ads-autopilot-strategist` — Schema Estruturado da Tool `strategic_plan` (v6)
+
+**Problema**: O schema anterior da tool `strategic_plan` usava `planned_actions` como `string[]`, permitindo que a IA gerasse textos vagos e genéricos (ex: "Criar campanha TOF focada em novos clientes...") sem detalhamento técnico de orçamento, público, funil ou métricas.
+
+**Mudanças — Schema Estruturado**:
+
+#### `planned_actions` (antes: `string[]` → agora: `array de objetos`)
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `action_type` | string | ✅ | Tipo: `new_campaign`, `adjust_budget`, `pause`, `test`, `scale`, `restructure` |
+| `campaign_type` | string | ✅ | TOF, BOF, MOF, Test, Remarketing |
+| `product_name` | string | ✅ | Nome exato do produto do catálogo |
+| `daily_budget_brl` | number | ✅ | Orçamento diário em R$ |
+| `target_audience` | string | ✅ | Descrição do público-alvo |
+| `funnel_stage` | string | ✅ | cold, warm, hot |
+| `objective` | string | ✅ | Objetivo da campanha |
+| `bid_strategy` | string | ❌ | LOWEST_COST, BID_CAP, COST_CAP, etc. |
+| `creatives_count` | number | ❌ | Qtd de criativos planejados |
+| `copy_variations` | number | ❌ | Qtd de variações de copy |
+| `rationale` | string | ✅ | Justificativa detalhada da ação |
+| `expected_roas` | number | ❌ | ROAS esperado |
+| `placements` | string | ❌ | Feed, Stories, Reels, etc. |
+
+#### `budget_allocation` (novo campo obrigatório)
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `total_daily_brl` | number | ✅ | Orçamento diário total do plano |
+| `tof_pct` | number | ✅ | % alocado para TOF (aquisição) |
+| `tof_brl` | number | ✅ | Valor em R$ para TOF |
+| `bof_pct` | number | ✅ | % alocado para BOF (remarketing) |
+| `bof_brl` | number | ✅ | Valor em R$ para BOF |
+| `test_pct` | number | ✅ | % alocado para Testes |
+| `test_brl` | number | ✅ | Valor em R$ para Testes |
+
+#### `diagnosis.description` — Mínimo 300 palavras
+
+O campo `description` do diagnóstico agora exige **mínimo 300 palavras** no schema da tool para forçar análise profunda com dados reais (ROAS, CPA, receita, ticket médio, campanhas ativas, problemas identificados).
+
+#### Frontend `StrategicPlanContent` (v6)
+
+- Renderiza `planned_actions` como **cards estruturados** com badges dinâmicos (funnel_stage, campaign_type, action_type)
+- Exibe métricas financeiras em destaque: `daily_budget_brl`, `expected_roas`
+- Nova seção **Alocação de Orçamento** com barra visual de funil (TOF/BOF/Test)
+- **Retrocompatível**: Se `planned_actions` for `string[]` (formato legado), renderiza como lista simples
+
+#### Componentes Afetados
+
+| Componente | Mudança |
+|---|---|
+| `StrategicPlanContent.tsx` | Renderização de ações estruturadas + alocação de orçamento visual |
+| `ActionApprovalCard.tsx` | Passa `actionData` completo para `StrategicPlanContent` |
+| `ActionDetailDialog.tsx` | Passa `actionData` para renderização no diálogo de detalhes |
