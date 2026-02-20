@@ -37,14 +37,14 @@ const GEMINI_NATIVE_MODELS: Record<string, string> = {
 // Mapeamento de modelos Lovable Gateway → OpenAI nativo
 const OPENAI_NATIVE_MODELS: Record<string, string> = {
   "openai/gpt-5": "gpt-4o",
-  "openai/gpt-5-mini": "gpt-4o-mini",
+  "openai/gpt-5-mini": "gpt-4o",
   "openai/gpt-5-nano": "gpt-4o-mini",
   "openai/gpt-5.2": "gpt-4o",
-  // Gemini models → closest OpenAI
-  "google/gemini-2.5-flash": "gpt-4o-mini",
+  // Gemini models → closest OpenAI (qualidade equivalente obrigatória)
+  "google/gemini-2.5-flash": "gpt-4o",
   "google/gemini-2.5-flash-lite": "gpt-4o-mini",
   "google/gemini-2.5-pro": "gpt-4o",
-  "google/gemini-3-flash-preview": "gpt-4o-mini",
+  "google/gemini-3-flash-preview": "gpt-4o",
   "google/gemini-3-pro-preview": "gpt-4o",
 };
 
@@ -131,7 +131,7 @@ export async function getAIEndpoint(
       return {
         url: OPENAI_API_URL,
         apiKey: keys.openai,
-        model: OPENAI_NATIVE_MODELS[requestedModel] || "gpt-4o-mini",
+        model: OPENAI_NATIVE_MODELS[requestedModel] || "gpt-4o",
         provider: 'openai',
       };
     }
@@ -219,7 +219,7 @@ export async function aiChatCompletion(
       } else if (provider === 'openai') {
         url = OPENAI_API_URL;
         apiKey = keys.openai!;
-        model = OPENAI_NATIVE_MODELS[requestedModel] || "gpt-4o-mini";
+        model = OPENAI_NATIVE_MODELS[requestedModel] || "gpt-4o";
       } else {
         url = LOVABLE_GATEWAY_URL;
         apiKey = keys.lovable!;
