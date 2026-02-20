@@ -4,6 +4,8 @@
 // with global budget summary header
 // =============================================
 
+import { useState } from "react";
+
 import { useAdsPendingActions } from "@/hooks/useAdsPendingActions";
 import { ActionApprovalCard, OrphanAdsetGroupCard } from "@/components/ads/ActionApprovalCard";
 import { useAdsChat } from "@/hooks/useAdsChat";
@@ -66,6 +68,8 @@ function BudgetSummaryHeader({ pendingActions }: { pendingActions: any[] }) {
 export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPendingActionsTabProps) {
   const channelFilter = scope === "account" ? channel : undefined;
   const { pendingActions, isLoading, approveAction, rejectAction } = useAdsPendingActions(channelFilter);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
 
   // Use the chat hook to send adjustment messages
   const chat = useAdsChat({ scope, adAccountId, channel });
@@ -165,11 +169,11 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
                 key={action.id}
                 action={action}
                 childActions={getChildActions(action)}
-                onApprove={(id) => approveAction.mutate(id)}
-                onReject={(id, reason) => rejectAction.mutate({ actionId: id, reason })}
+                onApprove={(id) => { setApprovingId(id); approveAction.mutate(id, { onSettled: () => setApprovingId(null) }); }}
+                onReject={(id, reason) => { setRejectingId(id); rejectAction.mutate({ actionId: id, reason }, { onSettled: () => setRejectingId(null) }); }}
                 onAdjust={handleAdjust}
-                isApproving={approveAction.isPending}
-                isRejecting={rejectAction.isPending}
+                approvingId={approvingId}
+                rejectingId={rejectingId}
               />
             ))}
             {/* Orphan adsets grouped by parent campaign */}
@@ -178,11 +182,11 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
                 key={`orphan-${parentName}`}
                 parentCampaignName={parentName}
                 adsets={groupAdsets}
-                onApprove={(id) => approveAction.mutate(id)}
-                onReject={(id, reason) => rejectAction.mutate({ actionId: id, reason })}
+                onApprove={(id) => { setApprovingId(id); approveAction.mutate(id, { onSettled: () => setApprovingId(null) }); }}
+                onReject={(id, reason) => { setRejectingId(id); rejectAction.mutate({ actionId: id, reason }, { onSettled: () => setRejectingId(null) }); }}
                 onAdjust={handleAdjust}
-                isApproving={approveAction.isPending}
-                isRejecting={rejectAction.isPending}
+                approvingId={approvingId}
+                rejectingId={rejectingId}
               />
             ))}
           </div>

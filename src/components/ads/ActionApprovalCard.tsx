@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogD
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Check, X, MessageSquare, ChevronDown, ChevronRight, Megaphone, ImageIcon, DollarSign, Target, Sparkles, ZoomIn, Bot, AlertTriangle, TrendingUp, ListChecks, Clock, Eye, Layers, Users } from "lucide-react";
+import { Check, X, MessageSquare, ChevronDown, ChevronRight, Megaphone, ImageIcon, DollarSign, Target, Sparkles, ZoomIn, Bot, AlertTriangle, TrendingUp, ListChecks, Clock, Eye, Layers, Users, Loader2 } from "lucide-react";
 import type { PendingAction } from "@/hooks/useAdsPendingActions";
 import { cn } from "@/lib/utils";
 import { StrategicPlanContent } from "./StrategicPlanContent";
@@ -24,8 +24,8 @@ export interface ActionApprovalCardProps {
   onApprove: (actionId: string) => void;
   onReject: (actionId: string, reason: string) => void;
   onAdjust: (actionId: string, suggestion: string) => void;
-  isApproving?: boolean;
-  isRejecting?: boolean;
+  approvingId?: string | null;
+  rejectingId?: string | null;
 }
 
 export interface OrphanAdsetGroupCardProps {
@@ -34,8 +34,8 @@ export interface OrphanAdsetGroupCardProps {
   onApprove: (actionId: string) => void;
   onReject: (actionId: string, reason: string) => void;
   onAdjust: (actionId: string, suggestion: string) => void;
-  isApproving?: boolean;
-  isRejecting?: boolean;
+  approvingId?: string | null;
+  rejectingId?: string | null;
 }
 
 const FUNNEL_LABELS: Record<string, { label: string; color: string }> = {
@@ -525,7 +525,7 @@ function SectionLabel({ icon, label }: { icon: React.ReactNode; label: string })
    MAIN CARD COMPONENT
    Shows compact preview + "Ver completo"
    ======================================== */
-export function ActionApprovalCard({ action, childActions, onApprove, onReject, onAdjust, isApproving, isRejecting }: ActionApprovalCardProps) {
+export function ActionApprovalCard({ action, childActions, onApprove, onReject, onAdjust, approvingId, rejectingId }: ActionApprovalCardProps) {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
@@ -670,16 +670,21 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
           <Button
             size="sm"
             onClick={() => onApprove(action.id)}
-            disabled={isApproving}
+            disabled={!!approvingId || !!rejectingId}
             className="flex-1 h-8 text-xs gap-1.5"
           >
-            <Check className="h-3.5 w-3.5" />
-            Aprovar
+            {approvingId === action.id ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Check className="h-3.5 w-3.5" />
+            )}
+            {approvingId === action.id ? "Aprovando..." : "Aprovar"}
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => setAdjustOpen(true)}
+            disabled={!!approvingId || !!rejectingId}
             className="flex-1 h-8 text-xs gap-1.5"
           >
             <MessageSquare className="h-3.5 w-3.5" />
@@ -689,7 +694,7 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
             variant="ghost"
             size="sm"
             onClick={() => setRejectOpen(true)}
-            disabled={isRejecting}
+            disabled={!!approvingId || !!rejectingId}
             className="h-8 text-xs gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
           >
             <X className="h-3.5 w-3.5" />
@@ -770,7 +775,7 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
    Groups adsets for existing campaigns
    Shows parent campaign context + all adsets + creatives
    ======================================== */
-export function OrphanAdsetGroupCard({ parentCampaignName, adsets, onApprove, onReject, onAdjust, isApproving, isRejecting }: OrphanAdsetGroupCardProps) {
+export function OrphanAdsetGroupCard({ parentCampaignName, adsets, onApprove, onReject, onAdjust, approvingId, rejectingId }: OrphanAdsetGroupCardProps) {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [fullOpen, setFullOpen] = useState(false);
@@ -883,16 +888,21 @@ export function OrphanAdsetGroupCard({ parentCampaignName, adsets, onApprove, on
           <Button
             size="sm"
             onClick={handleApproveAll}
-            disabled={isApproving}
+            disabled={!!approvingId || !!rejectingId}
             className="flex-1 h-8 text-xs gap-1.5"
           >
-            <Check className="h-3.5 w-3.5" />
-            Aprovar {adsets.length > 1 ? `(${adsets.length})` : ""}
+            {approvingId ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Check className="h-3.5 w-3.5" />
+            )}
+            {approvingId ? "Aprovando..." : `Aprovar ${adsets.length > 1 ? `(${adsets.length})` : ""}`}
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => setAdjustOpen(true)}
+            disabled={!!approvingId || !!rejectingId}
             className="flex-1 h-8 text-xs gap-1.5"
           >
             <MessageSquare className="h-3.5 w-3.5" />
@@ -902,7 +912,7 @@ export function OrphanAdsetGroupCard({ parentCampaignName, adsets, onApprove, on
             variant="ghost"
             size="sm"
             onClick={() => setRejectOpen(true)}
-            disabled={isRejecting}
+            disabled={!!approvingId || !!rejectingId}
             className="h-8 text-xs gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
           >
             <X className="h-3.5 w-3.5" />
