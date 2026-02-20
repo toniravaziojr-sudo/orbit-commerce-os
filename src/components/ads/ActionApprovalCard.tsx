@@ -40,6 +40,7 @@ const FUNNEL_LABELS: Record<string, { label: string; color: string }> = {
 
 const ACTION_TYPE_ICONS: Record<string, typeof Target> = {
   create_campaign: Megaphone,
+  create_adset: Target,
   generate_creative: ImageIcon,
   adjust_budget: DollarSign,
   pause_campaign: Target,
@@ -58,7 +59,7 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
 };
 
 /** Action types that should be hidden from user approval view (internal/technical) */
-const HIDDEN_ACTION_TYPES = new Set(["create_adset", "activate_campaign"]);
+const HIDDEN_ACTION_TYPES = new Set(["activate_campaign"]);
 
 /**
  * Resolves creative URL with fallback chain:
@@ -188,17 +189,27 @@ function FullContentDialog({ action, open, onOpenChange }: { action: PendingActi
   const data = action.action_data || {};
   const preview = data.preview || {};
   const isStrategicPlan = action.action_type === "strategic_plan";
+  const isAdSet = action.action_type === "create_adset";
 
   const creativeUrl = useResolvedCreativeUrl(action);
-  const headline = preview.headline || data.headline || null;
-  const copyText = preview.copy_text || data.copy_text || null;
-  const ctaType = preview.cta_type || data.cta_type || null;
+  
+  // Support both single values and arrays of variations
+  const primaryTexts: string[] = preview.primary_texts || (preview.copy_text ? [preview.copy_text] : data.copy_text ? [data.copy_text] : []);
+  const headlinesList: string[] = preview.headlines || (preview.headline ? [preview.headline] : data.headline ? [data.headline] : []);
+  const descriptionsList: string[] = preview.descriptions || [];
+  const ctaType = preview.cta || preview.cta_type || data.cta_type || null;
+  
   const productName = preview.product_name || data.product_name || null;
   const productPrice = preview.product_price_display || (preview.product_price ? `R$ ${Number(preview.product_price).toFixed(2)}` : null);
-  const targeting = preview.targeting_summary || null;
+  const targeting = preview.targeting_summary || data.targeting_summary || null;
   const ageRange = preview.age_range || null;
   const budgetDisplay = preview.daily_budget_display || (data.daily_budget_cents ? `R$ ${(data.daily_budget_cents / 100).toFixed(2)}/dia` : null);
   const budgetSnapshot = preview.budget_snapshot || null;
+  
+  // AdSet specific fields
+  const adsetName = data.adset_name || preview.adset_name || null;
+  const parentCampaign = data.campaign_name || data.parent_campaign_name || null;
+  const customAudiences = data.custom_audiences || preview.custom_audiences || null;
 
   const diagnosis = data.diagnosis || preview.copy_text || null;
   const plannedActions = data.planned_actions || null;
@@ -233,25 +244,91 @@ function FullContentDialog({ action, open, onOpenChange }: { action: PendingActi
               </div>
             )}
 
-            {/* Headline & Copy (non-strategic) */}
-            {headline && !isStrategicPlan && (
-              <div>
-                <SectionLabel icon={<Sparkles className="h-3.5 w-3.5 text-primary" />} label="Headline" />
-                <p className="text-sm font-semibold mt-1">{headline}</p>
+            {/* AdSet info */}
+            {isAdSet && (
+              <div className="space-y-3">
+                {adsetName && (
+                  <div>
+                    <SectionLabel icon={<Target className="h-3.5 w-3.5 text-primary" />} label="Conjunto de Anúncios" />
+                    <p className="text-sm font-semibold mt-1">{adsetName}</p>
+                  </div>
+                )}
+                {parentCampaign && (
+                  <div className="bg-muted/30 rounded-lg p-2.5 border border-border/30 text-xs">
+                    <span className="text-muted-foreground">Campanha pai</span>
+                    <p className="font-medium mt-0.5">{parentCampaign}</p>
+                  </div>
+                )}
+                {targeting && (
+                  <div className="bg-muted/30 rounded-lg p-2.5 border border-border/30 text-xs">
+                    <span className="text-muted-foreground">Público-alvo</span>
+                    <p className="font-medium mt-0.5">{sanitizeDisplayText(targeting)}{ageRange && ` (${ageRange} anos)`}</p>
+                  </div>
+                )}
+                {customAudiences && Array.isArray(customAudiences) && customAudiences.length > 0 && (
+                  <div className="bg-muted/30 rounded-lg p-2.5 border border-border/30 text-xs">
+                    <span className="text-muted-foreground">Públicos Personalizados</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {customAudiences.map((aud: any, i: number) => (
+                        <Badge key={i} variant="outline" className="text-[10px]">{typeof aud === 'string' ? aud : aud.name || aud.id}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
-            {copyText && !isStrategicPlan && (
+
+            {/* Headlines — show ALL variations */}
+            {headlinesList.length > 0 && !isStrategicPlan && !isAdSet && (
               <div>
-                <SectionLabel icon={<MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />} label="Copy" />
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap mt-1 leading-relaxed">{copyText}</p>
+                <SectionLabel icon={<Sparkles className="h-3.5 w-3.5 text-primary" />} label={`Headlines (${headlinesList.length} variações)`} />
+                <div className="space-y-1.5 mt-1.5">
+                  {headlinesList.map((h, i) => (
+                    <div key={i} className="flex items-start gap-2 text-sm">
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 mt-0.5 shrink-0">{i + 1}</Badge>
+                      <span className="font-semibold">{h}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
-            {ctaType && !isStrategicPlan && (
+
+            {/* Primary Texts (Copys) — show ALL variations */}
+            {primaryTexts.length > 0 && !isStrategicPlan && !isAdSet && (
+              <div>
+                <SectionLabel icon={<MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />} label={`Textos Principais (${primaryTexts.length} variações)`} />
+                <div className="space-y-2 mt-1.5">
+                  {primaryTexts.map((t, i) => (
+                    <div key={i} className="bg-muted/20 rounded-lg p-2.5 border border-border/30">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">Versão {i + 1}</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{t}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Descriptions */}
+            {descriptionsList.length > 0 && !isStrategicPlan && !isAdSet && (
+              <div>
+                <SectionLabel icon={<ListChecks className="h-3.5 w-3.5 text-muted-foreground" />} label={`Descrições (${descriptionsList.length})`} />
+                <div className="space-y-1 mt-1.5">
+                  {descriptionsList.map((d, i) => (
+                    <p key={i} className="text-xs text-muted-foreground">{d}</p>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* CTA */}
+            {ctaType && !isStrategicPlan && !isAdSet && (
               <Badge variant="secondary" className="text-xs">{CTA_LABELS[ctaType] || ctaType}</Badge>
             )}
 
             {/* Product & Budget */}
-            {(productName || budgetDisplay || targeting) && !isStrategicPlan && (
+            {(productName || budgetDisplay || targeting) && !isStrategicPlan && !isAdSet && (
               <div className="grid grid-cols-2 gap-3 text-xs">
                 {productName && (
                   <div className="bg-muted/30 rounded-lg p-2.5 border border-border/30">
