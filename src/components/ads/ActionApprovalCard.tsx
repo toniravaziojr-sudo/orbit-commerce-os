@@ -50,6 +50,52 @@ const FUNNEL_LABELS: Record<string, { label: string; color: string }> = {
   leads: { label: "Captação", color: "bg-green-500/10 text-green-700 border-green-500/20" },
 };
 
+const CAMPAIGN_TYPE_LABELS: Record<string, { label: string; color: string }> = {
+  sales: { label: "Venda Direta", color: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20" },
+  conversions: { label: "Venda Direta", color: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20" },
+  remarketing: { label: "Remarketing", color: "bg-orange-500/10 text-orange-700 border-orange-500/20" },
+  retargeting: { label: "Remarketing", color: "bg-orange-500/10 text-orange-700 border-orange-500/20" },
+  test: { label: "Teste", color: "bg-purple-500/10 text-purple-700 border-purple-500/20" },
+  testing: { label: "Teste", color: "bg-purple-500/10 text-purple-700 border-purple-500/20" },
+  traffic: { label: "Tráfego", color: "bg-sky-500/10 text-sky-700 border-sky-500/20" },
+  link_clicks: { label: "Tráfego", color: "bg-sky-500/10 text-sky-700 border-sky-500/20" },
+  catalog: { label: "Catálogo", color: "bg-amber-500/10 text-amber-700 border-amber-500/20" },
+  catalog_sales: { label: "Catálogo", color: "bg-amber-500/10 text-amber-700 border-amber-500/20" },
+  product_catalog_sales: { label: "Catálogo", color: "bg-amber-500/10 text-amber-700 border-amber-500/20" },
+  awareness: { label: "Reconhecimento", color: "bg-indigo-500/10 text-indigo-700 border-indigo-500/20" },
+  brand_awareness: { label: "Reconhecimento", color: "bg-indigo-500/10 text-indigo-700 border-indigo-500/20" },
+  reach: { label: "Alcance", color: "bg-teal-500/10 text-teal-700 border-teal-500/20" },
+  engagement: { label: "Engajamento", color: "bg-pink-500/10 text-pink-700 border-pink-500/20" },
+  leads: { label: "Geração de Leads", color: "bg-green-500/10 text-green-700 border-green-500/20" },
+  lead_generation: { label: "Geração de Leads", color: "bg-green-500/10 text-green-700 border-green-500/20" },
+  video_views: { label: "Visualização de Vídeo", color: "bg-rose-500/10 text-rose-700 border-rose-500/20" },
+};
+
+/** Infer campaign type from action_data fields or campaign name */
+function inferCampaignType(data: Record<string, any>): { label: string; color: string } | null {
+  const preview = data.preview || {};
+  // Explicit campaign_type or objective
+  const raw = (data.campaign_type || preview.campaign_type || data.objective || preview.objective || "").toLowerCase().trim();
+  if (raw && CAMPAIGN_TYPE_LABELS[raw]) return CAMPAIGN_TYPE_LABELS[raw];
+
+  // Infer from campaign name patterns
+  const name = (data.campaign_name || preview.campaign_name || "").toLowerCase();
+  if (/teste|test/i.test(name)) return CAMPAIGN_TYPE_LABELS.test;
+  if (/remarketing|retarget|bof/i.test(name)) return CAMPAIGN_TYPE_LABELS.remarketing;
+  if (/cat[aá]logo/i.test(name)) return CAMPAIGN_TYPE_LABELS.catalog;
+  if (/tr[aá]fego|traffic/i.test(name)) return CAMPAIGN_TYPE_LABELS.traffic;
+  if (/leads?[\s|]/i.test(name)) return CAMPAIGN_TYPE_LABELS.leads;
+  if (/vendas?|sales|convers/i.test(name)) return CAMPAIGN_TYPE_LABELS.sales;
+
+  // Fallback from funnel_stage
+  const funnel = (data.funnel_stage || preview.funnel_stage || "").toLowerCase();
+  if (funnel === "bof" || funnel === "remarketing") return CAMPAIGN_TYPE_LABELS.remarketing;
+  if (funnel === "test") return CAMPAIGN_TYPE_LABELS.test;
+  if (funnel === "tof" || funnel === "cold") return CAMPAIGN_TYPE_LABELS.sales;
+
+  return null;
+}
+
 const ACTION_TYPE_ICONS: Record<string, typeof Target> = {
   create_campaign: Megaphone,
   create_adset: Target,
@@ -548,6 +594,7 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
   const funnelInfo = funnel ? FUNNEL_LABELS[funnel] || { label: funnel, color: "bg-muted text-muted-foreground" } : null;
   const budgetDisplay = preview.daily_budget_display || (data.daily_budget_cents ? `R$ ${(data.daily_budget_cents / 100).toFixed(2)}/dia` : null);
   const campaignName = preview.campaign_name || data.campaign_name || null;
+  const campaignTypeInfo = !isStrategicPlan ? inferCampaignType(data) : null;
 
   const adsets = (childActions || []).filter(a => a.action_type === "create_adset");
 
@@ -647,6 +694,12 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
                 <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1">
                   <Layers className="h-2.5 w-2.5" />
                   {adsets.length} conjunto{adsets.length !== 1 ? "s" : ""}
+                </Badge>
+              )}
+              {campaignTypeInfo && (
+                <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 gap-1", campaignTypeInfo.color)}>
+                  <Megaphone className="h-2.5 w-2.5" />
+                  {campaignTypeInfo.label}
                 </Badge>
               )}
               {campaignName && !isStrategicPlan && (
