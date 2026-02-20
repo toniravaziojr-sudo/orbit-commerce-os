@@ -553,8 +553,21 @@ function CampaignDetailsTab({ data, preview, action, childActions }: { data: Rec
   const funnel = preview.funnel_stage || data.funnel_stage || null;
   const funnelInfo = funnel ? FUNNEL_LABELS[funnel] || { label: funnel, color: "bg-muted text-muted-foreground" } : null;
 
-  // Helper to get field from preview or data
-  const f = (key: string) => preview[key] || data[key] || null;
+  // Merge all child adset data for fallback lookups
+  const childDataList = (childActions || []).map(c => {
+    const cd = c.action_data || {};
+    return { ...cd, ...(cd.preview || {}) };
+  });
+
+  // Helper to get field from preview, data, or first matching childAction
+  const f = (key: string) => {
+    const val = preview[key] || data[key];
+    if (val !== null && val !== undefined && val !== "") return val;
+    for (const cd of childDataList) {
+      if (cd[key] !== null && cd[key] !== undefined && cd[key] !== "") return cd[key];
+    }
+    return null;
+  };
 
   type DetailItem = { label: string; value: string; icon: React.ReactNode; section?: string };
   const details: DetailItem[] = [];
@@ -641,6 +654,12 @@ function CampaignDetailsTab({ data, preview, action, childActions }: { data: Rec
   const placementType = f("placement_type");
   if (placementType) details.push({ label: "Tipo de Posicionamento", value: placementType === "automatic" ? "Automático (Advantage+)" : placementType === "manual" ? "Manual" : placementType, icon: <Globe className="h-3.5 w-3.5" />, section: "Posicionamentos" });
 
+  // If no placement info was found at all, default to Automatic
+  const hasAnyPlacement = placementsStr || positions || devicePlatforms || placementType;
+  if (!hasAnyPlacement) {
+    details.push({ label: "Posicionamentos", value: "Automático (Advantage+)", icon: <Globe className="h-3.5 w-3.5" />, section: "Posicionamentos" });
+  }
+
   // --- LINK & CTA ---
   const destinationUrl = f("destination_url") || f("website_url") || f("link") || f("object_url");
   if (destinationUrl) details.push({ label: "Link de Destino", value: destinationUrl, icon: <Link2 className="h-3.5 w-3.5" />, section: "Link & CTA" });
@@ -686,6 +705,30 @@ function CampaignDetailsTab({ data, preview, action, childActions }: { data: Rec
   if (excludedAudiences) details.push({ label: "Públicos Excluídos", value: formatFieldValue(excludedAudiences), icon: <Users className="h-3.5 w-3.5" />, section: "Público" });
   if (lookalikeSpec) details.push({ label: "Lookalike / Semelhante", value: formatFieldValue(lookalikeSpec), icon: <Users className="h-3.5 w-3.5" />, section: "Público" });
 
+  // --- CONJUNTOS DE ANÚNCIOS (from childActions) ---
+  if (childDataList.length > 0) {
+    for (let idx = 0; idx < childDataList.length; idx++) {
+      const cd = childDataList[idx];
+      const adsetName = cd.adset_name || cd.name;
+      if (adsetName) {
+        details.push({ label: `Conjunto ${idx + 1}`, value: adsetName, icon: <Layers className="h-3.5 w-3.5" />, section: "Conjuntos" });
+      }
+      // Adset-specific budget
+      const adsetBudget = cd.daily_budget_cents || cd.daily_budget_display;
+      if (adsetBudget) {
+        const budgetVal = typeof adsetBudget === "number" ? `R$ ${(adsetBudget / 100).toFixed(2)}/dia` : adsetBudget;
+        details.push({ label: `Orçamento (Conj. ${idx + 1})`, value: budgetVal, icon: <DollarSign className="h-3.5 w-3.5" />, section: "Conjuntos" });
+      }
+    }
+  }
+
+  // --- CRIATIVOS / ANÚNCIOS (names from data) ---
+  const adName = f("ad_name") || f("creative_name");
+  if (adName) details.push({ label: "Nome do Anúncio", value: adName, icon: <ImageIcon className="h-3.5 w-3.5" />, section: "Criativos" });
+  
+  const adFormat = f("ad_format") || f("creative_format") || f("format");
+  if (adFormat) details.push({ label: "Formato do Anúncio", value: translateTechnical(adFormat), icon: <ImageIcon className="h-3.5 w-3.5" />, section: "Criativos" });
+
   // --- Scan remaining action_data keys not yet covered ---
   const KNOWN_KEYS = new Set([
     "campaign_name", "campaign_type", "objective", "funnel_stage", "status", "campaign_status",
@@ -705,7 +748,8 @@ function CampaignDetailsTab({ data, preview, action, childActions }: { data: Rec
     "preview", "headline", "headlines", "copy_text", "primary_texts", "descriptions", "creative_url",
     "asset_url", "adset_name", "parent_campaign_name", "diagnosis", "planned_actions", "expected_results",
     "risk_assessment", "timeline", "budget_snapshot", "session_id", "strategy_run_id", "ad_account_id",
-    "creative_assets", "creatives", "adsets",
+    "creative_assets", "creatives", "adsets", "ad_name", "creative_name", "ad_format", "creative_format",
+    "format", "name", "reasoning", "confidence", "metric_trigger", "action_hash",
   ]);
 
   const FIELD_LABELS: Record<string, string> = {
