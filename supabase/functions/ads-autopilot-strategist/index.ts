@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.23.0"; // Use aiChatCompletion with auto-fallback (Gemini→OpenAI→Lovable) instead of single endpoint fetch
+const VERSION = "v1.26.0"; // Strategic rules: different creatives per funnel, 1 adset/ad in tests, multi-audience for direct sale, fix product URL slug
 // ===================
 
 const corsHeaders = {
@@ -214,9 +214,10 @@ const STRATEGIST_TOOLS = [
           style_preference: { type: "string", enum: ["promotional", "product_natural", "person_interacting", "ugc_style"] },
           format: { type: "string", enum: ["1:1", "9:16", "16:9"] },
           variations: { type: "number", minimum: 1, maximum: 5 },
+          funnel_stage: { type: "string", enum: ["tof", "mof", "bof", "test"], description: "Etapa do funil para o criativo. OBRIGATÓRIO para garantir criativos diferentes por funil. TOF=aquisição, BOF=remarketing, test=testes" },
           reasoning: { type: "string" },
         },
-        required: ["product_name", "campaign_objective", "target_audience", "style_preference", "reasoning"],
+        required: ["product_name", "campaign_objective", "target_audience", "style_preference", "funnel_stage", "reasoning"],
         additionalProperties: false,
       },
     },
@@ -366,7 +367,7 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     globalConfigRes,
     categoriesRes,
   ] = await Promise.all([
-    supabase.from("products").select("id, name, price, cost_price, status, stock_quantity, brand, short_description").eq("tenant_id", tenantId).eq("status", "active").order("name", { ascending: true }).limit(30),
+    supabase.from("products").select("id, name, slug, price, cost_price, status, stock_quantity, brand, short_description").eq("tenant_id", tenantId).eq("status", "active").order("name", { ascending: true }).limit(30),
     supabase.from("orders").select("id, total, status, payment_status, created_at").eq("tenant_id", tenantId).gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()).limit(500),
     supabase.from("meta_ad_campaigns").select("meta_campaign_id, name, status, effective_status, objective, daily_budget_cents, ad_account_id").eq("tenant_id", tenantId).limit(200),
     supabase.from("meta_ad_insights").select("meta_campaign_id, impressions, clicks, spend_cents, conversions, roas, date_start").eq("tenant_id", tenantId).gte("date_start", thirtyDaysAgo).limit(1000),
@@ -621,6 +622,9 @@ NESTA FASE VOCÊ DEVE:
 1. Gerar criativos (generate_creative) para CADA produto mencionado no plano
    - Mínimo 2 variações por produto (estilos diferentes: ugc_style, product_natural, person_interacting)
    - Formatos: 9:16 para Stories/Reels + 1:1 para Feed
+   - OBRIGATÓRIO: funnel_stage diferente para cada uso! Gere criativos SEPARADOS para TOF e BOF
+   - Criativos de TOF (aquisição): estilo chamativo, gancho de atenção, produto em destaque
+   - Criativos de BOF (remarketing): estilo diferente, foco em benefícios complementares, prova social
 2. Criar públicos Lookalike (create_lookalike_audience) se o plano especificar
 
 NESTA FASE VOCÊ NÃO DEVE:
@@ -648,7 +652,12 @@ NESTA FASE VOCÊ DEVE:
    - Copys devem atacar ângulos DIFERENTES (benefício, objeção, prova social, urgência)
    - Headlines curtas e diretas (máx 40 chars)
    - Inclua descriptions e CTA adequado
-2. Criar ad sets (create_adset) para segmentações dentro das campanhas, se necessário
+2. Criar ad sets (create_adset) para segmentações dentro das campanhas
+
+REGRAS ESTRUTURAIS (INVIOLÁVEIS):
+- **REMARKETING vs TOF**: Copys e criativos de remarketing DEVEM ser DIFERENTES dos de venda direta. O público já viu os anúncios TOF. Use ângulos: objeção, urgência, prova social, benefícios complementares.
+- **CAMPANHAS DE TESTE**: Cada anúncio em seu PRÓPRIO adset (1:1). Use ABO (budget no adset, NÃO no nível de campanha). Budget dividido igualmente entre variações.
+- **VENDA DIRETA (TOF)**: Criar MÚLTIPLOS adsets com públicos DIFERENTES (broad, interesses, lookalikes). Anúncios podem repetir entre adsets, mas targeting DEVE variar. Mínimo 2 adsets.
 3. Ajustar budgets (adjust_budget) de campanhas existentes, se o plano pedir
 
 REGRAS CRÍTICAS:
@@ -657,6 +666,7 @@ REGRAS CRÍTICAS:
 - Tudo criado PAUSADO. Ativações agendadas para 00:01-04:00 BRT
 - Aumentos de budget limitados a +20% por campanha existente
 - NUNCA use copy genérica como "Conheça nosso produto" — seja específico
+- destination_url: Use URL com SLUG do produto (não UUID)
 
 NESTA FASE VOCÊ NÃO DEVE:
 - NÃO use generate_creative — criativos já foram gerados
@@ -769,6 +779,39 @@ IMPORTANTE: No planned_actions do plano estratégico, inclua OBRIGATORIAMENTE: p
 - Cada campanha planejada deve ter: produto específico, orçamento diário, público-alvo, tipo de funil
 - Proibido criar campanhas de remarketing com apenas 1 anúncio — mínimo 2 variações
 
+## REGRAS ESTRUTURAIS OBRIGATÓRIAS (INVIOLÁVEIS)
+
+### 1. CRIATIVOS DIFERENTES POR FUNIL (NÃO REUTILIZAR)
+- Campanhas de REMARKETING (BOF/MOF) NUNCA devem usar os mesmos criativos e copys das campanhas de VENDA DIRETA (TOF)
+- Motivo: O público de remarketing já viu os anúncios de aquisição. Se virem o mesmo criativo/copy, a taxa de conversão cai drasticamente.
+- Na prática: Ao gerar criativos (generate_creative), use funnel_stage="tof" para aquisição e funnel_stage="bof" para remarketing
+- Copys de remarketing devem abordar: objeções ("ainda pensando?"), urgência ("últimas unidades"), prova social, benefícios complementares
+- Copys de aquisição (TOF) devem abordar: gancho de atenção, benefício principal, curiosidade, transformação
+- NUNCA copie primary_texts ou headlines de campanhas TOF para campanhas BOF — escreva copys NOVAS com ângulos diferentes
+
+### 2. CAMPANHAS DE TESTE: 1 CONJUNTO POR ANÚNCIO (ABO)
+- Em campanhas de TESTE, cada anúncio DEVE estar em seu próprio conjunto de anúncios (Ad Set)
+- Use ABO (Ad Set Budget Optimization) em vez de CBO para forçar orçamento igual por anúncio
+- Motivo: Evita que a Meta concentre o orçamento em um único anúncio, invalidando o teste
+- Na prática: Use create_campaign para o primeiro anúncio, depois create_adset para cada anúncio adicional dentro da mesma campanha
+- Cada adset de teste deve ter o mesmo orçamento diário (budget do teste ÷ número de variações)
+- NÃO use daily_budget_cents no nível de campanha para testes — use daily_budget_cents em cada adset via create_adset
+
+### 3. VENDA DIRETA (NÃO-TESTE): MÚLTIPLOS PÚBLICOS
+- Campanhas de venda direta (TOF, não-teste) DEVEM ter múltiplos conjuntos de anúncios com PÚBLICOS DIFERENTES
+- Os anúncios podem ser os mesmos em cada conjunto, mas os públicos (targeting) devem ser diferentes
+- Motivo: Testar qual público converte melhor para o mesmo produto, ampliando o alcance qualificado
+- Na prática: Use create_campaign para o conjunto principal, depois create_adset para cada público adicional
+- Públicos sugeridos: Broad (amplo), Interesses específicos, Lookalikes, Custom Audiences
+- Mínimo de 2 conjuntos por campanha de venda direta, idealmente 3-4 quando há budget suficiente
+- Use os públicos disponíveis na conta (Custom Audiences, Lookalikes) como base para segmentação
+
+### 4. URL DE DESTINO (destination_url)
+- SEMPRE use a URL real do produto (ex: loja.exemplo.com/produto/slug-do-produto)
+- NUNCA use UUIDs na URL — use o slug do produto
+- Se não houver URL da loja configurada, use o caminho relativo (/produto/slug)
+- Inclua UTM params para rastreamento correto
+
 ${triggerInstruction}
 
 ## NEGÓCIO
@@ -796,7 +839,7 @@ ${JSON.stringify(accountAds.slice(0, 50).map((ad: any) => ({ id: ad.meta_ad_id, 
 ${JSON.stringify(accountAudiences.map((a: any) => ({ id: a.meta_audience_id, name: a.name, type: a.audience_type, subtype: a.subtype, size: a.approximate_count })), null, 2)}
 
 ## PRODUTOS DO CATÁLOGO (${context.products.length})
-${JSON.stringify(context.products.slice(0, 15).map((p: any) => ({ id: p.id, name: p.name, price_brl: Number(p.price).toFixed(2), cost: p.cost_price ? Number(p.cost_price).toFixed(2) : null, stock: p.stock_quantity, brand: p.brand, description: p.short_description?.substring(0, 100), images: ((context.imagesByProduct || {})[p.id] || []).slice(0, 3), product_url: context.storeUrl ? `${context.storeUrl}/produto/${p.id}` : null })), null, 2)}
+${JSON.stringify(context.products.slice(0, 15).map((p: any) => ({ id: p.id, name: p.name, price_brl: Number(p.price).toFixed(2), cost: p.cost_price ? Number(p.cost_price).toFixed(2) : null, stock: p.stock_quantity, brand: p.brand, description: p.short_description?.substring(0, 100), images: ((context.imagesByProduct || {})[p.id] || []).slice(0, 3), product_url: context.storeUrl ? `${context.storeUrl}/produto/${p.slug || p.id}` : null })), null, 2)}
 
 ## CADÊNCIA DE CRIATIVOS (últimos 7d)
 ${JSON.stringify(creativeCadence, null, 2)}
@@ -878,12 +921,13 @@ async function executeToolCall(
           channel: config.channel,
           product_id: topProduct.id,
           product_name: topProduct.name,
-          product_image_url: productImageUrl, // Now included!
+          product_image_url: productImageUrl,
           campaign_objective: args.campaign_objective,
           target_audience: args.target_audience,
           style_preference: args.style_preference || "promotional",
           format: args.format || "1:1",
           variations: args.variations || 3,
+          funnel_stage: args.funnel_stage || "tof",
         },
       });
       if (creativeErr) throw creativeErr;

@@ -476,6 +476,17 @@ const STATUS_LABELS: Record<string, string> = {
   paused: "Pausado",
 };
 
+const AD_FORMAT_LABELS: Record<string, string> = {
+  SINGLE_IMAGE: "Imagem Única",
+  SINGLE_VIDEO: "Vídeo Único",
+  CAROUSEL: "Carrossel",
+  COLLECTION: "Coleção",
+  single_image: "Imagem Única",
+  single_video: "Vídeo Único",
+  carousel: "Carrossel",
+  collection: "Coleção",
+};
+
 /** Translate any technical value using all label maps */
 function translateTechnical(value: string): string {
   if (!value || typeof value !== "string") return value;
@@ -488,6 +499,7 @@ function translateTechnical(value: string): string {
     || CONVERSION_EVENT_LABELS[value]
     || STATUS_LABELS[value]
     || CTA_LABELS[value]
+    || AD_FORMAT_LABELS[value]
     || value;
 }
 
