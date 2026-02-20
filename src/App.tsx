@@ -102,6 +102,7 @@ import Reports from "@/pages/Reports";
 
 import CommandCenter from "@/pages/CommandCenter";
 import ChatGPT from "@/pages/ChatGPT";
+import AIMemories from "@/pages/AIMemories";
 import AccountData from "@/pages/account/AccountData";
 import AccountBilling from "@/pages/account/Billing";
 import PlatformBilling from "@/pages/platform/PlatformBilling";
@@ -398,6 +399,7 @@ const App = () => {
                   <Route path="/affiliates" element={<GatedRoute moduleKey="parcerias" moduleName="Parcerias" moduleDescription="Programa de afiliados"><Affiliates /></GatedRoute>} />
                   <Route path="/support-center" element={<SupportCenter />} />
                   <Route path="/ai-packages" element={<AIPackages />} />
+                  <Route path="/ai-memories" element={<AIMemories />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/settings/domains" element={<Domains />} />
                   <Route path="/settings/billing" element={<BillingSettings />} />

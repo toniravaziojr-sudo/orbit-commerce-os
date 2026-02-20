@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import type { ChatMode } from "@/components/chatgpt";
+import { triggerMemoryExtraction } from "@/lib/triggerMemoryExtraction";
 
 export type { ChatMode };
 
@@ -336,6 +337,16 @@ export function useChatGPT() {
       // Refresh from server
       queryClient.invalidateQueries({ queryKey: ["chatgpt-messages", conversationId] });
       queryClient.invalidateQueries({ queryKey: ["chatgpt-conversations"] });
+
+      // Trigger async memory extraction (fire-and-forget)
+      const allMsgs = queryClient.getQueryData<ChatGPTMessage[]>(["chatgpt-messages", conversationId]) || [];
+      triggerMemoryExtraction({
+        tenant_id: currentTenant.id,
+        user_id: user.id,
+        ai_agent: "chatgpt",
+        conversation_id: conversationId,
+        messages: allMsgs.map(m => ({ role: m.role, content: m.content })),
+      });
 
     } catch (error: any) {
       if (error.name === "AbortError") {
