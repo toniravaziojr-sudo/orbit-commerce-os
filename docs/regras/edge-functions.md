@@ -204,13 +204,20 @@ const response = await aiChatCompletion("google/gemini-2.5-flash", { messages },
 
 ### Mapeamento de Modelos
 
+> **REGRA (v1.1.0):** O fallback OpenAI DEVE usar modelos de qualidade equivalente ao primário. Apenas modelos intencionalmente leves (`gpt-5-nano`, `gemini-2.5-flash-lite`) mapeiam para `gpt-4o-mini`. Todos os demais mapeiam para `gpt-4o`. O default (modelo não mapeado) também é `gpt-4o`.
+
 | Modelo Solicitado | → Gemini Nativo | → OpenAI Nativo |
 |-------------------|-----------------|-----------------|
-| `google/gemini-2.5-flash` | `gemini-2.5-flash` | `gpt-4o-mini` |
+| `google/gemini-2.5-flash` | `gemini-2.5-flash` | `gpt-4o` |
+| `google/gemini-2.5-flash-lite` | `gemini-2.5-flash` | `gpt-4o-mini` |
 | `google/gemini-2.5-pro` | `gemini-2.5-pro` | `gpt-4o` |
-| `google/gemini-3-flash-preview` | `gemini-2.5-flash` | `gpt-4o-mini` |
+| `google/gemini-3-flash-preview` | `gemini-2.5-flash` | `gpt-4o` |
+| `google/gemini-3-pro-preview` | `gemini-2.5-pro` | `gpt-4o` |
 | `openai/gpt-5` | `gemini-2.5-pro` | `gpt-4o` |
-| `openai/gpt-5-mini` | `gemini-2.5-flash` | `gpt-4o-mini` |
+| `openai/gpt-5-mini` | `gemini-2.5-flash` | `gpt-4o` |
+| `openai/gpt-5-nano` | `gemini-2.5-flash` | `gpt-4o-mini` |
+| `openai/gpt-5.2` | `gemini-2.5-pro` | `gpt-4o` |
+| *(não mapeado)* | `gemini-2.5-flash` | `gpt-4o` |
 
 ### Opções de Preferência
 
