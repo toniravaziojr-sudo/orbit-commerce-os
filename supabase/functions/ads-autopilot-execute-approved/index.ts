@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v2.0.0"; // Direct Meta API execution for approved campaigns
+const VERSION = "v2.1.0"; // Fix budget validation: only count active campaigns, not pending proposals
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -67,6 +67,9 @@ Deno.serve(async (req) => {
         const limitCents = acctConfig?.budget_cents || 0;
 
         if (limitCents > 0) {
+          // v2.1.0: Only count ACTIVE campaigns (already running on Meta) against the budget
+          // Do NOT count other pending_approval proposals — those haven't been approved yet
+          // and blocking the first approval because of other pending proposals is a deadlock
           const { data: aiCampaigns } = await supabase
             .from("meta_ad_campaigns")
             .select("daily_budget_cents")
@@ -77,35 +80,36 @@ Deno.serve(async (req) => {
 
           const activeCents = (aiCampaigns || []).reduce((sum: number, c: any) => sum + (c.daily_budget_cents || 0), 0);
 
+          // Also count campaigns that were ALREADY approved in this session (executed but not yet synced to meta_ad_campaigns)
           const ttlCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-          const { data: pendingActions } = await supabase
+          const { data: executedActions } = await supabase
             .from("ads_autopilot_actions")
             .select("id, action_data")
             .eq("tenant_id", tenant_id)
-            .eq("status", "pending_approval")
+            .eq("status", "executed")
             .eq("action_type", "create_campaign")
             .eq("channel", "meta")
             .neq("id", action_id)
-            .gte("created_at", ttlCutoff);
+            .gte("executed_at", ttlCutoff);
 
-          let pendingReservedCents = 0;
-          for (const pa of (pendingActions || [])) {
-            pendingReservedCents += Number(pa.action_data?.daily_budget_cents || pa.action_data?.preview?.daily_budget_cents || 0);
+          let recentlyExecutedCents = 0;
+          for (const ea of (executedActions || [])) {
+            recentlyExecutedCents += Number(ea.action_data?.daily_budget_cents || ea.action_data?.preview?.daily_budget_cents || 0);
           }
 
-          const totalAfter = activeCents + pendingReservedCents + proposedBudgetCents;
-          console.log(`[ads-autopilot-execute-approved][${VERSION}] Budget revalidation: active=${activeCents} pending_excl_self=${pendingReservedCents} proposed=${proposedBudgetCents} total=${totalAfter} limit=${limitCents}`);
+          const totalAfter = activeCents + recentlyExecutedCents + proposedBudgetCents;
+          console.log(`[ads-autopilot-execute-approved][${VERSION}] Budget revalidation: active=${activeCents} recently_executed=${recentlyExecutedCents} proposed=${proposedBudgetCents} total=${totalAfter} limit=${limitCents}`);
 
           if (totalAfter > limitCents) {
-            await supabase.from("ads_autopilot_actions")
-              .update({
-                status: "rejected",
-                rejection_reason: `Aprovar esta campanha excederia o limite diário de R$ ${(limitCents / 100).toFixed(2)}.`,
-              })
-              .eq("id", action_id);
+            // v2.1.0: Do NOT auto-reject the action — just return error so the user can retry
+            // or adjust the budget limit. Previously this set status='rejected' which made the campaign disappear.
+            console.warn(`[ads-autopilot-execute-approved][${VERSION}] Budget exceeded: total=${totalAfter} limit=${limitCents}. NOT rejecting action.`);
 
             return new Response(
-              JSON.stringify({ success: false, error: `Orçamento excedido. Limite: R$ ${(limitCents / 100).toFixed(2)}/dia.` }),
+              JSON.stringify({ 
+                success: false, 
+                error: `Orçamento excedido. Campanhas ativas: R$ ${(activeCents / 100).toFixed(2)}/dia + esta proposta: R$ ${(proposedBudgetCents / 100).toFixed(2)}/dia = R$ ${(totalAfter / 100).toFixed(2)}/dia. Limite: R$ ${(limitCents / 100).toFixed(2)}/dia. Aumente o limite ou rejeite outras campanhas antes.` 
+              }),
               { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
           }
