@@ -13,7 +13,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogD
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Check, X, MessageSquare, ChevronDown, ChevronRight, Megaphone, ImageIcon, DollarSign, Target, Sparkles, ZoomIn, Bot, AlertTriangle, TrendingUp, ListChecks, Clock, Eye, Layers, Users, Loader2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Check, X, MessageSquare, ChevronDown, ChevronRight, Megaphone, ImageIcon, DollarSign, Target, Sparkles, ZoomIn, Bot, AlertTriangle, TrendingUp, ListChecks, Clock, Eye, Layers, Users, Loader2, Link2, MousePointerClick, Globe, BarChart3, Settings2 } from "lucide-react";
 import type { PendingAction } from "@/hooks/useAdsPendingActions";
 import { cn } from "@/lib/utils";
 import { StrategicPlanContent } from "./StrategicPlanContent";
@@ -349,7 +350,171 @@ function AdSetsSection({ adsets }: { adsets: PendingAction[] }) {
 }
 
 /* ========================================
-   FULL CONTENT DIALOG
+   CAMPAIGN DETAILS INFO GRID
+   Shows objective, type, placements, attribution, link, CTA, etc.
+   ======================================== */
+function CampaignDetailsTab({ data, preview, action }: { data: Record<string, any>; preview: Record<string, any>; action: PendingAction }) {
+  const campaignTypeInfo = inferCampaignType(data);
+  const funnel = preview.funnel_stage || data.funnel_stage || null;
+  const funnelInfo = funnel ? FUNNEL_LABELS[funnel] || { label: funnel, color: "bg-muted text-muted-foreground" } : null;
+
+  // Extract all possible campaign detail fields
+  const objective = data.objective || preview.objective || data.campaign_type || preview.campaign_type || null;
+  const budgetDisplay = preview.daily_budget_display || (data.daily_budget_cents ? `R$ ${(data.daily_budget_cents / 100).toFixed(2)}/dia` : null);
+  const budgetType = data.budget_type || preview.budget_type || (data.campaign_name?.includes("CBO") ? "CBO (Orçamento na Campanha)" : null);
+  const billingEvent = data.billing_event || preview.billing_event || null;
+  const optimizationGoal = data.optimization_goal || preview.optimization_goal || null;
+  const bidStrategy = data.bid_strategy || preview.bid_strategy || data.bidding_strategy || preview.bidding_strategy || null;
+
+  // Placements
+  const placements = data.placements || preview.placements || data.publisher_platforms || preview.publisher_platforms || null;
+  const positionTypes = data.position_types || preview.position_types || null;
+
+  // Attribution
+  const attributionWindow = data.attribution_window || preview.attribution_window || data.attribution_spec || preview.attribution_spec || null;
+
+  // Link & CTA
+  const ctaType = preview.cta || preview.cta_type || data.cta_type || null;
+  const destinationUrl = data.destination_url || preview.destination_url || data.website_url || preview.website_url || data.link || preview.link || null;
+  const displayLink = data.display_link || preview.display_link || null;
+  const urlParameters = data.url_parameters || preview.url_parameters || data.url_tags || preview.url_tags || null;
+
+  // Product
+  const productName = preview.product_name || data.product_name || null;
+  const productPrice = preview.product_price_display || (preview.product_price ? `R$ ${Number(preview.product_price).toFixed(2)}` : null);
+
+  // Pixel / Conversion
+  const pixelId = data.pixel_id || preview.pixel_id || null;
+  const conversionEvent = data.conversion_event || preview.conversion_event || data.custom_event_type || preview.custom_event_type || null;
+
+  // Schedule
+  const startDate = data.start_time || preview.start_time || null;
+  const endDate = data.end_time || preview.end_time || null;
+
+  // Campaign name
+  const campaignName = preview.campaign_name || data.campaign_name || null;
+
+  const formatPlacementsDisplay = (p: any): string => {
+    if (!p) return "";
+    if (typeof p === "string") return p;
+    if (Array.isArray(p)) return p.join(", ");
+    if (typeof p === "object") {
+      return Object.entries(p)
+        .filter(([_, v]) => v)
+        .map(([k]) => k)
+        .join(", ");
+    }
+    return String(p);
+  };
+
+  const formatAttributionDisplay = (a: any): string => {
+    if (!a) return "";
+    if (typeof a === "string") return a;
+    if (Array.isArray(a)) {
+      return a.map((spec: any) => {
+        if (typeof spec === "string") return spec;
+        const parts: string[] = [];
+        if (spec.event_type) parts.push(spec.event_type);
+        if (spec.window_days) parts.push(`${spec.window_days}d clique`);
+        if (spec.view_window_days) parts.push(`${spec.view_window_days}d visualização`);
+        return parts.join(" — ") || JSON.stringify(spec);
+      }).join("; ");
+    }
+    if (typeof a === "object") {
+      const parts: string[] = [];
+      if (a.click_days || a.window_days) parts.push(`${a.click_days || a.window_days}d clique`);
+      if (a.view_days || a.view_window_days) parts.push(`${a.view_days || a.view_window_days}d visualização`);
+      return parts.join(" + ") || JSON.stringify(a);
+    }
+    return String(a);
+  };
+
+  const BILLING_LABELS: Record<string, string> = {
+    IMPRESSIONS: "Impressões (CPM)",
+    LINK_CLICKS: "Cliques no Link (CPC)",
+    APP_INSTALLS: "Instalações",
+    PAGE_LIKES: "Curtidas na Página",
+    THRUPLAY: "ThruPlay",
+  };
+
+  const OPTIMIZATION_LABELS: Record<string, string> = {
+    CONVERSIONS: "Conversões",
+    LINK_CLICKS: "Cliques no Link",
+    IMPRESSIONS: "Impressões",
+    REACH: "Alcance",
+    LANDING_PAGE_VIEWS: "Visualizações da Página de Destino",
+    VALUE: "Valor (ROAS)",
+    OFFSITE_CONVERSIONS: "Conversões no Site",
+    APP_INSTALLS: "Instalações do App",
+  };
+
+  const BID_LABELS: Record<string, string> = {
+    LOWEST_COST_WITHOUT_CAP: "Menor Custo",
+    LOWEST_COST_WITH_BID_CAP: "Menor Custo com Limite",
+    COST_CAP: "Custo Alvo",
+    BID_CAP: "Limite de Lance",
+    MINIMUM_ROAS: "ROAS Mínimo",
+  };
+
+  type DetailItem = { label: string; value: string; icon: React.ReactNode };
+  const details: DetailItem[] = [];
+
+  if (campaignName) details.push({ label: "Nome da Campanha", value: campaignName, icon: <Megaphone className="h-3.5 w-3.5" /> });
+  if (campaignTypeInfo) details.push({ label: "Tipo de Campanha", value: campaignTypeInfo.label, icon: <Settings2 className="h-3.5 w-3.5" /> });
+  if (objective) details.push({ label: "Objetivo", value: objective, icon: <Target className="h-3.5 w-3.5" /> });
+  if (funnelInfo) details.push({ label: "Etapa do Funil", value: funnelInfo.label, icon: <BarChart3 className="h-3.5 w-3.5" /> });
+  if (productName) details.push({ label: "Produto", value: `${productName}${productPrice ? ` — ${productPrice}` : ""}`, icon: <Sparkles className="h-3.5 w-3.5" /> });
+  if (budgetDisplay) details.push({ label: "Orçamento Diário", value: budgetDisplay, icon: <DollarSign className="h-3.5 w-3.5" /> });
+  if (budgetType) details.push({ label: "Tipo de Orçamento", value: budgetType, icon: <DollarSign className="h-3.5 w-3.5" /> });
+  if (optimizationGoal) details.push({ label: "Otimização", value: OPTIMIZATION_LABELS[optimizationGoal] || optimizationGoal, icon: <TrendingUp className="h-3.5 w-3.5" /> });
+  if (bidStrategy) details.push({ label: "Estratégia de Lance", value: BID_LABELS[bidStrategy] || bidStrategy, icon: <DollarSign className="h-3.5 w-3.5" /> });
+  if (billingEvent) details.push({ label: "Cobrança por", value: BILLING_LABELS[billingEvent] || billingEvent, icon: <DollarSign className="h-3.5 w-3.5" /> });
+
+  const placementsStr = formatPlacementsDisplay(placements);
+  if (placementsStr) details.push({ label: "Posicionamentos", value: placementsStr, icon: <Globe className="h-3.5 w-3.5" /> });
+  const positionStr = formatPlacementsDisplay(positionTypes);
+  if (positionStr) details.push({ label: "Tipos de Posição", value: positionStr, icon: <Globe className="h-3.5 w-3.5" /> });
+
+  const attrStr = formatAttributionDisplay(attributionWindow);
+  if (attrStr) details.push({ label: "Janela de Atribuição", value: attrStr, icon: <Clock className="h-3.5 w-3.5" /> });
+
+  if (destinationUrl) details.push({ label: "Link de Destino", value: destinationUrl, icon: <Link2 className="h-3.5 w-3.5" /> });
+  if (displayLink) details.push({ label: "Link Exibido", value: displayLink, icon: <Link2 className="h-3.5 w-3.5" /> });
+  if (ctaType) details.push({ label: "Botão (CTA)", value: CTA_LABELS[ctaType] || ctaType, icon: <MousePointerClick className="h-3.5 w-3.5" /> });
+  if (urlParameters) details.push({ label: "Parâmetros UTM", value: typeof urlParameters === "string" ? urlParameters : JSON.stringify(urlParameters), icon: <Link2 className="h-3.5 w-3.5" /> });
+
+  if (pixelId) details.push({ label: "Pixel", value: pixelId, icon: <Target className="h-3.5 w-3.5" /> });
+  if (conversionEvent) details.push({ label: "Evento de Conversão", value: conversionEvent, icon: <Target className="h-3.5 w-3.5" /> });
+  if (startDate) details.push({ label: "Início", value: new Date(startDate).toLocaleDateString("pt-BR"), icon: <Clock className="h-3.5 w-3.5" /> });
+  if (endDate) details.push({ label: "Término", value: new Date(endDate).toLocaleDateString("pt-BR"), icon: <Clock className="h-3.5 w-3.5" /> });
+
+  if (details.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+        <Settings2 className="h-8 w-8 mb-2 opacity-30" />
+        <p className="text-sm">Nenhum detalhe adicional disponível</p>
+        <p className="text-xs mt-1">A IA não incluiu informações extras nesta proposta.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1">
+      {details.map((d, i) => (
+        <div key={i} className="flex items-start gap-2.5 py-2 border-b border-border/20 last:border-0">
+          <div className="mt-0.5 text-muted-foreground shrink-0">{d.icon}</div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{d.label}</p>
+            <p className="text-sm font-medium mt-0.5 break-all">{d.value}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ========================================
+   FULL CONTENT DIALOG — Tabbed
    ======================================== */
 function FullContentDialog({ action, childActions, open, onOpenChange }: { action: PendingAction; childActions?: PendingAction[]; open: boolean; onOpenChange: (o: boolean) => void }) {
   const data = action.action_data || {};
@@ -386,6 +551,9 @@ function FullContentDialog({ action, childActions, open, onOpenChange }: { actio
   const adsets = (childActions || []).filter(a => a.action_type === "create_adset");
   const label = ACTION_TYPE_LABELS[action.action_type] || action.action_type;
 
+  const hasCreativesContent = !isStrategicPlan && !isAdSet && (creativeUrls.length > 0 || headlinesList.length > 0 || primaryTexts.length > 0);
+  const hasAdSets = adsets.length > 0 || isAdSet;
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -403,116 +571,10 @@ function FullContentDialog({ action, childActions, open, onOpenChange }: { actio
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
-            <div className="space-y-4">
-              {/* Creatives Gallery */}
-              {!isStrategicPlan && !isAdSet && (
-                <CreativesGallery urls={creativeUrls} onZoom={setZoomUrl} />
-              )}
-
-              {/* AdSet info (standalone) */}
-              {isAdSet && (
-                <div className="space-y-3">
-                  {adsetName && (
-                    <div>
-                      <SectionLabel icon={<Target className="h-3.5 w-3.5 text-primary" />} label="Conjunto de Anúncios" />
-                      <p className="text-sm font-semibold mt-1">{adsetName}</p>
-                    </div>
-                  )}
-                  {parentCampaign && (
-                    <div className="bg-muted/30 rounded-lg p-2.5 border border-border/30 text-xs">
-                      <span className="text-muted-foreground">Campanha pai</span>
-                      <p className="font-medium mt-0.5">{parentCampaign}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Headlines — show ALL variations */}
-              {headlinesList.length > 0 && !isStrategicPlan && !isAdSet && (
-                <div>
-                  <SectionLabel icon={<Sparkles className="h-3.5 w-3.5 text-primary" />} label={`Headlines (${headlinesList.length} variações)`} />
-                  <div className="space-y-1.5 mt-1.5">
-                    {headlinesList.map((h, i) => (
-                      <div key={i} className="flex items-start gap-2 text-sm">
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 mt-0.5 shrink-0">{i + 1}</Badge>
-                        <span className="font-semibold">{h}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Primary Texts (Copys) — show ALL variations */}
-              {primaryTexts.length > 0 && !isStrategicPlan && !isAdSet && (
-                <div>
-                  <SectionLabel icon={<MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />} label={`Textos Principais (${primaryTexts.length} variações)`} />
-                  <div className="space-y-2 mt-1.5">
-                    {primaryTexts.map((t, i) => (
-                      <div key={i} className="bg-muted/20 rounded-lg p-2.5 border border-border/30">
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">Versão {i + 1}</Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{t}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Descriptions */}
-              {descriptionsList.length > 0 && !isStrategicPlan && !isAdSet && (
-                <div>
-                  <SectionLabel icon={<ListChecks className="h-3.5 w-3.5 text-muted-foreground" />} label={`Descrições (${descriptionsList.length})`} />
-                  <div className="space-y-1 mt-1.5">
-                    {descriptionsList.map((d, i) => (
-                      <p key={i} className="text-xs text-muted-foreground">{d}</p>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* CTA */}
-              {ctaType && !isStrategicPlan && !isAdSet && (
-                <Badge variant="secondary" className="text-xs">{CTA_LABELS[ctaType] || ctaType}</Badge>
-              )}
-
-              {/* Product & Budget */}
-              {(productName || budgetDisplay || targeting) && !isStrategicPlan && !isAdSet && (
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  {productName && (
-                    <div className="bg-muted/30 rounded-lg p-2.5 border border-border/30">
-                      <span className="text-muted-foreground">Produto</span>
-                      <p className="font-medium mt-0.5">{productName}{productPrice && ` — ${productPrice}`}</p>
-                    </div>
-                  )}
-                  {budgetDisplay && (
-                    <div className="bg-muted/30 rounded-lg p-2.5 border border-border/30">
-                      <span className="text-muted-foreground">Orçamento</span>
-                      <p className="font-semibold mt-0.5">{budgetDisplay}</p>
-                    </div>
-                  )}
-                  {targeting && (
-                    <div className="col-span-2 bg-muted/30 rounded-lg p-2.5 border border-border/30">
-                      <span className="text-muted-foreground">Público</span>
-                      <p className="font-medium mt-0.5">{sanitizeDisplayText(targeting)}{ageRange && ` (${ageRange} anos)`}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Nested AdSets */}
-              {adsets.length > 0 && (
-                <div>
-                  <SectionLabel icon={<Layers className="h-3.5 w-3.5 text-muted-foreground" />} label={`Conjuntos de Anúncios (${adsets.length})`} />
-                  <div className="mt-1.5">
-                    <AdSetsSection adsets={adsets} />
-                  </div>
-                </div>
-              )}
-
-              {/* Strategic Plan */}
-              {isStrategicPlan && (
+          {isStrategicPlan ? (
+            /* Strategic plan — no tabs needed */
+            <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
+              <div className="space-y-4">
                 <StrategicPlanContent
                   diagnosis={diagnosis}
                   plannedActions={plannedActions}
@@ -521,30 +583,220 @@ function FullContentDialog({ action, childActions, open, onOpenChange }: { actio
                   timeline={timeline}
                   reasoning={action.reasoning}
                 />
-              )}
-
-              {/* Reasoning & Impact */}
-              {!isStrategicPlan && action.reasoning && (
-                <div>
-                  <SectionLabel icon={<Bot className="h-3.5 w-3.5 text-muted-foreground" />} label="Raciocínio da IA" />
-                  <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30 mt-1.5">
-                    {sanitizeDisplayText(action.reasoning)}
+                {action.expected_impact && (
+                  <div>
+                    <SectionLabel icon={<TrendingUp className="h-3.5 w-3.5 text-emerald-500" />} label="Impacto Esperado" />
+                    <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30 mt-1.5">
+                      {sanitizeDisplayText(action.expected_impact)}
+                    </div>
                   </div>
-                </div>
-              )}
-              {action.expected_impact && (
-                <div>
-                  <SectionLabel icon={<TrendingUp className="h-3.5 w-3.5 text-emerald-500" />} label="Impacto Esperado" />
-                  <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30 mt-1.5">
-                    {sanitizeDisplayText(action.expected_impact)}
-                  </div>
-                </div>
-              )}
-
-              {/* Budget Bar */}
-              {budgetSnapshot && <BudgetBar snapshot={budgetSnapshot} />}
+                )}
+                {budgetSnapshot && <BudgetBar snapshot={budgetSnapshot} />}
+              </div>
             </div>
-          </div>
+          ) : (
+            /* Campaign / AdSet — tabbed view */
+            <Tabs defaultValue="criativos" className="flex-1 min-h-0 flex flex-col">
+              <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-5 h-auto py-0 shrink-0">
+                {hasCreativesContent && (
+                  <TabsTrigger value="criativos" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-2.5 px-3">
+                    <ImageIcon className="h-3.5 w-3.5 mr-1.5" />
+                    Criativos & Copys
+                  </TabsTrigger>
+                )}
+                <TabsTrigger value="detalhes" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-2.5 px-3">
+                  <Settings2 className="h-3.5 w-3.5 mr-1.5" />
+                  Detalhes da Campanha
+                </TabsTrigger>
+                {hasAdSets && (
+                  <TabsTrigger value="conjuntos" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-2.5 px-3">
+                    <Layers className="h-3.5 w-3.5 mr-1.5" />
+                    Conjuntos & Público
+                  </TabsTrigger>
+                )}
+              </TabsList>
+
+              <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
+                {/* Tab: Criativos & Copys */}
+                {hasCreativesContent && (
+                  <TabsContent value="criativos" className="mt-0 space-y-4">
+                    {creativeUrls.length > 0 && (
+                      <CreativesGallery urls={creativeUrls} onZoom={setZoomUrl} />
+                    )}
+
+                    {headlinesList.length > 0 && (
+                      <div>
+                        <SectionLabel icon={<Sparkles className="h-3.5 w-3.5 text-primary" />} label={`Headlines (${headlinesList.length} variações)`} />
+                        <div className="space-y-1.5 mt-1.5">
+                          {headlinesList.map((h, i) => (
+                            <div key={i} className="flex items-start gap-2 text-sm">
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 mt-0.5 shrink-0">{i + 1}</Badge>
+                              <span className="font-semibold">{h}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {primaryTexts.length > 0 && (
+                      <div>
+                        <SectionLabel icon={<MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />} label={`Textos Principais (${primaryTexts.length} variações)`} />
+                        <div className="space-y-2 mt-1.5">
+                          {primaryTexts.map((t, i) => (
+                            <div key={i} className="bg-muted/20 rounded-lg p-2.5 border border-border/30">
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">Versão {i + 1}</Badge>
+                              </div>
+                              <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{t}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {descriptionsList.length > 0 && (
+                      <div>
+                        <SectionLabel icon={<ListChecks className="h-3.5 w-3.5 text-muted-foreground" />} label={`Descrições (${descriptionsList.length})`} />
+                        <div className="space-y-1 mt-1.5">
+                          {descriptionsList.map((d, i) => (
+                            <p key={i} className="text-xs text-muted-foreground">{d}</p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {ctaType && (
+                      <div>
+                        <SectionLabel icon={<MousePointerClick className="h-3.5 w-3.5 text-muted-foreground" />} label="Botão (CTA)" />
+                        <Badge variant="secondary" className="text-xs mt-1">{CTA_LABELS[ctaType] || ctaType}</Badge>
+                      </div>
+                    )}
+                  </TabsContent>
+                )}
+
+                {/* Tab: Detalhes da Campanha */}
+                <TabsContent value="detalhes" className="mt-0">
+                  <CampaignDetailsTab data={data} preview={preview} action={action} />
+
+                  {/* Reasoning & Impact */}
+                  {action.reasoning && (
+                    <div className="mt-4">
+                      <SectionLabel icon={<Bot className="h-3.5 w-3.5 text-muted-foreground" />} label="Raciocínio da IA" />
+                      <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30 mt-1.5">
+                        {sanitizeDisplayText(action.reasoning)}
+                      </div>
+                    </div>
+                  )}
+                  {action.expected_impact && (
+                    <div className="mt-4">
+                      <SectionLabel icon={<TrendingUp className="h-3.5 w-3.5 text-emerald-500" />} label="Impacto Esperado" />
+                      <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/30 mt-1.5">
+                        {sanitizeDisplayText(action.expected_impact)}
+                      </div>
+                    </div>
+                  )}
+
+                  {budgetSnapshot && <div className="mt-4"><BudgetBar snapshot={budgetSnapshot} /></div>}
+                </TabsContent>
+
+                {/* Tab: Conjuntos & Público */}
+                {hasAdSets && (
+                  <TabsContent value="conjuntos" className="mt-0 space-y-4">
+                    {/* AdSet standalone info */}
+                    {isAdSet && (
+                      <div className="space-y-3">
+                        {adsetName && (
+                          <div>
+                            <SectionLabel icon={<Target className="h-3.5 w-3.5 text-primary" />} label="Conjunto de Anúncios" />
+                            <p className="text-sm font-semibold mt-1">{adsetName}</p>
+                          </div>
+                        )}
+                        {parentCampaign && (
+                          <div className="bg-muted/30 rounded-lg p-2.5 border border-border/30 text-xs">
+                            <span className="text-muted-foreground">Campanha pai</span>
+                            <p className="font-medium mt-0.5">{parentCampaign}</p>
+                          </div>
+                        )}
+                        {targeting && (
+                          <div className="bg-muted/30 rounded-lg p-2.5 border border-border/30 text-xs">
+                            <span className="text-muted-foreground">Público</span>
+                            <p className="font-medium mt-0.5">{sanitizeDisplayText(targeting)}{ageRange && ` (${ageRange} anos)`}</p>
+                          </div>
+                        )}
+                        {customAudiences && Array.isArray(customAudiences) && customAudiences.length > 0 && (
+                          <div>
+                            <SectionLabel icon={<Users className="h-3.5 w-3.5 text-muted-foreground" />} label="Públicos Personalizados" />
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {customAudiences.map((aud: any, i: number) => (
+                                <Badge key={i} variant="outline" className="text-xs px-2 py-0.5">
+                                  {typeof aud === "string" ? aud : aud.name || aud.id}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Nested AdSets */}
+                    {adsets.length > 0 && (
+                      <div>
+                        <SectionLabel icon={<Layers className="h-3.5 w-3.5 text-muted-foreground" />} label={`Conjuntos de Anúncios (${adsets.length})`} />
+                        <div className="mt-1.5 space-y-2">
+                          {adsets.map((adset) => {
+                            const ad = adset.action_data || {};
+                            const prev = ad.preview || {};
+                            const t = prev.targeting_summary || ad.targeting_summary || null;
+                            const ca = ad.custom_audiences || prev.custom_audiences || null;
+                            const aName = ad.adset_name || prev.adset_name || "Conjunto";
+                            const budget = prev.daily_budget_display || (ad.daily_budget_cents ? `R$ ${(ad.daily_budget_cents / 100).toFixed(2)}/dia` : null);
+                            const age = prev.age_range || ad.age_range || null;
+                            return (
+                              <div key={adset.id} className="bg-muted/20 rounded-lg p-3 border border-border/30 space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <Target className="h-3.5 w-3.5 text-primary" />
+                                  <span className="text-sm font-semibold">{aName}</span>
+                                  {budget && (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1 ml-auto">
+                                      <DollarSign className="h-2.5 w-2.5" />
+                                      {budget}
+                                    </Badge>
+                                  )}
+                                </div>
+                                {t && (
+                                  <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                                    <Users className="h-3 w-3 mt-0.5 shrink-0" />
+                                    <span>{sanitizeDisplayText(t)}{age && ` (${age} anos)`}</span>
+                                  </div>
+                                )}
+                                {ca && Array.isArray(ca) && ca.length > 0 && (
+                                  <div className="flex flex-wrap gap-1">
+                                    {ca.map((aud: any, i: number) => (
+                                      <Badge key={i} variant="outline" className="text-[9px] px-1 py-0">
+                                        {typeof aud === "string" ? aud : aud.name || aud.id}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* General targeting info for campaign level */}
+                    {!isAdSet && targeting && (
+                      <div className="bg-muted/30 rounded-lg p-2.5 border border-border/30 text-xs">
+                        <span className="text-muted-foreground">Público Geral</span>
+                        <p className="font-medium mt-0.5">{sanitizeDisplayText(targeting)}{ageRange && ` (${ageRange} anos)`}</p>
+                      </div>
+                    )}
+                  </TabsContent>
+                )}
+              </div>
+            </Tabs>
+          )}
         </DialogContent>
       </Dialog>
 
