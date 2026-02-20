@@ -1235,6 +1235,31 @@ O botão **"Ajustar"** em cada card de campanha pendente aciona uma revisão res
 
 ---
 
+### Agrupamento de AdSets por Sessão (v5.15.1 — 2026-02-20)
+
+**Problema identificado:** A IA do Estrategista gerava nomes de campanha nos adsets que não batiam exatamente com os nomes das campanhas criadas na mesma sessão (ex: `[AI] Vendas | Testes (CBO) | Fast Upgrade | 2026-02-19` vs `[AI] TESTES | Vendas (CBO) | Fast Upgrade | 2026-02-20`). Isso fazia com que os adsets aparecessem como cards órfãos separados em vez de aninhados dentro do card da campanha pai.
+
+**Correção:** A lógica de agrupamento em `AdsPendingActionsTab` e `AdsPendingApprovalTab` agora usa **dois passes de matching**:
+
+| Passo | Lógica | Descrição |
+|-------|--------|-----------|
+| **1 — Exact Name** | `adset.campaign_name === campaign.campaign_name` | Match exato por nome (comportamento original) |
+| **2 — Session Fallback** | `adset.session_id === campaign.session_id` + similaridade de nome | Para adsets não pareados, busca campanhas da mesma sessão e usa score de similaridade para encontrar o melhor match |
+
+**Regras:**
+- Adsets pareados no Passo 1 **nunca** são reavaliados no Passo 2
+- Adsets que permanecem sem match após ambos os passes são exibidos como `OrphanAdsetGroupCard` (agrupados pelo nome da campanha referenciada)
+- O score de similaridade usa normalização alfanumérica (lowercase, remove caracteres especiais) com matching de substrings de 3 caracteres
+
+#### Arquivos Afetados
+
+| Arquivo | Mudança |
+|---------|---------|
+| `src/components/ads/AdsPendingActionsTab.tsx` | Lógica de dois passes (exact + session fallback) |
+| `src/components/ads/AdsPendingApprovalTab.tsx` | Mesma lógica de dois passes |
+
+---
+
 ### Correções v5.12.9 (2026-02-19)
 
 | Item | Correção | Aceite |
