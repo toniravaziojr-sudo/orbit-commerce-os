@@ -1,6 +1,7 @@
 // =============================================
-// STRATEGIC PLAN CONTENT — Formatted renderer v2
+// STRATEGIC PLAN CONTENT — Formatted renderer v3
 // Parses raw diagnosis/plan text into structured, readable sections
+// with campaign-level card separation
 // =============================================
 
 import { AlertTriangle, ListChecks, TrendingUp, Clock, Target, Lightbulb, BarChart3, ShieldAlert, ChevronRight, Layers } from "lucide-react";
@@ -29,45 +30,33 @@ function sanitize(text: string): string {
 
 /** 
  * Enhanced parser: splits text into logical blocks.
- * Detects: "FASE X", "(PLANNING)", "(CRIATIVOS)", numbered items, sentences with key terms, etc.
  */
 function parseTextBlocks(text: string): { title: string | null; lines: string[] }[] {
   if (!text) return [];
 
-  // First, split by paragraph-style breaks (double newlines or patterns)
   const sections: { title: string | null; lines: string[] }[] = [];
-  
-  // Normalize: replace literal \n with actual newlines if needed
   let normalized = text.replace(/\\n/g, "\n");
   
-  // Split on patterns that indicate section headers
-  // Patterns: (PLANNING), (CRIATIVOS), (PÚBLICOS), FASE X, numbered items like (1), (2)
   const headerRegex = /(?:^|\n)\s*(?:\(([A-ZÁÉÍÓÚÀÂÊÔÃÕÇ][A-ZÁÉÍÓÚÀÂÊÔÃÕÇ\s/]+)\)|FASE\s+\d+[^\n]*|(?:Visão geral|Hipóteses|Gargalos|Metas|Resumo|Diagnóstico|Projeção|Ações|Cronograma|Resultados?|Riscos?|Público|Budget|Orçamento)[^\n]*)/gi;
 
-  // Try to detect if text has natural paragraph breaks
   const hasBreaks = /\n\s*\n/.test(normalized) || headerRegex.test(normalized);
   
   if (!hasBreaks) {
-    // No natural breaks — split long text by sentence boundaries at key terms
     const smartSplit = splitBySentenceBoundaries(normalized);
     if (smartSplit.length > 1) {
       return smartSplit;
     }
-    // Fallback: just return as a single block
     return [{ title: null, lines: splitIntoReadableChunks(normalized) }];
   }
 
-  // Reset regex
   headerRegex.lastIndex = 0;
 
-  // Split by lines and process
   const rawLines = normalized.split("\n");
   let current: { title: string | null; lines: string[] } = { title: null, lines: [] };
 
   for (const raw of rawLines) {
     const line = raw.trim();
     if (!line) {
-      // Empty line = paragraph break — push current if it has content
       if (current.lines.length > 0 || current.title) {
         sections.push(current);
         current = { title: null, lines: [] };
@@ -75,7 +64,6 @@ function parseTextBlocks(text: string): { title: string | null; lines: string[] 
       continue;
     }
 
-    // Detect section headers
     const isSectionHeader = 
       /^FASE\s+\d+/i.test(line) ||
       /^\([A-ZÁÉÍÓÚÀÂÊÔÃÕÇ][A-ZÁÉÍÓÚÀÂÊÔÃÕÇ\s/]+\)/i.test(line) ||
@@ -85,7 +73,6 @@ function parseTextBlocks(text: string): { title: string | null; lines: string[] 
       if (current.lines.length > 0 || current.title) {
         sections.push(current);
       }
-      // Extract title — clean parentheses wrapper if present
       let title = line;
       const parenMatch = line.match(/^\(([^)]+)\)\s*(.*)/);
       if (parenMatch) {
@@ -103,7 +90,6 @@ function parseTextBlocks(text: string): { title: string | null; lines: string[] 
     sections.push(current);
   }
 
-  // Post-process: if we only got 1 section with no title and long text, try smart-split
   if (sections.length === 1 && !sections[0].title && sections[0].lines.length <= 2) {
     const joined = sections[0].lines.join(" ");
     if (joined.length > 300) {
@@ -118,7 +104,6 @@ function parseTextBlocks(text: string): { title: string | null; lines: string[] 
 function splitBySentenceBoundaries(text: string): { title: string | null; lines: string[] }[] {
   const sections: { title: string | null; lines: string[] }[] = [];
   
-  // Split by key diagnostic markers
   const markers = [
     { regex: /(?:Estado atual|Situação atual|Cenário atual)[^.]*\./i, title: "Cenário Atual" },
     { regex: /(?:No momento|Atualmente)[^.]*há\s+\d+\s+campanhas?[^.]*\./i, title: "Campanhas Ativas" },
@@ -136,15 +121,12 @@ function splitBySentenceBoundaries(text: string): { title: string | null; lines:
   for (const marker of markers) {
     const match = remaining.match(marker.regex);
     if (match && match.index !== undefined) {
-      // Get text before the match
       const before = remaining.substring(0, match.index).trim();
       if (before && sections.length === 0) {
         sections.push({ title: null, lines: splitIntoReadableChunks(before) });
       }
       
-      // Get the matched sentence and any following related sentences
       const afterMatch = remaining.substring(match.index);
-      // Find a good break point (next marker or end)
       let endIdx = afterMatch.length;
       for (const nextMarker of markers) {
         if (nextMarker === marker) continue;
@@ -162,12 +144,10 @@ function splitBySentenceBoundaries(text: string): { title: string | null; lines:
     }
   }
 
-  // If we didn't extract much, fallback to simple sentence splitting
   if (sections.length <= 1) {
     return splitBySentences(text);
   }
 
-  // Add any remaining text
   if (remaining.trim()) {
     sections.push({ title: null, lines: splitIntoReadableChunks(remaining.trim()) });
   }
@@ -177,7 +157,6 @@ function splitBySentenceBoundaries(text: string): { title: string | null; lines:
 
 /** Simple sentence split for fallback */
 function splitBySentences(text: string): { title: string | null; lines: string[] }[] {
-  // Split into sentences and group ~2-3 sentences per block for readability
   const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
   const sections: { title: string | null; lines: string[] }[] = [];
   
@@ -196,19 +175,102 @@ function splitBySentences(text: string): { title: string | null; lines: string[]
 function splitIntoReadableChunks(text: string): string[] {
   if (!text) return [];
   
-  // If text has numbered items like (1), (2), split on those
   if (/\(\d+\)/.test(text)) {
     const parts = text.split(/(?=\(\d+\))/).map(s => s.trim()).filter(Boolean);
     if (parts.length > 1) return parts;
   }
   
-  // If text has semicolons, split on those
   if (text.includes(";") && text.split(";").length >= 3) {
     return text.split(";").map(s => s.trim()).filter(Boolean);
   }
 
-  // If single long sentence, just return as-is
   return [text];
+}
+
+/**
+ * Smart parser for planned actions — detects campaign boundaries
+ * ("Criar uma nova campanha...") and splits into individual cards.
+ */
+function parsePlannedActionsIntoCampaigns(text: string): { title: string; lines: string[] }[] {
+  if (!text) return [];
+
+  const normalized = text.replace(/\\n/g, "\n");
+
+  const campaignSplitRegex = /(?=Criar uma nova campanha\b)/gi;
+  const rawBlocks = normalized.split(campaignSplitRegex).map(s => s.trim()).filter(Boolean);
+
+  if (rawBlocks.length <= 1) {
+    return [];
+  }
+
+  const campaigns: { title: string; lines: string[] }[] = [];
+
+  for (const block of rawBlocks) {
+    const firstSentenceMatch = block.match(/^(Criar uma nova campanha\s+de\s+[^,.]+(?:\s+focada?\s+em\s+[^,.]+)?)/i);
+    let title = "Campanha";
+
+    if (firstSentenceMatch) {
+      title = firstSentenceMatch[1].trim().replace(/\.$/, "");
+    }
+
+    const details: string[] = [];
+
+    const productMatch = block.match(/(?:para o produto|para o lançamento|para\s+(?:Kits?\s+e\s+)?produtos?\s+(?:Complementares?\s+)?)\s*([^,.]+)/i);
+    if (productMatch) details.push(`📦 Produto: ${productMatch[1].trim()}`);
+
+    const budgetMatch = block.match(/orçamento diário\s+(?:de\s+|será\s+de\s+)?R\$\s*([\d.,]+)/i);
+    if (budgetMatch) details.push(`💰 Orçamento diário: R$ ${budgetMatch[1]}`);
+
+    const audienceMatch = block.match(/público-alvo\s+(?:será\s+)?(?:aberto\s+)?\(?([^)]+)\)?/i);
+    if (audienceMatch) details.push(`🎯 Público: ${audienceMatch[1].trim()}`);
+
+    const lalMatch = block.match(/Lookalike\s+de\s+(\d+%)\s+de\s+([^)]+)\)?/i);
+    if (lalMatch) details.push(`👥 Lookalike: ${lalMatch[1]} de ${lalMatch[2].trim()}`);
+
+    const retargetMatch = block.match(/(?:incluirá|incluir)\s+(Visitantes\s+do\s+Site[^.]+)/i);
+    if (retargetMatch) details.push(`🔄 Retargeting: ${retargetMatch[1].trim()}`);
+
+    const variationsMatch = block.match(/(\d+\s+variações?\s+de\s+Primary\s+Text[^.]*)/i);
+    if (variationsMatch) details.push(`✍️ ${variationsMatch[1].trim()}`);
+
+    const funnelMatch = block.match(/\b(TOF|MOF|BOF|Topo de Funil|Fundo de Funil|Remarketing)\b/i);
+    if (funnelMatch) details.push(`🔀 Funil: ${funnelMatch[1]}`);
+
+    if (details.length === 0) {
+      const sentences = block.match(/[^.!?]+[.!?]+/g) || [block];
+      details.push(...sentences.map(s => s.trim()).filter(Boolean));
+    }
+
+    campaigns.push({ title, lines: details });
+  }
+
+  return campaigns;
+}
+
+/** Render a campaign card with structured details */
+function CampaignCard({ title, lines, index }: { title: string; lines: string[]; index: number }) {
+  return (
+    <div className="rounded-xl border border-border/40 bg-background/50 p-4 space-y-3">
+      <div className="flex items-start gap-2.5">
+        <span className="bg-primary/10 text-primary font-bold text-xs min-w-[24px] h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+          {index + 1}
+        </span>
+        <h4 className="text-sm font-semibold text-foreground leading-snug">{sanitize(title)}</h4>
+      </div>
+      <div className="ml-[34px] space-y-1.5">
+        {lines.map((line, i) => {
+          const cleaned = sanitize(line);
+          if (!cleaned) return null;
+          const highlighted = highlightMetrics(cleaned);
+          return (
+            <p key={i} className="text-[13px] text-foreground/80 leading-relaxed">
+              {highlighted}
+            </p>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 /** Render a single line, handling bullet points and numbered items */
@@ -216,7 +278,6 @@ function FormattedLine({ line }: { line: string }) {
   const cleaned = sanitize(line);
   if (!cleaned) return null;
   
-  // Parenthesized number like (1), (2)
   const parenNumMatch = cleaned.match(/^\((\d+)\)\s*(.*)/);
   if (parenNumMatch) {
     return (
@@ -229,11 +290,8 @@ function FormattedLine({ line }: { line: string }) {
     );
   }
 
-  // Sub-item (starts with spaces + dash/letter)
   const isSubItem = /^\s+[-–•a-z\d]\)?\s/i.test(line);
-  // Main bullet (starts with - or • or —)
   const isBullet = /^[-–•—]\s/.test(cleaned);
-  // Numbered item
   const isNumbered = /^\d+[\)\.]\s/.test(cleaned);
 
   if (isSubItem) {
@@ -270,7 +328,6 @@ function FormattedLine({ line }: { line: string }) {
     );
   }
 
-  // Highlight key metrics in text
   const highlighted = highlightMetrics(cleaned);
 
   return (
@@ -280,7 +337,6 @@ function FormattedLine({ line }: { line: string }) {
 
 /** Highlight key metrics like ROAS, CPA, R$ values */
 function highlightMetrics(text: string): React.ReactNode {
-  // Split and highlight key patterns
   const parts = text.split(/(ROAS\s*(?:\d+[dD])?\s*=?\s*[\d,.]+|CPA\s*[≈~]?\s*R?\$?\s*[\d,.]+|R\$\s*[\d,.]+(?:\/d(?:ia)?)?|\d+%|\d+\s*campanhas?)/gi);
   
   if (parts.length <= 1) return text;
@@ -346,31 +402,36 @@ export function StrategicPlanContent({
   reasoning,
   className,
 }: StrategicPlanContentProps) {
-  const allSections: { icon: React.ReactNode; color: string; label: string; content: string }[] = [];
+  const plannedText = plannedActions
+    ? Array.isArray(plannedActions) ? plannedActions.join("\n") : String(plannedActions)
+    : "";
+  const campaignCards = parsePlannedActionsIntoCampaigns(plannedText);
+  const hasCampaignCards = campaignCards.length > 0;
 
-  if (plannedActions) {
-    const text = Array.isArray(plannedActions) ? plannedActions.join("\n") : String(plannedActions);
-    allSections.push({ icon: <ListChecks className="h-4 w-4" />, color: "text-primary", label: "Ações Planejadas", content: text });
+  const otherSections: { icon: React.ReactNode; color: string; label: string; content: string }[] = [];
+
+  if (plannedText && !hasCampaignCards) {
+    otherSections.push({ icon: <ListChecks className="h-4 w-4" />, color: "text-primary", label: "Ações Planejadas", content: plannedText });
   }
   if (expectedResults) {
-    allSections.push({ icon: <TrendingUp className="h-4 w-4" />, color: "text-emerald-500", label: "Resultados Esperados", content: String(expectedResults) });
+    otherSections.push({ icon: <TrendingUp className="h-4 w-4" />, color: "text-emerald-500", label: "Resultados Esperados", content: String(expectedResults) });
   }
   if (riskAssessment) {
-    allSections.push({ icon: <ShieldAlert className="h-4 w-4" />, color: "text-destructive", label: "Riscos", content: String(riskAssessment) });
+    otherSections.push({ icon: <ShieldAlert className="h-4 w-4" />, color: "text-destructive", label: "Riscos", content: String(riskAssessment) });
   }
   if (timeline) {
-    allSections.push({ icon: <Clock className="h-4 w-4" />, color: "text-blue-500", label: "Cronograma", content: String(timeline) });
+    otherSections.push({ icon: <Clock className="h-4 w-4" />, color: "text-blue-500", label: "Cronograma", content: String(timeline) });
   }
 
   const diagnosisSections = diagnosis ? parseTextBlocks(diagnosis) : [];
-  const explicitParsed = allSections.map(s => ({
+  const explicitParsed = otherSections.map(s => ({
     ...s,
     parsed: parseTextBlocks(s.content),
   }));
 
   return (
     <div className={cn("space-y-6", className)}>
-      {/* Diagnosis sections */}
+      {/* Diagnosis */}
       {diagnosisSections.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-amber-500">
@@ -390,7 +451,25 @@ export function StrategicPlanContent({
         </div>
       )}
 
-      {/* Explicit sections */}
+      {/* Campaign Cards — structured view */}
+      {hasCampaignCards && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-primary">
+            <ListChecks className="h-4 w-4" />
+            <h3 className="text-sm font-bold tracking-tight">Ações Planejadas</h3>
+            <span className="ml-1 text-[11px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
+              {campaignCards.length} {campaignCards.length === 1 ? "campanha" : "campanhas"}
+            </span>
+          </div>
+          <div className="space-y-3">
+            {campaignCards.map((camp, i) => (
+              <CampaignCard key={i} title={camp.title} lines={camp.lines} index={i} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Other explicit sections */}
       {explicitParsed.map((section, si) => (
         <div key={si} className="space-y-3">
           <div className={cn("flex items-center gap-2", section.color)}>
