@@ -27,6 +27,14 @@ import { cn } from "@/lib/utils";
 
 // ============ TYPES ============
 
+interface AdSetPlan {
+  adset_name?: string;
+  audience_type?: string;
+  audience_description?: string;
+  budget_brl?: number;
+  ads_count?: number;
+}
+
 interface StructuredAction {
   action_type?: string;
   campaign_type?: string;
@@ -46,6 +54,7 @@ interface StructuredAction {
   rationale?: string;
   expected_roas?: number;
   placements?: string;
+  adsets?: AdSetPlan[];
 }
 
 interface BudgetAllocation {
@@ -246,6 +255,17 @@ function StructuredActionCard({ action, index }: { action: StructuredAction; ind
   if (action.expected_roas) details.push({ icon: "📈", label: "ROAS esperado", value: `${action.expected_roas}x` });
   if (action.placements) details.push({ icon: "📱", label: "Posicionamentos", value: action.placements });
 
+  const adsets = action.adsets || [];
+  const totalAds = adsets.reduce((sum, as) => sum + (as.ads_count || 0), 0);
+
+  const AUDIENCE_TYPE_LABELS: Record<string, string> = {
+    broad: "Amplo",
+    interest: "Interesses",
+    lookalike: "Lookalike",
+    custom: "Personalizado",
+    retargeting: "Remarketing",
+  };
+
   return (
     <div className="rounded-xl border border-border/40 bg-background/50 p-4 space-y-3 hover:border-border/60 transition-colors">
       <div className="flex items-start gap-3">
@@ -277,6 +297,51 @@ function StructuredActionCard({ action, index }: { action: StructuredAction; ind
               <span className="text-foreground/80">{highlightMetrics(detail.value)}</span>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ── Hierarquia: Conjuntos de Anúncios ── */}
+      {adsets.length > 0 && (
+        <div className="ml-[38px] mt-1">
+          <div className="flex items-center gap-1.5 mb-2">
+            <Layers className="h-3 w-3 text-muted-foreground/70" />
+            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+              {adsets.length} {adsets.length === 1 ? "Conjunto" : "Conjuntos"} · {totalAds > 0 ? `${totalAds} anúncios` : `${action.creatives_count || 0} criativos`}
+            </span>
+          </div>
+          <div className="space-y-1.5 border-l-2 border-border/40 pl-3">
+            {adsets.map((adset, ai) => (
+              <div key={ai} className="flex items-start gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[12px] font-medium text-foreground/80 truncate max-w-[200px]">
+                      {adset.adset_name || `Conjunto ${ai + 1}`}
+                    </span>
+                    {adset.audience_type && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground font-medium shrink-0">
+                        {AUDIENCE_TYPE_LABELS[adset.audience_type] || adset.audience_type}
+                      </span>
+                    )}
+                    {adset.budget_brl != null && adset.budget_brl > 0 && (
+                      <span className="text-[10px] text-primary/70 font-semibold shrink-0">
+                        R$ {adset.budget_brl.toFixed(2)}/dia
+                      </span>
+                    )}
+                    {adset.ads_count != null && adset.ads_count > 0 && (
+                      <span className="text-[10px] text-muted-foreground shrink-0">
+                        · {adset.ads_count} {adset.ads_count === 1 ? "anúncio" : "anúncios"}
+                      </span>
+                    )}
+                  </div>
+                  {adset.audience_description && (
+                    <p className="text-[11px] text-muted-foreground/70 leading-snug mt-0.5 truncate">
+                      {adset.audience_description}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
