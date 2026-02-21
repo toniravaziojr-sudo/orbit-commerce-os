@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.38.0"; // Fix timeout: local deep historical from DB instead of Graph API re-fetch
+const VERSION = "v1.39.0"; // Fix: sync lifetime insights before building deep historical on start trigger
 // ===================
 
 const corsHeaders = {
@@ -405,10 +405,10 @@ async function buildDeepHistoricalFromLocalData(
       supabase.from("meta_ad_ads")
         .select("meta_ad_id, name, status, effective_status, meta_adset_id, meta_campaign_id, ad_account_id, creative_data")
         .eq("tenant_id", tenantId).eq("ad_account_id", adAccountId).limit(1000),
-      // Get ALL insights (no date filter = all-time) — limited to 2000 rows
+      // Get ALL insights (no date filter = all-time) — increased limit for lifetime data (v1.39.0)
       supabase.from("meta_ad_insights")
         .select("meta_campaign_id, impressions, clicks, spend_cents, conversions, roas, ctr, cpm_cents, frequency, actions, date_start")
-        .eq("tenant_id", tenantId).limit(2000),
+        .eq("tenant_id", tenantId).order("date_start", { ascending: false }).limit(5000),
     ]);
 
     const campaigns = campaignsRes.data || [];
@@ -649,11 +649,43 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
   }));
 
   // === DEEP HISTORICAL INSIGHTS (only for "start" trigger) ===
-  // v1.38.0: Uses LOCAL DB data instead of Graph API re-fetch to avoid timeouts on large accounts
+  // v1.39.0: First sync LIFETIME insights from Meta API, THEN build from local DB
   let deepHistorical: Record<string, any> | null = null;
   if (trigger === "start") {
-    console.log(`[ads-autopilot-strategist][${VERSION}] Building deep historical from LOCAL DB for start trigger...`);
+    console.log(`[ads-autopilot-strategist][${VERSION}] Start trigger: syncing LIFETIME insights before deep historical...`);
     const accountIds = configs.map(c => c.ad_account_id);
+    
+    // Sync lifetime insights for each account BEFORE reading local DB
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const syncHeaders = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${supabaseKey}`,
+      "apikey": supabaseKey,
+    };
+    
+    for (const acctId of accountIds) {
+      try {
+        console.log(`[ads-autopilot-strategist][${VERSION}] Syncing lifetime insights for ${acctId}...`);
+        const syncRes = await fetch(`${supabaseUrl}/functions/v1/meta-ads-insights`, {
+          method: "POST",
+          headers: syncHeaders,
+          body: JSON.stringify({ 
+            tenant_id: tenantId, 
+            action: "sync", 
+            date_preset: "maximum",
+            ad_account_id: acctId 
+          }),
+        });
+        const syncData = await syncRes.json();
+        console.log(`[ads-autopilot-strategist][${VERSION}] Lifetime sync for ${acctId}: ${syncData.success ? `${syncData.data?.synced || 0} synced` : syncData.error}`);
+      } catch (syncErr: any) {
+        console.warn(`[ads-autopilot-strategist][${VERSION}] Lifetime sync failed for ${acctId} (non-blocking): ${syncErr.message}`);
+      }
+    }
+    
+    // Now build deep historical from LOCAL DB (which now has lifetime data)
+    console.log(`[ads-autopilot-strategist][${VERSION}] Building deep historical from LOCAL DB for start trigger...`);
     deepHistorical = {};
     for (const acctId of accountIds) {
       const result = await buildDeepHistoricalFromLocalData(supabase, tenantId, acctId);
