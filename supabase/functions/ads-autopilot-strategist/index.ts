@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.26.0"; // Strategic rules: different creatives per funnel, 1 adset/ad in tests, multi-audience for direct sale, fix product URL slug
+const VERSION = "v1.27.0"; // Fix Gemini 400 "null content" on multi-round: ensure assistant message content is always a string
 // ===================
 
 const corsHeaders = {
@@ -1513,7 +1513,9 @@ Feedback: "${revisionFeedback}"
         console.log(`[ads-autopilot-strategist][${VERSION}] Round ${round}: ${toolCalls.length} tool calls`);
 
         // Add assistant message to history (with tool calls)
-        messages.push(assistantMessage);
+        // FIX v1.27.0: Gemini rejects content: null — ensure it's always a string
+        const sanitizedAssistant = { ...assistantMessage, content: assistantMessage.content || "" };
+        messages.push(sanitizedAssistant);
 
         // Process each tool call and collect results
         const toolResults: any[] = [];
