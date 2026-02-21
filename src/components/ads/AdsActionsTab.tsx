@@ -11,6 +11,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { ActionDetailDialog } from "./ActionDetailDialog";
+import { AdsStartupProgress } from "./AdsStartupProgress";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -102,6 +103,13 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
   const { currentTenant } = useAuth();
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [detailAction, setDetailAction] = useState<AutopilotAction | null>(null);
+  const [startupJustFinished, setStartupJustFinished] = useState(false);
+
+  const handleStartupComplete = () => {
+    setStartupJustFinished(true);
+    queryClient.invalidateQueries({ queryKey: ["ads-autopilot-actions"] });
+    queryClient.invalidateQueries({ queryKey: ["ads-autopilot-sessions"] });
+  };
 
   // No approve/reject here — approval happens in "Aguardando Ação" tab
 
@@ -178,16 +186,20 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
 
   if (sorted.length === 0) {
     return (
-      <EmptyState
-        icon={Bot}
-        title="Nenhuma ação registrada"
-        description="Quando a IA executar o plano estratégico, as ações aparecerão aqui"
-      />
+      <div className="space-y-4">
+        <AdsStartupProgress onComplete={handleStartupComplete} />
+        <EmptyState
+          icon={Bot}
+          title="Nenhuma ação registrada"
+          description="Quando a IA executar o plano estratégico, as ações aparecerão aqui"
+        />
+      </div>
     );
   }
 
   return (
     <div className="space-y-3">
+      <AdsStartupProgress onComplete={handleStartupComplete} />
       {pendingCount > 0 && (
         <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
           <Hourglass className="h-4 w-4 text-amber-500" />
