@@ -1,6 +1,7 @@
 // =============================================
-// AI ROUTER v1.0.0 — Roteamento Inteligente de IA
+// AI ROUTER v1.1.0 — Roteamento Inteligente de IA com Rate Limit Queue
 // Prioridade: Gemini Nativa → OpenAI Nativa → Lovable Gateway (fallback)
+// Retry com backoff exponencial ao receber 429 (rate limit)
 // =============================================
 
 import { getCredential } from "./platform-credentials.ts";
@@ -153,6 +154,33 @@ export async function getAIEndpoint(
  * Tenta cada provedor disponível na ordem de prioridade.
  * Retorna o Response bruto (suporta streaming).
  */
+/**
+ * Delay helper
+ */
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Extrai o tempo de espera do header Retry-After (em ms).
+ * Fallback para o valor default se não existir.
+ */
+function getRetryAfterMs(response: Response, defaultMs: number): number {
+  const retryAfter = response.headers.get("Retry-After") || response.headers.get("retry-after");
+  if (retryAfter) {
+    const seconds = parseInt(retryAfter, 10);
+    if (!isNaN(seconds) && seconds > 0 && seconds <= 120) {
+      return seconds * 1000;
+    }
+  }
+  return defaultMs;
+}
+
+/**
+ * Faz uma chamada de chat completion com roteamento automático, fallback e retry com backoff.
+ * Ao receber 429 (rate limit), aguarda e retenta no mesmo provedor antes de pular.
+ * Retorna o Response bruto (suporta streaming).
+ */
 export async function aiChatCompletion(
   requestedModel: string,
   body: Record<string, unknown>,
@@ -161,8 +189,11 @@ export async function aiChatCompletion(
     supabaseServiceKey?: string;
     preferProvider?: AIProvider | 'auto';
     logPrefix?: string;
-    // Se true, não faz fallback (útil para modelos específicos)
     noFallback?: boolean;
+    /** Número máximo de retries por provedor ao receber 429 (default: 3) */
+    maxRetries?: number;
+    /** Delay base em ms para backoff exponencial (default: 5000 = 5s) */
+    baseDelayMs?: number;
   }
 ): Promise<Response> {
   const {
@@ -171,6 +202,8 @@ export async function aiChatCompletion(
     preferProvider = 'auto',
     logPrefix = '[ai-router]',
     noFallback = false,
+    maxRetries = 3,
+    baseDelayMs = 5000,
   } = options || {};
 
   const keys = await resolveAPIKeys(supabaseUrl, supabaseServiceKey);
@@ -202,81 +235,101 @@ export async function aiChatCompletion(
     throw new Error("Nenhuma chave de IA configurada");
   }
 
-  // Se noFallback, usar apenas o primeiro disponível
   const providersToTry = noFallback ? [available[0]] : available;
   let lastError = '';
 
   for (const provider of providersToTry) {
-    try {
-      let url: string;
-      let apiKey: string;
-      let model: string;
+    let url: string;
+    let apiKey: string;
+    let model: string;
 
-      if (provider === 'gemini') {
-        url = GEMINI_OPENAI_COMPAT_URL;
-        apiKey = keys.gemini!;
-        model = GEMINI_NATIVE_MODELS[requestedModel] || "gemini-2.5-flash";
-      } else if (provider === 'openai') {
-        url = OPENAI_API_URL;
-        apiKey = keys.openai!;
-        model = OPENAI_NATIVE_MODELS[requestedModel] || "gpt-4o";
-      } else {
-        url = LOVABLE_GATEWAY_URL;
-        apiKey = keys.lovable!;
-        model = requestedModel;
+    if (provider === 'gemini') {
+      url = GEMINI_OPENAI_COMPAT_URL;
+      apiKey = keys.gemini!;
+      model = GEMINI_NATIVE_MODELS[requestedModel] || "gemini-2.5-flash";
+    } else if (provider === 'openai') {
+      url = OPENAI_API_URL;
+      apiKey = keys.openai!;
+      model = OPENAI_NATIVE_MODELS[requestedModel] || "gpt-4o";
+    } else {
+      url = LOVABLE_GATEWAY_URL;
+      apiKey = keys.lovable!;
+      model = requestedModel;
+    }
+
+    // Construir body com modelo correto
+    const requestBody = { ...body, model };
+
+    // Ajustar parâmetros OpenAI-específicos
+    if (provider === 'openai') {
+      if (requestBody.max_completion_tokens && !model.includes('gpt-5')) {
+        requestBody.max_tokens = requestBody.max_completion_tokens;
+        delete requestBody.max_completion_tokens;
       }
+    }
 
-      // Construir body com modelo correto
-      const requestBody = { ...body, model };
-
-      // Ajustar parâmetros OpenAI-específicos
-      if (provider === 'openai') {
-        // gpt-4o uses max_tokens, not max_completion_tokens
-        // Remove max_completion_tokens if present for non-gpt-5 models
-        if (requestBody.max_completion_tokens && !model.includes('gpt-5')) {
-          requestBody.max_tokens = requestBody.max_completion_tokens;
-          delete requestBody.max_completion_tokens;
+    // Retry loop com backoff exponencial para 429
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        if (attempt > 0) {
+          console.log(`${logPrefix} 🔄 Retry ${attempt}/${maxRetries} for ${provider} (${model})...`);
+        } else {
+          console.log(`${logPrefix} Trying ${provider} (${model})...`);
         }
+
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        });
+
+        if (response.ok) {
+          console.log(`${logPrefix} ✅ ${provider} (${model}) succeeded${attempt > 0 ? ` (after ${attempt} retries)` : ''}`);
+          return response;
+        }
+
+        // Rate limit (429) → retry com backoff no MESMO provedor
+        if (response.status === 429) {
+          const retryMs = getRetryAfterMs(response, baseDelayMs * Math.pow(2, attempt));
+          await response.text(); // consume body
+
+          if (attempt < maxRetries) {
+            console.warn(`${logPrefix} ⏳ ${provider} rate limited (429). Waiting ${Math.round(retryMs / 1000)}s before retry ${attempt + 1}/${maxRetries}...`);
+            await delay(retryMs);
+            continue; // retry same provider
+          } else {
+            lastError = `${provider} (${model}): HTTP 429 after ${maxRetries} retries`;
+            console.warn(`${logPrefix} ⚠️ ${provider} still rate limited after ${maxRetries} retries, trying next provider...`);
+            break; // move to next provider
+          }
+        }
+
+        // Payment required (402) → não adianta retry, pular direto
+        if (response.status === 402) {
+          lastError = `${provider} (${model}): HTTP 402`;
+          console.warn(`${logPrefix} ⚠️ ${provider} returned 402 (payment required), trying next...`);
+          await response.text();
+          break; // move to next provider
+        }
+
+        // Outros erros → não retry, pular direto
+        const errorText = await response.text();
+        lastError = `${provider} (${model}): ${response.status} - ${errorText.substring(0, 200)}`;
+        console.warn(`${logPrefix} ⚠️ ${provider} error: ${response.status}`, errorText.substring(0, 200));
+        break; // move to next provider
+
+      } catch (err) {
+        lastError = `${provider}: ${String(err)}`;
+        console.warn(`${logPrefix} ⚠️ ${provider} exception:`, err);
+        break; // move to next provider
       }
-
-      console.log(`${logPrefix} Trying ${provider} (${model})...`);
-
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (response.ok) {
-        console.log(`${logPrefix} ✅ ${provider} (${model}) succeeded`);
-        return response;
-      }
-
-      // Rate limit ou pagamento → tentar próximo provedor
-      if (response.status === 429 || response.status === 402) {
-        lastError = `${provider} (${model}): HTTP ${response.status}`;
-        console.warn(`${logPrefix} ⚠️ ${provider} returned ${response.status}, trying next...`);
-        await response.text(); // consume body
-        continue;
-      }
-
-      // Outros erros → tentar próximo
-      const errorText = await response.text();
-      lastError = `${provider} (${model}): ${response.status} - ${errorText.substring(0, 200)}`;
-      console.warn(`${logPrefix} ⚠️ ${provider} error: ${response.status}`, errorText.substring(0, 200));
-      continue;
-
-    } catch (err) {
-      lastError = `${provider}: ${String(err)}`;
-      console.warn(`${logPrefix} ⚠️ ${provider} exception:`, err);
-      continue;
     }
   }
 
-  // Todos falharam — retornar erro como Response (para não quebrar streaming consumers)
+  // Todos falharam
   console.error(`${logPrefix} ❌ All providers failed. Last error: ${lastError}`);
   return new Response(
     JSON.stringify({ error: `Todos os provedores de IA falharam. ${lastError}` }),
