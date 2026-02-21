@@ -129,10 +129,12 @@ function useAllCreativeUrls(action: PendingAction): string[] {
   const preview = (data as any).preview || {};
   const directUrl = preview.creative_url || (data as any).asset_url || (data as any).creative_url || null;
   const productId = (data as any).product_id || preview.product_id || null;
+  const funnelStage = preview.funnel_stage || (data as any).funnel_stage || null;
+  const sessionId = action.session_id;
   const tenantId = action.tenant_id;
 
   const { data: allUrls } = useQuery({
-    queryKey: ["all-creatives", action.id, productId, tenantId],
+    queryKey: ["all-creatives", action.id, productId, funnelStage, sessionId, tenantId],
     queryFn: async () => {
       const urls: string[] = [];
 
@@ -156,7 +158,50 @@ function useAllCreativeUrls(action: PendingAction): string[] {
       // 2. Add direct URL if not already included
       if (directUrl && !urls.includes(directUrl)) urls.unshift(directUrl);
 
-      // 3. If still empty, fallback to product catalog images
+      // 3. If still empty and we have funnel_stage (multi-product campaigns like BOF),
+      //    search creative assets by funnel_stage + session_id or just funnel_stage
+      if (urls.length === 0 && funnelStage) {
+        let query = supabase
+          .from("ads_creative_assets" as any)
+          .select("asset_url")
+          .eq("tenant_id", tenantId)
+          .eq("funnel_stage", funnelStage)
+          .not("asset_url", "is", null)
+          .eq("status", "ready")
+          .order("created_at", { ascending: false })
+          .limit(10);
+
+        if (sessionId) {
+          query = query.eq("session_id", sessionId);
+        }
+
+        const { data: funnelAssets } = await query;
+        if (funnelAssets) {
+          for (const a of funnelAssets as any[]) {
+            if (a.asset_url && !urls.includes(a.asset_url)) urls.push(a.asset_url);
+          }
+        }
+
+        // If session-scoped query returned nothing, try without session filter
+        if (urls.length === 0 && sessionId) {
+          const { data: broadAssets } = await supabase
+            .from("ads_creative_assets" as any)
+            .select("asset_url")
+            .eq("tenant_id", tenantId)
+            .eq("funnel_stage", funnelStage)
+            .not("asset_url", "is", null)
+            .eq("status", "ready")
+            .order("created_at", { ascending: false })
+            .limit(10);
+          if (broadAssets) {
+            for (const a of broadAssets as any[]) {
+              if (a.asset_url && !urls.includes(a.asset_url)) urls.push(a.asset_url);
+            }
+          }
+        }
+      }
+
+      // 4. If still empty, fallback to product catalog images
       if (urls.length === 0 && productId) {
         const { data: imgs } = await supabase
           .from("product_images")
