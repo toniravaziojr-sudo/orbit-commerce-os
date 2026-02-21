@@ -1020,7 +1020,7 @@ Se falhar → status `BLOCKED`, gera `report_insight` com o que falta.
 | **Ações** | `sync` (todas as contas), `create` / `update` / `delete` (requerem `ad_account_id` no body) |
 | **Upsert** | Campanhas sincronizadas via `meta_campaign_id` como chave de conflito |
 
-### Edge Function `meta-ads-insights` (v1.2.0)
+### Edge Function `meta-ads-insights` (v1.7.0)
 
 | Item | Descrição |
 |------|-----------|
@@ -1031,6 +1031,43 @@ Se falhar → status `BLOCKED`, gera `report_insight` com o que falta.
 | **ROAS** | Calculado como `conversion_value_cents / spend_cents` |
 | **Auto-create campaigns** | Se um insight referencia uma `meta_campaign_id` que não existe localmente, cria automaticamente um registro placeholder com `status: UNKNOWN` (corrigido na próxima sincronização de campanhas) — evita dados órfãos |
 | **Ações** | `sync` (pull insights da Meta), `list` (cache local), `summary` (métricas agregadas) |
+
+#### Paginação Completa (v1.7.0)
+
+A função agora suporta **paginação completa** da Meta Graph API, iterando `paging.next` até 50 páginas (25.000 rows) por chamada. Anteriormente limitava-se à primeira página (500 rows), causando perda massiva de dados em contas com alto volume.
+
+| Parâmetro | Valor |
+|-----------|-------|
+| **MAX_PAGES** | 50 (por chunk) |
+| **Rows por página** | ~500 (padrão Meta) |
+| **Máximo teórico** | 25.000 rows por chunk |
+
+#### Chunked Fallback para Dados Históricos (v1.5.0+)
+
+Quando o `date_preset: "maximum"` falha (Meta rejeita com "Please reduce the amount of data"), a função ativa fallback automático:
+
+1. Busca a campanha mais antiga do tenant (filtro `start_time > 2010-01-01` para excluir epoch 0)
+2. Divide o período em **chunks trimestrais** (90 dias cada)
+3. Busca cada chunk individualmente com paginação completa
+4. **Upsert por chunk** — salva no banco após cada chunk para evitar perda por timeout
+
+| Parâmetro | Valor |
+|-----------|-------|
+| **Limite histórico Meta** | 37 meses |
+| **Tamanho do chunk** | 90 dias |
+| **Upsert** | Imediato após cada chunk (não acumula tudo) |
+
+#### Cache de Campanhas (v1.7.0)
+
+Cache em memória (`campaignCache`) mapeia `meta_campaign_id → id` para eliminar lookups N+1 durante upserts em lote. Populado uma vez por conta antes do processamento.
+
+#### Batch Upsert (v1.7.0)
+
+Upserts são feitos em lotes de **100 rows** para otimizar performance no banco. Chave de conflito: `(tenant_id, meta_campaign_id, date_start, date_stop)`.
+
+#### Granularidade de Dados
+
+Apenas registros com `date_start === date_stop` (dados diários) são mantidos. Registros agregados multi-dia são excluídos para evitar double-counting.
 
 ### Edge Function `meta-ads-adsets` (v1.2.0)
 
