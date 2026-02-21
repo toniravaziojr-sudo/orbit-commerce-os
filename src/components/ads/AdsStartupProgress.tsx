@@ -104,16 +104,16 @@ export function AdsStartupProgress({ onComplete }: AdsStartupProgressProps) {
     // Time-based stage progression (simulated based on typical timing)
     const STAGE_TIMES_MS = [
       0,       // boot
-      3000,    // campaigns
-      15000,   // campaign_insights
-      30000,   // adsets
-      50000,   // adset_insights
-      80000,   // ads
-      100000,  // ad_insights
-      130000,  // compressing
-      140000,  // ai_thinking
-      280000,  // saving
-      360000,  // done
+      2000,    // campaigns
+      5000,    // campaign_insights
+      8000,    // adsets
+      12000,   // adset_insights
+      16000,   // ads
+      20000,   // ad_insights
+      25000,   // compressing
+      30000,   // ai_thinking
+      60000,   // saving
+      90000,   // done
     ];
 
     stageTimerRef.current = setInterval(() => {
