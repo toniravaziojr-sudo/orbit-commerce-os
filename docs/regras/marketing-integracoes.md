@@ -654,6 +654,49 @@ Edge function: `ads-autopilot-strategist`
 
 **Ações permitidas**: Todas (pause, adjust_budget, create_campaign, create_adset, generate_creative, create_lookalike_audience, report_insight)
 
+#### Métricas Expandidas (v1.35.0+ — Aplicadas a TODOS os triggers)
+
+O Motor Estrategista coleta e injeta no prompt as seguintes métricas para cada campanha, em janelas de 30d e 7d:
+
+| Métrica | Campo Meta | Interpretação |
+|---------|-----------|---------------|
+| **Frequência** | `frequency` | Média de impressões/pessoa. >3 = fadiga, >5 = crítico (pausar/renovar criativo) |
+| **CPM** | `cpm` | Custo por mil impressões (R$). Indica competitividade do leilão |
+| **CTR** | `ctr` | Taxa de clique. <1% = criativo fraco, >2% = excelente |
+| **Visualizações de Página (PV)** | `actions[landing_page_view]` | Tráfego qualificado para a página do produto |
+| **Adição ao Carrinho (ATC)** | `actions[add_to_cart]` | Intenção de compra. PV alto + ATC baixo = página ruim |
+| **Checkout Iniciado (IC)** | `actions[initiate_checkout]` | ATC alto + IC baixo = problema no checkout |
+| **Video Views 25%** | `video_p25_watched_actions` | Retenção 25% — avalia gancho do vídeo |
+| **Video Views 50%** | `video_p50_watched_actions` | Retenção 50% — avalia conteúdo intermediário |
+| **Video Views 95%** | `video_p95_watched_actions` | Retenção 95% — VV25 alto + VV95 baixo = gancho bom, conteúdo fraco |
+
+Essas métricas são aplicadas no Deep Historical (lifetime), análises mensais (30d) e semanais (7d).
+
+#### Escopo por Trigger (v1.36.0 — REGRA INVIOLÁVEL)
+
+| Funcionalidade | Start (1ª ativação) | Monthly (Mensal) | Weekly (Semanal) |
+|---------------|---------------------|------------------|------------------|
+| Métricas expandidas | ✅ Todas | ✅ Todas | ✅ Todas |
+| Deep Historical (lifetime) | ✅ Obrigatório | ❌ Não consulta | ❌ Não consulta |
+| Estratégia de Replicação Inteligente | ✅ Obrigatória (4 níveis) | ❌ Não aplicável | ❌ Não aplicável |
+| Liberdade para testar novos públicos | ❌ Prioriza histórico | ✅ Total | ✅ Total |
+| Janela de dados | Lifetime | Últimos 30 dias | Últimos 7 dias |
+
+#### Estratégia de Replicação Inteligente (v1.35.0 — SOMENTE trigger `start`)
+
+Em contas com histórico de campanhas, a IA segue hierarquia obrigatória de 4 níveis na primeira ativação:
+
+| Nível | Nome | Descrição |
+|-------|------|-----------|
+| 1 (Máxima) | **Duplicação Exata** | Reviver assets pausados com ROAS ≥ meta (mesma config, ajustar budget/datas) |
+| 2 | **Replicação com Variação** | Usar criativos/copys com CTR >2% como referência para novas variações |
+| 3 | **Expansão de Público** | Testar anúncios vencedores em públicos similares/novos |
+| 4 (Último recurso) | **Teste Genuíno** | Criar do zero APENAS se não houver histórico suficiente |
+
+**Regra de Ouro**: Antes de propor QUALQUER campanha nova, verificar se já existe algo similar no histórico que pode ser duplicado ou adaptado. Testar do zero em uma conta com centenas de campanhas é desperdício.
+
+> **IMPORTANTE**: Nas análises mensais e semanais, a IA tem liberdade total para testar novos públicos, copys e criativos, usando as métricas disponíveis para decisões baseadas em dados recentes — sem obrigatoriedade de replicar histórico.
+
 #### Chat de IA de Tráfego (v6.0)
 
 Interface de chat dedicada para interação direta com a IA de tráfego, **separada do Auxiliar de Comando**.
