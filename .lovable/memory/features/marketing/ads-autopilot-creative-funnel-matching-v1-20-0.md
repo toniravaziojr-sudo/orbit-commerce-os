@@ -16,7 +16,18 @@ Updated: now
 - O matching de criativos na Fase 2 (montagem) exige correspondência de `product_id` AND `funnel_stage`.
 - A IA deve gerar criativos separados para cada estágio do funil, com ângulos e copys distintos.
 
+### Resolução de Criativos no Frontend (v5.16.0)
+O hook `useAllCreativeUrls` no `ActionApprovalCard` resolve criativos com a seguinte cadeia de fallback:
+1. **`product_id`** → Busca `ads_creative_assets` pelo produto (mais recentes primeiro)
+2. **`creative_url` direto** → URL presente no `action_data` ou `preview`
+3. **🆕 `funnel_stage` + `session_id`** → Para campanhas multi-produto (ex: BOF/Remarketing) onde `product_id` é null, busca criativos pela combinação `funnel_stage` + `session_id`
+4. **🆕 `funnel_stage` sem sessão** → Fallback mais amplo por `funnel_stage` recente
+5. **`product_images`** → Imagens do catálogo por `sort_order`
+
+Esta cadeia garante que campanhas multi-produto (Remarketing com múltiplos kits) sempre exibam thumbnails de criativos gerados.
+
 ### Checklist Anti-Regressão
 - [ ] Criativos de BOF nunca são iguais aos de TOF para o mesmo produto
 - [ ] `funnel_stage` sempre propagado nos metadados do ativo
 - [ ] Copys de remarketing atacam objeções diferentes das copys de aquisição
+- [ ] Campanhas multi-produto (product_id null) resolvem criativos por funnel_stage
