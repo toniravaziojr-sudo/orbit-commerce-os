@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.41.0"; // Fix 0 ads in deep historical (creative_data → creative_id) + faster startup progress
+const VERSION = "v1.42.0"; // Fix insights pagination — fetch ALL rows instead of PostgREST 1000 limit
 // ===================
 
 const corsHeaders = {
@@ -395,7 +395,28 @@ async function buildDeepHistoricalFromLocalData(
     console.log(`[ads-autopilot-strategist][${VERSION}] Building deep historical from LOCAL DB for ${adAccountId}`);
 
     // Fetch all entities from local cache (already synced)
-    const [campaignsRes, adsetsRes, adsRes, insightsRes] = await Promise.all([
+    // Paginated fetch helper — PostgREST caps at 1000 rows per request (v1.42.0)
+    async function fetchAllPaginated(table: string, selectCols: string, filters: Record<string, string>, orderCol?: string) {
+      const PAGE_SIZE = 1000;
+      const allRows: any[] = [];
+      let offset = 0;
+      let hasMore = true;
+      while (hasMore) {
+        let q = supabase.from(table).select(selectCols);
+        for (const [k, v] of Object.entries(filters)) q = q.eq(k, v);
+        if (orderCol) q = q.order(orderCol, { ascending: false });
+        q = q.range(offset, offset + PAGE_SIZE - 1);
+        const { data, error } = await q;
+        if (error) { console.error(`[ads-autopilot-strategist][${VERSION}] Pagination error on ${table} offset ${offset}:`, error.message); break; }
+        const rows = data || [];
+        allRows.push(...rows);
+        offset += PAGE_SIZE;
+        hasMore = rows.length === PAGE_SIZE;
+      }
+      return allRows;
+    }
+
+    const [campaignsRes, adsetsRes, adsRes] = await Promise.all([
       supabase.from("meta_ad_campaigns")
         .select("meta_campaign_id, name, status, effective_status, objective, daily_budget_cents, ad_account_id")
         .eq("tenant_id", tenantId).eq("ad_account_id", adAccountId).limit(500),
@@ -405,16 +426,20 @@ async function buildDeepHistoricalFromLocalData(
       supabase.from("meta_ad_ads")
         .select("meta_ad_id, name, status, effective_status, meta_adset_id, meta_campaign_id, ad_account_id, creative_id")
         .eq("tenant_id", tenantId).eq("ad_account_id", adAccountId).limit(1000),
-      // Get ALL insights (no date filter = all-time) — increased limit for lifetime data (v1.39.0)
-      supabase.from("meta_ad_insights")
-        .select("meta_campaign_id, impressions, clicks, spend_cents, conversions, roas, ctr, cpm_cents, frequency, actions, date_start")
-        .eq("tenant_id", tenantId).order("date_start", { ascending: false }).limit(5000),
     ]);
+
+    // Fetch ALL insights with pagination — fixes PostgREST 1000-row cap (v1.42.0)
+    const allInsights = await fetchAllPaginated(
+      "meta_ad_insights",
+      "meta_campaign_id, impressions, clicks, spend_cents, conversions, roas, ctr, cpm_cents, frequency, actions, date_start",
+      { tenant_id: tenantId },
+      "date_start"
+    );
 
     const campaigns = campaignsRes.data || [];
     const adsets = adsetsRes.data || [];
     const ads = adsRes.data || [];
-    const allInsights = insightsRes.data || [];
+    console.log(`[ads-autopilot-strategist][${VERSION}] Insights fetched: ${allInsights.length} rows (paginated)`);
 
     if (campaigns.length === 0) {
       console.warn(`[ads-autopilot-strategist][${VERSION}] No campaigns in local DB for ${adAccountId}`);
