@@ -266,9 +266,9 @@ async function generateWithRealOpenAI(
   prompt: string,
   referenceImageBase64: string,
 ): Promise<{ imageBase64: string | null; model: string; error?: string }> {
-  const model = 'gpt-image-1';
+  const model = 'dall-e-2'; // edits endpoint only supports dall-e-2
   try {
-    console.log(`[creative-image] Generating with real OpenAI ${model}...`);
+    console.log(`[creative-image] Generating with real OpenAI ${model} (edits)...`);
     
     // Use edits endpoint with reference image
     const formData = new FormData();
@@ -396,11 +396,11 @@ async function resilientGenerate(
   if (provider === 'openai') {
     // OPENAI PATH: Real OpenAI → Gemini Pro (Lovable) → Gemini Flash (Lovable)
     
-    // Attempt 1: Real OpenAI gpt-image-1
+    // Attempt 1: Real OpenAI dall-e-2 (edits endpoint)
     if (openaiApiKey) {
       const attempt1 = await generateWithRealOpenAI(openaiApiKey, prompt, referenceImageBase64);
       if (attempt1.imageBase64) {
-        return { imageBase64: attempt1.imageBase64, model: 'gpt-image-1 (OpenAI)' };
+        return { imageBase64: attempt1.imageBase64, model: 'dall-e-2 (OpenAI)' };
       }
       console.warn(`[creative-image] Real OpenAI failed: ${attempt1.error}. Falling back to Lovable...`);
     } else {
@@ -419,7 +419,7 @@ async function resilientGenerate(
       return { imageBase64: attempt3.imageBase64, model: `${LOVABLE_MODELS.fallback} (Lovable fallback)` };
     }
 
-    return { imageBase64: null, model: 'gpt-image-1', error: `All attempts failed` };
+    return { imageBase64: null, model: 'dall-e-2', error: `All attempts failed` };
 
   } else {
     // GEMINI PATH: Gemini Pro (Lovable) → Gemini Flash (Lovable) → simplified prompt
