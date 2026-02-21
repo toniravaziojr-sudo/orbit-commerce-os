@@ -228,74 +228,78 @@ async function generateWithOpenAI(
   referenceImageBase64: string | null,
 ): Promise<{ imageBase64: string | null; model: string; error?: string }> {
   
-  // Try Real OpenAI first
+  // Try Real OpenAI first via Chat Completions API (gpt-image-1)
   if (openaiApiKey) {
-    const editModel = "dall-e-2"; // edits endpoint only supports dall-e-2
-    const genModel = "dall-e-3"; // generations endpoint supports dall-e-3
+    const model = "gpt-image-1";
     try {
-      console.log(`🎨 Real OpenAI generation (ref: ${!!referenceImageBase64})...`);
+      console.log(`🎨 Real OpenAI ${model} via Chat Completions (ref: ${!!referenceImageBase64})...`);
 
+      // Build user content with optional reference image
+      const userContent: any[] = [
+        { type: 'text', text: prompt },
+      ];
+      
       if (referenceImageBase64) {
-        // Use edits endpoint with reference (dall-e-2 only)
-        const formData = new FormData();
-        const binaryStr = atob(referenceImageBase64);
-        const bytes = new Uint8Array(binaryStr.length);
-        for (let i = 0; i < binaryStr.length; i++) {
-          bytes[i] = binaryStr.charCodeAt(i);
-        }
-        const imageBlob = new Blob([bytes], { type: 'image/png' });
-        formData.append('image', imageBlob, 'reference.png');
-        formData.append('prompt', prompt);
-        formData.append('model', editModel);
-        formData.append('n', '1');
-        formData.append('size', '1024x1024');
-        formData.append('response_format', 'b64_json');
-
-        const response = await fetch("https://api.openai.com/v1/images/edits", {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${openaiApiKey}` },
-          body: formData,
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          const b64 = data.data?.[0]?.b64_json;
-          if (b64) {
-            console.log("✅ Real OpenAI image generated via edits");
-            return { imageBase64: b64, model: `${editModel} (OpenAI)` };
-          }
-        } else {
-          const errorText = await response.text();
-          console.error(`❌ OpenAI edits error: ${response.status}`, errorText.substring(0, 200));
-        }
-      } else {
-        // Use generations endpoint (no reference)
-        const response = await fetch("https://api.openai.com/v1/images/generations", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${openaiApiKey}`,
-            "Content-Type": "application/json",
+        userContent.push({
+          type: 'image_url',
+          image_url: {
+            url: `data:image/png;base64,${referenceImageBase64}`,
           },
-          body: JSON.stringify({
-            model: genModel,
-            prompt,
-            n: 1,
-            size: "1024x1024",
-            response_format: "b64_json",
-          }),
         });
+      }
 
-        if (response.ok) {
-          const data = await response.json();
-          const b64 = data.data?.[0]?.b64_json;
-          if (b64) {
-            console.log("✅ Real OpenAI image generated via generations");
-            return { imageBase64: b64, model: `${genModel} (OpenAI)` };
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${openaiApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'user', content: userContent },
+          ],
+          modalities: ['image', 'text'],
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        let b64: string | null = null;
+        
+        // Extract from output_images
+        const outputImages = data.choices?.[0]?.message?.output_images;
+        if (outputImages && outputImages.length > 0) {
+          const imgUrl = outputImages[0]?.url || outputImages[0];
+          if (typeof imgUrl === 'string' && imgUrl.startsWith('data:')) {
+            b64 = imgUrl.split(',')[1] || null;
+          } else if (typeof imgUrl === 'string') {
+            b64 = imgUrl;
           }
-        } else {
-          const errorText = await response.text();
-          console.error(`❌ OpenAI generations error: ${response.status}`, errorText.substring(0, 200));
         }
+        
+        // Fallback: check content parts
+        if (!b64) {
+          const content = data.choices?.[0]?.message?.content;
+          if (Array.isArray(content)) {
+            for (const part of content) {
+              if (part.type === 'image_url' && part.image_url?.url) {
+                const url = part.image_url.url;
+                b64 = url.startsWith('data:') ? url.split(',')[1] : url;
+                break;
+              }
+            }
+          }
+        }
+        
+        if (b64) {
+          console.log(`✅ Real OpenAI ${model} image generated via Chat Completions`);
+          return { imageBase64: b64, model: `${model} (OpenAI)` };
+        }
+        console.warn(`⚠️ OpenAI ${model} returned no image in response`);
+      } else {
+        const errorText = await response.text();
+        console.error(`❌ OpenAI ${model} error: ${response.status}`, errorText.substring(0, 200));
       }
 
       console.warn("⚠️ Real OpenAI failed, falling back to Lovable Gateway (Gemini Pro)...");
