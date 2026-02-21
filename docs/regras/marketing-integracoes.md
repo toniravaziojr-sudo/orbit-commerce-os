@@ -342,7 +342,7 @@ Além das regras de **pausa** (min_roi_cold/warm), o sistema suporta ajuste din�
 | `getAccountConfig(channel, accountId)` | Retorna config de uma conta específica |
 | `getAIEnabledAccounts(channel)` | Lista IDs de contas com IA ativa |
 | `saveAccountConfig.mutate(config)` | Upsert config na tabela normalizada |
-| `toggleAI.mutate({ channel, ad_account_id, enabled })` | Liga/desliga IA para uma conta. **Sempre dispara o Motor Estrategista** (`ads-autopilot-strategist` com trigger `start` e `target_account_id`), executando análise completa + plano estratégico + criação de campanhas/criativos. Ao desativar, exibe AlertDialog avisando que a reativação causará re-análise completa. |
+| `toggleAI.mutate({ channel, ad_account_id, enabled })` | Liga/desliga IA para uma conta. **Dispara o Motor Estrategista APENAS na primeira ativação** (`isFirstEver`). Reativações (desligar → ligar) NÃO re-disparam o estrategista — os ciclos regulares assumem. Fix v5.14: guard `isFirstEver` corrigido no `onSuccess` para evitar sessões duplicadas. |
 | `toggleKillSwitch.mutate({ channel, ad_account_id, enabled })` | Ativa/desativa kill switch com AlertDialog de confirmação |
 
 #### Validação obrigatória para ativar IA (`isAccountConfigComplete`)
