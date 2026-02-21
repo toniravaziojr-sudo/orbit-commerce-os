@@ -1531,3 +1531,75 @@ O campo `description` do diagnóstico agora exige **mínimo 300 palavras** no sc
 | `StrategicPlanContent.tsx` | Renderização de ações estruturadas + alocação de orçamento visual |
 | `ActionApprovalCard.tsx` | Passa `actionData` completo para `StrategicPlanContent` |
 | `ActionDetailDialog.tsx` | Passa `actionData` para renderização no diálogo de detalhes |
+
+---
+
+### v1.29.0: `ads-autopilot-strategist` — Análise Histórica Profunda + Mandato Mensal
+
+**Problema**: O contexto do estrategista era limitado a 7-30 dias de métricas agregadas por campanha. Não havia visibilidade sobre performance de AdSets individuais (públicos), Ads individuais (criativos/copys), nem breakdowns de posicionamento (Feed vs Reels vs Stories). Isso impedia a IA de identificar padrões históricos de sucesso.
+
+**Mudanças — Deep Historical Analysis (trigger `start`)**:
+
+#### Nova função: `fetchDeepHistoricalInsights`
+- Chamada **exclusivamente** no trigger `start` (primeira ativação)
+- Consulta a **Meta Graph API diretamente** com `date_preset=maximum` (todo o histórico disponível)
+- Coleta insights em **3 níveis hierárquicos**:
+  - **Campanhas**: spend, impressions, clicks, conversions, revenue, CPA, ROAS
+  - **AdSets (Públicos)**: mesmas métricas + nome do público + tipo de targeting
+  - **Ads (Criativos)**: mesmas métricas + headline, body, CTA, thumbnail_url
+- **Breakdown de Posicionamentos**: `publisher_platform` + `platform_position` (Feed, Reels, Stories, Search, etc.)
+- Extrai e injeta no prompt:
+  - **Top 5 AdSets** por ROAS (públicos que mais converteram)
+  - **Top 5 Ads** por ROAS (criativos/copys que mais performaram)
+  - **Top 3 Posicionamentos** por CPA (onde as conversões são mais baratas)
+  - Separação por funil: **TOF** (Público Frio) vs **BOF** (Remarketing)
+
+#### Placeholder no prompt: `{{DEEP_HISTORICAL_DATA}}`
+- Injetado no system prompt do trigger `start`
+- Contém análise formatada com seções:
+  1. `TOP AUDIENCES (by ROAS)` — Nome, tipo, spend, conversões, ROAS
+  2. `TOP CREATIVES (by ROAS)` — Headline, body, CTA, spend, ROAS
+  3. `TOP PLACEMENTS (by CPA)` — Plataforma, posição, CPA, CTR
+  4. `COLD vs WARM PERFORMANCE` — Métricas agregadas por temperatura de público
+
+#### Mandato Mensal (`trigger: monthly`)
+- **Período fixo**: Últimos 30 dias de dados (não mais 7-30)
+- **Obrigatoriedade**: `tool_choice: "required"` para `strategic_plan` — a IA DEVE gerar um plano todo mês
+- **Mesmo que mantenha**: Se a recomendação for manter o plano atual, a IA deve documentar o porquê com diagnóstico completo
+- **Prompt diferenciado**: Inclui instrução explícita para análise de 30 dias e proposta de plano para o próximo mês
+
+#### Triggers e Períodos de Análise
+| Trigger | Período de Dados | Profundidade | Obrigatório Gerar Plano |
+|---------|-----------------|-------------|------------------------|
+| `start` | `date_preset=maximum` (todo histórico) | Campanha + AdSet + Ad + Placement | ✅ Sim |
+| `monthly` | Últimos 30 dias | Campanha (padrão) | ✅ Sim (mandato mensal) |
+| `weekly` | Últimos 7 dias | Campanha (padrão) | ❌ Não (opcional) |
+| `implement_approved_plan` | N/A (execução) | N/A | N/A |
+
+#### Fluxo de Dados (trigger `start`)
+```
+Meta Graph API
+  ├── GET /{ad_account_id}/insights?level=campaign&date_preset=maximum
+  ├── GET /{ad_account_id}/insights?level=adset&date_preset=maximum
+  ├── GET /{ad_account_id}/insights?level=ad&date_preset=maximum
+  └── GET /{ad_account_id}/insights?level=ad&date_preset=maximum&breakdowns=publisher_platform,platform_position
+      │
+      ▼
+  fetchDeepHistoricalInsights()
+      │ Processa, rankeia por ROAS/CPA
+      ▼
+  context.deepHistoricalData = { topAdsets, topAds, topPlacements, coldVsWarm }
+      │
+      ▼
+  buildStrategistPrompt() → {{DEEP_HISTORICAL_DATA}} substituído
+      │
+      ▼
+  IA gera strategic_plan com base em TODO o histórico da conta
+```
+
+#### Componentes Afetados
+
+| Componente | Mudança |
+|---|---|
+| `ads-autopilot-strategist/index.ts` | Nova função `fetchDeepHistoricalInsights`, atualização de `collectStrategistContext` com parâmetro `trigger`, prompt diferenciado por trigger |
+| `useAdsAutopilot.ts` | Sem mudanças (triggers existentes já suportam `start` e `monthly`) |
