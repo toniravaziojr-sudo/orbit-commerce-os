@@ -230,12 +230,13 @@ async function generateWithOpenAI(
   
   // Try Real OpenAI first
   if (openaiApiKey) {
-    const model = "gpt-image-1";
+    const editModel = "dall-e-2"; // edits endpoint only supports dall-e-2
+    const genModel = "dall-e-3"; // generations endpoint supports dall-e-3
     try {
-      console.log(`🎨 Real OpenAI ${model} generation (ref: ${!!referenceImageBase64})...`);
+      console.log(`🎨 Real OpenAI generation (ref: ${!!referenceImageBase64})...`);
 
       if (referenceImageBase64) {
-        // Use edits endpoint with reference
+        // Use edits endpoint with reference (dall-e-2 only)
         const formData = new FormData();
         const binaryStr = atob(referenceImageBase64);
         const bytes = new Uint8Array(binaryStr.length);
@@ -245,7 +246,7 @@ async function generateWithOpenAI(
         const imageBlob = new Blob([bytes], { type: 'image/png' });
         formData.append('image', imageBlob, 'reference.png');
         formData.append('prompt', prompt);
-        formData.append('model', model);
+        formData.append('model', editModel);
         formData.append('n', '1');
         formData.append('size', '1024x1024');
         formData.append('response_format', 'b64_json');
@@ -261,7 +262,7 @@ async function generateWithOpenAI(
           const b64 = data.data?.[0]?.b64_json;
           if (b64) {
             console.log("✅ Real OpenAI image generated via edits");
-            return { imageBase64: b64, model: `${model} (OpenAI)` };
+            return { imageBase64: b64, model: `${editModel} (OpenAI)` };
           }
         } else {
           const errorText = await response.text();
@@ -276,7 +277,7 @@ async function generateWithOpenAI(
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model,
+            model: genModel,
             prompt,
             n: 1,
             size: "1024x1024",
@@ -289,7 +290,7 @@ async function generateWithOpenAI(
           const b64 = data.data?.[0]?.b64_json;
           if (b64) {
             console.log("✅ Real OpenAI image generated via generations");
-            return { imageBase64: b64, model: `${model} (OpenAI)` };
+            return { imageBase64: b64, model: `${genModel} (OpenAI)` };
           }
         } else {
           const errorText = await response.text();
