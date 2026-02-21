@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.39.0"; // Fix: sync lifetime insights before building deep historical on start trigger
+const VERSION = "v1.40.0"; // Skip LIFETIME sync when local DB already has sufficient data (>100 rows) to prevent timeout
 // ===================
 
 const corsHeaders = {
@@ -649,42 +649,53 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
   }));
 
   // === DEEP HISTORICAL INSIGHTS (only for "start" trigger) ===
-  // v1.39.0: First sync LIFETIME insights from Meta API, THEN build from local DB
+  // v1.40.0: Skip LIFETIME sync if local DB already has sufficient data (>100 rows)
   let deepHistorical: Record<string, any> | null = null;
   if (trigger === "start") {
-    console.log(`[ads-autopilot-strategist][${VERSION}] Start trigger: syncing LIFETIME insights before deep historical...`);
     const accountIds = configs.map(c => c.ad_account_id);
     
-    // Sync lifetime insights for each account BEFORE reading local DB
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const syncHeaders = {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${supabaseKey}`,
-      "apikey": supabaseKey,
-    };
+    // Check if local DB already has sufficient insight data
+    const { count: localInsightCount } = await supabase
+      .from("meta_ad_insights")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId);
     
-    for (const acctId of accountIds) {
-      try {
-        console.log(`[ads-autopilot-strategist][${VERSION}] Syncing lifetime insights for ${acctId}...`);
-        const syncRes = await fetch(`${supabaseUrl}/functions/v1/meta-ads-insights`, {
-          method: "POST",
-          headers: syncHeaders,
-          body: JSON.stringify({ 
-            tenant_id: tenantId, 
-            action: "sync", 
-            date_preset: "maximum",
-            ad_account_id: acctId 
-          }),
-        });
-        const syncData = await syncRes.json();
-        console.log(`[ads-autopilot-strategist][${VERSION}] Lifetime sync for ${acctId}: ${syncData.success ? `${syncData.data?.synced || 0} synced` : syncData.error}`);
-      } catch (syncErr: any) {
-        console.warn(`[ads-autopilot-strategist][${VERSION}] Lifetime sync failed for ${acctId} (non-blocking): ${syncErr.message}`);
+    const hasEnoughLocalData = (localInsightCount || 0) > 100;
+    
+    if (hasEnoughLocalData) {
+      console.log(`[ads-autopilot-strategist][${VERSION}] Local DB has ${localInsightCount} insights — skipping LIFETIME sync (fast path)`);
+    } else {
+      console.log(`[ads-autopilot-strategist][${VERSION}] Local DB has only ${localInsightCount || 0} insights — syncing LIFETIME from Meta...`);
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const syncHeaders = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${supabaseKey}`,
+        "apikey": supabaseKey,
+      };
+      
+      for (const acctId of accountIds) {
+        try {
+          console.log(`[ads-autopilot-strategist][${VERSION}] Syncing lifetime insights for ${acctId}...`);
+          const syncRes = await fetch(`${supabaseUrl}/functions/v1/meta-ads-insights`, {
+            method: "POST",
+            headers: syncHeaders,
+            body: JSON.stringify({ 
+              tenant_id: tenantId, 
+              action: "sync", 
+              date_preset: "maximum",
+              ad_account_id: acctId 
+            }),
+          });
+          const syncData = await syncRes.json();
+          console.log(`[ads-autopilot-strategist][${VERSION}] Lifetime sync for ${acctId}: ${syncData.success ? `${syncData.data?.synced || 0} synced` : syncData.error}`);
+        } catch (syncErr: any) {
+          console.warn(`[ads-autopilot-strategist][${VERSION}] Lifetime sync failed for ${acctId} (non-blocking): ${syncErr.message}`);
+        }
       }
     }
     
-    // Now build deep historical from LOCAL DB (which now has lifetime data)
+    // Build deep historical from LOCAL DB
     console.log(`[ads-autopilot-strategist][${VERSION}] Building deep historical from LOCAL DB for start trigger...`);
     deepHistorical = {};
     for (const acctId of accountIds) {
