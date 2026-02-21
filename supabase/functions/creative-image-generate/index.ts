@@ -15,7 +15,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const VERSION = '5.0.0'; // Real OpenAI (gpt-image-1) + Gemini (Lovable) primary, Lovable fallback
+const VERSION = '5.1.0'; // OpenAI gpt-image-1 via Chat Completions API + Gemini (Lovable) fallback
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -257,42 +257,47 @@ const LOVABLE_MODELS = {
   fallback: 'google/gemini-2.5-flash-image',
 } as const;
 
-const OPENAI_IMAGE_API = 'https://api.openai.com/v1/images';
+const OPENAI_CHAT_API = 'https://api.openai.com/v1/chat/completions';
 
-// ========== GENERATE WITH REAL OPENAI (gpt-image-1) ==========
+// ========== GENERATE WITH REAL OPENAI (gpt-image-1 via Chat Completions) ==========
 
 async function generateWithRealOpenAI(
   openaiApiKey: string,
   prompt: string,
   referenceImageBase64: string,
 ): Promise<{ imageBase64: string | null; model: string; error?: string }> {
-  const model = 'dall-e-2'; // edits endpoint only supports dall-e-2
+  const model = 'gpt-image-1';
   try {
-    console.log(`[creative-image] Generating with real OpenAI ${model} (edits)...`);
+    console.log(`[creative-image] Generating with real OpenAI ${model} (Chat Completions API)...`);
     
-    // Use edits endpoint with reference image
-    const formData = new FormData();
+    // Build messages with reference image
+    const userContent: any[] = [
+      { type: 'text', text: prompt },
+    ];
     
-    // Convert base64 to blob
-    const binaryStr = atob(referenceImageBase64);
-    const bytes = new Uint8Array(binaryStr.length);
-    for (let i = 0; i < binaryStr.length; i++) {
-      bytes[i] = binaryStr.charCodeAt(i);
+    // Add reference image if available
+    if (referenceImageBase64) {
+      userContent.push({
+        type: 'image_url',
+        image_url: {
+          url: `data:image/png;base64,${referenceImageBase64}`,
+        },
+      });
     }
-    const imageBlob = new Blob([bytes], { type: 'image/png' });
-    formData.append('image', imageBlob, 'reference.png');
-    formData.append('prompt', prompt);
-    formData.append('model', model);
-    formData.append('n', '1');
-    formData.append('size', '1024x1024');
-    formData.append('response_format', 'b64_json');
 
-    const response = await fetch(`${OPENAI_IMAGE_API}/edits`, {
+    const response = await fetch(OPENAI_CHAT_API, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
       },
-      body: formData,
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'user', content: userContent },
+        ],
+        modalities: ['image', 'text'],
+      }),
     });
 
     if (!response.ok) {
@@ -304,10 +309,38 @@ async function generateWithRealOpenAI(
     }
 
     const data = await response.json();
-    const b64 = data.data?.[0]?.b64_json;
+    
+    // Extract image from chat completions response
+    // OpenAI returns images in output_images or in the content parts
+    const outputImages = data.choices?.[0]?.message?.output_images;
+    let b64: string | null = null;
+    
+    if (outputImages && outputImages.length > 0) {
+      // Direct output_images format
+      const imgUrl = outputImages[0]?.url || outputImages[0];
+      if (typeof imgUrl === 'string' && imgUrl.startsWith('data:')) {
+        b64 = imgUrl.split(',')[1] || null;
+      } else if (typeof imgUrl === 'string') {
+        b64 = imgUrl;
+      }
+    }
+    
+    // Fallback: check content parts for image
+    if (!b64) {
+      const content = data.choices?.[0]?.message?.content;
+      if (Array.isArray(content)) {
+        for (const part of content) {
+          if (part.type === 'image_url' && part.image_url?.url) {
+            const url = part.image_url.url;
+            b64 = url.startsWith('data:') ? url.split(',')[1] : url;
+            break;
+          }
+        }
+      }
+    }
     
     if (!b64) {
-      console.warn(`[creative-image] OpenAI ${model} returned no image`);
+      console.warn(`[creative-image] OpenAI ${model} returned no image in response`);
       return { imageBase64: null, model, error: `OpenAI não retornou imagem` };
     }
 
@@ -396,11 +429,11 @@ async function resilientGenerate(
   if (provider === 'openai') {
     // OPENAI PATH: Real OpenAI → Gemini Pro (Lovable) → Gemini Flash (Lovable)
     
-    // Attempt 1: Real OpenAI dall-e-2 (edits endpoint)
+    // Attempt 1: Real OpenAI gpt-image-1 (Chat Completions API)
     if (openaiApiKey) {
       const attempt1 = await generateWithRealOpenAI(openaiApiKey, prompt, referenceImageBase64);
       if (attempt1.imageBase64) {
-        return { imageBase64: attempt1.imageBase64, model: 'dall-e-2 (OpenAI)' };
+        return { imageBase64: attempt1.imageBase64, model: 'gpt-image-1 (OpenAI)' };
       }
       console.warn(`[creative-image] Real OpenAI failed: ${attempt1.error}. Falling back to Lovable...`);
     } else {
@@ -419,7 +452,7 @@ async function resilientGenerate(
       return { imageBase64: attempt3.imageBase64, model: `${LOVABLE_MODELS.fallback} (Lovable fallback)` };
     }
 
-    return { imageBase64: null, model: 'dall-e-2', error: `All attempts failed` };
+    return { imageBase64: null, model: 'gpt-image-1', error: `All attempts failed` };
 
   } else {
     // GEMINI PATH: Gemini Pro (Lovable) → Gemini Flash (Lovable) → simplified prompt
