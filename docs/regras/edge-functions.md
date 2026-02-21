@@ -911,14 +911,21 @@ O lojista pode sobrepor QUALQUER configuração do sistema via chat com confirma
 | `marketplace_connections` | `ads-chat` |
 | `marketing_integrations` | `ads-chat` |
 
-### Sync de Insights (`meta-ads-insights`) — v1.4.0
-| Parâmetro | Anterior | Atual |
-|-----------|----------|-------|
-| `time_increment` | Não usado (agregado) | `1` (dados diários) |
-| `date_preset` | `last_30d` | `last_30d` com granularidade diária |
-| Níveis | Apenas `campaign` | `campaign` + `adset` + `ad` |
+### Sync de Insights (`meta-ads-insights`) — v1.7.0
 
-A sync diária permite que ferramentas como `get_performance_trend` mostrem time-series reais de gasto/conversões por dia.
+| Parâmetro | Valor |
+|-----------|-------|
+| `time_increment` | `1` (dados diários) |
+| `date_preset` | `maximum` com fallback para chunks trimestrais |
+| Níveis | `campaign` + `adset` + `ad` |
+| **Paginação** | Completa via `paging.next` (até 50 páginas / 25k rows por chunk) |
+| **Chunked fallback** | Quando `maximum` falha, divide em chunks de 90 dias e busca cada um |
+| **Upsert por chunk** | Salva no banco após cada chunk (evita perda por timeout) |
+| **Campaign cache** | Cache em memória `meta_campaign_id → id` elimina lookups N+1 |
+| **Batch upsert** | 100 rows por lote, chave: `(tenant_id, meta_campaign_id, date_start, date_stop)` |
+| **Granularidade** | Apenas `date_start === date_stop` (diário); registros agregados multi-dia são excluídos |
+
+A sync com paginação completa + chunking permite capturar **100% dos dados históricos** mesmo em contas com alto volume (ex: R$ 665k+ em 30 meses, 6000+ rows).
 
 ### Changelog — `ads-chat`
 
