@@ -1,92 +1,68 @@
 
-# Plano Completo: Reorganizacao do Fluxo de Aprovacao + Nomes Unicos de Criativos
 
-## 1. Nomes unicos para criativos no Drive
+## Problema Identificado
 
-**Problema:** Todos os criativos sao salvos como `gemini_1.png`, `openai_2.png`, etc., causando repeticao e confusao tanto visual quanto para a IA buscar criativos.
+A funcao `buildDeepHistoricalFromLocalData` no Motor Estrategista (v1.41.0) faz uma query de insights com `.limit(5000)`, porem o PostgREST do Supabase impoe um limite maximo de **1000 rows por request**. Resultado:
 
-**Arquivo:** `supabase/functions/creative-image-generate/index.ts` (linha 869-870)
+- **No banco:** 6.035 registros de insights = **R$ 667.321,02** de spend total
+- **O que a IA recebe:** Apenas as 1.000 linhas mais recentes = **R$ 110.826,09**
+- **Discrepancia:** 83% dos dados historicos sao silenciosamente cortados
 
-**Mudanca:** Gerar nomes descritivos e unicos usando o padrao:
-```text
-{NomeProduto}_{estilo}_{provedor}_{timestamp_curto}_{BEST?}.png
+Isso explica porque a IA "regressou" — antes ela fazia a coleta via API da Meta (com paginacao propria), mas a otimizacao v1.38.0 mudou para leitura local do banco sem implementar paginacao.
+
+## Solucao
+
+Implementar **paginacao sequencial** na funcao `buildDeepHistoricalFromLocalData` para buscar TODOS os registros de insights, em blocos de 1000 rows.
+
+### Alteracao no arquivo
+
+**`supabase/functions/ads-autopilot-strategist/index.ts`**
+
+Substituir a query unica de insights (linhas 409-411) por um loop paginado:
+
+```typescript
+// ANTES (bugado - retorna max 1000 pelo PostgREST):
+supabase.from("meta_ad_insights")
+  .select("...")
+  .eq("tenant_id", tenantId)
+  .order("date_start", { ascending: false })
+  .limit(5000)
+
+// DEPOIS (paginacao em blocos de 1000):
+async function fetchAllInsights(supabase, tenantId) {
+  const PAGE_SIZE = 1000;
+  let allRows = [];
+  let offset = 0;
+  let hasMore = true;
+  
+  while (hasMore) {
+    const { data } = await supabase
+      .from("meta_ad_insights")
+      .select("meta_campaign_id, impressions, clicks, spend_cents, conversions, roas, ctr, cpm_cents, frequency, actions, date_start")
+      .eq("tenant_id", tenantId)
+      .order("date_start", { ascending: false })
+      .range(offset, offset + PAGE_SIZE - 1);
+    
+    const rows = data || [];
+    allRows.push(...rows);
+    offset += PAGE_SIZE;
+    hasMore = rows.length === PAGE_SIZE;
+  }
+  
+  return allRows;
+}
 ```
 
-Exemplo: `Shampoo_Anticaspa_natural_gemini_0219_1430_BEST.png`
+### O que muda
 
-- `filename` (exibido no Drive): `{product_name}_{style}_{provider}_{DDMM_HHmm}{_BEST}.png`
-- `original_name` (metadata): mesmo valor para consistencia
-- Timestamp curto (`DDMM_HHmm`) garante unicidade sem poluir o nome
-- O `product_name` vem do parametro ja existente na funcao
-- O `style` (product_natural, person_interacting, promotional) vem do `job.settings.style`
+1. A query de insights sera substituida pelo helper paginado dentro do `Promise.all`
+2. Para 6.035 rows, executara 7 requests sequenciais de 1000 rows cada (rapido, <2s total)
+3. O log existente na linha 481 ja mostrara os numeros corretos para validacao
+4. Nenhum outro arquivo e afetado — a mudanca e isolada na funcao `buildDeepHistoricalFromLocalData`
 
-Alem disso, a ordenacao no Drive ja usa `created_at DESC`, entao os mais recentes aparecerao primeiro naturalmente. Validar que a query no `useDriveFiles` mantem `order('original_name', { ascending: true })` — isso pode precisar mudar para `order('created_at', { ascending: false })` para garantir que os mais recentes fiquem no topo.
+### Resultado esperado
 
-**Arquivo adicional:** `src/hooks/useDriveFiles.ts` (linha 85-87) — Alterar ordenacao de arquivos de `original_name ASC` para `created_at DESC` para que os mais recentes aparecam primeiro.
+- O diagnostico passara a reportar **R$ 667k+** em spend total
+- Todas as 274 campanhas terao performance historica completa
+- A qualidade estrategica volta ao nivel anterior (pre-v1.38.0)
 
----
-
-## 2. "Acoes da IA" — Log historico puro
-
-**Arquivo:** `src/components/ads/AdsActionsTab.tsx`
-
-**Mudancas:**
-- Remover as mutations `approveAction` e `rejectAction` (linhas 104-136)
-- Remover botoes "Aprovar" e "Rejeitar" para acoes `pending_approval` (linhas 284-306)
-- Substituir por Badge "Aguardando Aprovacao" com texto "Veja na aba Aguardando Acao"
-- Manter: `rollbackAction`, botao "Desfazer" (para executadas), botao "Detalhes"
-
----
-
-## 3. "Aguardando Acao" — Centro de aprovacao com preview completo
-
-**Arquivo:** `src/components/ads/AdsPendingApprovalTab.tsx`
-
-**Mudancas:**
-- Substituir os cards inline atuais (linhas 158-294) pelo componente `ActionApprovalCard`
-- Importar `ActionApprovalCard` e `BudgetSummaryHeader` (extrair de `AdsPendingActionsTab` ou recriar inline)
-- Adicionar barra de orcamento global no topo (usando `budget_snapshot` da primeira acao)
-- Manter a mesma logica de `approveAction` (chama edge function `execute-approved`), `rejectAction` e `adjustAction`
-- Adaptar os callbacks do `ActionApprovalCard` (`onApprove`, `onReject`, `onAdjust`) para as mutations existentes
-
----
-
-## 4. Central de Execucoes — Alerta de aprovacao pendente
-
-**Arquivo:** `src/components/dashboard/AdsAlertsWidget.tsx`
-
-**Mudancas:**
-- Importar `useAdsPendingActions` (hook existente)
-- Adicionar item de alerta quando `pendingCount > 0`:
-  - Icone: `Hourglass`
-  - Titulo: "X acoes aguardando sua aprovacao"
-  - Descricao: "Propostas da IA precisam da sua decisao"
-  - Variante: `warning`
-- Ao clicar, navegar para `/ads` (aba pending-approval)
-
----
-
-## 5. ActionDetailDialog — Preview enriquecido com dados do `action_data.preview`
-
-**Arquivo:** `src/components/ads/ActionDetailDialog.tsx`
-
-**Mudancas no `CampaignPreview`:**
-- Quando `data.adsets` e `data.ads` estiverem vazios, fazer fallback para `data.preview`:
-  - Mostrar `preview.headline` como titulo do anuncio
-  - Mostrar `preview.copy_text` como texto do anuncio
-  - Mostrar `preview.creative_url` como imagem
-  - Mostrar `preview.targeting_summary` como publico
-  - Mostrar `preview.funnel_stage` como funil
-  - Mostrar `preview.budget_snapshot` como barra de orcamento
-  - Mostrar `preview.product_name` e `preview.product_price_display`
-
----
-
-## Sequencia de Implementacao
-
-1. `creative-image-generate/index.ts` — Nomes unicos + deploy
-2. `useDriveFiles.ts` — Ordenacao por `created_at DESC`
-3. `AdsActionsTab.tsx` — Remover botoes de aprovacao
-4. `AdsPendingApprovalTab.tsx` — Usar `ActionApprovalCard` + barra de orcamento
-5. `AdsAlertsWidget.tsx` — Alerta de pendencias
-6. `ActionDetailDialog.tsx` — Fallback para preview
