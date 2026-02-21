@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.31.0"; // Fix rate limiting: smaller pages, delays, filtered fields // Pagination for deep historical + diagnostic logs for insight coverage
+const VERSION = "v1.32.0"; // Reduce prompt size: limit campaigns/adsets/ads in user prompt to avoid AI rate limits
 // ===================
 
 const corsHeaders = {
@@ -1141,15 +1141,22 @@ ${context.products.map((p: any) => `  • ${p.name} — R$${Number(p.price).toFi
   // Build ads data per account
   const accountAds = context.ads?.filter((a: any) => a.ad_account_id === config.ad_account_id) || [];
 
-  const user = `## CAMPANHAS (${campaignData.length} total: ${activeCampaigns.length} ativas, ${pausedCampaigns.length} pausadas)
-${JSON.stringify(campaignData, null, 2)}
+  // Limit campaign data to reduce prompt size: all active + top 20 paused by spend
+  const activeCampaignData = campaignData.filter((c: any) => c.status === "ACTIVE");
+  const pausedCampaignData = campaignData.filter((c: any) => c.status === "PAUSED")
+    .sort((a: any, b: any) => (b.perf_30d?.spend || 0) - (a.perf_30d?.spend || 0))
+    .slice(0, 20);
+  const limitedCampaignData = [...activeCampaignData, ...pausedCampaignData];
 
-## AD SETS / CONJUNTOS DE ANÚNCIOS (${accountAdsets.length})
+  const user = `## CAMPANHAS (${campaignData.length} total: ${activeCampaigns.length} ativas, ${pausedCampaigns.length} pausadas — mostrando ${limitedCampaignData.length} relevantes)
+${JSON.stringify(limitedCampaignData, null, 2)}
+
+## AD SETS / CONJUNTOS DE ANÚNCIOS (${accountAdsets.length} total — mostrando 30 relevantes)
 ⚠️ IMPORTANTE: Quando uma campanha não tem daily_budget_cents, o orçamento está definido no nível do conjunto de anúncios (adset). Verifique daily_budget_cents e lifetime_budget_cents dos adsets antes de concluir que não há orçamento.
-${JSON.stringify(accountAdsets.slice(0, 50).map((as: any) => ({ id: as.meta_adset_id, name: as.name, status: as.status, effective_status: as.effective_status, campaign_id: as.meta_campaign_id, daily_budget_cents: as.daily_budget_cents, lifetime_budget_cents: as.lifetime_budget_cents, optimization_goal: as.optimization_goal, billing_event: as.billing_event, bid_amount_cents: as.bid_amount_cents })), null, 2)}
+${JSON.stringify(accountAdsets.slice(0, 30).map((as: any) => ({ id: as.meta_adset_id, name: as.name, status: as.status, effective_status: as.effective_status, campaign_id: as.meta_campaign_id, daily_budget_cents: as.daily_budget_cents, lifetime_budget_cents: as.lifetime_budget_cents, optimization_goal: as.optimization_goal, billing_event: as.billing_event, bid_amount_cents: as.bid_amount_cents })), null, 2)}
 
-## ANÚNCIOS INDIVIDUAIS (${accountAds.length})
-${JSON.stringify(accountAds.slice(0, 50).map((ad: any) => ({ id: ad.meta_ad_id, name: ad.name, status: ad.status, effective_status: ad.effective_status, adset_id: ad.meta_adset_id, campaign_id: ad.meta_campaign_id })), null, 2)}
+## ANÚNCIOS INDIVIDUAIS (${accountAds.length} total — mostrando 30 relevantes)
+${JSON.stringify(accountAds.slice(0, 30).map((ad: any) => ({ id: ad.meta_ad_id, name: ad.name, status: ad.status, effective_status: ad.effective_status, adset_id: ad.meta_adset_id, campaign_id: ad.meta_campaign_id })), null, 2)}
 
 ## PÚBLICOS DISPONÍVEIS (${accountAudiences.length})
 ${JSON.stringify(accountAudiences.map((a: any) => ({ id: a.meta_audience_id, name: a.name, type: a.audience_type, subtype: a.subtype, size: a.approximate_count })), null, 2)}
