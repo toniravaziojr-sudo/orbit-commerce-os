@@ -376,6 +376,38 @@ Se incompleto, o Switch fica desabilitado e um Tooltip mostra os campos faltante
 - **Motivo:** Garante que o usuário esteja ciente de que reativações não são "continuações suaves", e sim re-análises completas do estado da conta.
 - **Insight body:** Texto completo salvo sem truncamento (`.slice(0, 500)` removido em v5.13.0).
 
+#### Smart Creative Reuse — Reutilização Inteligente de Criativos (v1.28.0)
+
+O Motor Estrategista implementa reutilização de criativos em **2 camadas** para evitar geração redundante de imagens:
+
+##### Camada 1 — Inventário no Prompt (Fase 1)
+
+Antes de executar a Fase 1 (`implement_approved_plan`), o sistema:
+
+1. Carrega **TODOS** os criativos existentes do tenant (`status=ready`, com `asset_url`, limite 200)
+2. Cross-referencia com `meta_ad_ads` (status `ACTIVE`/`PENDING_REVIEW`/`PREAPPROVED`) para identificar quais estão em uso
+3. Resolve nomes de produtos via JOIN com tabela `products` (identifica produto pelo `product_id`)
+4. Injeta inventário completo no prompt via `{{EXISTING_CREATIVES_INVENTORY}}`
+5. Cada criativo listado com: status (🟢 EM USO / ⚪ DISPONÍVEL), produto, funil, formato, ângulo, idade e URL
+
+A IA recebe instrução explícita: **"NÃO gere duplicados. Reutilize criativos DISPONÍVEIS."**
+
+Também ativado nos triggers `weekly`, `monthly` e `start`.
+
+##### Camada 2 — Dedup no Handler `generate_creative`
+
+Quando a IA chama `generate_creative`, o handler verifica se já existem criativos prontos para mesmo `product_id` + `funnel_stage` + `format`:
+
+| Cenário | Comportamento |
+|---------|---------------|
+| Criativos existentes ≥ variações solicitadas | Retorna `reused: true` SEM gerar novas imagens |
+| Criativos existentes < variações solicitadas | Gera APENAS as variações faltantes |
+| Nenhum criativo existente | Gera normalmente todas as variações |
+
+##### Identificação de Produto
+
+A IA identifica de qual produto é cada criativo através do campo `product_id` na tabela `ads_creative_assets`. Criativos sem `product_id` são exibidos como "Multi-produto" no inventário.
+
 #### Legado: JSONB em `safety_rules` (mantido para retrocompatibilidade)
 
 ```jsonc
