@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.40.0"; // Skip LIFETIME sync when local DB already has sufficient data (>100 rows) to prevent timeout
+const VERSION = "v1.41.0"; // Fix 0 ads in deep historical (creative_data → creative_id) + faster startup progress
 // ===================
 
 const corsHeaders = {
@@ -403,7 +403,7 @@ async function buildDeepHistoricalFromLocalData(
         .select("meta_adset_id, name, status, effective_status, meta_campaign_id, daily_budget_cents, optimization_goal, targeting, ad_account_id")
         .eq("tenant_id", tenantId).eq("ad_account_id", adAccountId).limit(1000),
       supabase.from("meta_ad_ads")
-        .select("meta_ad_id, name, status, effective_status, meta_adset_id, meta_campaign_id, ad_account_id, creative_data")
+        .select("meta_ad_id, name, status, effective_status, meta_adset_id, meta_campaign_id, ad_account_id, creative_id")
         .eq("tenant_id", tenantId).eq("ad_account_id", adAccountId).limit(1000),
       // Get ALL insights (no date filter = all-time) — increased limit for lifetime data (v1.39.0)
       supabase.from("meta_ad_insights")
@@ -475,7 +475,7 @@ async function buildDeepHistoricalFromLocalData(
     const adInsights: DeepInsight[] = ads.map((ad: any) => ({
       level: "ad", id: ad.meta_ad_id, name: ad.name, status: ad.status || ad.effective_status || "",
       spend: 0, impressions: 0, clicks: 0, conversions: 0, roas: 0, cpa: 0, ctr: 0,
-      creative_data: ad.creative_data, campaign_id: ad.meta_campaign_id, adset_id: ad.meta_adset_id,
+      creative_id: ad.creative_id, campaign_id: ad.meta_campaign_id, adset_id: ad.meta_adset_id,
     }));
 
     console.log(`[ads-autopilot-strategist][${VERSION}] Local deep historical for ${adAccountId}: ${campaignInsights.length} campaigns, ${adsetInsights.length} adsets, ${adInsights.length} ads (no API calls!)`);
