@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.35.0"; // Extended metrics (frequency, CPM, funnel actions, video views) + intelligent replication strategy
+const VERSION = "v1.36.0"; // Replication strategy scoped to start trigger only; metrics apply to all triggers
 // ===================
 
 const corsHeaders = {
@@ -1113,7 +1113,7 @@ USE ESSAS MÉTRICAS para:
 3. Avaliar qualidade de vídeos (VV25 vs VV95 = taxa de retenção)
 4. Comparar CPM entre públicos (CPM alto pode indicar audiência saturada)
 
-## ESTRATÉGIA DE REPLICAÇÃO INTELIGENTE (v1.35.0 — OBRIGATÓRIA)
+${trigger === "start" ? `## ESTRATÉGIA DE REPLICAÇÃO INTELIGENTE (v1.36.0 — OBRIGATÓRIA NA PRIMEIRA ATIVAÇÃO)
 Em contas com histórico de campanhas, você NUNCA deve criar tudo do zero. Siga esta hierarquia:
 
 ### 1. DUPLICAÇÃO EXATA (Prioridade Máxima)
@@ -1138,8 +1138,11 @@ Em contas com histórico de campanhas, você NUNCA deve criar tudo do zero. Siga
 - Mesmo em testes, use as copys e headlines vencedoras como ponto de partida
 
 ### REGRA DE OURO
-Antes de propor QUALQUER campanha nova, verifique se já existe algo similar no histórico que pode ser duplicado ou adaptado. 
-Testar do zero em uma conta com 273 campanhas é DESPERDÍCIO — os dados já dizem o que funciona.
+Antes de propor QUALQUER campanha nova, verifique se já existe algo similar no histórico que pode ser duplicado ou adaptado.
+Testar do zero em uma conta com centenas de campanhas é DESPERDÍCIO — os dados já dizem o que funciona.` : `## ANÁLISE BASEADA EM DADOS (v1.36.0)
+Nas análises mensais e semanais, você tem liberdade para testar novos públicos, copys e criativos.
+Use as métricas disponíveis (ROAS, CPA, Freq, CPM, Funil, Vídeo) para tomar decisões baseadas em dados dos últimos 30d (mensal) ou 7d (semanal).
+Não é obrigatório replicar histórico — foque no que ESTÁ rodando agora e otimize incrementalmente.`}
 
 ## REGRAS DE CONFIGURAÇÃO COMPLETA (OBRIGATÓRIAS em create_campaign)
 Cada create_campaign é uma campanha COMPLETA no Meta Ads. Você DEVE preencher TODOS os campos abaixo como se estivesse configurando manualmente:
