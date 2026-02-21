@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.30.0"; // Pagination for deep historical + diagnostic logs for insight coverage
+const VERSION = "v1.31.0"; // Fix rate limiting: smaller pages, delays, filtered fields // Pagination for deep historical + diagnostic logs for insight coverage
 // ===================
 
 const corsHeaders = {
@@ -385,12 +385,13 @@ async function fetchDeepHistoricalInsights(
 ): Promise<{ campaigns: DeepInsight[]; adsets: DeepInsight[]; ads: DeepInsight[] } | null> {
   const GRAPH_API = "v21.0";
 
-  // Helper to paginate through all Graph API results
-  async function fetchAllPages(url: string, maxPages = 10): Promise<any[]> {
+  // Helper to paginate through all Graph API results with rate-limit protection
+  async function fetchAllPages(url: string, maxPages = 10, delayMs = 1500): Promise<any[]> {
     const allData: any[] = [];
     let nextUrl: string | null = url;
     let page = 0;
     while (nextUrl && page < maxPages) {
+      if (page > 0) await new Promise(r => setTimeout(r, delayMs)); // Rate-limit delay
       const res = await fetch(nextUrl);
       const json = await res.json();
       if (json.error) {
@@ -426,30 +427,44 @@ async function fetchDeepHistoricalInsights(
     const endpoint = level === "campaign" ? "campaigns" : level === "adset" ? "adsets" : "ads";
     const fieldsMap: Record<string, string> = {
       campaign: "id,name,status,effective_status,objective",
-      adset: "id,name,status,effective_status,campaign_id,targeting,optimization_goal,daily_budget,lifetime_budget",
-      ad: "id,name,status,effective_status,adset_id,campaign_id,creative{id,name,title,body,call_to_action_type,link_url,image_url,thumbnail_url}",
+      adset: "id,name,status,effective_status,campaign_id,optimization_goal,daily_budget,lifetime_budget",
+      ad: "id,name,status,effective_status,adset_id,campaign_id,creative{id,name,title,body}",
     };
+    // Smaller page sizes to avoid "reduce data" errors; campaigns can use 200, deeper levels use 100
+    const pageSize = level === "campaign" ? 200 : 100;
+    // Ads have heavy creative subfields - use fewer pages
+    const maxEntityPages = level === "ad" ? 5 : 8;
+    const maxInsightPages = level === "campaign" ? 5 : 3;
 
     try {
-      // Step 1: Get ALL entities (with pagination)
-      const entitiesUrl = `https://graph.facebook.com/${GRAPH_API}/act_${accountId}/${endpoint}?fields=${fieldsMap[level]}&limit=500&access_token=${token}`;
-      const entities = await fetchAllPages(entitiesUrl, 5);
+      // Step 1: Get entities (with pagination + delay)
+      const entitiesUrl = `https://graph.facebook.com/${GRAPH_API}/act_${accountId}/${endpoint}?fields=${fieldsMap[level]}&limit=${pageSize}&access_token=${token}`;
+      const entities = await fetchAllPages(entitiesUrl, maxEntityPages, 2000);
       if (entities.length === 0) {
         console.warn(`[ads-autopilot-strategist][${VERSION}] No ${level} entities found`);
         return [];
       }
       console.log(`[ads-autopilot-strategist][${VERSION}] Fetched ${entities.length} ${level} entities`);
 
-      // Step 2: Get ALL insights with date_preset=maximum (with pagination)
-      const insightsUrl = `https://graph.facebook.com/${GRAPH_API}/act_${accountId}/insights?level=${level}&fields=campaign_id,adset_id,ad_id,campaign_name,adset_name,ad_name,spend,impressions,clicks,actions,action_values,ctr,cpc,cpm,frequency&date_preset=maximum&limit=500&access_token=${token}`;
-      const insightsData = await fetchAllPages(insightsUrl, 5);
+      // Delay between entity fetch and insights fetch to respect rate limits
+      await new Promise(r => setTimeout(r, 3000));
+
+      // Step 2: Get insights with date_preset=maximum (with pagination + delay)
+      const insightFields = level === "campaign"
+        ? "campaign_id,campaign_name,spend,impressions,clicks,actions,action_values,ctr,cpc,cpm,frequency"
+        : level === "adset"
+        ? "adset_id,adset_name,campaign_id,spend,impressions,clicks,actions,action_values,ctr,cpc,frequency"
+        : "ad_id,ad_name,adset_id,campaign_id,spend,impressions,clicks,actions,action_values,ctr,cpc";
+      const insightsUrl = `https://graph.facebook.com/${GRAPH_API}/act_${accountId}/insights?level=${level}&fields=${insightFields}&date_preset=maximum&limit=${pageSize}&access_token=${token}`;
+      const insightsData = await fetchAllPages(insightsUrl, maxInsightPages, 2000);
       console.log(`[ads-autopilot-strategist][${VERSION}] Fetched ${insightsData.length} ${level} insight rows`);
 
       // Step 3: Get placement breakdown (only for campaign level to reduce API calls)
       let placementMap: Record<string, any[]> = {};
       if (level === "campaign") {
-        const placementUrl = `https://graph.facebook.com/${GRAPH_API}/act_${accountId}/insights?level=${level}&fields=campaign_id,campaign_name,spend,impressions,clicks,actions,action_values&breakdowns=publisher_platform,platform_position&date_preset=maximum&limit=500&access_token=${token}`;
-        const placData = await fetchAllPages(placementUrl, 5);
+        await new Promise(r => setTimeout(r, 2000));
+        const placementUrl = `https://graph.facebook.com/${GRAPH_API}/act_${accountId}/insights?level=${level}&fields=campaign_id,campaign_name,spend,impressions,clicks,actions,action_values&breakdowns=publisher_platform,platform_position&date_preset=maximum&limit=200&access_token=${token}`;
+        const placData = await fetchAllPages(placementUrl, 3, 2000);
         for (const row of placData) {
           const key = row.campaign_id;
           if (!placementMap[key]) placementMap[key] = [];
@@ -501,12 +516,14 @@ async function fetchDeepHistoricalInsights(
     return 0;
   }
 
-  // Fetch all levels in parallel
-  const [rawCampaigns, rawAdsets, rawAds] = await Promise.all([
-    fetchLevelInsights("campaign"),
-    fetchLevelInsights("adset"),
-    fetchLevelInsights("ad"),
-  ]);
+  // Fetch levels SEQUENTIALLY to avoid rate limiting (each level makes multiple paginated calls)
+  const rawCampaigns = await fetchLevelInsights("campaign");
+  console.log(`[ads-autopilot-strategist][${VERSION}] Campaigns done, waiting before adsets...`);
+  await new Promise(r => setTimeout(r, 5000)); // 5s cool-down between levels
+  const rawAdsets = await fetchLevelInsights("adset");
+  console.log(`[ads-autopilot-strategist][${VERSION}] Adsets done, waiting before ads...`);
+  await new Promise(r => setTimeout(r, 5000)); // 5s cool-down between levels
+  const rawAds = await fetchLevelInsights("ad");
 
   console.log(`[ads-autopilot-strategist][${VERSION}] Deep historical: ${rawCampaigns.length} campaigns, ${rawAdsets.length} adsets, ${rawAds.length} ads`);
 
