@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.27.0"; // Fix Gemini 400 "null content" on multi-round: ensure assistant message content is always a string
+const VERSION = "v1.28.0"; // Smart creative reuse: check existing unused creatives before generating new ones
 // ===================
 
 const corsHeaders = {
@@ -633,14 +633,20 @@ O usuário APROVOU o Plano Estratégico abaixo. Esta é a FASE 1: preparação d
 
 {{APPROVED_PLAN_CONTENT}}
 
+## CRIATIVOS JÁ EXISTENTES (NÃO GERAR DUPLICADOS!)
+{{EXISTING_CREATIVES_INVENTORY}}
+
 NESTA FASE VOCÊ DEVE:
-1. Gerar criativos (generate_creative) para CADA produto mencionado no plano
+1. **PRIMEIRO**: Verificar os criativos já existentes listados acima
+   - Se já existir um criativo pronto (status=ready, com URL) para o produto + funnel_stage + formato desejado → NÃO gere novo, REUTILIZE
+   - Gere novos criativos (generate_creative) APENAS para combinações (produto × funnel_stage × formato) que NÃO existam no inventário acima
+2. Para criativos que precisam ser gerados:
    - Mínimo 2 variações por produto (estilos diferentes: ugc_style, product_natural, person_interacting)
    - Formatos: 9:16 para Stories/Reels + 1:1 para Feed
    - OBRIGATÓRIO: funnel_stage diferente para cada uso! Gere criativos SEPARADOS para TOF e BOF
    - Criativos de TOF (aquisição): estilo chamativo, gancho de atenção, produto em destaque
    - Criativos de BOF (remarketing): estilo diferente, foco em benefícios complementares, prova social
-2. Criar públicos Lookalike (create_lookalike_audience) se o plano especificar
+3. Criar públicos Lookalike (create_lookalike_audience) se o plano especificar
 
 NESTA FASE VOCÊ NÃO DEVE:
 - NÃO use create_campaign — campanhas serão criadas na FASE 2 (após criativos ficarem prontos)
@@ -926,12 +932,54 @@ async function executeToolCall(
       return { status: "failed", data: { error: `Produto "${args.product_name}" não encontrado no catálogo. Use o nome EXATO do catálogo.` } };
     }
 
+    // v1.28.0: DEDUP — Check if we already have ready creatives for this product + funnel_stage + format
+    const requestedFunnel = args.funnel_stage || "tof";
+    const requestedFormat = args.format || "1:1";
+    
+    const { data: existingCreatives } = await supabase
+      .from("ads_creative_assets")
+      .select("id, asset_url, format, funnel_stage, angle, created_at")
+      .eq("tenant_id", tenantId)
+      .eq("product_id", topProduct.id)
+      .eq("status", "ready")
+      .eq("funnel_stage", requestedFunnel)
+      .not("asset_url", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    // Filter by format if specified (some may have different formats)
+    const matchingCreatives = (existingCreatives || []).filter((c: any) => 
+      !requestedFormat || c.format === requestedFormat || !c.format
+    );
+
+    if (matchingCreatives.length >= (args.variations || 3)) {
+      console.log(`[ads-autopilot-strategist][${VERSION}] DEDUP: Found ${matchingCreatives.length} existing creatives for "${topProduct.name}" (${requestedFunnel}/${requestedFormat}). Skipping generation.`);
+      return { 
+        status: "executed", 
+        data: { 
+          reused: true, 
+          reused_count: matchingCreatives.length,
+          product_name: topProduct.name,
+          creative_urls: matchingCreatives.map((c: any) => c.asset_url),
+          message: `Reutilizados ${matchingCreatives.length} criativos existentes para "${topProduct.name}" (${requestedFunnel}). Nenhuma geração necessária.`
+        } 
+      };
+    }
+
     // Resolve product image URL
     let productImageUrl: string | null = null;
     if (topProduct.images) {
       const images = Array.isArray(topProduct.images) ? topProduct.images : [];
       const firstImg = images[0];
       productImageUrl = typeof firstImg === "string" ? firstImg : (firstImg as any)?.url || null;
+    }
+
+    // Calculate how many NEW variations are actually needed
+    const existingCount = matchingCreatives.length;
+    const neededVariations = Math.max(1, (args.variations || 3) - existingCount);
+    
+    if (existingCount > 0) {
+      console.log(`[ads-autopilot-strategist][${VERSION}] PARTIAL REUSE: ${existingCount} existing, generating ${neededVariations} more for "${topProduct.name}" (${requestedFunnel}/${requestedFormat})`);
     }
 
     try {
@@ -946,13 +994,21 @@ async function executeToolCall(
           campaign_objective: args.campaign_objective,
           target_audience: args.target_audience,
           style_preference: args.style_preference || "promotional",
-          format: args.format || "1:1",
-          variations: args.variations || 3,
-          funnel_stage: args.funnel_stage || "tof",
+          format: requestedFormat,
+          variations: neededVariations,
+          funnel_stage: requestedFunnel,
         },
       });
       if (creativeErr) throw creativeErr;
-      return { status: "executed", data: { creative_job_id: creativeResult?.data?.job_id, product_name: topProduct.name } };
+      return { 
+        status: "executed", 
+        data: { 
+          creative_job_id: creativeResult?.data?.job_id, 
+          product_name: topProduct.name,
+          reused_count: existingCount,
+          new_count: neededVariations,
+        } 
+      };
     } catch (err: any) {
       return { status: "failed", data: { error: err.message } };
     }
@@ -1277,6 +1333,53 @@ ${budgetAllocation ? `**Alocação de Orçamento:**\n${budgetAllocation}` : ""}`
     }
   }
 
+  // v1.28.0: Load ALL existing creatives for Phase 1 (reuse inventory) and Phase 2 (available URLs)
+  let existingCreativesInventory = "";
+  if (trigger === "implement_approved_plan" || trigger === "weekly" || trigger === "monthly" || trigger === "start") {
+    // Fetch ALL ready creatives for this tenant (not just from a specific session)
+    const { data: allCreatives } = await supabase
+      .from("ads_creative_assets")
+      .select("id, product_id, asset_url, format, status, funnel_stage, angle, session_id, created_at")
+      .eq("tenant_id", tenantId)
+      .eq("status", "ready")
+      .not("asset_url", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(200);
+
+    if (allCreatives && allCreatives.length > 0) {
+      // Also check which creatives are already linked to active Meta ads
+      const { data: activeAds } = await supabase
+        .from("meta_ad_ads")
+        .select("creative_id")
+        .eq("tenant_id", tenantId)
+        .in("effective_status", ["ACTIVE", "PENDING_REVIEW", "PREAPPROVED"]);
+      
+      const usedCreativeIds = new Set((activeAds || []).map((a: any) => a.creative_id).filter(Boolean));
+      
+      // Map product names
+      const productIds = [...new Set(allCreatives.map((c: any) => c.product_id).filter(Boolean))];
+      const { data: creativeProducts } = productIds.length > 0
+        ? await supabase.from("products").select("id, name").in("id", productIds)
+        : { data: [] };
+      const prodNameMap: Record<string, string> = {};
+      (creativeProducts || []).forEach((p: any) => { prodNameMap[p.id] = p.name; });
+
+      const lines = allCreatives.map((c: any) => {
+        const inUse = usedCreativeIds.has(c.id) ? "🟢 EM USO" : "⚪ DISPONÍVEL";
+        const age = Math.floor((Date.now() - new Date(c.created_at).getTime()) / (1000 * 60 * 60 * 24));
+        return `- [${inUse}] Produto: ${prodNameMap[c.product_id] || "Multi-produto"} | Funil: ${c.funnel_stage || "N/A"} | Formato: ${c.format || "N/A"} | Ângulo: ${c.angle || "N/A"} | Idade: ${age}d | URL: ${c.asset_url}`;
+      });
+      
+      const available = allCreatives.filter((c: any) => !usedCreativeIds.has(c.id)).length;
+      existingCreativesInventory = `Total: ${allCreatives.length} criativos (${available} disponíveis para reutilização, ${usedCreativeIds.size} em uso na Meta)\n\n${lines.join("\n")}`;
+      
+      console.log(`[ads-autopilot-strategist][${VERSION}] Creative inventory: ${allCreatives.length} total, ${available} available, ${usedCreativeIds.size} in use`);
+    } else {
+      existingCreativesInventory = "Nenhum criativo existente. Todos precisam ser gerados do zero.";
+      console.log(`[ads-autopilot-strategist][${VERSION}] No existing creatives found`);
+    }
+  }
+
   // For implement_campaigns (Phase 2): load available creative URLs
   let availableCreativesText = "";
   if (trigger === "implement_campaigns") {
@@ -1434,6 +1537,13 @@ Feedback: "${revisionFeedback}"
       prompt.system = prompt.system.replace("{{APPROVED_PLAN_CONTENT}}", revisionContext);
     } else {
       prompt.system = prompt.system.replace("{{APPROVED_PLAN_CONTENT}}", "Nenhum plano específico encontrado. Use o contexto disponível para decidir os produtos e estratégias.");
+    }
+
+    // Inject existing creatives inventory for Phase 1 and other triggers
+    if (existingCreativesInventory) {
+      prompt.system = prompt.system.replace("{{EXISTING_CREATIVES_INVENTORY}}", existingCreativesInventory);
+    } else {
+      prompt.system = prompt.system.replace("{{EXISTING_CREATIVES_INVENTORY}}", "Nenhum criativo existente encontrado.");
     }
 
     // Inject available creatives for Phase 2
