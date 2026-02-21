@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.5.0"; // Fix: chunked fallback when maximum date_preset fails for large accounts
+const VERSION = "v1.7.0"; // Fix: upsert per-chunk + campaign cache to avoid 150s timeout
 // ===========================================================
 
 const corsHeaders = {
@@ -38,10 +38,9 @@ Deno.serve(async (req) => {
     }
 
     // ========================
-    // SYNC — Pull insights from Meta for all campaigns (ALL accounts)
+    // SYNC
     // ========================
     if (action === "sync") {
-      // FIX: use correct column names (marketplace, is_active)
       const { data: conn } = await supabase
         .from("marketplace_connections")
         .select("access_token, metadata")
@@ -70,33 +69,62 @@ Deno.serve(async (req) => {
       let totalSynced = 0;
       let totalErrors = 0;
 
-      // Sync both the requested preset AND today to ensure current-day data
       const presetsToSync = timeRange ? [null] : [datePreset, ...(datePreset !== "today" ? ["today"] : [])];
 
-      // Helper: fetch insights for a specific time_range or preset
-      async function fetchInsightsPage(accountId: string, options: { preset?: string; timeRange?: any }): Promise<{ data: any[]; error?: any }> {
-        let insightsUrl = `act_${accountId}/insights?fields=campaign_id,campaign_name,impressions,clicks,spend,reach,cpc,cpm,ctr,actions,action_values,cost_per_action_type,frequency&level=campaign&time_increment=1&limit=500`;
-        if (options.timeRange) {
-          insightsUrl += `&time_range=${JSON.stringify(options.timeRange)}`;
-        } else if (options.preset) {
-          insightsUrl += `&date_preset=${options.preset}`;
-        }
-        const graphUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}/${insightsUrl}&access_token=${conn.access_token}`;
-        const res = await fetch(graphUrl);
-        const result = await res.json();
-        if (result.error) return { data: [], error: result.error };
-        return { data: result.data || [] };
+      // === CAMPAIGN CACHE: Load all campaigns upfront to avoid N+1 queries ===
+      const campaignCache = new Map<string, string>(); // meta_campaign_id -> local id
+      const { data: allCampaigns } = await supabase
+        .from("meta_ad_campaigns")
+        .select("id, meta_campaign_id")
+        .eq("tenant_id", tenantId);
+      for (const c of (allCampaigns || [])) {
+        campaignCache.set(c.meta_campaign_id, c.id);
       }
 
-      // Helper: generate quarterly chunks from a start date to today
-      // Meta API limits to 37 months back, so we enforce that as minimum
+      // === Fetch with full pagination ===
+      const MAX_PAGES = 50;
+      const PAGE_DELAY_MS = 300;
+
+      async function fetchAllPages(accountId: string, options: { preset?: string; timeRange?: any }): Promise<{ data: any[]; error?: any }> {
+        let firstUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}/act_${accountId}/insights?fields=campaign_id,campaign_name,impressions,clicks,spend,reach,cpc,cpm,ctr,actions,action_values,cost_per_action_type,frequency&level=campaign&time_increment=1&limit=500`;
+        if (options.timeRange) {
+          firstUrl += `&time_range=${JSON.stringify(options.timeRange)}`;
+        } else if (options.preset) {
+          firstUrl += `&date_preset=${options.preset}`;
+        }
+        firstUrl += `&access_token=${conn.access_token}`;
+
+        const allData: any[] = [];
+        let nextUrl: string | null = firstUrl;
+        let page = 0;
+
+        while (nextUrl && page < MAX_PAGES) {
+          page++;
+          const res = await fetch(nextUrl);
+          const result = await res.json();
+
+          if (result.error) {
+            if (page === 1) return { data: [], error: result.error };
+            console.warn(`[meta-ads-insights][${traceId}] Page ${page} error, returning ${allData.length} collected:`, result.error.message);
+            break;
+          }
+
+          allData.push(...(result.data || []));
+          nextUrl = result.paging?.next || null;
+
+          if (nextUrl && page < MAX_PAGES) {
+            await new Promise(r => setTimeout(r, PAGE_DELAY_MS));
+          }
+        }
+        return { data: allData };
+      }
+
+      // === Quarterly chunks ===
       function generateQuarterlyChunks(startDate: Date): Array<{ since: string; until: string }> {
         const chunks: Array<{ since: string; until: string }> = [];
         const now = new Date();
-        // Meta API hard limit: 37 months back
         const metaLimit = new Date();
-        metaLimit.setMonth(metaLimit.getMonth() - 36); // 36 months = safe margin under 37
-        
+        metaLimit.setMonth(metaLimit.getMonth() - 36);
         let current = startDate < metaLimit ? metaLimit : new Date(startDate);
         
         while (current < now) {
@@ -113,30 +141,123 @@ Deno.serve(async (req) => {
         return chunks;
       }
 
-      // Iterate ALL ad accounts
+      // === Batch upsert insights (process an array of raw Meta insights) ===
+      async function batchUpsertInsights(insights: any[], accountFullId: string): Promise<{ synced: number; errors: number }> {
+        let synced = 0;
+        let errors = 0;
+        const now = new Date().toISOString();
+
+        // Build upsert rows, auto-creating missing campaigns in batch
+        const missingCampaigns = new Map<string, string>(); // meta_id -> name
+        for (const i of insights) {
+          if (!campaignCache.has(i.campaign_id) && i.campaign_id && i.campaign_name) {
+            missingCampaigns.set(i.campaign_id, i.campaign_name);
+          }
+        }
+
+        // Batch create missing campaigns
+        if (missingCampaigns.size > 0) {
+          const campaignRows = Array.from(missingCampaigns.entries()).map(([metaId, name]) => ({
+            tenant_id: tenantId,
+            meta_campaign_id: metaId,
+            ad_account_id: accountFullId,
+            name,
+            status: "UNKNOWN",
+            synced_at: now,
+          }));
+          
+          const { data: created } = await supabase
+            .from("meta_ad_campaigns")
+            .upsert(campaignRows, { onConflict: "tenant_id,meta_campaign_id" })
+            .select("id, meta_campaign_id");
+          
+          for (const c of (created || [])) {
+            campaignCache.set(c.meta_campaign_id, c.id);
+          }
+        }
+
+        // Build insight rows for bulk upsert (batches of 100)
+        const UPSERT_BATCH = 100;
+        for (let start = 0; start < insights.length; start += UPSERT_BATCH) {
+          const batch = insights.slice(start, start + UPSERT_BATCH);
+          const rows = batch.map(i => {
+            const purchaseAction = (i.actions || []).find((a: any) => 
+              a.action_type === "purchase" || 
+              a.action_type === "offsite_conversion.fb_pixel_purchase" ||
+              a.action_type === "omni_purchase"
+            );
+            const conversions = purchaseAction ? parseInt(purchaseAction.value || "0") : 0;
+
+            const purchaseValue = (i.action_values || []).find((a: any) => 
+              a.action_type === "purchase" || 
+              a.action_type === "offsite_conversion.fb_pixel_purchase" ||
+              a.action_type === "omni_purchase"
+            );
+            const conversionValueCents = purchaseValue 
+              ? Math.round(parseFloat(purchaseValue.value || "0") * 100) : 0;
+
+            const spendCents = Math.round(parseFloat(i.spend || "0") * 100);
+
+            return {
+              tenant_id: tenantId,
+              campaign_id: campaignCache.get(i.campaign_id) || null,
+              meta_campaign_id: i.campaign_id,
+              date_start: i.date_start,
+              date_stop: i.date_stop,
+              impressions: parseInt(i.impressions || "0"),
+              clicks: parseInt(i.clicks || "0"),
+              spend_cents: spendCents,
+              reach: parseInt(i.reach || "0"),
+              cpc_cents: Math.round(parseFloat(i.cpc || "0") * 100),
+              cpm_cents: Math.round(parseFloat(i.cpm || "0") * 100),
+              ctr: parseFloat(i.ctr || "0"),
+              conversions,
+              conversion_value_cents: conversionValueCents,
+              roas: spendCents > 0 ? conversionValueCents / spendCents : 0,
+              frequency: parseFloat(i.frequency || "0"),
+              actions: i.actions || [],
+              synced_at: now,
+            };
+          });
+
+          const { error, count } = await supabase
+            .from("meta_ad_insights")
+            .upsert(rows, { onConflict: "tenant_id,meta_campaign_id,date_start,date_stop", count: "exact" });
+
+          if (error) {
+            console.error(`[meta-ads-insights][${traceId}] Batch upsert error:`, error.message);
+            errors += batch.length;
+          } else {
+            synced += batch.length;
+          }
+        }
+
+        return { synced, errors };
+      }
+
+      // === Main loop: iterate accounts ===
       for (const account of adAccounts) {
         const accountId = account.id.replace("act_", "");
         
         for (const preset of presetsToSync) {
-          let insights: any[] = [];
-
           if (timeRange) {
-            const result = await fetchInsightsPage(accountId, { timeRange });
+            const result = await fetchAllPages(accountId, { timeRange });
             if (result.error) {
-              console.error(`[meta-ads-insights][${traceId}] Graph API error for ${account.id} (time_range):`, result.error);
+              console.error(`[meta-ads-insights][${traceId}] Error ${account.id} (time_range):`, result.error);
               totalErrors++;
               continue;
             }
-            insights = result.data;
+            const r = await batchUpsertInsights(result.data, account.id);
+            totalSynced += r.synced;
+            totalErrors += r.errors;
+            console.log(`[meta-ads-insights][${traceId}] ${account.id} (time_range): ${result.data.length} fetched, ${r.synced} upserted`);
           } else if (preset) {
-            const result = await fetchInsightsPage(accountId, { preset });
+            const result = await fetchAllPages(accountId, { preset });
             
             if (result.error) {
-              // v1.5.0: If "maximum" fails due to data volume, fallback to quarterly chunks
               if (preset === "maximum" && result.error.code === 1) {
-                console.warn(`[meta-ads-insights][${traceId}] Account ${account.id}: "maximum" too large, falling back to quarterly chunks...`);
+                console.warn(`[meta-ads-insights][${traceId}] ${account.id}: "maximum" too large → quarterly chunks`);
                 
-                // Determine start date from earliest known campaign (filter out epoch-0 dates)
                 const { data: earliestCampaign } = await supabase
                   .from("meta_ad_campaigns")
                   .select("start_time")
@@ -153,123 +274,43 @@ Deno.serve(async (req) => {
                   : new Date(new Date().setFullYear(new Date().getFullYear() - 2));
                 
                 const chunks = generateQuarterlyChunks(startDate);
-                console.log(`[meta-ads-insights][${traceId}] Account ${account.id}: ${chunks.length} quarterly chunks (earliest campaign: ${startDate.toISOString().split("T")[0]}, first chunk: ${chunks[0]?.since || "none"})`);
+                console.log(`[meta-ads-insights][${traceId}] ${account.id}: ${chunks.length} chunks (from ${startDate.toISOString().split("T")[0]})`);
                 
                 for (const chunk of chunks) {
-                  const chunkResult = await fetchInsightsPage(accountId, { 
+                  const chunkResult = await fetchAllPages(accountId, { 
                     timeRange: { since: chunk.since, until: chunk.until } 
                   });
                   
                   if (chunkResult.error) {
-                    console.warn(`[meta-ads-insights][${traceId}] Chunk ${chunk.since}→${chunk.until} failed for ${account.id}:`, chunkResult.error.message);
+                    console.warn(`[meta-ads-insights][${traceId}] Chunk ${chunk.since}→${chunk.until} failed:`, chunkResult.error.message);
                     totalErrors++;
                     continue;
                   }
                   
-                  insights.push(...chunkResult.data);
-                  console.log(`[meta-ads-insights][${traceId}] Chunk ${chunk.since}→${chunk.until}: ${chunkResult.data.length} insights`);
+                  // UPSERT PER CHUNK instead of collecting all
+                  const r = await batchUpsertInsights(chunkResult.data, account.id);
+                  totalSynced += r.synced;
+                  totalErrors += r.errors;
+                  console.log(`[meta-ads-insights][${traceId}] Chunk ${chunk.since}→${chunk.until}: ${chunkResult.data.length} fetched, ${r.synced} upserted`);
                   
-                  // Small delay to avoid rate limiting
                   if (chunks.indexOf(chunk) < chunks.length - 1) {
-                    await new Promise(r => setTimeout(r, 1000));
+                    await new Promise(r => setTimeout(r, 500));
                   }
                 }
-                
-                console.log(`[meta-ads-insights][${traceId}] Account ${account.id} total from chunks: ${insights.length} insights`);
               } else {
-                console.error(`[meta-ads-insights][${traceId}] Graph API error for ${account.id} (${preset}):`, result.error);
+                console.error(`[meta-ads-insights][${traceId}] Error ${account.id} (${preset}):`, result.error);
                 totalErrors++;
                 continue;
               }
             } else {
-              insights = result.data;
+              const r = await batchUpsertInsights(result.data, account.id);
+              totalSynced += r.synced;
+              totalErrors += r.errors;
+              console.log(`[meta-ads-insights][${traceId}] ${account.id} (${preset}): ${result.data.length} fetched, ${r.synced} upserted`);
             }
           }
-
-          console.log(`[meta-ads-insights][${traceId}] Account ${account.id} (${preset || "time_range"}): ${insights.length} insights`);
-
-          for (const i of insights) {
-            // Find local campaign
-            let { data: localCampaign } = await supabase
-              .from("meta_ad_campaigns")
-              .select("id")
-              .eq("tenant_id", tenantId)
-              .eq("meta_campaign_id", i.campaign_id)
-              .maybeSingle();
-
-            // AUTO-CREATE missing campaign from insight data
-            if (!localCampaign && i.campaign_id && i.campaign_name) {
-              console.log(`[meta-ads-insights][${traceId}] Auto-creating missing campaign: ${i.campaign_name} (${i.campaign_id})`);
-              const { data: created } = await supabase
-                .from("meta_ad_campaigns")
-                .upsert({
-                  tenant_id: tenantId,
-                  meta_campaign_id: i.campaign_id,
-                  ad_account_id: account.id,
-                  name: i.campaign_name,
-                  status: "UNKNOWN",
-                  synced_at: new Date().toISOString(),
-                }, { onConflict: "tenant_id,meta_campaign_id" })
-                .select("id")
-                .maybeSingle();
-              localCampaign = created;
-            }
-
-            // Extract conversions count from actions
-            const purchaseAction = (i.actions || []).find((a: any) => 
-              a.action_type === "purchase" || 
-              a.action_type === "offsite_conversion.fb_pixel_purchase" ||
-              a.action_type === "omni_purchase"
-            );
-            const conversions = purchaseAction ? parseInt(purchaseAction.value || "0") : 0;
-
-            // Extract conversion VALUE from action_values (revenue)
-            const purchaseValue = (i.action_values || []).find((a: any) => 
-              a.action_type === "purchase" || 
-              a.action_type === "offsite_conversion.fb_pixel_purchase" ||
-              a.action_type === "omni_purchase"
-            );
-            const conversionValueCents = purchaseValue 
-              ? Math.round(parseFloat(purchaseValue.value || "0") * 100) 
-              : 0;
-
-            const spendCents = Math.round(parseFloat(i.spend || "0") * 100);
-            const cpcCents = Math.round(parseFloat(i.cpc || "0") * 100);
-            const cpmCents = Math.round(parseFloat(i.cpm || "0") * 100);
-            const roas = spendCents > 0 ? conversionValueCents / spendCents : 0;
-
-            const { error } = await supabase
-              .from("meta_ad_insights")
-              .upsert({
-                tenant_id: tenantId,
-                campaign_id: localCampaign?.id || null,
-                meta_campaign_id: i.campaign_id,
-                date_start: i.date_start,
-                date_stop: i.date_stop,
-                impressions: parseInt(i.impressions || "0"),
-                clicks: parseInt(i.clicks || "0"),
-                spend_cents: spendCents,
-                reach: parseInt(i.reach || "0"),
-                cpc_cents: cpcCents,
-                cpm_cents: cpmCents,
-                ctr: parseFloat(i.ctr || "0"),
-                conversions,
-                conversion_value_cents: conversionValueCents,
-                roas,
-                frequency: parseFloat(i.frequency || "0"),
-                actions: i.actions || [],
-                synced_at: new Date().toISOString(),
-              }, { onConflict: "tenant_id,meta_campaign_id,date_start,date_stop" });
-
-            if (error) {
-              console.error(`[meta-ads-insights][${traceId}] Upsert error:`, error);
-              totalErrors++;
-            } else {
-              totalSynced++;
-            }
-          }
-        } // end presetsToSync
-      } // end adAccounts
+        }
+      }
 
       return new Response(
         JSON.stringify({ success: true, data: { synced: totalSynced, errors: totalErrors } }),
@@ -278,7 +319,7 @@ Deno.serve(async (req) => {
     }
 
     // ========================
-    // LIST — From local cache
+    // LIST
     // ========================
     if (action === "list") {
       const campaignId = body.campaign_id || url.searchParams.get("campaign_id");
@@ -289,9 +330,7 @@ Deno.serve(async (req) => {
         .order("date_start", { ascending: false })
         .limit(100);
 
-      if (campaignId) {
-        query = query.eq("campaign_id", campaignId);
-      }
+      if (campaignId) query = query.eq("campaign_id", campaignId);
 
       const { data, error } = await query;
       if (error) throw error;
@@ -303,7 +342,7 @@ Deno.serve(async (req) => {
     }
 
     // ========================
-    // SUMMARY — Aggregated metrics
+    // SUMMARY
     // ========================
     if (action === "summary") {
       const { data, error } = await supabase
