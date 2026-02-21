@@ -129,7 +129,10 @@ function useAllCreativeUrls(action: PendingAction): string[] {
   const preview = (data as any).preview || {};
   const directUrl = preview.creative_url || (data as any).asset_url || (data as any).creative_url || null;
   const productId = (data as any).product_id || preview.product_id || null;
-  const funnelStage = preview.funnel_stage || (data as any).funnel_stage || null;
+  const rawFunnelStage = preview.funnel_stage || (data as any).funnel_stage || null;
+  // Normalize funnel stage: actions use "hot"/"cold" but creative assets use "bof"/"tof"
+  const FUNNEL_STAGE_MAP: Record<string, string> = { hot: "bof", cold: "tof", warm: "mof" };
+  const funnelStage = rawFunnelStage ? (FUNNEL_STAGE_MAP[rawFunnelStage] || rawFunnelStage) : null;
   const sessionId = action.session_id;
   const tenantId = action.tenant_id;
 
