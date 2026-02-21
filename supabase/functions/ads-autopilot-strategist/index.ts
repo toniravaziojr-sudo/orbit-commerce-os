@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.34.0"; // Smart filtering: all campaigns + only active adsets/ads + early exit for start trigger
+const VERSION = "v1.35.0"; // Extended metrics (frequency, CPM, funnel actions, video views) + intelligent replication strategy
 // ===================
 
 const corsHeaders = {
@@ -370,6 +370,14 @@ interface DeepInsight {
   cpa: number;
   ctr: number;
   frequency?: number;
+  cpm?: number;
+  // Funnel actions (v1.35.0)
+  page_views?: number;
+  add_to_cart?: number;
+  initiate_checkout?: number;
+  video_p25?: number;
+  video_p50?: number;
+  video_p95?: number;
   // Breakdowns
   placements?: Record<string, { spend: number; conversions: number; roas: number }>;
   creative_data?: any;
@@ -450,11 +458,12 @@ async function fetchDeepHistoricalInsights(
       await new Promise(r => setTimeout(r, 3000));
 
       // Step 2: Get insights with date_preset=maximum (with pagination + delay)
+      // v1.35.0: Added cpm, frequency at all levels + video_p25/p50/p75/p95_watched_actions for video metrics
       const insightFields = level === "campaign"
-        ? "campaign_id,campaign_name,spend,impressions,clicks,actions,action_values,ctr,cpc,cpm,frequency"
+        ? "campaign_id,campaign_name,spend,impressions,clicks,actions,action_values,ctr,cpc,cpm,frequency,video_p25_watched_actions,video_p50_watched_actions,video_p95_watched_actions"
         : level === "adset"
-        ? "adset_id,adset_name,campaign_id,spend,impressions,clicks,actions,action_values,ctr,cpc,frequency"
-        : "ad_id,ad_name,adset_id,campaign_id,spend,impressions,clicks,actions,action_values,ctr,cpc";
+        ? "adset_id,adset_name,campaign_id,spend,impressions,clicks,actions,action_values,ctr,cpc,cpm,frequency,video_p25_watched_actions,video_p50_watched_actions,video_p95_watched_actions"
+        : "ad_id,ad_name,adset_id,campaign_id,spend,impressions,clicks,actions,action_values,ctr,cpc,cpm,frequency,video_p25_watched_actions,video_p50_watched_actions,video_p95_watched_actions";
       const insightsUrl = `https://graph.facebook.com/${GRAPH_API}/act_${accountId}/insights?level=${level}&fields=${insightFields}&date_preset=maximum&limit=${pageSize}&access_token=${token}`;
       const insightsData = await fetchAllPages(insightsUrl, maxInsightPages, 2000);
       console.log(`[ads-autopilot-strategist][${VERSION}] Fetched ${insightsData.length} ${level} insight rows`);
@@ -506,6 +515,36 @@ async function fetchDeepHistoricalInsights(
     return { conversions, revenue };
   }
 
+  // v1.35.0: Extract funnel actions (page_view, add_to_cart, initiate_checkout)
+  function extractFunnelActions(actions: any[]): { page_views: number; add_to_cart: number; initiate_checkout: number } {
+    let page_views = 0, add_to_cart = 0, initiate_checkout = 0;
+    if (!actions) return { page_views, add_to_cart, initiate_checkout };
+    for (const a of actions) {
+      const t = a.action_type;
+      if (t === "view_content" || t === "offsite_conversion.fb_pixel_view_content") {
+        page_views += parseInt(a.value || "0");
+      } else if (t === "add_to_cart" || t === "offsite_conversion.fb_pixel_add_to_cart") {
+        add_to_cart += parseInt(a.value || "0");
+      } else if (t === "initiate_checkout" || t === "offsite_conversion.fb_pixel_initiate_checkout") {
+        initiate_checkout += parseInt(a.value || "0");
+      }
+    }
+    return { page_views, add_to_cart, initiate_checkout };
+  }
+
+  // v1.35.0: Extract video view metrics
+  function extractVideoViews(ins: any): { video_p25: number; video_p50: number; video_p95: number } {
+    const sumAction = (arr: any[]) => {
+      if (!arr || !Array.isArray(arr)) return 0;
+      return arr.reduce((s: number, a: any) => s + parseInt(a.value || "0"), 0);
+    };
+    return {
+      video_p25: sumAction(ins.video_p25_watched_actions),
+      video_p50: sumAction(ins.video_p50_watched_actions),
+      video_p95: sumAction(ins.video_p95_watched_actions),
+    };
+  }
+
   function extractRevenue(actionValues: any[]): number {
     if (!actionValues) return 0;
     for (const a of actionValues) {
@@ -538,6 +577,11 @@ async function fetchDeepHistoricalInsights(
     const roas = spend > 0 ? Math.round((revenue / spend) * 100) / 100 : 0;
     const cpa = conversions > 0 ? Math.round((spend / conversions) * 100) / 100 : 0;
     const ctr = impressions > 0 ? Math.round((clicks / impressions) * 10000) / 100 : 0;
+    const cpm = impressions > 0 ? Math.round((spend / impressions) * 1000 * 100) / 100 : 0;
+    
+    // v1.35.0: Extract funnel actions and video views
+    const funnel = extractFunnelActions(ins.actions);
+    const video = extractVideoViews(ins);
 
     // Build placement breakdown
     let placements: Record<string, any> | undefined;
@@ -563,6 +607,13 @@ async function fetchDeepHistoricalInsights(
       status: raw.status || raw.effective_status || "",
       spend, impressions, clicks, conversions, roas, cpa, ctr,
       frequency: ins.frequency ? parseFloat(ins.frequency) : undefined,
+      cpm,
+      page_views: funnel.page_views || undefined,
+      add_to_cart: funnel.add_to_cart || undefined,
+      initiate_checkout: funnel.initiate_checkout || undefined,
+      video_p25: video.video_p25 || undefined,
+      video_p50: video.video_p50 || undefined,
+      video_p95: video.video_p95 || undefined,
       placements,
       creative_data: level === "ad" ? raw.creative : undefined,
       targeting: level === "adset" ? raw.targeting : undefined,
@@ -608,8 +659,8 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     supabase.from("products").select("id, name, slug, price, cost_price, status, stock_quantity, brand, short_description").eq("tenant_id", tenantId).eq("status", "active").order("name", { ascending: true }).limit(30),
     supabase.from("orders").select("id, total, status, payment_status, created_at").eq("tenant_id", tenantId).gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()).limit(500),
     supabase.from("meta_ad_campaigns").select("meta_campaign_id, name, status, effective_status, objective, daily_budget_cents, ad_account_id").eq("tenant_id", tenantId).limit(200),
-    supabase.from("meta_ad_insights").select("meta_campaign_id, impressions, clicks, spend_cents, conversions, roas, date_start").eq("tenant_id", tenantId).gte("date_start", thirtyDaysAgo).limit(1000),
-    supabase.from("meta_ad_insights").select("meta_campaign_id, impressions, clicks, spend_cents, conversions, roas, date_start").eq("tenant_id", tenantId).gte("date_start", sevenDaysAgo).limit(500),
+    supabase.from("meta_ad_insights").select("meta_campaign_id, impressions, clicks, spend_cents, conversions, roas, ctr, cpm_cents, frequency, actions, date_start").eq("tenant_id", tenantId).gte("date_start", thirtyDaysAgo).limit(1000),
+    supabase.from("meta_ad_insights").select("meta_campaign_id, impressions, clicks, spend_cents, conversions, roas, ctr, cpm_cents, frequency, actions, date_start").eq("tenant_id", tenantId).gte("date_start", sevenDaysAgo).limit(500),
     supabase.from("meta_ad_adsets").select("meta_adset_id, name, status, effective_status, meta_campaign_id, daily_budget_cents, lifetime_budget_cents, optimization_goal, billing_event, bid_amount_cents, targeting, ad_account_id").eq("tenant_id", tenantId).limit(500),
     supabase.from("meta_ad_ads").select("meta_ad_id, name, status, effective_status, meta_adset_id, meta_campaign_id, ad_account_id, creative_id, creative_data").eq("tenant_id", tenantId).limit(500),
     supabase.from("meta_ad_audiences").select("meta_audience_id, name, audience_type, subtype, ad_account_id, approximate_count").eq("tenant_id", tenantId).limit(100),
@@ -672,18 +723,29 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     products: lp.product_ids,
   }));
 
-  // Compute per-campaign performance
+  // Compute per-campaign performance (v1.35.0: added frequency, CPM, funnel actions)
   const buildPerf = (insights: any[]) => {
     const perf: Record<string, any> = {};
     for (const ins of insights) {
       const cid = ins.meta_campaign_id;
-      if (!perf[cid]) perf[cid] = { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0, days: new Set() };
+      if (!perf[cid]) perf[cid] = { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0, days: new Set(), frequency_sum: 0, frequency_count: 0, cpm_sum: 0, page_views: 0, add_to_cart: 0, initiate_checkout: 0 };
       perf[cid].spend += ins.spend_cents || 0;
       perf[cid].impressions += ins.impressions || 0;
       perf[cid].clicks += ins.clicks || 0;
       perf[cid].conversions += ins.conversions || 0;
       perf[cid].revenue += (ins.roas || 0) * (ins.spend_cents || 0);
       perf[cid].days.add(ins.date_start);
+      if (ins.frequency) { perf[cid].frequency_sum += ins.frequency; perf[cid].frequency_count++; }
+      if (ins.cpm_cents) perf[cid].cpm_sum += ins.cpm_cents;
+      // Parse funnel actions from JSON actions field
+      if (ins.actions && Array.isArray(ins.actions)) {
+        for (const a of ins.actions) {
+          const t = a.action_type;
+          if (t === "view_content" || t === "offsite_conversion.fb_pixel_view_content") perf[cid].page_views += parseInt(a.value || "0");
+          else if (t === "add_to_cart" || t === "offsite_conversion.fb_pixel_add_to_cart") perf[cid].add_to_cart += parseInt(a.value || "0");
+          else if (t === "initiate_checkout" || t === "offsite_conversion.fb_pixel_initiate_checkout") perf[cid].initiate_checkout += parseInt(a.value || "0");
+        }
+      }
     }
     for (const cid of Object.keys(perf)) {
       const p = perf[cid];
@@ -692,6 +754,8 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
         roas: safeDivide(p.revenue, p.spend),
         cpa_cents: safeDivide(p.spend, p.conversions),
         ctr_pct: safeDivide(p.clicks * 100, p.impressions),
+        frequency: p.frequency_count > 0 ? Math.round((p.frequency_sum / p.frequency_count) * 100) / 100 : null,
+        cpm: p.impressions > 0 ? Math.round((p.spend / p.impressions) * 1000) / 100 : null,
       };
     }
     return perf;
@@ -794,7 +858,7 @@ function buildStrategistPrompt(trigger: StrategistTrigger, config: AccountConfig
   const platformLimit = PLATFORM_LIMITS[config.channel] || PLATFORM_LIMITS.meta;
   const budgetAdjustable = canAdjustBudget(config);
 
-  // Build campaign data with perf
+  // Build campaign data with perf (v1.35.0: added frequency, CPM, funnel actions)
   const campaignData = accountCampaigns.map((c: any) => {
     const p30 = context.perf30d[c.meta_campaign_id] || {};
     const p7 = context.perf7d[c.meta_campaign_id] || {};
@@ -802,8 +866,8 @@ function buildStrategistPrompt(trigger: StrategistTrigger, config: AccountConfig
       id: c.meta_campaign_id, name: c.name, status: c.status,
       effective_status: c.effective_status, objective: c.objective,
       budget_cents: c.daily_budget_cents,
-      perf_30d: p30.days ? { roas: p30.roas, cpa: p30.cpa_cents, spend: p30.spend, conversions: p30.conversions, ctr: p30.ctr_pct, days: p30.days } : null,
-      perf_7d: p7.days ? { roas: p7.roas, cpa: p7.cpa_cents, spend: p7.spend, conversions: p7.conversions, ctr: p7.ctr_pct, days: p7.days } : null,
+      perf_30d: p30.days ? { roas: p30.roas, cpa: p30.cpa_cents, spend: p30.spend, conversions: p30.conversions, ctr: p30.ctr_pct, frequency: p30.frequency, cpm: p30.cpm, page_views: p30.page_views, atc: p30.add_to_cart, ic: p30.initiate_checkout, days: p30.days } : null,
+      perf_7d: p7.days ? { roas: p7.roas, cpa: p7.cpa_cents, spend: p7.spend, conversions: p7.conversions, ctr: p7.ctr_pct, frequency: p7.frequency, cpm: p7.cpm, page_views: p7.page_views, atc: p7.add_to_cart, ic: p7.initiate_checkout, days: p7.days } : null,
     };
   });
 
@@ -1033,6 +1097,50 @@ ${config.user_instructions || "Nenhuma instrução adicional."}
 - Use os links reais da loja (landing pages, páginas) como destino dos anúncios
 - Considere as categorias de produtos e o posicionamento da marca ao criar copys
 
+## MÉTRICAS ESTENDIDAS DISPONÍVEIS (v1.35.0)
+Você tem acesso às seguintes métricas por campanha (30d e 7d), além do histórico profundo:
+- **Frequência**: Média de vezes que cada pessoa viu o anúncio. Se >3 = fadiga. Se >5 = crítico, pausar ou renovar criativo.
+- **CPM**: Custo por 1000 impressões em R$. Indica competitividade do leilão e qualidade do anúncio.
+- **CTR**: Taxa de clique. Abaixo de 1% indica criativo fraco. Acima de 2% é excelente.
+- **Visualizações de Página (PV)**: Quantas pessoas chegaram na página do produto. Indica qualidade do tráfego.
+- **Adição ao Carrinho (ATC)**: Quantas adicionaram ao carrinho. Indica intenção de compra.
+- **Checkout Iniciado (IC)**: Quantas iniciaram checkout. Se ATC alto e IC baixo = problema no checkout.
+- **Video Views 25/50/95%**: Retenção do vídeo. Se VV25 alto mas VV95 baixo = gancho bom mas conteúdo fraco.
+
+USE ESSAS MÉTRICAS para:
+1. Identificar fadiga criativa (frequência alta + CTR caindo)
+2. Diagnosticar funil quebrado (PV alto → ATC baixo = página ruim, ATC alto → IC baixo = checkout ruim)
+3. Avaliar qualidade de vídeos (VV25 vs VV95 = taxa de retenção)
+4. Comparar CPM entre públicos (CPM alto pode indicar audiência saturada)
+
+## ESTRATÉGIA DE REPLICAÇÃO INTELIGENTE (v1.35.0 — OBRIGATÓRIA)
+Em contas com histórico de campanhas, você NUNCA deve criar tudo do zero. Siga esta hierarquia:
+
+### 1. DUPLICAÇÃO EXATA (Prioridade Máxima)
+- Se uma campanha/adset/anúncio teve ROAS ≥ meta E está pausado → DUPLIQUE exatamente com o mesmo público, copy, criativo e configurações
+- Apenas ajuste: orçamento (escalar se ROAS permitir) e datas
+- No plano, marque como "DUPLICAÇÃO" e referencie o nome/ID original
+
+### 2. REPLICAÇÃO COM VARIAÇÃO (Prioridade Alta)
+- Se um criativo/copy teve CTR > 2% e conversões → use como REFERÊNCIA para criar variações
+- Mantenha o mesmo ângulo/hook/estrutura, mas mude palavras, imagens ou formato
+- Copys vencedoras: mantenha a estrutura (gancho + benefício + CTA) e varie os detalhes
+- Criativos vencedores: mantenha o estilo visual e mude composição ou produto em destaque
+- No plano, cite o anúncio original como "INSPIRAÇÃO"
+
+### 3. EXPANSÃO DE PÚBLICO (Prioridade Média)
+- Se um adset com público X teve bom desempenho → crie novos adsets com o MESMO criativo/copy em públicos SIMILARES
+- Ex: Se "Interesses Skincare" funcionou → teste "LAL 1% compradores" com o mesmo anúncio
+- Ou: se "Broad 25-45 F" funcionou → teste "Broad 30-55 F" ou adicione interesses
+
+### 4. TESTE GENUÍNO (Prioridade Baixa — apenas quando necessário)
+- Criar do zero APENAS quando: (a) não há dados históricos suficientes, (b) novo produto sem referência, (c) necessidade de testar ângulo completamente diferente
+- Mesmo em testes, use as copys e headlines vencedoras como ponto de partida
+
+### REGRA DE OURO
+Antes de propor QUALQUER campanha nova, verifique se já existe algo similar no histórico que pode ser duplicado ou adaptado. 
+Testar do zero em uma conta com 273 campanhas é DESPERDÍCIO — os dados já dizem o que funciona.
+
 ## REGRAS DE CONFIGURAÇÃO COMPLETA (OBRIGATÓRIAS em create_campaign)
 Cada create_campaign é uma campanha COMPLETA no Meta Ads. Você DEVE preencher TODOS os campos abaixo como se estivesse configurando manualmente:
 
@@ -1149,12 +1257,12 @@ ${context.products.map((p: any) => `  • ${p.name} — R$${Number(p.price).toFi
   const fmtNum = (v: any) => v != null ? String(v) : "-";
   const fmtPct = (v: any) => v != null ? Number(v).toFixed(2) + "%" : "-";
   
-  // CAMPAIGNS - ALL of them in compact format
-  const campaignHeaders = "ID | Nome | Status | EffStatus | Objetivo | Budget/dia | ROAS30d | CPA30d | Spend30d | Conv30d | CTR30d | ROAS7d | CPA7d | Spend7d | Conv7d";
+  // CAMPAIGNS - ALL of them in compact format (v1.35.0: added Freq, CPM, PageView, ATC, IC)
+  const campaignHeaders = "ID | Nome | Status | EffStatus | Objetivo | Budget/dia | ROAS30d | CPA30d | Spend30d | Conv30d | CTR30d | Freq30d | CPM30d | PV30d | ATC30d | IC30d | ROAS7d | CPA7d | Spend7d | Conv7d | CTR7d | Freq7d";
   const campaignRows = campaignData.map((c: any) => {
     const p30 = c.perf_30d || {};
     const p7 = c.perf_7d || {};
-    return `${c.id} | ${c.name} | ${c.status} | ${c.effective_status} | ${c.objective || "-"} | ${fmtCents(c.budget_cents)} | ${fmtNum(p30.roas)} | ${fmtCents(p30.cpa)} | ${fmtNum(p30.spend)} | ${fmtNum(p30.conversions)} | ${fmtPct(p30.ctr)} | ${fmtNum(p7.roas)} | ${fmtCents(p7.cpa)} | ${fmtNum(p7.spend)} | ${fmtNum(p7.conversions)}`;
+    return `${c.id} | ${c.name} | ${c.status} | ${c.effective_status} | ${c.objective || "-"} | ${fmtCents(c.budget_cents)} | ${fmtNum(p30.roas)} | ${fmtCents(p30.cpa)} | ${fmtNum(p30.spend)} | ${fmtNum(p30.conversions)} | ${fmtPct(p30.ctr)} | ${fmtNum(p30.frequency)} | ${fmtCents(p30.cpm)} | ${fmtNum(p30.page_views)} | ${fmtNum(p30.atc)} | ${fmtNum(p30.ic)} | ${fmtNum(p7.roas)} | ${fmtCents(p7.cpa)} | ${fmtNum(p7.spend)} | ${fmtNum(p7.conversions)} | ${fmtPct(p7.ctr)} | ${fmtNum(p7.frequency)}`;
   }).join("\n");
 
   // ADSETS - Smart filter: ALL from active campaigns + top from paused (v1.34.0)
@@ -1915,16 +2023,22 @@ Feedback: "${revisionFeedback}"
 
       const deepText = `## DADOS HISTÓRICOS COMPLETOS DA CONTA (PERÍODO MÁXIMO)
 ### Top Campanhas por Conversões (todas, incluindo pausadas):
-${topCampaigns.map((c: any) => `- ${c.name} [${c.status}] — ROAS: ${c.roas}x | CPA: R$${c.cpa.toFixed(2)} | Conversões: ${c.conversions} | Gasto: R$${c.spend.toFixed(2)} | CTR: ${c.ctr}%`).join("\n") || "Nenhuma campanha com conversões"}
+${topCampaigns.map((c: any) => `- ${c.name} [${c.status}] — ROAS: ${c.roas}x | CPA: R$${c.cpa.toFixed(2)} | Conv: ${c.conversions} | Gasto: R$${c.spend.toFixed(2)} | CTR: ${c.ctr}% | Freq: ${c.frequency ?? "-"} | CPM: R$${c.cpm?.toFixed(2) ?? "-"} | PV: ${c.page_views ?? "-"} | ATC: ${c.add_to_cart ?? "-"} | IC: ${c.initiate_checkout ?? "-"} | VV25: ${c.video_p25 ?? "-"} | VV50: ${c.video_p50 ?? "-"} | VV95: ${c.video_p95 ?? "-"}`).join("\n") || "Nenhuma campanha com conversões"}
 
 ### Top Conjuntos de Anúncios por ROAS (públicos que mais converteram):
-${topAdsets.map((a: any) => `- ${a.name} [${a.status}] — ROAS: ${a.roas}x | CPA: R$${a.cpa.toFixed(2)} | Conversões: ${a.conversions} | Gasto: R$${a.spend.toFixed(2)}${a.targeting ? ` | Targeting: ${JSON.stringify(a.targeting).substring(0, 200)}` : ""}`).join("\n") || "Nenhum adset com conversões"}
+${topAdsets.map((a: any) => `- ${a.name} [${a.status}] — ROAS: ${a.roas}x | CPA: R$${a.cpa.toFixed(2)} | Conv: ${a.conversions} | Gasto: R$${a.spend.toFixed(2)} | Freq: ${a.frequency ?? "-"} | CPM: R$${a.cpm?.toFixed(2) ?? "-"} | PV: ${a.page_views ?? "-"} | ATC: ${a.add_to_cart ?? "-"} | IC: ${a.initiate_checkout ?? "-"}${a.targeting ? ` | Targeting: ${JSON.stringify(a.targeting).substring(0, 200)}` : ""}`).join("\n") || "Nenhum adset com conversões"}
 
 ### Top Anúncios por Conversões (criativos/copys que mais converteram):
 ${topAds.map((a: any) => {
         const cr = a.creative_data || {};
-        return `- ${a.name} [${a.status}] — ROAS: ${a.roas}x | CPA: R$${a.cpa.toFixed(2)} | Conversões: ${a.conversions} | CTR: ${a.ctr}%${cr.title ? ` | Headline: "${cr.title}"` : ""}${cr.body ? ` | Copy: "${(cr.body || "").substring(0, 150)}"` : ""}${cr.call_to_action_type ? ` | CTA: ${cr.call_to_action_type}` : ""}`;
+        return `- ${a.name} [${a.status}] — ROAS: ${a.roas}x | CPA: R$${a.cpa.toFixed(2)} | Conv: ${a.conversions} | CTR: ${a.ctr}% | Freq: ${a.frequency ?? "-"} | CPM: R$${a.cpm?.toFixed(2) ?? "-"} | VV25: ${a.video_p25 ?? "-"} | VV50: ${a.video_p50 ?? "-"} | VV95: ${a.video_p95 ?? "-"}${cr.title ? ` | Headline: "${cr.title}"` : ""}${cr.body ? ` | Copy: "${(cr.body || "").substring(0, 150)}"` : ""}${cr.call_to_action_type ? ` | CTA: ${cr.call_to_action_type}` : ""}`;
       }).join("\n") || "Nenhum anúncio com conversões"}
+
+### Funil de Conversão Histórico (toda a conta):
+- Visualizações de Página: ${dh.campaigns.reduce((s: number, c: any) => s + (c.page_views || 0), 0)}
+- Adições ao Carrinho: ${dh.campaigns.reduce((s: number, c: any) => s + (c.add_to_cart || 0), 0)}
+- Checkouts Iniciados: ${dh.campaigns.reduce((s: number, c: any) => s + (c.initiate_checkout || 0), 0)}
+- Compras: ${dh.campaigns.reduce((s: number, c: any) => s + c.conversions, 0)}
 
 ### Top Posicionamentos por ROAS:
 ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: ${p.conversions} | Gasto: R$${p.spend.toFixed(2)}`).join("\n") || "Sem dados de posicionamento"}
