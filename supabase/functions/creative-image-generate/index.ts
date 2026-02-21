@@ -1,10 +1,10 @@
 /**
- * Creative Image Generate — Edge Function v4.0 (Resilient Pipeline)
+ * Creative Image Generate — Edge Function v5.2.0 (Drive Fallback Priority)
  * 
  * Suporta:
  * - Gemini Flash + Gemini Pro como providers reais distintos
  * - Retry automático com modelo alternativo se o primeiro falhar
- * - Fallback final: usa imagem do catálogo para ads_creative_assets
+ * - Fallback: 1) Criativos existentes na pasta "Gestor de Tráfego IA" (por product_id) → 2) Imagem do catálogo
  * - 3 estilos: product_natural, person_interacting, promotional
  * 
  * MODELOS:
@@ -15,7 +15,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const VERSION = '5.1.0'; // OpenAI gpt-image-1 via Chat Completions API + Gemini (Lovable) fallback
+const VERSION = '5.2.0'; // Drive fallback before catalog: prioritize existing creatives from "Gestor de Tráfego IA"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -1117,24 +1117,99 @@ serve(async (req) => {
             console.log(`[creative-image][${VERSION}] Updated ${assetsToUpdate.length} ads_creative_assets with generated image`);
           }
         } else {
-          // FALLBACK PATH: ALL generation attempts failed — use catalog image
-          console.warn(`[creative-image][${VERSION}] ALL generation attempts failed. Using catalog image as fallback.`);
+          // FALLBACK PATH: ALL generation attempts failed
+          console.warn(`[creative-image][${VERSION}] ALL generation attempts failed. Trying Drive fallback...`);
           
-          if (assetsToUpdate.length > 0 && product_image_url) {
+          // v5.2.0: PRIORITY 1 — Search "Gestor de Tráfego IA" folder for existing creatives matching product_id
+          let driveFallbackUrl: string | null = null;
+          
+          if (product_id) {
+            try {
+              // Find the Drive folder
+              const { data: driveFolder } = await supabase
+                .from('files')
+                .select('id')
+                .eq('tenant_id', tenant_id)
+                .eq('filename', 'Gestor de Tráfego IA')
+                .eq('is_folder', true)
+                .maybeSingle();
+
+              if (driveFolder) {
+                // Search for creatives with matching product_id in metadata, prioritize winners and highest scores
+                const { data: driveCreatives } = await supabase
+                  .from('files')
+                  .select('id, filename, metadata, storage_path')
+                  .eq('tenant_id', tenant_id)
+                  .eq('folder_id', driveFolder.id)
+                  .eq('is_folder', false)
+                  .order('created_at', { ascending: false })
+                  .limit(50);
+
+                if (driveCreatives && driveCreatives.length > 0) {
+                  // Filter by product_id in metadata
+                  const matchingCreatives = driveCreatives.filter((f: any) => {
+                    const meta = f.metadata as Record<string, any> | null;
+                    return meta?.product_id === product_id;
+                  });
+
+                  if (matchingCreatives.length > 0) {
+                    // Sort: winners first, then by overall score descending
+                    matchingCreatives.sort((a: any, b: any) => {
+                      const metaA = a.metadata as Record<string, any> || {};
+                      const metaB = b.metadata as Record<string, any> || {};
+                      // Winners first
+                      if (metaA.is_winner && !metaB.is_winner) return -1;
+                      if (!metaA.is_winner && metaB.is_winner) return 1;
+                      // Then by overall score
+                      const scoreA = metaA.scores?.overall || 0;
+                      const scoreB = metaB.scores?.overall || 0;
+                      return scoreB - scoreA;
+                    });
+
+                    const bestCreative = matchingCreatives[0];
+                    const bestMeta = bestCreative.metadata as Record<string, any> || {};
+                    
+                    // Use the URL from metadata or construct from storage path
+                    driveFallbackUrl = bestMeta.url || null;
+                    if (!driveFallbackUrl && bestCreative.storage_path) {
+                      const bucket = bestMeta.bucket || 'media-assets';
+                      const { data: pubUrl } = supabase.storage.from(bucket).getPublicUrl(bestCreative.storage_path);
+                      driveFallbackUrl = pubUrl?.publicUrl || null;
+                    }
+
+                    if (driveFallbackUrl) {
+                      console.log(`[creative-image][${VERSION}] ✅ Drive fallback found: ${bestCreative.filename} (winner=${bestMeta.is_winner}, score=${bestMeta.scores?.overall || 'N/A'})`);
+                    }
+                  } else {
+                    console.log(`[creative-image][${VERSION}] No Drive creatives found for product_id=${product_id}`);
+                  }
+                }
+              }
+            } catch (driveErr: any) {
+              console.error(`[creative-image][${VERSION}] Drive fallback search error:`, driveErr.message);
+            }
+          }
+
+          // Determine fallback URL: Drive creative > Catalog image
+          const fallbackUrl = driveFallbackUrl || product_image_url;
+          const fallbackSource = driveFallbackUrl ? 'fallback_drive' : 'fallback_catalog';
+          
+          if (assetsToUpdate.length > 0 && fallbackUrl) {
             for (const asset of assetsToUpdate) {
               const existingMeta = asset.meta as any || {};
               await supabase.from('ads_creative_assets').update({
-                asset_url: product_image_url,
+                asset_url: fallbackUrl,
                 status: 'ready',
                 meta: {
                   ...existingMeta,
-                  image_status: 'fallback_catalog',
+                  image_status: fallbackSource,
                   image_job_id: jobId,
                   fallback_reason: 'All AI generation attempts failed',
+                  fallback_source: fallbackSource,
                 },
               }).eq('id', asset.id);
             }
-            console.log(`[creative-image][${VERSION}] Fallback: ${assetsToUpdate.length} ads_creative_assets updated with CATALOG image`);
+            console.log(`[creative-image][${VERSION}] Fallback (${fallbackSource}): ${assetsToUpdate.length} ads_creative_assets updated`);
           }
         }
 
