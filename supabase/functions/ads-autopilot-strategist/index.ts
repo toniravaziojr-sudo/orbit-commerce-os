@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.36.0"; // Replication strategy scoped to start trigger only; metrics apply to all triggers
+const VERSION = "v1.37.0"; // Smart insight collection: sort by spend desc + retry on 429 + full coverage
 // ===================
 
 const corsHeaders = {
@@ -393,23 +393,50 @@ async function fetchDeepHistoricalInsights(
 ): Promise<{ campaigns: DeepInsight[]; adsets: DeepInsight[]; ads: DeepInsight[] } | null> {
   const GRAPH_API = "v21.0";
 
-  // Helper to paginate through all Graph API results with rate-limit protection
-  async function fetchAllPages(url: string, maxPages = 10, delayMs = 1500): Promise<any[]> {
+  // Helper to paginate through all Graph API results with rate-limit protection and 429 retry
+  async function fetchAllPages(url: string, maxPages = 10, delayMs = 1500, maxRetries429 = 3): Promise<any[]> {
     const allData: any[] = [];
     let nextUrl: string | null = url;
     let page = 0;
     while (nextUrl && page < maxPages) {
-      if (page > 0) await new Promise(r => setTimeout(r, delayMs)); // Rate-limit delay
-      const res = await fetch(nextUrl);
-      const json = await res.json();
-      if (json.error) {
-        console.error(`[ads-autopilot-strategist][${VERSION}] Graph API pagination error:`, json.error.message);
+      if (page > 0) await new Promise(r => setTimeout(r, delayMs));
+      
+      let retries = 0;
+      let json: any = null;
+      while (retries <= maxRetries429) {
+        const res = await fetch(nextUrl!);
+        
+        // Handle rate limit (429) with exponential backoff
+        if (res.status === 429) {
+          retries++;
+          if (retries > maxRetries429) {
+            console.warn(`[ads-autopilot-strategist][${VERSION}] Rate limit exceeded after ${maxRetries429} retries on page ${page}`);
+            break;
+          }
+          const retryAfter = parseInt(res.headers.get("Retry-After") || "0");
+          const backoffMs = retryAfter > 0 ? retryAfter * 1000 : Math.min(5000 * Math.pow(2, retries - 1), 60000);
+          console.warn(`[ads-autopilot-strategist][${VERSION}] 429 on page ${page}, retry ${retries}/${maxRetries429} in ${backoffMs}ms`);
+          // Consume body to prevent resource leak
+          await res.text();
+          await new Promise(r => setTimeout(r, backoffMs));
+          continue;
+        }
+        
+        json = await res.json();
+        break;
+      }
+      
+      if (!json || json.error) {
+        if (json?.error) {
+          console.error(`[ads-autopilot-strategist][${VERSION}] Graph API pagination error (page ${page}):`, json.error.message);
+        }
         break;
       }
       allData.push(...(json.data || []));
       nextUrl = json.paging?.next || null;
       page++;
     }
+    console.log(`[ads-autopilot-strategist][${VERSION}] fetchAllPages: collected ${allData.length} rows in ${page} pages`);
     return allData;
   }
   
@@ -442,7 +469,9 @@ async function fetchDeepHistoricalInsights(
     const pageSize = level === "campaign" ? 200 : 100;
     // Ads have heavy creative subfields - use fewer pages
     const maxEntityPages = level === "ad" ? 5 : 8;
-    const maxInsightPages = level === "campaign" ? 5 : 3;
+    // v1.37.0: Increased insight pages for full coverage + retry handles 429
+    // Campaigns: 10 pages (2000 rows), AdSets: 10 pages (1000 rows), Ads: 8 pages (800 rows)
+    const maxInsightPages = level === "campaign" ? 10 : level === "adset" ? 10 : 8;
 
     try {
       // Step 1: Get entities (with pagination + delay)
@@ -464,9 +493,13 @@ async function fetchDeepHistoricalInsights(
         : level === "adset"
         ? "adset_id,adset_name,campaign_id,spend,impressions,clicks,actions,action_values,ctr,cpc,cpm,frequency,video_p25_watched_actions,video_p50_watched_actions,video_p95_watched_actions"
         : "ad_id,ad_name,adset_id,campaign_id,spend,impressions,clicks,actions,action_values,ctr,cpc,cpm,frequency,video_p25_watched_actions,video_p50_watched_actions,video_p95_watched_actions";
-      const insightsUrl = `https://graph.facebook.com/${GRAPH_API}/act_${accountId}/insights?level=${level}&fields=${insightFields}&date_preset=maximum&limit=${pageSize}&access_token=${token}`;
-      const insightsData = await fetchAllPages(insightsUrl, maxInsightPages, 2000);
-      console.log(`[ads-autopilot-strategist][${VERSION}] Fetched ${insightsData.length} ${level} insight rows`);
+      // v1.37.0: Sort by spend descending to ensure highest-spend entities come first
+      // This guarantees that even if rate-limited, the most important data is collected
+      const sortParam = level !== "campaign" ? `&sort=${encodeURIComponent('["spend_descending"]')}` : "";
+      const insightsUrl = `https://graph.facebook.com/${GRAPH_API}/act_${accountId}/insights?level=${level}&fields=${insightFields}&date_preset=maximum&limit=${pageSize}${sortParam}&access_token=${token}`;
+      // v1.37.0: Use 3s delay between pages (was 2s) for more headroom against rate limits
+      const insightsData = await fetchAllPages(insightsUrl, maxInsightPages, 3000, 3);
+      console.log(`[ads-autopilot-strategist][${VERSION}] Fetched ${insightsData.length} ${level} insight rows (sorted by spend desc)`);
 
       // Step 3: Get placement breakdown (only for campaign level to reduce API calls)
       let placementMap: Record<string, any[]> = {};
