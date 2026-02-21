@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.33.0"; // Compress prompt data: tabular format instead of JSON for ALL campaigns/adsets/ads (no limits)
+const VERSION = "v1.34.0"; // Smart filtering: all campaigns + only active adsets/ads + early exit for start trigger
 // ===================
 
 const corsHeaders = {
@@ -1157,15 +1157,28 @@ ${context.products.map((p: any) => `  • ${p.name} — R$${Number(p.price).toFi
     return `${c.id} | ${c.name} | ${c.status} | ${c.effective_status} | ${c.objective || "-"} | ${fmtCents(c.budget_cents)} | ${fmtNum(p30.roas)} | ${fmtCents(p30.cpa)} | ${fmtNum(p30.spend)} | ${fmtNum(p30.conversions)} | ${fmtPct(p30.ctr)} | ${fmtNum(p7.roas)} | ${fmtCents(p7.cpa)} | ${fmtNum(p7.spend)} | ${fmtNum(p7.conversions)}`;
   }).join("\n");
 
-  // ADSETS - ALL of them
+  // ADSETS - Smart filter: ALL from active campaigns + top from paused (v1.34.0)
+  const activeCampaignIds = new Set(activeCampaigns.map((c: any) => c.meta_campaign_id || c.id));
+  const activeAdsets = accountAdsets.filter((as: any) => activeCampaignIds.has(as.meta_campaign_id));
+  const pausedAdsets = accountAdsets.filter((as: any) => !activeCampaignIds.has(as.meta_campaign_id));
+  // Keep top 50 paused adsets by name relevance (most recent usually)
+  const selectedPausedAdsets = pausedAdsets.slice(0, 50);
+  const filteredAdsets = [...activeAdsets, ...selectedPausedAdsets];
+  
   const adsetHeaders = "ID | Nome | Status | EffStatus | CampaignID | BudgetDia | BudgetLife | OptGoal | BillingEvt | BidCents";
-  const adsetRows = accountAdsets.map((as: any) => 
+  const adsetRows = filteredAdsets.map((as: any) => 
     `${as.meta_adset_id} | ${as.name} | ${as.status} | ${as.effective_status} | ${as.meta_campaign_id} | ${fmtCents(as.daily_budget_cents)} | ${fmtCents(as.lifetime_budget_cents)} | ${as.optimization_goal || "-"} | ${as.billing_event || "-"} | ${fmtNum(as.bid_amount_cents)}`
   ).join("\n");
 
-  // ADS - ALL of them
+  // ADS - Smart filter: ALL from active campaigns + top from paused (v1.34.0)
+  const activeAdsetIds = new Set(activeAdsets.map((as: any) => as.meta_adset_id));
+  const activeAds = accountAds.filter((ad: any) => activeAdsetIds.has(ad.meta_adset_id) || activeCampaignIds.has(ad.meta_campaign_id));
+  const pausedAds = accountAds.filter((ad: any) => !activeAdsetIds.has(ad.meta_adset_id) && !activeCampaignIds.has(ad.meta_campaign_id));
+  const selectedPausedAds = pausedAds.slice(0, 50);
+  const filteredAds = [...activeAds, ...selectedPausedAds];
+  
   const adHeaders = "ID | Nome | Status | EffStatus | AdSetID | CampaignID";
-  const adRows = accountAds.map((ad: any) => 
+  const adRows = filteredAds.map((ad: any) => 
     `${ad.meta_ad_id} | ${ad.name} | ${ad.status} | ${ad.effective_status} | ${ad.meta_adset_id} | ${ad.meta_campaign_id}`
   ).join("\n");
 
@@ -1187,12 +1200,12 @@ ${context.products.map((p: any) => `  • ${p.name} — R$${Number(p.price).toFi
 ${campaignHeaders}
 ${campaignRows}
 
-## CONJUNTOS DE ANÚNCIOS (${accountAdsets.length} total)
+## CONJUNTOS DE ANÚNCIOS (${filteredAdsets.length} exibidos de ${accountAdsets.length} total — ${activeAdsets.length} em campanhas ativas)
 ⚠️ Quando campanha não tem budget/dia, o orçamento está no nível do conjunto (ABO). Verifique antes de concluir falta de orçamento.
 ${adsetHeaders}
 ${adsetRows}
 
-## ANÚNCIOS (${accountAds.length} total)
+## ANÚNCIOS (${filteredAds.length} exibidos de ${accountAds.length} total — ${activeAds.length} em campanhas ativas)
 ${adHeaders}
 ${adRows}
 
@@ -2166,6 +2179,12 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
         }
 
         console.log(`[ads-autopilot-strategist][${VERSION}] Round ${round} complete: ${toolCalls.length} tools processed, continuing...`);
+        
+        // v1.34.0: Early exit for start trigger — only needs one strategic_plan, no need for R2
+        if (trigger === "start" && toolCalls.some((tc: any) => tc.function.name === "strategic_plan")) {
+          console.log(`[ads-autopilot-strategist][${VERSION}] Start trigger: strategic_plan produced, exiting loop early`);
+          break;
+        }
       }
 
       if (round >= MAX_ROUNDS) {
