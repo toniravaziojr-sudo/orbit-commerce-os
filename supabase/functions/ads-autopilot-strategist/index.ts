@@ -1590,10 +1590,15 @@ Feedback: "${revisionFeedback}"
         round++;
         console.log(`[ads-autopilot-strategist][${VERSION}] Round ${round}/${MAX_ROUNDS} for account ${config.ad_account_id}`);
 
+        // Force tool calling on first round for triggers that MUST produce a tool call
+        const forceToolChoice = round === 1 && (trigger === "start" || trigger === "implement_approved_plan" || trigger === "implement_campaigns")
+          ? "required"
+          : "auto";
+
         const aiResponse = await aiChatCompletion("google/gemini-2.5-flash", {
           messages,
           tools: allowedTools,
-          tool_choice: "auto",
+          tool_choice: forceToolChoice,
         }, {
           supabaseUrl,
           supabaseServiceKey,
