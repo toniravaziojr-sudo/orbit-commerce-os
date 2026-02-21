@@ -136,13 +136,14 @@ Deno.serve(async (req) => {
               if (preset === "maximum" && result.error.code === 1) {
                 console.warn(`[meta-ads-insights][${traceId}] Account ${account.id}: "maximum" too large, falling back to quarterly chunks...`);
                 
-                // Determine start year from earliest known campaign
+                // Determine start date from earliest known campaign (filter out epoch-0 dates)
                 const { data: earliestCampaign } = await supabase
                   .from("meta_ad_campaigns")
                   .select("start_time")
                   .eq("tenant_id", tenantId)
                   .eq("ad_account_id", account.id)
                   .not("start_time", "is", null)
+                  .gt("start_time", "2010-01-01T00:00:00Z")
                   .order("start_time", { ascending: true })
                   .limit(1)
                   .maybeSingle();
@@ -152,7 +153,7 @@ Deno.serve(async (req) => {
                   : new Date(new Date().setFullYear(new Date().getFullYear() - 2));
                 
                 const chunks = generateQuarterlyChunks(startDate);
-                console.log(`[meta-ads-insights][${traceId}] Account ${account.id}: ${chunks.length} quarterly chunks from ${startDate.toISOString().split("T")[0]}`);
+                console.log(`[meta-ads-insights][${traceId}] Account ${account.id}: ${chunks.length} quarterly chunks (earliest campaign: ${startDate.toISOString().split("T")[0]}, first chunk: ${chunks[0]?.since || "none"})`);
                 
                 for (const chunk of chunks) {
                   const chunkResult = await fetchInsightsPage(accountId, { 
