@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bot, DollarSign, Target, Shield, AlertTriangle, Zap, Scale, TrendingUp, ChevronDown, ChevronUp, Info, Sparkles, Loader2 } from "lucide-react";
+import { Bot, DollarSign, Target, AlertTriangle, Zap, Scale, TrendingUp, ChevronDown, ChevronUp, Info, Sparkles, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -51,10 +51,6 @@ const STRATEGY_OPTIONS = [
   { value: "long_term", label: "Médio/Longo Prazo", icon: "🌱", desc: "Branding e crescimento sustentável" },
 ];
 
-const APPROVAL_OPTIONS = [
-  { value: "auto", label: "Auto-executar tudo", desc: "IA executa todas as ações automaticamente" },
-  { value: "approve_high_impact", label: "Aprovar alto impacto", desc: "Criar campanha, budget >20%, trocar objetivo" },
-];
 
 function AccountConfigCard({
   accountId,
@@ -91,7 +87,7 @@ function AccountConfigCard({
   const [funnelSplits, setFunnelSplits] = useState<Record<string, number>>(
     (config?.funnel_splits as Record<string, number>) || { cold: 60, remarketing: 25, tests: 15, leads: 0 }
   );
-  const [approvalMode, setApprovalMode] = useState(config?.human_approval_mode || "auto");
+  
   const [showTemplate, setShowTemplate] = useState(false);
   const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
   const [showDeactivateWarning, setShowDeactivateWarning] = useState(false);
@@ -108,7 +104,7 @@ function AccountConfigCard({
       setStrategyMode(config.strategy_mode || "balanced");
       setFunnelSplitMode(config.funnel_split_mode || "manual");
       setFunnelSplits((config.funnel_splits as Record<string, number>) || { cold: 60, remarketing: 25, tests: 15, leads: 0 });
-      setApprovalMode(config.human_approval_mode || "auto");
+      
     }
   }, [config]);
 
@@ -132,7 +128,7 @@ function AccountConfigCard({
     funnel_split_mode: funnelSplitMode,
     funnel_splits: funnelSplitMode === "manual" ? funnelSplits : null,
     kill_switch: config?.kill_switch || false,
-    human_approval_mode: approvalMode,
+    human_approval_mode: "approve_high_impact",
     created_at: config?.created_at || null,
     updated_at: config?.updated_at || null,
   };
@@ -151,7 +147,7 @@ function AccountConfigCard({
       strategy_mode: strategyMode,
       funnel_split_mode: funnelSplitMode,
       funnel_splits: funnelSplitMode === "manual" ? funnelSplits : null,
-      human_approval_mode: approvalMode,
+      human_approval_mode: "approve_high_impact",
     } as any);
   };
 
@@ -370,26 +366,6 @@ function AccountConfigCard({
           )}
         </div>
 
-        {/* Approval Mode */}
-        <div className="space-y-2">
-          <Label className="text-sm font-semibold flex items-center gap-2">
-            <Shield className="h-4 w-4 text-primary" />
-            Modo de Aprovação
-          </Label>
-          <Select value={approvalMode} onValueChange={setApprovalMode}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {APPROVAL_OPTIONS.map(opt => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  <span className="flex items-center gap-2">
-                    <span>{opt.label}</span>
-                    <span className="text-xs text-muted-foreground">— {opt.desc}</span>
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
 
         {/* Prompt */}
         <div className="space-y-2">
