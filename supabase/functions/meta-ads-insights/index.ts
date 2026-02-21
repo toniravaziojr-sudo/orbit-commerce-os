@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.4.0"; // Fix: daily granularity with time_increment=1
+const VERSION = "v1.5.0"; // Fix: chunked fallback when maximum date_preset fails for large accounts
 // ===========================================================
 
 const corsHeaders = {
@@ -70,34 +70,122 @@ Deno.serve(async (req) => {
       let totalSynced = 0;
       let totalErrors = 0;
 
-      // Sync both last_30d AND today to ensure current-day data
+      // Sync both the requested preset AND today to ensure current-day data
       const presetsToSync = timeRange ? [null] : [datePreset, ...(datePreset !== "today" ? ["today"] : [])];
 
-      // Iterate ALL ad accounts (not just the first)
+      // Helper: fetch insights for a specific time_range or preset
+      async function fetchInsightsPage(accountId: string, options: { preset?: string; timeRange?: any }): Promise<{ data: any[]; error?: any }> {
+        let insightsUrl = `act_${accountId}/insights?fields=campaign_id,campaign_name,impressions,clicks,spend,reach,cpc,cpm,ctr,actions,action_values,cost_per_action_type,frequency&level=campaign&time_increment=1&limit=500`;
+        if (options.timeRange) {
+          insightsUrl += `&time_range=${JSON.stringify(options.timeRange)}`;
+        } else if (options.preset) {
+          insightsUrl += `&date_preset=${options.preset}`;
+        }
+        const graphUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}/${insightsUrl}&access_token=${conn.access_token}`;
+        const res = await fetch(graphUrl);
+        const result = await res.json();
+        if (result.error) return { data: [], error: result.error };
+        return { data: result.data || [] };
+      }
+
+      // Helper: generate quarterly chunks from a start date to today
+      // Meta API limits to 37 months back, so we enforce that as minimum
+      function generateQuarterlyChunks(startDate: Date): Array<{ since: string; until: string }> {
+        const chunks: Array<{ since: string; until: string }> = [];
+        const now = new Date();
+        // Meta API hard limit: 37 months back
+        const metaLimit = new Date();
+        metaLimit.setMonth(metaLimit.getMonth() - 36); // 36 months = safe margin under 37
+        
+        let current = startDate < metaLimit ? metaLimit : new Date(startDate);
+        
+        while (current < now) {
+          const chunkEnd = new Date(current);
+          chunkEnd.setMonth(chunkEnd.getMonth() + 3);
+          if (chunkEnd > now) chunkEnd.setTime(now.getTime());
+          chunks.push({
+            since: current.toISOString().split("T")[0],
+            until: chunkEnd.toISOString().split("T")[0],
+          });
+          current = new Date(chunkEnd);
+          current.setDate(current.getDate() + 1);
+        }
+        return chunks;
+      }
+
+      // Iterate ALL ad accounts
       for (const account of adAccounts) {
         const accountId = account.id.replace("act_", "");
         
         for (const preset of presetsToSync) {
-          let insightsUrl = `act_${accountId}/insights?fields=campaign_id,campaign_name,impressions,clicks,spend,reach,cpc,cpm,ctr,actions,action_values,cost_per_action_type,frequency&level=campaign&time_increment=1&limit=500`;
+          let insights: any[] = [];
 
           if (timeRange) {
-            insightsUrl += `&time_range=${JSON.stringify(timeRange)}`;
+            const result = await fetchInsightsPage(accountId, { timeRange });
+            if (result.error) {
+              console.error(`[meta-ads-insights][${traceId}] Graph API error for ${account.id} (time_range):`, result.error);
+              totalErrors++;
+              continue;
+            }
+            insights = result.data;
           } else if (preset) {
-            insightsUrl += `&date_preset=${preset}`;
+            const result = await fetchInsightsPage(accountId, { preset });
+            
+            if (result.error) {
+              // v1.5.0: If "maximum" fails due to data volume, fallback to quarterly chunks
+              if (preset === "maximum" && result.error.code === 1) {
+                console.warn(`[meta-ads-insights][${traceId}] Account ${account.id}: "maximum" too large, falling back to quarterly chunks...`);
+                
+                // Determine start year from earliest known campaign
+                const { data: earliestCampaign } = await supabase
+                  .from("meta_ad_campaigns")
+                  .select("start_time")
+                  .eq("tenant_id", tenantId)
+                  .eq("ad_account_id", account.id)
+                  .not("start_time", "is", null)
+                  .order("start_time", { ascending: true })
+                  .limit(1)
+                  .maybeSingle();
+                
+                const startDate = earliestCampaign?.start_time 
+                  ? new Date(earliestCampaign.start_time) 
+                  : new Date(new Date().setFullYear(new Date().getFullYear() - 2));
+                
+                const chunks = generateQuarterlyChunks(startDate);
+                console.log(`[meta-ads-insights][${traceId}] Account ${account.id}: ${chunks.length} quarterly chunks from ${startDate.toISOString().split("T")[0]}`);
+                
+                for (const chunk of chunks) {
+                  const chunkResult = await fetchInsightsPage(accountId, { 
+                    timeRange: { since: chunk.since, until: chunk.until } 
+                  });
+                  
+                  if (chunkResult.error) {
+                    console.warn(`[meta-ads-insights][${traceId}] Chunk ${chunk.since}→${chunk.until} failed for ${account.id}:`, chunkResult.error.message);
+                    totalErrors++;
+                    continue;
+                  }
+                  
+                  insights.push(...chunkResult.data);
+                  console.log(`[meta-ads-insights][${traceId}] Chunk ${chunk.since}→${chunk.until}: ${chunkResult.data.length} insights`);
+                  
+                  // Small delay to avoid rate limiting
+                  if (chunks.indexOf(chunk) < chunks.length - 1) {
+                    await new Promise(r => setTimeout(r, 1000));
+                  }
+                }
+                
+                console.log(`[meta-ads-insights][${traceId}] Account ${account.id} total from chunks: ${insights.length} insights`);
+              } else {
+                console.error(`[meta-ads-insights][${traceId}] Graph API error for ${account.id} (${preset}):`, result.error);
+                totalErrors++;
+                continue;
+              }
+            } else {
+              insights = result.data;
+            }
           }
 
-          const graphUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}/${insightsUrl}&access_token=${conn.access_token}`;
-          const res = await fetch(graphUrl);
-          const result = await res.json();
-
-          if (result.error) {
-            console.error(`[meta-ads-insights][${traceId}] Graph API error for ${account.id} (${preset}):`, result.error);
-            totalErrors++;
-            continue;
-          }
-
-          const insights = result.data || [];
-          console.log(`[meta-ads-insights][${traceId}] Account ${account.id} (${preset}): ${insights.length} insights`);
+          console.log(`[meta-ads-insights][${traceId}] Account ${account.id} (${preset || "time_range"}): ${insights.length} insights`);
 
           for (const i of insights) {
             // Find local campaign
