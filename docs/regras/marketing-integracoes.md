@@ -267,7 +267,7 @@ A página `/ads` utiliza 3 abas de nível superior:
 | `channel_limits` | jsonb | **v4.0** — Limites min/max % por canal (meta, google, tiktok) |
 | `strategy_mode` | text | **v4.0** — `aggressive` / `balanced` / `long_term` |
 | `kill_switch` | boolean | **v4.0** — Para imediato de todas as ações |
-| `human_approval_mode` | text | **v4.0** — `auto` / `approve_high_impact` |
+| `human_approval_mode` | text | **v5.14** — Hardcoded `approve_high_impact`. Removido da UI (redundante com fluxo de plano estratégico). Coluna mantida no banco para compatibilidade backend. |
 
 #### Templates de Prompt Estratégico (v5.6)
 
@@ -314,7 +314,7 @@ Hook: Invocado via `supabase.functions.invoke("ads-autopilot-generate-prompt")` 
 | `funnel_split_mode` | text | `manual` | `manual` / `ai_decides` |
 | `funnel_splits` | jsonb | `{"cold":60,"remarketing":25,"tests":15,"leads":0}` | Distribuição por funil |
 | `kill_switch` | boolean | false | Para imediato nesta conta |
-| `human_approval_mode` | text | `auto` | `auto` / `approve_high_impact` |
+| `human_approval_mode` | text | `approve_high_impact` | **v5.14** — Hardcoded no save handler. Removido da UI (redundante com fluxo de aprovação de plano estratégico). Coluna mantida no banco para compatibilidade. |
 
 #### Escalonamento de Orçamento por ROAS (v5.7)
 
