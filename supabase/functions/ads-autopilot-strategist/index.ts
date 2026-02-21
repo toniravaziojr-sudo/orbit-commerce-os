@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.37.0"; // Smart insight collection: sort by spend desc + retry on 429 + full coverage
+const VERSION = "v1.38.0"; // Fix timeout: local deep historical from DB instead of Graph API re-fetch
 // ===================
 
 const corsHeaders = {
@@ -355,10 +355,12 @@ function canAdjustBudget(config: AccountConfig): boolean {
   return hoursSince >= limit.min_interval_hours;
 }
 
-// ============ DEEP HISTORICAL INSIGHTS (Meta API) ============
+// ============ DEEP HISTORICAL INSIGHTS (LOCAL DB — v1.38.0) ============
+// Instead of re-fetching from Graph API (which caused timeouts on large accounts),
+// we build deep historical from already-synced local tables + a SINGLE lightweight API call for all-time insights.
 
 interface DeepInsight {
-  level: string; // "campaign" | "adset" | "ad"
+  level: string;
   id: string;
   name: string;
   status: string;
@@ -371,14 +373,12 @@ interface DeepInsight {
   ctr: number;
   frequency?: number;
   cpm?: number;
-  // Funnel actions (v1.35.0)
   page_views?: number;
   add_to_cart?: number;
   initiate_checkout?: number;
   video_p25?: number;
   video_p50?: number;
   video_p95?: number;
-  // Breakdowns
   placements?: Record<string, { spend: number; conversions: number; roas: number }>;
   creative_data?: any;
   targeting?: any;
@@ -386,280 +386,105 @@ interface DeepInsight {
   adset_id?: string;
 }
 
-async function fetchDeepHistoricalInsights(
+async function buildDeepHistoricalFromLocalData(
   supabase: any,
   tenantId: string,
   adAccountId: string
 ): Promise<{ campaigns: DeepInsight[]; adsets: DeepInsight[]; ads: DeepInsight[] } | null> {
-  const GRAPH_API = "v21.0";
+  try {
+    console.log(`[ads-autopilot-strategist][${VERSION}] Building deep historical from LOCAL DB for ${adAccountId}`);
 
-  // Helper to paginate through all Graph API results with rate-limit protection and 429 retry
-  async function fetchAllPages(url: string, maxPages = 10, delayMs = 1500, maxRetries429 = 3): Promise<any[]> {
-    const allData: any[] = [];
-    let nextUrl: string | null = url;
-    let page = 0;
-    while (nextUrl && page < maxPages) {
-      if (page > 0) await new Promise(r => setTimeout(r, delayMs));
-      
-      let retries = 0;
-      let json: any = null;
-      while (retries <= maxRetries429) {
-        const res = await fetch(nextUrl!);
-        
-        // Handle rate limit (429) with exponential backoff
-        if (res.status === 429) {
-          retries++;
-          if (retries > maxRetries429) {
-            console.warn(`[ads-autopilot-strategist][${VERSION}] Rate limit exceeded after ${maxRetries429} retries on page ${page}`);
-            break;
-          }
-          const retryAfter = parseInt(res.headers.get("Retry-After") || "0");
-          const backoffMs = retryAfter > 0 ? retryAfter * 1000 : Math.min(5000 * Math.pow(2, retries - 1), 60000);
-          console.warn(`[ads-autopilot-strategist][${VERSION}] 429 on page ${page}, retry ${retries}/${maxRetries429} in ${backoffMs}ms`);
-          // Consume body to prevent resource leak
-          await res.text();
-          await new Promise(r => setTimeout(r, backoffMs));
-          continue;
-        }
-        
-        json = await res.json();
-        break;
-      }
-      
-      if (!json || json.error) {
-        if (json?.error) {
-          console.error(`[ads-autopilot-strategist][${VERSION}] Graph API pagination error (page ${page}):`, json.error.message);
-        }
-        break;
-      }
-      allData.push(...(json.data || []));
-      nextUrl = json.paging?.next || null;
-      page++;
+    // Fetch all entities from local cache (already synced)
+    const [campaignsRes, adsetsRes, adsRes, insightsRes] = await Promise.all([
+      supabase.from("meta_ad_campaigns")
+        .select("meta_campaign_id, name, status, effective_status, objective, daily_budget_cents, ad_account_id")
+        .eq("tenant_id", tenantId).eq("ad_account_id", adAccountId).limit(500),
+      supabase.from("meta_ad_adsets")
+        .select("meta_adset_id, name, status, effective_status, meta_campaign_id, daily_budget_cents, optimization_goal, targeting, ad_account_id")
+        .eq("tenant_id", tenantId).eq("ad_account_id", adAccountId).limit(1000),
+      supabase.from("meta_ad_ads")
+        .select("meta_ad_id, name, status, effective_status, meta_adset_id, meta_campaign_id, ad_account_id, creative_data")
+        .eq("tenant_id", tenantId).eq("ad_account_id", adAccountId).limit(1000),
+      // Get ALL insights (no date filter = all-time) — limited to 2000 rows
+      supabase.from("meta_ad_insights")
+        .select("meta_campaign_id, impressions, clicks, spend_cents, conversions, roas, ctr, cpm_cents, frequency, actions, date_start")
+        .eq("tenant_id", tenantId).limit(2000),
+    ]);
+
+    const campaigns = campaignsRes.data || [];
+    const adsets = adsetsRes.data || [];
+    const ads = adsRes.data || [];
+    const allInsights = insightsRes.data || [];
+
+    if (campaigns.length === 0) {
+      console.warn(`[ads-autopilot-strategist][${VERSION}] No campaigns in local DB for ${adAccountId}`);
+      return null;
     }
-    console.log(`[ads-autopilot-strategist][${VERSION}] fetchAllPages: collected ${allData.length} rows in ${page} pages`);
-    return allData;
-  }
-  
-  // Get Meta connection
-  const { data: conn } = await supabase
-    .from("marketplace_connections")
-    .select("access_token")
-    .eq("tenant_id", tenantId)
-    .eq("marketplace", "meta")
-    .eq("is_active", true)
-    .maybeSingle();
 
-  if (!conn?.access_token) {
-    console.warn(`[ads-autopilot-strategist][${VERSION}] No Meta connection for deep insights`);
+    // Build all-time performance per campaign from insights
+    const perfAllTime: Record<string, { spend: number; impressions: number; clicks: number; conversions: number; revenue: number; days: Set<string>; frequency_sum: number; frequency_count: number; cpm_sum: number; page_views: number; add_to_cart: number; initiate_checkout: number }> = {};
+    for (const ins of allInsights) {
+      const cid = ins.meta_campaign_id;
+      if (!perfAllTime[cid]) perfAllTime[cid] = { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0, days: new Set(), frequency_sum: 0, frequency_count: 0, cpm_sum: 0, page_views: 0, add_to_cart: 0, initiate_checkout: 0 };
+      const p = perfAllTime[cid];
+      p.spend += ins.spend_cents || 0;
+      p.impressions += ins.impressions || 0;
+      p.clicks += ins.clicks || 0;
+      p.conversions += ins.conversions || 0;
+      p.revenue += (ins.roas || 0) * (ins.spend_cents || 0);
+      p.days.add(ins.date_start);
+      if (ins.frequency) { p.frequency_sum += ins.frequency; p.frequency_count++; }
+      if (ins.cpm_cents) p.cpm_sum += ins.cpm_cents;
+      if (ins.actions && Array.isArray(ins.actions)) {
+        for (const a of ins.actions) {
+          const t = a.action_type;
+          if (t === "view_content" || t === "offsite_conversion.fb_pixel_view_content") p.page_views += parseInt(a.value || "0");
+          else if (t === "add_to_cart" || t === "offsite_conversion.fb_pixel_add_to_cart") p.add_to_cart += parseInt(a.value || "0");
+          else if (t === "initiate_checkout" || t === "offsite_conversion.fb_pixel_initiate_checkout") p.initiate_checkout += parseInt(a.value || "0");
+        }
+      }
+    }
+
+    // Filter campaigns that belong to this account
+    const accountCampaignIds = new Set(campaigns.map((c: any) => c.meta_campaign_id));
+
+    // Transform campaigns to DeepInsight
+    const campaignInsights: DeepInsight[] = campaigns.map((c: any) => {
+      const p = perfAllTime[c.meta_campaign_id] || { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0, frequency_sum: 0, frequency_count: 0, cpm_sum: 0, page_views: 0, add_to_cart: 0, initiate_checkout: 0 };
+      const spend = p.spend / 100; // cents to BRL
+      const roas = spend > 0 ? Math.round((p.revenue / p.spend) * 100) / 100 : 0;
+      const cpa = p.conversions > 0 ? Math.round((spend / p.conversions) * 100) / 100 : 0;
+      const ctr = p.impressions > 0 ? Math.round((p.clicks / p.impressions) * 10000) / 100 : 0;
+      const cpm = p.impressions > 0 ? Math.round((spend / p.impressions) * 1000 * 100) / 100 : 0;
+      const frequency = p.frequency_count > 0 ? Math.round((p.frequency_sum / p.frequency_count) * 100) / 100 : undefined;
+      return {
+        level: "campaign", id: c.meta_campaign_id, name: c.name, status: c.status || c.effective_status || "",
+        spend, impressions: p.impressions, clicks: p.clicks, conversions: p.conversions, roas, cpa, ctr, cpm, frequency,
+        page_views: p.page_views || undefined, add_to_cart: p.add_to_cart || undefined, initiate_checkout: p.initiate_checkout || undefined,
+      };
+    });
+
+    // AdSets and Ads don't have per-entity insights in local DB (insights are per-campaign),
+    // so we include them with basic metadata for the AI to reference
+    const adsetInsights: DeepInsight[] = adsets.map((as: any) => ({
+      level: "adset", id: as.meta_adset_id, name: as.name, status: as.status || as.effective_status || "",
+      spend: 0, impressions: 0, clicks: 0, conversions: 0, roas: 0, cpa: 0, ctr: 0,
+      targeting: as.targeting, campaign_id: as.meta_campaign_id,
+    }));
+
+    const adInsights: DeepInsight[] = ads.map((ad: any) => ({
+      level: "ad", id: ad.meta_ad_id, name: ad.name, status: ad.status || ad.effective_status || "",
+      spend: 0, impressions: 0, clicks: 0, conversions: 0, roas: 0, cpa: 0, ctr: 0,
+      creative_data: ad.creative_data, campaign_id: ad.meta_campaign_id, adset_id: ad.meta_adset_id,
+    }));
+
+    console.log(`[ads-autopilot-strategist][${VERSION}] Local deep historical for ${adAccountId}: ${campaignInsights.length} campaigns, ${adsetInsights.length} adsets, ${adInsights.length} ads (no API calls!)`);
+
+    return { campaigns: campaignInsights, adsets: adsetInsights, ads: adInsights };
+  } catch (err: any) {
+    console.error(`[ads-autopilot-strategist][${VERSION}] buildDeepHistoricalFromLocalData error:`, err.message);
     return null;
   }
-
-  const accountId = adAccountId.replace("act_", "");
-  const token = conn.access_token;
-
-  // Helper to fetch insights at a given level
-  async function fetchLevelInsights(level: "campaign" | "adset" | "ad"): Promise<any[]> {
-    const endpoint = level === "campaign" ? "campaigns" : level === "adset" ? "adsets" : "ads";
-    const fieldsMap: Record<string, string> = {
-      campaign: "id,name,status,effective_status,objective",
-      adset: "id,name,status,effective_status,campaign_id,optimization_goal,daily_budget,lifetime_budget",
-      ad: "id,name,status,effective_status,adset_id,campaign_id,creative{id,name,title,body}",
-    };
-    // Smaller page sizes to avoid "reduce data" errors; campaigns can use 200, deeper levels use 100
-    const pageSize = level === "campaign" ? 200 : 100;
-    // Ads have heavy creative subfields - use fewer pages
-    const maxEntityPages = level === "ad" ? 5 : 8;
-    // v1.37.0: Increased insight pages for full coverage + retry handles 429
-    // Campaigns: 10 pages (2000 rows), AdSets: 10 pages (1000 rows), Ads: 8 pages (800 rows)
-    const maxInsightPages = level === "campaign" ? 10 : level === "adset" ? 10 : 8;
-
-    try {
-      // Step 1: Get entities (with pagination + delay)
-      const entitiesUrl = `https://graph.facebook.com/${GRAPH_API}/act_${accountId}/${endpoint}?fields=${fieldsMap[level]}&limit=${pageSize}&access_token=${token}`;
-      const entities = await fetchAllPages(entitiesUrl, maxEntityPages, 2000);
-      if (entities.length === 0) {
-        console.warn(`[ads-autopilot-strategist][${VERSION}] No ${level} entities found`);
-        return [];
-      }
-      console.log(`[ads-autopilot-strategist][${VERSION}] Fetched ${entities.length} ${level} entities`);
-
-      // Delay between entity fetch and insights fetch to respect rate limits
-      await new Promise(r => setTimeout(r, 3000));
-
-      // Step 2: Get insights with date_preset=maximum (with pagination + delay)
-      // v1.35.0: Added cpm, frequency at all levels + video_p25/p50/p75/p95_watched_actions for video metrics
-      const insightFields = level === "campaign"
-        ? "campaign_id,campaign_name,spend,impressions,clicks,actions,action_values,ctr,cpc,cpm,frequency,video_p25_watched_actions,video_p50_watched_actions,video_p95_watched_actions"
-        : level === "adset"
-        ? "adset_id,adset_name,campaign_id,spend,impressions,clicks,actions,action_values,ctr,cpc,cpm,frequency,video_p25_watched_actions,video_p50_watched_actions,video_p95_watched_actions"
-        : "ad_id,ad_name,adset_id,campaign_id,spend,impressions,clicks,actions,action_values,ctr,cpc,cpm,frequency,video_p25_watched_actions,video_p50_watched_actions,video_p95_watched_actions";
-      // v1.37.0: Sort by spend descending to ensure highest-spend entities come first
-      // This guarantees that even if rate-limited, the most important data is collected
-      const sortParam = level !== "campaign" ? `&sort=${encodeURIComponent('["spend_descending"]')}` : "";
-      const insightsUrl = `https://graph.facebook.com/${GRAPH_API}/act_${accountId}/insights?level=${level}&fields=${insightFields}&date_preset=maximum&limit=${pageSize}${sortParam}&access_token=${token}`;
-      // v1.37.0: Use 3s delay between pages (was 2s) for more headroom against rate limits
-      const insightsData = await fetchAllPages(insightsUrl, maxInsightPages, 3000, 3);
-      console.log(`[ads-autopilot-strategist][${VERSION}] Fetched ${insightsData.length} ${level} insight rows (sorted by spend desc)`);
-
-      // Step 3: Get placement breakdown (only for campaign level to reduce API calls)
-      let placementMap: Record<string, any[]> = {};
-      if (level === "campaign") {
-        await new Promise(r => setTimeout(r, 2000));
-        const placementUrl = `https://graph.facebook.com/${GRAPH_API}/act_${accountId}/insights?level=${level}&fields=campaign_id,campaign_name,spend,impressions,clicks,actions,action_values&breakdowns=publisher_platform,platform_position&date_preset=maximum&limit=200&access_token=${token}`;
-        const placData = await fetchAllPages(placementUrl, 3, 2000);
-        for (const row of placData) {
-          const key = row.campaign_id;
-          if (!placementMap[key]) placementMap[key] = [];
-          placementMap[key].push(row);
-        }
-      }
-
-      // Merge insights with entities
-      const insightsMap: Record<string, any> = {};
-      for (const ins of insightsData) {
-        const key = level === "campaign" ? ins.campaign_id : level === "adset" ? ins.adset_id : ins.ad_id;
-        insightsMap[key] = ins;
-      }
-
-      const withInsights = entities.filter((e: any) => insightsMap[e.id]);
-      console.log(`[ads-autopilot-strategist][${VERSION}] ${level}: ${withInsights.length}/${entities.length} entities have insights`);
-
-      return entities.map((e: any) => ({
-        ...e,
-        insights: insightsMap[e.id] || null,
-        placement_breakdown: placementMap[e.id] || null,
-      }));
-    } catch (err: any) {
-      console.error(`[ads-autopilot-strategist][${VERSION}] fetchLevelInsights(${level}) error:`, err.message);
-      return [];
-    }
-  }
-
-  // Helper to extract conversions and revenue from Meta actions array
-  function extractConversions(actions: any[]): { conversions: number; revenue: number } {
-    let conversions = 0;
-    let revenue = 0;
-    if (!actions) return { conversions, revenue };
-    for (const a of actions) {
-      if (a.action_type === "purchase" || a.action_type === "offsite_conversion.fb_pixel_purchase") {
-        conversions += parseInt(a.value || "0");
-      }
-    }
-    return { conversions, revenue };
-  }
-
-  // v1.35.0: Extract funnel actions (page_view, add_to_cart, initiate_checkout)
-  function extractFunnelActions(actions: any[]): { page_views: number; add_to_cart: number; initiate_checkout: number } {
-    let page_views = 0, add_to_cart = 0, initiate_checkout = 0;
-    if (!actions) return { page_views, add_to_cart, initiate_checkout };
-    for (const a of actions) {
-      const t = a.action_type;
-      if (t === "view_content" || t === "offsite_conversion.fb_pixel_view_content") {
-        page_views += parseInt(a.value || "0");
-      } else if (t === "add_to_cart" || t === "offsite_conversion.fb_pixel_add_to_cart") {
-        add_to_cart += parseInt(a.value || "0");
-      } else if (t === "initiate_checkout" || t === "offsite_conversion.fb_pixel_initiate_checkout") {
-        initiate_checkout += parseInt(a.value || "0");
-      }
-    }
-    return { page_views, add_to_cart, initiate_checkout };
-  }
-
-  // v1.35.0: Extract video view metrics
-  function extractVideoViews(ins: any): { video_p25: number; video_p50: number; video_p95: number } {
-    const sumAction = (arr: any[]) => {
-      if (!arr || !Array.isArray(arr)) return 0;
-      return arr.reduce((s: number, a: any) => s + parseInt(a.value || "0"), 0);
-    };
-    return {
-      video_p25: sumAction(ins.video_p25_watched_actions),
-      video_p50: sumAction(ins.video_p50_watched_actions),
-      video_p95: sumAction(ins.video_p95_watched_actions),
-    };
-  }
-
-  function extractRevenue(actionValues: any[]): number {
-    if (!actionValues) return 0;
-    for (const a of actionValues) {
-      if (a.action_type === "purchase" || a.action_type === "offsite_conversion.fb_pixel_purchase") {
-        return parseFloat(a.value || "0");
-      }
-    }
-    return 0;
-  }
-
-  // Fetch levels SEQUENTIALLY to avoid rate limiting (each level makes multiple paginated calls)
-  const rawCampaigns = await fetchLevelInsights("campaign");
-  console.log(`[ads-autopilot-strategist][${VERSION}] Campaigns done, waiting before adsets...`);
-  await new Promise(r => setTimeout(r, 5000)); // 5s cool-down between levels
-  const rawAdsets = await fetchLevelInsights("adset");
-  console.log(`[ads-autopilot-strategist][${VERSION}] Adsets done, waiting before ads...`);
-  await new Promise(r => setTimeout(r, 5000)); // 5s cool-down between levels
-  const rawAds = await fetchLevelInsights("ad");
-
-  console.log(`[ads-autopilot-strategist][${VERSION}] Deep historical: ${rawCampaigns.length} campaigns, ${rawAdsets.length} adsets, ${rawAds.length} ads`);
-
-  // Transform into structured insights
-  function transformEntity(raw: any, level: string): DeepInsight {
-    const ins = raw.insights || {};
-    const spend = parseFloat(ins.spend || "0");
-    const impressions = parseInt(ins.impressions || "0");
-    const clicks = parseInt(ins.clicks || "0");
-    const { conversions } = extractConversions(ins.actions);
-    const revenue = extractRevenue(ins.action_values);
-    const roas = spend > 0 ? Math.round((revenue / spend) * 100) / 100 : 0;
-    const cpa = conversions > 0 ? Math.round((spend / conversions) * 100) / 100 : 0;
-    const ctr = impressions > 0 ? Math.round((clicks / impressions) * 10000) / 100 : 0;
-    const cpm = impressions > 0 ? Math.round((spend / impressions) * 1000 * 100) / 100 : 0;
-    
-    // v1.35.0: Extract funnel actions and video views
-    const funnel = extractFunnelActions(ins.actions);
-    const video = extractVideoViews(ins);
-
-    // Build placement breakdown
-    let placements: Record<string, any> | undefined;
-    if (raw.placement_breakdown) {
-      placements = {};
-      for (const row of raw.placement_breakdown) {
-        const key = `${row.publisher_platform || "unknown"}_${row.platform_position || "unknown"}`;
-        const pSpend = parseFloat(row.spend || "0");
-        const { conversions: pConv } = extractConversions(row.actions);
-        const pRevenue = extractRevenue(row.action_values);
-        placements[key] = {
-          spend: pSpend,
-          conversions: pConv,
-          roas: pSpend > 0 ? Math.round((pRevenue / pSpend) * 100) / 100 : 0,
-        };
-      }
-    }
-
-    return {
-      level,
-      id: raw.id,
-      name: raw.name || ins[`${level}_name`] || "",
-      status: raw.status || raw.effective_status || "",
-      spend, impressions, clicks, conversions, roas, cpa, ctr,
-      frequency: ins.frequency ? parseFloat(ins.frequency) : undefined,
-      cpm,
-      page_views: funnel.page_views || undefined,
-      add_to_cart: funnel.add_to_cart || undefined,
-      initiate_checkout: funnel.initiate_checkout || undefined,
-      video_p25: video.video_p25 || undefined,
-      video_p50: video.video_p50 || undefined,
-      video_p95: video.video_p95 || undefined,
-      placements,
-      creative_data: level === "ad" ? raw.creative : undefined,
-      targeting: level === "adset" ? raw.targeting : undefined,
-      campaign_id: raw.campaign_id,
-      adset_id: raw.adset_id,
-    };
-  }
-
-  return {
-    campaigns: rawCampaigns.map((r: any) => transformEntity(r, "campaign")),
-    adsets: rawAdsets.map((r: any) => transformEntity(r, "adset")),
-    ads: rawAds.map((r: any) => transformEntity(r, "ad")),
-  };
 }
 
 // ============ CONTEXT COLLECTOR ============
@@ -824,13 +649,14 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
   }));
 
   // === DEEP HISTORICAL INSIGHTS (only for "start" trigger) ===
+  // v1.38.0: Uses LOCAL DB data instead of Graph API re-fetch to avoid timeouts on large accounts
   let deepHistorical: Record<string, any> | null = null;
   if (trigger === "start") {
-    console.log(`[ads-autopilot-strategist][${VERSION}] Fetching deep historical insights for start trigger...`);
+    console.log(`[ads-autopilot-strategist][${VERSION}] Building deep historical from LOCAL DB for start trigger...`);
     const accountIds = configs.map(c => c.ad_account_id);
     deepHistorical = {};
     for (const acctId of accountIds) {
-      const result = await fetchDeepHistoricalInsights(supabase, tenantId, acctId);
+      const result = await buildDeepHistoricalFromLocalData(supabase, tenantId, acctId);
       if (result) {
         deepHistorical[acctId] = result;
         console.log(`[ads-autopilot-strategist][${VERSION}] Deep historical for ${acctId}: ${result.campaigns.length} campaigns, ${result.adsets.length} adsets, ${result.ads.length} ads`);
