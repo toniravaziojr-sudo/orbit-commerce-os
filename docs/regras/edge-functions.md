@@ -1603,3 +1603,33 @@ Meta Graph API
 |---|---|
 | `ads-autopilot-strategist/index.ts` | Nova função `fetchDeepHistoricalInsights`, atualização de `collectStrategistContext` com parâmetro `trigger`, prompt diferenciado por trigger |
 | `useAdsAutopilot.ts` | Sem mudanças (triggers existentes já suportam `start` e `monthly`) |
+
+---
+
+### v1.33.0: `ads-autopilot-strategist` — Formato Tabular Compacto (Análise Completa sem Limites)
+
+**Problema**: A v1.32.0 limitava o prompt a ~20 campanhas pausadas, 30 adsets e 30 ads para evitar rate limits. Isso impedia a IA de ver a conta completa, causando diagnósticos incompletos em contas com alto volume.
+
+**Solução**: Substituição de `JSON.stringify(data, null, 2)` por formato tabular compacto (pipe-separated), reduzindo ~70-80% dos tokens por entidade e eliminando todos os limites de quantidade.
+
+#### Formato de Dados no Prompt (v1.33.0)
+
+| Entidade | Antes (v1.32.0) | Depois (v1.33.0) |
+|----------|-----------------|-------------------|
+| Campanhas | JSON completo, limitado a ativas + top 20 pausadas | Tabular (pipe-separated), **TODAS** |
+| AdSets | JSON, limitado a 30 | Tabular, **TODOS** |
+| Ads | JSON, limitado a 30 | Tabular, **TODOS** |
+| Públicos | JSON, todos | Tabular, todos |
+| Produtos | JSON, 15 | Compacto inline, 20 |
+
+#### Exemplo de Formato Tabular
+```
+ID | Nome | Status | EffStatus | Objetivo | Budget/dia | ROAS30d | CPA30d | Spend30d | Conv30d | CTR30d | ROAS7d | CPA7d | Spend7d | Conv7d
+123456 | [AI] TOF Shampoo Broad | ACTIVE | ACTIVE | OUTCOME_SALES | 50.00 | 3.2 | 2500 | 1500 | 6 | 1.20% | 4.1 | 2000 | 500 | 3
+```
+
+#### Regras Anti-Regressão
+- [ ] Nenhum `.slice()` ou `.limit()` nos dados de campanhas, adsets ou ads no prompt
+- [ ] Formato tabular com headers pipe-separated (não JSON)
+- [ ] Valores monetários em centavos convertidos para reais (÷100) com `fmtCents()`
+- [ ] Cadência de criativos e experimentos ativos permanecem em JSON (volume pequeno)
