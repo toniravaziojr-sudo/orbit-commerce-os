@@ -1719,8 +1719,29 @@ Feedback: "${revisionFeedback}"
             actionRecord.error_message = result.data?.error || "Erro desconhecido";
           }
 
-          // DEDUP RULE: Before inserting a new strategic_plan, supersede any existing pending ones for same account
+          // DEDUP RULE: Before inserting a new strategic_plan, supersede any existing pending ones
           if (tc.function.name === "strategic_plan" && result.status === "pending_approval") {
+            // Intra-session dedup: skip if we already inserted a strategic_plan in THIS session
+            const { data: sameSessionPlans } = await supabase
+              .from("ads_autopilot_actions")
+              .select("id")
+              .eq("tenant_id", tenantId)
+              .eq("session_id", sessionId)
+              .eq("action_type", "strategic_plan")
+              .eq("status", "pending_approval")
+              .limit(1);
+            
+            if (sameSessionPlans && sameSessionPlans.length > 0) {
+              console.log(`[ads-autopilot-strategist][${VERSION}] Skipping duplicate strategic_plan in same session`);
+              toolResults.push({
+                tool_call_id: tc.id,
+                role: "tool",
+                content: JSON.stringify({ status: "skipped", reason: "Duplicate strategic_plan in same session" }),
+              });
+              continue;
+            }
+
+            // Cross-session dedup: supersede old pending plans from OTHER sessions
             const { data: existingPlans, error: fetchErr } = await supabase
               .from("ads_autopilot_actions")
               .select("id")
