@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.32.0"; // Reduce prompt size: limit campaigns/adsets/ads in user prompt to avoid AI rate limits
+const VERSION = "v1.33.0"; // Compress prompt data: tabular format instead of JSON for ALL campaigns/adsets/ads (no limits)
 // ===================
 
 const corsHeaders = {
@@ -1141,28 +1141,67 @@ ${context.products.map((p: any) => `  • ${p.name} — R$${Number(p.price).toFi
   // Build ads data per account
   const accountAds = context.ads?.filter((a: any) => a.ad_account_id === config.ad_account_id) || [];
 
-  // Limit campaign data to reduce prompt size: all active + top 20 paused by spend
-  const activeCampaignData = campaignData.filter((c: any) => c.status === "ACTIVE");
-  const pausedCampaignData = campaignData.filter((c: any) => c.status === "PAUSED")
-    .sort((a: any, b: any) => (b.perf_30d?.spend || 0) - (a.perf_30d?.spend || 0))
-    .slice(0, 20);
-  const limitedCampaignData = [...activeCampaignData, ...pausedCampaignData];
+  // === COMPACT TABULAR FORMAT (v1.33.0) ===
+  // Instead of JSON, use TSV-like format to fit ALL data in fewer tokens
+  
+  // Helper: format currency from cents
+  const fmtCents = (v: any) => v != null ? (Number(v) / 100).toFixed(2) : "-";
+  const fmtNum = (v: any) => v != null ? String(v) : "-";
+  const fmtPct = (v: any) => v != null ? Number(v).toFixed(2) + "%" : "-";
+  
+  // CAMPAIGNS - ALL of them in compact format
+  const campaignHeaders = "ID | Nome | Status | EffStatus | Objetivo | Budget/dia | ROAS30d | CPA30d | Spend30d | Conv30d | CTR30d | ROAS7d | CPA7d | Spend7d | Conv7d";
+  const campaignRows = campaignData.map((c: any) => {
+    const p30 = c.perf_30d || {};
+    const p7 = c.perf_7d || {};
+    return `${c.id} | ${c.name} | ${c.status} | ${c.effective_status} | ${c.objective || "-"} | ${fmtCents(c.budget_cents)} | ${fmtNum(p30.roas)} | ${fmtCents(p30.cpa)} | ${fmtNum(p30.spend)} | ${fmtNum(p30.conversions)} | ${fmtPct(p30.ctr)} | ${fmtNum(p7.roas)} | ${fmtCents(p7.cpa)} | ${fmtNum(p7.spend)} | ${fmtNum(p7.conversions)}`;
+  }).join("\n");
 
-  const user = `## CAMPANHAS (${campaignData.length} total: ${activeCampaigns.length} ativas, ${pausedCampaigns.length} pausadas — mostrando ${limitedCampaignData.length} relevantes)
-${JSON.stringify(limitedCampaignData, null, 2)}
+  // ADSETS - ALL of them
+  const adsetHeaders = "ID | Nome | Status | EffStatus | CampaignID | BudgetDia | BudgetLife | OptGoal | BillingEvt | BidCents";
+  const adsetRows = accountAdsets.map((as: any) => 
+    `${as.meta_adset_id} | ${as.name} | ${as.status} | ${as.effective_status} | ${as.meta_campaign_id} | ${fmtCents(as.daily_budget_cents)} | ${fmtCents(as.lifetime_budget_cents)} | ${as.optimization_goal || "-"} | ${as.billing_event || "-"} | ${fmtNum(as.bid_amount_cents)}`
+  ).join("\n");
 
-## AD SETS / CONJUNTOS DE ANÚNCIOS (${accountAdsets.length} total — mostrando 30 relevantes)
-⚠️ IMPORTANTE: Quando uma campanha não tem daily_budget_cents, o orçamento está definido no nível do conjunto de anúncios (adset). Verifique daily_budget_cents e lifetime_budget_cents dos adsets antes de concluir que não há orçamento.
-${JSON.stringify(accountAdsets.slice(0, 30).map((as: any) => ({ id: as.meta_adset_id, name: as.name, status: as.status, effective_status: as.effective_status, campaign_id: as.meta_campaign_id, daily_budget_cents: as.daily_budget_cents, lifetime_budget_cents: as.lifetime_budget_cents, optimization_goal: as.optimization_goal, billing_event: as.billing_event, bid_amount_cents: as.bid_amount_cents })), null, 2)}
+  // ADS - ALL of them
+  const adHeaders = "ID | Nome | Status | EffStatus | AdSetID | CampaignID";
+  const adRows = accountAds.map((ad: any) => 
+    `${ad.meta_ad_id} | ${ad.name} | ${ad.status} | ${ad.effective_status} | ${ad.meta_adset_id} | ${ad.meta_campaign_id}`
+  ).join("\n");
 
-## ANÚNCIOS INDIVIDUAIS (${accountAds.length} total — mostrando 30 relevantes)
-${JSON.stringify(accountAds.slice(0, 30).map((ad: any) => ({ id: ad.meta_ad_id, name: ad.name, status: ad.status, effective_status: ad.effective_status, adset_id: ad.meta_adset_id, campaign_id: ad.meta_campaign_id })), null, 2)}
+  // AUDIENCES - ALL
+  const audienceHeaders = "ID | Nome | Tipo | Subtipo | Tamanho";
+  const audienceRows = accountAudiences.map((a: any) => 
+    `${a.meta_audience_id} | ${a.name} | ${a.audience_type || "-"} | ${a.subtype || "-"} | ${fmtNum(a.approximate_count)}`
+  ).join("\n");
+
+  // PRODUCTS - compact
+  const productRows = context.products.slice(0, 20).map((p: any) => {
+    const margin = p.cost_price ? Math.round(((p.price - p.cost_price) / p.price) * 100) : null;
+    const imgs = ((context.imagesByProduct || {})[p.id] || []).slice(0, 2);
+    const url = context.storeUrl ? `${context.storeUrl}/produto/${p.slug || p.id}` : null;
+    return `• ${p.name} — R$${Number(p.price).toFixed(2)}${margin ? ` (margem ~${margin}%)` : ""}${p.stock_quantity != null ? ` [est:${p.stock_quantity}]` : ""} | ${p.brand || "-"} | ${url || "-"}${imgs.length ? ` | imgs: ${imgs.join(", ")}` : ""}`;
+  }).join("\n");
+
+  const user = `## CAMPANHAS (${campaignData.length} total: ${activeCampaigns.length} ativas, ${pausedCampaigns.length} pausadas)
+${campaignHeaders}
+${campaignRows}
+
+## CONJUNTOS DE ANÚNCIOS (${accountAdsets.length} total)
+⚠️ Quando campanha não tem budget/dia, o orçamento está no nível do conjunto (ABO). Verifique antes de concluir falta de orçamento.
+${adsetHeaders}
+${adsetRows}
+
+## ANÚNCIOS (${accountAds.length} total)
+${adHeaders}
+${adRows}
 
 ## PÚBLICOS DISPONÍVEIS (${accountAudiences.length})
-${JSON.stringify(accountAudiences.map((a: any) => ({ id: a.meta_audience_id, name: a.name, type: a.audience_type, subtype: a.subtype, size: a.approximate_count })), null, 2)}
+${audienceHeaders}
+${audienceRows}
 
 ## PRODUTOS DO CATÁLOGO (${context.products.length})
-${JSON.stringify(context.products.slice(0, 15).map((p: any) => ({ id: p.id, name: p.name, price_brl: Number(p.price).toFixed(2), cost: p.cost_price ? Number(p.cost_price).toFixed(2) : null, stock: p.stock_quantity, brand: p.brand, description: p.short_description?.substring(0, 100), images: ((context.imagesByProduct || {})[p.id] || []).slice(0, 3), product_url: context.storeUrl ? `${context.storeUrl}/produto/${p.slug || p.id}` : null })), null, 2)}
+${productRows}
 
 ## CADÊNCIA DE CRIATIVOS (últimos 7d)
 ${JSON.stringify(creativeCadence, null, 2)}
