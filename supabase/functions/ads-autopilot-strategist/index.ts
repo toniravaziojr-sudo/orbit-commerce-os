@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.29.0"; // Deep historical analysis for start trigger + monthly 30d-only mandate
+const VERSION = "v1.30.0"; // Pagination for deep historical + diagnostic logs for insight coverage
 // ===================
 
 const corsHeaders = {
@@ -384,6 +384,25 @@ async function fetchDeepHistoricalInsights(
   adAccountId: string
 ): Promise<{ campaigns: DeepInsight[]; adsets: DeepInsight[]; ads: DeepInsight[] } | null> {
   const GRAPH_API = "v21.0";
+
+  // Helper to paginate through all Graph API results
+  async function fetchAllPages(url: string, maxPages = 10): Promise<any[]> {
+    const allData: any[] = [];
+    let nextUrl: string | null = url;
+    let page = 0;
+    while (nextUrl && page < maxPages) {
+      const res = await fetch(nextUrl);
+      const json = await res.json();
+      if (json.error) {
+        console.error(`[ads-autopilot-strategist][${VERSION}] Graph API pagination error:`, json.error.message);
+        break;
+      }
+      allData.push(...(json.data || []));
+      nextUrl = json.paging?.next || null;
+      page++;
+    }
+    return allData;
+  }
   
   // Get Meta connection
   const { data: conn } = await supabase
@@ -412,47 +431,41 @@ async function fetchDeepHistoricalInsights(
     };
 
     try {
-      // Step 1: Get entities
-      const entitiesUrl = `https://graph.facebook.com/${GRAPH_API}/act_${accountId}/${endpoint}?fields=${fieldsMap[level]}&limit=200&access_token=${token}`;
-      const entRes = await fetch(entitiesUrl);
-      const entData = await entRes.json();
-      if (entData.error) {
-        console.error(`[ads-autopilot-strategist][${VERSION}] Graph API error (${level} entities):`, entData.error.message);
+      // Step 1: Get ALL entities (with pagination)
+      const entitiesUrl = `https://graph.facebook.com/${GRAPH_API}/act_${accountId}/${endpoint}?fields=${fieldsMap[level]}&limit=500&access_token=${token}`;
+      const entities = await fetchAllPages(entitiesUrl, 5);
+      if (entities.length === 0) {
+        console.warn(`[ads-autopilot-strategist][${VERSION}] No ${level} entities found`);
         return [];
       }
-      const entities = entData.data || [];
+      console.log(`[ads-autopilot-strategist][${VERSION}] Fetched ${entities.length} ${level} entities`);
 
-      // Step 2: Get insights for this level with date_preset=maximum
-      // Use the account-level insights with breakdown by the entity level
+      // Step 2: Get ALL insights with date_preset=maximum (with pagination)
       const insightsUrl = `https://graph.facebook.com/${GRAPH_API}/act_${accountId}/insights?level=${level}&fields=campaign_id,adset_id,ad_id,campaign_name,adset_name,ad_name,spend,impressions,clicks,actions,action_values,ctr,cpc,cpm,frequency&date_preset=maximum&limit=500&access_token=${token}`;
-      const insRes = await fetch(insightsUrl);
-      const insData = await insRes.json();
-      if (insData.error) {
-        console.error(`[ads-autopilot-strategist][${VERSION}] Graph API error (${level} insights):`, insData.error.message);
-        return entities.map((e: any) => ({ ...e, insights: null }));
-      }
+      const insightsData = await fetchAllPages(insightsUrl, 5);
+      console.log(`[ads-autopilot-strategist][${VERSION}] Fetched ${insightsData.length} ${level} insight rows`);
 
-      // Step 3: Get placement breakdown (only for campaign and adset levels to reduce API calls)
+      // Step 3: Get placement breakdown (only for campaign level to reduce API calls)
       let placementMap: Record<string, any[]> = {};
-      if (level !== "ad") {
-        const placementUrl = `https://graph.facebook.com/${GRAPH_API}/act_${accountId}/insights?level=${level}&fields=${level === "campaign" ? "campaign_id,campaign_name" : "adset_id,adset_name"},spend,impressions,clicks,actions,action_values&breakdowns=publisher_platform,platform_position&date_preset=maximum&limit=500&access_token=${token}`;
-        const placRes = await fetch(placementUrl);
-        const placData = await placRes.json();
-        if (!placData.error) {
-          for (const row of (placData.data || [])) {
-            const key = level === "campaign" ? row.campaign_id : row.adset_id;
-            if (!placementMap[key]) placementMap[key] = [];
-            placementMap[key].push(row);
-          }
+      if (level === "campaign") {
+        const placementUrl = `https://graph.facebook.com/${GRAPH_API}/act_${accountId}/insights?level=${level}&fields=campaign_id,campaign_name,spend,impressions,clicks,actions,action_values&breakdowns=publisher_platform,platform_position&date_preset=maximum&limit=500&access_token=${token}`;
+        const placData = await fetchAllPages(placementUrl, 5);
+        for (const row of placData) {
+          const key = row.campaign_id;
+          if (!placementMap[key]) placementMap[key] = [];
+          placementMap[key].push(row);
         }
       }
 
       // Merge insights with entities
       const insightsMap: Record<string, any> = {};
-      for (const ins of (insData.data || [])) {
+      for (const ins of insightsData) {
         const key = level === "campaign" ? ins.campaign_id : level === "adset" ? ins.adset_id : ins.ad_id;
         insightsMap[key] = ins;
       }
+
+      const withInsights = entities.filter((e: any) => insightsMap[e.id]);
+      console.log(`[ads-autopilot-strategist][${VERSION}] ${level}: ${withInsights.length}/${entities.length} entities have insights`);
 
       return entities.map((e: any) => ({
         ...e,
