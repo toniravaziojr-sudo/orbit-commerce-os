@@ -107,12 +107,13 @@ export function useAdsAccountConfigs() {
       }
       return { isFirstEver };
     },
-    onSuccess: (_, { channel, ad_account_id, enabled }) => {
+    onSuccess: (result, { channel, ad_account_id, enabled }) => {
       queryClient.invalidateQueries({ queryKey: ["ads-account-configs"] });
       toast.success(`IA ${enabled ? "ativada" : "desativada"} para esta conta`);
       
-      // First activation triggers the STRATEGIST (full analysis + plan + execution)
-      if (enabled) {
+      // ONLY first-ever activation triggers the STRATEGIST (full analysis + plan + execution)
+      // Re-activations (toggle off then on) do NOT re-trigger to avoid duplicate sessions
+      if (enabled && result?.isFirstEver) {
         setTimeout(async () => {
           try {
             const { error } = await supabase.functions.invoke("ads-autopilot-strategist", {
