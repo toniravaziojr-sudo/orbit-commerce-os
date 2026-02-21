@@ -151,7 +151,7 @@ function normalizeEmail(email: string): string {
 
 ## Sistema Centralizado de Roteamento IA (ai-router.ts)
 
-### Versão Atual: v1.0.0
+### Versão Atual: v1.1.0
 
 ### Visão Geral
 
@@ -241,21 +241,32 @@ await aiChatCompletionJSON(model, body, { preferProvider: 'lovable' }); // Apena
 | Análise | `ai-analyze-page`, `ai-memory-manager` |
 | Shared | `_shared/ai-marketing-optimizer.ts`, `_shared/ai-content-creator.ts` |
 
-### Comportamento de Fallback
+### Comportamento de Fallback com Rate Limit Queue (v1.1.0)
 
 ```
 Request → Gemini (GEMINI_API_KEY disponível?)
   ├─ ✅ OK → Retorna resposta
-  ├─ ❌ 429/402/erro → Tenta próximo
+  ├─ ❌ 429 → Aguarda (Retry-After ou backoff exponencial 5s/10s/20s) → Retenta até 3x
+  │    └─ Ainda 429 após 3 retries → Tenta próximo provedor
+  ├─ ❌ 402/erro → Tenta próximo provedor (sem retry)
   ↓
 Request → OpenAI (OPENAI_API_KEY disponível?)
   ├─ ✅ OK → Retorna resposta
-  ├─ ❌ 429/402/erro → Tenta próximo
+  ├─ ❌ 429 → Aguarda + retenta até 3x → Tenta próximo
+  ├─ ❌ 402/erro → Tenta próximo
   ↓
 Request → Lovable Gateway (LOVABLE_API_KEY sempre disponível)
   ├─ ✅ OK → Retorna resposta
   └─ ❌ → HTTP 502 "Todos os provedores falharam"
 ```
+
+**Parâmetros configuráveis:**
+| Parâmetro | Default | Descrição |
+|-----------|---------|-----------|
+| `maxRetries` | 3 | Retries por provedor ao receber 429 |
+| `baseDelayMs` | 5000 | Delay base (5s). Backoff: 5s → 10s → 20s |
+
+**Importante:** O sistema respeita o header `Retry-After` do provedor quando disponível. Se não houver header, usa backoff exponencial (base × 2^attempt).
 
 ### Checklist para Novas Funções
 
