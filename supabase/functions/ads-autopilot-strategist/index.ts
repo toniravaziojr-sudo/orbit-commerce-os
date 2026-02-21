@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.28.0"; // Smart creative reuse: check existing unused creatives before generating new ones
+const VERSION = "v1.29.0"; // Deep historical analysis for start trigger + monthly 30d-only mandate
 // ===================
 
 const corsHeaders = {
@@ -355,9 +355,202 @@ function canAdjustBudget(config: AccountConfig): boolean {
   return hoursSince >= limit.min_interval_hours;
 }
 
+// ============ DEEP HISTORICAL INSIGHTS (Meta API) ============
+
+interface DeepInsight {
+  level: string; // "campaign" | "adset" | "ad"
+  id: string;
+  name: string;
+  status: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  roas: number;
+  cpa: number;
+  ctr: number;
+  frequency?: number;
+  // Breakdowns
+  placements?: Record<string, { spend: number; conversions: number; roas: number }>;
+  creative_data?: any;
+  targeting?: any;
+  campaign_id?: string;
+  adset_id?: string;
+}
+
+async function fetchDeepHistoricalInsights(
+  supabase: any,
+  tenantId: string,
+  adAccountId: string
+): Promise<{ campaigns: DeepInsight[]; adsets: DeepInsight[]; ads: DeepInsight[] } | null> {
+  const GRAPH_API = "v21.0";
+  
+  // Get Meta connection
+  const { data: conn } = await supabase
+    .from("marketplace_connections")
+    .select("access_token")
+    .eq("tenant_id", tenantId)
+    .eq("marketplace", "meta")
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!conn?.access_token) {
+    console.warn(`[ads-autopilot-strategist][${VERSION}] No Meta connection for deep insights`);
+    return null;
+  }
+
+  const accountId = adAccountId.replace("act_", "");
+  const token = conn.access_token;
+
+  // Helper to fetch insights at a given level
+  async function fetchLevelInsights(level: "campaign" | "adset" | "ad"): Promise<any[]> {
+    const endpoint = level === "campaign" ? "campaigns" : level === "adset" ? "adsets" : "ads";
+    const fieldsMap: Record<string, string> = {
+      campaign: "id,name,status,effective_status,objective",
+      adset: "id,name,status,effective_status,campaign_id,targeting,optimization_goal,daily_budget,lifetime_budget",
+      ad: "id,name,status,effective_status,adset_id,campaign_id,creative{id,name,title,body,call_to_action_type,link_url,image_url,thumbnail_url}",
+    };
+
+    try {
+      // Step 1: Get entities
+      const entitiesUrl = `https://graph.facebook.com/${GRAPH_API}/act_${accountId}/${endpoint}?fields=${fieldsMap[level]}&limit=200&access_token=${token}`;
+      const entRes = await fetch(entitiesUrl);
+      const entData = await entRes.json();
+      if (entData.error) {
+        console.error(`[ads-autopilot-strategist][${VERSION}] Graph API error (${level} entities):`, entData.error.message);
+        return [];
+      }
+      const entities = entData.data || [];
+
+      // Step 2: Get insights for this level with date_preset=maximum
+      // Use the account-level insights with breakdown by the entity level
+      const insightsUrl = `https://graph.facebook.com/${GRAPH_API}/act_${accountId}/insights?level=${level}&fields=campaign_id,adset_id,ad_id,campaign_name,adset_name,ad_name,spend,impressions,clicks,actions,action_values,ctr,cpc,cpm,frequency&date_preset=maximum&limit=500&access_token=${token}`;
+      const insRes = await fetch(insightsUrl);
+      const insData = await insRes.json();
+      if (insData.error) {
+        console.error(`[ads-autopilot-strategist][${VERSION}] Graph API error (${level} insights):`, insData.error.message);
+        return entities.map((e: any) => ({ ...e, insights: null }));
+      }
+
+      // Step 3: Get placement breakdown (only for campaign and adset levels to reduce API calls)
+      let placementMap: Record<string, any[]> = {};
+      if (level !== "ad") {
+        const placementUrl = `https://graph.facebook.com/${GRAPH_API}/act_${accountId}/insights?level=${level}&fields=${level === "campaign" ? "campaign_id,campaign_name" : "adset_id,adset_name"},spend,impressions,clicks,actions,action_values&breakdowns=publisher_platform,platform_position&date_preset=maximum&limit=500&access_token=${token}`;
+        const placRes = await fetch(placementUrl);
+        const placData = await placRes.json();
+        if (!placData.error) {
+          for (const row of (placData.data || [])) {
+            const key = level === "campaign" ? row.campaign_id : row.adset_id;
+            if (!placementMap[key]) placementMap[key] = [];
+            placementMap[key].push(row);
+          }
+        }
+      }
+
+      // Merge insights with entities
+      const insightsMap: Record<string, any> = {};
+      for (const ins of (insData.data || [])) {
+        const key = level === "campaign" ? ins.campaign_id : level === "adset" ? ins.adset_id : ins.ad_id;
+        insightsMap[key] = ins;
+      }
+
+      return entities.map((e: any) => ({
+        ...e,
+        insights: insightsMap[e.id] || null,
+        placement_breakdown: placementMap[e.id] || null,
+      }));
+    } catch (err: any) {
+      console.error(`[ads-autopilot-strategist][${VERSION}] fetchLevelInsights(${level}) error:`, err.message);
+      return [];
+    }
+  }
+
+  // Helper to extract conversions and revenue from Meta actions array
+  function extractConversions(actions: any[]): { conversions: number; revenue: number } {
+    let conversions = 0;
+    let revenue = 0;
+    if (!actions) return { conversions, revenue };
+    for (const a of actions) {
+      if (a.action_type === "purchase" || a.action_type === "offsite_conversion.fb_pixel_purchase") {
+        conversions += parseInt(a.value || "0");
+      }
+    }
+    return { conversions, revenue };
+  }
+
+  function extractRevenue(actionValues: any[]): number {
+    if (!actionValues) return 0;
+    for (const a of actionValues) {
+      if (a.action_type === "purchase" || a.action_type === "offsite_conversion.fb_pixel_purchase") {
+        return parseFloat(a.value || "0");
+      }
+    }
+    return 0;
+  }
+
+  // Fetch all levels in parallel
+  const [rawCampaigns, rawAdsets, rawAds] = await Promise.all([
+    fetchLevelInsights("campaign"),
+    fetchLevelInsights("adset"),
+    fetchLevelInsights("ad"),
+  ]);
+
+  console.log(`[ads-autopilot-strategist][${VERSION}] Deep historical: ${rawCampaigns.length} campaigns, ${rawAdsets.length} adsets, ${rawAds.length} ads`);
+
+  // Transform into structured insights
+  function transformEntity(raw: any, level: string): DeepInsight {
+    const ins = raw.insights || {};
+    const spend = parseFloat(ins.spend || "0");
+    const impressions = parseInt(ins.impressions || "0");
+    const clicks = parseInt(ins.clicks || "0");
+    const { conversions } = extractConversions(ins.actions);
+    const revenue = extractRevenue(ins.action_values);
+    const roas = spend > 0 ? Math.round((revenue / spend) * 100) / 100 : 0;
+    const cpa = conversions > 0 ? Math.round((spend / conversions) * 100) / 100 : 0;
+    const ctr = impressions > 0 ? Math.round((clicks / impressions) * 10000) / 100 : 0;
+
+    // Build placement breakdown
+    let placements: Record<string, any> | undefined;
+    if (raw.placement_breakdown) {
+      placements = {};
+      for (const row of raw.placement_breakdown) {
+        const key = `${row.publisher_platform || "unknown"}_${row.platform_position || "unknown"}`;
+        const pSpend = parseFloat(row.spend || "0");
+        const { conversions: pConv } = extractConversions(row.actions);
+        const pRevenue = extractRevenue(row.action_values);
+        placements[key] = {
+          spend: pSpend,
+          conversions: pConv,
+          roas: pSpend > 0 ? Math.round((pRevenue / pSpend) * 100) / 100 : 0,
+        };
+      }
+    }
+
+    return {
+      level,
+      id: raw.id,
+      name: raw.name || ins[`${level}_name`] || "",
+      status: raw.status || raw.effective_status || "",
+      spend, impressions, clicks, conversions, roas, cpa, ctr,
+      frequency: ins.frequency ? parseFloat(ins.frequency) : undefined,
+      placements,
+      creative_data: level === "ad" ? raw.creative : undefined,
+      targeting: level === "adset" ? raw.targeting : undefined,
+      campaign_id: raw.campaign_id,
+      adset_id: raw.adset_id,
+    };
+  }
+
+  return {
+    campaigns: rawCampaigns.map((r: any) => transformEntity(r, "campaign")),
+    adsets: rawAdsets.map((r: any) => transformEntity(r, "adset")),
+    ads: rawAds.map((r: any) => transformEntity(r, "ad")),
+  };
+}
+
 // ============ CONTEXT COLLECTOR ============
 
-async function collectStrategistContext(supabase: any, tenantId: string, configs: AccountConfig[]) {
+async function collectStrategistContext(supabase: any, tenantId: string, configs: AccountConfig[], trigger?: StrategistTrigger) {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
@@ -503,6 +696,21 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     needs_more: recentCreatives.filter((c: any) => c.product_id === p.id).length < 3,
   }));
 
+  // === DEEP HISTORICAL INSIGHTS (only for "start" trigger) ===
+  let deepHistorical: Record<string, any> | null = null;
+  if (trigger === "start") {
+    console.log(`[ads-autopilot-strategist][${VERSION}] Fetching deep historical insights for start trigger...`);
+    const accountIds = configs.map(c => c.ad_account_id);
+    deepHistorical = {};
+    for (const acctId of accountIds) {
+      const result = await fetchDeepHistoricalInsights(supabase, tenantId, acctId);
+      if (result) {
+        deepHistorical[acctId] = result;
+        console.log(`[ads-autopilot-strategist][${VERSION}] Deep historical for ${acctId}: ${result.campaigns.length} campaigns, ${result.adsets.length} adsets, ${result.ads.length} ads`);
+      }
+    }
+  }
+
   return {
     products,
     categories,
@@ -527,6 +735,7 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     lpLinks,
     globalConfig,
     imagesByProduct,
+    deepHistorical,
   };
 }
 
@@ -583,26 +792,59 @@ function buildStrategistPrompt(trigger: StrategistTrigger, config: AccountConfig
   let triggerInstruction = "";
   switch (trigger) {
     case "start":
-      triggerInstruction = `## TRIGGER: PRIMEIRA ATIVAÇÃO (Planejamento Estratégico)
+      triggerInstruction = `## TRIGGER: PRIMEIRA ATIVAÇÃO (Planejamento Estratégico com Análise Histórica Completa)
 Nesta fase, você DEVE emitir APENAS um strategic_plan. NÃO crie campanhas, criativos ou públicos agora.
 O usuário precisa APROVAR o plano antes de qualquer implementação.
 
+## ANÁLISE HISTÓRICA PROFUNDA (PERÍODO MÁXIMO)
+Você recebeu dados históricos COMPLETOS da conta de anúncios (período máximo disponível na Meta).
+Esses dados incluem métricas por campanha, por conjunto de anúncios (público/audiência) e por anúncio individual,
+além de breakdowns por posicionamento (Feed, Reels, Stories, etc.).
+
+**ANÁLISE OBRIGATÓRIA POR TIPO DE CAMPANHA:**
+1. **Público Frio (TOF/Aquisição):**
+   - Quais PÚBLICOS (audiences/adsets) tiveram melhor ROAS e CPA historicamente?
+   - Quais CRIATIVOS (ads) converteram mais? Que tipo de copy/headline funcionou?
+   - Quais POSICIONAMENTOS (Feed, Reels, Stories) trouxeram mais conversões com menor CPA?
+   - Quais produtos tiveram melhor performance em TOF?
+
+2. **Remarketing (BOF):**
+   - Quais segmentos de remarketing (visitantes, ATC, IC) converteram melhor?
+   - Quais criativos e copys funcionaram melhor para remarketing?
+   - Qual o ROAS médio histórico de remarketing?
+
+3. **Testes:**
+   - Quais testes A/B foram realizados? Resultados?
+   - O que aprendemos sobre o que funciona e o que não funciona?
+
+**DIAGNÓSTICO BASEADO EM DADOS HISTÓRICOS (OBRIGATÓRIO):**
+No campo diagnosis do plano, inclua OBRIGATORIAMENTE:
+- Top 5 públicos que mais converteram (nome, ROAS, CPA, conversões)
+- Top 5 criativos/anúncios que mais converteram (nome, métricas)
+- Top 3 posicionamentos que mais converteram (plataforma_posição, ROAS)
+- Campanhas pausadas que tiveram bom desempenho (oportunidades de reativação/duplicação)
+- Campanhas que falharam (o que evitar)
+
 Seu plano estratégico DEVE incluir:
-1. **Diagnóstico**: Situação atual da conta (campanhas ativas, ROAS, orçamento utilizado vs disponível)
+1. **Diagnóstico**: Análise histórica COMPLETA da conta (ver acima) + situação atual
 2. **Ações Planejadas** (lista DETALHADA e ESPECÍFICA):
    - Para CADA campanha a criar: tipo (TOF/Teste/Remarketing/Duplicação), produto específico, orçamento diário, público-alvo
+   - PRIORIZE replicar os públicos e formatos que HISTORICAMENTE converteram melhor
    - Campanhas de TESTE: mínimo 3 produtos diferentes, com criativos variados
    - Campanhas de DUPLICAÇÃO de vencedores: para escalar o que já funciona
-   - Campanha de REMARKETING de catálogo: se houver catálogo conectado
+   - Campanha de REMARKETING: segmentada por temperatura
    - Quantidade de copies por campanha: mínimo 2-4 variações de Primary Text + Headlines
 3. **Alocação de Orçamento**: Distribuição clara entre funis (cold, remarketing, tests)
-4. **Resultados Esperados**: Projeção realista baseada nos dados
+4. **Resultados Esperados**: Projeção realista baseada nos DADOS HISTÓRICOS REAIS
 5. **Riscos**: O que pode dar errado
+
+{{DEEP_HISTORICAL_DATA}}
 
 REGRAS:
 - O plano DEVE utilizar 100% do orçamento disponível (R$ ${((config.budget_cents || 0) / 100).toFixed(2)}/dia)
 - NÃO use create_campaign, generate_creative ou qualquer outra ferramenta além de strategic_plan
-- Seja ESPECÍFICO: nomes de produtos reais, valores exatos de orçamento, públicos detalhados`;
+- Seja ESPECÍFICO: nomes de produtos reais, valores exatos de orçamento, públicos detalhados
+- Base TODAS as decisões nos dados históricos — não "invente" estratégias sem evidência`;
       break;
     case "weekly":
       triggerInstruction = `## TRIGGER: REVISÃO SEMANAL (Sábado → implementação Domingo 00:01)
@@ -616,15 +858,32 @@ Pipeline em 5 fases — execute TODAS:
 FOCO SEMANAL: Otimização incremental. Não reestruture tudo.`;
       break;
     case "monthly":
-      triggerInstruction = `## TRIGGER: REVISÃO MENSAL (Dia 1 → planejamento macro)
-Análise profunda de TODO o mês anterior:
-1. **PLANNING**: Diagnóstico mensal completo. ROI real, custo por aquisição, LTV estimado.
-2. **CRIATIVOS**: Renove criativos que têm >30d (fadiga criativa). Gere novas abordagens.
-3. **PÚBLICOS**: Reavalie todos os públicos. Expire Lookalikes com ROAS < mínimo.
-4. **MONTAGEM**: Reestruturação se necessário (novas campanhas por funil stage).
-5. **PUBLICAÇÃO**: Planejamento do mês (orçamento, metas, testes A/B propostos).
+      triggerInstruction = `## TRIGGER: REVISÃO MENSAL (Dia 1 → planejamento do próximo mês)
+ATENÇÃO: Use EXCLUSIVAMENTE os dados dos últimos 30 dias para esta análise. NÃO consulte dados históricos mais antigos.
 
-FOCO MENSAL: Visão macro. Identifique tendências e pivote estratégia se necessário.`;
+Você DEVE emitir um strategic_plan com o PLANO PARA O PRÓXIMO MÊS. Mesmo que a conclusão seja manter o plano atual,
+você DEVE emitir um novo plano estratégico justificando a manutenção com dados dos últimos 30 dias.
+
+Análise OBRIGATÓRIA dos últimos 30 dias:
+1. **DIAGNÓSTICO MENSAL**: 
+   - Performance de CADA campanha ativa nos últimos 30d (ROAS, CPA, conversões, gasto)
+   - Performance de CADA conjunto de anúncios (quais públicos converteram melhor?)
+   - Performance de CADA anúncio (quais criativos/copys tiveram melhor CTR e conversão?)
+   - Comparação com mês anterior (se disponível): melhorou ou piorou?
+   - ROI real, custo por aquisição, ticket médio
+2. **CRIATIVOS**: Identifique criativos com >30d (fadiga criativa). Proponha renovação.
+3. **PÚBLICOS**: Reavalie TODOS os públicos. Expire Lookalikes com ROAS < mínimo. Proponha novos.
+4. **CAMPANHAS**: Reestruturação se necessário. Proponha novas campanhas por funil.
+5. **ORÇAMENTO**: Redistribuição de verba baseada nos resultados do mês.
+
+O PLANO DEVE conter:
+- Ações específicas para o próximo mês (criar, pausar, escalar, testar)
+- Redistribuição de orçamento se necessário
+- Metas quantitativas para o próximo mês (ROAS alvo, CPA alvo, conversões esperadas)
+- Testes propostos para o mês seguinte
+
+REGRA: Mesmo que tudo esteja funcionando bem, SEMPRE emita um strategic_plan — pode ser para MANTER a estratégia atual,
+mas com justificativa baseada em dados e ajustes incrementais (ex: escalar vencedores, pausar perdedores).`;
       break;
     case "implement_approved_plan":
       // Phase 1: ONLY generate creatives and audiences — campaigns come in Phase 2
@@ -1275,7 +1534,7 @@ async function runStrategistForTenant(supabase: any, tenantId: string, trigger: 
   }
 
   // Collect deep context
-  const context = await collectStrategistContext(supabase, tenantId, activeConfigs);
+  const context = await collectStrategistContext(supabase, tenantId, activeConfigs, trigger);
 
   // Create strategist session
   const { data: session } = await supabase
@@ -1537,6 +1796,60 @@ Feedback: "${revisionFeedback}"
       prompt.system = prompt.system.replace("{{APPROVED_PLAN_CONTENT}}", revisionContext);
     } else {
       prompt.system = prompt.system.replace("{{APPROVED_PLAN_CONTENT}}", "Nenhum plano específico encontrado. Use o contexto disponível para decidir os produtos e estratégias.");
+    }
+
+    // Inject deep historical data for start trigger
+    if (context.deepHistorical && context.deepHistorical[config.ad_account_id]) {
+      const dh = context.deepHistorical[config.ad_account_id];
+      // Sort by conversions desc to find top performers
+      const topCampaigns = [...dh.campaigns].filter((c: any) => c.conversions > 0).sort((a: any, b: any) => b.conversions - a.conversions).slice(0, 10);
+      const topAdsets = [...dh.adsets].filter((a: any) => a.conversions > 0).sort((a: any, b: any) => b.roas - a.roas).slice(0, 15);
+      const topAds = [...dh.ads].filter((a: any) => a.conversions > 0).sort((a: any, b: any) => b.conversions - a.conversions).slice(0, 15);
+      
+      // Build placement summary across all campaigns
+      const placementAgg: Record<string, { spend: number; conversions: number; revenue: number }> = {};
+      for (const c of dh.campaigns) {
+        if (c.placements) {
+          for (const [key, val] of Object.entries(c.placements as Record<string, any>)) {
+            if (!placementAgg[key]) placementAgg[key] = { spend: 0, conversions: 0, revenue: 0 };
+            placementAgg[key].spend += val.spend || 0;
+            placementAgg[key].conversions += val.conversions || 0;
+            placementAgg[key].revenue += (val.roas || 0) * (val.spend || 0);
+          }
+        }
+      }
+      const topPlacements = Object.entries(placementAgg)
+        .map(([k, v]) => ({ placement: k, ...v, roas: v.spend > 0 ? Math.round((v.revenue / v.spend) * 100) / 100 : 0 }))
+        .filter(p => p.conversions > 0)
+        .sort((a, b) => b.roas - a.roas)
+        .slice(0, 10);
+
+      const deepText = `## DADOS HISTÓRICOS COMPLETOS DA CONTA (PERÍODO MÁXIMO)
+### Top Campanhas por Conversões (todas, incluindo pausadas):
+${topCampaigns.map((c: any) => `- ${c.name} [${c.status}] — ROAS: ${c.roas}x | CPA: R$${c.cpa.toFixed(2)} | Conversões: ${c.conversions} | Gasto: R$${c.spend.toFixed(2)} | CTR: ${c.ctr}%`).join("\n") || "Nenhuma campanha com conversões"}
+
+### Top Conjuntos de Anúncios por ROAS (públicos que mais converteram):
+${topAdsets.map((a: any) => `- ${a.name} [${a.status}] — ROAS: ${a.roas}x | CPA: R$${a.cpa.toFixed(2)} | Conversões: ${a.conversions} | Gasto: R$${a.spend.toFixed(2)}${a.targeting ? ` | Targeting: ${JSON.stringify(a.targeting).substring(0, 200)}` : ""}`).join("\n") || "Nenhum adset com conversões"}
+
+### Top Anúncios por Conversões (criativos/copys que mais converteram):
+${topAds.map((a: any) => {
+        const cr = a.creative_data || {};
+        return `- ${a.name} [${a.status}] — ROAS: ${a.roas}x | CPA: R$${a.cpa.toFixed(2)} | Conversões: ${a.conversions} | CTR: ${a.ctr}%${cr.title ? ` | Headline: "${cr.title}"` : ""}${cr.body ? ` | Copy: "${(cr.body || "").substring(0, 150)}"` : ""}${cr.call_to_action_type ? ` | CTA: ${cr.call_to_action_type}` : ""}`;
+      }).join("\n") || "Nenhum anúncio com conversões"}
+
+### Top Posicionamentos por ROAS:
+${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: ${p.conversions} | Gasto: R$${p.spend.toFixed(2)}`).join("\n") || "Sem dados de posicionamento"}
+
+### Resumo Geral da Conta (período máximo):
+- Total de campanhas: ${dh.campaigns.length} (${dh.campaigns.filter((c: any) => c.status === "ACTIVE").length} ativas, ${dh.campaigns.filter((c: any) => c.status === "PAUSED").length} pausadas)
+- Total de conjuntos: ${dh.adsets.length}
+- Total de anúncios: ${dh.ads.length}
+- Gasto total histórico: R$ ${dh.campaigns.reduce((s: number, c: any) => s + c.spend, 0).toFixed(2)}
+- Conversões totais históricas: ${dh.campaigns.reduce((s: number, c: any) => s + c.conversions, 0)}`;
+
+      prompt.system = prompt.system.replace("{{DEEP_HISTORICAL_DATA}}", deepText);
+    } else {
+      prompt.system = prompt.system.replace("{{DEEP_HISTORICAL_DATA}}", "Dados históricos profundos não disponíveis. Baseie-se nos dados de 7d e 30d disponíveis.");
     }
 
     // Inject existing creatives inventory for Phase 1 and other triggers
