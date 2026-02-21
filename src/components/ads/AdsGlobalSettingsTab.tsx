@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bot, DollarSign, Target, Shield, Zap, Scale, AlertTriangle, Info, Globe, TrendingUp, ChevronDown, ChevronUp, Power } from "lucide-react";
+import { Bot, DollarSign, Target, Zap, Scale, AlertTriangle, Info, Globe, TrendingUp, ChevronDown, ChevronUp, Power } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -28,10 +28,6 @@ const STRATEGY_OPTIONS = [
   { value: "long_term", label: "Médio/Longo Prazo", icon: "🌱", desc: "Branding e crescimento sustentável" },
 ];
 
-const APPROVAL_OPTIONS = [
-  { value: "auto", label: "Auto-executar tudo", desc: "IA executa todas as ações automaticamente" },
-  { value: "approve_high_impact", label: "Aprovar alto impacto", desc: "Criar campanha, budget >20%, trocar objetivo" },
-];
 
 export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccountOverrides, isGlobalEnabled, onToggleGlobal, isTogglingGlobal }: AdsGlobalSettingsTabProps) {
   const [budgetMode, setBudgetMode] = useState(globalConfig?.budget_mode || "monthly");
@@ -54,7 +50,7 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
   const [funnelSplits, setFunnelSplits] = useState<Record<string, number>>(
     (globalConfig?.funnel_splits as Record<string, number>) || { cold: 60, remarketing: 25, tests: 15, leads: 0 }
   );
-  const [approvalMode, setApprovalMode] = useState(globalConfig?.human_approval_mode || "auto");
+  
   const [showTemplate, setShowTemplate] = useState(false);
 
   useEffect(() => {
@@ -69,7 +65,7 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
       setStrategyMode(globalConfig.strategy_mode || "balanced");
       setFunnelSplitMode(globalConfig.funnel_split_mode || "ai_decides");
       setFunnelSplits((globalConfig.funnel_splits as Record<string, number>) || { cold: 60, remarketing: 25, tests: 15, leads: 0 });
-      setApprovalMode(globalConfig.human_approval_mode || "auto");
+      
     }
   }, [globalConfig]);
 
@@ -86,7 +82,7 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
       strategy_mode: strategyMode,
       funnel_split_mode: funnelSplitMode,
       funnel_splits: funnelSplitMode === "manual" ? funnelSplits : null,
-      human_approval_mode: approvalMode,
+      
       safety_rules: {
         ...(globalConfig?.safety_rules as any || {}),
         target_roi: parseFloat(targetRoi || "0") || null,
@@ -329,26 +325,6 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
             )}
           </div>
 
-          {/* Approval Mode */}
-          <div className="space-y-2">
-            <Label className="text-sm font-semibold flex items-center gap-2">
-              <Shield className="h-4 w-4 text-primary" />
-              Modo de Aprovação
-            </Label>
-            <Select value={approvalMode} onValueChange={setApprovalMode}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {APPROVAL_OPTIONS.map(opt => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    <span className="flex items-center gap-2">
-                      <span>{opt.label}</span>
-                      <span className="text-xs text-muted-foreground">— {opt.desc}</span>
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
 
           {/* Prompt */}
           <div className="space-y-2">
