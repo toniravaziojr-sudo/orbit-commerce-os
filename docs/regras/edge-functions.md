@@ -1640,3 +1640,47 @@ ID | Nome | Status | EffStatus | Objetivo | Budget/dia | ROAS30d | CPA30d | Spen
 - [ ] Formato tabular com headers pipe-separated (não JSON)
 - [ ] Valores monetários em centavos convertidos para reais (÷100) com `fmtCents()`
 - [ ] Cadência de criativos e experimentos ativos permanecem em JSON (volume pequeno)
+
+---
+
+### v1.42.0: `ads-autopilot-strategist` — Paginação de Insights (Fix PostgREST 1000-row cap)
+
+**Problema**: A função `buildDeepHistoricalFromLocalData` usava `.limit(5000)` para buscar insights da tabela `meta_ad_insights`, porém o PostgREST do Supabase impõe um limite máximo de **1000 rows por request**, independentemente do `.limit()` definido. Resultado: contas com alto volume (ex: R$ 667k+ de spend total / 6.035 registros) recebiam silenciosamente apenas as 1.000 linhas mais recentes (R$ 110k), causando diagnósticos incompletos e regressão na qualidade estratégica.
+
+**Solução**: Implementação de helper `fetchAllPaginated()` com paginação sequencial via `.range(offset, offset + PAGE_SIZE - 1)` em blocos de 1000 rows.
+
+#### Helper `fetchAllPaginated` (v1.42.0)
+```typescript
+async function fetchAllPaginated(table: string, selectCols: string, filters: Record<string, string>, orderCol?: string) {
+  const PAGE_SIZE = 1000;
+  const allRows: any[] = [];
+  let offset = 0;
+  let hasMore = true;
+  while (hasMore) {
+    let q = supabase.from(table).select(selectCols);
+    for (const [k, v] of Object.entries(filters)) q = q.eq(k, v);
+    if (orderCol) q = q.order(orderCol, { ascending: false });
+    q = q.range(offset, offset + PAGE_SIZE - 1);
+    const { data, error } = await q;
+    if (error) { console.error(`Pagination error on ${table} offset ${offset}:`, error.message); break; }
+    const rows = data || [];
+    allRows.push(...rows);
+    offset += PAGE_SIZE;
+    hasMore = rows.length === PAGE_SIZE;
+  }
+  return allRows;
+}
+```
+
+#### O que mudou
+| Antes (v1.41.0) | Depois (v1.42.0) |
+|---|---|
+| Query única com `.limit(5000)` no `Promise.all` | `fetchAllPaginated()` chamado separadamente após o `Promise.all` |
+| Máximo 1000 rows (cap silencioso do PostgREST) | Todas as rows (paginação automática em blocos de 1000) |
+| R$ 110k de spend reportado para conta com R$ 667k+ | R$ 667k+ reportado corretamente |
+
+#### Regras Anti-Regressão
+- [ ] **NUNCA** usar `.limit()` para tabelas com potencial de > 1000 rows — usar `fetchAllPaginated()` ou `.range()`
+- [ ] Insights devem ser buscados FORA do `Promise.all` (paginação é sequencial)
+- [ ] Log obrigatório: `Insights fetched: ${allInsights.length} rows (paginated)`
+- [ ] Campanhas, adsets e ads mantêm `.limit()` no `Promise.all` (volumes menores, < 1000)
