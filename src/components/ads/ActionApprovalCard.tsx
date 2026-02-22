@@ -19,11 +19,13 @@ import type { PendingAction } from "@/hooks/useAdsPendingActions";
 import { cn } from "@/lib/utils";
 import { StrategicPlanContent } from "./StrategicPlanContent";
 
+export type RejectMode = "dismiss" | "regenerate";
+
 export interface ActionApprovalCardProps {
   action: PendingAction;
   childActions?: PendingAction[];
   onApprove: (actionId: string) => void;
-  onReject: (actionId: string, reason: string) => void;
+  onReject: (actionId: string, reason: string, mode: RejectMode) => void;
   onAdjust: (actionId: string, suggestion: string) => void;
   approvingId?: string | null;
   rejectingId?: string | null;
@@ -34,7 +36,7 @@ export interface OrphanAdsetGroupCardProps {
   parentCampaignName: string;
   adsets: PendingAction[];
   onApprove: (actionId: string) => void;
-  onReject: (actionId: string, reason: string) => void;
+  onReject: (actionId: string, reason: string, mode: RejectMode) => void;
   onAdjust: (actionId: string, suggestion: string) => void;
   approvingId?: string | null;
   rejectingId?: string | null;
@@ -1204,7 +1206,6 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
   const [fullOpen, setFullOpen] = useState(false);
-  const [rejectReason, setRejectReason] = useState("");
   const [adjustSuggestion, setAdjustSuggestion] = useState("");
 
   const data = action.action_data || {};
@@ -1231,11 +1232,14 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
 
   const label = ACTION_TYPE_LABELS[action.action_type] || action.action_type;
 
-  const handleRejectSubmit = () => {
-    if (!rejectReason.trim()) return;
-    onReject(action.id, rejectReason);
+  const handleRejectDismiss = () => {
+    onReject(action.id, "Usuário descartou esta proposta", "dismiss");
     setRejectOpen(false);
-    setRejectReason("");
+  };
+
+  const handleRejectRegenerate = () => {
+    onReject(action.id, "Usuário solicitou nova proposta", "regenerate");
+    setRejectOpen(false);
   };
 
   const isAdjusting = adjustingId === action.id;
@@ -1391,27 +1395,42 @@ export function ActionApprovalCard({ action, childActions, onApprove, onReject, 
       {/* Full Content Dialog */}
       <FullContentDialog action={action} childActions={childActions} open={fullOpen} onOpenChange={setFullOpen} />
 
-      {/* Reject Dialog */}
+      {/* Reject Dialog — Two Options */}
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Rejeitar Ação</DialogTitle>
+            <DialogTitle>O que deseja fazer?</DialogTitle>
             <DialogDescription>
-              Explique por que esta ação não deve ser executada. A IA usará seu feedback para melhorar futuras sugestões.
+              Escolha como a IA deve proceder após rejeitar esta proposta.
             </DialogDescription>
           </DialogHeader>
-          <Textarea
-            value={rejectReason}
-            onChange={(e) => setRejectReason(e.target.value)}
-            placeholder="Ex: Não quero anunciar este produto agora, focar em outro..."
-            className="min-h-[80px]"
-          />
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setRejectOpen(false)}>Cancelar</Button>
-            <Button variant="destructive" onClick={handleRejectSubmit} disabled={!rejectReason.trim()}>
-              Confirmar Rejeição
+          <div className="flex flex-col gap-3 py-2">
+            <Button
+              variant="outline"
+              className="h-auto py-3 px-4 justify-start text-left flex-col items-start gap-1"
+              onClick={handleRejectDismiss}
+              disabled={!!rejectingId}
+            >
+              <span className="font-semibold text-sm">Não quero esta proposta</span>
+              <span className="text-xs text-muted-foreground font-normal">
+                A proposta será descartada. A IA continuará apenas com os controles automáticos (diários, semanais e mensais).
+              </span>
             </Button>
-          </DialogFooter>
+            <Button
+              variant="outline"
+              className="h-auto py-3 px-4 justify-start text-left flex-col items-start gap-1 border-primary/30 hover:border-primary/50"
+              onClick={handleRejectRegenerate}
+              disabled={!!rejectingId}
+            >
+              <span className="font-semibold text-sm flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                Quero outra proposta
+              </span>
+              <span className="text-xs text-muted-foreground font-normal">
+                A IA gerará um novo plano/campanha para substituir este e apresentará novamente para aprovação.
+              </span>
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -1471,7 +1490,7 @@ export function OrphanAdsetGroupCard({ parentCampaignName, adsets, onApprove, on
   const [rejectOpen, setRejectOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [fullOpen, setFullOpen] = useState(false);
-  const [rejectReason, setRejectReason] = useState("");
+  
   const [adjustSuggestion, setAdjustSuggestion] = useState("");
 
   // Use first adset for creative resolution
@@ -1486,13 +1505,18 @@ export function OrphanAdsetGroupCard({ parentCampaignName, adsets, onApprove, on
     }
   };
 
-  const handleRejectAll = () => {
-    if (!rejectReason.trim()) return;
+  const handleRejectAllDismiss = () => {
     for (const adset of adsets) {
-      onReject(adset.id, rejectReason);
+      onReject(adset.id, "Usuário descartou esta proposta", "dismiss");
     }
     setRejectOpen(false);
-    setRejectReason("");
+  };
+
+  const handleRejectAllRegenerate = () => {
+    for (const adset of adsets) {
+      onReject(adset.id, "Usuário solicitou nova proposta", "regenerate");
+    }
+    setRejectOpen(false);
   };
 
   const isAdjustingGroup = adsets.some(a => adjustingId === a.id);
@@ -1680,27 +1704,42 @@ export function OrphanAdsetGroupCard({ parentCampaignName, adsets, onApprove, on
         </DialogContent>
       </Dialog>
 
-      {/* Reject Dialog */}
+      {/* Reject Dialog — Two Options */}
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Rejeitar Conjuntos</DialogTitle>
+            <DialogTitle>O que deseja fazer?</DialogTitle>
             <DialogDescription>
-              Rejeitar todos os {adsets.length} conjuntos para "{parentCampaignName}".
+              Rejeitar {adsets.length} conjunto{adsets.length !== 1 ? "s" : ""} para "{parentCampaignName}".
             </DialogDescription>
           </DialogHeader>
-          <Textarea
-            value={rejectReason}
-            onChange={(e) => setRejectReason(e.target.value)}
-            placeholder="Ex: Não quero este público alvo..."
-            className="min-h-[80px]"
-          />
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setRejectOpen(false)}>Cancelar</Button>
-            <Button variant="destructive" onClick={handleRejectAll} disabled={!rejectReason.trim()}>
-              Confirmar Rejeição
+          <div className="flex flex-col gap-3 py-2">
+            <Button
+              variant="outline"
+              className="h-auto py-3 px-4 justify-start text-left flex-col items-start gap-1"
+              onClick={handleRejectAllDismiss}
+              disabled={!!rejectingId}
+            >
+              <span className="font-semibold text-sm">Não quero esta proposta</span>
+              <span className="text-xs text-muted-foreground font-normal">
+                A proposta será descartada. A IA continuará apenas com os controles automáticos.
+              </span>
             </Button>
-          </DialogFooter>
+            <Button
+              variant="outline"
+              className="h-auto py-3 px-4 justify-start text-left flex-col items-start gap-1 border-primary/30 hover:border-primary/50"
+              onClick={handleRejectAllRegenerate}
+              disabled={!!rejectingId}
+            >
+              <span className="font-semibold text-sm flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                Quero outra proposta
+              </span>
+              <span className="text-xs text-muted-foreground font-normal">
+                A IA gerará novas propostas para substituir estas.
+              </span>
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

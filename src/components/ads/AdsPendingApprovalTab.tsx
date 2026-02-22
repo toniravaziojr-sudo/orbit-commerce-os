@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { AutopilotAction } from "@/hooks/useAdsAutopilot";
-import { ActionApprovalCard, OrphanAdsetGroupCard } from "./ActionApprovalCard";
+import { ActionApprovalCard, OrphanAdsetGroupCard, type RejectMode } from "./ActionApprovalCard";
 import type { PendingAction } from "@/hooks/useAdsPendingActions";
 
 interface AdsPendingApprovalTabProps {
@@ -288,7 +288,17 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
           action={action}
           childActions={getChildActions(action)}
           onApprove={(id) => { setApprovingId(id); approveAction.mutate(id, { onSettled: () => setApprovingId(null) }); }}
-          onReject={(id, reason) => { setRejectingId(id); rejectAction.mutate({ actionId: id, reason }, { onSettled: () => setRejectingId(null) }); }}
+          onReject={(id, reason, mode) => {
+            setRejectingId(id);
+            rejectAction.mutate({ actionId: id, reason }, {
+              onSettled: () => setRejectingId(null),
+              onSuccess: () => {
+                if (mode === "regenerate") {
+                  adjustAction.mutate({ actionId: id, feedback: "Usuário rejeitou e solicitou nova proposta" });
+                }
+              },
+            });
+          }}
           onAdjust={(id, suggestion) => { setAdjustingId(id); adjustAction.mutate({ actionId: id, feedback: suggestion }); }}
           approvingId={approvingId}
           rejectingId={rejectingId}
@@ -302,7 +312,17 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
           parentCampaignName={parentName}
           adsets={groupAdsets}
           onApprove={(id) => { setApprovingId(id); approveAction.mutate(id, { onSettled: () => setApprovingId(null) }); }}
-          onReject={(id, reason) => { setRejectingId(id); rejectAction.mutate({ actionId: id, reason }, { onSettled: () => setRejectingId(null) }); }}
+          onReject={(id, reason, mode) => {
+            setRejectingId(id);
+            rejectAction.mutate({ actionId: id, reason }, {
+              onSettled: () => setRejectingId(null),
+              onSuccess: () => {
+                if (mode === "regenerate") {
+                  adjustAction.mutate({ actionId: id, feedback: "Usuário rejeitou e solicitou nova proposta" });
+                }
+              },
+            });
+          }}
           onAdjust={(id, suggestion) => { setAdjustingId(id); adjustAction.mutate({ actionId: id, feedback: suggestion }); }}
           approvingId={approvingId}
           rejectingId={rejectingId}
