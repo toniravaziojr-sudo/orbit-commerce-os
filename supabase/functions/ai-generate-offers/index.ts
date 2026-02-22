@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.0.0"; // Versão inicial - geração de ofertas com IA
+const VERSION = "v1.1.0"; // Gerar 1 regra por produto (simples + kit)
 // ===========================================================
 
 const corsHeaders = {
@@ -19,7 +19,7 @@ const OFFER_TYPE_LABELS: Record<string, string> = {
   buy_together: 'Compre Junto (exibido na página do produto)',
 };
 
-function buildSystemPrompt(type: string, discountType: string, discountValue: number, productCount: number, existingTriggerIds: string[]): string {
+function buildSystemPrompt(type: string, discountType: string, discountValue: number, eligibleCount: number, existingTriggerIds: string[]): string {
   const discountDesc = discountType === 'none'
     ? 'Sem desconto aplicado.'
     : discountType === 'percent'
@@ -27,51 +27,45 @@ function buildSystemPrompt(type: string, discountType: string, discountValue: nu
       : `Desconto fixo de R$ ${discountValue} sobre o preço do produto sugerido.`;
 
   const existingNote = existingTriggerIds.length > 0
-    ? `\n\n## REGRAS JÁ EXISTENTES\nJá existem ${existingTriggerIds.length} regras cadastradas. Os seguintes product IDs JÁ SÃO gatilhos de regras existentes e NÃO devem ser usados como gatilho novamente:\n${JSON.stringify(existingTriggerIds)}\n\nSe houver dados de vendas disponíveis, use-os para priorizar sugestões mais relevantes. Caso contrário, continue usando a lógica de kits.`
+    ? `\n\n## REGRAS JÁ EXISTENTES\nJá existem ${existingTriggerIds.length} regras cadastradas. Os seguintes product IDs JÁ SÃO gatilhos e NÃO devem receber nova regra:\n${JSON.stringify(existingTriggerIds)}\n\nGere regras APENAS para os produtos que NÃO estão nesta lista.`
     : '';
 
   return `Você é um especialista em e-commerce e estratégias de aumento de ticket médio.
 
 Sua tarefa é gerar regras de ofertas do tipo "${OFFER_TYPE_LABELS[type] || type}" para uma loja online.
 
-## REGRA CRÍTICA DE QUANTIDADE
-Você DEVE gerar EXATAMENTE UMA oferta para CADA produto individual elegível (não-kit) que ainda não tenha regra cadastrada.
-O catálogo tem ${productCount} produtos. Gere o MÁXIMO possível de sugestões — uma para cada produto elegível.
-NÃO limite a 10 sugestões. Gere TODAS as possibilidades.
+## REGRA CRÍTICA — OBRIGATÓRIA
+Você DEVE gerar EXATAMENTE 1 regra para CADA produto elegível. Existem ${eligibleCount} produtos elegíveis.
+Isso significa que você DEVE retornar EXATAMENTE ${eligibleCount} sugestões. Nem mais, nem menos.
+TODOS os produtos (simples E kits) recebem uma regra cada.
 
-## Estratégia Principal: Lógica de Composição de Kits
+## Lógica por Tipo de Produto
 
-A fonte principal de dados são os KITS (produtos compostos). Analise quais produtos individuais formam cada kit e use essa lógica:
+### Produto SIMPLES que faz parte de um kit:
+- **Cross-sell / Compre Junto:** Sugerir os OUTROS componentes do mesmo kit ("complete seu kit").
+- **Order Bump:** Sugerir 1 produto complementar de MENOR valor.
+- **Upsell:** Sugerir o kit completo que contém este produto.
 
-### Para Cross-sell e Compre Junto:
-- Se um produto individual faz parte de um kit, ao comprá-lo isoladamente, sugira os OUTROS componentes do kit para "completar o kit".
-- Exemplo: Kit Banho = Shampoo + Balm + Loção. Se o cliente compra Shampoo, sugira Balm e Loção.
-- Priorize produtos que compartilham o mesmo kit.
-- Para produtos que NÃO fazem parte de nenhum kit, sugira produtos complementares pela categoria ou faixa de preço.
+### Produto SIMPLES que NÃO faz parte de nenhum kit:
+- **Cross-sell / Compre Junto:** Sugerir produtos da mesma categoria ou complementares por faixa de preço.
+- **Order Bump:** Sugerir 1 produto menor/acessório de menor valor.
+- **Upsell:** Sugerir versão maior ou kit que inclua produto similar.
 
-### Para Order Bump:
-- Sugira produtos complementares de MENOR valor no checkout.
-- Produtos acessórios, menores ou de uso rápido são ideais.
-- Evite sugerir kits completos como bump (são caros demais para impulso).
-
-### Para Upsell:
-- Sugira upgrade para kit maior ou versão com mais unidades.
-- Se o cliente comprou 1 unidade, sugira pack com 2x ou 3x.
-- Se comprou um produto individual, sugira o kit completo que o contém.
+### Produto KIT (composto):
+- **Cross-sell / Compre Junto:** Sugerir produtos que NÃO fazem parte deste kit mas são complementares.
+- **Order Bump:** Sugerir 1 produto avulso de menor valor que complementa o kit.
+- **Upsell:** Sugerir mais unidades do mesmo kit (2x, 3x) ou um kit maior/premium.
 
 ## Desconto
 ${discountDesc}
 ${existingNote}
 
-## Regras Importantes:
+## Regras de Formatação:
 1. NÃO crie regras para produtos que já são gatilho em regras existentes.
 2. NÃO sugira o mesmo produto como gatilho e como sugestão.
-3. Cada sugestão deve ter um nome descritivo, título para o cliente e descrição curta.
-4. O "reasoning" deve explicar a lógica por trás da sugestão.
-5. Gere UMA sugestão para CADA produto elegível. TODAS as possibilidades, sem limite.
-6. Use nomes comerciais amigáveis nos títulos (não IDs ou SKUs).
-7. Kits NÃO devem ser usados como produto gatilho para cross-sell/compre junto (quem compra kit já tem tudo).
-8. Produtos individuais que fazem parte de kits são os melhores gatilhos.`;
+3. Cada sugestão deve ter: name (descritivo), title (para cliente), description (curta), reasoning (lógica).
+4. Use nomes comerciais amigáveis nos títulos (não IDs ou SKUs).
+5. REPITO: Gere EXATAMENTE ${eligibleCount} sugestões, uma por produto elegível.`;
 }
 
 serve(async (req) => {
@@ -216,9 +210,9 @@ Gere sugestões de ofertas do tipo "${type}" usando a ferramenta generate_offer_
     }
     const uniqueExistingTriggers = [...new Set(existingTriggerIds)];
 
-    // Contar produtos elegíveis (não-kit e sem regra existente)
-    const eligibleProducts = productMap.filter(p => !p.is_kit && !uniqueExistingTriggers.includes(p.id));
-    console.log(`[ai-generate-offers] ${eligibleProducts.length} produtos elegíveis (sem regra existente)`);
+    // Contar produtos elegíveis (TODOS os produtos sem regra existente — simples E kits)
+    const eligibleProducts = productMap.filter(p => !uniqueExistingTriggers.includes(p.id));
+    console.log(`[ai-generate-offers] ${eligibleProducts.length} produtos elegíveis de ${productMap.length} total (${uniqueExistingTriggers.length} já com regra)`);
 
     const systemPrompt = buildSystemPrompt(type, discount_type || 'none', discount_value || 0, eligibleProducts.length, uniqueExistingTriggers);
 
