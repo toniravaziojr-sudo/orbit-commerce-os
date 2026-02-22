@@ -508,17 +508,112 @@ function BudgetAllocationSection({ budget }: { budget: BudgetAllocation }) {
 
 // ============ SHARED COMPONENTS ============
 
-function FlowingText({ text, className }: { text: string; className?: string }) {
+/** Render inline formatting: **bold** and metric highlights */
+function renderInline(text: string): React.ReactNode {
+  // Split by **bold** markers first
+  const boldParts = text.split(/(\*\*[^*]+\*\*)/g);
+  return boldParts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      const inner = part.slice(2, -2);
+      return <strong key={i} className="font-semibold text-foreground">{highlightMetrics(inner)}</strong>;
+    }
+    return <React.Fragment key={i}>{highlightMetrics(part)}</React.Fragment>;
+  });
+}
+
+/** Classify a line as heading, list-item, or paragraph */
+interface ParsedBlock {
+  type: "heading" | "list-item" | "paragraph";
+  content: string;
+  indent?: number;
+}
+
+function parseBlocks(text: string): ParsedBlock[] {
   const sanitized = sanitize(text);
-  if (!sanitized) return null;
-  const paragraphs = sanitized.replace(/\\n/g, "\n").split(/\n\s*\n/).map(p => p.replace(/\n/g, " ").trim()).filter(Boolean);
-  return (
-    <div className={cn("space-y-3", className)}>
-      {paragraphs.map((para, i) => (
-        <p key={i} className="text-[13px] text-foreground/80 leading-[1.8]">{highlightMetrics(para)}</p>
-      ))}
-    </div>
-  );
+  if (!sanitized) return [];
+  const normalized = sanitized.replace(/\\n/g, "\n");
+  const lines = normalized.split("\n").map(l => l.trim()).filter(Boolean);
+  const blocks: ParsedBlock[] = [];
+
+  for (const line of lines) {
+    // Numbered list: "1. " or "1) "
+    const numMatch = line.match(/^(\d+)[.)]\s+(.+)/);
+    if (numMatch) {
+      blocks.push({ type: "list-item", content: numMatch[2], indent: 0 });
+      continue;
+    }
+    // Bullet list: "- " or "* " or "• "
+    const bulletMatch = line.match(/^[-*•]\s+(.+)/);
+    if (bulletMatch) {
+      blocks.push({ type: "list-item", content: bulletMatch[1], indent: 0 });
+      continue;
+    }
+    // Sub-item: "  - " (indented)
+    const subMatch = line.match(/^\s{2,}[-*•]\s+(.+)/);
+    if (subMatch) {
+      blocks.push({ type: "list-item", content: subMatch[1], indent: 1 });
+      continue;
+    }
+    // Short bold-only line = heading-like
+    if (/^\*\*[^*]+\*\*:?$/.test(line) && line.length < 120) {
+      blocks.push({ type: "heading", content: line.replace(/^\*\*/, "").replace(/\*\*:?$/, "") });
+      continue;
+    }
+    // Everything else is a paragraph
+    blocks.push({ type: "paragraph", content: line });
+  }
+  return blocks;
+}
+
+function FlowingText({ text, className }: { text: string; className?: string }) {
+  const blocks = parseBlocks(text);
+  if (blocks.length === 0) return null;
+
+  // Group consecutive list items together
+  const elements: React.ReactNode[] = [];
+  let listBuffer: ParsedBlock[] = [];
+
+  const flushList = () => {
+    if (listBuffer.length === 0) return;
+    elements.push(
+      <ul key={`list-${elements.length}`} className="space-y-1.5 ml-1">
+        {listBuffer.map((item, i) => (
+          <li key={i} className={cn(
+            "flex items-start gap-2 text-[13px] text-foreground/80 leading-relaxed",
+            item.indent && "ml-4"
+          )}>
+            <span className="text-primary/60 mt-[3px] shrink-0">•</span>
+            <span>{renderInline(item.content)}</span>
+          </li>
+        ))}
+      </ul>
+    );
+    listBuffer = [];
+  };
+
+  for (const block of blocks) {
+    if (block.type === "list-item") {
+      listBuffer.push(block);
+      continue;
+    }
+    flushList();
+    if (block.type === "heading") {
+      elements.push(
+        <h4 key={`h-${elements.length}`} className="text-[13px] font-semibold text-foreground mt-2 first:mt-0">
+          {renderInline(block.content)}
+        </h4>
+      );
+    } else {
+      elements.push(
+        <p key={`p-${elements.length}`} className="text-[13px] text-foreground/80 leading-[1.8]">
+          {renderInline(block.content)}
+        </p>
+      );
+    }
+  }
+  flushList();
+
+  return <div className={cn("space-y-2.5", className)}>{elements}</div>;
 }
 
 function Section({ icon, label, color, children }: { icon: React.ReactNode; label: string; color: string; children: React.ReactNode }) {
