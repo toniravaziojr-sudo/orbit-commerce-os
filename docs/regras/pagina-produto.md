@@ -82,6 +82,7 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 | `showReviews` | boolean | true | Exibe avaliações |
 | `showBuyTogether` | boolean | true | Exibe compre junto |
 | `showRelatedProducts` | boolean | true | Exibe relacionados |
+| `relatedProductsTitle` | string | "Produtos Relacionados" | Título customizável da seção |
 | `showWhatsAppButton` | boolean | true | Botão WhatsApp |
 | `showAddToCartButton` | boolean | true | Botão carrinho |
 | `showBadges` | boolean | true | Selos do produto |
