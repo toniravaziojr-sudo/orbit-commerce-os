@@ -686,3 +686,6 @@ schedule = "0 11 * * 3"
 
 [functions.ads-autopilot-creative]
 verify_jwt = false
+
+[functions.ai-generate-offers]
+verify_jwt = false

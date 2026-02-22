@@ -30,11 +30,13 @@ import {
   ToggleRight,
   ShoppingBag,
   Tag,
+  Sparkles,
 } from 'lucide-react';
 import { ProductMultiSelect } from '@/components/builder/ProductMultiSelect';
 import { BuyTogetherContent } from '@/components/offers/BuyTogetherContent';
 import { BadgesContent } from '@/components/offers/BadgesContent';
 import { ProductVariantTypesContent } from '@/components/offers/ProductVariantTypesContent';
+import { AIOfferGeneratorDialog } from '@/components/offers/AIOfferGeneratorDialog';
 
 const offerTypeLabels: Record<OfferType, string> = {
   cross_sell: 'Cross-sell',
@@ -105,10 +107,17 @@ export default function Offers() {
   const { products } = useProducts();
   
   const [activeTab, setActiveTab] = useState<OfferType | 'buy_together' | 'badges' | 'variant_types'>('cross_sell');
+
+  const openAIDialog = (type: OfferType | 'buy_together') => {
+    setAiDialogType(type);
+    setAiDialogOpen(true);
+  };
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<OfferRule | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [formData, setFormData] = useState<RuleFormData>(defaultFormData);
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const [aiDialogType, setAiDialogType] = useState<OfferType | 'buy_together'>('cross_sell');
 
   const filteredRules = rules.filter(r => r.type === activeTab);
 
@@ -235,6 +244,12 @@ export default function Offers() {
 
         {/* Buy Together Tab */}
         <TabsContent value="buy_together" className="space-y-4">
+          <div className="flex justify-end mb-2">
+            <Button variant="outline" onClick={() => openAIDialog('buy_together')}>
+              <Sparkles className="h-4 w-4 mr-2" />
+              Criar com IA
+            </Button>
+          </div>
           <BuyTogetherContent />
         </TabsContent>
 
@@ -262,10 +277,16 @@ export default function Offers() {
                       {offerTypeDescriptions[type as OfferType]}
                     </CardDescription>
                   </div>
-                  <Button onClick={() => openCreateDialog(type as OfferType)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Nova Regra
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" onClick={() => openAIDialog(type as OfferType)}>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Criar com IA
+                    </Button>
+                    <Button onClick={() => openCreateDialog(type as OfferType)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Nova Regra
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -561,6 +582,13 @@ export default function Offers() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* AI Offer Generator Dialog */}
+      <AIOfferGeneratorDialog
+        open={aiDialogOpen}
+        onOpenChange={setAiDialogOpen}
+        type={aiDialogType}
+      />
     </div>
   );
 }
