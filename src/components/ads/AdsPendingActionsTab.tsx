@@ -1,13 +1,14 @@
 // =============================================
-// ADS PENDING ACTIONS TAB — v5.12.8
+// ADS PENDING ACTIONS TAB — v5.16.0
 // Shows cards of AI actions awaiting user approval
 // with global budget summary header
+// Two-option rejection: dismiss vs regenerate
 // =============================================
 
 import { useState } from "react";
 
 import { useAdsPendingActions } from "@/hooks/useAdsPendingActions";
-import { ActionApprovalCard, OrphanAdsetGroupCard } from "@/components/ads/ActionApprovalCard";
+import { ActionApprovalCard, OrphanAdsetGroupCard, type RejectMode } from "@/components/ads/ActionApprovalCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
@@ -248,7 +249,17 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
                 action={action}
                 childActions={getChildActions(action)}
                 onApprove={(id) => { setApprovingId(id); approveAction.mutate(id, { onSettled: () => setApprovingId(null) }); }}
-                onReject={(id, reason) => { setRejectingId(id); rejectAction.mutate({ actionId: id, reason }, { onSettled: () => setRejectingId(null) }); }}
+                onReject={(id, reason, mode) => {
+                  setRejectingId(id);
+                  rejectAction.mutate({ actionId: id, reason }, {
+                    onSettled: () => setRejectingId(null),
+                    onSuccess: () => {
+                      if (mode === "regenerate") {
+                        handleAdjust(id, "Usuário rejeitou e solicitou nova proposta");
+                      }
+                    },
+                  });
+                }}
                 onAdjust={handleAdjust}
                 approvingId={approvingId}
                 rejectingId={rejectingId}
@@ -262,7 +273,17 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
                 parentCampaignName={parentName}
                 adsets={groupAdsets}
                 onApprove={(id) => { setApprovingId(id); approveAction.mutate(id, { onSettled: () => setApprovingId(null) }); }}
-                onReject={(id, reason) => { setRejectingId(id); rejectAction.mutate({ actionId: id, reason }, { onSettled: () => setRejectingId(null) }); }}
+                onReject={(id, reason, mode) => {
+                  setRejectingId(id);
+                  rejectAction.mutate({ actionId: id, reason }, {
+                    onSettled: () => setRejectingId(null),
+                    onSuccess: () => {
+                      if (mode === "regenerate") {
+                        handleAdjust(id, "Usuário rejeitou e solicitou nova proposta");
+                      }
+                    },
+                  });
+                }}
                 onAdjust={handleAdjust}
                 approvingId={approvingId}
                 rejectingId={rejectingId}
