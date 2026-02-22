@@ -4,20 +4,19 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Link2 } from 'lucide-react';
 import { getPublicProductUrl } from '@/lib/publicUrls';
 
 interface RelatedProductsSectionProps {
   productId: string;
   tenantSlug: string;
   isEditing?: boolean;
+  title?: string;
 }
 
-export function RelatedProductsSection({ productId, tenantSlug, isEditing = false }: RelatedProductsSectionProps) {
+export function RelatedProductsSection({ productId, tenantSlug, isEditing = false, title = 'Produtos Relacionados' }: RelatedProductsSectionProps) {
   const { data: relatedProducts, isLoading } = useQuery({
     queryKey: ['related-products-public', productId],
     queryFn: async () => {
-      // First get related product IDs
       const { data: relations, error: relError } = await supabase
         .from('related_products')
         .select('related_product_id, position')
@@ -28,7 +27,6 @@ export function RelatedProductsSection({ productId, tenantSlug, isEditing = fals
       
       const relatedIds = relations.map(r => r.related_product_id);
       
-      // Fetch related products
       const { data: products, error: prodError } = await supabase
         .from('products')
         .select(`
@@ -40,7 +38,6 @@ export function RelatedProductsSection({ productId, tenantSlug, isEditing = fals
       
       if (prodError || !products) return [];
       
-      // Sort by original position
       return relatedIds
         .map(id => products.find(p => p.id === id))
         .filter(Boolean);
@@ -50,13 +47,9 @@ export function RelatedProductsSection({ productId, tenantSlug, isEditing = fals
 
   if (isLoading || !relatedProducts?.length) {
     if (isEditing) {
-      // Demo placeholder in editor mode
       return (
         <section className="py-8 border-t">
-          <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-            <Link2 className="h-5 w-5" />
-            Produtos Relacionados
-          </h2>
+          <h2 className="text-xl font-bold mb-6">{title}</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[1, 2, 3, 4].map((i) => (
               <div key={i} className="bg-card rounded-lg overflow-hidden border">
@@ -81,10 +74,7 @@ export function RelatedProductsSection({ productId, tenantSlug, isEditing = fals
 
   return (
     <section className="py-8 border-t">
-      <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-        <Link2 className="h-5 w-5" />
-        Produtos Relacionados
-      </h2>
+      <h2 className="text-xl font-bold mb-6">{title}</h2>
       
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {relatedProducts.map((product: any) => {
@@ -98,7 +88,6 @@ export function RelatedProductsSection({ productId, tenantSlug, isEditing = fals
               href={getPublicProductUrl(tenantSlug, product.slug) || '#'}
               className="group block bg-card rounded-lg overflow-hidden border hover:border-primary/50 transition-colors"
             >
-              {/* Image */}
               <div className="aspect-square bg-muted overflow-hidden">
                 {primaryImage?.url ? (
                   <img
@@ -113,7 +102,6 @@ export function RelatedProductsSection({ productId, tenantSlug, isEditing = fals
                 )}
               </div>
               
-              {/* Info */}
               <div className="p-3">
                 <h3 className="font-medium text-sm line-clamp-2 group-hover:text-primary transition-colors">
                   {product.name}

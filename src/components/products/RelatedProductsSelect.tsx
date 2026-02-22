@@ -1,8 +1,9 @@
 // =============================================
 // RELATED PRODUCTS SELECT - Multi-select for related products
+// With auto-generate toggle
 // =============================================
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -11,11 +12,12 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { X, Search, Link2, Sparkles, Loader2 } from 'lucide-react';
+import { X, Search, Link2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { Label } from '@/components/ui/label';
 
 interface RelatedProductsSelectProps {
   productId: string;
@@ -33,30 +35,58 @@ export function RelatedProductsSelect({ productId }: RelatedProductsSelectProps)
   const { currentTenant } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [isAutoGenerating, setIsAutoGenerating] = useState(false);
 
-  // AI Generate related products for this single product
-  const handleAIGenerate = async () => {
+  // Check if auto-related is enabled for this tenant
+  const { data: autoEnabled } = useQuery({
+    queryKey: ['auto-related-products', currentTenant?.id],
+    queryFn: async () => {
+      if (!currentTenant?.id) return false;
+      const { data } = await supabase
+        .from('store_settings')
+        .select('auto_related_products')
+        .eq('tenant_id', currentTenant.id)
+        .maybeSingle();
+      return data?.auto_related_products ?? false;
+    },
+    enabled: !!currentTenant?.id,
+  });
+
+  // Toggle auto-related and generate if enabling
+  const handleToggleAuto = async (enabled: boolean) => {
     if (!currentTenant?.id) return;
-    setIsGenerating(true);
+    setIsAutoGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke('ai-generate-related-products', {
-        body: { tenant_id: currentTenant.id },
-      });
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || 'Erro ao gerar');
+      // Update store_settings
+      const { error: settingsError } = await supabase
+        .from('store_settings')
+        .update({ auto_related_products: enabled })
+        .eq('tenant_id', currentTenant.id);
+      if (settingsError) throw settingsError;
+
+      if (enabled) {
+        // Generate related products for all products
+        const { data, error } = await supabase.functions.invoke('ai-generate-related-products', {
+          body: { tenant_id: currentTenant.id },
+        });
+        if (error) throw error;
+        if (!data?.success) throw new Error(data?.error || 'Erro ao gerar');
+        toast.success(`${data.relations_created} relações criadas para ${data.processed} produtos`);
+      } else {
+        toast.success('Produtos relacionados automáticos desativados');
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['auto-related-products', currentTenant.id] });
       queryClient.invalidateQueries({ queryKey: ['related-products', productId] });
-      toast.success(`${data.relations_created} relações criadas para ${data.processed} produtos`);
     } catch (err: any) {
-      console.error('AI generate related error:', err);
-      toast.error(err.message || 'Erro ao gerar produtos relacionados');
+      console.error('Auto-related error:', err);
+      toast.error(err.message || 'Erro ao atualizar');
     } finally {
-      setIsGenerating(false);
+      setIsAutoGenerating(false);
     }
   };
 
-  // Fetch all products (excluding current) - includes active AND draft products
-  // Draft products are shown so users can pre-configure relations before publishing
+  // Fetch all products (excluding current)
   const { data: products, isLoading: productsLoading } = useQuery({
     queryKey: ['related-products-list', currentTenant?.id, productId],
     queryFn: async () => {
@@ -65,7 +95,7 @@ export function RelatedProductsSelect({ productId }: RelatedProductsSelectProps)
         .from('products')
         .select('id, name, sku, price, status, product_images(url, is_primary)')
         .eq('tenant_id', currentTenant.id)
-        .in('status', ['active', 'draft']) // Include draft products for configuration
+        .in('status', ['active', 'draft'])
         .neq('id', productId)
         .order('name')
         .limit(200);
@@ -90,31 +120,23 @@ export function RelatedProductsSelect({ productId }: RelatedProductsSelectProps)
     enabled: !!productId,
   });
 
-  // Add related product with optimistic update
+  // Add related product
   const addMutation = useMutation({
     mutationFn: async (relatedProductId: string) => {
       const position = (relatedIds?.length || 0) + 1;
       const { error } = await supabase
         .from('related_products')
-        .insert({
-          product_id: productId,
-          related_product_id: relatedProductId,
-          position,
-        });
+        .insert({ product_id: productId, related_product_id: relatedProductId, position });
       if (error) throw error;
       return relatedProductId;
     },
     onMutate: async (relatedProductId) => {
-      // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: ['related-products', productId] });
-      // Snapshot the previous value
       const previousIds = queryClient.getQueryData<string[]>(['related-products', productId]);
-      // Optimistically update
       queryClient.setQueryData(['related-products', productId], (old: string[] = []) => [...old, relatedProductId]);
       return { previousIds };
     },
-    onError: (_err, _relatedProductId, context) => {
-      // Rollback on error
+    onError: (_err, _id, context) => {
       queryClient.setQueryData(['related-products', productId], context?.previousIds);
       toast.error('Erro ao adicionar produto relacionado');
     },
@@ -123,7 +145,7 @@ export function RelatedProductsSelect({ productId }: RelatedProductsSelectProps)
     },
   });
 
-  // Remove related product with optimistic update
+  // Remove related product
   const removeMutation = useMutation({
     mutationFn: async (relatedProductId: string) => {
       const { error } = await supabase
@@ -137,12 +159,12 @@ export function RelatedProductsSelect({ productId }: RelatedProductsSelectProps)
     onMutate: async (relatedProductId) => {
       await queryClient.cancelQueries({ queryKey: ['related-products', productId] });
       const previousIds = queryClient.getQueryData<string[]>(['related-products', productId]);
-      queryClient.setQueryData(['related-products', productId], (old: string[] = []) => 
+      queryClient.setQueryData(['related-products', productId], (old: string[] = []) =>
         old.filter(id => id !== relatedProductId)
       );
       return { previousIds };
     },
-    onError: (_err, _relatedProductId, context) => {
+    onError: (_err, _id, context) => {
       queryClient.setQueryData(['related-products', productId], context?.previousIds);
       toast.error('Erro ao remover produto relacionado');
     },
@@ -151,7 +173,6 @@ export function RelatedProductsSelect({ productId }: RelatedProductsSelectProps)
     },
   });
 
-  // Prevent multiple clicks
   const isMutating = addMutation.isPending || removeMutation.isPending;
 
   const filteredProducts = useMemo(() => {
@@ -170,9 +191,7 @@ export function RelatedProductsSelect({ productId }: RelatedProductsSelectProps)
   }, [products, relatedIds]);
 
   const toggleProduct = (id: string) => {
-    // Prevent double-clicks while mutating
     if (isMutating) return;
-    
     if (relatedIds?.includes(id)) {
       removeMutation.mutate(id);
     } else if ((relatedIds?.length || 0) < 12) {
@@ -191,10 +210,7 @@ export function RelatedProductsSelect({ productId }: RelatedProductsSelectProps)
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Link2 className="h-5 w-5" />
-            Produtos Relacionados
-          </CardTitle>
+          <CardTitle className="text-lg">Produtos Relacionados</CardTitle>
         </CardHeader>
         <CardContent>
           <Skeleton className="h-9 w-full mb-2" />
@@ -206,36 +222,30 @@ export function RelatedProductsSelect({ productId }: RelatedProductsSelectProps)
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <Link2 className="h-5 w-5" />
-          Produtos Relacionados
-        </CardTitle>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleAIGenerate}
-          disabled={isGenerating}
-          className="gap-1.5"
-        >
-          {isGenerating ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Sparkles className="h-3.5 w-3.5" />
-          )}
-          {isGenerating ? 'Gerando...' : 'Gerar com IA'}
-        </Button>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-lg">Produtos Relacionados</CardTitle>
+        {/* Auto-generate toggle */}
+        <div className="flex items-center justify-between pt-2">
+          <Label htmlFor="auto-related" className="text-sm text-muted-foreground">
+            Escolher automaticamente com IA
+          </Label>
+          <div className="flex items-center gap-2">
+            {isAutoGenerating && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+            <Switch
+              id="auto-related"
+              checked={autoEnabled ?? false}
+              onCheckedChange={handleToggleAuto}
+              disabled={isAutoGenerating}
+            />
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="space-y-3">
         {/* Selected products */}
         {selectedProducts.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {selectedProducts.map((product) => (
-              <Badge
-                key={product.id}
-                variant="secondary"
-                className="flex items-center gap-1 pr-1"
-              >
+              <Badge key={product.id} variant="secondary" className="flex items-center gap-1 pr-1">
                 <span className="max-w-[120px] truncate text-xs">{product.name}</span>
                 <button
                   type="button"
@@ -282,17 +292,9 @@ export function RelatedProductsSelect({ productId }: RelatedProductsSelectProps)
                     )}
                     onClick={() => !isDisabled && !isMutating && toggleProduct(product.id)}
                   >
-                    <Checkbox
-                      checked={isSelected}
-                      disabled={isDisabled}
-                      className="pointer-events-none"
-                    />
+                    <Checkbox checked={isSelected} disabled={isDisabled} className="pointer-events-none" />
                     <div className="w-8 h-8 rounded bg-muted overflow-hidden flex-shrink-0">
-                      <img
-                        src={getProductImage(product)}
-                        alt={product.name}
-                        className="w-full h-full object-cover"
-                      />
+                      <img src={getProductImage(product)} alt={product.name} className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
@@ -312,7 +314,6 @@ export function RelatedProductsSelect({ productId }: RelatedProductsSelectProps)
           </div>
         </ScrollArea>
 
-        {/* Count indicator */}
         <p className="text-xs text-muted-foreground text-right">
           {relatedIds?.length || 0}/12 selecionados
         </p>
