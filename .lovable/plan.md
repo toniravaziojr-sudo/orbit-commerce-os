@@ -1,68 +1,118 @@
 
+# Plano: Geração de Descrição por Link (Simples) e por Composição (Kits)
 
-## Problema Identificado
+## Resumo
 
-A funcao `buildDeepHistoricalFromLocalData` no Motor Estrategista (v1.41.0) faz uma query de insights com `.limit(5000)`, porem o PostgREST do Supabase impoe um limite maximo de **1000 rows por request**. Resultado:
+Alterar o fluxo de geração de descrição completa do produto para funcionar de duas formas distintas conforme o tipo de produto:
 
-- **No banco:** 6.035 registros de insights = **R$ 667.321,02** de spend total
-- **O que a IA recebe:** Apenas as 1.000 linhas mais recentes = **R$ 110.826,09**
-- **Discrepancia:** 83% dos dados historicos sao silenciosamente cortados
+1. **Produto Simples**: O dialog pede um link de URL. O sistema faz scrape da pagina via Firecrawl, extrai o conteudo e a IA gera a descricao HTML a partir do conteudo extraido.
 
-Isso explica porque a IA "regressou" — antes ela fazia a coleta via API da Meta (com paginacao propria), mas a otimizacao v1.38.0 mudou para leitura local do banco sem implementar paginacao.
+2. **Kit (with_composition)**: O sistema verifica se todos os produtos componentes possuem descricao completa. Se algum nao tiver, exibe aviso na UI. Se todos tiverem, coleta as descricoes dos componentes e a IA gera uma descricao unificada do kit.
 
-## Solucao
+---
 
-Implementar **paginacao sequencial** na funcao `buildDeepHistoricalFromLocalData` para buscar TODOS os registros de insights, em blocos de 1000 rows.
+## Mudancas
 
-### Alteracao no arquivo
+### 1. `AIDescriptionButton.tsx` - Refatorar props e dialog
 
-**`supabase/functions/ads-autopilot-strategist/index.ts`**
+**Novas props:**
+- `productFormat`: `'simple' | 'with_variants' | 'with_composition'`
+- `productId?`: string (necessario para kits, para buscar componentes)
 
-Substituir a query unica de insights (linhas 409-411) por um loop paginado:
+**Comportamento do dialog para `full_description`:**
+
+- **Se `productFormat !== 'with_composition'` (simples/variantes):**
+  - Dialog mostra campo de URL obrigatorio (input de link)
+  - Instrucoes adicionais (textarea opcional)
+  - Botao "Gerar Descricao"
+  - Ao gerar: chama edge function com `mode: 'from_link'` + URL
+
+- **Se `productFormat === 'with_composition'` (kit):**
+  - Ao clicar no botao, faz query no banco para buscar componentes e suas descricoes
+  - Se algum componente nao tem `description` preenchida: exibe toast/alert com lista dos produtos sem descricao, bloqueando a geracao
+  - Se todos tem descricao: chama edge function com `mode: 'from_kit'` + array de `{name, description}` dos componentes
+
+### 2. `ai-product-description/index.ts` - Novos modos de geracao
+
+**Novo campo `mode` no body:**
+- `'from_link'` - Produto simples: faz scrape via Firecrawl, extrai conteudo, gera descricao
+- `'from_kit'` - Kit: recebe descricoes dos componentes, gera descricao unificada
+- `'default'` (ou ausente) - Comportamento atual (fallback)
+
+**Fluxo `from_link`:**
+1. Recebe `url` no body
+2. Chama `firecrawl-scrape` internamente (fetch HTTP para a propria edge function, ou chama Firecrawl API diretamente ja que tem a key)
+3. Extrai markdown/html da pagina
+4. Passa para a IA com system prompt: "A partir do conteudo extraido desta pagina de produto, gere a descricao HTML..."
+
+**Fluxo `from_kit`:**
+1. Recebe `components: Array<{name, description}>` no body
+2. System prompt especifico para kits: combinar descricoes sem perder informacoes, destacar diferencial do kit
+3. Gera descricao unificada
+
+### 3. `ProductForm.tsx` - Passar novas props
+
+Passar `productFormat` e `productId` para o `AIDescriptionButton` de descricao completa.
+
+---
+
+## Detalhes Tecnicos
+
+### Edge Function - Scrape via Firecrawl
+
+A edge function `ai-product-description` vai chamar a API Firecrawl diretamente (a key `FIRECRAWL_API_KEY` ja esta configurada):
 
 ```typescript
-// ANTES (bugado - retorna max 1000 pelo PostgREST):
-supabase.from("meta_ad_insights")
-  .select("...")
-  .eq("tenant_id", tenantId)
-  .order("date_start", { ascending: false })
-  .limit(5000)
+// Dentro de ai-product-description quando mode === 'from_link'
+const firecrawlKey = Deno.env.get('FIRECRAWL_API_KEY');
+const scrapeRes = await fetch('https://api.firecrawl.dev/v1/scrape', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${firecrawlKey}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    url: linkUrl,
+    formats: ['markdown'],
+    onlyMainContent: true,
+  }),
+});
+```
 
-// DEPOIS (paginacao em blocos de 1000):
-async function fetchAllInsights(supabase, tenantId) {
-  const PAGE_SIZE = 1000;
-  let allRows = [];
-  let offset = 0;
-  let hasMore = true;
-  
-  while (hasMore) {
-    const { data } = await supabase
-      .from("meta_ad_insights")
-      .select("meta_campaign_id, impressions, clicks, spend_cents, conversions, roas, ctr, cpm_cents, frequency, actions, date_start")
-      .eq("tenant_id", tenantId)
-      .order("date_start", { ascending: false })
-      .range(offset, offset + PAGE_SIZE - 1);
-    
-    const rows = data || [];
-    allRows.push(...rows);
-    offset += PAGE_SIZE;
-    hasMore = rows.length === PAGE_SIZE;
-  }
-  
-  return allRows;
+### System Prompt para Kit
+
+```
+Voce recebera as descricoes de cada produto que compoe este kit.
+Sua tarefa: criar UMA descricao unificada que:
+- Mantenha TODAS as informacoes importantes de cada produto
+- Destaque o diferencial/vantagem de comprar o kit completo
+- Use a mesma estrutura HTML obrigatoria
+- Nao repita informacoes redundantes entre os produtos
+```
+
+### Validacao de componentes no frontend (kit)
+
+```typescript
+// No AIDescriptionButton, ao clicar para kit:
+const { data: components } = await supabase
+  .from('product_components')
+  .select('component_product_id, component:products!component_product_id(name, description)')
+  .eq('parent_product_id', productId);
+
+const missing = components?.filter(c => !c.component?.description?.trim());
+if (missing?.length) {
+  toast.error(`Crie primeiro a descricao dos produtos: ${missing.map(m => m.component?.name).join(', ')}`);
+  return;
 }
 ```
 
-### O que muda
+---
 
-1. A query de insights sera substituida pelo helper paginado dentro do `Promise.all`
-2. Para 6.035 rows, executara 7 requests sequenciais de 1000 rows cada (rapido, <2s total)
-3. O log existente na linha 481 ja mostrara os numeros corretos para validacao
-4. Nenhum outro arquivo e afetado — a mudanca e isolada na funcao `buildDeepHistoricalFromLocalData`
+## Arquivos Afetados
 
-### Resultado esperado
-
-- O diagnostico passara a reportar **R$ 667k+** em spend total
-- Todas as 274 campanhas terao performance historica completa
-- A qualidade estrategica volta ao nivel anterior (pre-v1.38.0)
-
+| Arquivo | Mudanca |
+|---------|---------|
+| `src/components/products/AIDescriptionButton.tsx` | Novas props, novo dialog com campo URL, logica de kit |
+| `supabase/functions/ai-product-description/index.ts` | Novos modos `from_link` e `from_kit`, integracao Firecrawl |
+| `src/components/products/ProductForm.tsx` | Passar `productFormat` e `productId` ao AIDescriptionButton |
+| `docs/regras/produtos.md` | Documentar novos fluxos |
