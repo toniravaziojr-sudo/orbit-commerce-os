@@ -44,10 +44,10 @@ export function RelatedProductsSelect({ productId }: RelatedProductsSelectProps)
       if (!currentTenant?.id) return false;
       const { data } = await supabase
         .from('store_settings')
-        .select('auto_related_products')
+        .select('*')
         .eq('tenant_id', currentTenant.id)
         .maybeSingle();
-      return data?.auto_related_products ?? false;
+      return (data as any)?.auto_related_products ?? false;
     },
     enabled: !!currentTenant?.id,
   });
@@ -57,10 +57,10 @@ export function RelatedProductsSelect({ productId }: RelatedProductsSelectProps)
     if (!currentTenant?.id) return;
     setIsAutoGenerating(true);
     try {
-      // Update store_settings
+      // Use raw update to bypass type checking for new column
       const { error: settingsError } = await supabase
         .from('store_settings')
-        .update({ auto_related_products: enabled })
+        .update({ auto_related_products: enabled } as any)
         .eq('tenant_id', currentTenant.id);
       if (settingsError) throw settingsError;
 
