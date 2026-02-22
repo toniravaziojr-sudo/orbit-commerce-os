@@ -172,12 +172,77 @@ function getDiscountedPrice(product: Product, rule: OfferRule): number {
 
 ---
 
+## Gerador de Ofertas com IA
+
+### Visão Geral
+Sistema que gera automaticamente regras de ofertas usando IA, baseado na composição dos kits (`product_components`) e catálogo de produtos. O lojista informa o desconto desejado e opcionalmente um prompt customizado.
+
+### Estratégia da IA (sem dados de vendas)
+A IA usa a **lógica de composição de kits** como fonte principal:
+- **Compre Junto / Cross-sell:** Completar o kit (ex: Shampoo → sugerir Balm + Loção do mesmo kit)
+- **Order Bump:** Produtos complementares de menor valor no checkout
+- **Upsell:** Upgrade para kit maior na página de obrigado
+
+### Componentes
+
+| Componente | Arquivo | Responsabilidade |
+|------------|---------|------------------|
+| **Dialog IA** | `src/components/offers/AIOfferGeneratorDialog.tsx` | Formulário de desconto + prompt + preview de sugestões |
+| **Edge Function** | `supabase/functions/ai-generate-offers/index.ts` | Busca dados, chama Lovable AI, retorna sugestões |
+
+### UX no Admin
+- Botão **"✨ Criar com IA"** ao lado de "Nova Regra" em cada aba de tipo de oferta
+- Dialog com: tipo de desconto, valor, instruções adicionais (opcional)
+- IA retorna sugestões → lojista seleciona quais aceitar → regras são criadas
+
+### Edge Function: `ai-generate-offers`
+
+**Entrada:**
+```json
+{
+  "type": "cross_sell | order_bump | upsell | buy_together",
+  "discount_type": "percent | fixed | none",
+  "discount_value": 10,
+  "custom_prompt": "(opcional)"
+}
+```
+
+**Processamento:**
+1. Busca produtos ativos do tenant (nome, preço, SKU)
+2. Busca composição dos kits via `product_components`
+3. Busca regras existentes para evitar duplicatas
+4. Envia para Lovable AI (`google/gemini-3-flash-preview`) com tool calling
+5. Retorna lista de sugestões estruturadas
+
+**Saída (via tool calling):**
+```json
+{
+  "suggestions": [{
+    "name": "Cross-sell Shampoo -> Balm + Loção",
+    "trigger_product_ids": ["id-shampoo"],
+    "suggested_product_ids": ["id-balm", "id-locao"],
+    "title": "Complete seu kit!",
+    "description": "Adicione o Balm e a Loção para o tratamento completo",
+    "reasoning": "Shampoo faz parte do Kit Banho junto com Balm e Loção"
+  }]
+}
+```
+
+### Modelo de IA
+- **google/gemini-3-flash-preview** via Lovable AI Gateway
+- Tool calling para output estruturado (sem streaming)
+- `LOVABLE_API_KEY` auto-provisionado
+
+---
+
 ## Arquivos Relacionados
 
 | Se for editar... | Leia este doc primeiro |
 |------------------|------------------------|
 | `src/pages/Offers.tsx` | Este documento |
 | `src/components/offers/*` | Este documento |
+| `src/components/offers/AIOfferGeneratorDialog.tsx` | Este documento |
+| `supabase/functions/ai-generate-offers/index.ts` | Este documento + `docs/regras/edge-functions.md` |
 | `src/components/storefront/cart/CrossSellSection.tsx` | Este documento |
 | `src/components/storefront/checkout/OrderBumpSection.tsx` | Este documento |
 | `src/components/storefront/sections/UpsellSection.tsx` | Este documento |
