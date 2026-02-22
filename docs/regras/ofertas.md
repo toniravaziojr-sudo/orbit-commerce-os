@@ -235,6 +235,63 @@ A IA usa a **lógica de composição de kits** como fonte principal:
 
 ---
 
+## Geração de Ofertas com IA — Regras de Cobertura
+
+### Regra Principal
+A IA deve gerar **exatamente 1 regra por produto elegível** (simples ou kit), cobrindo **todos** os produtos ativos do tenant.
+
+### Lógica por Tipo de Produto
+
+| Tipo do Produto | Lógica de Sugestão |
+|-----------------|-------------------|
+| **Produto simples (parte de kit)** | Sugere outros componentes do mesmo kit como cross-sell/order-bump |
+| **Produto simples (isolado)** | Sugere produtos complementares do catálogo |
+| **Kit** | Sugere upgrade de quantidade, produto complementar ao kit, ou produto que não faz parte do kit |
+
+### Respeito a Regras Existentes
+- Produtos que já possuem regra como trigger **NÃO** recebem nova sugestão
+- `existingTriggerIds` é extraído das regras existentes e passado ao prompt
+- Na segunda execução (com regras existentes), a IA se baseia nos dados e histórico de vendas quando disponível
+
+---
+
+## Produtos Relacionados com IA
+
+### Visão Geral
+Sistema que gera automaticamente produtos relacionados usando a mesma lógica de composição de kits do Aumentar Ticket.
+
+### Componentes
+
+| Componente | Arquivo | Responsabilidade |
+|------------|---------|------------------|
+| **Botão IA** | `src/components/products/RelatedProductsSelect.tsx` | Botão "✨ Gerar com IA" no card de produtos relacionados |
+| **Edge Function** | `supabase/functions/ai-generate-related-products/index.ts` | Analisa catálogo e gera relações |
+
+### Edge Function: `ai-generate-related-products`
+
+**Entrada:**
+```json
+{
+  "product_id": "uuid (opcional - gera para 1 produto)",
+  "// sem product_id": "gera para todos os produtos ativos sem relações"
+}
+```
+
+**Processamento:**
+1. Busca produtos ativos do tenant
+2. Busca composição dos kits via `product_components`
+3. Identifica produtos sem relações existentes
+4. Envia para Lovable AI (`google/gemini-3-flash-preview`) com tool calling
+5. Processa em chunks de 10 produtos para evitar timeout
+6. Insere relações bidirecionais na tabela `related_products`
+
+**Saída:** 3-6 produtos relacionados por item, baseados em:
+- Composição dos kits (complementos)
+- Categoria/linha de produtos
+- Faixa de preço similar
+
+---
+
 ## Arquivos Relacionados
 
 | Se for editar... | Leia este doc primeiro |
@@ -243,6 +300,8 @@ A IA usa a **lógica de composição de kits** como fonte principal:
 | `src/components/offers/*` | Este documento |
 | `src/components/offers/AIOfferGeneratorDialog.tsx` | Este documento |
 | `supabase/functions/ai-generate-offers/index.ts` | Este documento + `docs/regras/edge-functions.md` |
+| `supabase/functions/ai-generate-related-products/index.ts` | Este documento + `docs/regras/edge-functions.md` |
+| `src/components/products/RelatedProductsSelect.tsx` | Este documento |
 | `src/components/storefront/cart/CrossSellSection.tsx` | Este documento |
 | `src/components/storefront/checkout/OrderBumpSection.tsx` | Este documento |
 | `src/components/storefront/sections/UpsellSection.tsx` | Este documento |
