@@ -1,118 +1,104 @@
 
-# Plano: Geração de Descrição por Link (Simples) e por Composição (Kits)
 
-## Resumo
+# Ofertas Inteligentes com IA - Gerador Automatico
 
-Alterar o fluxo de geração de descrição completa do produto para funcionar de duas formas distintas conforme o tipo de produto:
+## Objetivo
+Criar um sistema que gera automaticamente regras de ofertas (Cross-sell, Order Bump, Upsell e Compre Junto) usando IA, baseado na composicao dos kits e catalogo de produtos. O lojista informa o desconto desejado e opcionalmente um prompt customizado.
 
-1. **Produto Simples**: O dialog pede um link de URL. O sistema faz scrape da pagina via Firecrawl, extrai o conteudo e a IA gera a descricao HTML a partir do conteudo extraido.
+## Estrategia da IA (sem dados de vendas)
 
-2. **Kit (with_composition)**: O sistema verifica se todos os produtos componentes possuem descricao completa. Se algum nao tiver, exibe aviso na UI. Se todos tiverem, coleta as descricoes dos componentes e a IA gera uma descricao unificada do kit.
+Como nao ha historico de pedidos, a IA vai usar a **logica de composicao de kits** como fonte principal:
 
----
+- **Compre Junto / Cross-sell:** Se o Shampoo Calvicie Zero faz parte do Kit Banho (Shampoo + Balm + Locao), ao comprar o Shampoo isolado, sugerir Balm e Locao para "completar o kit"
+- **Order Bump:** Sugerir produtos complementares de menor valor no checkout (ex: Fast Upgrade junto com um kit de banho)
+- **Upsell:** Na pagina de obrigado, sugerir upgrade para kit maior (ex: comprou 1x, sugerir 2x ou 3x)
 
-## Mudancas
+Os dados enviados para a IA incluirao:
+- Catalogo completo (nome, preco, SKU)
+- Composicao dos kits (quais produtos formam cada kit)
+- Regras existentes (para evitar duplicatas)
 
-### 1. `AIDescriptionButton.tsx` - Refatorar props e dialog
+## UX no Admin
 
-**Novas props:**
-- `productFormat`: `'simple' | 'with_variants' | 'with_composition'`
-- `productId?`: string (necessario para kits, para buscar componentes)
+### Botao por aba de tipo de oferta
+Em cada aba (Cross-sell, Order Bump, Upsell, Compre Junto), ao lado do botao "Nova Regra", sera adicionado um botao **"Criar com IA"** com icone de sparkles.
 
-**Comportamento do dialog para `full_description`:**
+### Dialog de configuracao
+Ao clicar, abre um dialog com:
+1. **Tipo de desconto** (Percentual / Valor Fixo / Sem desconto) - obrigatorio
+2. **Valor do desconto** - obrigatorio se tipo != "Sem desconto"
+3. **Instrucoes adicionais** (textarea, opcional) - prompt livre para o lojista explicar a logica desejada
+4. Botao "Gerar Sugestoes"
 
-- **Se `productFormat !== 'with_composition'` (simples/variantes):**
-  - Dialog mostra campo de URL obrigatorio (input de link)
-  - Instrucoes adicionais (textarea opcional)
-  - Botao "Gerar Descricao"
-  - Ao gerar: chama edge function com `mode: 'from_link'` + URL
+### Fluxo de aprovacao
+1. A IA retorna uma lista de sugestoes com preview (produto gatilho -> produtos sugeridos)
+2. O lojista pode marcar/desmarcar quais aceitar
+3. Ao confirmar, as regras selecionadas sao inseridas na tabela correspondente (`offer_rules` ou `buy_together_rules`)
 
-- **Se `productFormat === 'with_composition'` (kit):**
-  - Ao clicar no botao, faz query no banco para buscar componentes e suas descricoes
-  - Se algum componente nao tem `description` preenchida: exibe toast/alert com lista dos produtos sem descricao, bloqueando a geracao
-  - Se todos tem descricao: chama edge function com `mode: 'from_kit'` + array de `{name, description}` dos componentes
+## Implementacao Tecnica
 
-### 2. `ai-product-description/index.ts` - Novos modos de geracao
+### 1. Edge Function: `ai-generate-offers`
 
-**Novo campo `mode` no body:**
-- `'from_link'` - Produto simples: faz scrape via Firecrawl, extrai conteudo, gera descricao
-- `'from_kit'` - Kit: recebe descricoes dos componentes, gera descricao unificada
-- `'default'` (ou ausente) - Comportamento atual (fallback)
-
-**Fluxo `from_link`:**
-1. Recebe `url` no body
-2. Chama `firecrawl-scrape` internamente (fetch HTTP para a propria edge function, ou chama Firecrawl API diretamente ja que tem a key)
-3. Extrai markdown/html da pagina
-4. Passa para a IA com system prompt: "A partir do conteudo extraido desta pagina de produto, gere a descricao HTML..."
-
-**Fluxo `from_kit`:**
-1. Recebe `components: Array<{name, description}>` no body
-2. System prompt especifico para kits: combinar descricoes sem perder informacoes, destacar diferencial do kit
-3. Gera descricao unificada
-
-### 3. `ProductForm.tsx` - Passar novas props
-
-Passar `productFormat` e `productId` para o `AIDescriptionButton` de descricao completa.
-
----
-
-## Detalhes Tecnicos
-
-### Edge Function - Scrape via Firecrawl
-
-A edge function `ai-product-description` vai chamar a API Firecrawl diretamente (a key `FIRECRAWL_API_KEY` ja esta configurada):
-
-```typescript
-// Dentro de ai-product-description quando mode === 'from_link'
-const firecrawlKey = Deno.env.get('FIRECRAWL_API_KEY');
-const scrapeRes = await fetch('https://api.firecrawl.dev/v1/scrape', {
-  method: 'POST',
-  headers: {
-    'Authorization': `Bearer ${firecrawlKey}`,
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    url: linkUrl,
-    formats: ['markdown'],
-    onlyMainContent: true,
-  }),
-});
-```
-
-### System Prompt para Kit
-
-```
-Voce recebera as descricoes de cada produto que compoe este kit.
-Sua tarefa: criar UMA descricao unificada que:
-- Mantenha TODAS as informacoes importantes de cada produto
-- Destaque o diferencial/vantagem de comprar o kit completo
-- Use a mesma estrutura HTML obrigatoria
-- Nao repita informacoes redundantes entre os produtos
-```
-
-### Validacao de componentes no frontend (kit)
-
-```typescript
-// No AIDescriptionButton, ao clicar para kit:
-const { data: components } = await supabase
-  .from('product_components')
-  .select('component_product_id, component:products!component_product_id(name, description)')
-  .eq('parent_product_id', productId);
-
-const missing = components?.filter(c => !c.component?.description?.trim());
-if (missing?.length) {
-  toast.error(`Crie primeiro a descricao dos produtos: ${missing.map(m => m.component?.name).join(', ')}`);
-  return;
+**Entrada:**
+```text
+{
+  type: "cross_sell" | "order_bump" | "upsell" | "buy_together",
+  discount_type: "percent" | "fixed" | "none",
+  discount_value: number,
+  custom_prompt?: string,
+  tenant_id: string
 }
 ```
 
----
+**Processamento:**
+- Busca produtos ativos do tenant (nome, preco, SKU)
+- Busca composicao dos kits via `product_components`
+- Busca regras existentes para evitar duplicatas
+- Envia para Lovable AI (Gemini Flash) com tool calling para retornar JSON estruturado
+- Retorna lista de sugestoes
 
-## Arquivos Afetados
+**Saida (via tool calling):**
+```text
+{
+  suggestions: [
+    {
+      name: "Cross-sell Shampoo -> Balm + Locao",
+      trigger_product_ids: ["id-shampoo"],
+      suggested_product_ids: ["id-balm", "id-locao"],
+      title: "Complete seu kit!",
+      description: "Adicione o Balm e a Locao para o tratamento completo",
+      reasoning: "Shampoo faz parte do Kit Banho junto com Balm e Locao"
+    }
+  ]
+}
+```
 
-| Arquivo | Mudanca |
-|---------|---------|
-| `src/components/products/AIDescriptionButton.tsx` | Novas props, novo dialog com campo URL, logica de kit |
-| `supabase/functions/ai-product-description/index.ts` | Novos modos `from_link` e `from_kit`, integracao Firecrawl |
-| `src/components/products/ProductForm.tsx` | Passar `productFormat` e `productId` ao AIDescriptionButton |
-| `docs/regras/produtos.md` | Documentar novos fluxos |
+### 2. Componente: `AIOfferGeneratorDialog.tsx`
+- Novo componente em `src/components/offers/`
+- Dialog com formulario de desconto + prompt
+- Exibe sugestoes da IA em cards com checkbox
+- Botao para confirmar e criar as regras selecionadas
+
+### 3. Integracao na pagina `Offers.tsx`
+- Adicionar botao "Criar com IA" em cada aba de tipo de oferta
+- Chamar o dialog passando o tipo da aba ativa
+
+### Arquivos a criar/editar
+
+| Arquivo | Acao |
+|---------|------|
+| `supabase/functions/ai-generate-offers/index.ts` | Criar - Edge function |
+| `supabase/config.toml` | Editar - Adicionar config da function |
+| `src/components/offers/AIOfferGeneratorDialog.tsx` | Criar - Dialog UI |
+| `src/pages/Offers.tsx` | Editar - Adicionar botao "Criar com IA" |
+
+### Modelo de IA
+- **google/gemini-3-flash-preview** via Lovable AI Gateway
+- Tool calling para output estruturado
+- Sem streaming (resposta unica)
+
+### Seguranca
+- Edge function com `verify_jwt = true` (requer autenticacao)
+- Validacao de tenant_id via auth
+- Desconto e prompt validados no servidor
+
