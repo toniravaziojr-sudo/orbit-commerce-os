@@ -392,6 +392,51 @@ interface AIDescriptionButtonProps {
 | Botão dinâmico | "Gerar com IA" (vazio) / "Melhorar com IA" (com conteúdo) |
 | Modos da Edge Function | `from_link` (simples), `from_kit` (kit), `default` (fallback) |
 
+### 10.6 Formatação HTML Padrão (v2.5.0)
+
+Todas as descrições completas geradas por IA seguem esta estrutura obrigatória:
+
+#### Tags permitidas
+
+| Tag | Uso |
+|-----|-----|
+| `<h2>` | Títulos de seção (em MAIÚSCULAS) |
+| `<p>` | Cada parágrafo individual (um `<p>` por parágrafo) |
+| `<ul>` / `<ol>` + `<li>` | Listas (todos os itens de lista usam `<li>` dentro de `<ul>` ou `<ol>`) |
+| `<strong>` | Labels, destaques, nomes de propriedades |
+| `<em>` | Taglines, ênfase sutil |
+| `<br>` | Espaçamento visual entre seções |
+
+#### Regras de formatação
+
+1. **Títulos**: Sempre `<h2>` em MAIÚSCULAS (ex: `<h2>CARACTERÍSTICAS</h2>`)
+2. **Parágrafos**: Cada parágrafo em sua própria tag `<p>` — nunca múltiplos parágrafos em um só `<p>`
+3. **Listas**: Sempre usar `<ul><li>` ou `<ol><li>` — nunca colocar itens de lista em tags `<p>` separadas
+4. **Espaçamento**: Usar `<br>` entre seções para separação visual
+5. **Proibido**: Markdown (`**`, `##`, `-`), CSS inline, `<style>`, `<script>`, `<div>`, `<span>`
+6. **Início**: O HTML deve começar diretamente na primeira tag, sem texto introdutório da IA
+
+#### Exemplo de estrutura
+
+```html
+<h2>NOME DO PRODUTO</h2>
+<p><em>Tagline do produto aqui.</em></p>
+
+<br>
+
+<h2>CARACTERÍSTICAS</h2>
+<ul>
+  <li><strong>Material:</strong> Descrição do material</li>
+  <li><strong>Dimensões:</strong> 10x20x30cm</li>
+</ul>
+
+<br>
+
+<h2>BENEFÍCIOS</h2>
+<p>Parágrafo descrevendo os benefícios.</p>
+<p>Outro parágrafo com mais detalhes.</p>
+```
+
 ---
 
 ## 11. Arquivos Relacionados
