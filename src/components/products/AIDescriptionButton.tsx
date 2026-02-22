@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Sparkles, Loader2, Plus, X } from 'lucide-react';
+import { Sparkles, Loader2, Link2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import {
@@ -14,34 +14,28 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
 
 interface AIDescriptionButtonProps {
   type: 'short_description' | 'full_description';
   productName: string;
   fullDescription?: string;
   onGenerated: (text: string) => void;
+  productFormat?: 'simple' | 'with_variants' | 'with_composition';
+  productId?: string;
 }
 
-export function AIDescriptionButton({ type, productName, fullDescription, onGenerated }: AIDescriptionButtonProps) {
+export function AIDescriptionButton({ type, productName, fullDescription, onGenerated, productFormat = 'simple', productId }: AIDescriptionButtonProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showPromptDialog, setShowPromptDialog] = useState(false);
   const [userPrompt, setUserPrompt] = useState('');
-  const [referenceLinks, setReferenceLinks] = useState<string[]>([]);
-  const [newLink, setNewLink] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
+  const [missingComponents, setMissingComponents] = useState<string[]>([]);
 
-  const addLink = () => {
-    const url = newLink.trim();
-    if (url && !referenceLinks.includes(url)) {
-      setReferenceLinks(prev => [...prev, url]);
-      setNewLink('');
-    }
-  };
+  const isKit = productFormat === 'with_composition';
 
-  const removeLink = (index: number) => {
-    setReferenceLinks(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const generate = async (prompt?: string) => {
+  const generate = async (opts?: { prompt?: string; mode?: string; url?: string; components?: Array<{ name: string; description: string }> }) => {
     if (!productName) {
       toast.error('Preencha o nome do produto antes de gerar a descrição');
       return;
@@ -54,8 +48,10 @@ export function AIDescriptionButton({ type, productName, fullDescription, onGene
           type,
           productName,
           fullDescription: fullDescription || undefined,
-          userPrompt: prompt || undefined,
-          referenceLinks: referenceLinks.length > 0 ? referenceLinks : undefined,
+          userPrompt: opts?.prompt || undefined,
+          mode: opts?.mode || undefined,
+          url: opts?.url || undefined,
+          components: opts?.components || undefined,
         },
       });
 
@@ -70,13 +66,52 @@ export function AIDescriptionButton({ type, productName, fullDescription, onGene
       toast.success('Descrição gerada com sucesso!');
       setShowPromptDialog(false);
       setUserPrompt('');
-      setReferenceLinks([]);
+      setLinkUrl('');
+      setMissingComponents([]);
     } catch (err: any) {
       console.error('[AIDescriptionButton] Error:', err);
       toast.error(err.message || 'Erro ao gerar descrição');
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleKitClick = async () => {
+    if (!productId) {
+      toast.error('Salve o produto antes de gerar a descrição do kit');
+      return;
+    }
+
+    // Fetch components and their descriptions
+    const { data: components, error } = await supabase
+      .from('product_components')
+      .select('component_product_id, component:products!product_components_component_product_id_fkey(name, description)')
+      .eq('parent_product_id', productId);
+
+    if (error || !components || components.length === 0) {
+      toast.error('Adicione produtos ao kit antes de gerar a descrição');
+      return;
+    }
+
+    const missing = components.filter(c => {
+      const comp = c.component as any;
+      return !comp?.description?.trim();
+    });
+
+    if (missing.length > 0) {
+      const names = missing.map(m => (m.component as any)?.name).filter(Boolean);
+      setMissingComponents(names);
+      setShowPromptDialog(true);
+      return;
+    }
+
+    // All components have descriptions — generate directly
+    const componentData = components.map(c => {
+      const comp = c.component as any;
+      return { name: comp.name, description: comp.description };
+    });
+
+    generate({ mode: 'from_kit', components: componentData });
   };
 
   const handleClick = () => {
@@ -86,10 +121,49 @@ export function AIDescriptionButton({ type, productName, fullDescription, onGene
         return;
       }
       generate();
-    } else {
-      // full_description — always show prompt dialog
-      setShowPromptDialog(true);
+    } else if (type === 'full_description') {
+      if (isKit) {
+        handleKitClick();
+      } else {
+        // Simple/variants: if has existing description, improve it directly (legacy)
+        // Otherwise show dialog with URL input
+        if (fullDescription?.trim()) {
+          // Show dialog for improvement with optional URL
+          setShowPromptDialog(true);
+        } else {
+          setShowPromptDialog(true);
+        }
+      }
     }
+  };
+
+  const handleGenerateFromDialog = () => {
+    if (isKit) {
+      // Kit dialog shouldn't reach here if missing components
+      return;
+    }
+
+    // Simple/variants flow
+    if (linkUrl.trim()) {
+      // Mode: from_link
+      generate({ mode: 'from_link', url: linkUrl.trim(), prompt: userPrompt.trim() || undefined });
+    } else if (fullDescription?.trim()) {
+      // Legacy: improve existing description
+      generate({ prompt: userPrompt.trim() || undefined });
+    } else if (userPrompt.trim()) {
+      // Legacy: generate from prompt
+      generate({ prompt: userPrompt.trim() });
+    } else {
+      toast.error('Forneça um link da página do produto ou informações para gerar a descrição');
+    }
+  };
+
+  const canGenerate = () => {
+    if (isKit) return false; // Kit dialog is just for showing missing components
+    if (linkUrl.trim()) return true;
+    if (fullDescription?.trim()) return true;
+    if (userPrompt.trim()) return true;
+    return false;
   };
 
   return (
@@ -110,73 +184,93 @@ export function AIDescriptionButton({ type, productName, fullDescription, onGene
         {isGenerating ? 'Gerando...' : 'Gerar com IA'}
       </Button>
 
-      <Dialog open={showPromptDialog} onOpenChange={setShowPromptDialog}>
+      <Dialog open={showPromptDialog} onOpenChange={(open) => {
+        setShowPromptDialog(open);
+        if (!open) {
+          setMissingComponents([]);
+          setLinkUrl('');
+          setUserPrompt('');
+        }
+      }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Gerar Descrição com IA</DialogTitle>
+            <DialogTitle>
+              {isKit ? 'Gerar Descrição do Kit' : 'Gerar Descrição com IA'}
+            </DialogTitle>
             <DialogDescription>
-              {fullDescription?.trim()
-                ? 'A IA vai reorganizar e melhorar a descrição existente. Você pode adicionar instruções extras e links de referência.'
-                : 'Forneça as informações base do produto para a IA gerar uma descrição completa e profissional.'}
+              {isKit
+                ? 'A IA vai combinar as descrições dos produtos do kit para criar uma descrição unificada.'
+                : fullDescription?.trim()
+                  ? 'A IA vai reorganizar e melhorar a descrição existente. Você pode fornecer um link de referência ou instruções extras.'
+                  : 'Forneça o link da página do produto para a IA copiar as informações e gerar a descrição.'}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <div>
-              <Label>{fullDescription?.trim() ? 'Instruções adicionais (opcional)' : 'Informações do produto *'}</Label>
-              <Textarea
-                value={userPrompt}
-                onChange={(e) => setUserPrompt(e.target.value)}
-                placeholder="Ex: Shampoo anticaspa 250ml, para cabelos oleosos, com mentol e tea tree. Indicado para uso diário. Resultado em 7 dias..."
-                rows={5}
-                className="mt-1.5"
-              />
-            </div>
-
-            <div>
-              <Label>Links de referência (opcional)</Label>
-              <p className="text-xs text-muted-foreground mb-1.5">
-                A IA usará esses links como referência de estrutura e conteúdo.
-              </p>
-              <div className="flex gap-2">
-                <Input
-                  value={newLink}
-                  onChange={(e) => setNewLink(e.target.value)}
-                  placeholder="https://exemplo.com/produto"
-                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addLink())}
-                />
-                <Button type="button" variant="outline" size="icon" onClick={addLink} disabled={!newLink.trim()}>
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-              {referenceLinks.length > 0 && (
-                <ul className="mt-2 space-y-1">
-                  {referenceLinks.map((link, i) => (
-                    <li key={i} className="flex items-center gap-2 text-sm text-muted-foreground bg-muted rounded px-2 py-1">
-                      <span className="truncate flex-1">{link}</span>
-                      <button type="button" onClick={() => removeLink(i)} className="shrink-0 hover:text-destructive">
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </li>
+          {/* Kit: missing components warning */}
+          {isKit && missingComponents.length > 0 && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Crie primeiro a descrição completa dos seguintes produtos:</strong>
+                <ul className="mt-2 list-disc pl-5 space-y-1">
+                  {missingComponents.map((name, i) => (
+                    <li key={i}>{name}</li>
                   ))}
                 </ul>
-              )}
+                <p className="mt-2 text-sm">
+                  Após criar as descrições desses produtos, volte aqui para gerar a descrição do kit.
+                </p>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Simple/variants dialog */}
+          {!isKit && (
+            <div className="space-y-4">
+              <div>
+                <Label className="flex items-center gap-1.5">
+                  <Link2 className="h-3.5 w-3.5" />
+                  Link da página do produto {!fullDescription?.trim() && '*'}
+                </Label>
+                <Input
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  placeholder="https://exemplo.com/produto"
+                  className="mt-1.5"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  A IA vai extrair as informações da página e gerar a descrição automaticamente.
+                </p>
+              </div>
+
+              <div>
+                <Label>Instruções adicionais (opcional)</Label>
+                <Textarea
+                  value={userPrompt}
+                  onChange={(e) => setUserPrompt(e.target.value)}
+                  placeholder="Ex: Foque nos benefícios para cabelos oleosos, mencione que é vegano..."
+                  rows={3}
+                  className="mt-1.5"
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setShowPromptDialog(false)}>
-              Cancelar
+              {isKit && missingComponents.length > 0 ? 'Entendi' : 'Cancelar'}
             </Button>
-            <Button
-              type="button"
-              onClick={() => generate(userPrompt)}
-              disabled={(!fullDescription?.trim() && !userPrompt.trim()) || isGenerating}
-              className="gap-1.5"
-            >
-              {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              {isGenerating ? 'Gerando...' : 'Gerar Descrição'}
-            </Button>
+            {!isKit && (
+              <Button
+                type="button"
+                onClick={handleGenerateFromDialog}
+                disabled={!canGenerate() || isGenerating}
+                className="gap-1.5"
+              >
+                {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {isGenerating ? 'Gerando...' : 'Gerar Descrição'}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
