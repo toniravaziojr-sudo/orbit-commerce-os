@@ -100,10 +100,22 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
     const atts = [...pendingAttachments];
     setInput("");
     setPendingAttachments([]);
+    if (textareaRef2.current) {
+      textareaRef2.current.style.height = "auto";
+    }
     try {
       await sendMessage(msg, atts.length > 0 ? atts : undefined);
     } catch (err: any) {
       toast.error(err.message || "Erro ao enviar mensagem");
+    }
+  };
+
+  const textareaRef2 = useRef<HTMLTextAreaElement>(null);
+
+  const handleTextareaInput = () => {
+    if (textareaRef2.current) {
+      textareaRef2.current.style.height = "auto";
+      textareaRef2.current.style.height = `${Math.min(textareaRef2.current.scrollHeight, 200)}px`;
     }
   };
 
@@ -296,12 +308,14 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
                 />
 
                 <textarea
+                  ref={textareaRef2}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
+                  onInput={handleTextareaInput}
                   placeholder="Pergunte sobre suas campanhas..."
                   className={cn(
-                    "flex-1 min-h-[36px] max-h-[120px] resize-none bg-transparent text-[13px] leading-relaxed",
+                    "flex-1 min-h-[36px] max-h-[200px] resize-none bg-transparent text-[13px] leading-relaxed",
                     "placeholder:text-muted-foreground/50 focus:outline-none py-2 px-1"
                   )}
                   rows={1}
