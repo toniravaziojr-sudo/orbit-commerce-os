@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.42.0"; // Fix insights pagination — fetch ALL rows instead of PostgREST 1000 limit
+const VERSION = "v1.43.0"; // Fix implement_campaigns: force tool execution, no approval pause
 // ===================
 
 const corsHeaders = {
@@ -946,6 +946,12 @@ Todos os criativos da Fase 1 estão PRONTOS. Agora é hora de criar as campanhas
 CRIATIVOS DISPONÍVEIS (já gerados na Fase 1):
 {{AVAILABLE_CREATIVES}}
 
+⚠️ EXECUÇÃO OBRIGATÓRIA — SEM PAUSAS, SEM APROVAÇÃO
+Você está em modo de EXECUÇÃO AUTOMÁTICA. O plano já foi aprovado pelo usuário.
+NÃO peça aprovação. NÃO exiba previews. NÃO diga "aguardando confirmação".
+EXECUTE TODAS as campanhas do plano IMEDIATAMENTE usando as tools disponíveis.
+Cada round DEVE conter tool calls. Se não chamou tool = ERRO.
+
 NESTA FASE VOCÊ DEVE:
 1. Criar TODAS as campanhas do plano aprovado usando create_campaign
    - CADA campanha DEVE ter entre 2 e 4 primary_texts (variações de copy)
@@ -971,7 +977,8 @@ REGRAS CRÍTICAS:
 
 NESTA FASE VOCÊ NÃO DEVE:
 - NÃO use generate_creative — criativos já foram gerados
-- NÃO use strategic_plan — o plano já foi aprovado`;
+- NÃO use strategic_plan — o plano já foi aprovado
+- NÃO peça aprovação ou confirmação — EXECUTE diretamente`;
       break;
   }
 
@@ -2036,10 +2043,13 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
         round++;
         console.log(`[ads-autopilot-strategist][${VERSION}] Round ${round}/${MAX_ROUNDS} for account ${config.ad_account_id}`);
 
-        // Force tool calling on first round for triggers that MUST produce a tool call
-        const forceToolChoice = round === 1 && (trigger === "start" || trigger === "implement_approved_plan" || trigger === "implement_campaigns")
+        // Force tool calling for triggers that MUST produce tool calls
+        // v1.43.0: implement_campaigns forces "required" on ALL rounds (not just round 1) to prevent AI from pausing to ask approval
+        const forceToolChoice = (trigger === "implement_campaigns")
           ? "required"
-          : "auto";
+          : (round === 1 && (trigger === "start" || trigger === "implement_approved_plan"))
+            ? "required"
+            : "auto";
 
         const aiResponse = await aiChatCompletion("google/gemini-2.5-flash", {
           messages,
