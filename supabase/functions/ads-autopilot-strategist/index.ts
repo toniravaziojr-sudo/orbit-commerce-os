@@ -2320,7 +2320,7 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
 
   // Update main session
   const durationMs = Date.now() - startTime;
-  await supabase
+  const { error: sessionUpdateErr } = await supabase
     .from("ads_autopilot_sessions")
     .update({
       actions_planned: totalPlanned,
@@ -2329,6 +2329,9 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
       duration_ms: durationMs,
     })
     .eq("id", sessionId);
+  if (sessionUpdateErr) {
+    console.error(`[ads-autopilot-strategist][${VERSION}] Failed to update session ${sessionId}:`, sessionUpdateErr.message);
+  }
 
   console.log(`[ads-autopilot-strategist][${VERSION}] ${trigger} completed: ${activeConfigs.length} accounts, ${totalPlanned} planned, ${totalExecuted} executed, ${totalRejected} rejected in ${durationMs}ms`);
 

@@ -64,7 +64,7 @@ export function AdsStartupProgress({ onComplete }: AdsStartupProgressProps) {
     if (!tenantId) return;
 
     const checkSession = async () => {
-      // Look for a recent strategist_start session with no duration (still running)
+      // Look for a recent strategist_start session
       const { data: sessions } = await supabase
         .from("ads_autopilot_sessions" as any)
         .select("id, trigger_type, duration_ms, actions_planned, actions_executed, created_at")
@@ -85,10 +85,15 @@ export function AdsStartupProgress({ onComplete }: AdsStartupProgressProps) {
           setIsActive(true);
           startTimeRef.current = createdAt;
           addLog("Motor Estrategista iniciado — análise completa da conta", "loading");
+        } else {
+          // Fallback: if actions were already planned, the session is done even if duration_ms is null
+          if (session.actions_planned > 0) {
+            finishProgress(session.actions_planned, session.actions_executed);
+          }
         }
-      } else if (session.duration_ms != null && isActive) {
-        // Session completed
-        finishProgress(session.actions_planned, session.actions_executed);
+      } else if (isActive) {
+        // Session completed (duration_ms set OR session is old enough with actions)
+        finishProgress(session.actions_planned || 0, session.actions_executed || 0);
       }
     };
 
