@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.14.0"; // Use ai-router for native AI priority
+const VERSION = "v5.15.0"; // Add trigger_strategic_plan tool for chat-driven strategy
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -549,6 +549,22 @@ const TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "trigger_strategic_plan",
+      description: "Dispara o Motor Estrategista para gerar um PLANO ESTRATÉGICO COMPLETO (diagnóstico profundo + campanhas planejadas + criativos + públicos). O plano fica com status 'pending_approval' para o lojista revisar e aprovar. Use quando o lojista pedir 'plano', 'estratégia completa', 'planejar campanhas', 'montar estratégia' ou equivalente.",
+      parameters: {
+        type: "object",
+        properties: {
+          trigger: { type: "string", enum: ["start", "weekly", "monthly"], description: "Tipo do gatilho: 'start' = primeira ativação/análise profunda, 'weekly' = ajustes semanais, 'monthly' = rebalanceamento mensal (default: start)" },
+          ad_account_id: { type: "string", description: "ID da conta Meta (opcional, usa a primeira disponível)" },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
   // ===== ESCRITA: User Command Artifacts =====
   {
     type: "function",
@@ -680,6 +696,8 @@ async function executeTool(
         return await triggerAutopilotAnalysis(supabase, tenantId, args.channel);
       case "analyze_url":
         return await analyzeUrl(args.url);
+      case "trigger_strategic_plan":
+        return await triggerStrategicPlan(supabase, tenantId, args, chatSessionId);
       case "persist_user_command":
         return await persistUserCommand(supabase, tenantId, args, chatSessionId, strategyRunId);
       case "confirm_user_command":
@@ -690,6 +708,72 @@ async function executeTool(
   } catch (err: any) {
     console.error(`[ads-chat][${VERSION}] Tool error (${toolName}):`, err);
     return JSON.stringify({ error: err.message || "Erro ao executar ferramenta" });
+  }
+}
+
+// ============ TRIGGER STRATEGIC PLAN ============
+
+async function triggerStrategicPlan(supabase: any, tenantId: string, args: any, chatSessionId?: string) {
+  const trigger = args.trigger || "start";
+  const targetAccountId = args.ad_account_id || null;
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  console.log(`[ads-chat][${VERSION}] Triggering strategist: trigger=${trigger}, account=${targetAccountId}`);
+
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/ads-autopilot-strategist`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${serviceKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        tenant_id: tenantId,
+        trigger,
+        target_account_id: targetAccountId,
+        chat_session_id: chatSessionId,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+      console.error(`[ads-chat][${VERSION}] Strategist error:`, result.error);
+      return JSON.stringify({ success: false, error: result.error || "Erro ao gerar plano estratégico" });
+    }
+
+    const data = result.data || {};
+    const planStatus = data.plan_status || "pending_approval";
+    const actionsPlanned = data.actions?.planned || 0;
+    const actionsExecuted = data.actions?.executed || 0;
+    const insights = data.insights_count || 0;
+
+    console.log(`[ads-chat][${VERSION}] Strategist completed: plan_status=${planStatus}, planned=${actionsPlanned}, executed=${actionsExecuted}`);
+
+    // Log action
+    await supabase.from("ads_autopilot_actions").insert({
+      tenant_id: tenantId,
+      session_id: chatSessionId || crypto.randomUUID(),
+      channel: "meta",
+      action_type: "strategic_plan",
+      status: "executed",
+      reasoning: `Plano estratégico gerado via Chat IA (gatilho: ${trigger})`,
+      action_data: { trigger, target_account_id: targetAccountId, plan_status: planStatus, actions_planned: actionsPlanned },
+      executed_at: new Date().toISOString(),
+    });
+
+    return JSON.stringify({
+      success: true,
+      message: `Plano estratégico gerado com sucesso! Status: ${planStatus === "pending_approval" ? "aguardando aprovação" : planStatus}. ${actionsPlanned} ações planejadas. ${insights > 0 ? `${insights} diagnósticos gerados.` : ""} O lojista pode revisar e aprovar na aba "Plano Estratégico".`,
+      plan_status: planStatus,
+      actions_planned: actionsPlanned,
+      actions_executed: actionsExecuted,
+      insights: insights,
+    });
+  } catch (err: any) {
+    console.error(`[ads-chat][${VERSION}] triggerStrategicPlan error:`, err);
+    return JSON.stringify({ success: false, error: err.message || "Erro ao chamar Motor Estrategista" });
   }
 }
 
@@ -3090,6 +3174,7 @@ Mapear para funnel_splits: cold ≈ Core, tests ≈ Test, remarketing e leads di
 - **Criar públicos personalizados** (clientes, pixel, engajamento) e **públicos semelhantes** (Lookalike)
 - **Gerar textos** e **artes/imagens** para anúncios
 - **Criar campanhas completas** no Meta Ads
+- **Gerar plano estratégico** completo via Motor Estrategista (diagnóstico + campanhas planejadas + criativos + públicos, com aprovação do lojista)
 - **Analisar links** e **imagens** enviadas
 - **Ver e alterar configurações** da IA de tráfego
 - **Sobrepor regras via comando** (com confirmação do lojista)
@@ -3187,7 +3272,12 @@ Exemplo: Se budget = R$ 600/dia e splits = {cold: 40, remarketing: 25, tests: 25
 - Testes: R$ 150/dia
 - Leads: R$ 60/dia
 
-## FLUXO PARA CRIAR CAMPANHAS
+## QUANDO USAR trigger_strategic_plan vs create_meta_campaign
+- **trigger_strategic_plan**: Quando o lojista pedir "crie um plano", "monte uma estratégia", "quero um plano estratégico", "faça uma análise e planeje campanhas". Gera um plano completo com diagnóstico e ações planejadas que o lojista revisa e aprova na aba "Plano Estratégico".
+- **create_meta_campaign**: Quando o lojista pedir para criar uma campanha ESPECÍFICA rapidamente ("cria uma campanha para o produto X", "sobe um anúncio do shampoo"). Execução direta sem plano formal.
+- **Regra**: Se o pedido envolver múltiplas campanhas, diagnóstico ou estratégia de funil completa, use trigger_strategic_plan. Se for uma campanha pontual, use create_meta_campaign.
+
+## FLUXO PARA CRIAR CAMPANHAS (via create_meta_campaign)
 1. Consultar catálogo (ver produtos)
 2. Buscar imagens do produto (get_product_images para obter fotos reais do Meu Drive)
 3. Gerar artes (gerar imagens para anúncios)
