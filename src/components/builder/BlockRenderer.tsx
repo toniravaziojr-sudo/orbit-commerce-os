@@ -873,6 +873,7 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing }: any) {
   const showReviews = productSettings.showReviews ?? true;
   const showBuyTogether = productSettings.showBuyTogether ?? true;
   const showRelatedProducts = productSettings.showRelatedProducts ?? true;
+  const relatedProductsTitle = typeof productSettings.relatedProductsTitle === 'string' ? productSettings.relatedProductsTitle : 'Produtos Relacionados';
   
   // Cart action settings come from theme settings (miniCart config)
   const openMiniCartOnAdd = cartActionType === 'miniCart';
@@ -1276,6 +1277,7 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing }: any) {
           showBuyTogether={showBuyTogether}
           showReviews={showReviews}
           showRelatedProducts={showRelatedProducts}
+          relatedProductsTitle={relatedProductsTitle}
           viewportOverride={viewportOverride}
           isEditing={isEditing}
         />

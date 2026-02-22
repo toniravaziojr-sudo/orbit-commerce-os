@@ -33,6 +33,7 @@ interface ProductPageSectionsProps {
   showBuyTogether?: boolean;
   showReviews?: boolean;
   showRelatedProducts?: boolean;
+  relatedProductsTitle?: string;
   viewportOverride?: 'desktop' | 'tablet' | 'mobile';
   isEditing?: boolean;
 }
@@ -56,6 +57,7 @@ export function ProductPageSections({
   showBuyTogether = true,
   showReviews = true,
   showRelatedProducts = true,
+  relatedProductsTitle = 'Produtos Relacionados',
   viewportOverride,
   isEditing = false,
 }: ProductPageSectionsProps) {
@@ -106,6 +108,7 @@ export function ProductPageSections({
           productId={product.id} 
           tenantSlug={tenantSlug} 
           isEditing={isEditing}
+          title={relatedProductsTitle}
         />
       )}
     </div>

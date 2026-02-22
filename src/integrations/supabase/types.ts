@@ -13923,6 +13923,7 @@ export type Database = {
       store_settings: {
         Row: {
           accent_color: string | null
+          auto_related_products: boolean | null
           benefit_config: Json | null
           business_cnpj: string | null
           business_cpf: string | null
@@ -13968,6 +13969,7 @@ export type Database = {
         }
         Insert: {
           accent_color?: string | null
+          auto_related_products?: boolean | null
           benefit_config?: Json | null
           business_cnpj?: string | null
           business_cpf?: string | null
@@ -14013,6 +14015,7 @@ export type Database = {
         }
         Update: {
           accent_color?: string | null
+          auto_related_products?: boolean | null
           benefit_config?: Json | null
           business_cnpj?: string | null
           business_cpf?: string | null

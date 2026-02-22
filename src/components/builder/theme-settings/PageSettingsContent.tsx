@@ -1388,6 +1388,19 @@ export function PageSettingsContent({
                   onCheckedChange={(checked) => handleChange(config.key, checked)}
                 />
               </div>
+              {/* Title field for Related Products */}
+              {config.key === 'showRelatedProducts' && Boolean(settings[config.key]) && (
+                <div className="pl-2 pt-1">
+                  <Label htmlFor="relatedProductsTitle" className="text-xs text-muted-foreground">Título da seção</Label>
+                  <Input
+                    id="relatedProductsTitle"
+                    value={typeof settings.relatedProductsTitle === 'string' ? settings.relatedProductsTitle : 'Produtos Relacionados'}
+                    onChange={(e) => handleChange('relatedProductsTitle', e.target.value)}
+                    placeholder="Produtos Relacionados"
+                    className="h-8 text-sm mt-1"
+                  />
+                </div>
+              )}
               {/* Responsive image upload for Additional Highlight (product page) */}
               {config.key === 'showAdditionalHighlight' && Boolean(settings[config.key]) && (
                 <ResponsiveImageUploadInput

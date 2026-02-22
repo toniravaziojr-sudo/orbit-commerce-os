@@ -148,11 +148,14 @@ interface Response {
 
 | Funcionalidade | Descrição |
 |----------------|-----------|
-| **Média de estrelas** | Exibe média e contagem de avaliações aprovadas |
-| **Lista de avaliações** | Somente `status = 'approved'` |
+| **Resumo com barras** | Card com nota média grande + barras de distribuição por estrela (5→1) |
+| **Média de estrelas** | Estrelas com preenchimento parcial proporcional à nota |
+| **Lista de avaliações** | Cards com `rounded-xl`, hover shadow, somente `status = 'approved'` |
+| **Carregar mais** | Botão "Ver mais avaliações" carrega 5 por vez (até 50 total) |
+| **Badge verificada** | Ícone CheckCircle verde ao lado do nome/data |
 | **Mídias** | Thumbnails clicáveis com lightbox |
-| **Badge** | "Compra verificada" quando aplicável |
 | **Formulário** | Permite cliente enviar nova avaliação |
+| **Empty state** | Borda dashed com fundo suave quando sem avaliações |
 
 ---
 
