@@ -340,20 +340,30 @@ graph TD
 2. **Processo**: IA reorganiza e melhora o conteúdo existente
 3. **Formato**: HTML semântico estruturado (h2, h3, ul, ol, hr, strong, em)
 
-#### Descrição Completa (`full_description`) — Sem conteúdo
+#### Descrição Completa (`full_description`) — Produto Simples/Variantes (via Link)
 
-1. **Ação**: Botão "Gerar com IA" → Abre dialog de prompt
-2. **Input**: Usuário fornece informações base do produto (características, benefícios, composição)
-3. **Processo**: IA gera descrição completa profissional
-4. **Formato**: HTML semântico com estrutura obrigatória:
-   - `<h2>` Nome do produto
-   - `<p><em>` Tagline
-   - `<h3>DESCRIÇÃO:</h3>` — Apresentação geral
-   - `<h3>AÇÃO / FUNCIONALIDADES:</h3>` — Lista numerada (`<ol>`)
-   - `<h3>BENEFÍCIOS PRINCIPAIS:</h3>` — Lista com bullets (`<ul>`)
-   - `<h3>BENEFÍCIOS ADICIONAIS:</h3>` — Lista com bullets (`<ul>`)
-   - `<h3>ESPECIFICAÇÕES:</h3>` — Detalhes técnicos
-   - Separadores `<hr>` entre seções
+1. **Ação**: Botão "Gerar com IA" → Abre dialog com campo de URL
+2. **Input**: Usuário fornece a URL da página do produto em outra loja/site
+3. **Processo**:
+   - Sistema faz scrape da página via Firecrawl (`FIRECRAWL_API_KEY`)
+   - Extrai conteúdo em markdown
+   - IA gera descrição HTML a partir do conteúdo extraído
+4. **Formato**: HTML semântico com estrutura obrigatória (h2, h3, ul, ol, hr)
+5. **Edge Function**: `ai-product-description` com `mode: 'from_link'`
+
+#### Descrição Completa (`full_description`) — Kit/Composição (via Componentes)
+
+1. **Ação**: Botão "Gerar com IA" no kit
+2. **Validação**: Verifica se TODOS os produtos componentes possuem descrição completa
+3. **Se algum componente sem descrição**: Exibe toast de erro listando os produtos que precisam ter descrição criada primeiro
+4. **Se todos têm descrição**:
+   - Coleta `{name, description}` de cada componente
+   - IA gera descrição unificada do kit
+   - Mantém TODAS as informações importantes de cada componente
+   - Destaca o diferencial/vantagem de comprar o kit completo
+   - Não repete informações redundantes
+5. **Formato**: HTML semântico com estrutura obrigatória
+6. **Edge Function**: `ai-product-description` com `mode: 'from_kit'`
 
 ### 10.4 Props do `AIDescriptionButton`
 
@@ -363,6 +373,8 @@ interface AIDescriptionButtonProps {
   productName: string;
   fullDescription?: string;
   onGenerated: (text: string) => void;
+  productFormat?: 'simple' | 'with_variants' | 'with_composition';
+  productId?: string;
 }
 ```
 
@@ -373,8 +385,11 @@ interface AIDescriptionButtonProps {
 | Requisito descrição curta | Só gera se `fullDescription` estiver preenchida |
 | Descrição curta sem HTML | Texto limpo, sem tags |
 | Descrição completa com HTML | Usa HTML semântico, **nunca** markdown |
-| Dialog de prompt | Só aparece quando descrição completa está vazia |
+| Produto simples: campo URL | Dialog pede link obrigatório para scrape via Firecrawl |
+| Kit: validação componentes | Todos os componentes devem ter descrição antes de gerar |
+| Kit: toast de erro | Lista nomes dos produtos sem descrição completa |
 | Botão dinâmico | "Gerar com IA" (vazio) / "Melhorar com IA" (com conteúdo) |
+| Modos da Edge Function | `from_link` (simples), `from_kit` (kit), `default` (fallback) |
 
 ---
 
