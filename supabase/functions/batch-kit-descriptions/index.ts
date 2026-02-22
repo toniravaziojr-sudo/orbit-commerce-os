@@ -10,7 +10,7 @@ const SYSTEM_PROMPT_SHORT = `Você é um copywriter profissional especializado e
 Crie uma DESCRIÇÃO CURTA para o produto a partir da descrição completa fornecida.
 
 REGRAS ABSOLUTAS:
-- Máximo 2-3 frases (até 300 caracteres)
+- Máximo 2-3 frases (até 280 caracteres). A última frase DEVE terminar com ponto final.
 - Capture a essência e principal benefício do produto
 - Linguagem persuasiva e direta
 - NÃO use markdown, apenas texto simples
@@ -113,11 +113,13 @@ Deno.serve(async (req) => {
     let offset = 0;
     let limit = 10;
     let mode = "full"; // "full" | "short" | "both"
+    let onlySkus: string[] | null = null;
     try {
       const body = await req.json();
       offset = body.offset ?? 0;
       limit = body.limit ?? 10;
       mode = body.mode ?? "full";
+      onlySkus = body.only_skus ?? null;
     } catch { /* defaults */ }
 
     // Get all kit products
@@ -130,8 +132,14 @@ Deno.serve(async (req) => {
 
     if (kitsError) throw kitsError;
 
-    const kits = allKits.slice(offset, offset + limit);
-    console.log(`[batch-${mode}] Processing kits ${offset} to ${offset + limit} (${kits.length} of ${allKits.length} total)`);
+    let kits;
+    if (onlySkus && onlySkus.length > 0) {
+      kits = allKits.filter(k => onlySkus!.includes(k.sku));
+      console.log(`[batch-${mode}] Processing ${kits.length} kits by SKU filter: ${onlySkus.join(', ')}`);
+    } else {
+      kits = allKits.slice(offset, offset + limit);
+      console.log(`[batch-${mode}] Processing kits ${offset} to ${offset + limit} (${kits.length} of ${allKits.length} total)`);
+    }
 
     const results: any[] = [];
 
@@ -154,7 +162,7 @@ Deno.serve(async (req) => {
                 { role: "user", content: `Produto: ${kit.name}\n\nDescrição completa:\n${kit.description}` },
               ],
               temperature: 0.7,
-              max_tokens: 500,
+              max_tokens: 1024,
             },
             {
               supabaseUrl,
