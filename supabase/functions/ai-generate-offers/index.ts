@@ -108,7 +108,7 @@ serve(async (req) => {
     // 1. Buscar produtos ativos
     const { data: products, error: prodError } = await supabase
       .from('products')
-      .select('id, name, price, compare_at_price, sku, product_type, status, is_kit')
+      .select('id, name, price, compare_at_price, sku, product_type, status, product_format')
       .eq('tenant_id', tenant_id)
       .eq('status', 'active');
 
@@ -149,7 +149,7 @@ serve(async (req) => {
       price: p.price,
       compare_at_price: p.compare_at_price,
       sku: p.sku,
-      is_kit: p.is_kit,
+      is_kit: p.product_format === 'with_composition',
       product_type: p.product_type,
     }));
 
