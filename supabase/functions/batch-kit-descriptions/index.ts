@@ -35,6 +35,15 @@ REGRAS ABSOLUTAS — SIGA RIGOROSAMENTE:
 3. A primeira linha da sua resposta DEVE ser uma tag HTML (ex: <h2>).
 4. A última linha DEVE ser uma tag HTML de fechamento.
 
+CONTEÚDO OBRIGATÓRIO — NUNCA OMITA:
+- Registros ANVISA de cada produto componente (ex: "ANVISA: 25351.316634/2024-16") — SEMPRE inclua na seção de cada produto ou em seção dedicada
+- COMPOSIÇÃO completa de cada produto (ingredientes, ativos especiais, ativos exclusivos)
+- MODO DE USO de cada produto
+- BENEFÍCIOS detalhados de cada produto
+- Informações nutricionais quando houver (ex: suplementos)
+- Links de referência quando presentes nas descrições originais
+- Observações importantes (como consulta de grau de calvície)
+
 ESTRUTURA HTML OBRIGATÓRIA — EXEMPLO:
 
 <h2>NOME DO KIT</h2>
@@ -53,7 +62,16 @@ ESTRUTURA HTML OBRIGATÓRIA — EXEMPLO:
 </ul>
 <br>
 <h2>PRODUTO X — DETALHES:</h2>
-<p>Informações específicas deste produto.</p>
+<p>Informações específicas deste produto incluindo composição, modo de uso, etc.</p>
+<br>
+<h2>COMPOSIÇÃO DO PRODUTO X:</h2>
+<p>Lista completa de ingredientes/ativos.</p>
+<br>
+<h2>REGISTROS ANVISA:</h2>
+<ul>
+<li><strong>Produto 1:</strong> Número do registro</li>
+<li><strong>Produto 2:</strong> Número do registro</li>
+</ul>
 <br>
 <h2>ESPECIFICAÇÕES:</h2>
 <ul>
@@ -69,6 +87,7 @@ REGRAS DE FORMATAÇÃO CRÍTICAS:
 - <strong> para labels/nomes de funcionalidades
 - <em> para taglines/frases de destaque
 - NUNCA use markdown
+- A descrição deve ser COMPLETA e DETALHADA — NÃO resuma ou omita informações dos componentes
 - Escreva em português brasileiro`;
 
 function cleanGeneratedHtml(text: string): string {
@@ -201,7 +220,7 @@ Deno.serve(async (req) => {
                 { role: "user", content: userPrompt },
               ],
               temperature: 0.7,
-              max_tokens: 4096,
+              max_tokens: 8192,
             },
             {
               supabaseUrl,
