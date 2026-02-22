@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.4.0"; // Accept copy/headline/creative_prompt as input, persist on asset
+const VERSION = "v2.0.0"; // DRIVE-FIRST: Search existing creatives in Drive before generating new ones
 // ===================
 
 const corsHeaders = {
@@ -189,6 +189,116 @@ Deno.serve(async (req) => {
       console.log(`[ads-autopilot-creative][${VERSION}] Pre-created asset: ${newAsset.id} status=generating funnel=${funnel_stage || 'unset'}`);
     }
 
+    // ===== v2.0.0: DRIVE-FIRST — Search existing creatives before generating =====
+    let driveHit = false;
+    
+    if (product_id && folderId) {
+      console.log(`[ads-autopilot-creative][${VERSION}] 🔍 Searching Drive for existing creatives (product_id=${product_id}, funnel=${funnel_stage || 'any'})...`);
+      
+      const { data: driveCreatives } = await supabase
+        .from("files")
+        .select("id, filename, metadata, storage_path")
+        .eq("tenant_id", tenant_id)
+        .eq("folder_id", folderId)
+        .eq("is_folder", false)
+        .order("created_at", { ascending: false })
+        .limit(200);
+
+      if (driveCreatives && driveCreatives.length > 0) {
+        // Filter by product_id in metadata
+        const matchingCreatives = driveCreatives.filter((f: any) => {
+          const meta = f.metadata as Record<string, any> | null;
+          return meta?.product_id === product_id;
+        });
+
+        if (matchingCreatives.length > 0) {
+          // Sort: winners first, then by overall score descending
+          matchingCreatives.sort((a: any, b: any) => {
+            const metaA = (a.metadata as Record<string, any>) || {};
+            const metaB = (b.metadata as Record<string, any>) || {};
+            if (metaA.is_winner && !metaB.is_winner) return -1;
+            if (!metaA.is_winner && metaB.is_winner) return 1;
+            const scoreA = metaA.scores?.overall || 0;
+            const scoreB = metaB.scores?.overall || 0;
+            return scoreB - scoreA;
+          });
+
+          const bestCreative = matchingCreatives[0];
+          const bestMeta = (bestCreative.metadata as Record<string, any>) || {};
+          
+          // Resolve URL from metadata or storage path
+          let creativeUrl = bestMeta.url || null;
+          if (!creativeUrl && bestCreative.storage_path) {
+            const bucket = bestMeta.bucket || "media-assets";
+            const { data: pubUrl } = supabase.storage.from(bucket).getPublicUrl(bestCreative.storage_path);
+            creativeUrl = pubUrl?.publicUrl || null;
+          }
+
+          if (creativeUrl && newAsset?.id) {
+            // ✅ Drive hit! Update asset directly with existing creative
+            const storageMatch = creativeUrl.match(/\/storage\/v1\/object\/public\/[^/]+\/(.+)$/);
+            await supabase.from("ads_creative_assets").update({
+              asset_url: creativeUrl,
+              storage_path: storageMatch ? storageMatch[1] : null,
+              status: "ready",
+              meta: {
+                ...assetMeta,
+                image_status: "reused_drive",
+                fallback_source: "drive",
+                drive_file_id: bestCreative.id,
+                drive_filename: bestCreative.filename,
+                is_winner: bestMeta.is_winner || false,
+                scores: bestMeta.scores || null,
+                reused: true,
+              },
+              updated_at: new Date().toISOString(),
+            }).eq("id", newAsset.id);
+
+            driveHit = true;
+            console.log(`[ads-autopilot-creative][${VERSION}] ✅ DRIVE HIT! Reused "${bestCreative.filename}" (winner=${bestMeta.is_winner}, score=${bestMeta.scores?.overall || 'N/A'}) — ${matchingCreatives.length} total available for this product`);
+
+            // Update action status
+            if (action_id) {
+              await supabase.from("ads_autopilot_actions").update({
+                status: "executed",
+                executed_at: new Date().toISOString(),
+                action_data: {
+                  reused: true,
+                  drive_file_id: bestCreative.id,
+                  asset_id: newAsset.id,
+                  channel,
+                  format,
+                  product_name: resolvedProductName || "Produto",
+                  product_id,
+                  funnel_stage: funnel_stage || null,
+                  available_in_drive: matchingCreatives.length,
+                },
+              }).eq("id", action_id);
+            }
+
+            return ok({
+              reused: true,
+              reused_count: matchingCreatives.length,
+              asset_id: newAsset.id,
+              asset_url: creativeUrl,
+              status: "ready",
+              message: `Reutilizado criativo existente do Drive "${bestCreative.filename}" (${matchingCreatives.length} disponíveis para este produto). Nenhuma geração necessária.`,
+              channel,
+              session_id,
+              funnel_stage: funnel_stage || null,
+            });
+          }
+        } else {
+          console.log(`[ads-autopilot-creative][${VERSION}] No Drive creatives found for product_id=${product_id} (${driveCreatives.length} total files in folder)`);
+        }
+      } else {
+        console.log(`[ads-autopilot-creative][${VERSION}] Drive folder empty`);
+      }
+    }
+
+    // ===== FALLBACK: Generate new creative via AI =====
+    console.log(`[ads-autopilot-creative][${VERSION}] No Drive match — generating new creative via AI...`);
+    
     // Call creative-image-generate edge function
     const { data: result, error: invokeError } = await supabase.functions.invoke("creative-image-generate", {
       body: {
@@ -198,7 +308,7 @@ Deno.serve(async (req) => {
         product_image_url: resolvedImageUrl,
         prompt: promptParts,
         output_folder_id: folderId,
-        asset_id: newAsset?.id || null, // Pass asset_id for direct update if supported
+        asset_id: newAsset?.id || null,
         settings: {
           providers: ["openai", "gemini"],
           generation_style: generationStyle,
