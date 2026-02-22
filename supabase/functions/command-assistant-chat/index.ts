@@ -272,6 +272,45 @@ const TOOL_REGISTRY = {
     },
     requiredPermission: "settings",
   },
+
+  // === COMPOSIÇÃO DE KITS ===
+  addProductComponent: {
+    description: "Adicionar componente a um kit (produto com composição). Também converte o produto para formato kit se necessário.",
+    parameters: {
+      parentProductId: { type: "string", required: true, description: "ID do produto kit (pai)" },
+      componentProductId: { type: "string", required: true, description: "ID do produto componente" },
+      quantity: { type: "number", required: true, description: "Quantidade do componente no kit" },
+    },
+    requiredPermission: "products",
+  },
+  removeProductComponent: {
+    description: "Remover componente de um kit",
+    parameters: {
+      parentProductId: { type: "string", required: true, description: "ID do produto kit" },
+      componentProductId: { type: "string", required: true, description: "ID do componente a remover" },
+    },
+    requiredPermission: "products",
+  },
+  listProductComponents: {
+    description: "Listar componentes de um kit e seus dados",
+    parameters: {
+      parentProductId: { type: "string", required: true, description: "ID do produto kit" },
+    },
+    requiredPermission: "products",
+  },
+  bulkSetCompositionType: {
+    description: "Alterar o tipo de composição (estoque físico ou virtual) de kits em massa",
+    parameters: {
+      stockType: { type: "string", required: true, description: "Tipo: 'physical' ou 'virtual'" },
+      productIds: { type: "array", required: false, description: "IDs específicos (opcional, se vazio aplica a todos os kits)" },
+    },
+    requiredPermission: "products",
+  },
+  autoCreateKitCompositions: {
+    description: "Detectar produtos com nome de kit (ex: 'Kit X (2x)') que estão sem composição e criar automaticamente baseado no padrão do nome",
+    parameters: {},
+    requiredPermission: "products",
+  },
 };
 
 // Build dynamic system prompt with all available tools
@@ -321,6 +360,11 @@ Mapeamento OBRIGATÓRIO (interno → fala do assistente):
 - completeTask → "marcar tarefa como concluída"
 - updateShippingSettings → "ajustar as configurações de frete"
 - updateStoreSettings → "atualizar as configurações da loja"
+- addProductComponent → "adicionar componente ao kit"
+- removeProductComponent → "remover componente do kit"
+- listProductComponents → "listar os componentes do kit"
+- bulkSetCompositionType → "alterar o tipo de composição dos kits"
+- autoCreateKitCompositions → "criar composições automaticamente para kits sem componentes"
 - tool_name / tool_args → NUNCA mencionar esses termos
 - tenant_id, user_id, conversation_id → NUNCA mencionar
 
@@ -333,6 +377,7 @@ Você pode executar QUALQUER operação que o usuário faria manualmente no pain
 - Gerenciamento de cupons de desconto
 - Gerenciamento de pedidos e status
 - Gerenciamento de clientes e tags
+- Composição de kits (adicionar/remover componentes, listar, alterar tipo de composição em massa, detectar kits sem composição)
 - Tarefas da agenda
 - Configurações da loja
 - Relatórios diversos
