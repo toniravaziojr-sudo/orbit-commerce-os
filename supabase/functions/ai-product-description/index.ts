@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.3.0"; // Fix: formatação HTML com títulos em h2/h3, listas separadas, hr entre seções
+const VERSION = "v2.4.0"; // Fix: prompt from_link com exemplo completo real e <br> entre seções
 // ===========================================================
 
 const corsHeaders = {
@@ -89,41 +89,52 @@ REGRAS ABSOLUTAS — SIGA RIGOROSAMENTE:
 7. Inclua TODAS as seções que existem na página. NÃO OMITA nenhuma seção ou informação.
 8. GERE O HTML COMPLETO — NÃO TRUNCE.
 
-ESTRUTURA HTML OBRIGATÓRIA — SIGA ESTE MODELO EXATO:
+ESTRUTURA HTML — EXEMPLO COMPLETO REAL:
 
-<h2>NOME DO PRODUTO EM MAIÚSCULO</h2>
-<p><em>Frase de impacto / tagline se existir na página</em></p>
-<p>Parágrafo introdutório (copiar da página original).</p>
-<p>Segundo parágrafo se existir (CADA parágrafo em sua própria tag p).</p>
-<hr>
-<h2>TÍTULO DA SEÇÃO EM MAIÚSCULO:</h2>
-<ol>
-<li><strong>Nome do item:</strong> descrição do item</li>
-</ol>
-<hr>
+<h2>FAST UPGRADE</h2>
+<p><em>Frasco com 5g – Resultado em segundos</em></p>
+<p>O Fast Upgrade da Respeite o Homem é o produto ideal para quem quer melhorar instantaneamente a aparência do cabelo.</p>
+<p>Com tecnologia em pó ultrafino e ação 4 em 1, ele aumenta o volume, escurece os fios, modela o cabelo e camufla falhas visíveis.</p>
+<p>Perfeito para quem tem entradas, rarefação, fios brancos ou cabelos finos e sem forma, o Fast Upgrade devolve densidade e confiança em poucos segundos.</p>
+<br>
+<h2>AÇÃO 4 EM 1:</h2>
+<ul>
+<li><strong>Aumenta o volume:</strong> partículas leves que aderem aos fios, deixando o cabelo mais cheio.</li>
+<li><strong>Escurece naturalmente:</strong> tonaliza fios brancos e falhas sem manchar.</li>
+<li><strong>Modela o cabelo:</strong> mantém o penteado firme e natural durante o dia.</li>
+<li><strong>Camufla falhas:</strong> preenche áreas ralas e dá aparência de cabelo mais denso.</li>
+</ul>
+<br>
 <h2>BENEFÍCIOS PRINCIPAIS:</h2>
 <ul>
-<li>Item de benefício</li>
+<li>Resultado imediato em menos de 1 minuto</li>
+<li>Efeito seco e natural, sem brilho artificial</li>
+<li>Fixa ao couro cabeludo e aos fios sem escorrer</li>
+<li>Ideal para uso diário e eventos</li>
 </ul>
-<hr>
+<br>
 <h2>MODO DE USO:</h2>
-<p>Primeiro passo.</p>
-<p>Segundo passo.</p>
-<hr>
+<p>Com o cabelo seco, aplique uma pequena quantidade do pó sobre os cabelos secos ou molhados.</p>
+<p>Espalhe com os dedos ou pente até atingir o efeito desejado.</p>
+<p>Finalize modelando normalmente.</p>
+<p>O resultado é imediato e dura até a próxima lavagem.</p>
+<br>
 <h2>COMPOSIÇÃO:</h2>
-<p>Texto da composição.</p>
-<p><strong>Peso líquido:</strong> valor</p>
-<p><strong>Registro ANVISA:</strong> número</p>
-<hr>
+<p>Pó mineral ultrafino de fixação capilar, pigmentos vegetais de coloração natural.</p>
+<p><strong>Peso líquido:</strong> 5g</p>
+<p><strong>Registro ANVISA:</strong> 25351130726202583</p>
+<br>
 <h2>OBSERVAÇÃO:</h2>
-<p>Texto da observação.</p>
+<p>O Fast Upgrade é um produto cosmético de ação estética imediata.</p>
+<p>Para fortalecimento e crescimento real dos fios, recomenda-se o uso conjunto com outros produtos da linha.</p>
 
 REGRAS DE FORMATAÇÃO CRÍTICAS:
 - Títulos de seção SEMPRE em <h2> com texto em MAIÚSCULO seguido de dois pontos (ex: <h2>BENEFÍCIOS PRINCIPAIS:</h2>)
-- NUNCA use <h3> para títulos de seção — use SEMPRE <h2>
-- Separador <hr> ENTRE CADA seção (antes do próximo <h2>)
+- NUNCA use <h3> — use SEMPRE <h2> para títulos de seção
+- Use <br> (tag de quebra de linha) ENTRE CADA seção para dar espaçamento visual
 - Cada parágrafo em sua PRÓPRIA tag <p> — NUNCA junte múltiplos parágrafos em um único <p>
-- Listas de itens em <ul>/<li> ou <ol>/<li> — NUNCA como texto corrido
+- Quando há lista de itens (benefícios, funcionalidades, etc.), SEMPRE use <ul> com <li> — NUNCA coloque como parágrafos <p> separados
+- Cada passo do "modo de uso" em seu PRÓPRIO <p>
 - <strong> para labels/nomes de funcionalidades (ex: <strong>Aumenta o volume:</strong>)
 - <em> para taglines/frases de destaque
 - NUNCA use markdown (**, ##, -, etc.)
