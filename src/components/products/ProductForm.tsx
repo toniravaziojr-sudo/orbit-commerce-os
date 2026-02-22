@@ -756,6 +756,8 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                             productName={form.watch('name')}
                             fullDescription={field.value ?? ''}
                             onGenerated={(text) => form.setValue('description', text, { shouldDirty: true })}
+                            productFormat={form.watch('product_format') as 'simple' | 'with_variants' | 'with_composition'}
+                            productId={product?.id}
                           />
                         </div>
                         <FormControl>
