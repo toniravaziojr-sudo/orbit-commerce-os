@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.43.0"; // Fix implement_campaigns: force tool execution, no approval pause
+const VERSION = "v1.44.0"; // Fix implement_campaigns: strict plan fidelity — no extra campaigns/adsets
 // ===================
 
 const corsHeaders = {
@@ -952,23 +952,31 @@ NÃO peça aprovação. NÃO exiba previews. NÃO diga "aguardando confirmação
 EXECUTE TODAS as campanhas do plano IMEDIATAMENTE usando as tools disponíveis.
 Cada round DEVE conter tool calls. Se não chamou tool = ERRO.
 
+🔒 FIDELIDADE ESTRITA AO PLANO (REGRA INVIOLÁVEL — v1.44.0)
+Você DEVE criar EXATAMENTE as campanhas listadas em planned_actions do plano aprovado.
+- NÃO invente campanhas extras que não estejam no plano
+- NÃO adicione adsets extras que não estejam listados nos adsets[] de cada ação do plano
+- NÃO crie variações, duplicações ou extensões além do que foi planejado
+- Se o plano tem 4 ações → você cria EXATAMENTE 4 campanhas (ou o equivalente conforme action_type)
+- Se uma ação de teste tem 3 adsets no array → você cria 3 campanhas ABO (1 por variação), NÃO mais
+- O número total de create_campaign + create_adset DEVE corresponder ao plano
+- Qualquer campanha/adset FORA do plano será considerada ERRO e será rejeitada pelo usuário
+- Se você achar que o plano precisa de ajustes, NÃO ajuste — execute fielmente e sugira melhorias via insights
+
 NESTA FASE VOCÊ DEVE:
-1. Criar TODAS as campanhas do plano aprovado usando create_campaign
+1. Criar TODAS as campanhas do plano aprovado usando create_campaign — e SOMENTE elas
    - CADA campanha DEVE ter entre 2 e 4 primary_texts (variações de copy)
    - CADA campanha DEVE ter entre 2 e 4 headlines
    - Copys devem atacar ângulos DIFERENTES (benefício, objeção, prova social, urgência)
    - Headlines curtas e diretas (máx 40 chars)
    - Inclua descriptions e CTA adequado
-2. Criar ad sets (create_adset) para segmentações dentro das campanhas
+2. Criar ad sets (create_adset) SOMENTE os que estão listados em adsets[] do plano
+3. Ajustar budgets (adjust_budget) de campanhas existentes SOMENTE se o plano pedir
 
 REGRAS ESTRUTURAIS (INVIOLÁVEIS):
 - **REMARKETING vs TOF**: Copys e criativos de remarketing DEVEM ser DIFERENTES dos de venda direta. O público já viu os anúncios TOF. Use ângulos: objeção, urgência, prova social, benefícios complementares.
 - **CAMPANHAS DE TESTE**: Cada anúncio em seu PRÓPRIO adset (1:1). Use ABO (budget no adset, NÃO no nível de campanha). Budget dividido igualmente entre variações.
-- **VENDA DIRETA (TOF)**: Criar MÚLTIPLOS adsets com públicos DIFERENTES (broad, interesses, lookalikes). Anúncios podem repetir entre adsets, mas targeting DEVE variar. Mínimo 2 adsets.
-3. Ajustar budgets (adjust_budget) de campanhas existentes, se o plano pedir
-
-REGRAS CRÍTICAS:
-- Use EXATAMENTE os produtos do plano para cada campanha/funil
+- **VENDA DIRETA (TOF)**: Os adsets DEVEM corresponder EXATAMENTE aos listados em adsets[] do plano. NÃO adicione adsets extras.
 - O orçamento TOTAL do plano deve ser RESPEITADO — verba ociosa é proibida
 - Tudo criado PAUSADO. Ativações agendadas para 00:01-04:00 BRT
 - Aumentos de budget limitados a +20% por campanha existente
@@ -978,7 +986,8 @@ REGRAS CRÍTICAS:
 NESTA FASE VOCÊ NÃO DEVE:
 - NÃO use generate_creative — criativos já foram gerados
 - NÃO use strategic_plan — o plano já foi aprovado
-- NÃO peça aprovação ou confirmação — EXECUTE diretamente`;
+- NÃO peça aprovação ou confirmação — EXECUTE diretamente
+- NÃO crie campanhas ou adsets que NÃO estejam explicitamente no plano aprovado`;
       break;
   }
 
