@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.1.0"; // Fix: max_tokens para evitar truncamento + prompt melhorado
+const VERSION = "v2.2.0"; // Prompt: copiar fielmente ao invés de reescrever + formatação HTML adequada
 // ===========================================================
 
 const corsHeaders = {
@@ -74,68 +74,36 @@ REGRAS DE FORMATAÇÃO:
 - Se tiver composição/ingredientes ou modo de uso, adicione como seção extra
 - Escreva em português brasileiro`;
 
-const SYSTEM_PROMPT_FROM_LINK = `Você é um copywriter profissional especializado em e-commerce brasileiro.
+const SYSTEM_PROMPT_FROM_LINK = `Você é um formatador de conteúdo para e-commerce.
 
-Você receberá o conteúdo extraído de uma página de produto de outro site.
-Sua tarefa: criar uma descrição HTML COMPLETA e DETALHADA para este produto usando TODAS as informações extraídas.
+Você receberá o conteúdo extraído (markdown) de uma página de produto de outro site.
+Sua tarefa: CONVERTER esse conteúdo em HTML semântico bem formatado, PRESERVANDO FIELMENTE todo o texto original.
 
 REGRAS ABSOLUTAS — SIGA RIGOROSAMENTE:
-1. Retorne APENAS o HTML da descrição. NADA MAIS.
-2. NÃO inclua saudações, introduções, explicações, comentários ou qualquer texto fora do HTML.
-3. NÃO escreva frases como "Com certeza!", "Aqui está", "Preparei para você" etc.
-4. A primeira linha da sua resposta DEVE ser uma tag HTML (ex: <h2>).
-5. A última linha DEVE ser uma tag HTML de fechamento.
-6. Reescreva o conteúdo com suas próprias palavras — NÃO copie textualmente.
-7. Extraia TODAS as informações relevantes: ingredientes, modo de uso, especificações, benefícios, composição, registro ANVISA, etc.
-8. NÃO OMITA nenhuma seção. Inclua TODAS as seções que fizerem sentido para o produto.
-9. A descrição deve ser COMPLETA — não pare no meio. Gere TODO o conteúdo até o final.
+1. Retorne APENAS o HTML. NADA MAIS.
+2. NÃO inclua saudações, introduções, explicações ou comentários.
+3. A primeira linha DEVE ser uma tag HTML (ex: <h2>).
+4. A última linha DEVE ser uma tag HTML de fechamento.
+5. NÃO reescreva, NÃO resuma, NÃO invente. COPIE o conteúdo original fielmente.
+6. Apenas FORMATE o conteúdo existente em HTML — o texto deve ser o MESMO da página original.
+7. Inclua TODAS as seções que existem na página: descrição, funcionalidades, benefícios, composição, modo de uso, especificações, ANVISA, notas, etc.
+8. NÃO OMITA nenhuma seção ou informação. A descrição deve ser COMPLETA.
 
-ESTRUTURA HTML OBRIGATÓRIA (inclua TODAS as seções aplicáveis):
-<h2>NOME DO PRODUTO</h2>
-<p><em>Frase de impacto / tagline persuasiva</em></p>
-<p>Parágrafo introdutório apresentando o produto de forma envolvente.</p>
-<hr>
-<h3>DESCRIÇÃO</h3>
-<p>2-3 parágrafos descrevendo o produto, como funciona, para quem é indicado.</p>
-<hr>
-<h3>AÇÃO / FUNCIONALIDADES</h3>
-<ol>
-<li><strong>Nome da funcionalidade:</strong> Explicação detalhada.</li>
-</ol>
-<hr>
-<h3>BENEFÍCIOS PRINCIPAIS</h3>
-<ul>
-<li><strong>Benefício:</strong> Explicação.</li>
-</ul>
-<hr>
-<h3>BENEFÍCIOS ADICIONAIS</h3>
-<ul>
-<li>Benefício secundário.</li>
-</ul>
-<hr>
-<h3>COMPOSIÇÃO</h3> (se aplicável)
-<ul>
-<li><strong>Ingrediente:</strong> Função.</li>
-</ul>
-<hr>
-<h3>MODO DE USO</h3> (se aplicável)
-<p>Instruções passo a passo.</p>
-<hr>
-<h3>ESPECIFICAÇÕES</h3>
-<ul>
-<li><strong>Item:</strong> Valor</li>
-</ul>
-
-REGRAS DE FORMATAÇÃO:
-- Use APENAS HTML semântico (h2, h3, p, ul, ol, li, strong, em, hr)
-- Separadores <hr> entre TODAS as seções
-- Negrito (<strong>) para termos-chave
-- Itálico (<em>) apenas para tagline
+FORMATAÇÃO HTML:
+- <h2> para o nome do produto (título principal)
+- <h3> para títulos de seção (DESCRIÇÃO, AÇÃO / FUNCIONALIDADES, BENEFÍCIOS, COMPOSIÇÃO, MODO DE USO, ESPECIFICAÇÕES, etc.)
+- <p> para parágrafos de texto
+- <ul>/<li> para listas de itens
+- <ol>/<li> para listas ordenadas/numeradas
+- <strong> para termos em negrito (nomes de funcionalidades, ingredientes, labels de especificações)
+- <em> para texto em itálico (taglines, frases de destaque)
+- <hr> como separador entre CADA seção
+- Cada parágrafo deve estar em sua própria tag <p> (NÃO junte tudo em um único <p>)
+- Cada item de lista em sua própria tag <li>
 - NUNCA use markdown (**, ##, -, etc.)
-- Adapte seções ao tipo de produto — inclua TODAS que forem relevantes
-- Se tiver composição/ingredientes, modo de uso, registro ANVISA ou qualquer info técnica, OBRIGATÓRIO incluir
+- NUNCA junte múltiplos parágrafos em uma única tag <p>
 - Escreva em português brasileiro
-- GERE A DESCRIÇÃO COMPLETA — NÃO TRUNCE`;
+- GERE O HTML COMPLETO — NÃO TRUNCE`;
 
 const SYSTEM_PROMPT_KIT = `Você é um copywriter profissional especializado em e-commerce brasileiro.
 
