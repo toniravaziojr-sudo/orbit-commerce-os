@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.4.0"; // Fix: prompt from_link com exemplo completo real e <br> entre seções
+const VERSION = "v2.5.0"; // Fix: alinhar SYSTEM_PROMPT_FULL e SYSTEM_PROMPT_KIT com padrão <h2> + <br>
 // ===========================================================
 
 const corsHeaders = {
@@ -32,43 +32,49 @@ const SYSTEM_PROMPT_FULL = `Você é um copywriter profissional especializado em
 REGRAS ABSOLUTAS — SIGA RIGOROSAMENTE:
 1. Retorne APENAS o HTML da descrição. NADA MAIS.
 2. NÃO inclua saudações, introduções, explicações, comentários ou qualquer texto fora do HTML.
-3. NÃO escreva frases como "Com certeza!", "Aqui está", "Preparei para você" etc.
-4. A primeira linha da sua resposta DEVE ser uma tag HTML (ex: <h2>).
-5. A última linha DEVE ser uma tag HTML de fechamento.
+3. A primeira linha da sua resposta DEVE ser uma tag HTML (ex: <h2>).
+4. A última linha DEVE ser uma tag HTML de fechamento.
 
-ESTRUTURA HTML OBRIGATÓRIA:
-<h2>NOME DO PRODUTO (versão/variação se aplicável)</h2>
+ESTRUTURA HTML OBRIGATÓRIA — EXEMPLO:
+
+<h2>NOME DO PRODUTO</h2>
 <p><em>Frase de impacto / tagline persuasiva</em></p>
 <p>Parágrafo introdutório apresentando o produto de forma envolvente.</p>
-<hr>
-<h3>DESCRIÇÃO</h3>
-<p>2-3 parágrafos descrevendo o produto, como funciona, para quem é indicado.</p>
-<hr>
-<h3>AÇÃO / FUNCIONALIDADES</h3>
+<br>
+<h2>DESCRIÇÃO:</h2>
+<p>Primeiro parágrafo descrevendo o produto, como funciona, para quem é indicado.</p>
+<p>Segundo parágrafo com mais detalhes.</p>
+<br>
+<h2>FUNCIONALIDADES:</h2>
 <ol>
 <li><strong>Nome da funcionalidade:</strong> Explicação detalhada.</li>
+<li><strong>Outra funcionalidade:</strong> Explicação detalhada.</li>
 </ol>
-<hr>
-<h3>BENEFÍCIOS PRINCIPAIS</h3>
+<br>
+<h2>BENEFÍCIOS PRINCIPAIS:</h2>
 <ul>
 <li><strong>Benefício:</strong> Explicação.</li>
+<li><strong>Outro benefício:</strong> Explicação.</li>
 </ul>
-<hr>
-<h3>BENEFÍCIOS ADICIONAIS</h3>
+<br>
+<h2>BENEFÍCIOS ADICIONAIS:</h2>
 <ul>
 <li>Benefício secundário.</li>
 </ul>
-<hr>
-<h3>ESPECIFICAÇÕES</h3>
+<br>
+<h2>ESPECIFICAÇÕES:</h2>
 <ul>
 <li><strong>Item:</strong> Valor</li>
 </ul>
 
-REGRAS DE FORMATAÇÃO:
-- Use APENAS HTML semântico (h2, h3, p, ul, ol, li, strong, em, hr)
-- Separadores <hr> entre TODAS as seções
-- Negrito (<strong>) para termos-chave
-- Itálico (<em>) apenas para tagline
+REGRAS DE FORMATAÇÃO CRÍTICAS:
+- Títulos de seção SEMPRE em <h2> com texto em MAIÚSCULO seguido de dois pontos (ex: <h2>BENEFÍCIOS PRINCIPAIS:</h2>)
+- NUNCA use <h3> — use SEMPRE <h2> para títulos de seção
+- Use <br> (tag de quebra de linha) ENTRE CADA seção para dar espaçamento visual
+- Cada parágrafo em sua PRÓPRIA tag <p> — NUNCA junte múltiplos parágrafos em um único <p>
+- Quando há lista de itens, SEMPRE use <ul> com <li> — NUNCA coloque como parágrafos <p> separados
+- <strong> para labels/nomes de funcionalidades
+- <em> para taglines/frases de destaque
 - NUNCA use markdown (**, ##, -, etc.)
 - Adapte seções ao tipo de produto (nem todos precisam de todas)
 - Se tiver composição/ingredientes ou modo de uso, adicione como seção extra
@@ -157,36 +163,39 @@ REGRAS ABSOLUTAS — SIGA RIGOROSAMENTE:
 3. A primeira linha da sua resposta DEVE ser uma tag HTML (ex: <h2>).
 4. A última linha DEVE ser uma tag HTML de fechamento.
 
-ESTRUTURA HTML OBRIGATÓRIA:
+ESTRUTURA HTML OBRIGATÓRIA — EXEMPLO:
+
 <h2>NOME DO KIT</h2>
 <p><em>Frase de impacto sobre o kit completo</em></p>
 <p>Parágrafo apresentando o kit e por que comprar junto é melhor.</p>
-<hr>
-<h3>O QUE VEM NO KIT</h3>
+<br>
+<h2>O QUE VEM NO KIT:</h2>
 <ul>
 <li><strong>Produto 1:</strong> Breve descrição</li>
 <li><strong>Produto 2:</strong> Breve descrição</li>
 </ul>
-<hr>
-<h3>BENEFÍCIOS DO KIT</h3>
+<br>
+<h2>BENEFÍCIOS DO KIT:</h2>
 <ul>
 <li><strong>Benefício:</strong> Explicação de por que juntos são melhores.</li>
 </ul>
-<hr>
-(Para cada produto do kit, adicionar seção com detalhes relevantes)
-<h3>PRODUTO X — DETALHES</h3>
+<br>
+<h2>PRODUTO X — DETALHES:</h2>
 <p>Informações específicas deste produto.</p>
-<hr>
-<h3>ESPECIFICAÇÕES</h3>
+<br>
+<h2>ESPECIFICAÇÕES:</h2>
 <ul>
 <li><strong>Item:</strong> Valor</li>
 </ul>
 
-REGRAS DE FORMATAÇÃO:
-- Use APENAS HTML semântico (h2, h3, p, ul, ol, li, strong, em, hr)
-- Separadores <hr> entre TODAS as seções
-- Negrito (<strong>) para termos-chave
-- Itálico (<em>) apenas para tagline
+REGRAS DE FORMATAÇÃO CRÍTICAS:
+- Títulos de seção SEMPRE em <h2> com texto em MAIÚSCULO seguido de dois pontos (ex: <h2>BENEFÍCIOS DO KIT:</h2>)
+- NUNCA use <h3> — use SEMPRE <h2> para títulos de seção
+- Use <br> (tag de quebra de linha) ENTRE CADA seção para dar espaçamento visual
+- Cada parágrafo em sua PRÓPRIA tag <p> — NUNCA junte múltiplos parágrafos em um único <p>
+- Quando há lista de itens, SEMPRE use <ul> com <li> — NUNCA coloque como parágrafos <p> separados
+- <strong> para labels/nomes de funcionalidades
+- <em> para taglines/frases de destaque
 - NUNCA use markdown
 - Escreva em português brasileiro`;
 
