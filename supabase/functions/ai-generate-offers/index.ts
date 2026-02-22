@@ -19,16 +19,25 @@ const OFFER_TYPE_LABELS: Record<string, string> = {
   buy_together: 'Compre Junto (exibido na página do produto)',
 };
 
-function buildSystemPrompt(type: string, discountType: string, discountValue: number): string {
+function buildSystemPrompt(type: string, discountType: string, discountValue: number, productCount: number, existingTriggerIds: string[]): string {
   const discountDesc = discountType === 'none'
     ? 'Sem desconto aplicado.'
     : discountType === 'percent'
       ? `Desconto de ${discountValue}% sobre o preço do produto sugerido.`
       : `Desconto fixo de R$ ${discountValue} sobre o preço do produto sugerido.`;
 
+  const existingNote = existingTriggerIds.length > 0
+    ? `\n\n## REGRAS JÁ EXISTENTES\nJá existem ${existingTriggerIds.length} regras cadastradas. Os seguintes product IDs JÁ SÃO gatilhos de regras existentes e NÃO devem ser usados como gatilho novamente:\n${JSON.stringify(existingTriggerIds)}\n\nSe houver dados de vendas disponíveis, use-os para priorizar sugestões mais relevantes. Caso contrário, continue usando a lógica de kits.`
+    : '';
+
   return `Você é um especialista em e-commerce e estratégias de aumento de ticket médio.
 
 Sua tarefa é gerar regras de ofertas do tipo "${OFFER_TYPE_LABELS[type] || type}" para uma loja online.
+
+## REGRA CRÍTICA DE QUANTIDADE
+Você DEVE gerar EXATAMENTE UMA oferta para CADA produto individual elegível (não-kit) que ainda não tenha regra cadastrada.
+O catálogo tem ${productCount} produtos. Gere o MÁXIMO possível de sugestões — uma para cada produto elegível.
+NÃO limite a 10 sugestões. Gere TODAS as possibilidades.
 
 ## Estratégia Principal: Lógica de Composição de Kits
 
@@ -38,6 +47,7 @@ A fonte principal de dados são os KITS (produtos compostos). Analise quais prod
 - Se um produto individual faz parte de um kit, ao comprá-lo isoladamente, sugira os OUTROS componentes do kit para "completar o kit".
 - Exemplo: Kit Banho = Shampoo + Balm + Loção. Se o cliente compra Shampoo, sugira Balm e Loção.
 - Priorize produtos que compartilham o mesmo kit.
+- Para produtos que NÃO fazem parte de nenhum kit, sugira produtos complementares pela categoria ou faixa de preço.
 
 ### Para Order Bump:
 - Sugira produtos complementares de MENOR valor no checkout.
@@ -51,13 +61,14 @@ A fonte principal de dados são os KITS (produtos compostos). Analise quais prod
 
 ## Desconto
 ${discountDesc}
+${existingNote}
 
 ## Regras Importantes:
-1. NÃO crie regras duplicadas (verifique as regras existentes).
+1. NÃO crie regras para produtos que já são gatilho em regras existentes.
 2. NÃO sugira o mesmo produto como gatilho e como sugestão.
 3. Cada sugestão deve ter um nome descritivo, título para o cliente e descrição curta.
 4. O "reasoning" deve explicar a lógica por trás da sugestão.
-5. Gere entre 3 e 10 sugestões relevantes, sem exagerar.
+5. Gere UMA sugestão para CADA produto elegível. TODAS as possibilidades, sem limite.
 6. Use nomes comerciais amigáveis nos títulos (não IDs ou SKUs).
 7. Kits NÃO devem ser usados como produto gatilho para cross-sell/compre junto (quem compra kit já tem tudo).
 8. Produtos individuais que fazem parte de kits são os melhores gatilhos.`;
@@ -192,7 +203,24 @@ ${custom_prompt ? `## Instruções Adicionais do Lojista\n${custom_prompt}` : ''
 
 Gere sugestões de ofertas do tipo "${type}" usando a ferramenta generate_offer_suggestions.`;
 
-    const systemPrompt = buildSystemPrompt(type, discount_type || 'none', discount_value || 0);
+    // Extrair IDs de produtos que já são gatilho em regras existentes
+    const existingTriggerIds: string[] = [];
+    if (type === 'buy_together') {
+      for (const r of existingRules) {
+        if (r.trigger_product_id) existingTriggerIds.push(r.trigger_product_id);
+      }
+    } else {
+      for (const r of existingRules) {
+        if (r.trigger_product_ids) existingTriggerIds.push(...r.trigger_product_ids);
+      }
+    }
+    const uniqueExistingTriggers = [...new Set(existingTriggerIds)];
+
+    // Contar produtos elegíveis (não-kit e sem regra existente)
+    const eligibleProducts = productMap.filter(p => !p.is_kit && !uniqueExistingTriggers.includes(p.id));
+    console.log(`[ai-generate-offers] ${eligibleProducts.length} produtos elegíveis (sem regra existente)`);
+
+    const systemPrompt = buildSystemPrompt(type, discount_type || 'none', discount_value || 0, eligibleProducts.length, uniqueExistingTriggers);
 
     // 5. Chamar IA com tool calling
     const toolDef = {
