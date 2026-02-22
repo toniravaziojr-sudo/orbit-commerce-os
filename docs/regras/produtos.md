@@ -272,11 +272,22 @@ graph TD
 
 #### 7.2.1 Layout dos Botões de Ação
 
-Os botões "Cancelar" e "Criar Produto" / "Salvar Alterações" ficam **sticky na parte inferior** da tela (`sticky bottom-0`) com:
+Os botões "Cancelar" e "Criar Produto" / "Salvar Alterações" ficam **fixos na parte inferior** da tela (`fixed bottom-0`) com:
 - Fundo `bg-background` e `border-t` para separação visual
-- Margem negativa horizontal (`-mx-4 md:-mx-6`) para alinhar com o padding do `main`
+- Largura calculada (`calc(100% - sidebar)`) para não sobrepor sidebar
 - `z-10` para ficar acima do conteúdo ao rolar
+- `pb-20` no container principal para garantir que todo conteúdo seja acessível
 - Mensagem de erros de validação exibida ao lado dos botões
+
+### 7.3 Produtos Relacionados
+
+| Elemento | Comportamento |
+|----------|---------------|
+| **Toggle automático** | "Escolher automaticamente com IA" — ativa/desativa via `store_settings.auto_related_products` |
+| **Seleção manual** | Busca e seleciona produtos manualmente quando o toggle está desativado |
+| **Persistência** | Salvo via Edge Function `core-products` action `updateRelated` |
+
+> **Nota**: O botão "Gerar com IA" foi substituído pelo toggle automático. A IA seleciona produtos por compatibilidade e histórico de vendas.
 
 ---
 

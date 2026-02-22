@@ -141,6 +141,7 @@ A Loja Virtual é o módulo central de e-commerce que permite criar, personaliza
 | `showReviews` | boolean | true | Avaliações |
 | `showBuyTogether` | boolean | true | Compre Junto |
 | `showRelatedProducts` | boolean | true | Produtos relacionados |
+| `relatedProductsTitle` | string | "Produtos Relacionados" | Título customizável (visível quando `showRelatedProducts` = true) |
 | `showShippingCalculator` | boolean | true | Calculadora de frete |
 
 ### 4. Carrinho
