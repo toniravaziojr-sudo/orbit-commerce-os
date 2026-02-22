@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.2.0"; // Prompt: copiar fielmente ao invés de reescrever + formatação HTML adequada
+const VERSION = "v2.3.0"; // Fix: formatação HTML com títulos em h2/h3, listas separadas, hr entre seções
 // ===========================================================
 
 const corsHeaders = {
@@ -86,24 +86,49 @@ REGRAS ABSOLUTAS — SIGA RIGOROSAMENTE:
 4. A última linha DEVE ser uma tag HTML de fechamento.
 5. NÃO reescreva, NÃO resuma, NÃO invente. COPIE o conteúdo original fielmente.
 6. Apenas FORMATE o conteúdo existente em HTML — o texto deve ser o MESMO da página original.
-7. Inclua TODAS as seções que existem na página: descrição, funcionalidades, benefícios, composição, modo de uso, especificações, ANVISA, notas, etc.
-8. NÃO OMITA nenhuma seção ou informação. A descrição deve ser COMPLETA.
+7. Inclua TODAS as seções que existem na página. NÃO OMITA nenhuma seção ou informação.
+8. GERE O HTML COMPLETO — NÃO TRUNCE.
 
-FORMATAÇÃO HTML:
-- <h2> para o nome do produto (título principal)
-- <h3> para títulos de seção (DESCRIÇÃO, AÇÃO / FUNCIONALIDADES, BENEFÍCIOS, COMPOSIÇÃO, MODO DE USO, ESPECIFICAÇÕES, etc.)
-- <p> para parágrafos de texto
-- <ul>/<li> para listas de itens
-- <ol>/<li> para listas ordenadas/numeradas
-- <strong> para termos em negrito (nomes de funcionalidades, ingredientes, labels de especificações)
-- <em> para texto em itálico (taglines, frases de destaque)
-- <hr> como separador entre CADA seção
-- Cada parágrafo deve estar em sua própria tag <p> (NÃO junte tudo em um único <p>)
-- Cada item de lista em sua própria tag <li>
+ESTRUTURA HTML OBRIGATÓRIA — SIGA ESTE MODELO EXATO:
+
+<h2>NOME DO PRODUTO EM MAIÚSCULO</h2>
+<p><em>Frase de impacto / tagline se existir na página</em></p>
+<p>Parágrafo introdutório (copiar da página original).</p>
+<p>Segundo parágrafo se existir (CADA parágrafo em sua própria tag p).</p>
+<hr>
+<h2>TÍTULO DA SEÇÃO EM MAIÚSCULO:</h2>
+<ol>
+<li><strong>Nome do item:</strong> descrição do item</li>
+</ol>
+<hr>
+<h2>BENEFÍCIOS PRINCIPAIS:</h2>
+<ul>
+<li>Item de benefício</li>
+</ul>
+<hr>
+<h2>MODO DE USO:</h2>
+<p>Primeiro passo.</p>
+<p>Segundo passo.</p>
+<hr>
+<h2>COMPOSIÇÃO:</h2>
+<p>Texto da composição.</p>
+<p><strong>Peso líquido:</strong> valor</p>
+<p><strong>Registro ANVISA:</strong> número</p>
+<hr>
+<h2>OBSERVAÇÃO:</h2>
+<p>Texto da observação.</p>
+
+REGRAS DE FORMATAÇÃO CRÍTICAS:
+- Títulos de seção SEMPRE em <h2> com texto em MAIÚSCULO seguido de dois pontos (ex: <h2>BENEFÍCIOS PRINCIPAIS:</h2>)
+- NUNCA use <h3> para títulos de seção — use SEMPRE <h2>
+- Separador <hr> ENTRE CADA seção (antes do próximo <h2>)
+- Cada parágrafo em sua PRÓPRIA tag <p> — NUNCA junte múltiplos parágrafos em um único <p>
+- Listas de itens em <ul>/<li> ou <ol>/<li> — NUNCA como texto corrido
+- <strong> para labels/nomes de funcionalidades (ex: <strong>Aumenta o volume:</strong>)
+- <em> para taglines/frases de destaque
 - NUNCA use markdown (**, ##, -, etc.)
-- NUNCA junte múltiplos parágrafos em uma única tag <p>
-- Escreva em português brasileiro
-- GERE O HTML COMPLETO — NÃO TRUNCE`;
+- Se a página tem itens numerados (1, 2, 3...) use <ol>, se não numerados use <ul>
+- Escreva em português brasileiro`;
 
 const SYSTEM_PROMPT_KIT = `Você é um copywriter profissional especializado em e-commerce brasileiro.
 
