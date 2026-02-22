@@ -52,6 +52,14 @@ const ACTION_LABELS: Record<string, string> = {
   strategic_plan: "Plano Estratégico",
 };
 
+/** Returns dynamic label considering reuse from Drive */
+function getActionLabel(action: AutopilotAction): string {
+  if (action.action_type === "generate_creative" && action.action_data?.reused) {
+    return "Criativo Reaproveitado";
+  }
+  return ACTION_LABELS[action.action_type] || action.action_type;
+}
+
 const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: any }> = {
   executed: { label: "Executada", variant: "default", icon: CheckCircle2 },
   validated: { label: "Validada", variant: "secondary", icon: Clock },
@@ -228,7 +236,7 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-sm">
-                      {ACTION_LABELS[action.action_type] || action.action_type}
+                      {getActionLabel(action)}
                     </span>
                     {entityName && !entityName.startsWith("ID:") && (
                       <span className="text-xs text-muted-foreground truncate max-w-[300px]" title={entityName}>
