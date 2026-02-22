@@ -654,7 +654,7 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v5.15.0
+### Versão Atual: v5.16.0
 
 ### v5.11.0: Pipeline de Criativos + Propagação de Funil + Strategy Run ID
 - **Propagação de `funnel_stage`**: `generateCreativeImage` aceita e normaliza `funnel_stage` (valores válidos: `tof`, `mof`, `bof`, `test`, `leads`). Propaga para `ads-autopilot-creative` junto com `session_id`
@@ -814,6 +814,7 @@ O system prompt inclui uma **"Regra Suprema: Honestidade Absoluta"** que proíbe
 | `get_autopilot_actions` | Lista ações executadas/agendadas pelo Autopilot | Leitura |
 | `get_autopilot_insights` | Lista insights e diagnósticos reais | Leitura |
 | `get_autopilot_sessions` | Histórico de sessões de análise do Autopilot | Leitura |
+| `get_strategic_plan` | **v5.16.0** — Lê o conteúdo COMPLETO do plano estratégico mais recente (diagnóstico, ações planejadas com hierarquia Campanha > Conjunto > Anúncio, timeline, riscos). Inclui ações relacionadas da mesma sessão. Filtro opcional por status | Leitura |
 | `get_tracking_health` | Status de saúde do tracking (pixels, conversões) | Leitura |
 | `get_experiments` | Lista experimentos/testes A/B ativos e finalizados | Leitura |
 | `get_products` | Lista produtos ativos com nome, preço, custo, estoque e imagens | Leitura |
@@ -944,6 +945,7 @@ A sync com paginação completa + chunking permite capturar **100% dos dados his
 | v5.11.0 | 2026-02-18 | **Pipeline de Criativos Determinístico + Integridade Operacional**: Seleção determinística em 2 níveis (Ready/Published) com filtro por `funnel_stage` e unicidade por sessão. Estado persistente (`used_asset_ids`, `used_adcreative_ids`, `media_blocked`, `strategy_run_id`) em `ads_autopilot_sessions`. Pós-condições estritas (executed só com cadeia completa verificada via Graph API GET). Validação de mídia pós-criação. Idempotency v2 com `batch_index`. Detecção/bloqueio seletivo de erro de mídia (Nível 1 bloqueado, Nível 2 continua). Regra `creative_test` por `session_id`. System prompt com regras de criativos. Propagação de `funnel_stage`, `session_id` e `strategy_run_id` no ads-chat. |
 | v5.11.3 | 2026-02-18 | **User Command Artifacts + Override com Confirmação**: Novas tools `persist_user_command` e `confirm_user_command` para fluxo de override seguro. Comandos do usuário persistidos como `artifact_type='user_command'` em `ads_autopilot_artifacts`. Conflitos com guardrails geram `status='awaiting_confirmation'` com alerta ao usuário. Após confirmação explícita, status evolui para `confirmed` e execução prossegue com `override=true`. Auditoria completa: `conflicts_acknowledged`, `confirmation_timestamp`, `confirmed_by`. |
 | v5.15.0 | 2026-02-22 | **Plano Estratégico via Chat**: Nova tool `trigger_strategic_plan` que invoca o Motor Estrategista (`ads-autopilot-strategist`) diretamente do chat. Gera plano completo com diagnóstico profundo, hierarquia Campanha > Conjunto > Anúncio e status `pending_approval`. Regra de decisão no prompt: plano abrangente → `trigger_strategic_plan`; campanha avulsa/específica → `create_meta_campaign`. Ação logada como `strategic_plan` em `ads_autopilot_actions`. |
+| v5.16.0 | 2026-02-22 | **Leitura Completa do Plano Estratégico**: Nova tool `get_strategic_plan` que retorna o conteúdo COMPLETO do plano estratégico mais recente — diagnóstico, `planned_actions` com hierarquia Campanha > Conjunto > Anúncio, timeline, riscos e resultados esperados. Também busca ações relacionadas da mesma sessão (implementações de campanhas). Regra de decisão atualizada: leitura de plano → `get_strategic_plan`; criação de novo plano → `trigger_strategic_plan`; campanha pontual → `create_meta_campaign`. |
 
 ### Regras de User Command Override — `ads-chat` v5.11.3
 

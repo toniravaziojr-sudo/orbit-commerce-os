@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.15.0"; // Add trigger_strategic_plan tool for chat-driven strategy
+const VERSION = "v5.16.0"; // Add get_strategic_plan tool for full plan reading
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -278,6 +278,21 @@ const TOOLS = [
         type: "object",
         properties: {
           limit: { type: "number", description: "Quantidade (default 10)" },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_strategic_plan",
+      description: "Lê o conteúdo COMPLETO do plano estratégico mais recente (ou por status). Retorna diagnóstico, ações planejadas com hierarquia Campanha > Conjunto > Anúncio, timeline, riscos e resultados esperados. Use quando o lojista perguntar sobre o plano atual, quiser saber o que foi planejado, pedir para ler/resumir o plano, ou qualquer referência ao plano estratégico existente.",
+      parameters: {
+        type: "object",
+        properties: {
+          status: { type: "string", enum: ["pending_approval", "approved", "rejected", "superseded", "executed"], description: "Filtrar por status (default: retorna o mais recente independente do status)" },
         },
         required: [],
         additionalProperties: false,
@@ -666,6 +681,8 @@ async function executeTool(
         return await getAutopilotInsights(supabase, tenantId, args.status);
       case "get_autopilot_sessions":
         return await getAutopilotSessions(supabase, tenantId, args.limit);
+      case "get_strategic_plan":
+        return await getStrategicPlan(supabase, tenantId, args.status);
       case "get_experiments":
         return await getExperiments(supabase, tenantId, args.status);
       case "get_google_campaigns":
@@ -2112,6 +2129,73 @@ async function getAutopilotSessions(supabase: any, tenantId: string, limit?: num
   });
 }
 
+async function getStrategicPlan(supabase: any, tenantId: string, status?: string) {
+  let query = supabase.from("ads_autopilot_actions")
+    .select("id, action_type, channel, status, reasoning, confidence, expected_impact, rejection_reason, action_data, session_id, created_at, executed_at")
+    .eq("tenant_id", tenantId)
+    .eq("action_type", "strategic_plan")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  
+  if (status) {
+    query = query.eq("status", status);
+  }
+  
+  const { data, error } = await query;
+  if (error) return JSON.stringify({ error: error.message });
+  
+  if (!data || data.length === 0) {
+    return JSON.stringify({ found: false, message: "Nenhum plano estratégico encontrado" + (status ? ` com status '${status}'` : "") });
+  }
+  
+  const plan = data[0];
+  const ad = plan.action_data || {};
+  
+  // Also fetch all pending_approval actions from same session (implement_campaigns results)
+  let pendingActions: any[] = [];
+  if (plan.session_id) {
+    const { data: sessionActions } = await supabase.from("ads_autopilot_actions")
+      .select("id, action_type, status, reasoning, action_data, created_at")
+      .eq("tenant_id", tenantId)
+      .eq("session_id", plan.session_id)
+      .neq("action_type", "strategic_plan")
+      .order("created_at", { ascending: true })
+      .limit(50);
+    pendingActions = sessionActions || [];
+  }
+  
+  return JSON.stringify({
+    found: true,
+    plan: {
+      id: plan.id,
+      status: plan.status,
+      channel: plan.channel,
+      created_at: plan.created_at,
+      executed_at: plan.executed_at,
+      rejection_reason: plan.rejection_reason,
+      // Full strategic plan content
+      diagnosis: ad.diagnosis || null,
+      planned_actions: ad.planned_actions || [],
+      timeline: ad.timeline || null,
+      expected_results: ad.preview?.copy_text || null,
+      ad_account_id: ad.ad_account_id || null,
+      campaign_name: ad.campaign_name || null,
+      reasoning: plan.reasoning,
+    },
+    // Related actions from implementation
+    related_actions: pendingActions.map((a: any) => ({
+      action_type: a.action_type,
+      status: a.status,
+      campaign_name: a.action_data?.campaign_name || null,
+      daily_budget: a.action_data?.daily_budget_cents ? `R$ ${(a.action_data.daily_budget_cents / 100).toFixed(2)}` : (a.action_data?.daily_budget_brl ? `R$ ${a.action_data.daily_budget_brl}` : null),
+      adsets: a.action_data?.adsets || a.action_data?.adset_name || null,
+      reasoning: a.reasoning?.substring(0, 300) || null,
+      created_at: a.created_at,
+    })),
+    total_related_actions: pendingActions.length,
+  });
+}
+
 async function getExperiments(supabase: any, tenantId: string, status?: string) {
   const query = supabase.from("ads_autopilot_experiments").select("id, hypothesis, variable_type, channel, status, start_at, end_at, budget_cents, results, winner_variant_id, created_at").eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(15);
   if (status) query.eq("status", status);
@@ -2866,6 +2950,7 @@ NUNCA exponha termos técnicos internos. Use SEMPRE a linguagem da interface.
 | get_autopilot_actions | ver ações da IA |
 | get_autopilot_insights | ver diagnósticos |
 | get_autopilot_sessions | ver histórico de execuções |
+| get_strategic_plan | ver/ler plano estratégico |
 | update_autopilot_config | atualizar configurações da IA |
 | trigger_autopilot_analysis | rodar análise |
 | get_creative_assets | ver criativos existentes |
@@ -3272,10 +3357,11 @@ Exemplo: Se budget = R$ 600/dia e splits = {cold: 40, remarketing: 25, tests: 25
 - Testes: R$ 150/dia
 - Leads: R$ 60/dia
 
-## QUANDO USAR trigger_strategic_plan vs create_meta_campaign
-- **trigger_strategic_plan**: Quando o lojista pedir "crie um plano", "monte uma estratégia", "quero um plano estratégico", "faça uma análise e planeje campanhas". Gera um plano completo com diagnóstico e ações planejadas que o lojista revisa e aprova na aba "Plano Estratégico".
+## QUANDO USAR get_strategic_plan vs trigger_strategic_plan vs create_meta_campaign
+- **get_strategic_plan**: Quando o lojista perguntar sobre o plano atual, quiser saber o que foi planejado, pedir para ler/resumir/explicar o plano, ou fizer qualquer referência ao plano estratégico existente ("qual é o plano?", "o que você planejou?", "me explica o plano", "consegue ler o plano?", "qual era o diagnóstico?"). Retorna o conteúdo COMPLETO do plano incluindo diagnóstico, ações planejadas, timeline e riscos.
+- **trigger_strategic_plan**: Quando o lojista pedir para CRIAR um NOVO plano ("crie um plano", "monte uma estratégia", "quero um plano estratégico", "faça uma análise e planeje campanhas"). Gera um plano completo com diagnóstico e ações planejadas que o lojista revisa e aprova.
 - **create_meta_campaign**: Quando o lojista pedir para criar uma campanha ESPECÍFICA rapidamente ("cria uma campanha para o produto X", "sobe um anúncio do shampoo"). Execução direta sem plano formal.
-- **Regra**: Se o pedido envolver múltiplas campanhas, diagnóstico ou estratégia de funil completa, use trigger_strategic_plan. Se for uma campanha pontual, use create_meta_campaign.
+- **Regra**: Se o pedido envolver LEITURA do plano → get_strategic_plan. Se envolver CRIAÇÃO de novo plano → trigger_strategic_plan. Se for campanha pontual → create_meta_campaign.
 
 ## FLUXO PARA CRIAR CAMPANHAS (via create_meta_campaign)
 1. Consultar catálogo (ver produtos)
