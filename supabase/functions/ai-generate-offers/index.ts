@@ -116,10 +116,11 @@ serve(async (req) => {
     console.log(`[ai-generate-offers] ${products?.length || 0} produtos ativos`);
 
     // 2. Buscar composição de kits
+    const productIds = (products || []).map((p: any) => p.id);
     const { data: components, error: compError } = await supabase
       .from('product_components')
       .select('parent_product_id, component_product_id, quantity')
-      .eq('tenant_id', tenant_id);
+      .in('parent_product_id', productIds);
 
     if (compError) throw compError;
     console.log(`[ai-generate-offers] ${components?.length || 0} componentes de kits`);
