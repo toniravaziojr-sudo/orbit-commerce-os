@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.0.0"; // Novos modos: from_link (Firecrawl) e from_kit (composição)
+const VERSION = "v2.1.0"; // Fix: max_tokens para evitar truncamento + prompt melhorado
 // ===========================================================
 
 const corsHeaders = {
@@ -77,7 +77,7 @@ REGRAS DE FORMATAÇÃO:
 const SYSTEM_PROMPT_FROM_LINK = `Você é um copywriter profissional especializado em e-commerce brasileiro.
 
 Você receberá o conteúdo extraído de uma página de produto de outro site.
-Sua tarefa: criar uma descrição HTML profissional para este produto usando as informações extraídas.
+Sua tarefa: criar uma descrição HTML COMPLETA e DETALHADA para este produto usando TODAS as informações extraídas.
 
 REGRAS ABSOLUTAS — SIGA RIGOROSAMENTE:
 1. Retorne APENAS o HTML da descrição. NADA MAIS.
@@ -86,9 +86,11 @@ REGRAS ABSOLUTAS — SIGA RIGOROSAMENTE:
 4. A primeira linha da sua resposta DEVE ser uma tag HTML (ex: <h2>).
 5. A última linha DEVE ser uma tag HTML de fechamento.
 6. Reescreva o conteúdo com suas próprias palavras — NÃO copie textualmente.
-7. Extraia TODAS as informações relevantes: ingredientes, modo de uso, especificações, benefícios.
+7. Extraia TODAS as informações relevantes: ingredientes, modo de uso, especificações, benefícios, composição, registro ANVISA, etc.
+8. NÃO OMITA nenhuma seção. Inclua TODAS as seções que fizerem sentido para o produto.
+9. A descrição deve ser COMPLETA — não pare no meio. Gere TODO o conteúdo até o final.
 
-ESTRUTURA HTML OBRIGATÓRIA:
+ESTRUTURA HTML OBRIGATÓRIA (inclua TODAS as seções aplicáveis):
 <h2>NOME DO PRODUTO</h2>
 <p><em>Frase de impacto / tagline persuasiva</em></p>
 <p>Parágrafo introdutório apresentando o produto de forma envolvente.</p>
@@ -111,6 +113,14 @@ ESTRUTURA HTML OBRIGATÓRIA:
 <li>Benefício secundário.</li>
 </ul>
 <hr>
+<h3>COMPOSIÇÃO</h3> (se aplicável)
+<ul>
+<li><strong>Ingrediente:</strong> Função.</li>
+</ul>
+<hr>
+<h3>MODO DE USO</h3> (se aplicável)
+<p>Instruções passo a passo.</p>
+<hr>
 <h3>ESPECIFICAÇÕES</h3>
 <ul>
 <li><strong>Item:</strong> Valor</li>
@@ -122,9 +132,10 @@ REGRAS DE FORMATAÇÃO:
 - Negrito (<strong>) para termos-chave
 - Itálico (<em>) apenas para tagline
 - NUNCA use markdown (**, ##, -, etc.)
-- Adapte seções ao tipo de produto
-- Se tiver composição/ingredientes ou modo de uso, adicione como seção extra
-- Escreva em português brasileiro`;
+- Adapte seções ao tipo de produto — inclua TODAS que forem relevantes
+- Se tiver composição/ingredientes, modo de uso, registro ANVISA ou qualquer info técnica, OBRIGATÓRIO incluir
+- Escreva em português brasileiro
+- GERE A DESCRIÇÃO COMPLETA — NÃO TRUNCE`;
 
 const SYSTEM_PROMPT_KIT = `Você é um copywriter profissional especializado em e-commerce brasileiro.
 
@@ -364,6 +375,7 @@ serve(async (req) => {
         { role: "system", content: systemPrompt },
         { role: "user", content: userContent },
       ],
+      max_tokens: 8192,
     }, {
       supabaseUrl,
       supabaseServiceKey,
