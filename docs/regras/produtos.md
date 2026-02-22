@@ -270,6 +270,14 @@ graph TD
 | **SEO** | Título, descrição, contador de caracteres |
 | **Categorias** | Vincular a múltiplas categorias |
 
+#### 7.2.1 Layout dos Botões de Ação
+
+Os botões "Cancelar" e "Criar Produto" / "Salvar Alterações" ficam **sticky na parte inferior** da tela (`sticky bottom-0`) com:
+- Fundo `bg-background` e `border-t` para separação visual
+- Margem negativa horizontal (`-mx-4 md:-mx-6`) para alinhar com o padding do `main`
+- `z-10` para ficar acima do conteúdo ao rolar
+- Mensagem de erros de validação exibida ao lado dos botões
+
 ---
 
 ## 8. Regras de Negócio
