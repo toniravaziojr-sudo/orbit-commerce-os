@@ -47,6 +47,13 @@ const PERMISSION_MAP: Record<string, string[]> = {
   // Frete
   updateShippingSettings: ["owner", "admin", "manager"],
   
+  // Composição de Kits
+  addProductComponent: ["owner", "admin", "manager", "editor"],
+  removeProductComponent: ["owner", "admin", "manager", "editor"],
+  listProductComponents: ["owner", "admin", "manager", "editor", "viewer"],
+  bulkSetCompositionType: ["owner", "admin", "manager"],
+  autoCreateKitCompositions: ["owner", "admin", "manager"],
+  
   // Relatórios
   inventoryReport: ["owner", "admin", "manager", "editor", "viewer"],
   customersReport: ["owner", "admin", "manager", "viewer"],
@@ -1114,6 +1121,173 @@ async function executeTool(
         success: true,
         message: `✅ Configurações de frete atualizadas!`,
         data: newSettings.shipping,
+      };
+    }
+
+    // ==================== COMPOSIÇÃO DE KITS ====================
+    case "addProductComponent": {
+      const { parentProductId, componentProductId, quantity } = tool_args;
+      
+      // Ensure parent is with_composition format
+      await supabase
+        .from("products")
+        .update({ product_format: "with_composition", stock_type: "virtual", updated_at: new Date().toISOString() })
+        .eq("id", parentProductId)
+        .eq("tenant_id", tenant_id);
+      
+      // Check self-reference
+      if (parentProductId === componentProductId) {
+        return { success: false, error: "Um produto não pode ser componente dele mesmo." };
+      }
+      
+      // Check if component is also a kit
+      const { data: compProduct } = await supabase
+        .from("products")
+        .select("product_format, name")
+        .eq("id", componentProductId)
+        .single();
+      
+      if (compProduct?.product_format === "with_composition") {
+        return { success: false, error: `"${compProduct.name}" já é um kit. Não é permitido adicionar um kit como componente.` };
+      }
+      
+      const { error: insertErr } = await supabase
+        .from("product_components")
+        .insert({
+          parent_product_id: parentProductId,
+          component_product_id: componentProductId,
+          quantity,
+          sort_order: 0,
+        });
+      
+      if (insertErr) {
+        if (insertErr.code === "23505") {
+          return { success: false, error: "Este componente já foi adicionado ao kit." };
+        }
+        throw new Error(insertErr.message);
+      }
+      
+      // Get names for message
+      const { data: parentProd } = await supabase.from("products").select("name").eq("id", parentProductId).single();
+      
+      return {
+        success: true,
+        message: `✅ Componente "${compProduct?.name}" adicionado ao kit "${parentProd?.name}" (qty: ${quantity})`,
+      };
+    }
+
+    case "removeProductComponent": {
+      const { parentProductId, componentProductId } = tool_args;
+      
+      const { error: delErr, count } = await supabase
+        .from("product_components")
+        .delete()
+        .eq("parent_product_id", parentProductId)
+        .eq("component_product_id", componentProductId);
+      
+      if (delErr) throw new Error(delErr.message);
+      
+      return {
+        success: true,
+        message: `✅ Componente removido do kit.`,
+      };
+    }
+
+    case "listProductComponents": {
+      const { parentProductId } = tool_args;
+      
+      const { data: comps, error: listErr } = await supabase
+        .from("product_components")
+        .select(`
+          quantity, sort_order,
+          component:products!component_product_id(id, name, sku, price, stock_quantity)
+        `)
+        .eq("parent_product_id", parentProductId)
+        .order("sort_order");
+      
+      if (listErr) throw new Error(listErr.message);
+      
+      const { data: parentProd } = await supabase.from("products").select("name, stock_type").eq("id", parentProductId).single();
+      
+      if (!comps || comps.length === 0) {
+        return { success: true, message: `📦 Kit "${parentProd?.name}" não possui componentes cadastrados.`, data: [] };
+      }
+      
+      const lines = comps.map((c: any, i: number) => 
+        `${i+1}. ${c.component?.name} (SKU: ${c.component?.sku}) — Qtd: ${c.quantity}`
+      ).join("\n");
+      
+      return {
+        success: true,
+        message: `📦 **Composição do kit "${parentProd?.name}"** (Tipo: ${parentProd?.stock_type === 'virtual' ? 'Virtual' : 'Físico'})\n\n${lines}`,
+        data: comps,
+      };
+    }
+
+    case "bulkSetCompositionType": {
+      const { stockType, productIds } = tool_args;
+      
+      if (!["physical", "virtual"].includes(stockType)) {
+        return { success: false, error: "Tipo deve ser 'physical' ou 'virtual'." };
+      }
+      
+      let query = supabase
+        .from("products")
+        .update({ stock_type: stockType, updated_at: new Date().toISOString() })
+        .eq("tenant_id", tenant_id)
+        .eq("product_format", "with_composition");
+      
+      if (productIds && productIds.length > 0) {
+        query = query.in("id", productIds);
+      }
+      
+      const { data, error: updErr } = await query.select("id");
+      
+      if (updErr) throw new Error(updErr.message);
+      
+      const label = stockType === "virtual" ? "Virtual" : "Físico";
+      return {
+        success: true,
+        message: `✅ Tipo de composição alterado para **${label}** em ${data?.length || 0} kit(s)!`,
+        data: { affected: data?.length || 0 },
+      };
+    }
+
+    case "autoCreateKitCompositions": {
+      // Find kits with_composition but no components
+      const { data: kitsWithout } = await supabase
+        .from("products")
+        .select("id, name, sku")
+        .eq("tenant_id", tenant_id)
+        .eq("product_format", "with_composition")
+        .is("deleted_at", null);
+      
+      if (!kitsWithout || kitsWithout.length === 0) {
+        return { success: true, message: "Nenhum kit encontrado." };
+      }
+      
+      // Check which have no components
+      const missing: any[] = [];
+      for (const kit of kitsWithout) {
+        const { count } = await supabase
+          .from("product_components")
+          .select("id", { count: "exact", head: true })
+          .eq("parent_product_id", kit.id);
+        
+        if (count === 0) {
+          missing.push(kit);
+        }
+      }
+      
+      if (missing.length === 0) {
+        return { success: true, message: "✅ Todos os kits já possuem composição!" };
+      }
+      
+      const lines = missing.map((k: any) => `• ${k.name} (SKU: ${k.sku})`).join("\n");
+      return {
+        success: true,
+        message: `⚠️ **${missing.length} kit(s) sem composição encontrados:**\n\n${lines}\n\nPara cada kit, me diga quais produtos devem compor e em qual quantidade.`,
+        data: { kitsWithoutComposition: missing },
       };
     }
 
