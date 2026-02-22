@@ -347,8 +347,9 @@ graph TD
 3. **Processo**:
    - Sistema faz scrape da página via Firecrawl (`FIRECRAWL_API_KEY`)
    - Extrai conteúdo em markdown
-   - IA gera descrição HTML a partir do conteúdo extraído
-4. **Formato**: HTML semântico com estrutura obrigatória (h2, h3, ul, ol, hr)
+   - IA **copia fielmente** o conteúdo da página original, apenas convertendo para HTML semântico
+   - NÃO reescreve, NÃO resume, NÃO inventa — preserva o texto original
+4. **Formato**: HTML semântico bem formatado (h2, h3, p, ul, ol, li, strong, em, hr) com cada parágrafo em sua própria tag `<p>`
 5. **Edge Function**: `ai-product-description` com `mode: 'from_link'`
 
 #### Descrição Completa (`full_description`) — Kit/Composição (via Componentes)
