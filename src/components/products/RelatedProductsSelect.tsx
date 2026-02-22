@@ -11,8 +11,9 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { X, Search, Link2 } from 'lucide-react';
+import { X, Search, Link2, Sparkles, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -32,6 +33,27 @@ export function RelatedProductsSelect({ productId }: RelatedProductsSelectProps)
   const { currentTenant } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // AI Generate related products for this single product
+  const handleAIGenerate = async () => {
+    if (!currentTenant?.id) return;
+    setIsGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-generate-related-products', {
+        body: { tenant_id: currentTenant.id },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Erro ao gerar');
+      queryClient.invalidateQueries({ queryKey: ['related-products', productId] });
+      toast.success(`${data.relations_created} relações criadas para ${data.processed} produtos`);
+    } catch (err: any) {
+      console.error('AI generate related error:', err);
+      toast.error(err.message || 'Erro ao gerar produtos relacionados');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   // Fetch all products (excluding current) - includes active AND draft products
   // Draft products are shown so users can pre-configure relations before publishing
@@ -184,11 +206,25 @@ export function RelatedProductsSelect({ productId }: RelatedProductsSelectProps)
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="flex items-center gap-2 text-lg">
           <Link2 className="h-5 w-5" />
           Produtos Relacionados
         </CardTitle>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleAIGenerate}
+          disabled={isGenerating}
+          className="gap-1.5"
+        >
+          {isGenerating ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Sparkles className="h-3.5 w-3.5" />
+          )}
+          {isGenerating ? 'Gerando...' : 'Gerar com IA'}
+        </Button>
       </CardHeader>
       <CardContent className="space-y-3">
         {/* Selected products */}
