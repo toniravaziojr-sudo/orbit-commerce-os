@@ -561,7 +561,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-4">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={onCancel}>
           <ArrowLeft className="h-4 w-4" />
@@ -1608,7 +1608,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
             </TabsContent>
           </Tabs>
 
-          <div className="flex items-center justify-end gap-4">
+          <div className="sticky bottom-0 bg-background border-t py-4 -mx-4 px-4 md:-mx-6 md:px-6 flex items-center justify-end gap-4 z-10">
             {Object.keys(form.formState.errors).length > 0 && (
               <div className="flex items-center gap-2 text-destructive text-sm">
                 <AlertCircle className="h-4 w-4" />
