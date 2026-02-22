@@ -254,31 +254,14 @@ export function ProductStructureEditor({
                         {component.component?.sku ?? '-'}
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1 justify-center">
-                          <Input
-                            type="number"
-                            min={0.01}
-                            step={0.01}
-                            value={component.quantity}
-                            onChange={(e) => handleQuantityChange(component, parseFloat(e.target.value) || 1)}
-                            className="h-8 w-16 text-center"
-                          />
-                          <div className="flex gap-0.5">
-                            {[2, 3, 5].map((multiplier) => (
-                              <Button
-                                key={multiplier}
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-7 w-7 p-0 text-xs font-medium"
-                                onClick={() => handleQuantityChange(component, component.quantity * multiplier)}
-                                title={`Multiplicar por ${multiplier}`}
-                              >
-                                {multiplier}x
-                              </Button>
-                            ))}
-                          </div>
-                        </div>
+                        <Input
+                          type="number"
+                          min={0.01}
+                          step={0.01}
+                          value={component.quantity}
+                          onChange={(e) => handleQuantityChange(component, parseFloat(e.target.value) || 1)}
+                          className="h-8 w-20 text-center mx-auto"
+                        />
                       </TableCell>
                       <TableCell>
                         <Button
