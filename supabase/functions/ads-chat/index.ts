@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.16.0"; // Add get_strategic_plan tool for full plan reading
+const VERSION = "v5.17.0"; // Add Google Ads CRUD tools (ad groups, keywords, ads, campaigns)
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -319,13 +319,126 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_google_campaigns",
-      description: "Busca campanhas e performance do Google Ads.",
+      description: "Busca campanhas e performance do Google Ads com métricas agregadas (spend, clicks, conversions, ROAS). Suporta Search, PMax, Shopping e Display.",
+      parameters: {
+        type: "object",
+        properties: {
+          ad_account_id: { type: "string", description: "ID da conta Google Ads (customer_id)" },
+          status_filter: { type: "string", enum: ["ENABLED", "PAUSED", "ALL"], description: "Filtrar por status (default: ALL)" },
+          days: { type: "number", description: "Janela de dias para métricas (default: 14, max: 30)" },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_google_adgroups",
+      description: "Lista grupos de anúncios Google Ads com status, bids e tipo de campanha vinculada.",
       parameters: {
         type: "object",
         properties: {
           ad_account_id: { type: "string", description: "ID da conta Google Ads (opcional)" },
+          campaign_id: { type: "string", description: "Filtrar por campanha (google_campaign_id)" },
         },
         required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_google_keywords",
+      description: "Lista keywords Google Ads com match type, quality score e status.",
+      parameters: {
+        type: "object",
+        properties: {
+          ad_account_id: { type: "string", description: "ID da conta Google Ads (opcional)" },
+          adgroup_id: { type: "string", description: "Filtrar por grupo de anúncios (google_adgroup_id)" },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_google_ads",
+      description: "Lista anúncios Google Ads (RSA, RDA, Shopping) com headlines, descriptions e status.",
+      parameters: {
+        type: "object",
+        properties: {
+          ad_account_id: { type: "string", description: "ID da conta Google Ads (opcional)" },
+          adgroup_id: { type: "string", description: "Filtrar por grupo de anúncios (opcional)" },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  // ===== ESCRITA: Google Ads =====
+  {
+    type: "function",
+    function: {
+      name: "create_google_campaign",
+      description: "Cria campanha Google Ads completa (Campanha → Ad Group → Keywords/Ads). Criada PAUSADA para aprovação humana. Suporta Search, PMax, Shopping e Display.",
+      parameters: {
+        type: "object",
+        properties: {
+          product_name: { type: "string", description: "Nome do produto (obrigatório)" },
+          campaign_name: { type: "string", description: "Nome da campanha (opcional)" },
+          campaign_type: { type: "string", enum: ["SEARCH", "PERFORMANCE_MAX", "SHOPPING", "DISPLAY"], description: "Tipo de campanha (default: SEARCH)" },
+          daily_budget_micros: { type: "number", description: "Orçamento diário em micros (R$ × 1.000.000, default: 30000000 = R$30)" },
+          bidding_strategy: { type: "string", enum: ["MAXIMIZE_CONVERSIONS", "MAXIMIZE_CONVERSION_VALUE", "TARGET_CPA", "TARGET_ROAS", "MANUAL_CPC"], description: "Estratégia de lance (default: MAXIMIZE_CONVERSIONS)" },
+          target_cpa_micros: { type: "number", description: "CPA alvo em micros (para TARGET_CPA)" },
+          target_roas: { type: "number", description: "ROAS alvo (para TARGET_ROAS, ex: 4.0)" },
+          keywords: { type: "array", items: { type: "object", properties: { text: { type: "string" }, match_type: { type: "string", enum: ["BROAD", "PHRASE", "EXACT"] } } }, description: "Keywords para Search (com match type)" },
+          headlines: { type: "array", items: { type: "string" }, description: "Headlines para RSA (máx 15, mín 3)" },
+          descriptions: { type: "array", items: { type: "string" }, description: "Descriptions para RSA (máx 4, mín 2)" },
+          final_url: { type: "string", description: "URL de destino do anúncio" },
+          ad_account_id: { type: "string", description: "ID da conta Google Ads (customer_id)" },
+          funnel_stage: { type: "string", enum: ["tof", "mof", "bof", "test"], description: "Estágio do funil" },
+        },
+        required: ["product_name"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "toggle_google_entity_status",
+      description: "Pausa ou reativa uma campanha, grupo de anúncios ou anúncio no Google Ads.",
+      parameters: {
+        type: "object",
+        properties: {
+          entity_type: { type: "string", enum: ["campaign", "adgroup", "ad", "keyword"], description: "Tipo da entidade" },
+          entity_id: { type: "string", description: "ID da entidade no Google (google_campaign_id, google_adgroup_id, etc.)" },
+          new_status: { type: "string", enum: ["ENABLED", "PAUSED"], description: "Novo status" },
+          ad_account_id: { type: "string", description: "Customer ID da conta Google Ads" },
+        },
+        required: ["entity_type", "entity_id", "new_status", "ad_account_id"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_google_budget",
+      description: "Altera o orçamento diário de uma campanha Google Ads. Valores em micros (R$ × 1.000.000).",
+      parameters: {
+        type: "object",
+        properties: {
+          campaign_id: { type: "string", description: "google_campaign_id da campanha" },
+          new_budget_micros: { type: "number", description: "Novo orçamento diário em micros (ex: 50000000 = R$50)" },
+          ad_account_id: { type: "string", description: "Customer ID da conta Google Ads" },
+        },
+        required: ["campaign_id", "new_budget_micros", "ad_account_id"],
         additionalProperties: false,
       },
     },
@@ -686,7 +799,19 @@ async function executeTool(
       case "get_experiments":
         return await getExperiments(supabase, tenantId, args.status);
       case "get_google_campaigns":
-        return await getGoogleCampaigns(supabase, tenantId, args.ad_account_id);
+        return await getGoogleCampaigns(supabase, tenantId, args.ad_account_id, args.status_filter, args.days);
+      case "get_google_adgroups":
+        return await getGoogleAdGroups(supabase, tenantId, args.ad_account_id, args.campaign_id);
+      case "get_google_keywords":
+        return await getGoogleKeywords(supabase, tenantId, args.ad_account_id, args.adgroup_id);
+      case "get_google_ads":
+        return await getGoogleAdsDetail(supabase, tenantId, args.ad_account_id, args.adgroup_id);
+      case "create_google_campaign":
+        return await createGoogleCampaign(supabase, tenantId, args, chatSessionId, strategyRunId);
+      case "toggle_google_entity_status":
+        return await toggleGoogleEntityStatus(supabase, tenantId, args, chatSessionId);
+      case "update_google_budget":
+        return await updateGoogleBudget(supabase, tenantId, args, chatSessionId);
       case "get_tiktok_campaigns":
         return await getTikTokCampaigns(supabase, tenantId, args.advertiser_id);
       case "trigger_creative_generation":
@@ -2211,12 +2336,296 @@ async function getExperiments(supabase: any, tenantId: string, status?: string) 
   });
 }
 
-async function getGoogleCampaigns(supabase: any, tenantId: string, adAccountId?: string) {
-  const query = supabase.from("google_ad_campaigns").select("id, google_campaign_id, name, status, campaign_type, daily_budget_cents, ad_account_id, created_at").eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(30);
-  if (adAccountId) query.eq("ad_account_id", adAccountId);
-  const { data: campaigns, error } = await query;
+async function getGoogleCampaigns(supabase: any, tenantId: string, adAccountId?: string, statusFilter?: string, days?: number) {
+  const dayWindow = Math.min(days || 14, 30);
+  const sinceDate = new Date(Date.now() - dayWindow * 86400000).toISOString().split("T")[0];
+
+  const campQuery = supabase.from("google_ad_campaigns")
+    .select("google_campaign_id, name, status, campaign_type, budget_amount_micros, budget_type, bidding_strategy_type, ad_account_id, optimization_score, start_date, end_date")
+    .eq("tenant_id", tenantId).order("status", { ascending: true });
+  if (adAccountId) campQuery.eq("ad_account_id", adAccountId);
+  if (statusFilter && statusFilter !== "ALL") campQuery.eq("status", statusFilter);
+  const { data: campaigns, error } = await campQuery.limit(100);
   if (error) return JSON.stringify({ error: error.message });
-  return JSON.stringify({ total: campaigns?.length || 0, campaigns: campaigns || [] });
+
+  // Fetch insights for the window
+  const { data: insights } = await supabase.from("google_ad_insights")
+    .select("google_campaign_id, impressions, clicks, cost_micros, conversions, conversions_value, date_start")
+    .eq("tenant_id", tenantId).gte("date_start", sinceDate).limit(2000);
+
+  const campMap: Record<string, any> = {};
+  for (const c of (campaigns || [])) {
+    campMap[c.google_campaign_id] = {
+      google_campaign_id: c.google_campaign_id, name: c.name, status: c.status,
+      campaign_type: c.campaign_type, bidding_strategy: c.bidding_strategy_type,
+      daily_budget: c.budget_amount_micros ? `R$ ${(c.budget_amount_micros / 1000000).toFixed(2)}` : null,
+      optimization_score: c.optimization_score, ad_account_id: c.ad_account_id,
+      spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0, days_with_data: 0,
+    };
+  }
+
+  for (const i of (insights || [])) {
+    const c = campMap[i.google_campaign_id];
+    if (!c) continue;
+    c.spend += (i.cost_micros || 0) / 1000000;
+    c.impressions += i.impressions || 0;
+    c.clicks += i.clicks || 0;
+    c.conversions += i.conversions || 0;
+    c.revenue += i.conversions_value || 0;
+    c.days_with_data += 1;
+  }
+
+  const allCamps = Object.values(campMap);
+  const activeCamps = allCamps.filter((c: any) => c.status === "ENABLED");
+  const pausedCamps = allCamps.filter((c: any) => c.status === "PAUSED");
+
+  const formatCamp = (c: any) => ({
+    ...c,
+    spend: `R$ ${c.spend.toFixed(2)}`,
+    revenue: `R$ ${c.revenue.toFixed(2)}`,
+    roas: c.spend > 0 ? (c.revenue / c.spend).toFixed(2) : "N/A",
+    cpa: c.conversions > 0 ? `R$ ${(c.spend / c.conversions).toFixed(2)}` : "N/A",
+    ctr: c.impressions > 0 ? `${((c.clicks / c.impressions) * 100).toFixed(2)}%` : "N/A",
+  });
+
+  return JSON.stringify({
+    channel: "google",
+    summary: {
+      total_campaigns: campaigns?.length || 0, active: activeCamps.length, paused: pausedCamps.length,
+      period: `últimos ${dayWindow} dias`,
+      total_spend: `R$ ${allCamps.reduce((s: number, c: any) => s + (typeof c.spend === 'number' ? c.spend : 0), 0).toFixed(2)}`,
+    },
+    active_campaigns: activeCamps.map(formatCamp),
+    paused_campaigns_sample: pausedCamps.slice(0, 10).map(formatCamp),
+  });
+}
+
+async function getGoogleAdGroups(supabase: any, tenantId: string, adAccountId?: string, campaignId?: string) {
+  const query = supabase.from("google_ad_groups")
+    .select("google_adgroup_id, google_campaign_id, name, status, ad_group_type, cpc_bid_micros, ad_account_id")
+    .eq("tenant_id", tenantId).order("status", { ascending: true });
+  if (adAccountId) query.eq("ad_account_id", adAccountId);
+  if (campaignId) query.eq("google_campaign_id", campaignId);
+  const { data, error } = await query.limit(100);
+  if (error) return JSON.stringify({ error: error.message });
+
+  // Get campaign names
+  const campIds = [...new Set((data || []).map((a: any) => a.google_campaign_id).filter(Boolean))];
+  let campNames: Record<string, string> = {};
+  if (campIds.length > 0) {
+    const { data: camps } = await supabase.from("google_ad_campaigns").select("google_campaign_id, name").eq("tenant_id", tenantId).in("google_campaign_id", campIds);
+    for (const c of (camps || [])) campNames[c.google_campaign_id] = c.name;
+  }
+
+  return JSON.stringify({
+    total: data?.length || 0,
+    active: (data || []).filter((a: any) => a.status === "ENABLED").length,
+    adgroups: (data || []).map((a: any) => ({
+      google_adgroup_id: a.google_adgroup_id, name: a.name, status: a.status,
+      type: a.ad_group_type, campaign_name: campNames[a.google_campaign_id] || a.google_campaign_id,
+      cpc_bid: a.cpc_bid_micros ? `R$ ${(a.cpc_bid_micros / 1000000).toFixed(2)}` : null,
+    })),
+  });
+}
+
+async function getGoogleKeywords(supabase: any, tenantId: string, adAccountId?: string, adgroupId?: string) {
+  const query = supabase.from("google_ad_keywords")
+    .select("google_keyword_id, google_adgroup_id, keyword_text, match_type, status, quality_score, ad_account_id")
+    .eq("tenant_id", tenantId).order("quality_score", { ascending: false, nullsFirst: false });
+  if (adAccountId) query.eq("ad_account_id", adAccountId);
+  if (adgroupId) query.eq("google_adgroup_id", adgroupId);
+  const { data, error } = await query.limit(100);
+  if (error) return JSON.stringify({ error: error.message });
+
+  return JSON.stringify({
+    total: data?.length || 0,
+    keywords: (data || []).map((k: any) => ({
+      keyword: k.keyword_text, match_type: k.match_type, status: k.status,
+      quality_score: k.quality_score, google_keyword_id: k.google_keyword_id,
+    })),
+  });
+}
+
+async function getGoogleAdsDetail(supabase: any, tenantId: string, adAccountId?: string, adgroupId?: string) {
+  const query = supabase.from("google_ad_ads")
+    .select("google_ad_id, google_adgroup_id, ad_type, status, headlines, descriptions, final_urls, ad_account_id")
+    .eq("tenant_id", tenantId).order("created_at", { ascending: false });
+  if (adAccountId) query.eq("ad_account_id", adAccountId);
+  if (adgroupId) query.eq("google_adgroup_id", adgroupId);
+  const { data, error } = await query.limit(50);
+  if (error) return JSON.stringify({ error: error.message });
+
+  return JSON.stringify({
+    total: data?.length || 0,
+    ads: (data || []).map((a: any) => ({
+      google_ad_id: a.google_ad_id, type: a.ad_type, status: a.status,
+      headlines: a.headlines, descriptions: a.descriptions, final_urls: a.final_urls,
+    })),
+  });
+}
+
+// --- Google Ads WRITE tools ---
+
+async function createGoogleCampaign(supabase: any, tenantId: string, args: any, chatSessionId?: string, strategyRunId?: string) {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  // Resolve product
+  const { data: products } = await supabase.from("products").select("id, name, slug, price").eq("tenant_id", tenantId).eq("status", "active");
+  const searchName = (args.product_name || "").trim().toLowerCase();
+  let product = (products || []).find((p: any) => p.name.trim().toLowerCase() === searchName);
+  if (!product) product = (products || []).find((p: any) => p.name.trim().toLowerCase().startsWith(searchName));
+  if (!product) {
+    const matches = (products || []).filter((p: any) => p.name.toLowerCase().includes(searchName));
+    if (matches.length) product = matches.sort((a: any, b: any) => a.name.length - b.name.length)[0];
+  }
+  if (!product) product = products?.[0];
+  if (!product) return JSON.stringify({ success: false, error: "Produto não encontrado no catálogo." });
+
+  // Resolve destination URL
+  const { data: tenantInfo } = await supabase.from("tenants").select("slug").eq("id", tenantId).single();
+  const { data: tenantDomain } = await supabase.from("tenant_domains").select("domain").eq("tenant_id", tenantId).eq("type", "custom").eq("is_primary", true).maybeSingle();
+  const storeHost = tenantDomain?.domain || (tenantInfo?.slug ? `${tenantInfo.slug}.shops.comandocentral.com.br` : null);
+  const finalUrl = args.final_url || (storeHost ? `https://${storeHost}/produto/${product.slug || product.id}` : null);
+
+  const campaignType = args.campaign_type || "SEARCH";
+  const campaignName = args.campaign_name || `[AI] Google ${campaignType} | ${product.name} | ${new Date().toISOString().split("T")[0]}`;
+  const dailyBudgetMicros = args.daily_budget_micros || 30000000;
+  const funnelStage = args.funnel_stage || "tof";
+
+  // Create action as pending_approval
+  const actionData: any = {
+    channel: "google",
+    campaign_name: campaignName,
+    campaign_type: campaignType,
+    product_name: product.name,
+    product_id: product.id,
+    product_price_display: `R$ ${(product.price || 0).toFixed(2)}`,
+    daily_budget_micros: dailyBudgetMicros,
+    daily_budget_display: `R$ ${(dailyBudgetMicros / 1000000).toFixed(2)}`,
+    bidding_strategy: args.bidding_strategy || "MAXIMIZE_CONVERSIONS",
+    target_cpa_micros: args.target_cpa_micros || null,
+    target_roas: args.target_roas || null,
+    keywords: args.keywords || [],
+    headlines: args.headlines || [],
+    descriptions: args.descriptions || [],
+    final_url: finalUrl,
+    ad_account_id: args.ad_account_id || null,
+    funnel_stage: funnelStage,
+    created_by: "ads_chat",
+  };
+
+  // Resolve product image for preview
+  const { data: prodImgs } = await supabase.from("product_images").select("url").eq("product_id", product.id).order("sort_order", { ascending: true }).limit(1);
+  if (prodImgs?.[0]?.url) actionData.creative_url = prodImgs[0].url;
+
+  const { data: action, error: insertErr } = await supabase.from("ads_autopilot_actions").insert({
+    tenant_id: tenantId,
+    session_id: chatSessionId || crypto.randomUUID(),
+    channel: "google",
+    action_type: "create_campaign",
+    status: "pending_approval",
+    action_data: actionData,
+    reasoning: `Campanha Google ${campaignType} para "${product.name}" (funil: ${funnelStage}) criada via Chat IA. Budget: R$ ${(dailyBudgetMicros / 1000000).toFixed(2)}/dia.`,
+  }).select("id").single();
+
+  if (insertErr) return JSON.stringify({ success: false, error: insertErr.message });
+
+  return JSON.stringify({
+    success: true,
+    message: `Campanha Google ${campaignType} "${campaignName}" criada e aguardando aprovação. O lojista pode revisar na aba "Ações da IA".`,
+    action_id: action?.id,
+    campaign_name: campaignName,
+    budget: `R$ ${(dailyBudgetMicros / 1000000).toFixed(2)}/dia`,
+  });
+}
+
+async function toggleGoogleEntityStatus(supabase: any, tenantId: string, args: any, chatSessionId?: string) {
+  const { entity_type, entity_id, new_status, ad_account_id } = args;
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  // Map entity types to edge functions
+  const functionMap: Record<string, string> = {
+    campaign: "google-ads-campaigns",
+    adgroup: "google-ads-adgroups",
+    ad: "google-ads-ads",
+    keyword: "google-ads-keywords",
+  };
+  const fn = functionMap[entity_type];
+  if (!fn) return JSON.stringify({ success: false, error: `Tipo de entidade inválido: ${entity_type}` });
+
+  const response = await fetch(`${supabaseUrl}/functions/v1/${fn}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+    body: JSON.stringify({
+      tenant_id: tenantId,
+      action: "update",
+      customer_id: ad_account_id,
+      [`google_${entity_type === "adgroup" ? "adgroup" : entity_type}_id`]: entity_id,
+      status: new_status,
+    }),
+  });
+  const result = await response.json();
+
+  // Log action
+  await supabase.from("ads_autopilot_actions").insert({
+    tenant_id: tenantId, session_id: chatSessionId || crypto.randomUUID(), channel: "google",
+    action_type: new_status === "PAUSED" ? "pause_entity" : "activate_entity",
+    status: result?.success ? "executed" : "failed",
+    error_message: !result?.success ? (result?.error || "Erro desconhecido") : null,
+    action_data: { entity_type, entity_id, new_status, ad_account_id, created_by: "ads_chat" },
+    reasoning: `${new_status === "PAUSED" ? "Pausar" : "Reativar"} ${entity_type} Google Ads via Chat IA`,
+    executed_at: result?.success ? new Date().toISOString() : null,
+  });
+
+  if (!result?.success) return JSON.stringify({ success: false, error: result?.error || "Falha na operação" });
+  return JSON.stringify({ success: true, message: `${entity_type} ${new_status === "PAUSED" ? "pausado" : "reativado"} com sucesso no Google Ads.` });
+}
+
+async function updateGoogleBudget(supabase: any, tenantId: string, args: any, chatSessionId?: string) {
+  const { campaign_id, new_budget_micros, ad_account_id } = args;
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  // Get current budget for rollback
+  const { data: currentCamp } = await supabase.from("google_ad_campaigns")
+    .select("budget_amount_micros, name").eq("tenant_id", tenantId).eq("google_campaign_id", campaign_id).maybeSingle();
+
+  const response = await fetch(`${supabaseUrl}/functions/v1/google-ads-campaigns`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+    body: JSON.stringify({
+      tenant_id: tenantId,
+      action: "update",
+      customer_id: ad_account_id,
+      google_campaign_id: campaign_id,
+      budget_amount_micros: new_budget_micros,
+    }),
+  });
+  const result = await response.json();
+
+  // Log action
+  await supabase.from("ads_autopilot_actions").insert({
+    tenant_id: tenantId, session_id: chatSessionId || crypto.randomUUID(), channel: "google",
+    action_type: "adjust_budget",
+    status: result?.success ? "executed" : "failed",
+    error_message: !result?.success ? (result?.error || "Erro desconhecido") : null,
+    action_data: {
+      campaign_id, campaign_name: currentCamp?.name, ad_account_id,
+      old_budget_micros: currentCamp?.budget_amount_micros,
+      new_budget_micros, created_by: "ads_chat",
+    },
+    rollback_data: currentCamp ? { campaign_id, old_budget_micros: currentCamp.budget_amount_micros } : null,
+    reasoning: `Budget alterado de R$ ${((currentCamp?.budget_amount_micros || 0) / 1000000).toFixed(2)} para R$ ${(new_budget_micros / 1000000).toFixed(2)}/dia via Chat IA`,
+    executed_at: result?.success ? new Date().toISOString() : null,
+  });
+
+  if (!result?.success) return JSON.stringify({ success: false, error: result?.error || "Falha ao alterar orçamento" });
+  return JSON.stringify({
+    success: true,
+    message: `Orçamento de "${currentCamp?.name || campaign_id}" alterado para R$ ${(new_budget_micros / 1000000).toFixed(2)}/dia.`,
+  });
 }
 
 async function getTikTokCampaigns(supabase: any, tenantId: string, advertiserId?: string) {
@@ -2960,12 +3369,18 @@ NUNCA exponha termos técnicos internos. Use SEMPRE a linguagem da interface.
 | get_meta_ads | ver anúncios |
 | get_audiences | ver públicos |
 | get_products | ver catálogo |
-| toggle_entity_status | pausar/reativar |
+| toggle_entity_status | pausar/reativar (Meta) |
 | update_budget | alterar orçamento |
 | duplicate_campaign | duplicar campanha |
 | update_adset_targeting | alterar segmentação |
 | create_custom_audience | criar público personalizado |
 | create_lookalike_audience | criar público semelhante |
+| create_google_campaign | criar campanha no Google |
+| toggle_google_entity_status | pausar/reativar (Google) |
+| update_google_budget | alterar orçamento Google |
+| get_google_adgroups | ver grupos de anúncios Google |
+| get_google_keywords | ver palavras-chave Google |
+| get_google_ads | ver anúncios Google |
 | edge function | sistema interno |
 | tenant_id | loja |
 | kill_switch | botão de emergência |
@@ -3252,13 +3667,14 @@ Mapear para funnel_splits: cold ≈ Core, tests ≈ Test, remarketing e leads di
 - **Drill-down**: ver detalhes de uma campanha específica com todos conjuntos/anúncios
 - **Tendências**: ver performance dia a dia de uma campanha (time-series)
 - **Contexto do negócio**: ver nicho, categorias, ofertas ativas, margens, top produtos
-- **Pausar/Reativar** campanhas, conjuntos ou anúncios no Meta
-- **Alterar orçamento** de campanhas e conjuntos existentes
-- **Duplicar campanhas** existentes (com todos os conjuntos e anúncios)
-- **Alterar segmentação** de conjuntos existentes (idade, gênero, localização, interesses)
-- **Criar públicos personalizados** (clientes, pixel, engajamento) e **públicos semelhantes** (Lookalike)
+- **Pausar/Reativar** campanhas, conjuntos ou anúncios no Meta e Google Ads
+- **Alterar orçamento** de campanhas existentes (Meta em centavos, Google em micros)
+- **Duplicar campanhas** existentes no Meta (com todos os conjuntos e anúncios)
+- **Alterar segmentação** de conjuntos existentes no Meta (idade, gênero, localização, interesses)
+- **Criar públicos personalizados** (clientes, pixel, engajamento) e **públicos semelhantes** (Lookalike) no Meta
 - **Gerar textos** e **artes/imagens** para anúncios
-- **Criar campanhas completas** no Meta Ads
+- **Criar campanhas completas** no Meta Ads e Google Ads (Search, PMax, Shopping, Display)
+- **Google Ads específico**: ver ad groups, keywords (com quality score), anúncios RSA/RDA, alterar budget em micros
 - **Gerar plano estratégico** completo via Motor Estrategista (diagnóstico + campanhas planejadas + criativos + públicos, com aprovação do lojista)
 - **Analisar links** e **imagens** enviadas
 - **Ver e alterar configurações** da IA de tráfego
@@ -3266,7 +3682,7 @@ Mapear para funnel_splits: cold ≈ Core, tests ≈ Test, remarketing e leads di
 - **Rodar análises/auditorias** e ver histórico
 
 ## O QUE VOCÊ NÃO PODE FAZER (NUNCA FINJA)
-- Criar campanhas Google/TikTok diretamente (somente Meta)
+- Criar campanhas TikTok diretamente (somente Meta e Google)
 
 ## REGRA MAIS IMPORTANTE DE TODAS: PROIBIDO LOOP DE PERMISSÃO — EXECUTE, NÃO PEÇA
 
