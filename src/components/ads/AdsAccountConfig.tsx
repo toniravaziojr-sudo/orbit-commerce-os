@@ -277,8 +277,8 @@ function AccountConfigCard({
           </div>
         </div>
 
-        {/* ROAS Scaling Threshold */}
-        <div className="space-y-2 p-3 rounded-lg border border-primary/20 bg-primary/5">
+        {/* ROAS Scaling Threshold - HIDDEN FOR META REVIEW */}
+        {/* <div className="space-y-2 p-3 rounded-lg border border-primary/20 bg-primary/5">
           <Label className="text-xs font-semibold flex items-center gap-2">
             <TrendingUp className="h-3.5 w-3.5 text-primary" />
             ROAS de Escalonamento
@@ -289,7 +289,7 @@ function AccountConfigCard({
             <Input type="number" step="0.1" min="0" value={roasScalingThreshold} onChange={(e) => setRoasScalingThreshold(e.target.value)} placeholder="3" className="max-w-16 h-6 text-xs" />
             <span className="text-[9px] text-muted-foreground">x</span>
           </div>
-        </div>
+        </div> */}
 
         {/* Strategy Mode */}
         <div className="space-y-2">
@@ -477,8 +477,8 @@ function AccountConfigCard({
           {isSaving ? "Salvando..." : "Salvar Configurações"}
         </Button>
 
-        {/* Kill Switch */}
-        <div className="pt-2 border-t">
+        {/* Kill Switch - HIDDEN FOR META REVIEW */}
+        {/* <div className="pt-2 border-t">
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
@@ -493,7 +493,7 @@ function AccountConfigCard({
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>
-                  {killSwitchActive ? "Reativar Autopilot?" : "🛑 Ativar Kill Switch?"}
+                  {killSwitchActive ? "Reativar Assistente?" : "🛑 Ativar Kill Switch?"}
                 </AlertDialogTitle>
                 <AlertDialogDescription>
                   {killSwitchActive
@@ -509,7 +509,7 @@ function AccountConfigCard({
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-        </div>
+        </div> */}
 
         {/* Deactivation Warning Dialog */}
         <AlertDialog open={showDeactivateWarning} onOpenChange={setShowDeactivateWarning}>
