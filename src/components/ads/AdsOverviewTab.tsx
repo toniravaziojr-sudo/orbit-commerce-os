@@ -26,8 +26,10 @@ interface ChannelSummary {
 interface AdsOverviewTabProps {
   metaInsights: any[];
   tiktokInsights: any[];
+  googleInsights?: any[];
   metaCampaigns: any[];
   tiktokCampaigns: any[];
+  googleCampaigns?: any[];
   globalBudgetCents: number;
   globalBudgetMode: string;
   isLoading: boolean;
@@ -83,8 +85,10 @@ const AVAILABLE_CHANNELS: { key: ChannelKey; label: string }[] = [
 export function AdsOverviewTab({
   metaInsights,
   tiktokInsights,
+  googleInsights = [],
   metaCampaigns,
   tiktokCampaigns,
+  googleCampaigns = [],
   globalBudgetCents,
   globalBudgetMode,
   isLoading,
@@ -125,9 +129,23 @@ export function AdsOverviewTab({
         list.push(buildChannelSummary("tiktok", "TikTok Ads", filteredTiktok, tiktokCampaigns));
       }
     }
-    // Google: when available, add here
+    if (selectedChannels.has("google")) {
+      // Google insights may come as summary object or array
+      const googleData = googleInsights.length > 0 ? googleInsights : [];
+      if (googleCampaigns.length > 0 || googleData.length > 0) {
+        // Convert summary format to compatible array
+        const normalizedInsights = googleData.map((g: any) => ({
+          spend_cents: g.spend ? Math.round(g.spend * 100) : (g.cost_micros ? Math.round(g.cost_micros / 10000) : 0),
+          impressions: g.impressions || 0,
+          clicks: g.clicks || 0,
+          conversions: g.conversions || 0,
+          conversion_value_cents: g.conversions_value ? Math.round(g.conversions_value * 100) : 0,
+        }));
+        list.push(buildChannelSummary("google", "Google Ads", normalizedInsights, googleCampaigns));
+      }
+    }
     return list;
-  }, [metaInsights, tiktokInsights, metaCampaigns, tiktokCampaigns, startDate, endDate, selectedChannels]);
+  }, [metaInsights, tiktokInsights, googleInsights, metaCampaigns, tiktokCampaigns, googleCampaigns, startDate, endDate, selectedChannels]);
 
   const totals = useMemo(() => {
     return channels.reduce(

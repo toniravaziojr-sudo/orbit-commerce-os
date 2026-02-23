@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useMetaAds } from "@/hooks/useMetaAds";
 import { useTikTokAds } from "@/hooks/useTikTokAds";
+import { useGoogleAds } from "@/hooks/useGoogleAds";
 import { useAdsAutopilot } from "@/hooks/useAdsAutopilot";
 import { useMetaConnection } from "@/hooks/useMetaConnection";
 import { useGoogleConnection } from "@/hooks/useGoogleConnection";
@@ -27,6 +28,7 @@ import { AdsPendingApprovalTab } from "@/components/ads/AdsPendingApprovalTab";
 export default function AdsManager() {
   const meta = useMetaAds();
   const tiktok = useTikTokAds();
+  const google = useGoogleAds();
   const autopilot = useAdsAutopilot();
   const metaConn = useMetaConnection();
   const googleConn = useGoogleConnection();
@@ -92,14 +94,18 @@ export default function AdsManager() {
     
     if (activeChannel === "meta" && meta.campaigns.length === 0) {
       meta.syncCampaigns.mutate();
+    } else if (activeChannel === "google" && google.campaigns.length === 0) {
+      google.syncCampaigns(undefined);
     } else if (activeChannel === "tiktok" && tiktok.campaigns.length === 0) {
       tiktok.syncCampaigns.mutate();
     }
-  }, [activeMainTab, activeChannel, meta, tiktok]);
+  }, [activeMainTab, activeChannel, meta, google, tiktok]);
 
   const handleUpdateCampaign = (campaignId: string, status: string) => {
     if (activeChannel === "meta") {
       meta.updateCampaign.mutate({ meta_campaign_id: campaignId, status });
+    } else if (activeChannel === "google") {
+      // Google campaign status updates via edge function (future)
     } else if (activeChannel === "tiktok") {
       tiktok.updateCampaign.mutate({ tiktok_campaign_id: campaignId, status });
     }
@@ -130,11 +136,15 @@ export default function AdsManager() {
       meta.syncAdsets.mutate({});
       meta.syncAds.mutate({});
       meta.refreshBalance();
+    } else if (activeChannel === "google") {
+      google.syncCampaigns(undefined);
+      google.syncInsights(undefined);
+      google.syncAudiences(undefined);
     } else if (activeChannel === "tiktok") {
       try { await tiktok.syncCampaigns.mutateAsync(); } catch {}
       tiktok.syncInsights.mutate({});
     }
-  }, [activeChannel, meta, tiktok]);
+  }, [activeChannel, meta, google, tiktok]);
 
   const getChannelData = () => {
     switch (activeChannel) {
@@ -147,6 +157,24 @@ export default function AdsManager() {
           adsets: meta.adsets,
           ads: meta.ads,
           accountBalances: meta.accountBalances,
+        };
+      case "google":
+        return {
+          campaigns: google.campaigns.map(c => ({
+            ...c,
+            google_campaign_id: c.google_campaign_id,
+            name: c.name,
+            status: c.status,
+            objective: c.campaign_type,
+            daily_budget_cents: c.budget_amount_micros ? Math.round(c.budget_amount_micros / 10000) : 0,
+            ad_account_id: c.ad_account_id,
+          })),
+          campaignsLoading: google.campaignsLoading || google.isSyncingCampaigns,
+          insights: [],
+          insightsLoading: false,
+          adsets: [],
+          ads: [],
+          accountBalances: [],
         };
       case "tiktok":
         return {
@@ -243,11 +271,13 @@ export default function AdsManager() {
           <AdsOverviewTab
             metaInsights={meta.insights}
             tiktokInsights={tiktok.insights}
+            googleInsights={google.summary ? [google.summary] : []}
             metaCampaigns={meta.campaigns}
             tiktokCampaigns={tiktok.campaigns}
+            googleCampaigns={google.campaigns}
             globalBudgetCents={globalConfig?.total_budget_cents || globalConfig?.budget_cents || 0}
             globalBudgetMode={globalConfig?.total_budget_mode || globalConfig?.budget_mode || "monthly"}
-            isLoading={meta.insightsLoading || tiktok.insightsLoading}
+            isLoading={meta.insightsLoading || tiktok.insightsLoading || google.summaryLoading}
             trackingAlerts={[]}
           />
         </TabsContent>
@@ -373,7 +403,7 @@ export default function AdsManager() {
                         adAccounts={integration.adAccounts}
                         isConnected={integration.isConnected}
                         onSync={handleSyncCampaigns}
-                        isSyncing={activeChannel === "meta" ? (meta.syncCampaigns.isPending || meta.syncInsights.isPending || meta.syncAdsets.isPending) : activeChannel === "tiktok" ? (tiktok.syncCampaigns.isPending || tiktok.syncInsights.isPending) : false}
+                        isSyncing={activeChannel === "meta" ? (meta.syncCampaigns.isPending || meta.syncInsights.isPending || meta.syncAdsets.isPending) : activeChannel === "google" ? (google.isSyncingCampaigns || google.isSyncingInsights) : activeChannel === "tiktok" ? (tiktok.syncCampaigns.isPending || tiktok.syncInsights.isPending) : false}
                         insights={channelData.insights}
                         adsets={channelData.adsets}
                         ads={channelData.ads}

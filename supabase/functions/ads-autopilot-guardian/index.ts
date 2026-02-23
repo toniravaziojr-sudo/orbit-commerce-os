@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.1.0"; // Use ai-router for native AI priority
+const VERSION = "v1.2.0"; // Add Google Ads channel support in context + prompt
 // ===================
 
 const corsHeaders = {
@@ -252,7 +252,75 @@ async function collectGuardianContext(supabase: any, tenantId: string, configs: 
 
       channelData.meta = { campaigns: campaigns || [], campaignPerf7d, campaignPerf3d, campaignAccountMap };
     }
-    // Google and TikTok follow same pattern — add when needed
+
+    if (ch === "google") {
+      const { data: campaigns } = await supabase
+        .from("google_ad_campaigns")
+        .select("google_campaign_id, name, status, campaign_type, budget_amount_micros, budget_type, ad_account_id")
+        .eq("tenant_id", tenantId)
+        .limit(100);
+
+      const { data: insights7d } = await supabase
+        .from("google_ad_insights")
+        .select("google_campaign_id, impressions, clicks, cost_micros, conversions, conversions_value, date_start")
+        .eq("tenant_id", tenantId)
+        .gte("date_start", sevenDaysAgo)
+        .limit(500);
+
+      const { data: insights3d } = await supabase
+        .from("google_ad_insights")
+        .select("google_campaign_id, impressions, clicks, cost_micros, conversions, conversions_value, date_start")
+        .eq("tenant_id", tenantId)
+        .gte("date_start", threeDaysAgo)
+        .limit(300);
+
+      const campaignPerf7d: Record<string, any> = {};
+      const campaignPerf3d: Record<string, any> = {};
+
+      for (const ins of insights7d || []) {
+        const cid = ins.google_campaign_id;
+        if (!campaignPerf7d[cid]) campaignPerf7d[cid] = { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0, days: new Set() };
+        const spendCents = Math.round((ins.cost_micros || 0) / 10000);
+        campaignPerf7d[cid].spend += spendCents;
+        campaignPerf7d[cid].impressions += ins.impressions || 0;
+        campaignPerf7d[cid].clicks += ins.clicks || 0;
+        campaignPerf7d[cid].conversions += ins.conversions || 0;
+        campaignPerf7d[cid].revenue += Math.round((ins.conversions_value || 0) * 100);
+        campaignPerf7d[cid].days.add(ins.date_start);
+      }
+      for (const ins of insights3d || []) {
+        const cid = ins.google_campaign_id;
+        if (!campaignPerf3d[cid]) campaignPerf3d[cid] = { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0, days: new Set() };
+        const spendCents = Math.round((ins.cost_micros || 0) / 10000);
+        campaignPerf3d[cid].spend += spendCents;
+        campaignPerf3d[cid].impressions += ins.impressions || 0;
+        campaignPerf3d[cid].clicks += ins.clicks || 0;
+        campaignPerf3d[cid].conversions += ins.conversions || 0;
+        campaignPerf3d[cid].revenue += Math.round((ins.conversions_value || 0) * 100);
+        campaignPerf3d[cid].days.add(ins.date_start);
+      }
+
+      for (const perf of [campaignPerf7d, campaignPerf3d]) {
+        for (const cid of Object.keys(perf)) {
+          const p = perf[cid];
+          perf[cid] = {
+            ...p,
+            days: p.days.size,
+            roas: safeDivide(p.revenue, p.spend),
+            cpa_cents: safeDivide(p.spend, p.conversions),
+            ctr_pct: safeDivide(p.clicks * 100, p.impressions),
+          };
+        }
+      }
+
+      const campaignAccountMap: Record<string, string> = {};
+      for (const c of campaigns || []) {
+        if (c.ad_account_id) campaignAccountMap[c.google_campaign_id] = c.ad_account_id;
+      }
+
+      channelData.google = { campaigns: campaigns || [], campaignPerf7d, campaignPerf3d, campaignAccountMap };
+    }
+    // TikTok follows same pattern — add when needed
   }
 
   // Get today's guardian actions (to avoid duplicate pauses/reactivations)
@@ -277,13 +345,16 @@ function buildGuardianPrompt(cycle: GuardianCycle, config: AccountConfig, contex
   const channelData = context.channels[config.channel];
   if (!channelData) return null;
 
+  // Determine the campaign ID field based on channel
+  const campaignIdField = config.channel === "meta" ? "meta_campaign_id" : config.channel === "google" ? "google_campaign_id" : "tiktok_campaign_id";
+
   // Filter campaigns for this account
   const accountCampaignIds = Object.entries(channelData.campaignAccountMap || {})
     .filter(([_, acctId]) => acctId === config.ad_account_id)
     .map(([campId]) => campId);
 
   const accountCampaigns = channelData.campaigns.filter((c: any) =>
-    accountCampaignIds.includes(c.meta_campaign_id) || c.ad_account_id === config.ad_account_id
+    accountCampaignIds.includes(c[campaignIdField]) || c.ad_account_id === config.ad_account_id
   );
 
   if (accountCampaigns.length === 0) return null;
@@ -351,14 +422,18 @@ Se melhoraram → Mantenha ativas e report_insight`
   }
 
   const campaignsData = accountCampaigns.map((c: any) => {
-    const p7 = perf7d[c.meta_campaign_id] || {};
-    const p3 = perf3d[c.meta_campaign_id] || {};
+    const cid = c[campaignIdField];
+    const p7 = perf7d[cid] || {};
+    const p3 = perf3d[cid] || {};
+    const budgetCents = config.channel === "google"
+      ? Math.round((c.budget_amount_micros || 0) / 10000)
+      : (c.daily_budget_cents || 0);
     return {
-      id: c.meta_campaign_id,
+      id: cid,
       name: c.name,
       status: c.status,
-      objective: c.objective,
-      budget_cents: c.daily_budget_cents,
+      objective: c.objective || c.campaign_type || null,
+      budget_cents: budgetCents,
       perf_7d: p7.days ? { roas: p7.roas, cpa: p7.cpa_cents, spend: p7.spend, conversions: p7.conversions, ctr: p7.ctr_pct } : null,
       perf_3d: p3.days ? { roas: p3.roas, cpa: p3.cpa_cents, spend: p3.spend, conversions: p3.conversions, ctr: p3.ctr_pct } : null,
     };
@@ -620,9 +695,10 @@ async function runGuardianForTenant(supabase: any, tenantId: string, cycle: Guar
         const args = typeof tc.function.arguments === "string" ? JSON.parse(tc.function.arguments) : tc.function.arguments;
         totalPlanned++;
 
-        // Get campaign name
+        // Get campaign name (channel-aware)
         const channelData = context.channels[config.channel];
-        const campaignName = channelData?.campaigns?.find((c: any) => c.meta_campaign_id === args.campaign_id)?.name || null;
+        const cidField = config.channel === "meta" ? "meta_campaign_id" : config.channel === "google" ? "google_campaign_id" : "tiktok_campaign_id";
+        const campaignName = channelData?.campaigns?.find((c: any) => c[cidField] === args.campaign_id)?.name || null;
 
         if (tc.function.name === "report_insight") {
           await supabase.from("ads_autopilot_actions").insert({
