@@ -334,14 +334,14 @@ export function NewsletterPopupBlock({
           <button
             type="button"
             onClick={handleClose}
-            className="absolute right-3 top-3 z-[60] flex items-center justify-center w-9 h-9 rounded-full shadow-lg transition-transform hover:scale-110 focus:outline-none"
+            className="absolute -right-2 -top-2 z-[60] flex items-center justify-center w-7 h-7 rounded-full shadow-lg transition-transform hover:scale-110 focus:outline-none"
             style={{
               backgroundColor: buttonBgColor || '#e41111',
               color: buttonTextColor || '#ffffff',
             }}
             aria-label="Fechar"
           >
-            <X className="w-5 h-5" strokeWidth={2.5} />
+            <X className="w-4 h-4" strokeWidth={2.5} />
           </button>
 
         {layout === 'side-image' && imageUrl ? (
