@@ -62,6 +62,12 @@ console.log(`[function-name][${VERSION}] Request received`);
 | `whatsapp_messages` | `meta-whatsapp-send`, `run-notifications`, `whatsapp-send` |
 | `notifications` | `run-notifications`, `process-events` |
 | `orders` | `pagarme-webhook`, `mercadopago-webhook` |
+| `google_ad_campaigns` | `google-ads-campaigns`, `ads-autopilot-analyze`, `ads-autopilot-strategist`, `ads-autopilot-guardian` |
+| `google_ad_groups` | `google-ads-adgroups`, `ads-autopilot-execute-approved` |
+| `google_ad_ads` | `google-ads-ads`, `ads-autopilot-execute-approved` |
+| `google_ad_keywords` | `google-ads-keywords`, `ads-autopilot-execute-approved` |
+| `google_ad_assets` | `google-ads-assets`, `ads-autopilot-execute-approved` |
+| `google_ad_insights` | `google-ads-insights`, `ads-autopilot-analyze`, `ads-autopilot-strategist` |
 
 **REGRA**: Ao alterar schema de tabela, atualizar TODAS as edge functions listadas.
 

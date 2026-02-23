@@ -1497,10 +1497,136 @@ Isso garante que **nenhum dado é omitido**, mesmo quando a IA envia campos novo
 | **Context Digest** | Cada execução registra resumo auditável: configs lidas, campanhas/audiências/produtos carregados, itens ignorados. Disponível em "Detalhes técnicos". | Auditável; pontos cegos identificáveis |
 | **UI overflow (chat/pending)** | `AdsPendingActionsTab.tsx` e `ActionApprovalCard.tsx` com `min-w-0`, `overflow-hidden`, `break-all`. | Nenhum conteúdo cortado à direita |
 
+## Google Ads — Integração CRUD Completa (v2.0 — 2026-02-23)
+
+### Visão Geral
+
+Integração completa com Google Ads REST API v18 para criação e gestão de campanhas Search, Performance Max (PMax), Shopping e Display. Opera com o mesmo pipeline de IA (Motor Estrategista + Guardião + Chat) que a Meta, com particularidades da plataforma.
+
+### Tabelas de Cache Local
+
+| Tabela | Descrição | Chave UNIQUE |
+|--------|-----------|--------------|
+| `google_ad_campaigns` | Campanhas (já existia — sync read-only, agora com CRUD) | `(tenant_id, google_campaign_id)` |
+| `google_ad_groups` | Grupos de anúncios com bids e targeting | `(tenant_id, google_adgroup_id)` |
+| `google_ad_ads` | Anúncios (RSA, RDA, Shopping, PMax) com headlines/descriptions | `(tenant_id, google_ad_id)` |
+| `google_ad_keywords` | Keywords para Search com match type e quality score | `(tenant_id, google_keyword_id)` |
+| `google_ad_assets` | Assets (imagens, textos, vídeos) para PMax e Display | `(tenant_id, google_asset_id)` |
+| `google_ad_insights` | Métricas de performance por campanha/dia (já existia) | `(tenant_id, google_campaign_id, date)` |
+
+### Edge Functions Google Ads
+
+| Function | Versão | Ações | Descrição |
+|----------|--------|-------|-----------|
+| `google-ads-campaigns` | v2.0 | list, sync, create, update, pause, activate, remove | CRUD completo de campanhas (Search, PMax, Shopping, Display) |
+| `google-ads-adgroups` | v1.0 | list, sync, create, update, pause, activate, remove | CRUD de grupos de anúncios |
+| `google-ads-ads` | v1.0 | list, sync, create, update, pause, activate | CRUD de anúncios (RSA, RDA) |
+| `google-ads-keywords` | v1.0 | list, sync, create, update, pause, activate, remove | CRUD de keywords com match types |
+| `google-ads-assets` | v1.0 | list, sync, upload_image, create_text, link, remove | Upload de imagens e textos para PMax/Display |
+| `google-ads-insights` | v1.0 | summary, sync | Métricas de performance (já existia) |
+| `google-ads-audiences` | v1.0 | list, sync | Audiências (já existia) |
+
+### Padrão de API Google Ads REST v18
+
+Todas as operações de mutação usam o padrão `mutate`:
+
+```typescript
+// Criação
+POST /v18/customers/{customerId}/{resource}:mutate
+Body: { operations: [{ create: { ...fields } }] }
+
+// Atualização
+POST /v18/customers/{customerId}/{resource}:mutate
+Body: { operations: [{ update: { resourceName, ...fields }, updateMask: "field1,field2" }] }
+
+// Remoção
+POST /v18/customers/{customerId}/{resource}:mutate
+Body: { operations: [{ remove: "customers/{id}/{resource}/{id}" }] }
+
+// Consulta (GAQL)
+POST /v18/customers/{customerId}/googleAds:searchStream
+Body: { query: "SELECT ... FROM ... WHERE ..." }
+```
+
+### Tipos de Campanha Suportados
+
+| Tipo | `campaign_type` | Requer | Particularidades |
+|------|----------------|--------|------------------|
+| **Search** | `SEARCH` | Keywords + RSA | Ad groups obrigatórios, bidding CPC/CPA/ROAS |
+| **Performance Max** | `PERFORMANCE_MAX` | Assets (imagens, textos, vídeos) | Sem ad groups tradicionais, asset groups, automação total |
+| **Shopping** | `SHOPPING` | Merchant Center linkado | Feed de produtos, bidding por produto |
+| **Display** | `DISPLAY` | Imagens em vários tamanhos | Responsive Display Ads, targeting por audiência/tópico |
+
+### Tipos de Match (Keywords — Search)
+
+| Match Type | Símbolo | Descrição |
+|------------|---------|-----------|
+| `BROAD` | (nenhum) | Variações amplas |
+| `PHRASE` | `"keyword"` | Contém a frase |
+| `EXACT` | `[keyword]` | Correspondência exata |
+
+### Executor Google Ads (`ads-autopilot-execute-approved` v4.0)
+
+Pipeline de execução sequencial para ações Google Ads aprovadas:
+
+| Etapa | Ação | API |
+|-------|------|-----|
+| 1 | Criar Campanha | `POST /campaigns:mutate` com `advertisingChannelType`, `biddingStrategy`, `campaignBudget` |
+| 2 | Criar Ad Group | `POST /adGroups:mutate` com `campaign` resource name, `cpcBidMicros` |
+| 3 | Criar Keywords (Search) | `POST /adGroupCriteria:mutate` com `keyword.text`, `keyword.matchType` |
+| 4 | Criar Anúncio (RSA/RDA) | `POST /adGroupAds:mutate` com headlines[], descriptions[], finalUrls[] |
+
+**Regras:**
+- Todas as entidades criadas como `PAUSED` (mesma regra da Meta)
+- `budgetAmountMicros` = valor em micros (R$ × 1.000.000)
+- `cpcBidMicros` = CPC em micros
+- Resource names seguem formato: `customers/{id}/campaigns/{id}`
+
+### Mapeamento Tabela → Edge Function (Google Ads)
+
+| Tabela | Edge Functions |
+|--------|----------------|
+| `google_ad_campaigns` | `google-ads-campaigns`, `ads-autopilot-analyze`, `ads-autopilot-strategist`, `ads-autopilot-guardian` |
+| `google_ad_groups` | `google-ads-adgroups`, `ads-autopilot-execute-approved` |
+| `google_ad_ads` | `google-ads-ads`, `ads-autopilot-execute-approved` |
+| `google_ad_keywords` | `google-ads-keywords`, `ads-autopilot-execute-approved` |
+| `google_ad_assets` | `google-ads-assets`, `ads-autopilot-execute-approved` |
+| `google_ad_insights` | `google-ads-insights`, `ads-autopilot-analyze`, `ads-autopilot-strategist` |
+
+### Hook `useGoogleAds.ts`
+
+| Método | Descrição |
+|--------|-----------|
+| `campaigns` | Lista de campanhas do cache local |
+| `syncCampaigns` | Sincroniza campanhas da API Google |
+| `syncInsights` | Sincroniza insights da API Google |
+| `audiences` | Lista de audiências |
+| `syncAudiences` | Sincroniza audiências |
+| `syncAll` | Sincroniza tudo em paralelo |
+
+### Diferenças Google vs Meta no Autopilot
+
+| Aspecto | Meta Ads | Google Ads |
+|---------|----------|------------|
+| **Estrutura** | Campanha → Ad Set → Ad | Campanha → Ad Group → Ad (+Keywords/Assets) |
+| **Orçamento** | Ad Set level (ABO) ou Campaign level (CBO) | Campaign Budget (compartilhado) |
+| **Bidding** | `bid_strategy` no campaign | `biddingStrategyType` + `cpcBidMicros` no ad group |
+| **Valores monetários** | Centavos (÷ 100) | Micros (÷ 1.000.000) |
+| **Limite de ajuste** | ±20% a cada 48h | ±20% a cada 7 dias |
+| **Learning Phase** | ~50 conversões em 7 dias | ~30 conversões em 14 dias |
+| **Criação de anúncio** | AdCreative separado | Inline no AdGroupAd |
+| **API pattern** | Graph API REST | Google Ads REST v18 (mutate pattern) |
+
+---
+
 ## Pendências
 
 - [ ] Dashboard de atribuição
-- [ ] Integração Google Ads (campanhas manuais)
+- [x] Integração Google Ads (CRUD completo — Search, PMax, Shopping, Display)
+- [ ] Motor Estrategista com tool calls Google Ads
+- [ ] Ads Chat com comandos Google Ads
+- [ ] Guardian sync completo Google (ad groups + ads + keywords)
+- [ ] UI Google — exibir ad groups, keywords e anúncios
 - [ ] Módulo de email marketing completo
 - [ ] Automações de marketing
 - [x] Gestor de Tráfego IA — Fase 1: DB (3 tabelas + RLS)
