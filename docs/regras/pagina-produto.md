@@ -48,8 +48,8 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 │  AVALIAÇÕES                                                              │
 │  [Lista de reviews] [Formulário para avaliar]                           │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  PRODUTOS RELACIONADOS                                                   │
-│  [Grid de produtos da mesma categoria]                                  │
+│  PRODUTOS RELACIONADOS (Slider horizontal / Embla Carousel)             │
+│  [Carousel de produtos relacionados - 2 cols mobile, 4 cols desktop]    │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                              FOOTER                                      │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -81,7 +81,7 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 | `showStock` | boolean | true | Exibe estoque |
 | `showReviews` | boolean | true | Exibe avaliações |
 | `showBuyTogether` | boolean | true | Exibe compre junto |
-| `showRelatedProducts` | boolean | true | Exibe relacionados |
+| `showRelatedProducts` | boolean | true | Exibe relacionados (slider horizontal com Embla Carousel) |
 | `relatedProductsTitle` | string | "Produtos Relacionados" | Título customizável da seção |
 | `showWhatsAppButton` | boolean | true | Botão WhatsApp |
 | `showAddToCartButton` | boolean | true | Botão carrinho |
