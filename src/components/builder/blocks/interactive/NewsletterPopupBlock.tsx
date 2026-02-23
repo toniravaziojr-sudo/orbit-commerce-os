@@ -317,25 +317,28 @@ export function NewsletterPopupBlock({
   // Dialog layouts (centered, side-image, fullscreen)
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent 
+       <DialogContent 
         className={cn(
-          "sm:max-w-md max-w-[92vw] rounded-xl [&>button.absolute]:hidden",
+          "sm:max-w-md max-w-[92vw] rounded-xl",
+          "[&>button[class*='absolute']]:hidden",
           layout === 'fullscreen' && "sm:max-w-3xl",
           layout === 'side-image' && imageUrl && "sm:max-w-2xl p-0 overflow-hidden"
         )}
         style={containerStyle}
+        onInteractOutside={handleClose}
       >
-        {/* Custom close button with theme colors */}
+        {/* Custom close button with theme colors - high visibility */}
         <button
+          type="button"
           onClick={handleClose}
-          className="absolute right-3 top-3 z-10 flex items-center justify-center w-8 h-8 rounded-full shadow-md transition-opacity hover:opacity-90"
+          className="absolute right-3 top-3 z-[60] flex items-center justify-center w-9 h-9 rounded-full shadow-lg transition-transform hover:scale-110 focus:outline-none"
           style={{
-            backgroundColor: buttonBgColor || 'hsl(var(--primary))',
-            color: buttonTextColor || 'hsl(var(--primary-foreground))',
+            backgroundColor: buttonBgColor || '#e41111',
+            color: buttonTextColor || '#ffffff',
           }}
           aria-label="Fechar"
         >
-          <X className="w-4 h-4" />
+          <X className="w-5 h-5" strokeWidth={2.5} />
         </button>
 
         {layout === 'side-image' && imageUrl ? (
