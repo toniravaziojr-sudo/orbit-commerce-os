@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.2.0"; // Add Google Ads channel support in context + prompt
+const VERSION = "v1.3.0"; // Add TikTok Ads channel support in context + prompt
 // ===================
 
 const corsHeaders = {
@@ -320,7 +320,72 @@ async function collectGuardianContext(supabase: any, tenantId: string, configs: 
 
       channelData.google = { campaigns: campaigns || [], campaignPerf7d, campaignPerf3d, campaignAccountMap };
     }
-    // TikTok follows same pattern — add when needed
+
+    if (ch === "tiktok") {
+      const { data: campaigns } = await supabase
+        .from("tiktok_ad_campaigns")
+        .select("tiktok_campaign_id, name, status, objective_type, budget_cents, budget_mode, advertiser_id")
+        .eq("tenant_id", tenantId)
+        .limit(100);
+
+      const { data: insights7d } = await supabase
+        .from("tiktok_ad_insights")
+        .select("tiktok_campaign_id, impressions, clicks, spend_cents, conversions, conversion_value_cents, roas, date_start")
+        .eq("tenant_id", tenantId)
+        .gte("date_start", sevenDaysAgo)
+        .limit(500);
+
+      const { data: insights3d } = await supabase
+        .from("tiktok_ad_insights")
+        .select("tiktok_campaign_id, impressions, clicks, spend_cents, conversions, conversion_value_cents, roas, date_start")
+        .eq("tenant_id", tenantId)
+        .gte("date_start", threeDaysAgo)
+        .limit(300);
+
+      const campaignPerf7d: Record<string, any> = {};
+      const campaignPerf3d: Record<string, any> = {};
+
+      for (const ins of insights7d || []) {
+        const cid = ins.tiktok_campaign_id;
+        if (!campaignPerf7d[cid]) campaignPerf7d[cid] = { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0, days: new Set() };
+        campaignPerf7d[cid].spend += ins.spend_cents || 0;
+        campaignPerf7d[cid].impressions += ins.impressions || 0;
+        campaignPerf7d[cid].clicks += ins.clicks || 0;
+        campaignPerf7d[cid].conversions += ins.conversions || 0;
+        campaignPerf7d[cid].revenue += (ins.roas || 0) * (ins.spend_cents || 0);
+        campaignPerf7d[cid].days.add(ins.date_start);
+      }
+      for (const ins of insights3d || []) {
+        const cid = ins.tiktok_campaign_id;
+        if (!campaignPerf3d[cid]) campaignPerf3d[cid] = { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0, days: new Set() };
+        campaignPerf3d[cid].spend += ins.spend_cents || 0;
+        campaignPerf3d[cid].impressions += ins.impressions || 0;
+        campaignPerf3d[cid].clicks += ins.clicks || 0;
+        campaignPerf3d[cid].conversions += ins.conversions || 0;
+        campaignPerf3d[cid].revenue += (ins.roas || 0) * (ins.spend_cents || 0);
+        campaignPerf3d[cid].days.add(ins.date_start);
+      }
+
+      for (const perf of [campaignPerf7d, campaignPerf3d]) {
+        for (const cid of Object.keys(perf)) {
+          const p = perf[cid];
+          perf[cid] = {
+            ...p,
+            days: p.days.size,
+            roas: safeDivide(p.revenue, p.spend),
+            cpa_cents: safeDivide(p.spend, p.conversions),
+            ctr_pct: safeDivide(p.clicks * 100, p.impressions),
+          };
+        }
+      }
+
+      const campaignAccountMap: Record<string, string> = {};
+      for (const c of campaigns || []) {
+        if (c.advertiser_id) campaignAccountMap[c.tiktok_campaign_id] = c.advertiser_id;
+      }
+
+      channelData.tiktok = { campaigns: campaigns || [], campaignPerf7d, campaignPerf3d, campaignAccountMap };
+    }
   }
 
   // Get today's guardian actions (to avoid duplicate pauses/reactivations)

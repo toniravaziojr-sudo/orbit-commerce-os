@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.46.0"; // TikTok Ads strategist: context, prompt, executeToolCall, deep historical
+const VERSION = "v1.47.0"; // TikTok tool selection in execution loop
 // ===================
 
 const corsHeaders = {
@@ -2814,7 +2814,15 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
       const isScopedRevision = trigger === "revision" && revisionActionType === "create_campaign";
       
       let allowedTools: any[];
-      if (isGoogleAccount) {
+      const isTikTokAccount = config.channel === "tiktok";
+      if (isTikTokAccount) {
+        // TikTok Ads: use TikTok-specific tools
+        allowedTools = trigger === "start"
+          ? TIKTOK_STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan")
+          : trigger === "implement_approved_plan" || trigger === "implement_campaigns"
+          ? TIKTOK_STRATEGIST_TOOLS.filter((t: any) => ["create_tiktok_campaign", "toggle_tiktok_status", "update_tiktok_budget"].includes(t.function?.name))
+          : TIKTOK_STRATEGIST_TOOLS;
+      } else if (isGoogleAccount) {
         // Google Ads: use Google-specific tools
         allowedTools = trigger === "start"
           ? GOOGLE_STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan")
