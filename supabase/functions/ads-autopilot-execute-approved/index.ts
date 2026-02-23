@@ -718,6 +718,99 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ====== CREATE CAMPAIGN — Google Ads execution ======
+    if (action.action_type === "create_campaign" && action.channel === "google") {
+      const adAccountId = data.ad_account_id;
+      const campaignName = data.campaign_name || preview.campaign_name || "[AI] Nova Campanha Google";
+      const budgetAmountMicros = data.budget_amount_micros || (data.daily_budget_cents ? data.daily_budget_cents * 10000 : 1000000);
+      const advertisingChannelType = data.advertising_channel_type || "SEARCH";
+
+      console.log(`[ads-autopilot-execute-approved][${VERSION}] Creating Google campaign: ${campaignName} type=${advertisingChannelType}`);
+
+      const campaignBody: any = {
+        tenant_id, action: "create", customer_id: adAccountId,
+        name: campaignName, status: "PAUSED",
+        advertising_channel_type: advertisingChannelType,
+        budget_amount_micros: budgetAmountMicros,
+        budget_type: data.budget_type || "DAILY",
+        bidding_strategy_type: data.bidding_strategy_type || "MAXIMIZE_CONVERSIONS",
+        target_cpa_micros: data.target_cpa_micros || null,
+        target_roas: data.target_roas || null,
+        network_settings: data.network_settings || null,
+        geo_targets: data.geo_targets || ["2076"], // 2076 = Brazil
+        language_targets: data.language_targets || ["1014"], // 1014 = Portuguese
+      };
+
+      const { data: campaignResult, error: campaignErr } = await supabase.functions.invoke("google-ads-campaigns", { body: campaignBody });
+      if (campaignErr || !campaignResult?.success) {
+        const errMsg = campaignErr?.message || campaignResult?.error || "Erro ao criar campanha Google";
+        console.error(`[ads-autopilot-execute-approved][${VERSION}] Google campaign error:`, errMsg);
+        await supabase.from("ads_autopilot_actions").update({ status: "failed", error_message: errMsg }).eq("id", action_id);
+        return new Response(JSON.stringify({ success: false, error: errMsg }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      const googleCampaignId = campaignResult.data?.google_campaign_id;
+
+      // Create ad group if search campaign
+      let googleAdGroupId: string | null = null;
+      if (googleCampaignId && (advertisingChannelType === "SEARCH" || advertisingChannelType === "DISPLAY")) {
+        const adGroupName = data.ad_group_name || campaignName.replace("[AI]", "[AI] AG -");
+        const { data: agResult } = await supabase.functions.invoke("google-ads-adgroups", {
+          body: { tenant_id, action: "create", customer_id: adAccountId, campaign_id: googleCampaignId, name: adGroupName, status: "ENABLED",
+                  ad_group_type: advertisingChannelType === "SEARCH" ? "SEARCH_STANDARD" : "DISPLAY_STANDARD",
+                  cpc_bid_micros: data.cpc_bid_micros || null, target_cpa_micros: data.target_cpa_micros || null }
+        });
+        googleAdGroupId = agResult?.data?.google_ad_group_id || null;
+        if (googleAdGroupId) console.log(`[ads-autopilot-execute-approved][${VERSION}] Google ad group created: ${googleAdGroupId}`);
+      }
+
+      // Create keywords for Search campaigns
+      if (googleAdGroupId && advertisingChannelType === "SEARCH" && data.keywords?.length > 0) {
+        const { data: kwResult } = await supabase.functions.invoke("google-ads-keywords", {
+          body: { tenant_id, action: "create", customer_id: adAccountId, ad_group_id: googleAdGroupId, keywords: data.keywords }
+        });
+        console.log(`[ads-autopilot-execute-approved][${VERSION}] Keywords created: ${kwResult?.data?.created || 0}`);
+      }
+
+      // Create RSA for Search campaigns
+      let googleAdId: string | null = null;
+      if (googleAdGroupId && advertisingChannelType === "SEARCH" && data.headlines?.length && data.descriptions?.length) {
+        const destinationUrl = data.destination_url || data.final_urls?.[0] || null;
+        if (destinationUrl) {
+          const { data: adResult } = await supabase.functions.invoke("google-ads-ads", {
+            body: { tenant_id, action: "create", customer_id: adAccountId, ad_group_id: googleAdGroupId, ad_type: "RESPONSIVE_SEARCH_AD",
+                    final_urls: [destinationUrl], headlines: data.headlines, descriptions: data.descriptions,
+                    path1: data.path1 || null, path2: data.path2 || null, status: "ENABLED" }
+          });
+          googleAdId = adResult?.data?.google_ad_id || null;
+          if (googleAdId) console.log(`[ads-autopilot-execute-approved][${VERSION}] Google ad created: ${googleAdId}`);
+        }
+      }
+
+      await supabase.from("ads_autopilot_actions").update({
+        status: "executed", executed_at: new Date().toISOString(),
+        rollback_data: { google_campaign_id: googleCampaignId, google_ad_group_id: googleAdGroupId, google_ad_id: googleAdId },
+      }).eq("id", action_id);
+
+      return new Response(JSON.stringify({ success: true, data: { google_campaign_id: googleCampaignId, google_ad_group_id: googleAdGroupId, google_ad_id: googleAdId } }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ====== PAUSE/ACTIVATE — Google Ads ======
+    if ((action.action_type === "pause_campaign" || action.action_type === "activate_campaign") && action.channel === "google") {
+      const campaignId = data.campaign_id || data.google_campaign_id;
+      const googleAction = action.action_type === "pause_campaign" ? "pause" : "activate";
+      const { data: result, error: err } = await supabase.functions.invoke("google-ads-campaigns", {
+        body: { tenant_id, action: googleAction, customer_id: data.ad_account_id, campaign_id: campaignId }
+      });
+      if (err || !result?.success) {
+        await supabase.from("ads_autopilot_actions").update({ status: "failed", error_message: err?.message || result?.error }).eq("id", action_id);
+        return new Response(JSON.stringify({ success: false, error: err?.message || result?.error }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      await supabase.from("ads_autopilot_actions").update({ status: "executed", executed_at: new Date().toISOString() }).eq("id", action_id);
+      return new Response(JSON.stringify({ success: true, data: result.data }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     // ====== OTHER ACTIONS — Mark as executed ======
     console.log(`[ads-autopilot-execute-approved][${VERSION}] Action type ${action.action_type} — marking as executed`);
 
