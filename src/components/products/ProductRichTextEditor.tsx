@@ -366,7 +366,7 @@ export function ProductRichTextEditor({
             "prose-hr:my-4 prose-hr:border-border",
             "[&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-muted-foreground [&:empty]:before:pointer-events-none"
           )}
-          style={{ minHeight }}
+          style={{ minHeight, maxHeight: '450px', overflowY: 'auto' }}
           onInput={handleInput}
           onBlur={handleInput}
           data-placeholder={placeholder}
@@ -378,7 +378,7 @@ export function ProductRichTextEditor({
           onChange={handleHtmlChange}
           placeholder="<p>Digite o HTML aqui...</p>"
           className="border-0 rounded-none focus-visible:ring-0 font-mono text-sm"
-          style={{ minHeight }}
+          style={{ minHeight, maxHeight: '450px', overflowY: 'auto' }}
         />
       )}
     </div>
