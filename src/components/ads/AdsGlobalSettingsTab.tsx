@@ -231,8 +231,8 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
             </div>
           </div>
 
-          {/* ROAS Scaling Threshold */}
-          <div className="space-y-3 p-4 rounded-lg border border-primary/20 bg-primary/5">
+          {/* ROAS Scaling Threshold - HIDDEN FOR META REVIEW */}
+          {/* <div className="space-y-3 p-4 rounded-lg border border-primary/20 bg-primary/5">
             <Label className="text-sm font-semibold flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-primary" />
               ROAS de Escalonamento
@@ -248,7 +248,7 @@ export function AdsGlobalSettingsTab({ globalConfig, onSave, isSaving, hasAccoun
             <p className="text-[10px] text-muted-foreground border-t pt-2">
               ⚡ Hierarquia: ROI mín. (pausa) → ROAS escalonamento (ajuste) → ROI ideal (meta final). A IA decide o percentual de ajuste respeitando os limites da plataforma (Meta ±10%, Google ±15%, TikTok ±7%).
             </p>
-          </div>
+          </div> */}
 
           {/* Strategy Mode */}
           <div className="space-y-2">
