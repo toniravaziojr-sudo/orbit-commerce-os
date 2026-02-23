@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.44.0"; // Fix implement_campaigns: strict plan fidelity — no extra campaigns/adsets
+const VERSION = "v1.45.0"; // Google Ads strategist: context, prompt, executeToolCall, deep historical
 // ===================
 
 const corsHeaders = {
@@ -506,8 +506,69 @@ async function buildDeepHistoricalFromLocalData(
   channel: string = "meta"
 ): Promise<{ campaigns: DeepInsight[]; adsets: DeepInsight[]; ads: DeepInsight[] } | null> {
   if (channel === "google") {
-    // Placeholder for Google deep historical
-    return { campaigns: [], adsets: [], ads: [] };
+    try {
+      console.log(`[ads-autopilot-strategist][${VERSION}] Building Google deep historical from LOCAL DB for ${adAccountId}`);
+
+      const [gCampaignsRes, gAdGroupsRes, gAdsRes, gKeywordsRes] = await Promise.all([
+        supabase.from("google_ad_campaigns").select("google_campaign_id, name, status, campaign_type, bidding_strategy_type, budget_amount_micros, budget_type, target_cpa_micros, target_roas, optimization_score, ad_account_id")
+          .eq("tenant_id", tenantId).eq("ad_account_id", adAccountId).limit(500),
+        supabase.from("google_ad_groups").select("google_ad_group_id, google_campaign_id, name, status, type, cpc_bid_micros, cpm_bid_micros, target_cpa_micros, target_roas")
+          .eq("tenant_id", tenantId).eq("ad_account_id", adAccountId).limit(1000),
+        supabase.from("google_ad_ads").select("google_ad_id, google_ad_group_id, google_campaign_id, name, ad_type, status, headlines, descriptions, final_urls, performance_data")
+          .eq("tenant_id", tenantId).eq("ad_account_id", adAccountId).limit(1000),
+        supabase.from("google_ad_keywords").select("google_keyword_id, google_ad_group_id, google_campaign_id, text, match_type, status, quality_score, cpc_bid_micros, performance_data")
+          .eq("tenant_id", tenantId).eq("ad_account_id", adAccountId).limit(1000),
+      ]);
+
+      const gCampaigns = gCampaignsRes.data || [];
+      const gAdGroups = gAdGroupsRes.data || [];
+      const gAds = gAdsRes.data || [];
+      const gKeywords = gKeywordsRes.data || [];
+
+      if (gCampaigns.length === 0) {
+        console.warn(`[ads-autopilot-strategist][${VERSION}] No Google campaigns in local DB for ${adAccountId}`);
+        return null;
+      }
+
+      const campaignInsights: DeepInsight[] = gCampaigns.map((c: any) => {
+        const perf = c.performance_data || {};
+        return {
+          level: "campaign", id: c.google_campaign_id, name: c.name, status: c.status || "",
+          spend: (perf.cost_micros || 0) / 1_000_000, impressions: perf.impressions || 0,
+          clicks: perf.clicks || 0, conversions: perf.conversions || 0,
+          roas: perf.conversions_value && perf.cost_micros ? Math.round((perf.conversions_value / (perf.cost_micros / 1_000_000)) * 100) / 100 : 0,
+          cpa: perf.conversions > 0 ? Math.round(((perf.cost_micros || 0) / 1_000_000 / perf.conversions) * 100) / 100 : 0,
+          ctr: perf.impressions > 0 ? Math.round((perf.clicks / perf.impressions) * 10000) / 100 : 0,
+        };
+      });
+
+      const adsetInsights: DeepInsight[] = gAdGroups.map((ag: any) => ({
+        level: "adset", id: ag.google_ad_group_id, name: ag.name, status: ag.status || "",
+        spend: 0, impressions: 0, clicks: 0, conversions: 0, roas: 0, cpa: 0, ctr: 0,
+        campaign_id: ag.google_campaign_id,
+      }));
+
+      const adInsights: DeepInsight[] = gAds.map((ad: any) => {
+        const perf = ad.performance_data || {};
+        return {
+          level: "ad", id: ad.google_ad_id, name: ad.name || ad.ad_type, status: ad.status || "",
+          spend: (perf.cost_micros || 0) / 1_000_000, impressions: perf.impressions || 0,
+          clicks: perf.clicks || 0, conversions: perf.conversions || 0,
+          roas: perf.conversions_value && perf.cost_micros ? Math.round((perf.conversions_value / (perf.cost_micros / 1_000_000)) * 100) / 100 : 0,
+          cpa: perf.conversions > 0 ? Math.round(((perf.cost_micros || 0) / 1_000_000 / perf.conversions) * 100) / 100 : 0,
+          ctr: perf.impressions > 0 ? Math.round((perf.clicks / perf.impressions) * 10000) / 100 : 0,
+          creative_data: { headlines: ad.headlines, descriptions: ad.descriptions },
+          campaign_id: ad.google_campaign_id, adset_id: ad.google_ad_group_id,
+        };
+      });
+
+      console.log(`[ads-autopilot-strategist][${VERSION}] Google deep historical for ${adAccountId}: ${campaignInsights.length} campaigns, ${adsetInsights.length} ad groups, ${adInsights.length} ads`);
+
+      return { campaigns: campaignInsights, adsets: adsetInsights, ads: adInsights, keywords: gKeywords };
+    } catch (err: any) {
+      console.error(`[ads-autopilot-strategist][${VERSION}] buildDeepHistoricalFromLocalData (Google) error:`, err.message);
+      return null;
+    }
   }
   try {
     console.log(`[ads-autopilot-strategist][${VERSION}] Building deep historical from LOCAL DB for ${adAccountId} (${channel})`);
@@ -656,6 +717,12 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     landingPagesRes,
     globalConfigRes,
     categoriesRes,
+    // Google Ads local cache
+    googleCampaignsRes,
+    googleAdGroupsRes,
+    googleAdsRes,
+    googleKeywordsRes,
+    googleAssetsRes,
   ] = await Promise.all([
     supabase.from("products").select("id, name, slug, price, cost_price, status, stock_quantity, brand, short_description").eq("tenant_id", tenantId).eq("status", "active").order("name", { ascending: true }).limit(30),
     supabase.from("orders").select("id, total, status, payment_status, created_at").eq("tenant_id", tenantId).gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()).limit(500),
@@ -675,6 +742,12 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     supabase.from("ai_landing_pages").select("name, slug, status, is_published, seo_title, product_ids").eq("tenant_id", tenantId).eq("status", "active").limit(20),
     supabase.from("ads_autopilot_configs").select("*").eq("tenant_id", tenantId).eq("channel", "global").maybeSingle(),
     supabase.from("categories").select("name, slug").eq("tenant_id", tenantId).limit(30),
+    // Google Ads local cache queries
+    supabase.from("google_ad_campaigns").select("google_campaign_id, name, status, campaign_type, bidding_strategy_type, budget_amount_micros, budget_type, target_cpa_micros, target_roas, optimization_score, ad_account_id, synced_at").eq("tenant_id", tenantId).limit(200),
+    supabase.from("google_ad_groups").select("google_ad_group_id, google_campaign_id, name, status, type, cpc_bid_micros, cpm_bid_micros, target_cpa_micros, target_roas, ad_account_id").eq("tenant_id", tenantId).limit(500),
+    supabase.from("google_ad_ads").select("google_ad_id, google_ad_group_id, google_campaign_id, name, ad_type, status, headlines, descriptions, final_urls, performance_data, ad_account_id").eq("tenant_id", tenantId).limit(500),
+    supabase.from("google_ad_keywords").select("google_keyword_id, google_ad_group_id, google_campaign_id, text, match_type, status, quality_score, cpc_bid_micros, performance_data, ad_account_id").eq("tenant_id", tenantId).limit(500),
+    supabase.from("google_ad_assets").select("google_asset_id, name, asset_type, status, text_content, image_url, youtube_video_id, ad_account_id").eq("tenant_id", tenantId).limit(200),
   ]);
 
   const products = productsRes.data || [];
@@ -695,6 +768,11 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
   const landingPages = landingPagesRes.data || [];
   const globalConfig = globalConfigRes.data || null;
   const categories = categoriesRes.data || [];
+  const googleCampaigns = googleCampaignsRes.data || [];
+  const googleAdGroups = googleAdGroupsRes.data || [];
+  const googleAds = googleAdsRes.data || [];
+  const googleKeywords = googleKeywordsRes.data || [];
+  const googleAssets = googleAssetsRes.data || [];
 
   // Resolve store URL from tenant_domains (source of truth)
   const { data: domainRow } = await supabase.from("tenant_domains").select("domain").eq("tenant_id", tenantId).eq("type", "custom").eq("is_primary", true).maybeSingle();
@@ -842,7 +920,8 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     console.log(`[ads-autopilot-strategist][${VERSION}] Building deep historical from LOCAL DB for start trigger...`);
     deepHistorical = {};
     for (const acctId of accountIds) {
-      const result = await buildDeepHistoricalFromLocalData(supabase, tenantId, acctId);
+      const acctChannel = configs.find(c => c.ad_account_id === acctId)?.channel || "meta";
+      const result = await buildDeepHistoricalFromLocalData(supabase, tenantId, acctId, acctChannel);
       if (result) {
         deepHistorical[acctId] = result;
         console.log(`[ads-autopilot-strategist][${VERSION}] Deep historical for ${acctId}: ${result.campaigns.length} campaigns, ${result.adsets.length} adsets, ${result.ads.length} ads`);
@@ -875,12 +954,24 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     globalConfig,
     imagesByProduct,
     deepHistorical,
+    // Google Ads data
+    googleCampaigns,
+    googleAdGroups,
+    googleAds,
+    googleKeywords,
+    googleAssets,
   };
 }
 
 // ============ BUILD STRATEGIST PROMPT ============
 
 function buildStrategistPrompt(trigger: StrategistTrigger, config: AccountConfig, context: any) {
+  // === GOOGLE ADS BRANCH ===
+  if (config.channel === "google") {
+    return buildGoogleStrategistPrompt(trigger, config, context);
+  }
+
+  // === META ADS (default) ===
   // Filter campaigns for this account
   const accountCampaignIds = Object.entries(context.campaignAccountMap || {})
     .filter(([_, acctId]) => acctId === config.ad_account_id)
@@ -1402,6 +1493,152 @@ Execute o pipeline completo de 5 fases. Use strategic_plan para o diagnóstico, 
   return { system, user };
 }
 
+// ============ BUILD GOOGLE STRATEGIST PROMPT ============
+
+function buildGoogleStrategistPrompt(trigger: StrategistTrigger, config: AccountConfig, context: any) {
+  const googleCampaigns = (context.googleCampaigns || []).filter((c: any) => c.ad_account_id === config.ad_account_id);
+  const googleAdGroups = (context.googleAdGroups || []).filter((ag: any) => ag.ad_account_id === config.ad_account_id);
+  const googleAds = (context.googleAds || []).filter((ad: any) => ad.ad_account_id === config.ad_account_id);
+  const googleKeywords = (context.googleKeywords || []).filter((kw: any) => kw.ad_account_id === config.ad_account_id);
+  const googleAssets = (context.googleAssets || []).filter((a: any) => a.ad_account_id === config.ad_account_id);
+
+  const activeCampaigns = googleCampaigns.filter((c: any) => c.status === "ENABLED");
+  const pausedCampaigns = googleCampaigns.filter((c: any) => c.status === "PAUSED");
+
+  const platformLimit = PLATFORM_LIMITS[config.channel] || PLATFORM_LIMITS.google;
+  const budgetAdjustable = canAdjustBudget(config);
+
+  const fmtMicros = (v: any) => v != null ? (Number(v) / 1_000_000).toFixed(2) : "-";
+
+  // Campaign table
+  const campaignHeaders = "ID | Nome | Status | Tipo | Estratégia | Budget/dia (R$) | CPA Alvo | ROAS Alvo | Otimização";
+  const campaignRows = googleCampaigns.map((c: any) =>
+    `${c.google_campaign_id} | ${c.name} | ${c.status} | ${c.campaign_type || "-"} | ${c.bidding_strategy_type || "-"} | ${fmtMicros(c.budget_amount_micros)} | ${fmtMicros(c.target_cpa_micros)} | ${c.target_roas ?? "-"} | ${c.optimization_score ?? "-"}`
+  ).join("\n");
+
+  // Ad Groups table
+  const adGroupHeaders = "ID | Nome | Status | Tipo | CampaignID | CPC Max (R$)";
+  const adGroupRows = googleAdGroups.map((ag: any) =>
+    `${ag.google_ad_group_id} | ${ag.name} | ${ag.status} | ${ag.type || "-"} | ${ag.google_campaign_id} | ${fmtMicros(ag.cpc_bid_micros)}`
+  ).join("\n");
+
+  // Ads table
+  const adHeaders = "ID | Nome | Tipo | Status | AdGroupID | Headlines | Descriptions";
+  const adRows = googleAds.slice(0, 100).map((ad: any) => {
+    const hl = Array.isArray(ad.headlines) ? ad.headlines.slice(0, 3).join("; ") : "-";
+    const desc = Array.isArray(ad.descriptions) ? ad.descriptions.slice(0, 2).join("; ") : "-";
+    return `${ad.google_ad_id} | ${ad.name || ad.ad_type} | ${ad.ad_type || "-"} | ${ad.status} | ${ad.google_ad_group_id} | ${hl} | ${desc}`;
+  }).join("\n");
+
+  // Keywords table
+  const kwHeaders = "ID | Texto | Match | Status | QS | CPC Max (R$) | AdGroupID";
+  const kwRows = googleKeywords.slice(0, 200).map((kw: any) =>
+    `${kw.google_keyword_id} | ${kw.text} | ${kw.match_type} | ${kw.status} | ${kw.quality_score ?? "-"} | ${fmtMicros(kw.cpc_bid_micros)} | ${kw.google_ad_group_id}`
+  ).join("\n");
+
+  let triggerInstruction = "";
+  switch (trigger) {
+    case "start":
+      triggerInstruction = `## TRIGGER: PRIMEIRA ATIVAÇÃO — PLANEJAMENTO ESTRATÉGICO GOOGLE ADS
+Emita APENAS um strategic_plan. NÃO crie campanhas, ad groups ou anúncios agora.
+O plano deve cobrir 100% do orçamento disponível (R$ ${((config.budget_cents || 0) / 100).toFixed(2)}/dia).
+
+Analise:
+1. Campanhas existentes (ativas e pausadas) e performance histórica
+2. Tipos de campanha recomendados (Search, PMax, Display, Shopping)
+3. Palavras-chave de alto potencial para Search
+4. Estrutura de Ad Groups ideal
+5. Alocação de orçamento por tipo de campanha
+
+{{DEEP_HISTORICAL_DATA}}`;
+      break;
+    case "weekly":
+      triggerInstruction = `## TRIGGER: REVISÃO SEMANAL GOOGLE ADS
+Revise performance 7d. Proponha ajustes:
+1. Quality Scores baixos → otimizar anúncios ou pausar keywords
+2. Keywords sem conversão → pausar
+3. Ad Groups com CTR < 1% → revisar anúncios
+4. Budget mal distribuído → redistribuir`;
+      break;
+    case "monthly":
+      triggerInstruction = `## TRIGGER: REVISÃO MENSAL GOOGLE ADS
+Emita um strategic_plan completo para o próximo mês. Analise 30d de dados.`;
+      break;
+    case "implement_approved_plan":
+      triggerInstruction = `## TRIGGER: IMPLEMENTAÇÃO DE PLANO GOOGLE — FASE 1
+Crie as campanhas, ad groups, keywords e anúncios conforme o plano aprovado.
+{{APPROVED_PLAN_CONTENT}}
+Execute TODAS as ações usando create_google_campaign, create_google_ad_group, create_google_keyword e create_google_ad.`;
+      break;
+    case "implement_campaigns":
+      triggerInstruction = `## TRIGGER: IMPLEMENTAÇÃO GOOGLE — FASE 2
+{{APPROVED_PLAN_CONTENT}}
+Continue a implementação conforme o plano. Execute TODAS as ações pendentes.`;
+      break;
+  }
+
+  const storeName = context.storeSettings?.store_name || context.tenant?.name || "Loja";
+  const storeDescription = context.storeSettings?.store_description || "";
+
+  const system = `Você é o Motor Estrategista do Autopilot de Tráfego — canal GOOGLE ADS.
+
+## LOJA / MARCA
+- Nome: ${storeName}
+- Descrição: ${storeDescription || "Não informada"}
+- URL: ${context.storeUrl || "Não configurada"}
+
+## CONTA GOOGLE ADS: ${config.ad_account_id}
+- Orçamento: R$ ${((config.budget_cents || 0) / 100).toFixed(2)} / ${config.budget_mode || "monthly"}
+- ROI Alvo: ${config.target_roi || "N/D"}x
+- Estratégia: ${config.strategy_mode || "balanced"}
+- Pode ajustar budget: ${budgetAdjustable ? "SIM" : "NÃO"}
+
+## INSTRUÇÕES DO USUÁRIO
+${config.user_instructions || "Nenhuma."}
+
+## REGRAS GOOGLE ADS
+- Campanhas criadas sempre PAUSADAS
+- Hierarquia: Campanha → Ad Group → Keywords + Ads
+- Search: RSA com 3-15 headlines (30 chars) e 2-4 descriptions (90 chars)
+- PMax: Requer assets (imagens, textos, vídeos)
+- Budget em micros (R$ 1 = 1.000.000 micros)
+- Keywords: Use EXACT e PHRASE para maior controle. BROAD apenas com dados suficientes.
+- Quality Score: Monitorar e otimizar (>7 bom, <5 ação necessária)
+- NUNCA delete campanhas — apenas pause
+- Responda SEMPRE em Português do Brasil
+
+## PRODUTOS DO CATÁLOGO (${context.products.length})
+${context.products.slice(0, 20).map((p: any) => {
+    const url = context.storeUrl ? `${context.storeUrl}/produto/${p.slug || p.id}` : null;
+    return `• ${p.name} — R$${Number(p.price).toFixed(2)}${p.stock_quantity != null ? ` [est:${p.stock_quantity}]` : ""} | ${url || "-"}`;
+  }).join("\n")}
+
+${triggerInstruction}`;
+
+  const user = `## CAMPANHAS GOOGLE (${googleCampaigns.length} total: ${activeCampaigns.length} ativas, ${pausedCampaigns.length} pausadas)
+${campaignHeaders}
+${campaignRows || "Nenhuma campanha"}
+
+## GRUPOS DE ANÚNCIOS (${googleAdGroups.length})
+${adGroupHeaders}
+${adGroupRows || "Nenhum grupo"}
+
+## ANÚNCIOS (${googleAds.length})
+${adHeaders}
+${adRows || "Nenhum anúncio"}
+
+## PALAVRAS-CHAVE (${googleKeywords.length})
+${kwHeaders}
+${kwRows || "Nenhuma keyword"}
+
+## ASSETS (${googleAssets.length})
+${googleAssets.slice(0, 50).map((a: any) => `- ${a.name || a.asset_type} [${a.status}] tipo=${a.asset_type}`).join("\n") || "Nenhum asset"}
+
+Execute o pipeline para Google Ads.`;
+
+  return { system, user };
+}
+
 // ============ EXECUTE TOOL CALLS ============
 
 async function executeToolCall(
@@ -1762,6 +1999,102 @@ async function executeToolCall(
         change_pct: args.change_pct,
         scheduled_for: scheduledFor,
         ad_account_id: config.ad_account_id,
+      },
+    };
+  }
+
+  // ============ GOOGLE ADS TOOL HANDLERS ============
+
+  if (toolName === "create_google_campaign") {
+    console.log(`[ads-autopilot-strategist][${VERSION}] create_google_campaign → pending_approval`);
+    return {
+      status: "pending_approval",
+      data: {
+        type: "google_campaign",
+        ad_account_id: config.ad_account_id,
+        name: args.name,
+        channel_type: args.channel_type,
+        budget_micros: args.budget_micros,
+        budget_display: `R$ ${((args.budget_micros || 0) / 1_000_000).toFixed(2)}/dia`,
+        bidding_strategy: args.bidding_strategy,
+        target_roas: args.target_roas || null,
+        target_cpa_micros: args.target_cpa_micros || null,
+        start_date: args.start_date || null,
+        reasoning: args.reasoning,
+        preview: {
+          campaign_name: args.name,
+          campaign_type: args.channel_type,
+          budget_display: `R$ ${((args.budget_micros || 0) / 1_000_000).toFixed(2)}/dia`,
+          bidding_strategy: args.bidding_strategy,
+        },
+      },
+    };
+  }
+
+  if (toolName === "create_google_ad_group") {
+    console.log(`[ads-autopilot-strategist][${VERSION}] create_google_ad_group → pending_approval`);
+    return {
+      status: "pending_approval",
+      data: {
+        type: "google_ad_group",
+        ad_account_id: config.ad_account_id,
+        campaign_name: args.campaign_name,
+        name: args.name,
+        type: args.type || "SEARCH_STANDARD",
+        cpc_bid_micros: args.cpc_bid_micros || null,
+        reasoning: args.reasoning,
+        preview: {
+          ad_group_name: args.name,
+          campaign_name: args.campaign_name,
+          type: args.type || "SEARCH_STANDARD",
+          cpc_bid_display: args.cpc_bid_micros ? `R$ ${(args.cpc_bid_micros / 1_000_000).toFixed(2)}` : "Automático",
+        },
+      },
+    };
+  }
+
+  if (toolName === "create_google_keyword") {
+    console.log(`[ads-autopilot-strategist][${VERSION}] create_google_keyword → pending_approval`);
+    return {
+      status: "pending_approval",
+      data: {
+        type: "google_keyword",
+        ad_account_id: config.ad_account_id,
+        campaign_name: args.campaign_name,
+        ad_group_name: args.ad_group_name,
+        text: args.text,
+        match_type: args.match_type,
+        reasoning: args.reasoning,
+        preview: {
+          keyword: args.text,
+          match_type: args.match_type,
+          ad_group_name: args.ad_group_name,
+        },
+      },
+    };
+  }
+
+  if (toolName === "create_google_ad") {
+    console.log(`[ads-autopilot-strategist][${VERSION}] create_google_ad → pending_approval`);
+    return {
+      status: "pending_approval",
+      data: {
+        type: "google_ad",
+        ad_account_id: config.ad_account_id,
+        campaign_name: args.campaign_name,
+        ad_group_name: args.ad_group_name,
+        headlines: args.headlines,
+        descriptions: args.descriptions,
+        final_url: args.final_url,
+        path1: args.path1 || null,
+        path2: args.path2 || null,
+        reasoning: args.reasoning,
+        preview: {
+          ad_group_name: args.ad_group_name,
+          headlines: args.headlines?.slice(0, 3) || [],
+          descriptions: args.descriptions?.slice(0, 2) || [],
+          final_url: args.final_url,
+        },
       },
     };
   }
@@ -2145,17 +2478,30 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
       let round = 0;
       let allAiText = "";
       
-      // Build tool set based on trigger
+      // Build tool set based on trigger AND channel
+      const isGoogleAccount = config.channel === "google";
       const isScopedRevision = trigger === "revision" && revisionActionType === "create_campaign";
-      const allowedTools = trigger === "implement_approved_plan" 
-        ? STRATEGIST_TOOLS.filter((t: any) => ["generate_creative", "create_lookalike_audience"].includes(t.function?.name))
-        : trigger === "implement_campaigns"
-        ? STRATEGIST_TOOLS.filter((t: any) => ["create_campaign", "create_adset", "adjust_budget"].includes(t.function?.name))
-        : trigger === "start"
-        ? STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan")
-        : isScopedRevision
-        ? STRATEGIST_TOOLS.filter((t: any) => ["create_campaign", "create_adset", "generate_creative", "create_lookalike_audience"].includes(t.function?.name))
-        : STRATEGIST_TOOLS;
+      
+      let allowedTools: any[];
+      if (isGoogleAccount) {
+        // Google Ads: use Google-specific tools
+        allowedTools = trigger === "start"
+          ? GOOGLE_STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan")
+          : trigger === "implement_approved_plan" || trigger === "implement_campaigns"
+          ? GOOGLE_STRATEGIST_TOOLS.filter((t: any) => ["create_google_campaign", "create_google_ad_group", "create_google_keyword", "create_google_ad"].includes(t.function?.name))
+          : GOOGLE_STRATEGIST_TOOLS;
+      } else {
+        // Meta Ads: use Meta-specific tools (default)
+        allowedTools = trigger === "implement_approved_plan" 
+          ? STRATEGIST_TOOLS.filter((t: any) => ["generate_creative", "create_lookalike_audience"].includes(t.function?.name))
+          : trigger === "implement_campaigns"
+          ? STRATEGIST_TOOLS.filter((t: any) => ["create_campaign", "create_adset", "adjust_budget"].includes(t.function?.name))
+          : trigger === "start"
+          ? STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan")
+          : isScopedRevision
+          ? STRATEGIST_TOOLS.filter((t: any) => ["create_campaign", "create_adset", "generate_creative", "create_lookalike_audience"].includes(t.function?.name))
+          : STRATEGIST_TOOLS;
+      }
 
       // Messages history for multi-round conversation
       const messages: any[] = [
