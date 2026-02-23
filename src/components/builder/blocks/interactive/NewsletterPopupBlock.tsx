@@ -8,7 +8,8 @@ import { X, Mail, Send, Loader2, CheckCircle, User, Phone, Calendar } from 'luci
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogOverlay, DialogPortal } from '@/components/ui/dialog';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -317,29 +318,31 @@ export function NewsletterPopupBlock({
   // Dialog layouts (centered, side-image, fullscreen)
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-       <DialogContent 
-        className={cn(
-          "sm:max-w-md max-w-[92vw] rounded-xl",
-          "[&>button[class*='absolute']]:hidden",
-          layout === 'fullscreen' && "sm:max-w-3xl",
-          layout === 'side-image' && imageUrl && "sm:max-w-2xl p-0 overflow-hidden"
-        )}
-        style={containerStyle}
-        onInteractOutside={handleClose}
-      >
-        {/* Custom close button with theme colors - high visibility */}
-        <button
-          type="button"
-          onClick={handleClose}
-          className="absolute right-3 top-3 z-[60] flex items-center justify-center w-9 h-9 rounded-full shadow-lg transition-transform hover:scale-110 focus:outline-none"
-          style={{
-            backgroundColor: buttonBgColor || '#e41111',
-            color: buttonTextColor || '#ffffff',
-          }}
-          aria-label="Fechar"
+       <DialogPortal>
+        <DialogOverlay />
+        <DialogPrimitive.Content
+          className={cn(
+            "fixed left-[50%] top-[50%] z-50 grid w-full translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
+            "sm:max-w-md max-w-[92vw] rounded-xl p-6",
+            layout === 'fullscreen' && "sm:max-w-3xl",
+            layout === 'side-image' && imageUrl && "sm:max-w-2xl p-0 overflow-hidden"
+          )}
+          style={containerStyle}
+          onInteractOutside={handleClose}
         >
-          <X className="w-5 h-5" strokeWidth={2.5} />
-        </button>
+          {/* Custom close button with theme colors - high visibility */}
+          <button
+            type="button"
+            onClick={handleClose}
+            className="absolute right-3 top-3 z-[60] flex items-center justify-center w-9 h-9 rounded-full shadow-lg transition-transform hover:scale-110 focus:outline-none"
+            style={{
+              backgroundColor: buttonBgColor || '#e41111',
+              color: buttonTextColor || '#ffffff',
+            }}
+            aria-label="Fechar"
+          >
+            <X className="w-5 h-5" strokeWidth={2.5} />
+          </button>
 
         {layout === 'side-image' && imageUrl ? (
           <div className={cn(
@@ -362,7 +365,8 @@ export function NewsletterPopupBlock({
             {renderContent()}
           </div>
         )}
-      </DialogContent>
+      </DialogPrimitive.Content>
+      </DialogPortal>
     </Dialog>
   );
 
