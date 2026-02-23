@@ -698,8 +698,11 @@ export function StorefrontHeaderContent({
                         <LinkWrapper
                           to={featuredPromosUrl}
                           onClick={() => setMobileMenuOpen(false)}
-                          className="py-3 px-4 text-sm font-bold rounded-lg"
-                          style={{ color: featuredPromosTextColor }}
+                          className="py-3 px-4 text-sm font-bold rounded-lg inline-flex"
+                          style={{ 
+                            color: featuredPromosTextColor,
+                            backgroundColor: featuredPromosBgColor ? `${featuredPromosBgColor}20` : undefined,
+                          }}
                         >
                           {featuredPromosLabel}
                         </LinkWrapper>
