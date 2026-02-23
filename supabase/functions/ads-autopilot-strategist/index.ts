@@ -339,6 +339,119 @@ const STRATEGIST_TOOLS = [
   },
 ];
 
+// ============ GOOGLE STRATEGIST TOOLS ============
+
+const GOOGLE_STRATEGIST_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "create_google_campaign",
+      description: "Cria uma nova campanha no Google Ads. Suporta SEARCH (Pesquisa), PERFORMANCE_MAX (PMax), DISPLAY e SHOPPING. A campanha é criada PAUSADA.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Nome da campanha. Padrão: [AI] Tipo | Produto | Objetivo" },
+          channel_type: { type: "string", enum: ["SEARCH", "PERFORMANCE_MAX", "DISPLAY", "SHOPPING"], description: "Tipo de campanha" },
+          budget_micros: { type: "number", description: "Orçamento diário em micros (R$ 1 = 1.000.000 micros). Ex: R$50 = 50000000" },
+          bidding_strategy: { type: "string", enum: ["MAXIMIZE_CONVERSIONS", "MAXIMIZE_CONVERSION_VALUE", "TARGET_ROAS", "TARGET_CPA"], description: "Estratégia de lances" },
+          target_roas: { type: "number", description: "ROAS alvo (ex: 2.5 = 250%). Obrigatório para TARGET_ROAS." },
+          target_cpa_micros: { type: "number", description: "CPA alvo em micros. Obrigatório para TARGET_CPA." },
+          start_date: { type: "string", description: "YYYY-MM-DD. Opcional (imediato se omitido)." },
+          reasoning: { type: "string", description: "Justificativa da criação." }
+        },
+        required: ["name", "channel_type", "budget_micros", "bidding_strategy", "reasoning"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_google_ad_group",
+      description: "Cria um Grupo de Anúncios (Ad Group) dentro de uma campanha existente. Necessário para SEARCH e DISPLAY.",
+      parameters: {
+        type: "object",
+        properties: {
+          campaign_name: { type: "string", description: "Nome da campanha pai (deve ter sido criada nesta sessão ou já existir)" },
+          name: { type: "string", description: "Nome do grupo de anúncios" },
+          cpc_bid_micros: { type: "number", description: "Lance máximo de CPC em micros (opcional se a campanha usar estratégia automática)" },
+          type: { type: "string", enum: ["SEARCH_STANDARD", "DISPLAY_STANDARD"], description: "Tipo de grupo. Padrão: SEARCH_STANDARD" },
+          reasoning: { type: "string" }
+        },
+        required: ["campaign_name", "name", "reasoning"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_google_keyword",
+      description: "Adiciona uma palavra-chave (keyword) a um Grupo de Anúncios de Pesquisa.",
+      parameters: {
+        type: "object",
+        properties: {
+          campaign_name: { type: "string", description: "Nome da campanha pai" },
+          ad_group_name: { type: "string", description: "Nome do grupo de anúncios pai" },
+          text: { type: "string", description: "Texto da palavra-chave (ex: 'tenis de corrida')" },
+          match_type: { type: "string", enum: ["EXACT", "PHRASE", "BROAD"], description: "Tipo de correspondência" },
+          reasoning: { type: "string" }
+        },
+        required: ["campaign_name", "ad_group_name", "text", "match_type", "reasoning"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_google_ad",
+      description: "Cria um anúncio dentro de um Grupo de Anúncios. Para SEARCH cria RSA (Responsive Search Ad).",
+      parameters: {
+        type: "object",
+        properties: {
+          campaign_name: { type: "string", description: "Nome da campanha pai" },
+          ad_group_name: { type: "string", description: "Nome do grupo de anúncios pai" },
+          headlines: { type: "array", items: { type: "string" }, description: "Lista de 3 a 15 títulos (máx 30 chars cada)" },
+          descriptions: { type: "array", items: { type: "string" }, description: "Lista de 2 a 4 descrições (máx 90 chars cada)" },
+          final_url: { type: "string", description: "URL final de destino (deve começar com http/https)" },
+          path1: { type: "string", description: "Caminho exibido 1 (opcional, máx 15 chars)" },
+          path2: { type: "string", description: "Caminho exibido 2 (opcional, máx 15 chars)" },
+          reasoning: { type: "string" }
+        },
+        required: ["campaign_name", "ad_group_name", "headlines", "descriptions", "final_url", "reasoning"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "strategic_plan",
+      description: "Emite plano estratégico DETALHADO e COMPLETO para Google Ads. Cada ação DEVE ter todos os campos preenchidos com dados específicos.",
+      parameters: {
+        type: "object",
+        properties: {
+          diagnosis: { type: "string", description: "Diagnóstico DETALHADO da conta Google Ads." },
+          planned_actions: { 
+            type: "array", 
+            items: { 
+              type: "object",
+              properties: {
+                action_type: { type: "string", enum: ["create_campaign", "pause_campaign", "adjust_budget", "optimize"] },
+                description: { type: "string" },
+                rationale: { type: "string" }
+              },
+              required: ["action_type", "description", "rationale"]
+            },
+            description: "Lista de ações." 
+          },
+          expected_results: { type: "string", description: "Projeção de resultados." },
+          risk_assessment: { type: "string" },
+          timeline: { type: "string" }
+        },
+        required: ["diagnosis", "planned_actions", "expected_results"]
+      }
+    }
+  }
+];
+
 // ============ PLATFORM LIMITS ============
 
 const PLATFORM_LIMITS: Record<string, { max_change_pct: number; min_interval_hours: number }> = {
@@ -389,10 +502,15 @@ interface DeepInsight {
 async function buildDeepHistoricalFromLocalData(
   supabase: any,
   tenantId: string,
-  adAccountId: string
+  adAccountId: string,
+  channel: string = "meta"
 ): Promise<{ campaigns: DeepInsight[]; adsets: DeepInsight[]; ads: DeepInsight[] } | null> {
+  if (channel === "google") {
+    // Placeholder for Google deep historical
+    return { campaigns: [], adsets: [], ads: [] };
+  }
   try {
-    console.log(`[ads-autopilot-strategist][${VERSION}] Building deep historical from LOCAL DB for ${adAccountId}`);
+    console.log(`[ads-autopilot-strategist][${VERSION}] Building deep historical from LOCAL DB for ${adAccountId} (${channel})`);
 
     // Fetch all entities from local cache (already synced)
     // Paginated fetch helper — PostgREST caps at 1000 rows per request (v1.42.0)
