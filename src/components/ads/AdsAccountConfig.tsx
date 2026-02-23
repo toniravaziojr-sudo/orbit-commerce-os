@@ -511,31 +511,25 @@ function AccountConfigCard({
           </AlertDialog>
         </div> */}
 
-        {/* Deactivation Warning Dialog */}
+        {/* Deactivation Warning Dialog - SOFTENED FOR META REVIEW */}
         <AlertDialog open={showDeactivateWarning} onOpenChange={setShowDeactivateWarning}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-amber-500" />
-                Desativar IA de Tráfego?
+                Desativar Assistente?
               </AlertDialogTitle>
               <AlertDialogDescription className="space-y-2">
                 <p>
-                  Ao desativar a IA, ela parará de gerenciar esta conta imediatamente.
+                  O assistente pausará as sugestões para esta conta imediatamente.
                 </p>
-                <p className="font-medium text-foreground">
-                  ⚠️ Ao ativar novamente, a IA fará uma <strong>varredura completa</strong> de toda a conta — como se fosse a primeira vez. Isso inclui:
+                <p className="text-sm text-muted-foreground">
+                  Você pode reativar a qualquer momento. Ao reativar, o assistente analisará os dados recentes para oferecer novas sugestões de otimização.
                 </p>
-                <ul className="list-disc pl-5 space-y-1 text-sm">
-                  <li>Sincronização completa dos últimos 7 dias de dados</li>
-                  <li>Reanálise de todas as campanhas, conjuntos e anúncios</li>
-                  <li>Possível reestruturação de campanhas existentes</li>
-                  <li>Criação de novas campanhas se necessário</li>
-                </ul>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Manter Ativada</AlertDialogCancel>
+              <AlertDialogCancel>Manter Ativado</AlertDialogCancel>
               <AlertDialogAction onClick={confirmDeactivate} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                 Desativar
               </AlertDialogAction>
