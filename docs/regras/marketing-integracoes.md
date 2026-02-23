@@ -1623,8 +1623,8 @@ Pipeline de execução sequencial para ações Google Ads aprovadas:
 
 - [ ] Dashboard de atribuição
 - [x] Integração Google Ads (CRUD completo — Search, PMax, Shopping, Display)
-- [ ] Motor Estrategista com tool calls Google Ads
-- [ ] Ads Chat com comandos Google Ads
+- [x] Motor Estrategista com tool calls Google Ads (v1.45.0)
+- [x] Ads Chat com comandos Google Ads (v5.17.0)
 - [ ] Guardian sync completo Google (ad groups + ads + keywords)
 - [ ] UI Google — exibir ad groups, keywords e anúncios
 - [ ] Módulo de email marketing completo
