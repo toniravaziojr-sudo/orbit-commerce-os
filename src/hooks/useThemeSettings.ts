@@ -660,10 +660,12 @@ export function useThemeHeader(tenantId: string | undefined, templateSetId: stri
     };
     
     // Update cache immediately for instant preview (NOT saving to DB)
+    // IMPORTANT: Update BOTH header_config and draft_header_config
+    // applyGlobalLayout reads header_config, so it must be updated for canvas preview
     if (tenantId) {
       queryClient.setQueryData(['global-layout-editor', tenantId], (old: unknown) => {
         if (!old || typeof old !== 'object') return old;
-        return { ...old, draft_header_config: headerBlock };
+        return { ...old, header_config: headerBlock, draft_header_config: headerBlock };
       });
     }
     
@@ -778,7 +780,7 @@ export function useThemeFooter(tenantId: string | undefined, templateSetId: stri
     if (tenantId) {
       queryClient.setQueryData(['global-layout-editor', tenantId], (old: unknown) => {
         if (!old || typeof old !== 'object') return old;
-        return { ...old, draft_footer_config: footerBlock };
+        return { ...old, footer_config: footerBlock, draft_footer_config: footerBlock };
       });
     }
     
