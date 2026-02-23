@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.45.0"; // Google Ads strategist: context, prompt, executeToolCall, deep historical
+const VERSION = "v1.46.0"; // TikTok Ads strategist: context, prompt, executeToolCall, deep historical
 // ===================
 
 const corsHeaders = {
@@ -452,7 +452,124 @@ const GOOGLE_STRATEGIST_TOOLS = [
   }
 ];
 
-// ============ PLATFORM LIMITS ============
+// ============ TIKTOK STRATEGIST TOOLS ============
+
+const TIKTOK_STRATEGIST_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "create_tiktok_campaign",
+      description: "Cria campanha TikTok Ads completa (Campanha → Ad Group → Ads). Criada PAUSADA para aprovação. Suporta conversão (Website) e catálogo (Product Sales).",
+      parameters: {
+        type: "object",
+        properties: {
+          product_name: { type: "string", description: "Nome do produto (obrigatório)" },
+          campaign_name: { type: "string", description: "Nome da campanha (opcional)" },
+          objective_type: { type: "string", enum: ["WEB_CONVERSIONS", "PRODUCT_SALES", "TRAFFIC", "REACH"], description: "Objetivo (default: WEB_CONVERSIONS)" },
+          budget_mode: { type: "string", enum: ["BUDGET_MODE_DAY", "BUDGET_MODE_TOTAL"], description: "Modo de orçamento (default: BUDGET_MODE_DAY)" },
+          budget_cents: { type: "number", description: "Orçamento diário em centavos (min R$ 20,00 = 2000)" },
+          optimization_goal: { type: "string", enum: ["CONVERT", "CLICK", "REACH"], description: "Meta de otimização (default: CONVERT)" },
+          bid_strategy: { type: "string", enum: ["LOWEST_COST", "BID_CAP", "COST_CAP"], description: "Estratégia de lance (default: LOWEST_COST)" },
+          bid_cents: { type: "number", description: "Lance em centavos (para BID_CAP/COST_CAP)" },
+          conversion_event: { type: "string", enum: ["COMPLETE_PAYMENT", "INITIATE_CHECKOUT", "ADD_TO_CART", "VIEW_CONTENT", "FORM_SUBMISSION"], description: "Evento de conversão (obrigatório para conversão)" },
+          placements: { type: "array", items: { type: "string" }, description: "Posicionamentos (default: ['PLACEMENT_TIKTOK'])" },
+          ad_account_id: { type: "string", description: "ID do advertiser TikTok" },
+          funnel_stage: { type: "string", enum: ["tof", "mof", "bof", "test"], description: "Estágio do funil" },
+          targeting: {
+            type: "object",
+            description: "Segmentação",
+            properties: {
+              age_groups: { type: "array", items: { type: "string" } },
+              genders: { type: "array", items: { type: "string" } },
+              locations: { type: "array", items: { type: "string" } },
+              interests: { type: "array", items: { type: "string" } },
+              behaviors: { type: "array", items: { type: "object" } },
+            }
+          },
+          ad_creative: {
+            type: "object",
+            description: "Criativo do anúncio (único ou múltiplo)",
+            properties: {
+              display_name: { type: "string", description: "Nome exibido no anúncio" },
+              text: { type: "string", description: "Texto do anúncio (max 100 chars)" },
+              call_to_action: { type: "string", description: "Botão CTA (ex: SHOP_NOW)" },
+              ad_format: { type: "string", enum: ["SINGLE_VIDEO", "SINGLE_IMAGE", "CAROUSEL"], description: "Formato" },
+              video_id: { type: "string", description: "ID do vídeo na biblioteca TikTok (opcional)" },
+              identity_type: { type: "string", enum: ["CUSTOMIZED_USER", "AUTH_CODE"], description: "Tipo de identidade (default: CUSTOMIZED_USER)" },
+              identity_id: { type: "string", description: "ID da identidade (Spark Ads)" }
+            }
+          }
+        },
+        required: ["product_name", "budget_cents", "objective_type"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "toggle_tiktok_status",
+      description: "Pausa ou reativa campanha/adgroup/ad no TikTok.",
+      parameters: {
+        type: "object",
+        properties: {
+          entity_type: { type: "string", enum: ["campaign", "adgroup", "ad"] },
+          entity_id: { type: "string" },
+          new_status: { type: "string", enum: ["ENABLE", "DISABLE"] },
+          advertiser_id: { type: "string" }
+        },
+        required: ["entity_type", "entity_id", "new_status", "advertiser_id"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_tiktok_budget",
+      description: "Atualiza orçamento de campanha ou adgroup no TikTok.",
+      parameters: {
+        type: "object",
+        properties: {
+          entity_type: { type: "string", enum: ["campaign", "adgroup"] },
+          entity_id: { type: "string" },
+          budget_cents: { type: "number" },
+          advertiser_id: { type: "string" }
+        },
+        required: ["entity_type", "entity_id", "budget_cents", "advertiser_id"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "strategic_plan",
+      description: "Emite plano estratégico DETALHADO e COMPLETO para TikTok Ads.",
+      parameters: {
+        type: "object",
+        properties: {
+          diagnosis: { type: "string", description: "Diagnóstico DETALHADO da conta TikTok Ads." },
+          planned_actions: { 
+            type: "array", 
+            items: { 
+              type: "object",
+              properties: {
+                action_type: { type: "string", enum: ["create_campaign", "pause_campaign", "adjust_budget", "optimize"] },
+                description: { type: "string" },
+                rationale: { type: "string" }
+              },
+              required: ["action_type", "description", "rationale"]
+            },
+            description: "Lista de ações." 
+          },
+          expected_results: { type: "string", description: "Projeção de resultados." },
+          risk_assessment: { type: "string" },
+          timeline: { type: "string" }
+        },
+        required: ["diagnosis", "planned_actions", "expected_results"]
+      }
+    }
+  }
+];
 
 const PLATFORM_LIMITS: Record<string, { max_change_pct: number; min_interval_hours: number }> = {
   meta: { max_change_pct: 20, min_interval_hours: 48 },
@@ -567,6 +684,60 @@ async function buildDeepHistoricalFromLocalData(
       return { campaigns: campaignInsights, adsets: adsetInsights, ads: adInsights, keywords: gKeywords };
     } catch (err: any) {
       console.error(`[ads-autopilot-strategist][${VERSION}] buildDeepHistoricalFromLocalData (Google) error:`, err.message);
+      return null;
+    }
+  }
+
+  if (channel === "tiktok") {
+    try {
+      console.log(`[ads-autopilot-strategist][${VERSION}] Building TikTok deep historical from LOCAL DB for ${adAccountId}`);
+
+      // Fetch TikTok campaigns
+      const { data: tCampaigns } = await supabase.from("tiktok_ad_campaigns")
+        .select("tiktok_campaign_id, name, status, objective_type, budget_cents, budget_mode, advertiser_id")
+        .eq("tenant_id", tenantId).eq("advertiser_id", adAccountId).limit(200);
+
+      // Fetch aggregated insights (lifetime or long window)
+      // Since we don't store adgroup/ad level hierarchy fully yet, we focus on campaign level insights
+      const { data: tInsights } = await supabase.from("tiktok_ad_insights")
+        .select("tiktok_campaign_id, spend_cents, impressions, clicks, conversions, conversion_value_cents, ctr, cpc_cents, cpm_cents, roas")
+        .eq("tenant_id", tenantId).eq("advertiser_id", adAccountId).order("date_start", { ascending: false }).limit(1000);
+
+      const tCampaignsList = tCampaigns || [];
+      if (tCampaignsList.length === 0) {
+        console.warn(`[ads-autopilot-strategist][${VERSION}] No TikTok campaigns in local DB for ${adAccountId}`);
+        return null;
+      }
+
+      // Aggregate insights by campaign
+      const campPerf: Record<string, any> = {};
+      for (const ins of (tInsights || [])) {
+        const cid = ins.tiktok_campaign_id;
+        if (!campPerf[cid]) campPerf[cid] = { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0 };
+        campPerf[cid].spend += (ins.spend_cents || 0);
+        campPerf[cid].impressions += ins.impressions || 0;
+        campPerf[cid].clicks += ins.clicks || 0;
+        campPerf[cid].conversions += ins.conversions || 0;
+        campPerf[cid].revenue += (ins.conversion_value_cents || 0);
+      }
+
+      const campaignInsights: DeepInsight[] = tCampaignsList.map((c: any) => {
+        const p = campPerf[c.tiktok_campaign_id] || { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0 };
+        const spendVal = p.spend / 100;
+        const revVal = p.revenue / 100;
+        return {
+          level: "campaign", id: c.tiktok_campaign_id, name: c.name, status: c.status,
+          spend: spendVal, impressions: p.impressions, clicks: p.clicks, conversions: p.conversions,
+          roas: spendVal > 0 ? Math.round((revVal / spendVal) * 100) / 100 : 0,
+          cpa: p.conversions > 0 ? Math.round((spendVal / p.conversions) * 100) / 100 : 0,
+          ctr: p.impressions > 0 ? Math.round((p.clicks / p.impressions) * 10000) / 100 : 0,
+        };
+      });
+
+      console.log(`[ads-autopilot-strategist][${VERSION}] TikTok deep historical for ${adAccountId}: ${campaignInsights.length} campaigns`);
+      return { campaigns: campaignInsights, adsets: [], ads: [] }; // AdGroups/Ads not fully synced yet
+    } catch (err: any) {
+      console.error(`[ads-autopilot-strategist][${VERSION}] buildDeepHistoricalFromLocalData (TikTok) error:`, err.message);
       return null;
     }
   }
@@ -723,6 +894,9 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     googleAdsRes,
     googleKeywordsRes,
     googleAssetsRes,
+    // TikTok Ads local cache
+    tiktokCampaignsRes,
+    tiktokInsightsRes,
   ] = await Promise.all([
     supabase.from("products").select("id, name, slug, price, cost_price, status, stock_quantity, brand, short_description").eq("tenant_id", tenantId).eq("status", "active").order("name", { ascending: true }).limit(30),
     supabase.from("orders").select("id, total, status, payment_status, created_at").eq("tenant_id", tenantId).gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()).limit(500),
@@ -748,6 +922,8 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     supabase.from("google_ad_ads").select("google_ad_id, google_ad_group_id, google_campaign_id, name, ad_type, status, headlines, descriptions, final_urls, performance_data, ad_account_id").eq("tenant_id", tenantId).limit(500),
     supabase.from("google_ad_keywords").select("google_keyword_id, google_ad_group_id, google_campaign_id, text, match_type, status, quality_score, cpc_bid_micros, performance_data, ad_account_id").eq("tenant_id", tenantId).limit(500),
     supabase.from("google_ad_assets").select("google_asset_id, name, asset_type, status, text_content, image_url, youtube_video_id, ad_account_id").eq("tenant_id", tenantId).limit(200),
+    supabase.from("tiktok_ad_campaigns").select("tiktok_campaign_id, name, status, objective_type, budget_cents, budget_mode, advertiser_id, synced_at").eq("tenant_id", tenantId).limit(200),
+    supabase.from("tiktok_ad_insights").select("tiktok_campaign_id, spend_cents, impressions, clicks, conversions, conversion_value_cents, roas, ctr, cpc_cents, cpm_cents, date_start").eq("tenant_id", tenantId).gte("date_start", sevenDaysAgo).limit(500),
   ]);
 
   const products = productsRes.data || [];
@@ -773,6 +949,8 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
   const googleAds = googleAdsRes.data || [];
   const googleKeywords = googleKeywordsRes.data || [];
   const googleAssets = googleAssetsRes.data || [];
+  const tiktokCampaigns = tiktokCampaignsRes?.data || [];
+  const tiktokInsights = tiktokInsightsRes?.data || [];
 
   // Resolve store URL from tenant_domains (source of truth)
   const { data: domainRow } = await supabase.from("tenant_domains").select("domain").eq("tenant_id", tenantId).eq("type", "custom").eq("is_primary", true).maybeSingle();
@@ -960,6 +1138,8 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
     googleAds,
     googleKeywords,
     googleAssets,
+    tiktokCampaigns,
+    tiktokInsights,
   };
 }
 
@@ -969,6 +1149,11 @@ function buildStrategistPrompt(trigger: StrategistTrigger, config: AccountConfig
   // === GOOGLE ADS BRANCH ===
   if (config.channel === "google") {
     return buildGoogleStrategistPrompt(trigger, config, context);
+  }
+
+  // === TIKTOK ADS BRANCH ===
+  if (config.channel === "tiktok") {
+    return buildTikTokStrategistPrompt(trigger, config, context);
   }
 
   // === META ADS (default) ===
@@ -1493,6 +1678,88 @@ Execute o pipeline completo de 5 fases. Use strategic_plan para o diagnóstico, 
   return { system, user };
 }
 
+// ============ BUILD TIKTOK STRATEGIST PROMPT ============
+
+function buildTikTokStrategistPrompt(trigger: StrategistTrigger, config: AccountConfig, context: any) {
+  const accountCampaigns = context.tiktokCampaigns.filter((c: any) => c.advertiser_id === config.ad_account_id);
+  const activeCampaigns = accountCampaigns.filter((c: any) => c.status === "ENABLE"); // TikTok status is ENABLE/DISABLE
+  const pausedCampaigns = accountCampaigns.filter((c: any) => c.status === "DISABLE");
+
+  // Aggregate insights (7d)
+  const perf7d: Record<string, any> = {};
+  for (const ins of context.tiktokInsights) {
+    const cid = ins.tiktok_campaign_id;
+    if (!perf7d[cid]) perf7d[cid] = { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0 };
+    perf7d[cid].spend += (ins.spend_cents || 0);
+    perf7d[cid].impressions += ins.impressions || 0;
+    perf7d[cid].clicks += ins.clicks || 0;
+    perf7d[cid].conversions += ins.conversions || 0;
+    perf7d[cid].revenue += (ins.conversion_value_cents || 0);
+  }
+
+  const campaignRows = accountCampaigns.map((c: any) => {
+    const p = perf7d[c.tiktok_campaign_id] || { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0 };
+    const spendVal = p.spend / 100;
+    const roas = spendVal > 0 ? (p.revenue / 100 / spendVal).toFixed(2) : "0.00";
+    const cpa = p.conversions > 0 ? (spendVal / p.conversions).toFixed(2) : "N/A";
+    const ctr = p.impressions > 0 ? ((p.clicks / p.impressions) * 100).toFixed(2) : "0.00";
+    const budgetVal = (c.budget_cents || 0) / 100;
+    
+    return `| ${c.tiktok_campaign_id} | ${c.name.substring(0, 30)} | ${c.status} | ${c.objective_type} | R$${budgetVal} | R$${spendVal.toFixed(2)} | ${roas}x | R$${cpa} | ${p.conversions} | ${ctr}% |`;
+  }).join("\n");
+
+  const campaignHeaders = `| ID | Nome | Status | Objetivo | Budget | Gasto(7d) | ROAS | CPA | Conv | CTR |
+|---|---|---|---|---|---|---|---|---|---|`;
+
+  const triggerInstruction = trigger === "start" 
+    ? `## GATILHO: PRIMEIRA ATIVAÇÃO (START)
+Analise profundamente o histórico da conta. Identifique o que funcionou e o que falhou.
+Proponha uma estrutura inicial sólida para TikTok Ads, focando em criativos nativos (UGC, dinâmicos).
+Se não houver histórico, proponha testes de criativos (fase de aprendizado).`
+    : `## GATILHO: ${trigger.toUpperCase()}
+Analise a performance recente (7 dias). Pause campanhas com CPA alto ou ROAS baixo.
+Escale o que está funcionando (aumente budget se ROAS > meta).
+Proponha novos criativos se houver fadiga (CTR caindo).`;
+
+  const system = `Você é o Motor Estrategista do TikTok Ads.
+Sua missão é maximizar conversões e ROAS para o anunciante ${config.ad_account_id}.
+
+## CONTEXTO DA LOJA
+- Produtos: ${context.products.length} (top: ${context.products.slice(0, 3).map((p: any) => p.name).join(", ")})
+- Orçamento Disponível: R$ ${(config.budget_cents || 0) / 100} (${config.budget_mode})
+- ROI Alvo: ${config.target_roi || "N/A"} | Min Frio: ${config.min_roi_cold || 0.8}
+- Estratégia: ${config.strategy_mode || "balanced"}
+
+## DIRETRIZES TIKTOK ADS
+- Criativos: TikTok é "Sound On". Vídeos dinâmicos, UGC, música em alta. Estática funciona menos.
+- Estrutura: Campanha (Objetivo) → Ad Group (Público/Budget) → Ads (Criativos).
+- Orçamento: Mínimo R$ 20,00/dia por Ad Group.
+- Objetivos: WEB_CONVERSIONS (vendas) ou PRODUCT_SALES (catálogo/VSA).
+- Funil: Separe TOF (frio) de BOF (remarketing/retargeting).
+- Aprendizado: TikTok precisa de ~50 conversões/semana por Ad Group para estabilizar.
+
+## SUAS FERRAMENTAS (TIKTOK)
+- create_tiktok_campaign: Cria estrutura completa.
+- toggle_tiktok_status: Pausa/Ativa entidades.
+- update_tiktok_budget: Ajusta investimento.
+- strategic_plan: Emite o plano tático.
+
+${triggerInstruction}
+
+Responda SEMPRE em Português do Brasil.`;
+
+  const user = `## CAMPANHAS EXISTENTES (${accountCampaigns.length})
+${campaignHeaders}
+${campaignRows || "Nenhuma campanha encontrada."}
+
+## PRODUTOS DISPONÍVEIS
+${context.products.slice(0, 10).map((p: any) => `- ${p.name} (R$ ${p.price})`).join("\n")}
+
+Analise os dados e execute as ações necessárias para TikTok Ads.`;
+
+  return { system, user };
+}
+
 // ============ BUILD GOOGLE STRATEGIST PROMPT ============
 
 function buildGoogleStrategistPrompt(trigger: StrategistTrigger, config: AccountConfig, context: any) {
@@ -1681,7 +1948,71 @@ async function executeToolCall(
     };
   }
 
-  if (toolName === "generate_creative") {
+          if (toolName === "create_tiktok_campaign") {
+            return {
+              status: isAutoMode ? "executed" : "pending_approval",
+              data: {
+                ...args,
+                ad_account_id: config.ad_account_id,
+                preview: {
+                  campaign_name: args.campaign_name || `[AI] TikTok | ${args.product_name}`,
+                  objective_type: args.objective_type,
+                  budget_cents: args.budget_cents,
+                  budget_display: `R$ ${(args.budget_cents / 100).toFixed(2)}`,
+                  product_name: args.product_name,
+                  ad_creative: args.ad_creative,
+                }
+              }
+            };
+          }
+
+          if (toolName === "toggle_tiktok_status") {
+            const edgeFn = "tiktok-ads-campaigns"; // Generic handler
+            try {
+              if (isAutoMode) {
+                const { error } = await supabase.functions.invoke(edgeFn, {
+                  body: { 
+                    tenant_id: tenantId, 
+                    action: "update_status", 
+                    entity_type: args.entity_type,
+                    entity_id: args.entity_id,
+                    status: args.new_status,
+                    advertiser_id: args.advertiser_id
+                  },
+                });
+                if (error) throw error;
+                return { status: "executed", data: { message: `Status de ${args.entity_id} alterado para ${args.new_status}` } };
+              }
+              return { status: "pending_approval", data: { ...args } };
+            } catch (err: any) {
+              return { status: "failed", data: { error: err.message } };
+            }
+          }
+
+          if (toolName === "update_tiktok_budget") {
+            const edgeFn = "tiktok-ads-campaigns";
+            try {
+              if (isAutoMode) {
+                const { error } = await supabase.functions.invoke(edgeFn, {
+                  body: { 
+                    tenant_id: tenantId, 
+                    action: "update_budget", 
+                    entity_type: args.entity_type,
+                    entity_id: args.entity_id,
+                    budget_cents: args.budget_cents,
+                    advertiser_id: args.advertiser_id
+                  },
+                });
+                if (error) throw error;
+                return { status: "executed", data: { message: `Budget de ${args.entity_id} alterado para R$ ${(args.budget_cents / 100).toFixed(2)}` } };
+              }
+              return { status: "pending_approval", data: { ...args } };
+            } catch (err: any) {
+              return { status: "failed", data: { error: err.message } };
+            }
+          }
+
+          if (toolName === "generate_creative") {
     // v1.20.0: STRICT matching — NO fallback to products[0] to prevent wrong product images
     const topProduct = context.products.find((p: any) => p.name.trim() === (args.product_name || "").trim());
     if (!topProduct) {
