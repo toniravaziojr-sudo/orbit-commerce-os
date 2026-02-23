@@ -71,7 +71,7 @@ const productSchema = z.object({
     .transform(val => val.replace(/[^\d]/g, '')),
   
   // === CAMPOS OPCIONAIS ===
-  description: z.string().max(10000).nullable().optional(),
+  description: z.string().max(100000).nullable().optional(),
   short_description: z.string().max(500).nullable().optional(),
   cost_price: z.coerce.number().min(0).nullable().optional(),
   compare_at_price: z.coerce.number().min(0).nullable().optional(),
