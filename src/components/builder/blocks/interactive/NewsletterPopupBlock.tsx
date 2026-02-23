@@ -319,12 +319,25 @@ export function NewsletterPopupBlock({
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogContent 
         className={cn(
-          "sm:max-w-lg",
+          "sm:max-w-md max-w-[92vw] rounded-xl [&>button.absolute]:hidden",
           layout === 'fullscreen' && "sm:max-w-3xl",
           layout === 'side-image' && imageUrl && "sm:max-w-2xl p-0 overflow-hidden"
         )}
         style={containerStyle}
       >
+        {/* Custom close button with theme colors */}
+        <button
+          onClick={handleClose}
+          className="absolute right-3 top-3 z-10 flex items-center justify-center w-8 h-8 rounded-full shadow-md transition-opacity hover:opacity-90"
+          style={{
+            backgroundColor: buttonBgColor || 'hsl(var(--primary))',
+            color: buttonTextColor || 'hsl(var(--primary-foreground))',
+          }}
+          aria-label="Fechar"
+        >
+          <X className="w-4 h-4" />
+        </button>
+
         {layout === 'side-image' && imageUrl ? (
           <div className={cn(
             "flex",
