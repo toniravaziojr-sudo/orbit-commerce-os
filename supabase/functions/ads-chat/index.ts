@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.17.0"; // Add Google Ads CRUD tools (ad groups, keywords, ads, campaigns)
+const VERSION = "v5.18.0"; // Add TikTok Ads CRUD tools (create, toggle, budget)
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -447,13 +447,73 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_tiktok_campaigns",
-      description: "Busca campanhas e performance do TikTok Ads.",
+      description: "Busca campanhas e performance do TikTok Ads com métricas agregadas.",
       parameters: {
         type: "object",
         properties: {
           advertiser_id: { type: "string", description: "ID do advertiser TikTok (opcional)" },
+          days: { type: "number", description: "Janela de dias para métricas (default: 14, max: 30)" },
         },
         required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  // ===== ESCRITA: TikTok Ads =====
+  {
+    type: "function",
+    function: {
+      name: "create_tiktok_campaign",
+      description: "Cria campanha TikTok Ads completa (Campanha → Ad Group → Ads). Criada PAUSADA para aprovação.",
+      parameters: {
+        type: "object",
+        properties: {
+          product_name: { type: "string", description: "Nome do produto (obrigatório)" },
+          campaign_name: { type: "string", description: "Nome da campanha (opcional)" },
+          objective_type: { type: "string", enum: ["WEB_CONVERSIONS", "PRODUCT_SALES", "TRAFFIC", "REACH"], description: "Objetivo (default: WEB_CONVERSIONS)" },
+          budget_cents: { type: "number", description: "Orçamento diário em centavos (min R$20 = 2000)" },
+          optimization_goal: { type: "string", enum: ["CONVERT", "CLICK", "REACH"], description: "Meta de otimização (default: CONVERT)" },
+          conversion_event: { type: "string", enum: ["COMPLETE_PAYMENT", "INITIATE_CHECKOUT", "ADD_TO_CART", "VIEW_CONTENT"], description: "Evento de conversão" },
+          funnel_stage: { type: "string", enum: ["tof", "mof", "bof", "test"], description: "Estágio do funil" },
+          ad_account_id: { type: "string", description: "ID do advertiser TikTok (opcional)" },
+        },
+        required: ["product_name", "budget_cents"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "toggle_tiktok_entity_status",
+      description: "Pausa ou reativa campanha, adgroup ou anúncio no TikTok Ads.",
+      parameters: {
+        type: "object",
+        properties: {
+          entity_type: { type: "string", enum: ["campaign", "adgroup", "ad"], description: "Tipo da entidade" },
+          entity_id: { type: "string", description: "ID da entidade no TikTok (tiktok_campaign_id, etc.)" },
+          new_status: { type: "string", enum: ["ENABLE", "DISABLE"], description: "Novo status" },
+          advertiser_id: { type: "string", description: "ID do advertiser TikTok" },
+        },
+        required: ["entity_type", "entity_id", "new_status", "advertiser_id"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_tiktok_budget",
+      description: "Altera o orçamento diário de uma campanha ou adgroup no TikTok Ads. Valores em centavos.",
+      parameters: {
+        type: "object",
+        properties: {
+          entity_type: { type: "string", enum: ["campaign", "adgroup"], description: "Tipo da entidade" },
+          entity_id: { type: "string", description: "ID da entidade no TikTok" },
+          budget_cents: { type: "number", description: "Novo orçamento diário em centavos (min 2000 = R$20)" },
+          advertiser_id: { type: "string", description: "ID do advertiser TikTok" },
+        },
+        required: ["entity_type", "entity_id", "budget_cents", "advertiser_id"],
         additionalProperties: false,
       },
     },
@@ -813,7 +873,13 @@ async function executeTool(
       case "update_google_budget":
         return await updateGoogleBudget(supabase, tenantId, args, chatSessionId);
       case "get_tiktok_campaigns":
-        return await getTikTokCampaigns(supabase, tenantId, args.advertiser_id);
+        return await getTikTokCampaigns(supabase, tenantId, args.advertiser_id, args.days);
+      case "create_tiktok_campaign":
+        return await createTikTokCampaign(supabase, tenantId, args, chatSessionId, strategyRunId);
+      case "toggle_tiktok_entity_status":
+        return await toggleTikTokEntityStatus(supabase, tenantId, args, chatSessionId);
+      case "update_tiktok_budget":
+        return await updateTikTokBudget(supabase, tenantId, args, chatSessionId);
       case "trigger_creative_generation":
         return await triggerCreativeGeneration(supabase, tenantId, chatSessionId);
       case "generate_creative_image":
@@ -2628,13 +2694,152 @@ async function updateGoogleBudget(supabase: any, tenantId: string, args: any, ch
   });
 }
 
-async function getTikTokCampaigns(supabase: any, tenantId: string, advertiserId?: string) {
-  const query = supabase.from("tiktok_ad_campaigns").select("id, tiktok_campaign_id, campaign_name, status, objective_type, budget_cents, advertiser_id, created_at").eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(30);
-  if (advertiserId) query.eq("advertiser_id", advertiserId);
-  const { data: campaigns, error } = await query;
-  if (error) return JSON.stringify({ error: error.message });
-  return JSON.stringify({ total: campaigns?.length || 0, campaigns: campaigns || [] });
+async function getTikTokCampaigns(supabase: any, tenantId: string, advertiserId?: string, days?: number) {
+  const dayWindow = Math.min(days || 14, 30);
+  const sinceDate = new Date(Date.now() - dayWindow * 86400000).toISOString().split("T")[0];
+
+  const campQuery = supabase.from("tiktok_ad_campaigns").select("tiktok_campaign_id, name, status, objective_type, budget_cents, budget_mode, advertiser_id, created_at").eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(100);
+  if (advertiserId) campQuery.eq("advertiser_id", advertiserId);
+  const { data: campaigns } = await campQuery;
+
+  const { data: insights } = await supabase.from("tiktok_ad_insights").select("tiktok_campaign_id, spend_cents, impressions, clicks, conversions, conversion_value_cents, roas, ctr, date_start").eq("tenant_id", tenantId).gte("date_start", sinceDate).limit(2000);
+
+  const campMap: Record<string, any> = {};
+  for (const c of (campaigns || [])) {
+    campMap[c.tiktok_campaign_id] = {
+      tiktok_campaign_id: c.tiktok_campaign_id, name: c.name, status: c.status,
+      objective_type: c.objective_type, budget: `R$ ${((c.budget_cents || 0) / 100).toFixed(2)}`,
+      advertiser_id: c.advertiser_id,
+      spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0,
+    };
+  }
+  for (const i of (insights || [])) {
+    const c = campMap[i.tiktok_campaign_id];
+    if (!c) continue;
+    c.spend += (i.spend_cents || 0) / 100;
+    c.impressions += i.impressions || 0;
+    c.clicks += i.clicks || 0;
+    c.conversions += i.conversions || 0;
+    c.revenue += (i.conversion_value_cents || 0) / 100;
+  }
+
+  const allCamps = Object.values(campMap);
+  const formatCamp = (c: any) => ({
+    ...c,
+    spend: `R$ ${c.spend.toFixed(2)}`,
+    revenue: `R$ ${c.revenue.toFixed(2)}`,
+    roas: c.spend > 0 ? (c.revenue / c.spend).toFixed(2) : "N/A",
+    cpa: c.conversions > 0 ? `R$ ${(c.spend / c.conversions).toFixed(2)}` : "N/A",
+  });
+
+  return JSON.stringify({
+    summary: { total: campaigns?.length || 0, period: `últimos ${dayWindow} dias` },
+    campaigns: allCamps.map(formatCamp),
+  });
 }
+
+async function createTikTokCampaign(supabase: any, tenantId: string, args: any, chatSessionId?: string, strategyRunId?: string) {
+  let advertiserId = args.ad_account_id;
+  if (!advertiserId) {
+    const { data: conn } = await supabase.from("tiktok_ads_connections").select("advertiser_id").eq("tenant_id", tenantId).eq("is_active", true).eq("connection_status", "connected").maybeSingle();
+    advertiserId = conn?.advertiser_id;
+    if (!advertiserId) return JSON.stringify({ error: "TikTok Ads não conectado. Configure a conexão primeiro." });
+  }
+
+  const { data: products } = await supabase.from("products").select("id, name, slug, price").eq("tenant_id", tenantId).eq("status", "active").limit(50);
+  const product = (products || []).find((p: any) => p.name.trim() === (args.product_name || "").trim());
+  if (!product) return JSON.stringify({ error: `Produto "${args.product_name}" não encontrado no catálogo.` });
+
+  const { data: domainRow } = await supabase.from("tenant_domains").select("domain").eq("tenant_id", tenantId).eq("type", "custom").eq("is_primary", true).maybeSingle();
+  const { data: tenant } = await supabase.from("tenants").select("slug").eq("id", tenantId).single();
+  const storeUrl = domainRow?.domain ? `https://${domainRow.domain}` : `https://${tenant?.slug}.comandocentral.com.br`;
+  const destinationUrl = `${storeUrl}/produto/${product.slug || product.id}`;
+
+  const budgetCents = args.budget_cents || 3000;
+  const campaignName = args.campaign_name || `[AI] TikTok | ${product.name} | ${args.funnel_stage || "tof"}`;
+
+  const preview = {
+    campaign_name: campaignName, product_name: product.name, product_id: product.id,
+    objective_type: args.objective_type || "WEB_CONVERSIONS", budget_cents: budgetCents,
+    budget_brl: (budgetCents / 100).toFixed(2), optimization_goal: args.optimization_goal || "CONVERT",
+    conversion_event: args.conversion_event || "COMPLETE_PAYMENT", funnel_stage: args.funnel_stage || "tof",
+    destination_url: destinationUrl, advertiser_id: advertiserId, status: "DISABLE",
+  };
+
+  await supabase.from("ads_autopilot_actions").insert({
+    tenant_id: tenantId, session_id: chatSessionId || crypto.randomUUID(), channel: "tiktok",
+    action_type: "create_campaign", status: "pending_approval",
+    action_data: { ...preview, preview, ad_account_id: advertiserId },
+    reasoning: args.reasoning || `Campanha TikTok para ${product.name}`,
+    confidence: "0.85", action_hash: `${chatSessionId}_create_tiktok_${product.id}_${Date.now()}`,
+  });
+
+  return JSON.stringify({ success: true, status: "pending_approval", message: `Campanha TikTok "${campaignName}" preparada. Budget: R$ ${preview.budget_brl}/dia.`, preview });
+}
+
+async function toggleTikTokEntityStatus(supabase: any, tenantId: string, args: any, chatSessionId?: string) {
+  const { entity_type, entity_id, new_status, advertiser_id } = args;
+  if (!entity_type || !entity_id || !new_status || !advertiser_id) return JSON.stringify({ error: "entity_type, entity_id, new_status e advertiser_id obrigatórios" });
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/tiktok-ads-campaigns`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant_id: tenantId, action: "update", tiktok_campaign_id: entity_id, status: new_status }),
+    });
+    const result = await response.json();
+
+    await supabase.from("ads_autopilot_actions").insert({
+      tenant_id: tenantId, session_id: chatSessionId || crypto.randomUUID(), channel: "tiktok",
+      action_type: new_status === "ENABLE" ? "activate_campaign" : "pause_campaign",
+      status: result?.success ? "executed" : "failed",
+      action_data: { entity_type, entity_id, new_status, advertiser_id },
+      reasoning: `Toggle ${entity_type} ${entity_id} → ${new_status} via Chat`,
+      executed_at: result?.success ? new Date().toISOString() : null,
+      error_message: result?.success ? null : (result?.error || "Falha"),
+    });
+
+    if (!result?.success) return JSON.stringify({ success: false, error: result?.error || "Falha ao alterar status" });
+    return JSON.stringify({ success: true, message: `${entity_type} ${entity_id} → ${new_status}.` });
+  } catch (err: any) {
+    return JSON.stringify({ error: err.message });
+  }
+}
+
+async function updateTikTokBudget(supabase: any, tenantId: string, args: any, chatSessionId?: string) {
+  const { entity_type, entity_id, budget_cents, advertiser_id } = args;
+  if (!entity_id || !budget_cents || !advertiser_id) return JSON.stringify({ error: "entity_id, budget_cents e advertiser_id obrigatórios" });
+  if (budget_cents < 2000) return JSON.stringify({ error: "Budget mínimo TikTok é R$ 20,00 (2000 centavos)" });
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/tiktok-ads-campaigns`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant_id: tenantId, action: "update", tiktok_campaign_id: entity_id, budget_cents }),
+    });
+    const result = await response.json();
+
+    await supabase.from("ads_autopilot_actions").insert({
+      tenant_id: tenantId, session_id: chatSessionId || crypto.randomUUID(), channel: "tiktok",
+      action_type: "adjust_budget", status: result?.success ? "executed" : "failed",
+      action_data: { entity_type: entity_type || "campaign", entity_id, budget_cents, advertiser_id },
+      reasoning: `Budget ${entity_id} → R$ ${(budget_cents / 100).toFixed(2)}/dia via Chat`,
+      executed_at: result?.success ? new Date().toISOString() : null,
+    });
+
+    if (!result?.success) return JSON.stringify({ success: false, error: result?.error || "Falha ao alterar orçamento" });
+    return JSON.stringify({ success: true, message: `Orçamento de ${entity_id} → R$ ${(budget_cents / 100).toFixed(2)}/dia.` });
+  } catch (err: any) {
+    return JSON.stringify({ error: err.message });
+  }
+}
+
 
 async function updateAutopilotConfig(supabase: any, tenantId: string, adAccountId: string, channel: string, updates: any) {
   if (!adAccountId || !channel) return JSON.stringify({ error: "ad_account_id e channel são obrigatórios" });
@@ -3667,14 +3872,15 @@ Mapear para funnel_splits: cold ≈ Core, tests ≈ Test, remarketing e leads di
 - **Drill-down**: ver detalhes de uma campanha específica com todos conjuntos/anúncios
 - **Tendências**: ver performance dia a dia de uma campanha (time-series)
 - **Contexto do negócio**: ver nicho, categorias, ofertas ativas, margens, top produtos
-- **Pausar/Reativar** campanhas, conjuntos ou anúncios no Meta e Google Ads
-- **Alterar orçamento** de campanhas existentes (Meta em centavos, Google em micros)
+- **Pausar/Reativar** campanhas, conjuntos ou anúncios no Meta, Google e TikTok Ads
+- **Alterar orçamento** de campanhas existentes (Meta em centavos, Google em micros, TikTok em centavos min R$20)
 - **Duplicar campanhas** existentes no Meta (com todos os conjuntos e anúncios)
 - **Alterar segmentação** de conjuntos existentes no Meta (idade, gênero, localização, interesses)
 - **Criar públicos personalizados** (clientes, pixel, engajamento) e **públicos semelhantes** (Lookalike) no Meta
 - **Gerar textos** e **artes/imagens** para anúncios
-- **Criar campanhas completas** no Meta Ads e Google Ads (Search, PMax, Shopping, Display)
+- **Criar campanhas completas** no Meta Ads, Google Ads (Search, PMax, Shopping, Display) e TikTok Ads
 - **Google Ads específico**: ver ad groups, keywords (com quality score), anúncios RSA/RDA, alterar budget em micros
+- **TikTok Ads específico**: criar campanhas (WEB_CONVERSIONS, PRODUCT_SALES), pausar/ativar, ajustar budget
 - **Gerar plano estratégico** completo via Motor Estrategista (diagnóstico + campanhas planejadas + criativos + públicos, com aprovação do lojista)
 - **Analisar links** e **imagens** enviadas
 - **Ver e alterar configurações** da IA de tráfego
@@ -3682,7 +3888,7 @@ Mapear para funnel_splits: cold ≈ Core, tests ≈ Test, remarketing e leads di
 - **Rodar análises/auditorias** e ver histórico
 
 ## O QUE VOCÊ NÃO PODE FAZER (NUNCA FINJA)
-- Criar campanhas TikTok diretamente (somente Meta e Google)
+- Editar criativos de vídeo do TikTok diretamente (somente campanhas, budget e status)
 
 ## REGRA MAIS IMPORTANTE DE TODAS: PROIBIDO LOOP DE PERMISSÃO — EXECUTE, NÃO PEÇA
 
