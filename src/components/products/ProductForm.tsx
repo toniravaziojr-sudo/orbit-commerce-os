@@ -561,7 +561,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
   };
 
   return (
-    <div className="space-y-6 pb-20 min-h-full">
+    <div className="space-y-6 pb-[72px] min-h-full">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={onCancel}>
           <ArrowLeft className="h-4 w-4" />
