@@ -1695,3 +1695,39 @@ async function fetchAllPaginated(table: string, selectCols: string, filters: Rec
 - [ ] Insights devem ser buscados FORA do `Promise.all` (paginação é sequencial)
 - [ ] Log obrigatório: `Insights fetched: ${allInsights.length} rows (paginated)`
 - [ ] Campanhas, adsets e ads mantêm `.limit()` no `Promise.all` (volumes menores, < 1000)
+
+---
+
+## Ferramentas de Migração (Platform Tools)
+
+### `storage-export` (v1.1.0)
+Edge function para exportar mídias do Storage para migração entre ambientes.
+
+| Ação | Parâmetros | Descrição |
+|------|-----------|-----------|
+| `list_buckets` | — | Lista todos os buckets do Storage |
+| `list_files` | `bucket`, `prefix?` | Lista arquivos com URLs (públicas ou signed 7 dias) |
+
+- **Acesso**: Apenas `owner`
+- **Auth**: Bearer token via header
+- **Paginação**: Percorre subpastas recursivamente (client-side)
+
+### `database-export` (v1.0.0)
+Edge function para exportar tabelas do banco de dados em JSON para migração.
+
+| Ação | Parâmetros | Descrição |
+|------|-----------|-----------|
+| `list_groups` | — | Lista grupos de tabelas disponíveis (core, catalog, customers, etc.) |
+| `export_group` | `group` | Retorna contagem de registros por tabela do grupo |
+| `export_table` | `table`, `offset?`, `limit?` | Exporta dados da tabela com paginação (máx 1000/página) |
+
+- **Acesso**: Apenas `owner`
+- **Grupos**: core, catalog, customers, orders, store, marketing, fiscal, files, notifications, config
+- **Paginação**: Via `offset` + `limit` (client faz loop até `has_more=false`)
+- **Segurança**: Só exporta tabelas de uma whitelist fixa (`MIGRATION_TABLES`)
+
+### UI: `DatabaseExporter` + `StorageExporter`
+Componentes visuais em `/platform-tools` que consomem as edge functions acima.
+- Listam módulos/buckets com contagem de registros
+- Exportam JSONs para download
+- Mostram progresso com barra visual
