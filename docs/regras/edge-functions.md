@@ -1726,8 +1726,39 @@ Edge function para exportar tabelas do banco de dados em JSON para migração.
 - **Paginação**: Via `offset` + `limit` (client faz loop até `has_more=false`)
 - **Segurança**: Só exporta tabelas de uma whitelist fixa (`MIGRATION_TABLES`)
 
-### UI: `DatabaseExporter` + `StorageExporter`
-Componentes visuais em `/platform-tools` que consomem as edge functions acima.
-- Listam módulos/buckets com contagem de registros
-- Exportam JSONs para download
-- Mostram progresso com barra visual
+### `database-import` (v1.0.0)
+Edge function para importar dados do banco a partir de JSONs exportados.
+
+| Ação | Método | Parâmetros (body) | Descrição |
+|------|--------|-------------------|-----------|
+| `get_import_order` | POST | — | Retorna ordem de importação (respeita foreign keys) |
+| `import_table` | POST | `table`, `rows[]` | Importa registros via upsert (batches de 100) |
+
+- **Acesso**: Apenas `owner`
+- **Upsert**: Usa `onConflict: 'id'` para não duplicar
+- **Segurança**: Só aceita tabelas da whitelist (`IMPORT_ORDER`)
+
+### `storage-import` (v1.0.0)
+Edge function para importar mídias do storage a partir de URLs exportadas.
+
+| Ação | Método | Parâmetros (body) | Descrição |
+|------|--------|-------------------|-----------|
+| `import_file` | POST | `bucket`, `path`, `url` | Baixa arquivo da URL e faz upload no bucket |
+| `import_batch` | POST | `files[]` (max 5) | Importa batch de arquivos em sequência |
+
+- **Acesso**: Apenas `owner`
+- **Limite**: 5 arquivos por batch (evita timeout de 60s)
+- **Upsert**: `upsert: true` para sobrescrever se existir
+
+### UI: `/platform-tools` (Tabs)
+Página reorganizada em 3 abas:
+
+| Aba | Componentes | Descrição |
+|-----|------------|-----------|
+| 📤 Exportar | `DatabaseExporter` + `StorageExporter` | Exportam JSONs para download |
+| 📥 Importar | `DatabaseImporter` + `StorageImporter` | Leem JSONs e importam no banco/storage |
+| 🔧 Outras | `GoogleMapsToFacebookConverter` | Ferramentas auxiliares |
+
+- **DatabaseImporter**: Aceita múltiplos JSONs, ordena tabelas por foreign keys, envia em chunks de 500
+- **StorageImporter**: Aceita JSONs do StorageExporter, importa em batches de 5 arquivos
+- Ambos mostram progresso visual e relatório de resultados
