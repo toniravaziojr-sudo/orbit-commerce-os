@@ -3,11 +3,10 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.3.0"; // Retry + validação robusta para evitar títulos truncados
+const VERSION = "v1.4.0"; // Remove bloqueio rígido 30-60 e evita truncamento de título
 // ===================
 
-const MAX_TITLE_LENGTH = 60;
-const MIN_TITLE_LENGTH = 30;
+const MAX_TITLE_LENGTH = 120;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -36,9 +35,9 @@ function sanitizeGeneratedTitle(rawTitle: string): string {
 
 function isValidGeneratedTitle(title: string): boolean {
   if (!title) return false;
-  if (title.length < MIN_TITLE_LENGTH || title.length > MAX_TITLE_LENGTH) return false;
+  if (title.length < 10 || title.length > MAX_TITLE_LENGTH) return false;
   if (/[-,/:;]$/.test(title)) return false;
-  if (title.split(/\s+/).length < 3) return false;
+  if (title.split(/\s+/).length < 2) return false;
 
   const lastWord = title.split(/\s+/).pop()?.toLowerCase() || "";
   const danglingWords = new Set(["de", "da", "do", "das", "dos", "e", "com", "para", "por", "a", "o", "em"]);
@@ -201,40 +200,37 @@ INSTRUÇÕES:
     if (generateTitle) {
       systemPromptFinal = `Você é um especialista em SEO de títulos para o Mercado Livre Brasil.
 
-TAREFA: Gere exatamente UM título otimizado para buscas, com no máximo 60 caracteres.
+TAREFA: Gere exatamente UM título otimizado para buscas, completo e natural.
 
 REGRAS OBRIGATÓRIAS:
-1. MÁXIMO 60 CARACTERES (limite absoluto do ML)
-2. O título DEVE ter entre 30 e 60 caracteres — aproveite o espaço para incluir diferenciais e benefícios
-3. O título DEVE começar pelo TIPO DE PRODUTO (ex: Balm, Sérum, Kit, Camiseta), NUNCA pela marca sozinha
-4. A marca deve aparecer DEPOIS do tipo de produto
-5. SEMPRE adicione o principal BENEFÍCIO ou FUNÇÃO do produto (ex: Anti-queda, Hidratante, Fortalecedor)
-6. Use informações da descrição e resumo para identificar o que o produto FAZ e inclua no título
-7. NÃO usar emojis, caracteres especiais, pontuação excessiva
-8. NÃO usar palavras em CAPS LOCK (exceto siglas como USB, LED)
-9. NÃO incluir: preço, frete grátis, promoção, desconto, código de barras, EAN, GTIN
-10. NÃO repetir palavras
-11. NUNCA truncar nomes ou marcas — se não cabe, omita a marca em vez de cortar pela metade
-12. Priorize termos de busca que compradores usariam
+1. O título DEVE começar pelo TIPO DE PRODUTO (ex: Balm, Sérum, Kit, Camiseta), nunca pela marca sozinha
+2. A marca deve aparecer depois do tipo de produto (se fizer sentido)
+3. NÃO truncar palavras no final (nunca terminar em hífen, barra, vírgula ou palavra incompleta)
+4. Evite abreviações incompletas e frases cortadas
+5. Use benefícios/função reais do produto extraídos da descrição
+6. Sem emojis, sem CAPS LOCK excessivo, sem preço/promoção
+7. Não incluir EAN/GTIN/código de barras no título
+8. Título deve ser objetivo, legível e pronto para publicação
+9. Priorize termos que compradores realmente usam na busca
+10. Prefira títulos completos, podendo usar até 120 caracteres quando necessário
 
 EXEMPLOS CORRETOS:
-- Balm Pós-Banho Anti-queda Calvície Zero 60g (44 chars) — inclui benefício
-- Kit 3 Camisetas Básicas Algodão Masculina Slim Fit (51 chars)
-- Sérum Facial Vitamina C 30ml Anti-idade Clareador (50 chars) — inclui benefícios
+- Balm Pós-Banho Antiqueda para Cabelo e Barba 60g
+- Sérum Facial Vitamina C Anti-idade e Clareador 30ml
+- Kit 3 Camisetas Básicas Algodão Masculina Slim Fit
 
 EXEMPLOS ERRADOS (NÃO FAÇA ISSO):
-- "Balm Pós-Banho Calvície Zero Dia" (sem benefício, genérico)
-- "Balm Respeite o" (truncado, incompleto — PROIBIDO)
-- "Nike Tênis" (marca antes do produto)
-- ⭐ SUPER PROMOÇÃO Camiseta BARATA ⭐ (emojis, caps, preço)`;
+- Balm Pós-Banho Cabelo Bar (cortado)
+- Balm Cabelo Anti- (truncado)
+- ⭐ SUPER PROMOÇÃO Camiseta BARATA ⭐ (emojis/caps/preço)`;
 
-      userPromptFinal = `Gere UM título otimizado para o Mercado Livre com no máximo 60 caracteres.
+      userPromptFinal = `Gere UM título otimizado para o Mercado Livre.
 
 Produto: ${productName || "Produto"}
 ${productTitle ? `Título atual: ${productTitle}` : ""}
-${htmlDescription ? `Descrição: ${htmlDescription.slice(0, 500)}` : ""}
+${htmlDescription ? `Descrição: ${htmlDescription.slice(0, 700)}` : ""}
 
-Retorne APENAS o título, sem explicações, sem aspas.`;
+Retorne APENAS o título, sem aspas e sem explicações.`;
     } else {
       userPromptFinal = `Converta a seguinte descrição HTML de produto para texto plano compatível com o Mercado Livre.
 
@@ -254,7 +250,7 @@ Gere APENAS o texto plano da descrição, sem explicações adicionais.`;
 
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
         const attemptFeedback = attempt > 1
-          ? `\n\nA tentativa anterior foi rejeitada por qualidade: "${lastCandidate || "(vazio)"}". Gere uma nova versão COMPLETA, sem truncamento e entre 30-60 caracteres.`
+          ? `\n\nA tentativa anterior foi rejeitada por qualidade: "${lastCandidate || "(vazio)"}". Gere uma nova versão COMPLETA, sem final cortado ou abreviado.`
           : "";
 
         const aiResponse = await aiChatCompletion(

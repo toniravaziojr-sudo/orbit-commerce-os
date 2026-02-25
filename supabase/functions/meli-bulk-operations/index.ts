@@ -2,14 +2,45 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
-const VERSION = "v1.2.0"; // bulk_auto_categories returns resolved category names/paths
+const VERSION = "v1.3.0"; // remove bloqueio rígido de tamanho e evita truncamento real
 
-// VERSION moved to top
+const MAX_TITLE_LENGTH = 120;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function truncateAtWordBoundary(value: string, maxLength: number): string {
+  if (value.length <= maxLength) return value;
+
+  const sliced = value.slice(0, maxLength);
+  const lastSpace = sliced.lastIndexOf(" ");
+  const bounded = lastSpace > 15 ? sliced.slice(0, lastSpace) : sliced;
+  return bounded.replace(/[\s\-_,;:.]+$/g, "").trim();
+}
+
+function sanitizeGeneratedTitle(rawTitle: string): string {
+  const firstLine = rawTitle.split("\n")[0] || "";
+  const noDecorators = firstLine.replace(/^['"*`\-\s]+|['"*`\-\s]+$/g, "");
+  const normalized = normalizeWhitespace(noDecorators);
+  return truncateAtWordBoundary(normalized, MAX_TITLE_LENGTH);
+}
+
+function isValidGeneratedTitle(title: string): boolean {
+  if (!title) return false;
+  if (title.length < 10 || title.length > MAX_TITLE_LENGTH) return false;
+  if (/[-,/:;]$/.test(title)) return false;
+  if (title.split(/\s+/).length < 2) return false;
+
+  const lastWord = title.split(/\s+/).pop()?.toLowerCase() || "";
+  const danglingWords = new Set(["de", "da", "do", "das", "dos", "e", "com", "para", "por", "a", "o", "em"]);
+  return !danglingWords.has(lastWord);
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -191,7 +222,7 @@ serve(async (req) => {
             .insert({
               tenant_id: tenantId,
               product_id: product.id,
-              title: (product.name || "").slice(0, 60),
+              title: sanitizeGeneratedTitle(product.name || ""),
               description: "",
               price: product.price,
               available_quantity: product.stock_quantity || 1,
@@ -291,41 +322,28 @@ serve(async (req) => {
                     role: "system",
                     content: `Você é um especialista em SEO de títulos para o Mercado Livre Brasil.
 
-TAREFA: Gere exatamente UM título otimizado para buscas, com no máximo 60 caracteres.
+TAREFA: Gere exatamente UM título otimizado para buscas, completo e natural.
 
 REGRAS OBRIGATÓRIAS:
-1. O título DEVE começar pelo TIPO DE PRODUTO (ex: Balm, Sérum, Kit, Camiseta)
-2. NUNCA comece pela marca sozinha — a marca vem DEPOIS do tipo de produto
-3. O título deve ter entre 30 e 60 caracteres — aproveite o espaço para incluir diferenciais e benefícios do produto
-4. Sem emojis, sem CAPS LOCK (exceto siglas como UV, LED), sem preço/promoção
-5. Sem repetir palavras
-6. Incluir: tipo de produto + diferenciais/benefícios + marca (se couber)
-7. SEMPRE adicione o principal BENEFÍCIO ou FUNÇÃO do produto (ex: Anti-queda, Hidratante, Fortalecedor, Limpeza Profunda)
-8. Use informações da descrição e resumo para identificar o que o produto FAZ e inclua no título
-9. NUNCA truncar nomes ou marcas — se não cabe, omita a marca em vez de cortar pela metade
-10. Priorize termos de busca que compradores usariam para encontrar este produto
-11. NÃO inclua código de barras, EAN ou GTIN no título
-12. O título DEVE ser uma frase COMPLETA — NUNCA termine com hífen, vírgula ou palavra cortada
-13. ANALISE a descrição completa para entender a FUNÇÃO PRINCIPAL do produto antes de gerar o título
+1. O título DEVE começar pelo tipo de produto (ex: Balm, Sérum, Kit, Camiseta)
+2. A marca deve vir depois do tipo de produto (quando fizer sentido)
+3. NÃO truncar palavras no final (nunca terminar com hífen, barra, vírgula ou palavra incompleta)
+4. Use benefícios/função reais do produto extraídos da descrição
+5. Sem emojis, sem CAPS LOCK excessivo, sem preço/promoção
+6. Sem repetir palavras
+7. NÃO inclua código de barras, EAN ou GTIN no título
+8. O título deve ser legível, direto e pronto para publicação
+9. Prefira títulos completos, podendo usar até 120 caracteres quando necessário
 
 EXEMPLOS CORRETOS:
-- "Balm Pós-Banho Anti-queda Crescimento Capilar 60g" (50 chars) — inclui benefício "Anti-queda" + função
-- "Sérum Facial Vitamina C 30ml Anti-idade Clareador" (50 chars) — inclui benefícios
-- "Shampoo Fortalecedor Antiqueda Clear Men 400ml" (47 chars) — inclui função
-- "Creme Hidratante Corporal Pele Seca Nivea 400ml" (48 chars) — inclui para quem é
+- Balm Pós-Banho Antiqueda para Cabelo e Barba 60g
+- Sérum Facial Vitamina C Anti-idade e Clareador 30ml
+- Kit 3 Camisetas Básicas Algodão Masculina Slim Fit
 
 EXEMPLOS ERRADOS (NÃO FAÇA ISSO):
-- "Balm Pós-Banho Calvície Zero Dia" (sem benefício, genérico demais)
-- "Balm Cabelo Barba Anti-" (TRUNCADO — PROIBIDO, nunca termine com hífen ou palavra cortada)
-- "Balm Respeite o" (título truncado, incompleto — PROIBIDO)
-- "Nike Tênis" (marca antes do produto)
-- "Balm" (muito curto, sem contexto)
-
-VALIDAÇÃO FINAL ANTES DE RESPONDER:
-- O título tem pelo menos 30 caracteres? Se não, adicione mais detalhes.
-- O título termina com uma palavra completa? Se não, reescreva.
-- O título inclui o benefício principal do produto? Se não, adicione.
-- O título faz sentido para alguém buscando esse produto? Se não, reformule.
+- Balm Pós-Banho Cabelo Bar (cortado)
+- Balm Cabelo Anti- (truncado)
+- ⭐ SUPER PROMOÇÃO Camiseta BARATA ⭐ (emojis/caps/preço)
 
 Retorne APENAS o título completo, sem aspas, sem explicações.`,
                   },
@@ -353,16 +371,12 @@ Retorne APENAS o título completo, sem aspas, sem explicações.`,
             const aiData = await aiRes.json();
             const rawTitle = aiData.choices?.[0]?.message?.content?.trim() || "";
             lastRawTitle = rawTitle;
-            // Clean up: remove quotes, asterisks, etc.
-            const title = rawTitle.replace(/^["'*]+|["'*]+$/g, "").trim().slice(0, 60);
+            const title = sanitizeGeneratedTitle(rawTitle);
 
             // Validate title quality
-            const isTruncated = /[-,\s]$/.test(title) || /\s\w{1,2}$/.test(title);
-            const isTooShort = title.length < 25;
-            const hasNoContext = title.split(/\s+/).length < 3;
-            const isGoodTitle = !isTruncated && !isTooShort && !hasNoContext && title.length > 0;
+            const isGoodTitle = isValidGeneratedTitle(title);
 
-            console.log(`[meli-bulk-titles] Attempt ${attempt}/${MAX_TITLE_ATTEMPTS} for "${productName}" → "${title}" (${title.length} chars, good=${isGoodTitle}, truncated=${isTruncated})`);
+            console.log(`[meli-bulk-titles] Attempt ${attempt}/${MAX_TITLE_ATTEMPTS} for "${productName}" → "${title}" (${title.length} chars, good=${isGoodTitle})`);
 
             if (isGoodTitle) {
               finalTitle = title;
@@ -370,14 +384,13 @@ Retorne APENAS o título completo, sem aspas, sem explicações.`,
             }
 
             if (attempt === MAX_TITLE_ATTEMPTS) {
-              // Last attempt failed validation — use best effort or fallback
-              finalTitle = !isTooShort && !hasNoContext ? title.replace(/[-,\s]+$/, "") : "";
+              finalTitle = title;
             }
           }
 
           // Final fallback: use product name if all attempts failed
-          if (!finalTitle || finalTitle.length < 15) {
-            finalTitle = (productName || listing.title).slice(0, 60);
+          if (!finalTitle || finalTitle.length < 10) {
+            finalTitle = sanitizeGeneratedTitle(productName || listing.title || "Produto Original");
             console.log(`[meli-bulk-titles] All ${MAX_TITLE_ATTEMPTS} attempts failed for "${productName}", falling back to product name: "${finalTitle}" (last raw: "${lastRawTitle}")`);
           }
           
