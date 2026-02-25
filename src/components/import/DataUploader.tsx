@@ -24,11 +24,38 @@ export function DataUploader({ platform, modules, onDataLoaded }: DataUploaderPr
     if (!file) return;
 
     setError(null);
-    const reader = new FileReader();
     
-    reader.onload = (e) => {
+    // Use encoding-aware reading for CSV files (fixes Latin-1 mojibake from Nuvemshop)
+    const processFile = async () => {
       try {
-        const content = e.target?.result as string;
+        let content: string;
+        
+        if (file.name.endsWith('.csv')) {
+          // Try UTF-8 first, detect and fix mojibake
+          content = await file.text();
+          const mojibakePatterns = /Ã§|Ã£|Ã¡|Ã©|Ãª|Ã­|Ã³|Ã´|Ãµ|Ãº/g;
+          const matches = content.match(mojibakePatterns);
+          
+          if (matches && matches.length >= 3) {
+            console.log(`[DataUploader] Detected ${matches.length} mojibake patterns, re-reading as Latin-1...`);
+            try {
+              const arrayBuffer = await file.arrayBuffer();
+              const decoder = new TextDecoder('iso-8859-1');
+              content = decoder.decode(arrayBuffer);
+            } catch (e) {
+              console.warn('[DataUploader] Failed Latin-1 re-read, using mojibake fix');
+              // Fix in-place
+              content = content
+                .replace(/Ã§/g, 'ç').replace(/Ã£/g, 'ã').replace(/Ã¡/g, 'á')
+                .replace(/Ã©/g, 'é').replace(/Ãª/g, 'ê').replace(/Ã­/g, 'í')
+                .replace(/Ã³/g, 'ó').replace(/Ã´/g, 'ô').replace(/Ãµ/g, 'õ')
+                .replace(/Ãº/g, 'ú').replace(/Ã¼/g, 'ü');
+            }
+          }
+        } else {
+          content = await file.text();
+        }
+        
         let data: any[];
 
         if (file.name.endsWith('.json')) {
@@ -53,8 +80,8 @@ export function DataUploader({ platform, modules, onDataLoaded }: DataUploaderPr
         setError(err.message);
       }
     };
-
-    reader.readAsText(file);
+    
+    processFile();
   }, [onDataLoaded]);
 
   const handleJsonPaste = useCallback(() => {
