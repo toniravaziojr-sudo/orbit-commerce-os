@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.1.0"; // Use ai-router for multi-provider fallback
+const VERSION = "v1.2.0"; // Auto-fetch product data when productId provided
 // ===================
 
 const corsHeaders = {
@@ -42,11 +42,46 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { tenantId, htmlDescription, productName, productTitle, generateTitle } = body;
+    const { tenantId, productId, generateTitle } = body;
+    let { htmlDescription, productName, productTitle } = body;
 
-    if (!tenantId || !htmlDescription) {
+    if (!tenantId) {
       return new Response(
-        JSON.stringify({ success: false, error: "tenantId e htmlDescription são obrigatórios" }),
+        JSON.stringify({ success: false, error: "tenantId é obrigatório" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // If productId provided but no htmlDescription, fetch from DB
+    if (productId && !htmlDescription) {
+      const { data: product } = await supabase
+        .from("products")
+        .select("name, description, short_description, brand, sku, weight, gtin, barcode")
+        .eq("id", productId)
+        .single();
+
+      if (product) {
+        const rawDesc = product.description || product.short_description || "";
+        htmlDescription = rawDesc || product.name || "Produto";
+        if (!productName) productName = product.name;
+        // Build richer context for title generation
+        if (generateTitle) {
+          const parts = [`Produto: ${product.name}`];
+          if (product.brand) parts.push(`Marca: ${product.brand}`);
+          if (product.sku) parts.push(`SKU: ${product.sku}`);
+          if (product.weight) parts.push(`Peso: ${product.weight}g`);
+          if (product.gtin || product.barcode) parts.push(`EAN/GTIN: ${product.gtin || product.barcode}`);
+          const cleanDesc = rawDesc.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 500);
+          if (cleanDesc) parts.push(`Descrição: ${cleanDesc}`);
+          htmlDescription = parts.join("\n");
+        }
+        console.log(`[meli-generate-description] Fetched product data for ${productId}: ${productName}`);
+      }
+    }
+
+    if (!htmlDescription) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Descrição do produto não encontrada" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
