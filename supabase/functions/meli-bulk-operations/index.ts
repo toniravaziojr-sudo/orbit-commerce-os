@@ -277,10 +277,27 @@ serve(async (req) => {
                 {
                   role: "system",
                   content: `Você é um especialista em títulos de anúncios para o Mercado Livre Brasil.
-Gere exatamente UM título de anúncio com no máximo 60 caracteres.
-REGRAS: Sem emojis, sem CAPS LOCK (exceto siglas), sem preço/promoção, sem repetir palavras.
-INCLUIR: marca + tipo de produto + característica principal.
-Retorne APENAS o título otimizado, nada mais.`,
+
+TAREFA: Gere exatamente UM título de anúncio com no máximo 60 caracteres.
+
+REGRAS OBRIGATÓRIAS:
+1. O título DEVE começar pelo TIPO DE PRODUTO (ex: Balm, Sérum, Kit, Camiseta), NUNCA pela marca sozinha
+2. A marca deve aparecer DEPOIS do tipo de produto (ex: "Balm Pós-Banho Respeite o Homem Calvície")
+3. Sem emojis, sem CAPS LOCK (exceto siglas como UV, LED), sem preço/promoção
+4. Sem repetir palavras
+5. Incluir: tipo de produto + marca + característica/diferencial principal
+6. Se o nome do produto já é bom, use-o como base e otimize
+
+EXEMPLOS CORRETOS:
+- "Balm Pós-Banho Calvície Zero Respeite o Homem 60g"
+- "Sérum Facial Vitamina C 30ml Anti-idade Clareador"
+- "Kit 3 Camisetas Básicas Algodão Masculina Slim Fit"
+
+EXEMPLOS ERRADOS (NÃO FAÇA ISSO):
+- "Respeite o Hom" (marca truncada, sem tipo de produto)
+- "Nike Tênis" (marca antes do produto)
+
+Retorne APENAS o título, sem aspas, sem explicações.`,
                 },
                 { role: "user", content: context },
               ],

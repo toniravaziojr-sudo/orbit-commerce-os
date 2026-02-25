@@ -102,24 +102,28 @@ INSTRUÇÕES:
     if (generateTitle) {
       systemPromptFinal = `Você é um especialista em criação de títulos de anúncios para o Mercado Livre Brasil.
 
-REGRAS OBRIGATÓRIAS PARA TÍTULOS DO MERCADO LIVRE:
-1. MÁXIMO 60 CARACTERES (limite absoluto do ML)
-2. NÃO usar emojis, caracteres especiais, pontuação excessiva
-3. NÃO usar palavras em CAPS LOCK (exceto siglas como ML, USB, LED)
-4. NÃO incluir: preço, frete grátis, promoção, desconto
-5. NÃO repetir palavras
-6. INCLUIR: marca + modelo/tipo + característica principal + diferencial
-7. Palavras-chave relevantes para SEO dentro do ML
-8. Linguagem clara e direta
+TAREFA: Gere exatamente UM título otimizado com no máximo 60 caracteres.
 
-EXEMPLOS BONS:
+REGRAS OBRIGATÓRIAS:
+1. MÁXIMO 60 CARACTERES (limite absoluto do ML)
+2. O título DEVE começar pelo TIPO DE PRODUTO (ex: Balm, Sérum, Kit, Camiseta), NUNCA pela marca sozinha
+3. A marca deve aparecer DEPOIS do tipo de produto
+4. NÃO usar emojis, caracteres especiais, pontuação excessiva
+5. NÃO usar palavras em CAPS LOCK (exceto siglas como USB, LED)
+6. NÃO incluir: preço, frete grátis, promoção, desconto
+7. NÃO repetir palavras
+8. Se o nome do produto já é bom, use-o como base e otimize para SEO
+
+EXEMPLOS CORRETOS:
+- Balm Pós-Banho Calvície Zero Respeite o Homem 60g
 - Kit 3 Camisetas Básicas Algodão Masculina Slim Fit
 - Tênis Nike Air Max 90 Masculino Original Preto
 - Sérum Facial Vitamina C 30ml Anti-idade Clareador
 
-EXEMPLOS RUINS:
-- ⭐ SUPER PROMOÇÃO Camiseta BARATA ⭐ (emojis, caps, preço)
-- Camiseta Camiseta Algodão Algodão (repetição)`;
+EXEMPLOS ERRADOS (NÃO FAÇA ISSO):
+- "Respeite o Hom" (marca truncada, sem tipo de produto)
+- "Nike Tênis" (marca antes do produto)
+- ⭐ SUPER PROMOÇÃO Camiseta BARATA ⭐ (emojis, caps, preço)`;
 
       userPromptFinal = `Gere UM título otimizado para o Mercado Livre com no máximo 60 caracteres.
 
