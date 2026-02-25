@@ -290,6 +290,20 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens:
 | `bulk_auto_categories` | Categoriza em massa via ML category_predictor + fallback Search API |
 | `auto_suggest_category` | Categorização individual de produto (usado pelo botão "Auto" e pelo Wizard) |
 
+### Seleção em Massa (OBRIGATÓRIO)
+
+> A tabela de anúncios possui **checkboxes** para seleção individual e em massa:
+> - **Checkbox no header:** Seleciona/deseleciona todos os anúncios
+> - **Checkbox por linha:** Seleção individual com highlight visual (`bg-muted/50`)
+> - **Badge de contagem:** Exibe "X selecionado(s)" na barra de ações em massa quando há seleção
+> - **Ações operam nos selecionados:** Quando há seleção, as ações em massa enviam `listingIds` (array de IDs) no body da edge function. Quando não há seleção, operam em todos.
+> - **Limpeza automática:** A seleção é resetada após executar uma ação em massa.
+>
+> **Body da edge function com seleção:**
+> ```json
+> { "tenantId": "...", "action": "...", "offset": 0, "limit": 5, "listingIds": ["id1", "id2"] }
+> ```
+
 **Regra: Fallback de Categorização**
 > O `auto_suggest_category` tenta primeiro o `category_predictor` do ML.
 > Se falhar (status != 200 ou sem resultados), usa a Search API (`/sites/MLB/search?q=...`) e extrai categorias dos `available_filters`.
