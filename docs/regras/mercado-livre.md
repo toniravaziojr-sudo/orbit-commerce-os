@@ -13,7 +13,7 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 
 | Arquivo | Propósito |
 |---------|-----------|
-| `src/pages/marketplaces/MercadoLivre.tsx` | Dashboard com abas (Conexão, Pedidos, Anúncios, Métricas) |
+| `src/pages/marketplaces/MercadoLivre.tsx` | Dashboard com abas (Pedidos, Anúncios, Métricas) — redireciona para `/integrations?tab=marketplaces` se desconectado |
 | `supabase/functions/meli-bulk-operations/` | Operações em massa (enviar produtos, gerar títulos/descrições, auto-categorizar) |
 | `src/pages/MeliOAuthCallback.tsx` | Proxy page para callback OAuth |
 | `src/hooks/useMeliConnection.ts` | Status/OAuth com listener de postMessage |
@@ -38,16 +38,25 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 ## Fluxo OAuth
 
 ```
-1. meli-oauth-start → URL de autorização
-2. Popup para ML
-3. ML redireciona para /integrations/meli/callback (MeliOAuthCallback.tsx)
-4. MeliOAuthCallback captura code/state e chama edge function meli-oauth-callback via fetch
-5. meli-oauth-callback (edge function) → Troca code por tokens e salva no banco
-6. MeliOAuthCallback envia window.opener.postMessage({ type: 'meli_connected' }) para janela principal
-7. MeliOAuthCallback fecha o popup automaticamente (window.close())
-8. Janela principal recebe postMessage e invalida queries de status
-9. meli-token-refresh → Renovação automática
+1. Usuário acessa Integrações → aba Marketplaces
+2. Clica "Conectar" no card do Mercado Livre (inicia OAuth direto, sem redirecionar)
+3. meli-oauth-start → URL de autorização
+4. Popup abre para ML
+5. ML redireciona para /integrations/meli/callback (MeliOAuthCallback.tsx)
+6. MeliOAuthCallback captura code/state e chama edge function meli-oauth-callback via fetch
+7. meli-oauth-callback (edge function) → Troca code por tokens e salva no banco
+8. MeliOAuthCallback envia window.opener.postMessage({ type: 'meli_connected' }) para janela principal
+9. MeliOAuthCallback fecha o popup automaticamente (window.close())
+10. Janela principal recebe postMessage e invalida queries de status
+11. meli-token-refresh → Renovação automática
 ```
+
+### Regra: Local de Conexão (OBRIGATÓRIO)
+
+> A conexão OAuth com o Mercado Livre **DEVE acontecer em `/integrations` (aba Marketplaces)**.
+> O módulo `/marketplaces/mercadolivre` é exclusivo para **gestão** (pedidos, anúncios, métricas).
+> Se o usuário acessar `/marketplaces/mercadolivre` sem conexão ativa, é **redirecionado automaticamente** para `/integrations?tab=marketplaces`.
+> O callback OAuth (fallback sem popup) redireciona para `/integrations?tab=marketplaces`.
 
 ### Regra: Popup OAuth (OBRIGATÓRIO)
 
@@ -56,6 +65,13 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 > 2. Chamar a edge function `meli-oauth-callback` via fetch
 > 3. Enviar resultado via `window.opener.postMessage()`
 > 4. Fechar o popup com `window.close()`
+
+### Regra: Desconectar/Reconectar (OBRIGATÓRIO)
+
+> Botões de **Reconectar** e **Desconectar** ficam no card do Mercado Livre em `/integrations` (aba Marketplaces).
+> - **Reconectar**: Inicia novo fluxo OAuth para renovar tokens
+> - **Desconectar**: Remove a conexão (com confirmação via AlertDialog)
+> - **Token expirado**: Exibe alerta com botão de reconexão
 
 ## Rota Frontend
 
