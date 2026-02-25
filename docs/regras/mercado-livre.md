@@ -368,6 +368,22 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens:
 > Durante o carregamento, exibe apenas um badge "Atualizando..." com `animate-pulse`.
 > A sincronização com a API do ML ocorre via webhook/cron, não via ação manual do usuário.
 
+## Regra: Parâmetro `listingIds` na Edge Function (OBRIGATÓRIO)
+
+> A edge function `meli-bulk-operations` aceita **tanto `listingIds` quanto `productIds`** no body.
+> O `MeliListingCreator` envia `listingIds` (IDs dos rascunhos criados) para que a IA processe apenas os anúncios recém-criados.
+> A edge function usa `const filterIds = listingIds || productIds;` para compatibilidade.
+
+## Regra: Resolução de Nomes de Categoria na Edição (OBRIGATÓRIO)
+
+> Ao abrir o `MeliListingWizard` para edição, se o anúncio já possui `category_id`, o `MeliListingsTab` DEVE resolver o nome legível da categoria via `meli-search-categories?categoryId=...` antes de passar como `categoryName` ao wizard.
+> Isso evita exibir IDs crus como "MLB1000" no campo de categoria.
+
+## Regra: Fallback de Contexto para IA no Wizard (OBRIGATÓRIO)
+
+> No `MeliListingWizard` modo edição, os botões "Regenerar" de título/descrição DEVEM usar `initialData?.product?.name` como fallback quando `selectedProduct` é `null`.
+> Isso garante que a IA tenha contexto do produto mesmo quando o wizard é aberto diretamente para edição.
+
 ## Anti-Patterns
 
 | Proibido | Correto |
@@ -379,6 +395,9 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens:
 | Criar anúncio sem creator | Usar MeliListingCreator para criação (multi-produto) |
 | Usar MeliListingWizard para criar | MeliListingWizard é apenas para edição individual |
 | Botões manuais de refresh/sync na aba Pedidos | Auto-refresh via `refetchOnWindowFocus` |
+| Enviar `productIds` ao invés de `listingIds` no Creator | Creator envia `listingIds` dos rascunhos criados |
+| Exibir `category_id` cru na edição | Resolver nome via `meli-search-categories` |
+| Chamar IA sem contexto de produto | Usar fallback `initialData.product.name` |
 
 ## Checklist
 
