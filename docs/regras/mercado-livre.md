@@ -116,8 +116,8 @@ Dialog de 6 etapas para criação em massa de anúncios com validação ML sincr
 | Etapa | Nome | Descrição |
 |-------|------|-----------|
 | 1 | Selecionar Produtos | Checkboxes com busca por nome/SKU, selecionar todos, badge de contagem |
-| 2 | Gerar Títulos IA | Cria drafts → `bulk_generate_titles` → preview editável (input, max 60 chars, botão Regenerar) |
-| 3 | Gerar Descrições IA | `bulk_generate_descriptions` → preview colapsável, textarea editável, botão Regenerar |
+| 2 | Gerar Títulos IA | Cria drafts → `bulk_generate_titles` → preview editável (input, max 60 chars, botão Regenerar com loading spinner) |
+| 3 | Gerar Descrições IA | `bulk_generate_descriptions` → preview colapsável, textarea editável, botão Regenerar com loading spinner |
 | 4 | Categorizar via ML API | `bulk_auto_categories` → preview com path legível, troca manual via `MeliCategoryPicker` |
 | 5 | Condição | Cards visuais radio-style: `new` (Novo), `used` (Usado), `not_specified` |
 | 6 | Tipo de Anúncio | Cards visuais: `gold_special` (Clássico), `gold_pro` (Premium), `free` (Grátis) → Salvar |
@@ -197,7 +197,7 @@ POST /meli-publish-listing
 - **Categoria:** `category_id` é **obrigatório** (ex: `MLB1000`). Sem fallback. Navegação hierárquica com `children_count`.
 - **Descrição:** Apenas texto plano. Gerada via IA com botão "Gerar para ML" (edge function `meli-generate-description`).
 - **Título:** Máximo 60 caracteres. Gerado via IA com botão "Gerar Título ML" (mesma edge function, `generateTitle: true`).
-- **Unicidade:** Um produto só pode ter um anúncio ativo (constraint `idx_meli_listings_tenant_product`)
+- **Múltiplos anúncios:** Um produto pode ter múltiplos anúncios (sem constraint de unicidade). O mesmo produto pode aparecer na seleção do Creator mesmo que já tenha anúncios existentes.
 
 ### Campos do Formulário de Anúncio
 
@@ -349,7 +349,7 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 
 **Roteamento IA:** Ambas as edge functions (`meli-bulk-operations` e `meli-generate-description`) utilizam o `ai-router.ts` centralizado (`aiChatCompletion`) para fallback multi-provedor (Gemini → OpenAI → Lovable Gateway). **NÃO fazem fetch direto** para provedores de IA.
 
-**Pré-processamento de contexto:** Antes de enviar para a IA, o HTML da descrição do produto é stripado (`description.replace(/<[^>]*>/g, " ")`) para evitar confusão do modelo. Títulos gerados com menos de 10 caracteres são rejeitados.
+**Pré-processamento de contexto:** Antes de enviar para a IA, o HTML da descrição do produto é stripado (`description.replace(/<[^>]*>/g, " ")`) para evitar confusão do modelo. Títulos gerados com menos de 10 caracteres são rejeitados. O contexto enviado à IA inclui obrigatoriamente: nome do produto, marca, SKU, peso, dimensões (largura/altura/profundidade), GTIN e até 800 caracteres da descrição original. `max_tokens` para títulos é 256.
 
 **Regra de Priorização em Títulos (OBRIGATÓRIO):**
 > O prompt de geração de títulos DEVE instruir a IA a começar pelo **tipo de produto** (ex: Balm, Sérum, Kit, Camiseta), NUNCA pela marca sozinha. A marca deve aparecer DEPOIS do tipo de produto. Se o nome do produto já é adequado, usar como base e otimizar para SEO.
