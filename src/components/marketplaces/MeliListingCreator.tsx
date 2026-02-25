@@ -85,6 +85,19 @@ interface GeneratedItem {
   categoryPath: string;
 }
 
+const TITLE_MIN_LENGTH = 30;
+const TITLE_MAX_LENGTH = 60;
+
+function isInvalidMeliTitle(title: string): boolean {
+  const normalized = title.trim();
+  if (normalized.length < TITLE_MIN_LENGTH || normalized.length > TITLE_MAX_LENGTH) return true;
+  if (/[-,/:;]$/.test(normalized)) return true;
+  if (normalized.split(/\s+/).length < 3) return true;
+
+  const lastWord = normalized.split(/\s+/).pop()?.toLowerCase() || "";
+  return ["de", "da", "do", "das", "dos", "e", "com", "para", "por", "a", "o", "em"].includes(lastWord);
+}
+
 export function MeliListingCreator({
   open,
   onOpenChange,
@@ -133,6 +146,11 @@ export function MeliListingCreator({
   }, [availableProducts, productSearch]);
 
   const allFilteredSelected = filteredProducts.length > 0 && filteredProducts.every(p => selectedProductIds.has(p.id));
+
+  const invalidTitleCount = useMemo(
+    () => generatedItems.filter(item => isInvalidMeliTitle(item.title)).length,
+    [generatedItems]
+  );
 
   // Reset on close
   useEffect(() => {
@@ -586,7 +604,7 @@ export function MeliListingCreator({
 
   const canGoNext = () => {
     if (step === "select") return selectedProductIds.size > 0;
-    if (step === "titles") return !isProcessing && generatedItems.length > 0;
+    if (step === "titles") return !isProcessing && generatedItems.length > 0 && invalidTitleCount === 0;
     if (step === "descriptions") return !isProcessing;
     if (step === "categories") return !isProcessing;
     if (step === "condition") return !!condition;
@@ -607,7 +625,7 @@ export function MeliListingCreator({
           </DialogTitle>
           <DialogDescription>
             {step === "select" && "Escolha os produtos que deseja anunciar no Mercado Livre"}
-            {step === "titles" && "Revise e edite os títulos gerados pela IA (máx. 60 caracteres)"}
+            {step === "titles" && "Revise e edite os títulos gerados pela IA (entre 30 e 60 caracteres, sem truncar)"}
             {step === "descriptions" && "Revise as descrições geradas (texto plano, sem HTML)"}
             {step === "categories" && "Confirme as categorias atribuídas pela API do Mercado Livre"}
             {step === "condition" && "Defina a condição dos produtos"}
@@ -722,7 +740,16 @@ export function MeliListingCreator({
             ) : (
               <ScrollArea className="flex-1 max-h-[400px]">
                 <div className="space-y-3 pr-3">
-                  {generatedItems.map(item => (
+                  {invalidTitleCount > 0 && (
+                    <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                      {invalidTitleCount} título{invalidTitleCount > 1 ? "s" : ""} precisa{invalidTitleCount > 1 ? "m" : ""} de ajuste (entre 30 e 60 caracteres, sem final truncado).
+                    </div>
+                  )}
+
+                  {generatedItems.map(item => {
+                    const titleInvalid = isInvalidMeliTitle(item.title);
+
+                    return (
                     <div key={item.listingId} className="rounded-lg border p-3 space-y-2">
                       <div className="flex items-center justify-between">
                         <p className="text-xs text-muted-foreground truncate max-w-[70%]">
@@ -748,18 +775,24 @@ export function MeliListingCreator({
                           value={item.title}
                           onChange={(e) => handleTitleChange(item.listingId, e.target.value)}
                           maxLength={60}
-                          className={item.title.length > 60 ? "border-destructive" : ""}
+                          className={titleInvalid ? "border-destructive" : ""}
                         />
                         <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-xs ${
-                          item.title.length > 60 ? "text-destructive font-bold" :
+                          titleInvalid ? "text-destructive font-bold" :
                           item.title.length > 50 ? "text-amber-500" :
                           "text-muted-foreground"
                         }`}>
                           {item.title.length}/60
                         </span>
                       </div>
+                      {titleInvalid && (
+                        <p className="text-xs text-destructive">
+                          Ajuste para 30-60 caracteres e finalize com frase completa (sem hífen no fim).
+                        </p>
+                      )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </ScrollArea>
             )}

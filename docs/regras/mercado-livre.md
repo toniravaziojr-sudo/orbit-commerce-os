@@ -433,6 +433,17 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 > No `MeliListingWizard` modo edição, os botões "Regenerar" de título/descrição DEVEM usar `initialData?.product?.name` como fallback quando `selectedProduct` é `null`.
 > Isso garante que a IA tenha contexto do produto mesmo quando o wizard é aberto diretamente para edição.
 
+## Regra: Título ML Sem Truncamento no `meli-generate-description` (OBRIGATÓRIO)
+
+> A edge function `meli-generate-description` (modo `generateTitle: true`) DEVE aplicar validação e retry igual ao padrão de qualidade do Marketplace:
+> - Até 3 tentativas com temperatura progressiva
+> - Rejeitar títulos fora de 30-60 caracteres
+> - Rejeitar títulos que terminem com hífen, vírgula ou frase incompleta
+> - Evitar corte cego com `.slice(0, 60)` no retorno final
+> - Se todas as tentativas falharem, aplicar fallback seguro com frase completa
+>
+> Objetivo: impedir títulos truncados como `"Balm Respeite o Homem Anti-"` no botão **Regenerar** do Creator/Wizard.
+
 ## Anti-Patterns
 
 | Proibido | Correto |
