@@ -164,11 +164,39 @@ serve(async (req) => {
       const res = await fetch(`https://api.mercadolibre.com/categories/${parentId}`, { headers: mlHeaders });
       if (res.ok) {
         const data = await res.json();
-        categories = (data.children_categories || []).map((c: any) => ({
-          id: c.id,
-          name: c.name,
-          total_items: c.total_items_in_this_category,
-        }));
+        // Fetch each child to get their children_count
+        const childCats = data.children_categories || [];
+        categories = [];
+        for (const c of childCats) {
+          // Check if child has children by fetching its details
+          try {
+            const childRes = await fetch(`https://api.mercadolibre.com/categories/${c.id}`, { headers: mlHeaders });
+            if (childRes.ok) {
+              const childData = await childRes.json();
+              categories.push({
+                id: c.id,
+                name: c.name,
+                total_items: c.total_items_in_this_category,
+                children_count: childData.children_categories?.length || 0,
+              });
+            } else {
+              await childRes.text();
+              categories.push({
+                id: c.id,
+                name: c.name,
+                total_items: c.total_items_in_this_category,
+                children_count: 0,
+              });
+            }
+          } catch {
+            categories.push({
+              id: c.id,
+              name: c.name,
+              total_items: c.total_items_in_this_category,
+              children_count: 0,
+            });
+          }
+        }
         path = (data.path_from_root || []).map((p: any) => ({ id: p.id, name: p.name }));
       }
     } else if (categoryId) {
@@ -193,6 +221,7 @@ serve(async (req) => {
         categories = (data || []).map((c: any) => ({
           id: c.id,
           name: c.name,
+          children_count: 1, // Root categories always have children
         }));
       }
     }

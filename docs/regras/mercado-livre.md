@@ -25,7 +25,8 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 | `src/components/marketplaces/MeliOrdersTab.tsx` | Aba de pedidos |
 | `supabase/functions/meli-oauth-*` | Fluxo OAuth |
 | `supabase/functions/meli-publish-listing/` | Publicação de anúncios na API do ML |
-| `supabase/functions/meli-search-categories/` | Busca de categorias ML (predictor + search fallback) |
+| `supabase/functions/meli-search-categories/` | Busca de categorias ML (predictor + search fallback + children_count) |
+| `supabase/functions/meli-generate-description/` | Geração IA de descrição/título para ML (texto plano, sem HTML/links/contato) |
 | `supabase/functions/meli-sync-orders/` | Sincronização de pedidos |
 | `supabase/functions/meli-sync-questions/` | Sincronização de perguntas → Atendimento |
 | `supabase/functions/meli-answer-question/` | Responder perguntas via API ML |
@@ -104,8 +105,9 @@ POST /meli-publish-listing
 - **Condição:** `new` (Novo), `used` (Usado) ou `not_specified`
 - **Moeda:** `BRL` (padrão)
 - **Imagens:** Máximo 10 (limite do ML), mínimo 1 (obrigatório)
-- **Categoria:** `category_id` é **obrigatório** (ex: `MLB1000`). Sem fallback.
-- **Descrição:** Apenas texto plano. HTML é removido automaticamente pela edge function.
+- **Categoria:** `category_id` é **obrigatório** (ex: `MLB1000`). Sem fallback. Navegação hierárquica com `children_count`.
+- **Descrição:** Apenas texto plano. Gerada via IA com botão "Gerar para ML" (edge function `meli-generate-description`).
+- **Título:** Máximo 60 caracteres. Gerado via IA com botão "Gerar Título ML" (mesma edge function, `generateTitle: true`).
 - **Unicidade:** Um produto só pode ter um anúncio ativo (constraint `idx_meli_listings_tenant_product`)
 
 ### Campos do Formulário de Anúncio
@@ -265,5 +267,7 @@ Busca dados diretamente da API do ML (não armazena localmente):
 - [x] Pausar/reativar anúncios
 - [x] Sincronizar preço/estoque
 - [x] Aba de métricas (visitas, vendas, faturamento)
-- [x] Busca de categorias ML (category picker com busca + navegação)
+- [x] Busca de categorias ML (category picker com busca + navegação + children_count)
+- [x] Geração IA de descrição para ML (texto plano, sem HTML/links)
+- [x] Geração IA de título otimizado para ML (máx 60 chars)
 - [ ] Webhook de notificações de pedidos (real-time)
