@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,9 +18,8 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
-import { MeliConnectionCard } from "@/components/marketplaces/MeliConnectionCard";
 import { ShopeeConnectionCard } from "@/components/marketplaces/ShopeeConnectionCard";
-import { IntegrationRequiredAlert } from "@/components/ui/integration-required-alert";
+import { useMeliConnection } from "@/hooks/useMeliConnection";
 
 // Outros marketplaces (em breve)
 const UPCOMING_MARKETPLACES = [
@@ -64,42 +63,10 @@ const UPCOMING_MARKETPLACES = [
 export default function Marketplaces() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState("mercadolivre");
+  const { isConnected: meliConnected, isLoading: meliLoading } = useMeliConnection();
 
-  // Processar callback do OAuth (Mercado Livre e Shopee)
+  // Processar callback do OAuth (Shopee)
   useEffect(() => {
-    // Mercado Livre
-    const meliConnected = searchParams.get("meli_connected");
-    const meliError = searchParams.get("meli_error");
-
-    if (meliConnected === "true") {
-      toast.success("Mercado Livre conectado com sucesso!", {
-        description: "Seus pedidos e mensagens serão sincronizados automaticamente.",
-        icon: <CheckCircle2 className="h-4 w-4 text-green-500" />,
-      });
-      searchParams.delete("meli_connected");
-      setSearchParams(searchParams);
-    }
-
-    if (meliError) {
-      const errorMessages: Record<string, string> = {
-        missing_params: "Parâmetros ausentes na resposta do Mercado Livre",
-        invalid_state: "Estado inválido. Tente novamente.",
-        not_configured: "Integração não configurada. Contate o administrador.",
-        token_exchange_failed: "Falha ao obter token. Tente novamente.",
-        save_failed: "Erro ao salvar conexão. Tente novamente.",
-        internal_error: "Erro interno. Tente novamente.",
-        access_denied: "Acesso negado pelo Mercado Livre",
-      };
-
-      toast.error("Erro ao conectar Mercado Livre", {
-        description: errorMessages[meliError] || meliError,
-        icon: <XCircle className="h-4 w-4 text-red-500" />,
-      });
-
-      searchParams.delete("meli_error");
-      setSearchParams(searchParams);
-    }
-
     // Shopee
     const shopeeConnected = searchParams.get("shopee_connected");
     const shopeeError = searchParams.get("shopee_error");
@@ -160,7 +127,62 @@ export default function Marketplaces() {
         {/* Tab: Mercado Livre */}
         <TabsContent value="mercadolivre" className="mt-6">
           <div className="grid gap-6 lg:grid-cols-2">
-            <MeliConnectionCard />
+            {/* Card de status/conexão - direciona para Integrações */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  Mercado Livre
+                  {meliConnected && (
+                    <Badge variant="default" className="bg-green-600">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Conectado
+                    </Badge>
+                  )}
+                  {!meliConnected && !meliLoading && (
+                    <Badge variant="secondary">Não conectado</Badge>
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  {meliConnected 
+                    ? "Sua conta está conectada. Gerencie pedidos e anúncios no módulo dedicado."
+                    : "Conecte sua conta do Mercado Livre via Integrações"
+                  }
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {meliConnected ? (
+                  <div className="flex flex-col gap-3">
+                    <Button asChild>
+                      <Link to="/marketplaces/mercadolivre">
+                        <ShoppingBag className="h-4 w-4 mr-2" />
+                        Gerenciar Mercado Livre
+                      </Link>
+                    </Button>
+                    <Button variant="outline" asChild>
+                      <Link to="/integrations?tab=marketplaces">
+                        <Settings className="h-4 w-4 mr-2" />
+                        Configurações da Conexão
+                      </Link>
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <Alert>
+                      <Settings className="h-4 w-4" />
+                      <AlertDescription>
+                        A conexão com o Mercado Livre é gerenciada em <strong>Integrações → Marketplaces</strong>.
+                      </AlertDescription>
+                    </Alert>
+                    <Button asChild>
+                      <Link to="/integrations?tab=marketplaces">
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Ir para Integrações
+                      </Link>
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             <Card>
               <CardHeader>
@@ -204,7 +226,6 @@ export default function Marketplaces() {
                       <p className="text-xs text-muted-foreground">
                         Crie e gerencie seus anúncios, sincronize estoque e preços
                       </p>
-                      <Badge variant="secondary" className="mt-1 text-xs">Em breve</Badge>
                     </div>
                   </div>
                 </div>
