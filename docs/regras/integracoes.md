@@ -222,13 +222,21 @@ Disponível apenas para `isPlatformOperator`:
 ## Fluxo OAuth (Marketplaces)
 
 ```
-1. Usuário clica "Conectar"
-2. Redireciona para oauth do provider
-3. Provider redireciona de volta com code
-4. Edge function troca code por tokens
-5. Tokens armazenados (criptografados)
-6. Status atualizado para "connected"
+1. Usuário acessa Integrações → aba Marketplaces
+2. Clica "Conectar" no card do marketplace (OAuth inicia direto, sem redirecionar)
+3. Popup abre para provider
+4. Provider redireciona de volta com code
+5. Edge function troca code por tokens
+6. Tokens armazenados (criptografados)
+7. Status atualizado para "connected"
+8. Se desconectado, módulo do marketplace redireciona para /integrations?tab=marketplaces
 ```
+
+### Regra: Local de Conexão (OBRIGATÓRIO)
+
+> A conexão/desconexão de marketplaces **DEVE acontecer em `/integrations` (aba Marketplaces)**.
+> Os módulos individuais (`/marketplaces/mercadolivre`, `/marketplaces/shopee`, etc.) são exclusivos para **gestão**.
+> Se o usuário acessar o módulo sem conexão ativa, é **redirecionado** para `/integrations?tab=marketplaces`.
 
 ---
 
