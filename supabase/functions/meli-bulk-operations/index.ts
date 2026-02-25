@@ -1,7 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
-const VERSION = "v1.0.0";
+const VERSION = "v1.1.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -112,7 +113,7 @@ serve(async (req) => {
       mlHeaders["Authorization"] = `Bearer ${accessToken}`;
     }
 
-    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+    // AI router handles key resolution automatically
 
     // ============ ACTION: bulk_create ============
     if (action === "bulk_create") {
@@ -240,12 +241,7 @@ serve(async (req) => {
 
     // ============ ACTION: bulk_generate_titles ============
     if (action === "bulk_generate_titles") {
-      if (!lovableApiKey) {
-        return new Response(
-          JSON.stringify({ success: false, error: "Chave de IA não configurada" }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+      resetAIRouterCache();
 
       let query = supabase
         .from("meli_listings")
@@ -267,30 +263,36 @@ serve(async (req) => {
         try {
           const product = (listing as any).products;
           const productName = product?.name || listing.title;
-          const context = [productName, product?.brand, product?.description?.slice(0, 300)].filter(Boolean).join("\n");
+          // Strip HTML for cleaner context
+          const cleanDesc = (product?.description || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
+          const contextParts = [`Nome: ${productName}`];
+          if (product?.brand) contextParts.push(`Marca: ${product.brand}`);
+          if (cleanDesc) contextParts.push(`Descrição: ${cleanDesc}`);
+          const context = contextParts.join("\n");
 
-          const aiRes = await fetch("https://api.lovable.dev/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${lovableApiKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: "google/gemini-2.5-flash",
+          const aiRes = await aiChatCompletion(
+            "google/gemini-2.5-flash",
+            {
               messages: [
                 {
                   role: "system",
-                  content: `Gere UM título de anúncio para o Mercado Livre com no máximo 60 caracteres.
+                  content: `Você é um especialista em títulos de anúncios para o Mercado Livre Brasil.
+Gere exatamente UM título de anúncio com no máximo 60 caracteres.
 REGRAS: Sem emojis, sem CAPS LOCK (exceto siglas), sem preço/promoção, sem repetir palavras.
-INCLUIR: marca + tipo + característica principal. SEO otimizado.
-Retorne APENAS o título, sem aspas, sem explicação.`,
+INCLUIR: marca + tipo de produto + característica principal.
+Retorne APENAS o título otimizado, nada mais.`,
                 },
                 { role: "user", content: context },
               ],
               max_tokens: 128,
               temperature: 0.5,
-            }),
-          });
+            },
+            {
+              supabaseUrl,
+              supabaseServiceKey,
+              logPrefix: "[meli-bulk-titles]",
+            }
+          );
 
           if (!aiRes.ok) {
             const errText = await aiRes.text();
@@ -299,14 +301,19 @@ Retorne APENAS o título, sem aspas, sem explicação.`,
           }
 
           const aiData = await aiRes.json();
-          const title = aiData.choices?.[0]?.message?.content?.trim()?.slice(0, 60) || "";
+          const rawTitle = aiData.choices?.[0]?.message?.content?.trim() || "";
+          // Clean up: remove quotes, asterisks, etc.
+          const title = rawTitle.replace(/^["'*]+|["'*]+$/g, "").trim().slice(0, 60);
+          console.log(`[meli-bulk-titles] Product: ${productName} → Title: "${title}" (raw: "${rawTitle}")`);
 
-          if (title) {
+          if (title && title.length >= 10) {
             await supabase
               .from("meli_listings")
               .update({ title })
               .eq("id", listing.id);
             updated++;
+          } else {
+            errors.push(`${listing.title}: Título gerado muito curto (${title.length} chars)`);
           }
         } catch (err) {
           errors.push(`${listing.title}: ${err instanceof Error ? err.message : "Erro"}`);
@@ -327,12 +334,7 @@ Retorne APENAS o título, sem aspas, sem explicação.`,
 
     // ============ ACTION: bulk_generate_descriptions ============
     if (action === "bulk_generate_descriptions") {
-      if (!lovableApiKey) {
-        return new Response(
-          JSON.stringify({ success: false, error: "Chave de IA não configurada" }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+      resetAIRouterCache();
 
       let query = supabase
         .from("meli_listings")
@@ -360,14 +362,9 @@ Retorne APENAS o título, sem aspas, sem explicação.`,
             continue;
           }
 
-          const aiRes = await fetch("https://api.lovable.dev/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${lovableApiKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: "google/gemini-2.5-flash",
+          const aiRes = await aiChatCompletion(
+            "google/gemini-2.5-flash",
+            {
               messages: [
                 {
                   role: "system",
@@ -384,8 +381,13 @@ Retorne APENAS o texto da descrição.`,
               ],
               max_tokens: 4096,
               temperature: 0.3,
-            }),
-          });
+            },
+            {
+              supabaseUrl,
+              supabaseServiceKey,
+              logPrefix: "[meli-bulk-descriptions]",
+            }
+          );
 
           if (!aiRes.ok) {
             const errText = await aiRes.text();
