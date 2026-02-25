@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { RefreshCw, ShoppingBag, ExternalLink, Download } from "lucide-react";
+import { ShoppingBag, ExternalLink } from "lucide-react";
 import { useMeliOrders } from "@/hooks/useMeliOrders";
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -34,7 +34,7 @@ export function MeliOrdersTab() {
   const [page, setPage] = useState(1);
   const navigate = useNavigate();
   
-  const { orders, total, isLoading, sync, isSyncing, refetch } = useMeliOrders({
+  const { orders, total, isLoading } = useMeliOrders({
     status,
     page,
     pageSize: 20,
@@ -59,25 +59,11 @@ export function MeliOrdersTab() {
               {total} pedidos encontrados
             </CardDescription>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => refetch()}
-              disabled={isLoading}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
-              Atualizar
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => sync(false)}
-              disabled={isSyncing}
-            >
-              <Download className={`h-4 w-4 mr-2 ${isSyncing ? "animate-spin" : ""}`} />
-              {isSyncing ? "Sincronizando..." : "Sincronizar"}
-            </Button>
-          </div>
+          {isLoading && (
+            <Badge variant="outline" className="text-xs animate-pulse">
+              Atualizando...
+            </Badge>
+          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
