@@ -73,7 +73,8 @@ serve(async (req) => {
           if (product.width && product.height && product.depth) {
             parts.push(`Dimensões: ${product.width}x${product.height}x${product.depth}cm`);
           }
-          if (product.gtin || product.barcode) parts.push(`EAN/GTIN: ${product.gtin || product.barcode}`);
+          const shortDesc = (product.short_description || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
+          if (shortDesc) parts.push(`Resumo/Benefícios: ${shortDesc}`);
           const cleanDesc = rawDesc.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 800);
           if (cleanDesc) parts.push(`Descrição completa: ${cleanDesc}`);
           htmlDescription = parts.join("\n");
@@ -113,16 +114,17 @@ REGRAS OBRIGATÓRIAS DO MERCADO LIVRE PARA DESCRIÇÕES:
 1. APENAS TEXTO PLANO - Sem HTML, sem Markdown, sem formatação especial
 2. PROIBIDO incluir: telefones, WhatsApp, e-mails, links externos, URLs, redes sociais
 3. PROIBIDO incluir: emojis, caracteres especiais decorativos
-4. PROIBIDO mencionar: formas de pagamento fora do ML, promoções condicionais
-5. PROIBIDO incluir: dados de contato do vendedor de qualquer tipo
-6. Use quebras de linha (\\n) para organizar o texto em seções
-7. Use letras MAIÚSCULAS para títulos de seções
-8. Máximo recomendado: 5000 caracteres
+4. PROIBIDO incluir: códigos de barras, EAN, GTIN (esses dados vão como atributos separados do anúncio)
+5. PROIBIDO mencionar: formas de pagamento fora do ML, promoções condicionais
+6. PROIBIDO incluir: dados de contato do vendedor de qualquer tipo
+7. Use quebras de linha (\\n) para organizar o texto em seções
+8. Use letras MAIÚSCULAS para títulos de seções
+9. Máximo recomendado: 5000 caracteres
 
 ESTRUTURA RECOMENDADA:
 - Parágrafo de abertura com benefícios principais
 - Seção "O QUE VOCÊ RECEBE" ou "CONTEÚDO" (se for kit)
-- Seção "CARACTERÍSTICAS" com especificações técnicas
+- Seção "CARACTERÍSTICAS" com especificações técnicas (peso, dimensões — sem código de barras)
 - Seção "MODO DE USO" (se aplicável)
 - Seção "GARANTIA" (se aplicável)
 - Informações regulatórias (ANVISA, etc.) se presentes no original
@@ -144,25 +146,26 @@ TAREFA: Gere exatamente UM título otimizado para buscas, com no máximo 60 cara
 
 REGRAS OBRIGATÓRIAS:
 1. MÁXIMO 60 CARACTERES (limite absoluto do ML)
-2. O título DEVE ter entre 30 e 60 caracteres — aproveite o espaço para palavras-chave
+2. O título DEVE ter entre 30 e 60 caracteres — aproveite o espaço para incluir diferenciais e benefícios
 3. O título DEVE começar pelo TIPO DE PRODUTO (ex: Balm, Sérum, Kit, Camiseta), NUNCA pela marca sozinha
 4. A marca deve aparecer DEPOIS do tipo de produto
-5. NÃO usar emojis, caracteres especiais, pontuação excessiva
-6. NÃO usar palavras em CAPS LOCK (exceto siglas como USB, LED)
-7. NÃO incluir: preço, frete grátis, promoção, desconto
-8. NÃO repetir palavras
-9. NUNCA truncar nomes ou marcas — se não cabe, omita a marca em vez de cortar pela metade
-10. Priorize termos de busca que compradores usariam
+5. SEMPRE adicione o principal BENEFÍCIO ou FUNÇÃO do produto (ex: Anti-queda, Hidratante, Fortalecedor)
+6. Use informações da descrição e resumo para identificar o que o produto FAZ e inclua no título
+7. NÃO usar emojis, caracteres especiais, pontuação excessiva
+8. NÃO usar palavras em CAPS LOCK (exceto siglas como USB, LED)
+9. NÃO incluir: preço, frete grátis, promoção, desconto, código de barras, EAN, GTIN
+10. NÃO repetir palavras
+11. NUNCA truncar nomes ou marcas — se não cabe, omita a marca em vez de cortar pela metade
+12. Priorize termos de busca que compradores usariam
 
 EXEMPLOS CORRETOS:
-- Balm Pós-Banho Calvície Zero Respeite o Homem 60g (49 chars)
+- Balm Pós-Banho Anti-queda Calvície Zero 60g (44 chars) — inclui benefício
 - Kit 3 Camisetas Básicas Algodão Masculina Slim Fit (51 chars)
-- Tênis Nike Air Max 90 Masculino Original Preto (47 chars)
-- Sérum Facial Vitamina C 30ml Anti-idade Clareador (50 chars)
+- Sérum Facial Vitamina C 30ml Anti-idade Clareador (50 chars) — inclui benefícios
 
 EXEMPLOS ERRADOS (NÃO FAÇA ISSO):
+- "Balm Pós-Banho Calvície Zero Dia" (sem benefício, genérico)
 - "Balm Respeite o" (truncado, incompleto — PROIBIDO)
-- "Respeite o Hom" (marca truncada, sem tipo de produto)
 - "Nike Tênis" (marca antes do produto)
 - ⭐ SUPER PROMOÇÃO Camiseta BARATA ⭐ (emojis, caps, preço)`;
 

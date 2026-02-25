@@ -266,13 +266,14 @@ serve(async (req) => {
           const product = (listing as any).products;
           const productName = product?.name || listing.title;
           // Strip HTML for cleaner context
-          const cleanDesc = (product?.description || product?.short_description || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 500);
+          const cleanDesc = (product?.description || product?.short_description || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 800);
+          const shortDesc = (product?.short_description || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
           const contextParts = [`Nome do produto: ${productName}`];
           if (product?.brand) contextParts.push(`Marca: ${product.brand}`);
           if (product?.sku) contextParts.push(`SKU: ${product.sku}`);
           if (product?.weight) contextParts.push(`Peso: ${product.weight}g`);
-          if (product?.gtin || product?.barcode) contextParts.push(`EAN/GTIN: ${product.gtin || product.barcode}`);
-          if (cleanDesc) contextParts.push(`Descrição do produto: ${cleanDesc}`);
+          if (shortDesc) contextParts.push(`Resumo/Benefícios: ${shortDesc}`);
+          if (cleanDesc) contextParts.push(`Descrição completa do produto: ${cleanDesc}`);
           const context = contextParts.join("\n");
           console.log(`[meli-bulk-titles] Context for "${productName}": ${context.slice(0, 200)}...`);
 
@@ -289,23 +290,25 @@ TAREFA: Gere exatamente UM título otimizado para buscas, com no máximo 60 cara
 REGRAS OBRIGATÓRIAS:
 1. O título DEVE começar pelo TIPO DE PRODUTO (ex: Balm, Sérum, Kit, Camiseta)
 2. NUNCA comece pela marca sozinha — a marca vem DEPOIS do tipo de produto
-3. O título deve ter entre 30 e 60 caracteres — aproveite o espaço para incluir palavras-chave relevantes
+3. O título deve ter entre 30 e 60 caracteres — aproveite o espaço para incluir diferenciais e benefícios do produto
 4. Sem emojis, sem CAPS LOCK (exceto siglas como UV, LED), sem preço/promoção
 5. Sem repetir palavras
-6. Incluir: tipo de produto + nome/características + marca (se couber)
-7. Se o nome original do produto já é descritivo e tem entre 30-60 chars, use-o como base e apenas otimize a ordem das palavras
-8. NUNCA truncar nomes ou marcas — se não cabe, omita a marca em vez de cortar pela metade
-9. Priorize termos de busca que compradores usariam para encontrar este produto
+6. Incluir: tipo de produto + diferenciais/benefícios + marca (se couber)
+7. SEMPRE adicione o principal BENEFÍCIO ou FUNÇÃO do produto (ex: Anti-queda, Hidratante, Fortalecedor, Limpeza Profunda)
+8. Use informações da descrição e resumo para identificar o que o produto FAZ e inclua no título
+9. NUNCA truncar nomes ou marcas — se não cabe, omita a marca em vez de cortar pela metade
+10. Priorize termos de busca que compradores usariam para encontrar este produto
+11. NÃO inclua código de barras, EAN ou GTIN no título
 
 EXEMPLOS CORRETOS:
-- "Balm Pós-Banho Calvície Zero Respeite o Homem 60g" (49 chars)
-- "Sérum Facial Vitamina C 30ml Anti-idade Clareador" (50 chars)
-- "Kit 3 Camisetas Básicas Algodão Masculina Slim Fit" (51 chars)
-- "Shampoo Anticaspa Clear Men Ice Cool Menthol 400ml" (51 chars)
+- "Balm Pós-Banho Anti-queda Calvície Zero 60g" (44 chars) — inclui benefício "Anti-queda"
+- "Sérum Facial Vitamina C 30ml Anti-idade Clareador" (50 chars) — inclui benefícios
+- "Shampoo Fortalecedor Antiqueda Clear Men 400ml" (47 chars) — inclui função
+- "Creme Hidratante Corporal Pele Seca Nivea 400ml" (48 chars) — inclui para quem é
 
 EXEMPLOS ERRADOS (NÃO FAÇA ISSO):
+- "Balm Pós-Banho Calvície Zero Dia" (sem benefício, genérico demais)
 - "Balm Respeite o" (título truncado, incompleto — PROIBIDO)
-- "Respeite o Hom" (marca truncada — PROIBIDO)
 - "Nike Tênis" (marca antes do produto)
 - "Balm" (muito curto, sem contexto)
 
@@ -389,14 +392,14 @@ Retorne APENAS o título completo, sem aspas, sem explicações.`,
         try {
           const product = (listing as any).products;
           const htmlSource = product?.description || listing.description || "";
-          const shortDesc = product?.short_description || "";
+          const shortDescLocal = product?.short_description || "";
 
-          if (!htmlSource?.trim() && !shortDesc?.trim()) {
+          if (!htmlSource?.trim() && !shortDescLocal?.trim()) {
             errors.push(`${listing.title}: Sem descrição fonte`);
             continue;
           }
 
-          // Build rich context for AI
+          // Build rich context for AI — WITHOUT barcode/EAN/GTIN
           const productContext: string[] = [];
           if (product?.name) productContext.push(`Produto: ${product.name}`);
           if (product?.brand) productContext.push(`Marca: ${product.brand}`);
@@ -405,11 +408,11 @@ Retorne APENAS o título completo, sem aspas, sem explicações.`,
           if (product?.width && product?.height && product?.depth) {
             productContext.push(`Dimensões: ${product.width} x ${product.height} x ${product.depth} cm`);
           }
-          if (product?.gtin || product?.barcode) productContext.push(`EAN/GTIN: ${product.gtin || product.barcode}`);
+          // NOTE: EAN/GTIN/barcode NOT included — goes as ML attribute, not in description text
 
           const fullSource = productContext.length > 0
-            ? `${productContext.join("\n")}\n\nDescrição original:\n${htmlSource || shortDesc}`
-            : htmlSource || shortDesc;
+            ? `${productContext.join("\n")}\n\nDescrição original:\n${htmlSource || shortDescLocal}`
+            : htmlSource || shortDescLocal;
 
           const aiRes = await aiChatCompletion(
             "google/gemini-2.5-flash",
@@ -418,10 +421,11 @@ Retorne APENAS o título completo, sem aspas, sem explicações.`,
                 {
                   role: "system",
                   content: `Converta para texto plano compatível com o Mercado Livre.
-REGRAS: Apenas texto plano, sem HTML/Markdown. PROIBIDO: telefones, WhatsApp, e-mails, links, URLs, emojis.
+REGRAS: Apenas texto plano, sem HTML/Markdown. PROIBIDO: telefones, WhatsApp, e-mails, links, URLs, emojis, códigos de barras, EAN, GTIN.
 Use \\n para organizar. MAIÚSCULAS para títulos de seção.
 Preserve informações técnicas, ANVISA, composições. Máx 5000 chars.
-Inclua especificações técnicas do produto (peso, dimensões, EAN) se disponíveis.
+Inclua especificações técnicas do produto (peso, dimensões) se disponíveis.
+NÃO inclua código de barras, EAN ou GTIN na descrição — esses dados vão como atributos separados do anúncio.
 Retorne APENAS o texto da descrição.`,
                 },
                 {
