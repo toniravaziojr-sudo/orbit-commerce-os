@@ -1,7 +1,7 @@
 # Mercado Livre — Regras e Especificações
 
 > **Status:** 🟩 Atualizado  
-> **Última atualização:** 2026-02-12
+> **Última atualização:** 2026-02-25
 
 ---
 
@@ -19,11 +19,13 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 | `src/hooks/useMeliOrders.ts` | Pedidos |
 | `src/hooks/useMeliListings.ts` | CRUD + publicação de anúncios (meli_listings) |
 | `src/components/marketplaces/MeliListingsTab.tsx` | UI da aba Anúncios (preparar, aprovar, publicar) |
+| `src/components/marketplaces/MeliCategoryPicker.tsx` | Seletor de categorias ML com busca e navegação hierárquica |
 | `src/components/marketplaces/MeliMetricsTab.tsx` | UI da aba Métricas (KPIs + desempenho) |
 | `src/components/marketplaces/MeliConnectionCard.tsx` | Card de conexão OAuth |
 | `src/components/marketplaces/MeliOrdersTab.tsx` | Aba de pedidos |
 | `supabase/functions/meli-oauth-*` | Fluxo OAuth |
 | `supabase/functions/meli-publish-listing/` | Publicação de anúncios na API do ML |
+| `supabase/functions/meli-search-categories/` | Busca de categorias ML (predictor + search fallback) |
 | `supabase/functions/meli-sync-orders/` | Sincronização de pedidos |
 | `supabase/functions/meli-sync-questions/` | Sincronização de perguntas → Atendimento |
 | `supabase/functions/meli-answer-question/` | Responder perguntas via API ML |
@@ -116,12 +118,41 @@ POST /meli-publish-listing
 | Quantidade | ✅ | Inteiro ≥ 1 |
 | Tipo de anúncio | ✅ | gold_special / gold_pro / free |
 | Condição | ✅ | new / used / not_specified |
-| Categoria ML | ✅ | ID da categoria (ex: MLB1000) |
+| Categoria ML | ✅ | Selecionada via `MeliCategoryPicker` (busca + navegação) |
 | Marca (BRAND) | — | Atributo ML |
 | GTIN / EAN | — | Obrigatório para algumas categorias |
 | Garantia | — | Texto livre |
 | Frete Grátis | — | Switch (boolean) |
 | Retirada no Local | — | Switch (boolean) |
+
+### Componente: `MeliCategoryPicker`
+
+Seletor de categorias do Mercado Livre com duas formas de uso:
+
+1. **Busca por texto:** Digita o nome do produto/categoria → chama `meli-search-categories?q=...` → exibe categorias sugeridas
+2. **Navegação hierárquica:** Breadcrumb com categorias raiz → subcategorias → folha
+
+**Props:**
+
+| Prop | Tipo | Descrição |
+|------|------|-----------|
+| `tenantId` | `string` | ID do tenant para chamadas autenticadas |
+| `value` | `string` | `category_id` selecionado |
+| `onSelect` | `(id: string, name: string) => void` | Callback ao selecionar |
+
+**Edge Function:** `meli-search-categories`
+
+```
+GET ?q=celular           → Busca por texto (category_predictor + fallback search)
+GET ?parentId=MLB5672    → Lista subcategorias
+GET ?categoryId=MLB1055  → Detalhes de uma categoria
+GET (sem params)         → Lista categorias raiz do MLB
+```
+
+**Estratégia de busca (em ordem):**
+1. `category_predictor` do ML (mais preciso)
+2. Filtro de categoria dos resultados de busca (`available_filters`)
+3. Extração de categorias únicas dos resultados de busca
 
 ### Atributos Enviados Automaticamente
 
@@ -234,5 +265,5 @@ Busca dados diretamente da API do ML (não armazena localmente):
 - [x] Pausar/reativar anúncios
 - [x] Sincronizar preço/estoque
 - [x] Aba de métricas (visitas, vendas, faturamento)
-- [ ] Busca de categorias ML (category picker)
+- [x] Busca de categorias ML (category picker com busca + navegação)
 - [ ] Webhook de notificações de pedidos (real-time)
