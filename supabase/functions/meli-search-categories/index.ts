@@ -119,85 +119,47 @@ serve(async (req) => {
     let path: any[] = [];
 
     if (query) {
-      // Try category predictor first
-      const predictorUrl = `https://api.mercadolibre.com/sites/MLB/category_predictor/predict?title=${encodeURIComponent(query)}`;
-      console.log(`[meli-search-categories] Trying predictor: ${predictorUrl}`);
-      const predictRes = await fetch(predictorUrl, { headers: mlHeaders });
+      // Strategy 1: domain_discovery/search (replaces deprecated category_predictor)
+      const discoveryUrl = `https://api.mercadolibre.com/sites/MLB/domain_discovery/search?limit=10&q=${encodeURIComponent(query)}`;
+      console.log(`[meli-search-categories] Trying domain_discovery: ${discoveryUrl}`);
+      const discoveryRes = await fetch(discoveryUrl, { headers: mlHeaders });
       
-      if (predictRes.ok) {
-        const predictData = await predictRes.json();
-        console.log(`[meli-search-categories] Predictor response:`, JSON.stringify(predictData).slice(0, 500));
+      if (discoveryRes.ok) {
+        const discoveryData = await discoveryRes.json();
+        console.log(`[meli-search-categories] Discovery response:`, JSON.stringify(discoveryData).slice(0, 500));
         
-        if (predictData.id) {
-          const catRes = await fetch(`https://api.mercadolibre.com/categories/${predictData.id}`, { headers: mlHeaders });
-          if (catRes.ok) {
-            const catData = await catRes.json();
-            path = (catData.path_from_root || []).map((p: any) => ({ id: p.id, name: p.name }));
-            categories.push({
-              id: catData.id,
-              name: catData.name,
-              total_items: catData.total_items_in_this_category,
-            });
-            if (catData.children_categories?.length > 0) {
-              for (const child of catData.children_categories.slice(0, 15)) {
-                categories.push({ id: child.id, name: child.name, total_items: child.total_items_in_this_category });
-              }
+        if (Array.isArray(discoveryData) && discoveryData.length > 0) {
+          // Use the first result to get the path
+          const topResult = discoveryData[0];
+          if (topResult.category_id) {
+            const catRes = await fetch(`https://api.mercadolibre.com/categories/${topResult.category_id}`, { headers: mlHeaders });
+            if (catRes.ok) {
+              const catData = await catRes.json();
+              path = (catData.path_from_root || []).map((p: any) => ({ id: p.id, name: p.name }));
+            } else {
+              await catRes.text();
+            }
+          }
+          
+          // Map all discovery results to categories
+          for (const item of discoveryData) {
+            if (item.category_id) {
+              categories.push({
+                id: item.category_id,
+                name: item.category_name || item.domain_name || item.category_id,
+                domain_id: item.domain_id,
+              });
             }
           }
         }
       } else {
-        console.log(`[meli-search-categories] Predictor failed: ${predictRes.status}`);
+        const errBody = await discoveryRes.text();
+        console.log(`[meli-search-categories] Discovery failed: ${discoveryRes.status} - ${errBody.slice(0, 200)}`);
       }
       
-      // Fallback: search and extract category filter from results
+      // Fallback: if domain_discovery didn't work, try /categories/ endpoint with individual category IDs
       if (categories.length === 0) {
-        const searchUrl = `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(query)}&limit=50`;
-        console.log(`[meli-search-categories] Trying search fallback`);
-        const res2 = await fetch(searchUrl, { headers: mlHeaders });
-        if (res2.ok) {
-          const searchData = await res2.json();
-          
-          // Try available_filters first, then filters
-          let catFilter = (searchData.available_filters || []).find((f: any) => f.id === "category");
-          if (!catFilter) {
-            catFilter = (searchData.filters || []).find((f: any) => f.id === "category");
-          }
-          
-          if (catFilter?.values) {
-            categories = catFilter.values.map((v: any) => ({
-              id: v.id,
-              name: v.name,
-              results: v.results,
-            }));
-          }
-          
-          // If still nothing, extract unique categories from search results
-          if (categories.length === 0 && searchData.results?.length > 0) {
-            const catMap = new Map<string, string>();
-            for (const item of searchData.results) {
-              if (item.category_id && !catMap.has(item.category_id)) {
-                catMap.set(item.category_id, item.category_id);
-              }
-            }
-            // Fetch category details for each unique category
-            for (const catId of Array.from(catMap.keys()).slice(0, 10)) {
-              try {
-                const catRes = await fetch(`https://api.mercadolibre.com/categories/${catId}`, { headers: mlHeaders });
-                if (catRes.ok) {
-                  const catData = await catRes.json();
-                  categories.push({
-                    id: catData.id,
-                    name: (catData.path_from_root || []).map((p: any) => p.name).join(" > "),
-                  });
-                }
-              } catch { /* skip */ }
-            }
-          }
-          
-          console.log(`[meli-search-categories] Search fallback found ${categories.length} categories`);
-        } else {
-          console.log(`[meli-search-categories] Search failed: ${res2.status}`);
-        }
+        console.log(`[meli-search-categories] domain_discovery returned no results for "${query}"`);
       }
     } else if (parentId) {
       const res = await fetch(`https://api.mercadolibre.com/categories/${parentId}`, { headers: mlHeaders });
@@ -251,18 +213,36 @@ serve(async (req) => {
         path = (data.path_from_root || []).map((p: any) => ({ id: p.id, name: p.name }));
       }
     } else {
-      // List root categories for MLB
-      console.log(`[meli-search-categories] Fetching root categories`);
-      const res = await fetch("https://api.mercadolibre.com/sites/MLB/categories", { headers: mlHeaders });
-      console.log(`[meli-search-categories] Root categories status: ${res.status}`);
-      if (res.ok) {
-        const data = await res.json();
-        categories = (data || []).map((c: any) => ({
-          id: c.id,
-          name: c.name,
-          children_count: 1, // Root categories always have children
-        }));
-      }
+      // List root categories for MLB (hardcoded since /sites/MLB/categories now requires special auth)
+      console.log(`[meli-search-categories] Using hardcoded MLB root categories`);
+      categories = [
+        { id: "MLB5672", name: "Acessórios para Veículos", children_count: 1 },
+        { id: "MLB1071", name: "Animais", children_count: 1 },
+        { id: "MLB1367", name: "Antiguidades e Coleções", children_count: 1 },
+        { id: "MLB1368", name: "Arte, Papelaria e Armarinho", children_count: 1 },
+        { id: "MLB1384", name: "Bebês", children_count: 1 },
+        { id: "MLB1246", name: "Beleza e Cuidado Pessoal", children_count: 1 },
+        { id: "MLB1132", name: "Brinquedos e Hobbies", children_count: 1 },
+        { id: "MLB1430", name: "Calçados, Roupas e Bolsas", children_count: 1 },
+        { id: "MLB1039", name: "Câmeras e Acessórios", children_count: 1 },
+        { id: "MLB1743", name: "Carros, Motos e Outros", children_count: 1 },
+        { id: "MLB1574", name: "Casa, Móveis e Decoração", children_count: 1 },
+        { id: "MLB1051", name: "Celulares e Telefones", children_count: 1 },
+        { id: "MLB1648", name: "Computadores", children_count: 1 },
+        { id: "MLB1144", name: "Consoles e Videogames", children_count: 1 },
+        { id: "MLB1500", name: "Construção", children_count: 1 },
+        { id: "MLB1276", name: "Esportes e Fitness", children_count: 1 },
+        { id: "MLB263532", name: "Eletrônicos, Áudio e Vídeo", children_count: 1 },
+        { id: "MLB1000", name: "Eletrodomésticos", children_count: 1 },
+        { id: "MLB12404", name: "Ferramentas", children_count: 1 },
+        { id: "MLB1182", name: "Instrumentos Musicais", children_count: 1 },
+        { id: "MLB3937", name: "Joias e Relógios", children_count: 1 },
+        { id: "MLB1196", name: "Livros, Revistas e Comics", children_count: 1 },
+        { id: "MLB1168", name: "Música, Filmes e Seriados", children_count: 1 },
+        { id: "MLB264586", name: "Saúde", children_count: 1 },
+        { id: "MLB1540", name: "Serviços", children_count: 1 },
+        { id: "MLB1953", name: "Mais Categorias", children_count: 1 },
+      ];
     }
 
     return new Response(

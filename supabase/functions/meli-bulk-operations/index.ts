@@ -62,10 +62,10 @@ serve(async (req) => {
       );
     }
 
-    // Get ML connection for category prediction
+    // Get ML connection for category prediction (with auto-refresh if expired)
     const { data: mlConnection } = await supabase
       .from("marketplace_connections")
-      .select("access_token")
+      .select("id, access_token, refresh_token, expires_at")
       .eq("tenant_id", tenantId)
       .eq("marketplace", "mercadolivre")
       .eq("is_active", true)
@@ -73,7 +73,41 @@ serve(async (req) => {
 
     const mlHeaders: Record<string, string> = { "Content-Type": "application/json" };
     if (mlConnection?.access_token) {
-      mlHeaders["Authorization"] = `Bearer ${mlConnection.access_token}`;
+      let accessToken = mlConnection.access_token;
+      
+      // Auto-refresh if token is expired
+      if (mlConnection.expires_at && new Date(mlConnection.expires_at) < new Date()) {
+        console.log(`[meli-bulk-operations] Token expired, attempting auto-refresh...`);
+        try {
+          const refreshRes = await fetch(`${supabaseUrl}/functions/v1/meli-token-refresh`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${supabaseServiceKey}`,
+            },
+            body: JSON.stringify({ connectionId: mlConnection.id }),
+          });
+          
+          if (refreshRes.ok) {
+            const { data: refreshedConn } = await supabase
+              .from("marketplace_connections")
+              .select("access_token")
+              .eq("id", mlConnection.id)
+              .single();
+            
+            if (refreshedConn?.access_token) {
+              accessToken = refreshedConn.access_token;
+              console.log(`[meli-bulk-operations] Token refreshed successfully`);
+            }
+          } else {
+            console.log(`[meli-bulk-operations] Token refresh failed: ${refreshRes.status}`);
+          }
+        } catch (refreshErr) {
+          console.error(`[meli-bulk-operations] Token refresh error:`, refreshErr);
+        }
+      }
+      
+      mlHeaders["Authorization"] = `Bearer ${accessToken}`;
     }
 
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
@@ -126,18 +160,18 @@ serve(async (req) => {
           let categoryId = "";
           let categoryName = "";
           try {
-            const predictRes = await fetch(
-              `https://api.mercadolibre.com/sites/MLB/category_predictor/predict?title=${encodeURIComponent(product.name)}`,
+            const discoveryRes = await fetch(
+              `https://api.mercadolibre.com/sites/MLB/domain_discovery/search?limit=1&q=${encodeURIComponent(product.name)}`,
               { headers: mlHeaders }
             );
-            if (predictRes.ok) {
-              const pred = await predictRes.json();
-              if (pred.id) {
-                categoryId = pred.id;
-                categoryName = pred.name || pred.id;
+            if (discoveryRes.ok) {
+              const discoveryData = await discoveryRes.json();
+              if (Array.isArray(discoveryData) && discoveryData[0]?.category_id) {
+                categoryId = discoveryData[0].category_id;
+                categoryName = discoveryData[0].category_name || discoveryData[0].domain_name || categoryId;
               }
             } else {
-              await predictRes.text();
+              await discoveryRes.text();
             }
           } catch { /* skip category prediction */ }
 
@@ -414,24 +448,24 @@ Retorne APENAS o texto da descrição.`,
           const product = (listing as any).products;
           const searchTerm = product?.name || listing.title;
 
-          const predictRes = await fetch(
-            `https://api.mercadolibre.com/sites/MLB/category_predictor/predict?title=${encodeURIComponent(searchTerm)}`,
+          const discoveryRes = await fetch(
+            `https://api.mercadolibre.com/sites/MLB/domain_discovery/search?limit=1&q=${encodeURIComponent(searchTerm)}`,
             { headers: mlHeaders }
           );
 
-          if (predictRes.ok) {
-            const pred = await predictRes.json();
-            if (pred.id) {
+          if (discoveryRes.ok) {
+            const discoveryData = await discoveryRes.json();
+            if (Array.isArray(discoveryData) && discoveryData[0]?.category_id) {
               await supabase
                 .from("meli_listings")
-                .update({ category_id: pred.id })
+                .update({ category_id: discoveryData[0].category_id })
                 .eq("id", listing.id);
               updated++;
             } else {
               skipped++;
             }
           } else {
-            await predictRes.text();
+            await discoveryRes.text();
             skipped++;
           }
         } catch (err) {
@@ -466,26 +500,26 @@ Retorne APENAS o texto da descrição.`,
       let categoryName = "";
       let pathStr = "";
 
-      // Strategy 1: category_predictor API
+      // Strategy 1: domain_discovery/search (replaces deprecated category_predictor)
       try {
-        const predictUrl = `https://api.mercadolibre.com/sites/MLB/category_predictor/predict?title=${encodeURIComponent(productName)}`;
-        console.log(`[auto_suggest] Trying predictor: ${predictUrl}`);
-        const predictRes = await fetch(predictUrl, { headers: mlHeaders });
-        console.log(`[auto_suggest] Predictor status: ${predictRes.status}`);
+        const discoveryUrl = `https://api.mercadolibre.com/sites/MLB/domain_discovery/search?limit=1&q=${encodeURIComponent(productName)}`;
+        console.log(`[auto_suggest] Trying domain_discovery: ${discoveryUrl}`);
+        const discoveryRes = await fetch(discoveryUrl, { headers: mlHeaders });
+        console.log(`[auto_suggest] Discovery status: ${discoveryRes.status}`);
         
-        if (predictRes.ok) {
-          const pred = await predictRes.json();
-          console.log(`[auto_suggest] Predictor result:`, JSON.stringify(pred).slice(0, 300));
-          if (pred.id) {
-            categoryId = pred.id;
-            categoryName = pred.name || pred.id;
+        if (discoveryRes.ok) {
+          const discoveryData = await discoveryRes.json();
+          console.log(`[auto_suggest] Discovery result:`, JSON.stringify(discoveryData).slice(0, 300));
+          if (Array.isArray(discoveryData) && discoveryData[0]?.category_id) {
+            categoryId = discoveryData[0].category_id;
+            categoryName = discoveryData[0].category_name || discoveryData[0].domain_name || categoryId;
           }
         } else {
-          const errBody = await predictRes.text();
-          console.log(`[auto_suggest] Predictor error body: ${errBody.slice(0, 200)}`);
+          const errBody = await discoveryRes.text();
+          console.log(`[auto_suggest] Discovery error body: ${errBody.slice(0, 200)}`);
         }
       } catch (e) {
-        console.log(`[auto_suggest] Predictor exception: ${e}`);
+        console.log(`[auto_suggest] Discovery exception: ${e}`);
       }
 
       // Strategy 2: Fallback via search API
