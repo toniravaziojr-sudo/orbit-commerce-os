@@ -247,7 +247,7 @@ serve(async (req) => {
 
       let query = supabase
         .from("meli_listings")
-        .select("id, title, product_id, description, products(name, description, brand)")
+        .select("id, title, product_id, description, products(name, description, brand, short_description, sku, weight, width, height, depth, gtin, barcode)")
         .eq("tenant_id", tenantId)
         .in("status", ["draft", "ready", "approved", "error"]);
 
@@ -266,11 +266,15 @@ serve(async (req) => {
           const product = (listing as any).products;
           const productName = product?.name || listing.title;
           // Strip HTML for cleaner context
-          const cleanDesc = (product?.description || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
-          const contextParts = [`Nome: ${productName}`];
+          const cleanDesc = (product?.description || product?.short_description || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 500);
+          const contextParts = [`Nome do produto: ${productName}`];
           if (product?.brand) contextParts.push(`Marca: ${product.brand}`);
-          if (cleanDesc) contextParts.push(`Descrição: ${cleanDesc}`);
+          if (product?.sku) contextParts.push(`SKU: ${product.sku}`);
+          if (product?.weight) contextParts.push(`Peso: ${product.weight}g`);
+          if (product?.gtin || product?.barcode) contextParts.push(`EAN/GTIN: ${product.gtin || product.barcode}`);
+          if (cleanDesc) contextParts.push(`Descrição do produto: ${cleanDesc}`);
           const context = contextParts.join("\n");
+          console.log(`[meli-bulk-titles] Context for "${productName}": ${context.slice(0, 200)}...`);
 
           const aiRes = await aiChatCompletion(
             "google/gemini-2.5-flash",
@@ -367,7 +371,7 @@ Retorne APENAS o título completo, sem aspas, sem explicações.`,
 
       let query = supabase
         .from("meli_listings")
-        .select("id, title, description, product_id, products(name, description)")
+        .select("id, title, description, product_id, products(name, description, short_description, brand, sku, weight, width, height, depth, gtin, barcode)")
         .eq("tenant_id", tenantId)
         .in("status", ["draft", "ready", "approved", "error"]);
 
@@ -384,12 +388,28 @@ Retorne APENAS o título completo, sem aspas, sem explicações.`,
       for (const listing of (listings || [])) {
         try {
           const product = (listing as any).products;
-          const htmlSource = product?.description || listing.description || listing.title;
+          const htmlSource = product?.description || listing.description || "";
+          const shortDesc = product?.short_description || "";
 
-          if (!htmlSource?.trim()) {
+          if (!htmlSource?.trim() && !shortDesc?.trim()) {
             errors.push(`${listing.title}: Sem descrição fonte`);
             continue;
           }
+
+          // Build rich context for AI
+          const productContext: string[] = [];
+          if (product?.name) productContext.push(`Produto: ${product.name}`);
+          if (product?.brand) productContext.push(`Marca: ${product.brand}`);
+          if (product?.sku) productContext.push(`SKU: ${product.sku}`);
+          if (product?.weight) productContext.push(`Peso: ${product.weight}g`);
+          if (product?.width && product?.height && product?.depth) {
+            productContext.push(`Dimensões: ${product.width} x ${product.height} x ${product.depth} cm`);
+          }
+          if (product?.gtin || product?.barcode) productContext.push(`EAN/GTIN: ${product.gtin || product.barcode}`);
+
+          const fullSource = productContext.length > 0
+            ? `${productContext.join("\n")}\n\nDescrição original:\n${htmlSource || shortDesc}`
+            : htmlSource || shortDesc;
 
           const aiRes = await aiChatCompletion(
             "google/gemini-2.5-flash",
@@ -401,11 +421,12 @@ Retorne APENAS o título completo, sem aspas, sem explicações.`,
 REGRAS: Apenas texto plano, sem HTML/Markdown. PROIBIDO: telefones, WhatsApp, e-mails, links, URLs, emojis.
 Use \\n para organizar. MAIÚSCULAS para títulos de seção.
 Preserve informações técnicas, ANVISA, composições. Máx 5000 chars.
+Inclua especificações técnicas do produto (peso, dimensões, EAN) se disponíveis.
 Retorne APENAS o texto da descrição.`,
                 },
                 {
                   role: "user",
-                  content: `Produto: ${product?.name || listing.title}\n\nDescrição:\n${htmlSource}`,
+                  content: fullSource,
                 },
               ],
               max_tokens: 4096,
