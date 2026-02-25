@@ -103,19 +103,41 @@ export function MarketplacesIntegrationTab() {
             </Alert>
           ) : (
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="outline">Pedidos</Badge>
-                  <Badge variant="outline">Mensagens</Badge>
-                  <Badge variant="outline">Anúncios</Badge>
+              {!meliConnected && (
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline">Pedidos</Badge>
+                    <Badge variant="outline">Mensagens</Badge>
+                    <Badge variant="outline">Anúncios</Badge>
+                  </div>
+                  <Button
+                    onClick={() => meliConnect()}
+                    disabled={meliConnecting}
+                  >
+                    {meliConnecting ? (
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <ShoppingBag className="h-4 w-4 mr-2" />
+                    )}
+                    {meliConnecting ? "Conectando..." : "Conectar"}
+                  </Button>
                 </div>
-                <Button asChild>
-                  <Link to="/marketplaces/mercadolivre">
-                    <ShoppingBag className="h-4 w-4 mr-2" />
-                    {meliConnected ? "Gerenciar" : "Conectar"}
-                  </Link>
-                </Button>
-              </div>
+              )}
+              {meliConnected && (
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline">Pedidos</Badge>
+                    <Badge variant="outline">Mensagens</Badge>
+                    <Badge variant="outline">Anúncios</Badge>
+                  </div>
+                  <Button asChild>
+                    <Link to="/marketplaces/mercadolivre">
+                      <ShoppingBag className="h-4 w-4 mr-2" />
+                      Gerenciar
+                    </Link>
+                  </Button>
+                </div>
+              )}
               {meliConnected && (
                 <div className="flex items-center gap-2 pt-2 border-t">
                   <Button
@@ -156,11 +178,22 @@ export function MarketplacesIntegrationTab() {
                 </div>
               )}
               {meliExpired && !meliConnected && (
-                <Alert className="border-yellow-500/30 bg-yellow-500/5">
-                  <AlertDescription className="text-sm">
-                    Token expirado. Clique em <strong>Reconectar</strong> para renovar o acesso.
-                  </AlertDescription>
-                </Alert>
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <Alert className="border-yellow-500/30 bg-yellow-500/5 flex-1 mr-3">
+                    <AlertDescription className="text-sm">
+                      Token expirado. Reconecte para renovar o acesso.
+                    </AlertDescription>
+                  </Alert>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => meliConnect()}
+                    disabled={meliConnecting}
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${meliConnecting ? 'animate-spin' : ''}`} />
+                    Reconectar
+                  </Button>
+                </div>
               )}
             </div>
           )}

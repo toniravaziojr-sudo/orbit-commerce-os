@@ -1,21 +1,15 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { 
   CheckCircle2, 
   XCircle,
-  Link2,
   ShoppingBag,
-  MessageSquare,
   Package,
-  ExternalLink,
   BarChart3,
 } from "lucide-react";
 import { toast } from "sonner";
-import { MeliConnectionCard } from "@/components/marketplaces/MeliConnectionCard";
 import { MeliOrdersTab } from "@/components/marketplaces/MeliOrdersTab";
 import { MeliListingsTab } from "@/components/marketplaces/MeliListingsTab";
 import { MeliMetricsTab } from "@/components/marketplaces/MeliMetricsTab";
@@ -37,15 +31,15 @@ export default function MercadoLivre() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { isConnected, isLoading, platformConfigured } = useMeliConnection();
   
-  const defaultTab = searchParams.get("tab") || (isConnected ? "pedidos" : "conexao");
+  const defaultTab = searchParams.get("tab") || (isConnected ? "pedidos" : "pedidos");
   const [activeTab, setActiveTab] = useState(defaultTab);
 
-  // Redirecionar para pedidos quando conectar
+  // Redirect to integrations if not connected (connection must happen there)
   useEffect(() => {
-    if (isConnected && activeTab === "conexao") {
-      setActiveTab("pedidos");
+    if (!isLoading && !isConnected) {
+      navigate("/integrations?tab=marketplaces", { replace: true });
     }
-  }, [isConnected]);
+  }, [isConnected, isLoading, navigate]);
 
   // Processar callback do OAuth
   useEffect(() => {
@@ -113,90 +107,19 @@ export default function MercadoLivre() {
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
-          {!isConnected && (
-            <TabsTrigger value="conexao" className="gap-2">
-              <Link2 className="h-4 w-4" />
-              Conexão
-            </TabsTrigger>
-          )}
-          <TabsTrigger value="pedidos" className="gap-2" disabled={!isConnected}>
+          <TabsTrigger value="pedidos" className="gap-2">
             <ShoppingBag className="h-4 w-4" />
             Pedidos
           </TabsTrigger>
-          <TabsTrigger value="anuncios" className="gap-2" disabled={!isConnected}>
+          <TabsTrigger value="anuncios" className="gap-2">
             <Package className="h-4 w-4" />
             Anúncios
           </TabsTrigger>
-          <TabsTrigger value="metricas" className="gap-2" disabled={!isConnected}>
+          <TabsTrigger value="metricas" className="gap-2">
             <BarChart3 className="h-4 w-4" />
             Métricas
           </TabsTrigger>
         </TabsList>
-
-        <TabsContent value="conexao" className="mt-6">
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* Card de conexão */}
-            <MeliConnectionCard />
-
-            {/* Card de funcionalidades */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">O que você pode fazer</CardTitle>
-                <CardDescription>
-                  Funcionalidades disponíveis com a integração
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
-                      <ShoppingBag className="h-4 w-4 text-blue-600" />
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-sm">Pedidos</h4>
-                      <p className="text-xs text-muted-foreground">
-                        Receba pedidos automaticamente e processe-os junto com os da sua loja virtual
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
-                      <MessageSquare className="h-4 w-4 text-green-600" />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-medium text-sm">Atendimento</h4>
-                      <p className="text-xs text-muted-foreground mb-2">
-                        Responda perguntas e mensagens pós-venda pelo módulo de atendimento unificado
-                      </p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={() => navigate("/support")}
-                      >
-                        <ExternalLink className="h-3 w-3 mr-1" />
-                        Ir para Atendimento
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30">
-                      <Package className="h-4 w-4 text-purple-600" />
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-sm">Anúncios</h4>
-                      <p className="text-xs text-muted-foreground">
-                        Crie e gerencie seus anúncios, sincronize estoque e preços
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
 
         <TabsContent value="pedidos" className="mt-6">
           <MeliOrdersTab />
