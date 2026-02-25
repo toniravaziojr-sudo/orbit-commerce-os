@@ -4,7 +4,7 @@
 // After edge function processes, handles popup close + opener notification
 // =============================================
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 
@@ -12,7 +12,7 @@ import { Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
  * Flow:
  * 1. ML redirects to /integrations/meli/callback?code=...&state=...
  * 2. This page captures the params
- * 3. Calls edge function via fetch (not redirect) to process OAuth
+ * 3. Calls edge function via POST JSON (single exchange)
  * 4. On success: notifies opener window via postMessage and closes popup
  * 5. On error: shows error and auto-closes
  */
@@ -20,17 +20,17 @@ export default function MeliOAuthCallback() {
   const [searchParams] = useSearchParams();
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
   const [errorMsg, setErrorMsg] = useState('');
+  const hasProcessedRef = useRef(false);
 
   useEffect(() => {
     const code = searchParams.get('code');
     const state = searchParams.get('state');
     const error = searchParams.get('error');
 
-    // Check if we're receiving the final result (redirected from edge function)
+    // Legacy fallback support when callback receives final params directly
     const meliConnected = searchParams.get('meli_connected');
     const meliError = searchParams.get('meli_error');
 
-    // If this is the final result page (after edge function redirect)
     if (meliConnected === 'true') {
       setStatus('success');
       notifyOpenerAndClose('meli_connected', true);
@@ -44,7 +44,6 @@ export default function MeliOAuthCallback() {
       return;
     }
 
-    // If ML returned an error
     if (error) {
       setStatus('error');
       setErrorMsg('Acesso negado pelo Mercado Livre');
@@ -59,77 +58,62 @@ export default function MeliOAuthCallback() {
       return;
     }
 
-    // Call edge function via fetch instead of redirect
-    processOAuth(code, state);
+    // Prevent duplicate token exchange in strict/effect re-runs
+    if (hasProcessedRef.current) return;
+    hasProcessedRef.current = true;
+
+    void processOAuth(code, state);
   }, [searchParams]);
 
   const processOAuth = async (code: string, state: string) => {
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const edgeFunctionUrl = `${supabaseUrl}/functions/v1/meli-oauth-callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
-      
-      console.log('[MeliOAuthCallback] Chamando edge function...');
-      
-      // Use fetch with redirect: 'manual' to capture the redirect URL
-      const response = await fetch(edgeFunctionUrl, { redirect: 'manual' });
-      
-      if (response.type === 'opaqueredirect' || response.status === 302) {
-        // Edge function returned a redirect - extract location
-        const location = response.headers.get('Location');
-        
-        if (location?.includes('meli_connected=true')) {
-          setStatus('success');
-          notifyOpenerAndClose('meli_connected', true);
-        } else if (location) {
-          const url = new URL(location);
-          const error = url.searchParams.get('meli_error') || 'unknown_error';
-          setStatus('error');
-          setErrorMsg(error);
-          notifyOpenerAndClose('meli_error', error);
-        } else {
-          // Can't read Location header due to CORS, follow redirect in iframe
-          // Fallback: navigate to the edge function URL directly
-          window.location.href = edgeFunctionUrl;
-        }
-      } else {
-        // Try to parse JSON response
-        const data = await response.json().catch(() => null);
-        if (data?.success) {
-          setStatus('success');
-          notifyOpenerAndClose('meli_connected', true);
-        } else {
-          setStatus('error');
-          setErrorMsg(data?.error || 'Erro ao processar autorização');
-          notifyOpenerAndClose('meli_error', data?.error || 'unknown');
-        }
+      const edgeFunctionUrl = `${supabaseUrl}/functions/v1/meli-oauth-callback`;
+
+      const response = await fetch(edgeFunctionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ code, state }),
+      });
+
+      const data = await response.json().catch(() => null);
+
+      if (data?.success) {
+        setStatus('success');
+        notifyOpenerAndClose('meli_connected', true);
+        return;
       }
+
+      const errorCode = data?.error || 'internal_error';
+      setStatus('error');
+      setErrorMsg(errorCode);
+      notifyOpenerAndClose('meli_error', errorCode);
     } catch (err) {
       console.error('[MeliOAuthCallback] Erro:', err);
-      // Fallback: redirect directly (will work but won't close popup automatically)
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      window.location.href = `${supabaseUrl}/functions/v1/meli-oauth-callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
+      setStatus('error');
+      setErrorMsg('internal_error');
+      notifyOpenerAndClose('meli_error', 'internal_error');
     }
   };
 
   const notifyOpenerAndClose = (type: string, value: unknown) => {
     try {
-      // Notify the opener window
       if (window.opener && !window.opener.closed) {
         window.opener.postMessage({ type, value }, window.location.origin);
-        // Close popup after brief delay
         setTimeout(() => {
           window.close();
         }, type === 'meli_connected' ? 1500 : 3000);
       } else {
-        // Not in a popup - redirect to integrations page
         setTimeout(() => {
           window.location.href = `/integrations?tab=marketplaces&${type}=${encodeURIComponent(String(value))}`;
         }, type === 'meli_connected' ? 1500 : 3000);
       }
     } catch {
-      // Fallback redirect
       setTimeout(() => {
-        window.location.href = `/integrations?tab=marketplaces`;
+        window.location.href = '/integrations?tab=marketplaces';
       }, 2000);
     }
   };
@@ -169,3 +153,4 @@ export default function MeliOAuthCallback() {
     </div>
   );
 }
+
