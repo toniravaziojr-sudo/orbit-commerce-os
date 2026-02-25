@@ -25,10 +25,13 @@ import {
   Pause,
   Play,
   RefreshCw,
+  Sparkles,
 } from "lucide-react";
 import { useMeliListings, type MeliListing } from "@/hooks/useMeliListings";
 import { useProductsWithImages, type ProductWithImage } from "@/hooks/useProducts";
 import { MeliCategoryPicker } from "@/components/marketplaces/MeliCategoryPicker";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; color?: string }> = {
@@ -489,6 +492,7 @@ export function MeliListingsTab() {
               formLocalPickup={formLocalPickup} setFormLocalPickup={setFormLocalPickup}
               selectedProduct={selectedProduct}
               onBack={() => setSelectedProduct(null)}
+              productHtmlDescription={selectedProduct?.description || ""}
             />
           )}
 
@@ -568,9 +572,13 @@ interface ListingFormProps {
   formLocalPickup: boolean; setFormLocalPickup: (v: boolean) => void;
   selectedProduct?: ProductWithImage | null;
   onBack?: () => void;
+  productHtmlDescription?: string;
 }
 
 function ListingForm(props: ListingFormProps) {
+  const { currentTenant } = useAuth();
+  const [isGenerating, setIsGenerating] = useState(false);
+
   const {
     formTitle, setFormTitle,
     formDescription, setFormDescription,
@@ -586,7 +594,45 @@ function ListingForm(props: ListingFormProps) {
     formLocalPickup, setFormLocalPickup,
     selectedProduct,
     onBack,
+    productHtmlDescription,
   } = props;
+
+  const handleGenerateDescription = async () => {
+    const htmlSource = productHtmlDescription || formDescription;
+    if (!htmlSource?.trim()) {
+      toast.error("Nenhuma descrição disponível para converter.");
+      return;
+    }
+
+    if (!currentTenant?.id) {
+      toast.error("Tenant não identificado.");
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("meli-generate-description", {
+        body: {
+          tenantId: currentTenant.id,
+          htmlDescription: htmlSource,
+          productName: selectedProduct?.name || "",
+          productTitle: formTitle,
+        },
+      });
+
+      if (error || !data?.success) {
+        toast.error(data?.error || "Erro ao gerar descrição");
+        return;
+      }
+
+      setFormDescription(data.description);
+      toast.success("Descrição gerada para o Mercado Livre!");
+    } catch (err) {
+      toast.error("Erro de conexão ao gerar descrição");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -625,14 +671,32 @@ function ListingForm(props: ListingFormProps) {
 
       {/* Descrição */}
       <div className="space-y-2">
-        <Label>Descrição</Label>
+        <div className="flex items-center justify-between">
+          <Label>Descrição</Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleGenerateDescription}
+            disabled={isGenerating || !(productHtmlDescription || formDescription)}
+            className="gap-1.5"
+          >
+            {isGenerating ? (
+              <><Loader2 className="h-3.5 w-3.5 animate-spin" />Gerando...</>
+            ) : (
+              <><Sparkles className="h-3.5 w-3.5" />Gerar para ML</>
+            )}
+          </Button>
+        </div>
         <Textarea
           value={formDescription}
           onChange={(e) => setFormDescription(e.target.value)}
           placeholder="Descrição detalhada do produto (texto plano, sem HTML)..."
-          rows={4}
+          rows={6}
         />
-        <p className="text-xs text-muted-foreground">O ML aceita apenas texto plano na descrição.</p>
+        <p className="text-xs text-muted-foreground">
+          O ML aceita apenas texto plano. Use o botão "Gerar para ML" para converter automaticamente.
+        </p>
       </div>
 
       {/* Preço + Quantidade */}
