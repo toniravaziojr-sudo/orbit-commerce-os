@@ -14,6 +14,7 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 | Arquivo | Propósito |
 |---------|-----------|
 | `src/pages/marketplaces/MercadoLivre.tsx` | Dashboard com abas (Conexão, Pedidos, Anúncios, Métricas) |
+| `supabase/functions/meli-bulk-operations/` | Operações em massa (enviar produtos, gerar títulos/descrições, auto-categorizar) |
 | `src/pages/MeliOAuthCallback.tsx` | Proxy page para callback OAuth |
 | `src/hooks/useMeliConnection.ts` | Status/OAuth com listener de postMessage |
 | `src/hooks/useMeliOrders.ts` | Pedidos |
@@ -270,4 +271,6 @@ Busca dados diretamente da API do ML (não armazena localmente):
 - [x] Busca de categorias ML (category picker com busca + navegação + children_count)
 - [x] Geração IA de descrição para ML (texto plano, sem HTML/links)
 - [x] Geração IA de título otimizado para ML (máx 60 chars)
+- [x] Operações em massa (enviar todos, gerar títulos/descrições, auto-categorizar)
+- [x] Auto-suggest de categoria via category_predictor no formulário individual
 - [ ] Webhook de notificações de pedidos (real-time)
