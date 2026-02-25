@@ -19,8 +19,9 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 | `src/hooks/useMeliConnection.ts` | Status/OAuth com listener de postMessage |
 | `src/hooks/useMeliOrders.ts` | Pedidos |
 | `src/hooks/useMeliListings.ts` | CRUD + publicação de anúncios (meli_listings) |
-| `src/components/marketplaces/MeliListingsTab.tsx` | UI da aba Anúncios (preparar, aprovar, publicar) |
-| `src/components/marketplaces/MeliCategoryPicker.tsx` | Seletor de categorias ML com busca e navegação hierárquica |
+| `src/components/marketplaces/MeliListingsTab.tsx` | UI da aba Anúncios (lista + ações em massa + wizard) |
+| `src/components/marketplaces/MeliListingWizard.tsx` | Wizard guiado de 3 etapas para criar/editar anúncios com IA |
+| `src/components/marketplaces/MeliCategoryPicker.tsx` | Seletor de categorias ML com busca, navegação hierárquica e auto-suggest |
 | `src/components/marketplaces/MeliMetricsTab.tsx` | UI da aba Métricas (KPIs + desempenho) |
 | `src/components/marketplaces/MeliConnectionCard.tsx` | Card de conexão OAuth |
 | `src/components/marketplaces/MeliOrdersTab.tsx` | Aba de pedidos |
@@ -71,13 +72,35 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 ### Pipeline: Preparar → Aprovar → Publicar
 
 ```
-1. Lojista seleciona produto da loja na aba "Anúncios"
-2. Preenche dados específicos do ML (título ≤60 chars, preço, estoque, tipo de anúncio, condição)
-3. Anúncio salvo como status 'draft'
-4. Lojista revisa e clica "Aprovar" → status 'approved'
-5. Lojista clica "Publicar" → edge function meli-publish-listing → API do ML → status 'published'
-6. Após publicação: pode pausar, reativar, sincronizar preço/estoque
+1. Lojista clica "Novo Anúncio" na aba "Anúncios" → abre MeliListingWizard
+2. Wizard Etapa 1: Seleciona produto da loja
+3. Wizard Etapa 2: IA preenche automaticamente (título otimizado, descrição texto plano, categoria)
+   - Progresso visual de cada etapa da IA (título → descrição → categoria)
+   - Botões "Regenerar" para ajuste manual de cada campo
+4. Wizard Etapa 3: Revisão e ajuste de preço, estoque, tipo de anúncio, condição, atributos
+5. Anúncio salvo como status 'draft'
+6. Lojista revisa e clica "Aprovar" → status 'approved'
+7. Lojista clica "Publicar" → edge function meli-publish-listing → API do ML → status 'published'
+8. Após publicação: pode pausar, reativar, sincronizar preço/estoque
 ```
+
+### Wizard (MeliListingWizard)
+
+Componente guiado de 3 etapas para criação/edição de anúncios:
+
+| Etapa | Nome | Descrição |
+|-------|------|-----------|
+| 1 | Selecionar Produto | Dropdown com produtos ativos da loja |
+| 2 | Preenchimento Inteligente | IA gera título (≤60 chars), descrição (texto plano) e categoria automaticamente |
+| 3 | Revisar e Ajustar | Formulário completo com todos os campos do anúncio |
+
+**Regra: Auto-fill IA (Etapa 2)**
+> Ao selecionar um produto, o wizard dispara 3 chamadas sequenciais:
+> 1. `meli-generate-description` com `generateTitle: true` → título otimizado
+> 2. `meli-generate-description` → descrição texto plano
+> 3. `meli-bulk-operations` com `action: "auto_suggest_category"` → categoria via ML predictor
+>
+> Cada etapa tem indicador visual de progresso e botão "Regenerar" individual.
 
 ### Edge Function: `meli-publish-listing`
 
@@ -139,9 +162,16 @@ Seletor de categorias do Mercado Livre com duas formas de uso:
 
 | Prop | Tipo | Descrição |
 |------|------|-----------|
-| `tenantId` | `string` | ID do tenant para chamadas autenticadas |
 | `value` | `string` | `category_id` selecionado |
-| `onSelect` | `(id: string, name: string) => void` | Callback ao selecionar |
+| `onChange` | `(categoryId: string, categoryName?: string) => void` | Callback ao selecionar |
+| `selectedName` | `string` | Nome da categoria selecionada (para exibição) |
+| `productName` | `string` | Nome do produto (habilita botão "Auto") |
+
+**Botão "Auto" (Wand2):**
+> Quando `productName` é fornecido, exibe botão "Auto" que chama `meli-bulk-operations` com `action: "auto_suggest_category"`.
+> Utiliza o `category_predictor` da API do ML como método primário.
+> **Fallback:** Se o predictor falhar, busca via Search API (`/sites/MLB/search`) e extrai a categoria mais relevante dos filtros de resultado.
+> Em caso de falha total, exibe toast de erro e abre o browser de categorias para seleção manual.
 
 **Edge Function:** `meli-search-categories`
 
@@ -248,6 +278,23 @@ Busca dados diretamente da API do ML (não armazena localmente):
 - Unidades vendidas
 - Faturamento estimado
 
+## Operações em Massa (Bulk Actions)
+
+Edge function `meli-bulk-operations` processa em chunks de 5 itens:
+
+| Ação | Descrição |
+|------|-----------|
+| `bulk_create` | Cria rascunhos para todos os produtos ativos sem anúncio ML |
+| `bulk_generate_titles` | Gera títulos otimizados via Gemini 2.5 Flash (≤60 chars) |
+| `bulk_generate_descriptions` | Converte descrições HTML para texto plano via IA |
+| `bulk_auto_categories` | Categoriza em massa via ML category_predictor + fallback Search API |
+| `auto_suggest_category` | Categorização individual de produto (usado pelo botão "Auto" e pelo Wizard) |
+
+**Regra: Fallback de Categorização**
+> O `auto_suggest_category` tenta primeiro o `category_predictor` do ML.
+> Se falhar (status != 200 ou sem resultados), usa a Search API (`/sites/MLB/search?q=...`) e extrai categorias dos `available_filters`.
+> Resolve o path completo da categoria via `/categories/{id}` para exibição ao usuário.
+
 ## Anti-Patterns
 
 | Proibido | Correto |
@@ -256,6 +303,7 @@ Busca dados diretamente da API do ML (não armazena localmente):
 | Publicar sem aprovação | Fluxo: draft → approved → published |
 | Hardcodar categoria ML | Usar `category_id` configurável |
 | Ignorar erro da API ML | Salvar `error_message` e `meli_response` |
+| Criar anúncio sem wizard | Usar MeliListingWizard com auto-fill IA |
 
 ## Checklist
 
