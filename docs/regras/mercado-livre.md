@@ -295,6 +295,13 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens:
 > Se falhar (status != 200 ou sem resultados), usa a Search API (`/sites/MLB/search?q=...`) e extrai categorias dos `available_filters`.
 > Resolve o path completo da categoria via `/categories/{id}` para exibição ao usuário.
 
+## Regra: Aba de Pedidos — Auto-Refresh (OBRIGATÓRIO)
+
+> A aba de pedidos (`MeliOrdersTab`) **NÃO deve ter botões manuais** de "Atualizar" ou "Sincronizar".
+> Os dados são recarregados automaticamente via `refetchOnWindowFocus: true` e `staleTime: 30_000` no hook `useMeliOrders`.
+> Durante o carregamento, exibe apenas um badge "Atualizando..." com `animate-pulse`.
+> A sincronização com a API do ML ocorre via webhook/cron, não via ação manual do usuário.
+
 ## Anti-Patterns
 
 | Proibido | Correto |
@@ -304,6 +311,7 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens:
 | Hardcodar categoria ML | Usar `category_id` configurável |
 | Ignorar erro da API ML | Salvar `error_message` e `meli_response` |
 | Criar anúncio sem wizard | Usar MeliListingWizard com auto-fill IA |
+| Botões manuais de refresh/sync na aba Pedidos | Auto-refresh via `refetchOnWindowFocus` |
 
 ## Checklist
 
