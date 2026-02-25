@@ -18,9 +18,10 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 | `src/pages/MeliOAuthCallback.tsx` | Proxy page para callback OAuth |
 | `src/hooks/useMeliConnection.ts` | Status/OAuth com listener de postMessage |
 | `src/hooks/useMeliOrders.ts` | Pedidos |
-| `src/hooks/useMeliListings.ts` | CRUD + publicação de anúncios (meli_listings) |
-| `src/components/marketplaces/MeliListingsTab.tsx` | UI da aba Anúncios (lista + ações em massa + wizard) |
-| `src/components/marketplaces/MeliListingWizard.tsx` | Wizard guiado de 3 etapas para criar/editar anúncios com IA |
+| `src/hooks/useMeliListings.ts` | CRUD + publicação + criação em massa (`createBulkListings`) |
+| `src/components/marketplaces/MeliListingsTab.tsx` | UI da aba Anúncios (lista + ações em massa + creator/wizard) |
+| `src/components/marketplaces/MeliListingCreator.tsx` | Dialog multi-produto de 3 etapas para criação em massa com IA |
+| `src/components/marketplaces/MeliListingWizard.tsx` | Wizard para edição individual de anúncios |
 | `src/components/marketplaces/MeliCategoryPicker.tsx` | Seletor de categorias ML com busca, navegação hierárquica e auto-suggest |
 | `src/components/marketplaces/MeliMetricsTab.tsx` | UI da aba Métricas (KPIs + desempenho) |
 | `src/components/marketplaces/MeliConnectionCard.tsx` | Card de conexão OAuth |
@@ -69,22 +70,49 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 
 ## Fluxo de Anúncios (Listings)
 
-### Pipeline: Preparar → Aprovar → Publicar
+### Pipeline: Criar em Massa → Aprovar → Publicar
 
 ```
-1. Lojista clica "Novo Anúncio" na aba "Anúncios" → abre MeliListingWizard
-2. Wizard Etapa 1: Seleciona produto da loja
-3. Wizard Etapa 2: IA preenche automaticamente (título otimizado, descrição texto plano, categoria)
-   - Progresso visual de cada etapa da IA (título → descrição → categoria)
-   - Botões "Regenerar" para ajuste manual de cada campo
-4. Wizard Etapa 3: Revisão e ajuste de preço, estoque, tipo de anúncio, condição, atributos
-5. Anúncio salvo como status 'draft'
+1. Lojista clica "Novo Anúncio" → abre MeliListingCreator (dialog multi-produto)
+2. Creator Etapa 1: Seleciona um ou vários produtos com checkboxes (busca, selecionar todos)
+3. Creator Etapa 2: Define configurações padrão (tipo de anúncio, condição, frete) + toggles de IA
+4. Creator Etapa 3: Cria rascunhos no banco + processa IA se ativada (progresso visual)
+5. Rascunhos aparecem na tabela → lojista edita individualmente se necessário (MeliListingWizard modo edit)
 6. Lojista revisa e clica "Aprovar" → status 'approved'
 7. Lojista clica "Publicar" → edge function meli-publish-listing → API do ML → status 'published'
 8. Após publicação: pode pausar, reativar, sincronizar preço/estoque
 ```
 
-### Wizard (MeliListingWizard)
+### Creator Multi-Produto (MeliListingCreator)
+
+Dialog de 3 etapas para criação em massa de anúncios:
+
+| Etapa | Nome | Descrição |
+|-------|------|-----------|
+| 1 | Selecionar Produtos | Checkboxes com busca por nome/SKU, selecionar todos, badge de contagem |
+| 2 | Configurações Padrão | Tipo de anúncio, condição, frete + toggles IA (títulos, descrições, categorias) |
+| 3 | Processamento | Cria rascunhos + executa IA (se ativada), barra de progresso com ETA |
+
+**Props:**
+
+| Prop | Tipo | Descrição |
+|------|------|-----------|
+| `open` | `boolean` | Controle de visibilidade |
+| `onOpenChange` | `(open: boolean) => void` | Callback de toggle |
+| `products` | `ProductWithImage[]` | Lista de produtos disponíveis |
+| `listedProductIds` | `Set<string>` | IDs de produtos que já possuem anúncio |
+| `onBulkCreate` | `(data) => Promise<any>` | Mutation de criação em massa |
+| `onRefetch` | `() => void` | Callback para recarregar a tabela |
+
+**Fluxo de Execução:**
+1. Cria `meli_listings` com status `draft` via `createBulkListings` (insere múltiplos de uma vez)
+2. Se IA ativada, chama `meli-bulk-operations` com `listingIds` para gerar títulos, descrições e categorias
+3. Progresso visual com `ProgressWithETA`
+4. Ao finalizar, fecha dialog e tabela mostra os novos rascunhos
+
+### Wizard de Edição (MeliListingWizard)
+
+Mantido **apenas para modo `edit`** — edição individual de um anúncio existente na tabela (botão ✏️).
 
 Componente guiado de 3 etapas para criação/edição de anúncios:
 
@@ -325,7 +353,8 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens:
 | Publicar sem aprovação | Fluxo: draft → approved → published |
 | Hardcodar categoria ML | Usar `category_id` configurável |
 | Ignorar erro da API ML | Salvar `error_message` e `meli_response` |
-| Criar anúncio sem wizard | Usar MeliListingWizard com auto-fill IA |
+| Criar anúncio sem creator | Usar MeliListingCreator para criação (multi-produto) |
+| Usar MeliListingWizard para criar | MeliListingWizard é apenas para edição individual |
 | Botões manuais de refresh/sync na aba Pedidos | Auto-refresh via `refetchOnWindowFocus` |
 
 ## Checklist
