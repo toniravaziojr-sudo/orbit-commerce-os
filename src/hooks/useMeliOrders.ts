@@ -79,6 +79,8 @@ export function useMeliOrders({ status, page = 1, pageSize = 20 }: UseMeliOrders
       };
     },
     enabled: !!currentTenant?.id,
+    refetchOnWindowFocus: true,
+    staleTime: 30_000,
   });
 
   // Mutation para sincronizar pedidos
