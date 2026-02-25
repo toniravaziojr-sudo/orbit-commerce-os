@@ -13,7 +13,7 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 
 | Arquivo | Propósito |
 |---------|-----------|
-| `src/pages/marketplaces/MercadoLivre.tsx` | Dashboard com abas (Pedidos, Anúncios, Métricas) — redireciona para `/integrations?tab=marketplaces` se desconectado |
+| `src/pages/marketplaces/MercadoLivre.tsx` | Dashboard com abas (Conexão, Pedidos, Anúncios, Métricas) — aba Conexão exibe botão "Ir para Integrações" quando desconectado |
 | `supabase/functions/meli-bulk-operations/` | Operações em massa (enviar produtos, gerar títulos/descrições, auto-categorizar) |
 | `src/pages/MeliOAuthCallback.tsx` | Proxy page para callback OAuth |
 | `src/hooks/useMeliConnection.ts` | Status/OAuth com listener de postMessage |
@@ -54,8 +54,8 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 ### Regra: Local de Conexão (OBRIGATÓRIO)
 
 > A conexão OAuth com o Mercado Livre **DEVE acontecer em `/integrations` (aba Marketplaces)**.
-> O módulo `/marketplaces/mercadolivre` é exclusivo para **gestão** (pedidos, anúncios, métricas).
-> Se o usuário acessar `/marketplaces/mercadolivre` sem conexão ativa, é **redirecionado automaticamente** para `/integrations?tab=marketplaces`.
+> O módulo `/marketplaces/mercadolivre` é para **gestão** (pedidos, anúncios, métricas).
+> Se o usuário acessar `/marketplaces/mercadolivre` sem conexão ativa, a aba "Conexão" é exibida com um **botão que direciona para `/integrations?tab=marketplaces`** (NÃO redirecionar automaticamente).
 > O callback OAuth (fallback sem popup) redireciona para `/integrations?tab=marketplaces`.
 
 ### Regra: Popup OAuth (OBRIGATÓRIO)
