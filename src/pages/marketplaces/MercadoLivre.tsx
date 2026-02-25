@@ -38,15 +38,16 @@ export default function MercadoLivre() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { isConnected, isLoading, platformConfigured } = useMeliConnection();
   
-  const defaultTab = searchParams.get("tab") || (isConnected ? "pedidos" : "conexao");
-  const [activeTab, setActiveTab] = useState(defaultTab);
+  const tabFromUrl = searchParams.get("tab");
+  const resolvedDefault = tabFromUrl || (isConnected ? "pedidos" : "conexao");
+  const [activeTab, setActiveTab] = useState(resolvedDefault);
 
-  // Switch to pedidos when connection is established
+  // When loading finishes and connection status is known, switch tab
   useEffect(() => {
-    if (isConnected && activeTab === "conexao") {
-      setActiveTab("pedidos");
+    if (!isLoading && !tabFromUrl) {
+      setActiveTab(isConnected ? "pedidos" : "conexao");
     }
-  }, [isConnected]);
+  }, [isLoading, isConnected, tabFromUrl]);
 
   // Processar callback do OAuth
   useEffect(() => {
@@ -88,6 +89,22 @@ export default function MercadoLivre() {
     setSearchParams({ tab: value });
   };
 
+  if (isLoading) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="flex items-center gap-3">
+          <MercadoLivreLogo className="h-10 w-10" />
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Mercado Livre</h1>
+            <p className="text-sm text-muted-foreground">Carregando status da integração...</p>
+          </div>
+        </div>
+        <div className="h-10 w-64 bg-muted animate-pulse rounded-lg" />
+        <div className="h-64 bg-muted animate-pulse rounded-lg" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -102,7 +119,7 @@ export default function MercadoLivre() {
                   Conectado
                 </Badge>
               )}
-              {!isConnected && !isLoading && (
+              {!isConnected && (
                 <Badge variant="secondary">Não conectado</Badge>
               )}
             </h1>
