@@ -1,94 +1,99 @@
 
 
-## Plano: Redesenho do Fluxo de Criação de Anúncios ML
+## Plano: Fluxo de 6 Etapas com Validação ML Sincronizada
 
-### Problema Atual
-O wizard atual (`MeliListingWizard`) só suporta **um produto por vez**. Para anunciar 50 produtos, o lojista precisa repetir o processo 50 vezes. As configurações padrão (tipo de anúncio, condição, frete) precisam ser escolhidas individualmente toda vez.
+### Problema
+O Creator atual tem 3 etapas (Selecionar → Configurar tudo junto → Processar escondido). O usuário não vê nem valida os resultados de IA. Categorias, títulos e descrições não são verificados contra as regras do Mercado Livre antes de salvar.
 
-### Novo Fluxo Proposto
+### Novo Fluxo
 
 ```text
-┌──────────────────────────────────────────────────────┐
-│  ETAPA 1: Selecionar Produtos                        │
-│                                                      │
-│  [Busca por nome/SKU]                                │
-│  ☑ Selecionar todos (23 disponíveis)                 │
-│                                                      │
-│  ☑ Produto A  -  R$ 49,90  -  SKU: ABC123           │
-│  ☑ Produto B  -  R$ 89,90  -  SKU: DEF456           │
-│  ☐ Produto C  -  R$ 29,90  -  SKU: GHI789           │
-│                                                      │
-│  2 produtos selecionados                             │
-│                                        [Continuar →] │
-└──────────────────────────────────────────────────────┘
-
-┌──────────────────────────────────────────────────────┐
-│  ETAPA 2: Configurações Padrão                       │
-│                                                      │
-│  Tipo de Anúncio:   [Clássico ▾]                     │
-│  Condição:          [Novo ▾]                         │
-│  Frete Grátis:      [  ON  ]                         │
-│  Retirada Local:    [  OFF ]                         │
-│                                                      │
-│  ☑ Gerar títulos otimizados via IA                   │
-│  ☑ Gerar descrições via IA                           │
-│  ☑ Auto-categorizar via ML                           │
-│                                                      │
-│  [← Voltar]                          [Criar Anúncios]│
-└──────────────────────────────────────────────────────┘
-
-┌──────────────────────────────────────────────────────┐
-│  ETAPA 3: Processamento (se IA ativada)              │
-│                                                      │
-│  Processando 2 de 5 produtos...                      │
-│  ████████░░░░░░░░░░ 40%                              │
-│                                                      │
-│  ✓ Produto A - título, descrição, categoria          │
-│  ⟳ Produto B - gerando título...                     │
-│  ○ Produto C - aguardando                            │
-│                                                      │
-│  Ao concluir, os anúncios aparecem como rascunhos    │
-│  na tabela para revisão individual.                  │
-└──────────────────────────────────────────────────────┘
+Etapa 1: Selecionar Produtos       (checkboxes, busca, selecionar todos)
+Etapa 2: Gerar Títulos IA          (cria drafts → bulk_generate_titles → preview editável)
+Etapa 3: Gerar Descrições IA       (bulk_generate_descriptions → preview editável)
+Etapa 4: Categorizar via ML API    (bulk_auto_categories → preview com troca manual via MeliCategoryPicker)
+Etapa 5: Condição                  (Novo / Usado — aplicado a todos)
+Etapa 6: Tipo de Anúncio           (Clássico / Premium / Grátis → salva e fecha)
 ```
+
+### Sincronização com o Mercado Livre
+
+**Títulos (Etapa 2):**
+- Edge function `bulk_generate_titles` já gera títulos com prompt otimizado (tipo de produto primeiro, max 60 chars, sem emojis/CAPS)
+- Preview mostra cada título gerado ao lado do nome original do produto
+- Input editável com contador de caracteres (max 60) e validação visual (vermelho se > 60)
+- Botão "Regenerar" individual por item chama `meli-generate-description` com `generateTitle: true`
+
+**Descrições (Etapa 3):**
+- Edge function `bulk_generate_descriptions` converte HTML → texto plano seguindo regras ML
+- Regras enforced no prompt: sem HTML, sem links, sem contato, sem emojis, max 5000 chars
+- Preview colapsável (primeiras 3 linhas visíveis, expandir para ver completa)
+- Textarea editável para ajustes manuais
+- Botão "Regenerar" individual chama `meli-generate-description` (modo descrição)
+
+**Categorias (Etapa 4):**
+- Edge function `bulk_auto_categories` usa `domain_discovery/search` da API oficial do ML
+- Fallback: Search API → filtros de categoria → primeira resultado
+- Preview mostra `[Produto] → [Categoria Nome]` com path completo (ex: "Beleza > Cuidados Pessoais > Barba")
+- Resolve nome legível via `GET /categories/{id}` (path_from_root) — NÃO exibe IDs crus
+- Botão para trocar categoria manualmente via `MeliCategoryPicker` (componente já existente)
+- Categorias são sempre IDs válidos do ML (formato `MLBxxxx`)
+
+**Condição (Etapa 5):**
+- Valores aceitos pela API ML: `new`, `used`, `not_specified`
+- Cards de seleção visual com radio-style
+
+**Tipo de Anúncio (Etapa 6):**
+- Valores da API ML: `gold_special` (Clássico), `gold_pro` (Premium), `free` (Grátis)
+- Cards de seleção visual com descrição das diferenças
+- Botão "Salvar Anúncios" aplica condição + listing_type via `updateBulkListings` e fecha
 
 ### Mudanças Técnicas
 
-**1. Substituir `MeliListingWizard.tsx` por `MeliListingCreator.tsx`**
-- Dialog em tela cheia (`max-w-3xl`)
-- Etapa 1: Lista de produtos com checkboxes e multi-seleção, busca, "selecionar todos"
-- Etapa 2: Configurações padrão que se aplicam a todos os produtos selecionados:
-  - `listing_type` (Clássico/Premium/Grátis)
-  - `condition` (Novo/Usado)
-  - `freeShipping`, `localPickup`
-  - Toggles para IA: gerar títulos, gerar descrições, auto-categorizar
-- Etapa 3: Processamento (cria rascunhos no banco, depois roda IA se ativada)
+**1. Reescrever `MeliListingCreator.tsx`**
 
-**2. Fluxo de Execução**
-- Ao clicar "Criar Anúncios":
-  1. Cria `meli_listings` com status `draft` para cada produto selecionado (preço/estoque pré-preenchidos do produto, configurações padrão aplicadas)
-  2. Se IA ativada, chama `meli-bulk-operations` com `listingIds` dos rascunhos criados para gerar títulos, descrições e categorias
-  3. Progresso visual em tempo real
-  4. Ao finalizar, fecha o dialog e a tabela mostra os novos rascunhos
+- `Step` muda para: `"select" | "titles" | "descriptions" | "categories" | "condition" | "listing_type"`
+- 6 step indicators no header
+- Etapa 2 (títulos): cria drafts via `createBulkListings`, depois chama `bulk_generate_titles` com `listingIds`. Armazena resultados em state `generatedData[]` para preview. Busca listings atualizados do banco após IA.
+- Etapa 3 (descrições): chama `bulk_generate_descriptions` com mesmos `listingIds`. Atualiza state com descrições.
+- Etapa 4 (categorias): chama `bulk_auto_categories` com mesmos `listingIds`. Resolve nomes de categorias via `meli-search-categories?categoryId=XXX`. Permite trocar via `MeliCategoryPicker`.
+- Etapas 5-6: selects visuais que aplicam `updateBulkListings` em batch.
 
-**3. Edição Individual Mantida**
-- O wizard de edição (modo `edit`) continua funcionando como está para ajustar um anúncio específico na tabela
-- Cada rascunho pode ser editado individualmente depois na tabela (botão ✏️)
+Estado local:
+```typescript
+interface GeneratedItem {
+  listingId: string;
+  productId: string;
+  productName: string;
+  title: string;
+  description: string;
+  categoryId: string;
+  categoryName: string;
+  categoryPath: string;
+}
+```
 
-**4. Atualizar `MeliListingsTab.tsx`**
-- Trocar referência de `MeliListingWizard` (create mode) para `MeliListingCreator`
-- Manter `MeliListingWizard` apenas para modo `edit`
-- Remover botão "Enviar Todos" da barra de ações em massa (agora o fluxo de criação já suporta multi-seleção)
+**2. Adicionar `updateBulkListings` em `useMeliListings.ts`**
 
-**5. Atualizar `useMeliListings.ts`**
-- Adicionar mutation `createBulkListings` que insere múltiplos rascunhos de uma vez
+Nova mutation para atualizar condição e listing_type em batch:
+```typescript
+updateBulkListings: async ({ ids, data }) => {
+  await supabase.from('meli_listings').update(data).in('id', ids);
+}
+```
+
+**3. Edge function `meli-bulk-operations` — ajuste na action `bulk_auto_categories`**
+
+Atualmente o `bulk_auto_categories` pula listings que já têm `category_id`. No novo fluxo, os drafts são criados sem categoria, então isso funciona. Mas precisa resolver o nome da categoria no response para o frontend exibir sem chamada extra. Ajustar para retornar `categoryName` e `categoryPath` junto com o `categoryId`.
+
+**4. Nenhuma mudança nas regras de IA dos prompts** — já estão corretas (títulos com tipo de produto primeiro, descrições texto plano sem HTML/links).
 
 ### Arquivos Afetados
+
 | Arquivo | Ação |
 |---------|------|
-| `src/components/marketplaces/MeliListingCreator.tsx` | **Criar** - Novo componente multi-produto |
-| `src/components/marketplaces/MeliListingWizard.tsx` | **Manter** - Usado apenas para edição individual |
-| `src/components/marketplaces/MeliListingsTab.tsx` | **Editar** - Usar `MeliListingCreator` no botão "Novo Anúncio" |
-| `src/hooks/useMeliListings.ts` | **Editar** - Adicionar `createBulkListings` |
-| `docs/regras/mercado-livre.md` | **Atualizar** - Documentar novo fluxo |
+| `src/components/marketplaces/MeliListingCreator.tsx` | **Reescrever** — 6 etapas com preview/edição |
+| `src/hooks/useMeliListings.ts` | **Editar** — adicionar `updateBulkListings` |
+| `supabase/functions/meli-bulk-operations/index.ts` | **Editar** — `bulk_auto_categories` retorna nome/path da categoria |
+| `docs/regras/mercado-livre.md` | **Atualizar** — documentar fluxo de 6 etapas |
 
