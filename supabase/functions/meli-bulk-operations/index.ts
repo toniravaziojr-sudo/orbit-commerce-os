@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
-const VERSION = "v1.5.2"; // Fix truncation detection: check last word against product name words
+const VERSION = "v1.6.2"; // Use OpenAI as primary for titles - Gemini native returns empty, Lovable has 402
 
 const MAX_TITLE_LENGTH = 120;
 
@@ -424,7 +424,7 @@ IMPORTANTE:
 Retorne APENAS o título completo, sem aspas e sem explicações.${feedbackSection}`;
 
             const aiRes = await aiChatCompletion(
-              "google/gemini-2.5-flash",
+              "google/gemini-2.5-pro",
               {
                 messages: [
                   {
@@ -465,6 +465,7 @@ Retorne APENAS o título, nada mais.`,
               {
                 supabaseUrl,
                 supabaseServiceKey,
+                preferProvider: 'openai',
                 logPrefix: "[meli-bulk-titles]",
               }
             );
@@ -480,6 +481,8 @@ Retorne APENAS o título, nada mais.`,
 
             const aiData = await aiRes.json();
             const rawTitle = aiData.choices?.[0]?.message?.content?.trim() || "";
+            const finishReason = aiData.choices?.[0]?.finish_reason || "unknown";
+            console.log(`[meli-bulk-titles] Raw AI response: finish_reason=${finishReason}, content="${rawTitle.slice(0, 150)}", model=${aiData.model || "?"}`);
             lastRawTitle = rawTitle;
             const title = sanitizeGeneratedTitle(rawTitle);
 
