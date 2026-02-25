@@ -347,7 +347,7 @@ Busca dados diretamente da API do ML (não armazena localmente):
 
 Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 
-**Roteamento IA:** Ambas as edge functions (`meli-bulk-operations` e `meli-generate-description`) utilizam o `ai-router.ts` centralizado (`aiChatCompletion`) para fallback multi-provedor (Gemini → OpenAI → Lovable Gateway). **NÃO fazem fetch direto** para provedores de IA.
+**Roteamento IA:** Ambas as edge functions (`meli-bulk-operations` e `meli-generate-description`) utilizam o `ai-router.ts` centralizado (`aiChatCompletion`) para fallback multi-provedor. Para **títulos**, o provedor primário é **OpenAI** (`preferProvider: 'openai'`) pois o Gemini nativo retorna conteúdo vazio em marketing copy (filtro de segurança). Para **descrições**, usa roteamento automático (Gemini → OpenAI → Lovable Gateway). **NÃO fazem fetch direto** para provedores de IA.
 
 **Pré-processamento de contexto:** Antes de enviar para a IA, o HTML da descrição do produto é stripado (`description.replace(/<[^>]*>/g, " ")`) para evitar confusão do modelo. O contexto enviado à IA para **títulos** inclui: nome do produto, marca, SKU, peso, resumo/benefícios (`short_description`) e até 800 caracteres da descrição completa. Para **descrições**, o contexto inclui peso, dimensões e SKU, mas **NÃO inclui** código de barras/EAN/GTIN (que vão como atributos separados do anúncio).
 
@@ -383,7 +383,7 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 | Ação | Descrição |
 |------|-----------|
 | `bulk_create` | Cria rascunhos para todos os produtos ativos sem anúncio ML |
-| `bulk_generate_titles` | Gera títulos otimizados via ai-router (Gemini 2.5 Flash), limite dinâmico por categoria, com instrução explícita no user message ("Gere UM título otimizado..."), validação semântica anti-truncamento com feedback de tentativas rejeitadas, e fallback robusto (nunca persiste título inválido). O prompt do sistema inclui exemplos de títulos curtos demais como anti-padrão. |
+| `bulk_generate_titles` | Gera títulos otimizados via ai-router (OpenAI como provedor primário, modelo `google/gemini-2.5-pro` roteado para `gpt-4o`), limite dinâmico por categoria, com instrução explícita no user message ("Gere UM título otimizado..."), validação semântica anti-truncamento com feedback de tentativas rejeitadas, e fallback robusto (nunca persiste título inválido). O prompt inclui exemplos de bons/maus títulos e checklist. |
 | `bulk_generate_descriptions` | Converte descrições HTML para texto plano via ai-router (sem EAN/GTIN) |
 | `bulk_auto_categories` | Categoriza em massa via ML domain_discovery + fallback Search API, com contexto de descrição |
 | `auto_suggest_category` | Categorização individual com `productName` + `productDescription` para melhor precisão |
