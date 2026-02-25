@@ -116,7 +116,7 @@ Dialog de 6 etapas para criação em massa de anúncios com validação ML sincr
 | Etapa | Nome | Descrição |
 |-------|------|-----------|
 | 1 | Selecionar Produtos | Checkboxes com busca por nome/SKU, selecionar todos, badge de contagem |
-| 2 | Gerar Títulos IA | Cria drafts → `bulk_generate_titles` → preview editável (input, até 120 chars, validação semântica anti-truncamento, botão Regenerar com loading spinner) |
+| 2 | Gerar Títulos IA | Cria drafts → `bulk_generate_titles` → preview editável (input, limite dinâmico por categoria via `max_title_length` da API ML, validação semântica anti-truncamento, botão Regenerar com loading spinner) |
 | 3 | Gerar Descrições IA | `bulk_generate_descriptions` → preview colapsável, textarea editável, botão Regenerar com loading spinner |
 | 4 | Categorizar via ML API | `bulk_auto_categories` → preview com path legível, troca manual via `MeliCategoryPicker` |
 | 5 | Condição | Cards visuais radio-style: `new` (Novo), `used` (Usado), `not_specified` |
@@ -141,7 +141,7 @@ Dialog de 6 etapas para criação em massa de anúncios com validação ML sincr
 5. Ao finalizar, fecha dialog e tabela mostra os novos rascunhos
 
 **Sincronização com o Mercado Livre:**
-- **Títulos:** Prompt IA gera com tipo de produto primeiro, até 120 chars, sem emojis/CAPS. Validação semântica (rejeita títulos truncados que terminam em preposições, hífens ou vírgulas)
+- **Títulos:** Prompt IA gera com tipo de produto primeiro, limite dinâmico por categoria (`max_title_length` da API ML), sem emojis/CAPS. Validação semântica (rejeita títulos truncados que terminam em preposições, hífens ou vírgulas)
 - **Descrições:** Texto plano, sem HTML/links/contato/emojis, max 5000 chars
 - **Categorias:** IDs válidos do ML (formato `MLBxxxx`), resolvidos via `domain_discovery/search` + fallback Search API. Nomes legíveis via `GET /categories/{id}` (path_from_root)
 - **Condição:** Valores da API ML: `new`, `used`, `not_specified`
@@ -189,21 +189,21 @@ POST /meli-publish-listing
 
 ### Regras de Anúncio
 
-- **Título:** Máximo 60 caracteres (limite do ML)
+- **Título:** Limite dinâmico por categoria (`max_title_length` da API ML, tipicamente 60-120 chars). Validado no frontend e no backend antes da publicação.
 - **Tipos de anúncio:** `gold_special` (Clássico), `gold_pro` (Premium), `free` (Grátis)
 - **Condição:** `new` (Novo), `used` (Usado) ou `not_specified`
 - **Moeda:** `BRL` (padrão)
 - **Imagens:** Máximo 10 (limite do ML), mínimo 1 (obrigatório)
 - **Categoria:** `category_id` é **obrigatório** (ex: `MLB1000`). Sem fallback. Navegação hierárquica com `children_count`.
 - **Descrição:** Apenas texto plano. Gerada via IA com botão "Gerar para ML" (edge function `meli-generate-description`).
-- **Título:** Máximo 60 caracteres. Gerado via IA com botão "Gerar Título ML" (mesma edge function, `generateTitle: true`).
+- **Título:** Limite dinâmico por categoria (`max_title_length`). Gerado via IA com botão "Gerar Título ML" (mesma edge function, `generateTitle: true`).
 - **Múltiplos anúncios:** Um produto pode ter múltiplos anúncios (sem constraint de unicidade). O mesmo produto pode aparecer na seleção do Creator mesmo que já tenha anúncios existentes.
 
 ### Campos do Formulário de Anúncio
 
 | Campo | Obrigatório | Descrição |
 |-------|:-----------:|-----------|
-| Título | ✅ | Até 120 chars (validação semântica anti-truncamento) |
+| Título | ✅ | Limite dinâmico por categoria (`max_title_length` da API ML, validação semântica anti-truncamento) |
 | Descrição | — | Texto plano (HTML removido) |
 | Preço (R$) | ✅ | Decimal |
 | Quantidade | ✅ | Inteiro ≥ 1 |
@@ -352,7 +352,7 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 **Pré-processamento de contexto:** Antes de enviar para a IA, o HTML da descrição do produto é stripado (`description.replace(/<[^>]*>/g, " ")`) para evitar confusão do modelo. O contexto enviado à IA para **títulos** inclui: nome do produto, marca, SKU, peso, resumo/benefícios (`short_description`) e até 800 caracteres da descrição completa. Para **descrições**, o contexto inclui peso, dimensões e SKU, mas **NÃO inclui** código de barras/EAN/GTIN (que vão como atributos separados do anúncio).
 
 **Regra de Validação Semântica de Títulos (OBRIGATÓRIO):**
-> A geração de títulos utiliza validação **semântica** (não por comprimento rígido). Limite máximo: **120 caracteres**.
+> A geração de títulos utiliza validação **semântica** + limite dinâmico por categoria (`max_title_length` da API ML).
 > 1. **Truncamento semântico:** Títulos terminados em hífen (`-`), vírgula (`,`), dois-pontos (`:`), ponto-e-vírgula (`;`) ou preposições/artigos soltos (`de`, `com`, `para`, `e`, `em`, `o`, `a`, `os`, `as`, `do`, `da`, `no`, `na`, `por`) são rejeitados
 > 2. **Contexto mínimo:** Títulos com menos de 3 palavras são rejeitados
 > 3. **Temperatura progressiva:** A cada tentativa a temperatura da IA aumenta (0.35 → 0.5 → 0.65) para gerar variação
@@ -361,6 +361,12 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 >
 > **PROIBIDO:** Cortes com `.slice(0, 60)` ou qualquer truncamento cego. O título deve ser uma frase naturalmente completa.
 > **Anti-padrão:** Títulos truncados como "Balm Cabelo Barba Anti-" são automaticamente rejeitados e regenerados.
+>
+> **Limite dinâmico por categoria:**
+> - A edge function `meli-search-categories` retorna `max_title_length` ao consultar uma categoria específica (`?categoryId=MLBxxxx`)
+> - O frontend armazena e usa esse valor para validação e exibição do contador de caracteres
+> - A edge function `meli-publish-listing` valida `title.length <= max_title_length` antes de publicar, consultando a categoria na API do ML
+> - Fallback: se `max_title_length` não estiver disponível, usa 60 chars como limite conservador
 
 **Regra de Priorização em Títulos (OBRIGATÓRIO):**
 > O prompt de geração de títulos DEVE instruir a IA a:
@@ -377,7 +383,7 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 | Ação | Descrição |
 |------|-----------|
 | `bulk_create` | Cria rascunhos para todos os produtos ativos sem anúncio ML |
-| `bulk_generate_titles` | Gera títulos otimizados via ai-router (Gemini 2.5 Flash) (até 120 chars), com validação semântica anti-truncamento |
+| `bulk_generate_titles` | Gera títulos otimizados via ai-router (Gemini 2.5 Flash), limite dinâmico por categoria, com validação semântica anti-truncamento e fallback robusto (nunca persiste título inválido) |
 | `bulk_generate_descriptions` | Converte descrições HTML para texto plano via ai-router (sem EAN/GTIN) |
 | `bulk_auto_categories` | Categoriza em massa via ML domain_discovery + fallback Search API, com contexto de descrição |
 | `auto_suggest_category` | Categorização individual com `productName` + `productDescription` para melhor precisão |
@@ -437,7 +443,7 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 
 > A edge function `meli-generate-description` (modo `generateTitle: true`) DEVE aplicar validação semântica e retry:
 > - Até 3 tentativas com temperatura progressiva (0.35 → 0.5 → 0.65)
-> - **NÃO** rejeitar por comprimento rígido — limite máximo é 120 chars
+> - Limite de caracteres dinâmico por categoria (`max_title_length` da API ML)
 > - Rejeitar títulos que terminem em preposições soltas, hífens, vírgulas ou frases incompletas
 > - **PROIBIDO** corte cego com `.slice(0, N)` no retorno final
 > - Se todas as tentativas falharem, aplicar fallback seguro com nome do produto + benefício
@@ -474,7 +480,7 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 - [x] Aba de métricas (visitas, vendas, faturamento)
 - [x] Busca de categorias ML (category picker com busca + navegação + children_count)
 - [x] Geração IA de descrição para ML (texto plano, sem HTML/links)
-- [x] Geração IA de título otimizado para ML (máx 60 chars)
+- [x] Geração IA de título otimizado para ML (limite dinâmico por categoria via `max_title_length`)
 - [x] Operações em massa (enviar todos, gerar títulos/descrições, auto-categorizar)
 - [x] Auto-suggest de categoria via category_predictor no formulário individual
 - [ ] Webhook de notificações de pedidos (real-time)
