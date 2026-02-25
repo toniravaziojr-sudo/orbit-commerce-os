@@ -98,7 +98,7 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 ```
 1. Lojista clica "Novo Anúncio" → abre MeliListingCreator (dialog 6 etapas)
 2. Creator Etapa 1 — Selecionar Produtos: checkboxes com busca, selecionar todos
-3. Creator Etapa 2 — Gerar Títulos IA: cria drafts no banco, chama bulk_generate_titles, exibe preview editável (input + contador 60 chars + botão Regenerar)
+3. Creator Etapa 2 — Gerar Títulos IA: cria drafts no banco, chama bulk_generate_titles, exibe preview editável (input + contador chars + botão Regenerar)
 4. Creator Etapa 3 — Gerar Descrições IA: chama bulk_generate_descriptions, exibe preview colapsável com textarea editável + botão Regenerar
 5. Creator Etapa 4 — Categorizar via ML API: chama bulk_auto_categories, exibe categorias com path legível + MeliCategoryPicker para troca manual
 6. Creator Etapa 5 — Condição: cards visuais radio-style (Novo / Usado / Não especificado)
@@ -116,7 +116,7 @@ Dialog de 6 etapas para criação em massa de anúncios com validação ML sincr
 | Etapa | Nome | Descrição |
 |-------|------|-----------|
 | 1 | Selecionar Produtos | Checkboxes com busca por nome/SKU, selecionar todos, badge de contagem |
-| 2 | Gerar Títulos IA | Cria drafts → `bulk_generate_titles` → preview editável (input, max 60 chars, botão Regenerar com loading spinner) |
+| 2 | Gerar Títulos IA | Cria drafts → `bulk_generate_titles` → preview editável (input, até 120 chars, validação semântica anti-truncamento, botão Regenerar com loading spinner) |
 | 3 | Gerar Descrições IA | `bulk_generate_descriptions` → preview colapsável, textarea editável, botão Regenerar com loading spinner |
 | 4 | Categorizar via ML API | `bulk_auto_categories` → preview com path legível, troca manual via `MeliCategoryPicker` |
 | 5 | Condição | Cards visuais radio-style: `new` (Novo), `used` (Usado), `not_specified` |
@@ -141,7 +141,7 @@ Dialog de 6 etapas para criação em massa de anúncios com validação ML sincr
 5. Ao finalizar, fecha dialog e tabela mostra os novos rascunhos
 
 **Sincronização com o Mercado Livre:**
-- **Títulos:** Prompt IA gera com tipo de produto primeiro, max 60 chars, sem emojis/CAPS. Validação visual (vermelho se > 60)
+- **Títulos:** Prompt IA gera com tipo de produto primeiro, até 120 chars, sem emojis/CAPS. Validação semântica (rejeita títulos truncados que terminam em preposições, hífens ou vírgulas)
 - **Descrições:** Texto plano, sem HTML/links/contato/emojis, max 5000 chars
 - **Categorias:** IDs válidos do ML (formato `MLBxxxx`), resolvidos via `domain_discovery/search` + fallback Search API. Nomes legíveis via `GET /categories/{id}` (path_from_root)
 - **Condição:** Valores da API ML: `new`, `used`, `not_specified`
@@ -156,7 +156,7 @@ Componente guiado de 3 etapas para criação/edição de anúncios:
 | Etapa | Nome | Descrição |
 |-------|------|-----------|
 | 1 | Selecionar Produto | Dropdown com produtos ativos da loja |
-| 2 | Preenchimento Inteligente | IA gera título (≤60 chars), descrição (texto plano) e categoria automaticamente |
+| 2 | Preenchimento Inteligente | IA gera título (até 120 chars), descrição (texto plano) e categoria automaticamente |
 | 3 | Revisar e Ajustar | Formulário completo com todos os campos do anúncio |
 
 **Regra: Auto-fill IA (Etapa 2)**
@@ -203,7 +203,7 @@ POST /meli-publish-listing
 
 | Campo | Obrigatório | Descrição |
 |-------|:-----------:|-----------|
-| Título | ✅ | Máx. 60 chars |
+| Título | ✅ | Até 120 chars (validação semântica anti-truncamento) |
 | Descrição | — | Texto plano (HTML removido) |
 | Preço (R$) | ✅ | Decimal |
 | Quantidade | ✅ | Inteiro ≥ 1 |
@@ -307,7 +307,7 @@ A edge function `meli-publish-listing` monta os atributos a partir do formulári
 | `product_id` | UUID | FK products |
 | `status` | TEXT | draft/ready/approved/publishing/published/paused/error |
 | `meli_item_id` | TEXT | ID do anúncio no ML (após publicação) |
-| `title` | TEXT | Título do anúncio (≤60 chars) |
+| `title` | TEXT | Título do anúncio (até 120 chars) |
 | `description` | TEXT | Descrição HTML |
 | `price` | NUMERIC | Preço no ML |
 | `available_quantity` | INT | Estoque disponível |
@@ -351,16 +351,16 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 
 **Pré-processamento de contexto:** Antes de enviar para a IA, o HTML da descrição do produto é stripado (`description.replace(/<[^>]*>/g, " ")`) para evitar confusão do modelo. O contexto enviado à IA para **títulos** inclui: nome do produto, marca, SKU, peso, resumo/benefícios (`short_description`) e até 800 caracteres da descrição completa. Para **descrições**, o contexto inclui peso, dimensões e SKU, mas **NÃO inclui** código de barras/EAN/GTIN (que vão como atributos separados do anúncio).
 
-**Regra de Validação e Retry de Títulos (OBRIGATÓRIO):**
-> A geração de títulos implementa um sistema de **até 3 tentativas** com validação rigorosa entre cada uma:
-> 1. **Truncamento:** Títulos terminados em hífen (`-`), vírgula (`,`) ou espaço são rejeitados (ex: "Balm Cabelo Barba Anti-")
-> 2. **Comprimento mínimo:** Títulos com menos de 25 caracteres são rejeitados
-> 3. **Contexto mínimo:** Títulos com menos de 3 palavras são rejeitados
-> 4. **Temperatura progressiva:** A cada tentativa a temperatura da IA aumenta (0.3 → 0.6 → 0.7) para gerar variação
-> 5. **Fallback final:** Se todas as 3 tentativas falharem, usa o nome do produto do cadastro como título
-> 6. **Log detalhado:** Cada tentativa é logada com `[meli-bulk-titles] Attempt X/3` para debugging
+**Regra de Validação Semântica de Títulos (OBRIGATÓRIO):**
+> A geração de títulos utiliza validação **semântica** (não por comprimento rígido). Limite máximo: **120 caracteres**.
+> 1. **Truncamento semântico:** Títulos terminados em hífen (`-`), vírgula (`,`), dois-pontos (`:`), ponto-e-vírgula (`;`) ou preposições/artigos soltos (`de`, `com`, `para`, `e`, `em`, `o`, `a`, `os`, `as`, `do`, `da`, `no`, `na`, `por`) são rejeitados
+> 2. **Contexto mínimo:** Títulos com menos de 3 palavras são rejeitados
+> 3. **Temperatura progressiva:** A cada tentativa a temperatura da IA aumenta (0.35 → 0.5 → 0.65) para gerar variação
+> 4. **Fallback final:** Se todas as 3 tentativas falharem, constrói título usando nome do produto + palavra-chave de benefício
+> 5. **Log detalhado:** Cada tentativa é logada para debugging
 >
-> **Anti-padrão:** Títulos truncados como "Balm Cabelo Barba Anti-" ou genéricos como "Balm Pós-Banho Calvície Zero Dia" são automaticamente rejeitados e regenerados.
+> **PROIBIDO:** Cortes com `.slice(0, 60)` ou qualquer truncamento cego. O título deve ser uma frase naturalmente completa.
+> **Anti-padrão:** Títulos truncados como "Balm Cabelo Barba Anti-" são automaticamente rejeitados e regenerados.
 
 **Regra de Priorização em Títulos (OBRIGATÓRIO):**
 > O prompt de geração de títulos DEVE instruir a IA a:
@@ -377,7 +377,7 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 | Ação | Descrição |
 |------|-----------|
 | `bulk_create` | Cria rascunhos para todos os produtos ativos sem anúncio ML |
-| `bulk_generate_titles` | Gera títulos otimizados via ai-router (Gemini 2.5 Flash) (≤60 chars), com contexto de benefícios |
+| `bulk_generate_titles` | Gera títulos otimizados via ai-router (Gemini 2.5 Flash) (até 120 chars), com validação semântica anti-truncamento |
 | `bulk_generate_descriptions` | Converte descrições HTML para texto plano via ai-router (sem EAN/GTIN) |
 | `bulk_auto_categories` | Categoriza em massa via ML domain_discovery + fallback Search API, com contexto de descrição |
 | `auto_suggest_category` | Categorização individual com `productName` + `productDescription` para melhor precisão |
@@ -435,12 +435,12 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 
 ## Regra: Título ML Sem Truncamento no `meli-generate-description` (OBRIGATÓRIO)
 
-> A edge function `meli-generate-description` (modo `generateTitle: true`) DEVE aplicar validação e retry igual ao padrão de qualidade do Marketplace:
-> - Até 3 tentativas com temperatura progressiva
-> - Rejeitar títulos fora de 30-60 caracteres
-> - Rejeitar títulos que terminem com hífen, vírgula ou frase incompleta
-> - Evitar corte cego com `.slice(0, 60)` no retorno final
-> - Se todas as tentativas falharem, aplicar fallback seguro com frase completa
+> A edge function `meli-generate-description` (modo `generateTitle: true`) DEVE aplicar validação semântica e retry:
+> - Até 3 tentativas com temperatura progressiva (0.35 → 0.5 → 0.65)
+> - **NÃO** rejeitar por comprimento rígido — limite máximo é 120 chars
+> - Rejeitar títulos que terminem em preposições soltas, hífens, vírgulas ou frases incompletas
+> - **PROIBIDO** corte cego com `.slice(0, N)` no retorno final
+> - Se todas as tentativas falharem, aplicar fallback seguro com nome do produto + benefício
 >
 > Objetivo: impedir títulos truncados como `"Balm Respeite o Homem Anti-"` no botão **Regenerar** do Creator/Wizard.
 
