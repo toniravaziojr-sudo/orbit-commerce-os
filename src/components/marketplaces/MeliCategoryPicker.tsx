@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, ChevronRight, Loader2, FolderOpen, X, ArrowLeft } from "lucide-react";
+import { Search, ChevronRight, Loader2, FolderOpen, X, ArrowLeft, Wand2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -25,9 +25,10 @@ interface MeliCategoryPickerProps {
   value: string;
   onChange: (categoryId: string, categoryName?: string) => void;
   selectedName?: string;
+  productName?: string;
 }
 
-export function MeliCategoryPicker({ value, onChange, selectedName }: MeliCategoryPickerProps) {
+export function MeliCategoryPicker({ value, onChange, selectedName, productName }: MeliCategoryPickerProps) {
   const { currentTenant } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -35,6 +36,7 @@ export function MeliCategoryPicker({ value, onChange, selectedName }: MeliCatego
   const [path, setPath] = useState<PathItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [displayName, setDisplayName] = useState(selectedName || "");
+  const [isAutoSuggesting, setIsAutoSuggesting] = useState(false);
 
   const fetchCategories = useCallback(async (params: Record<string, string>) => {
     setIsLoading(true);
@@ -98,6 +100,28 @@ export function MeliCategoryPicker({ value, onChange, selectedName }: MeliCatego
     setDisplayName("");
   };
 
+  const handleAutoSuggest = async () => {
+    const name = productName;
+    if (!name?.trim() || !currentTenant?.id) return;
+    setIsAutoSuggesting(true);
+    try {
+      const { data } = await supabase.functions.invoke("meli-bulk-operations", {
+        body: { tenantId: currentTenant.id, action: "auto_suggest_category", productName: name },
+      });
+      if (data?.success && data.categoryId) {
+        onChange(data.categoryId, data.categoryName);
+        setDisplayName(data.path || data.categoryName);
+      } else {
+        // fallback: open browser
+        handleOpenBrowser();
+      }
+    } catch {
+      handleOpenBrowser();
+    } finally {
+      setIsAutoSuggesting(false);
+    }
+  };
+
   const handleBack = () => {
     if (path.length > 1) {
       const parentId = path[path.length - 2].id;
@@ -126,10 +150,27 @@ export function MeliCategoryPicker({ value, onChange, selectedName }: MeliCatego
             </Button>
           </div>
         ) : (
-          <Button variant="outline" className="w-full justify-start text-muted-foreground" onClick={handleOpenBrowser}>
-            <Search className="h-4 w-4 mr-2" />
-            Buscar categoria do Mercado Livre...
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1 justify-start text-muted-foreground" onClick={handleOpenBrowser}>
+              <Search className="h-4 w-4 mr-2" />
+              Buscar categoria do Mercado Livre...
+            </Button>
+            {productName && (
+              <Button
+                variant="secondary"
+                onClick={handleAutoSuggest}
+                disabled={isAutoSuggesting}
+                className="gap-1.5 shrink-0"
+              >
+                {isAutoSuggesting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Wand2 className="h-4 w-4" />
+                )}
+                Auto
+              </Button>
+            )}
+          </div>
         )}
       </div>
     );

@@ -56,7 +56,8 @@ function formatCurrency(value: number) {
 }
 
 export function MeliListingsTab() {
-  const { listings, isLoading, createListing, updateListing, deleteListing, approveListing, publishListing } = useMeliListings();
+  const { currentTenant } = useAuth();
+  const { listings, isLoading, createListing, updateListing, deleteListing, approveListing, publishListing, refetch } = useMeliListings();
   const { products, isLoading: productsLoading } = useProductsWithImages();
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -237,6 +238,58 @@ export function MeliListingsTab() {
 
   const isActionLoading = (id: string) => actionLoadingId === id && publishListing.isPending;
 
+  // Bulk operations state
+  const [bulkAction, setBulkAction] = useState<string | null>(null);
+  const [bulkProgress, setBulkProgress] = useState({ processed: 0, total: 0, label: "" });
+
+  const runBulkOperation = async (action: string, label: string) => {
+    if (!currentTenant?.id) return;
+    if (!confirm(`Executar "${label}" em massa? Isso pode levar alguns minutos.`)) return;
+
+    setBulkAction(action);
+    setBulkProgress({ processed: 0, total: 0, label });
+    let offset = 0;
+    const limit = 5;
+    let totalProcessed = 0;
+    let totalUpdated = 0;
+    let allErrors: string[] = [];
+
+    try {
+      let hasMore = true;
+      while (hasMore) {
+        const { data, error } = await supabase.functions.invoke("meli-bulk-operations", {
+          body: { tenantId: currentTenant.id, action, offset, limit },
+        });
+
+        if (error || !data?.success) {
+          toast.error(data?.error || "Erro na operação em massa");
+          break;
+        }
+
+        totalProcessed += data.processed || 0;
+        totalUpdated += (data.updated || data.created || 0);
+        allErrors = [...allErrors, ...(data.errors || [])];
+        hasMore = data.hasMore;
+        offset += limit;
+
+        setBulkProgress({ processed: totalProcessed, total: data.totalProducts || totalProcessed, label });
+      }
+
+      if (allErrors.length > 0) {
+        toast.warning(`${label}: ${totalUpdated} processados, ${allErrors.length} erros`);
+      } else {
+        toast.success(`${label}: ${totalUpdated} processados com sucesso!`);
+      }
+
+      refetch();
+    } catch (err) {
+      toast.error("Erro ao executar operação em massa");
+    } finally {
+      setBulkAction(null);
+      setBulkProgress({ processed: 0, total: 0, label: "" });
+    }
+  };
+
   return (
     <>
       <Card>
@@ -251,11 +304,51 @@ export function MeliListingsTab() {
                 Prepare, revise e publique seus produtos como anúncios no Mercado Livre
               </CardDescription>
             </div>
-            <Button onClick={() => { resetForm(); setShowCreateDialog(true); }}>
-              <Plus className="h-4 w-4 mr-2" />
-              Novo Anúncio
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* Bulk operations dropdown */}
+              <Select value="" onValueChange={(v) => {
+                if (v === "bulk_create") runBulkOperation("bulk_create", "Enviar todos os produtos");
+                if (v === "bulk_generate_titles") runBulkOperation("bulk_generate_titles", "Gerar títulos ML");
+                if (v === "bulk_generate_descriptions") runBulkOperation("bulk_generate_descriptions", "Gerar descrições ML");
+                if (v === "bulk_auto_categories") runBulkOperation("bulk_auto_categories", "Auto-categorizar");
+              }}>
+                <SelectTrigger className="w-[180px]" disabled={!!bulkAction}>
+                  {bulkAction ? (
+                    <span className="flex items-center gap-2 text-sm">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      {bulkProgress.label}...
+                    </span>
+                  ) : (
+                    <SelectValue placeholder="Ações em massa" />
+                  )}
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bulk_create">📦 Enviar todos os produtos</SelectItem>
+                  <SelectItem value="bulk_generate_titles">✨ Gerar títulos (IA)</SelectItem>
+                  <SelectItem value="bulk_generate_descriptions">📝 Gerar descrições (IA)</SelectItem>
+                  <SelectItem value="bulk_auto_categories">🏷️ Auto-categorizar</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button onClick={() => { resetForm(); setShowCreateDialog(true); }}>
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Anúncio
+              </Button>
+            </div>
           </div>
+          {bulkAction && (
+            <div className="mt-3">
+              <div className="flex items-center justify-between text-sm text-muted-foreground mb-1">
+                <span>{bulkProgress.label}</span>
+                <span>{bulkProgress.processed} processados</span>
+              </div>
+              <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all rounded-full"
+                  style={{ width: bulkProgress.total > 0 ? `${Math.min(100, (bulkProgress.processed / bulkProgress.total) * 100)}%` : '30%' }}
+                />
+              </div>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -812,10 +905,11 @@ function ListingForm(props: ListingFormProps) {
         <MeliCategoryPicker
           value={formCategoryId}
           onChange={(id, name) => setFormCategoryId(id, name)}
+          productName={selectedProduct?.name || formTitle}
         />
         {!formCategoryId && (
           <p className="text-xs text-destructive">
-            Obrigatório. Selecione a categoria do produto no Mercado Livre.
+            Obrigatório. Selecione a categoria ou clique "Auto" para sugerir automaticamente.
           </p>
         )}
       </div>
