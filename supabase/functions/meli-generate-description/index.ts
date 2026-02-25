@@ -56,7 +56,7 @@ serve(async (req) => {
     if (productId && !htmlDescription) {
       const { data: product } = await supabase
         .from("products")
-        .select("name, description, short_description, brand, sku, weight, gtin, barcode")
+        .select("name, description, short_description, brand, sku, weight, width, height, depth, gtin, barcode")
         .eq("id", productId)
         .single();
 
@@ -70,9 +70,12 @@ serve(async (req) => {
           if (product.brand) parts.push(`Marca: ${product.brand}`);
           if (product.sku) parts.push(`SKU: ${product.sku}`);
           if (product.weight) parts.push(`Peso: ${product.weight}g`);
+          if (product.width && product.height && product.depth) {
+            parts.push(`Dimensões: ${product.width}x${product.height}x${product.depth}cm`);
+          }
           if (product.gtin || product.barcode) parts.push(`EAN/GTIN: ${product.gtin || product.barcode}`);
-          const cleanDesc = rawDesc.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 500);
-          if (cleanDesc) parts.push(`Descrição: ${cleanDesc}`);
+          const cleanDesc = rawDesc.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 800);
+          if (cleanDesc) parts.push(`Descrição completa: ${cleanDesc}`);
           htmlDescription = parts.join("\n");
         }
         console.log(`[meli-generate-description] Fetched product data for ${productId}: ${productName}`);
@@ -189,7 +192,7 @@ Gere APENAS o texto plano da descrição, sem explicações adicionais.`;
           { role: "system", content: systemPromptFinal },
           { role: "user", content: userPromptFinal },
         ],
-        max_tokens: generateTitle ? 128 : 4096,
+        max_tokens: generateTitle ? 256 : 4096,
         temperature: generateTitle ? 0.5 : 0.3,
       },
       {

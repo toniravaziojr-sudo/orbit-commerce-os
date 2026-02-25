@@ -111,11 +111,7 @@ export function useMeliListings() {
       toast.success('Anúncio preparado com sucesso!');
     },
     onError: (error: Error) => {
-      if (error.message.includes('idx_meli_listings_tenant_product')) {
-        toast.error('Este produto já possui um anúncio.');
-      } else {
-        toast.error('Erro ao criar anúncio');
-      }
+      toast.error('Erro ao criar anúncio');
     },
   });
 
@@ -198,11 +194,7 @@ export function useMeliListings() {
       toast.success(`${data.length} rascunho${data.length > 1 ? 's' : ''} criado${data.length > 1 ? 's' : ''} com sucesso!`);
     },
     onError: (error: Error) => {
-      if (error.message.includes('idx_meli_listings_tenant_product')) {
-        toast.error('Um ou mais produtos já possuem anúncio.');
-      } else {
-        toast.error('Erro ao criar anúncios em massa');
-      }
+      toast.error('Erro ao criar anúncios em massa');
     },
   });
 
