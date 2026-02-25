@@ -3,10 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ExternalLink, ShoppingBag, Info, CheckCircle2 } from "lucide-react";
+import { ExternalLink, ShoppingBag, Info, CheckCircle2, Unplug, RefreshCw } from "lucide-react";
 import { useMeliConnection } from "@/hooks/useMeliConnection";
 import { useShopeeConnection } from "@/hooks/useShopeeConnection";
 import { useOlistConnection } from "@/hooks/useOlistConnection";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 // Mercado Livre Logo Component
 function MercadoLivreLogo({ className }: { className?: string }) {
@@ -50,7 +51,7 @@ const UPCOMING_MARKETPLACES = [
 ];
 
 export function MarketplacesIntegrationTab() {
-  const { isConnected: meliConnected, isLoading: meliLoading, platformConfigured: meliConfigured } = useMeliConnection();
+  const { isConnected: meliConnected, isLoading: meliLoading, platformConfigured: meliConfigured, connect: meliConnect, disconnect: meliDisconnect, isConnecting: meliConnecting, isDisconnecting: meliDisconnecting, isExpired: meliExpired } = useMeliConnection();
   const { isConnected: shopeeConnected, isLoading: shopeeLoading, platformConfigured: shopeeConfigured } = useShopeeConnection();
   const { isConnected: olistConnected, isLoading: olistLoading, platformConfigured: olistConfigured } = useOlistConnection();
 
@@ -101,18 +102,66 @@ export function MarketplacesIntegrationTab() {
               </AlertDescription>
             </Alert>
           ) : (
-            <div className="flex items-center justify-between">
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="outline">Pedidos</Badge>
-                <Badge variant="outline">Mensagens</Badge>
-                <Badge variant="outline">Anúncios</Badge>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline">Pedidos</Badge>
+                  <Badge variant="outline">Mensagens</Badge>
+                  <Badge variant="outline">Anúncios</Badge>
+                </div>
+                <Button asChild>
+                  <Link to="/marketplaces/mercadolivre">
+                    <ShoppingBag className="h-4 w-4 mr-2" />
+                    {meliConnected ? "Gerenciar" : "Conectar"}
+                  </Link>
+                </Button>
               </div>
-              <Button asChild>
-                <Link to="/marketplaces/mercadolivre">
-                  <ShoppingBag className="h-4 w-4 mr-2" />
-                  {meliConnected ? "Gerenciar" : "Conectar"}
-                </Link>
-              </Button>
+              {meliConnected && (
+                <div className="flex items-center gap-2 pt-2 border-t">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => meliConnect()}
+                    disabled={meliConnecting}
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${meliConnecting ? 'animate-spin' : ''}`} />
+                    Reconectar
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
+                        <Unplug className="h-3.5 w-3.5 mr-1.5" />
+                        Desconectar
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Desconectar Mercado Livre?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Isso irá remover a conexão com sua conta do Mercado Livre. Pedidos e anúncios não serão mais sincronizados. Você pode reconectar a qualquer momento.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => meliDisconnect()}
+                          disabled={meliDisconnecting}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          {meliDisconnecting ? "Desconectando..." : "Desconectar"}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              )}
+              {meliExpired && !meliConnected && (
+                <Alert className="border-yellow-500/30 bg-yellow-500/5">
+                  <AlertDescription className="text-sm">
+                    Token expirado. Clique em <strong>Reconectar</strong> para renovar o acesso.
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
           )}
         </CardContent>
