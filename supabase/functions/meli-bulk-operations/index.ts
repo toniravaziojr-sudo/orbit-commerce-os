@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
-const VERSION = "v1.3.0"; // remove bloqueio rígido de tamanho e evita truncamento real
+const VERSION = "v1.4.0"; // Never persist invalid title on last attempt; robust fallback
 
 const MAX_TITLE_LENGTH = 120;
 
@@ -40,6 +40,29 @@ function isValidGeneratedTitle(title: string): boolean {
   const lastWord = title.split(/\s+/).pop()?.toLowerCase() || "";
   const danglingWords = new Set(["de", "da", "do", "das", "dos", "e", "com", "para", "por", "a", "o", "em"]);
   return !danglingWords.has(lastWord);
+}
+
+function extractBenefitKeyword(context: string): string {
+  const lower = context.toLowerCase();
+  if (lower.includes("anti-queda") || lower.includes("antiqueda")) return "Anti-queda";
+  if (lower.includes("hidrat")) return "Hidratante";
+  if (lower.includes("fortalec")) return "Fortalecedor";
+  if (lower.includes("cresciment")) return "Crescimento Capilar";
+  if (lower.includes("limpeza")) return "Limpeza Profunda";
+  if (lower.includes("vitamina c")) return "Vitamina C";
+  return "Uso Diário";
+}
+
+function buildFallbackTitle(productName: string, context: string): string {
+  const base = sanitizeGeneratedTitle(productName || "Produto");
+  if (isValidGeneratedTitle(base)) return base;
+
+  const benefit = extractBenefitKeyword(context);
+  const withBenefit = sanitizeGeneratedTitle(`${base} ${benefit}`);
+  if (isValidGeneratedTitle(withBenefit)) return withBenefit;
+
+  const finalFallback = sanitizeGeneratedTitle(`${base} Produto Original`);
+  return finalFallback || "Produto Original";
 }
 
 serve(async (req) => {
@@ -384,14 +407,16 @@ Retorne APENAS o título completo, sem aspas, sem explicações.`,
             }
 
             if (attempt === MAX_TITLE_ATTEMPTS) {
-              finalTitle = title;
+              // Do NOT persist invalid title — use robust fallback instead
+              console.log(`[meli-bulk-titles] All ${MAX_TITLE_ATTEMPTS} attempts failed validation for "${productName}", using fallback`);
             }
           }
 
-          // Final fallback: use product name if all attempts failed
-          if (!finalTitle || finalTitle.length < 10) {
-            finalTitle = sanitizeGeneratedTitle(productName || listing.title || "Produto Original");
-            console.log(`[meli-bulk-titles] All ${MAX_TITLE_ATTEMPTS} attempts failed for "${productName}", falling back to product name: "${finalTitle}" (last raw: "${lastRawTitle}")`);
+          // Final fallback: use buildFallbackTitle if all attempts failed
+          if (!finalTitle || !isValidGeneratedTitle(finalTitle)) {
+            const context = contextParts.join("\n");
+            finalTitle = buildFallbackTitle(productName || listing.title || "Produto Original", context);
+            console.log(`[meli-bulk-titles] Fallback title for "${productName}": "${finalTitle}" (last raw: "${lastRawTitle}")`);
           }
           
           await supabase

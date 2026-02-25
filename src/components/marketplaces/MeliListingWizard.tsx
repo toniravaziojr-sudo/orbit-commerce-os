@@ -143,7 +143,7 @@ export function MeliListingWizard({
   const handleSelectProduct = useCallback((product: ProductWithImage) => {
     setSelectedProduct(product);
     // Pre-fill basic data immediately
-    setTitle(product.name.slice(0, 60));
+    setTitle(product.name);
     setPrice(String(product.price));
     setQuantity(String(product.stock_quantity || 1));
     setBrand((product as any).brand || "");
@@ -173,12 +173,12 @@ export function MeliListingWizard({
           tenantId: currentTenant.id,
           htmlDescription: product.name + (product.description ? "\n" + product.description : ""),
           productName: product.name,
-          productTitle: product.name.slice(0, 60),
+        productTitle: product.name,
           generateTitle: true,
         },
       });
       if (data?.success && (data.title || data.description)) {
-        setTitle((data.title || data.description || "").slice(0, 60));
+        setTitle(data.title || data.description || "");
         steps[0].done = true;
       } else {
         steps[0].error = true;
@@ -199,7 +199,7 @@ export function MeliListingWizard({
             tenantId: currentTenant.id,
             htmlDescription: htmlSource,
             productName: product.name,
-            productTitle: product.name.slice(0, 60),
+            productTitle: product.name,
           },
         });
         if (data?.success && data.description) {
@@ -474,7 +474,7 @@ export function MeliListingWizard({
                         },
                       });
                       if (data?.success && (data.title || data.description)) {
-                        setTitle((data.title || data.description || "").slice(0, 60));
+                        setTitle(data.title || data.description || "");
                         toast.success("Título regenerado!");
                       }
                     } catch {
@@ -486,12 +486,11 @@ export function MeliListingWizard({
               <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                maxLength={60}
                 placeholder="Título que aparecerá no Mercado Livre"
               />
               <div className="flex items-center justify-between">
-                <p className={`text-xs ${title.length > 55 ? "text-amber-500" : "text-muted-foreground"}`}>
-                  {title.length}/60 caracteres
+                <p className={`text-xs ${title.length > 100 ? "text-amber-500" : "text-muted-foreground"}`}>
+                  {title.length} caracteres
                 </p>
                 {!title && <p className="text-xs text-destructive">Obrigatório</p>}
               </div>

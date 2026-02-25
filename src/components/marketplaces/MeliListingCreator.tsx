@@ -537,7 +537,7 @@ export function MeliListingCreator({
   const handleSaveTitles = async () => {
     for (const item of generatedItems) {
       if (item.title) {
-        await supabase.from("meli_listings").update({ title: item.title.slice(0, 60) }).eq("id", item.listingId);
+        await supabase.from("meli_listings").update({ title: item.title }).eq("id", item.listingId);
       }
     }
   };
@@ -695,7 +695,7 @@ export function MeliListingCreator({
                 </p>
               </div>
             ) : (
-              <ScrollArea className="flex-1 max-h-[400px]">
+              <div className="flex-1 min-h-0 overflow-y-auto">
                 <div className="space-y-1 pr-3">
                   {filteredProducts.map(product => (
                     <label
@@ -720,7 +720,7 @@ export function MeliListingCreator({
                     </label>
                   ))}
                 </div>
-              </ScrollArea>
+              </div>
             )}
           </div>
         )}
@@ -741,7 +741,7 @@ export function MeliListingCreator({
                 />
               </div>
             ) : (
-              <ScrollArea className="flex-1 max-h-[400px]">
+              <div className="flex-1 min-h-0 overflow-y-auto">
                 <div className="space-y-3 pr-3">
                   {invalidTitleCount > 0 && (
                      <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
@@ -797,7 +797,7 @@ export function MeliListingCreator({
                     );
                   })}
                 </div>
-              </ScrollArea>
+              </div>
             )}
           </div>
         )}
@@ -818,7 +818,7 @@ export function MeliListingCreator({
                 />
               </div>
             ) : (
-              <ScrollArea className="flex-1 max-h-[400px]">
+              <div className="flex-1 min-h-0 overflow-y-auto">
                 <div className="space-y-3 pr-3">
                   {generatedItems.map(item => {
                     const isExpanded = expandedDescs.has(item.listingId);
@@ -886,7 +886,7 @@ export function MeliListingCreator({
                     );
                   })}
                 </div>
-              </ScrollArea>
+              </div>
             )}
           </div>
         )}
@@ -907,7 +907,7 @@ export function MeliListingCreator({
                 />
               </div>
             ) : (
-              <ScrollArea className="flex-1 max-h-[400px]">
+              <div className="flex-1 min-h-0 overflow-y-auto">
                 <div className="space-y-3 pr-3">
                   {generatedItems.map(item => (
                     <div key={item.listingId} className="rounded-lg border p-3 space-y-2">
@@ -932,7 +932,7 @@ export function MeliListingCreator({
                     </div>
                   ))}
                 </div>
-              </ScrollArea>
+              </div>
             )}
           </div>
         )}
