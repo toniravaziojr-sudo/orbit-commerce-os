@@ -59,22 +59,61 @@ serve(async (req) => {
       } catch { /* ignore parse errors */ }
     }
 
-    // Try to get ML access token for authenticated API calls
+    // Get ML access token (with auto-refresh if expired)
     let mlHeaders: Record<string, string> = { "Content-Type": "application/json" };
     if (tenantId) {
       const { data: connection } = await supabase
         .from("marketplace_connections")
-        .select("access_token")
+        .select("id, access_token, refresh_token, expires_at")
         .eq("tenant_id", tenantId)
         .eq("marketplace", "mercadolivre")
         .eq("is_active", true)
         .maybeSingle();
       
       if (connection?.access_token) {
-        mlHeaders["Authorization"] = `Bearer ${connection.access_token}`;
+        let accessToken = connection.access_token;
+        
+        // Auto-refresh if token is expired
+        if (connection.expires_at && new Date(connection.expires_at) < new Date()) {
+          console.log(`[meli-search-categories] Token expired, attempting auto-refresh...`);
+          try {
+            const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+            const refreshRes = await fetch(`${supabaseUrl}/functions/v1/meli-token-refresh`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${supabaseServiceKey}`,
+              },
+              body: JSON.stringify({ connectionId: connection.id }),
+            });
+            
+            if (refreshRes.ok) {
+              // Re-fetch the connection to get the new token
+              const { data: refreshedConn } = await supabase
+                .from("marketplace_connections")
+                .select("access_token")
+                .eq("id", connection.id)
+                .single();
+              
+              if (refreshedConn?.access_token) {
+                accessToken = refreshedConn.access_token;
+                console.log(`[meli-search-categories] Token refreshed successfully`);
+              }
+            } else {
+              console.log(`[meli-search-categories] Token refresh failed: ${refreshRes.status}`);
+            }
+          } catch (refreshErr) {
+            console.error(`[meli-search-categories] Token refresh error:`, refreshErr);
+          }
+        }
+        
+        mlHeaders["Authorization"] = `Bearer ${accessToken}`;
         console.log(`[meli-search-categories] Using authenticated ML API`);
+      } else {
+        console.log(`[meli-search-categories] No ML connection found, using public API`);
       }
     }
+
 
     let categories: any[] = [];
     let path: any[] = [];
