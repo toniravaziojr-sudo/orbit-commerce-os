@@ -3,13 +3,72 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.2.0"; // Auto-fetch product data when productId provided
+const VERSION = "v1.3.0"; // Retry + validação robusta para evitar títulos truncados
 // ===================
+
+const MAX_TITLE_LENGTH = 60;
+const MIN_TITLE_LENGTH = 30;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function truncateAtWordBoundary(value: string, maxLength: number): string {
+  if (value.length <= maxLength) return value;
+
+  const sliced = value.slice(0, maxLength);
+  const lastSpace = sliced.lastIndexOf(" ");
+  const bounded = lastSpace > 15 ? sliced.slice(0, lastSpace) : sliced;
+  return bounded.replace(/[\s\-_,;:.]+$/g, "").trim();
+}
+
+function sanitizeGeneratedTitle(rawTitle: string): string {
+  const firstLine = rawTitle.split("\n")[0] || "";
+  const noDecorators = firstLine.replace(/^['"*`\-\s]+|['"*`\-\s]+$/g, "");
+  const normalized = normalizeWhitespace(noDecorators);
+  return truncateAtWordBoundary(normalized, MAX_TITLE_LENGTH);
+}
+
+function isValidGeneratedTitle(title: string): boolean {
+  if (!title) return false;
+  if (title.length < MIN_TITLE_LENGTH || title.length > MAX_TITLE_LENGTH) return false;
+  if (/[-,/:;]$/.test(title)) return false;
+  if (title.split(/\s+/).length < 3) return false;
+
+  const lastWord = title.split(/\s+/).pop()?.toLowerCase() || "";
+  const danglingWords = new Set(["de", "da", "do", "das", "dos", "e", "com", "para", "por", "a", "o", "em"]);
+  if (danglingWords.has(lastWord)) return false;
+
+  return true;
+}
+
+function extractBenefitKeyword(context: string): string {
+  const lower = context.toLowerCase();
+  if (lower.includes("anti-queda") || lower.includes("antiqueda")) return "Anti-queda";
+  if (lower.includes("hidrat")) return "Hidratante";
+  if (lower.includes("fortalec")) return "Fortalecedor";
+  if (lower.includes("cresciment")) return "Crescimento Capilar";
+  if (lower.includes("limpeza")) return "Limpeza Profunda";
+  if (lower.includes("vitamina c")) return "Vitamina C";
+  return "Uso Diário";
+}
+
+function buildFallbackTitle(productName: string, context: string): string {
+  const base = sanitizeGeneratedTitle(productName || "Produto");
+  if (isValidGeneratedTitle(base)) return base;
+
+  const benefit = extractBenefitKeyword(context);
+  const withBenefit = sanitizeGeneratedTitle(`${base} ${benefit}`);
+  if (isValidGeneratedTitle(withBenefit)) return withBenefit;
+
+  const finalFallback = sanitizeGeneratedTitle(`${base} Produto Original`);
+  return finalFallback || "Produto Original";
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -188,6 +247,64 @@ ${htmlDescription}
 Gere APENAS o texto plano da descrição, sem explicações adicionais.`;
     }
 
+    if (generateTitle) {
+      const MAX_ATTEMPTS = 3;
+      let finalTitle = "";
+      let lastCandidate = "";
+
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        const attemptFeedback = attempt > 1
+          ? `\n\nA tentativa anterior foi rejeitada por qualidade: "${lastCandidate || "(vazio)"}". Gere uma nova versão COMPLETA, sem truncamento e entre 30-60 caracteres.`
+          : "";
+
+        const aiResponse = await aiChatCompletion(
+          "google/gemini-2.5-flash",
+          {
+            messages: [
+              { role: "system", content: systemPromptFinal },
+              { role: "user", content: `${userPromptFinal}${attemptFeedback}` },
+            ],
+            max_tokens: 256,
+            temperature: attempt === 1 ? 0.35 : attempt === 2 ? 0.5 : 0.65,
+          },
+          {
+            supabaseUrl,
+            supabaseServiceKey,
+            logPrefix: "[meli-generate-description]",
+          }
+        );
+
+        if (!aiResponse.ok) {
+          const errText = await aiResponse.text();
+          console.error(`[meli-generate-description][${VERSION}] AI error on attempt ${attempt}:`, errText);
+          continue;
+        }
+
+        const aiData = await aiResponse.json();
+        const rawTitle = aiData.choices?.[0]?.message?.content?.trim() || "";
+        const candidate = sanitizeGeneratedTitle(rawTitle);
+        lastCandidate = candidate;
+
+        const isValid = isValidGeneratedTitle(candidate);
+        console.log(`[meli-generate-description][${VERSION}] attempt ${attempt}/${MAX_ATTEMPTS} title="${candidate}" (${candidate.length} chars, valid=${isValid})`);
+
+        if (isValid) {
+          finalTitle = candidate;
+          break;
+        }
+      }
+
+      if (!finalTitle) {
+        finalTitle = buildFallbackTitle(productName || productTitle || "Produto", htmlDescription || "");
+        console.log(`[meli-generate-description][${VERSION}] fallback title used: "${finalTitle}"`);
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, title: finalTitle }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const aiResponse = await aiChatCompletion(
       "google/gemini-2.5-flash",
       {
@@ -195,8 +312,8 @@ Gere APENAS o texto plano da descrição, sem explicações adicionais.`;
           { role: "system", content: systemPromptFinal },
           { role: "user", content: userPromptFinal },
         ],
-        max_tokens: generateTitle ? 256 : 4096,
-        temperature: generateTitle ? 0.5 : 0.3,
+        max_tokens: 4096,
+        temperature: 0.3,
       },
       {
         supabaseUrl,
@@ -224,14 +341,10 @@ Gere APENAS o texto plano da descrição, sem explicações adicionais.`;
       );
     }
 
-    console.log(`[meli-generate-description][${VERSION}] Generated ${generatedText.length} chars, mode=${generateTitle ? 'title' : 'description'}`);
-
-    const responseBody = generateTitle
-      ? { success: true, title: generatedText.slice(0, 60) }
-      : { success: true, description: generatedText };
+    console.log(`[meli-generate-description][${VERSION}] Generated ${generatedText.length} chars, mode=description`);
 
     return new Response(
-      JSON.stringify(responseBody),
+      JSON.stringify({ success: true, description: generatedText }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
