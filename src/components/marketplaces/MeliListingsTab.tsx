@@ -99,15 +99,33 @@ export function MeliListingsTab() {
     });
   };
 
-  const handleEditListing = (listing: MeliListing) => {
+  const handleEditListing = async (listing: MeliListing) => {
     const attrs = listing.attributes || [];
+    let categoryName = listing.category_id || "";
+    
+    // Resolve category name from ML API
+    if (listing.category_id && currentTenant?.id) {
+      try {
+        const { data } = await supabase.functions.invoke("meli-search-categories", {
+          body: { tenantId: currentTenant.id, categoryId: listing.category_id },
+        });
+        if (data?.success && data.path?.length) {
+          categoryName = data.path.map((p: any) => p.name).join(" > ");
+        } else if (data?.success && data.categories?.[0]?.name) {
+          categoryName = data.categories[0].name;
+        }
+      } catch {
+        categoryName = listing.category_id;
+      }
+    }
+
     setEditingListing({
       ...listing,
-      // Flatten for wizard
       ...(({
         brand: attrs.find((a: any) => a.id === "BRAND")?.value_name || "",
         gtin: attrs.find((a: any) => a.id === "GTIN")?.value_name || "",
         warranty: attrs.find((a: any) => a.id === "WARRANTY_TYPE")?.value_name || "",
+        categoryName,
       }) as any),
     });
   };

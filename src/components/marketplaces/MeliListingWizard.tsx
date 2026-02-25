@@ -460,12 +460,13 @@ export function MeliListingWizard({
                   loading={false}
                   onClick={async () => {
                     if (!currentTenant?.id) return;
-                    const productName = selectedProduct?.name || title;
+                    const productName = selectedProduct?.name || initialData?.product?.name || title;
+                    const productDesc = selectedProduct?.description || initialData?.product?.description || description;
                     try {
                       const { data } = await supabase.functions.invoke("meli-generate-description", {
                         body: {
                           tenantId: currentTenant.id,
-                          htmlDescription: productName + (description ? "\n" + description : ""),
+                          htmlDescription: productName + (productDesc ? "\n" + productDesc : ""),
                           productName,
                           productTitle: title,
                           generateTitle: true,
@@ -504,7 +505,8 @@ export function MeliListingWizard({
                   loading={false}
                   onClick={async () => {
                     if (!currentTenant?.id) return;
-                    const htmlSource = selectedProduct?.description || description;
+                    const htmlSource = selectedProduct?.description || initialData?.product?.description || description;
+                    const prodName = selectedProduct?.name || initialData?.product?.name || title;
                     if (!htmlSource?.trim()) {
                       toast.error("Nenhuma descrição disponível para converter");
                       return;
@@ -514,7 +516,7 @@ export function MeliListingWizard({
                         body: {
                           tenantId: currentTenant.id,
                           htmlDescription: htmlSource,
-                          productName: selectedProduct?.name || "",
+                          productName: prodName,
                           productTitle: title,
                         },
                       });
