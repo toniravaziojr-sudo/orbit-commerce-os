@@ -119,8 +119,8 @@ export function MeliListingCreator({
   const [expandedDescs, setExpandedDescs] = useState<Set<string>>(new Set());
 
   const availableProducts = useMemo(
-    () => products.filter(p => !listedProductIds.has(p.id) && p.status === "active"),
-    [products, listedProductIds]
+    () => products.filter(p => p.status === "active"),
+    [products]
   );
 
   const filteredProducts = useMemo(() => {
@@ -407,8 +407,10 @@ export function MeliListingCreator({
   }, [currentTenant?.id, listingIds, generatedItems]);
 
   // ====== Regenerate single title ======
+  const [regeneratingTitleId, setRegeneratingTitleId] = useState<string | null>(null);
   const handleRegenerateTitle = useCallback(async (item: GeneratedItem) => {
     if (!currentTenant?.id) return;
+    setRegeneratingTitleId(item.listingId);
     try {
       const { data, error } = await supabase.functions.invoke("meli-generate-description", {
         body: {
@@ -432,12 +434,16 @@ export function MeliListingCreator({
       }
     } catch {
       toast.error("Erro ao regenerar título");
+    } finally {
+      setRegeneratingTitleId(null);
     }
   }, [currentTenant?.id]);
 
   // ====== Regenerate single description ======
+  const [regeneratingDescId, setRegeneratingDescId] = useState<string | null>(null);
   const handleRegenerateDescription = useCallback(async (item: GeneratedItem) => {
     if (!currentTenant?.id) return;
+    setRegeneratingDescId(item.listingId);
     try {
       const { data, error } = await supabase.functions.invoke("meli-generate-description", {
         body: {
@@ -459,6 +465,8 @@ export function MeliListingCreator({
       }
     } catch {
       toast.error("Erro ao regenerar descrição");
+    } finally {
+      setRegeneratingDescId(null);
     }
   }, [currentTenant?.id]);
 
@@ -724,10 +732,15 @@ export function MeliListingCreator({
                           variant="ghost"
                           size="sm"
                           onClick={() => handleRegenerateTitle(item)}
+                          disabled={regeneratingTitleId === item.listingId}
                           className="h-7 text-xs gap-1"
                         >
-                          <RefreshCw className="h-3 w-3" />
-                          Regenerar
+                          {regeneratingTitleId === item.listingId ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-3 w-3" />
+                          )}
+                          {regeneratingTitleId === item.listingId ? "Gerando..." : "Regenerar"}
                         </Button>
                       </div>
                       <div className="relative">
@@ -786,10 +799,15 @@ export function MeliListingCreator({
                             variant="ghost"
                             size="sm"
                             onClick={() => handleRegenerateDescription(item)}
+                            disabled={regeneratingDescId === item.listingId}
                             className="h-7 text-xs gap-1"
                           >
-                            <RefreshCw className="h-3 w-3" />
-                            Regenerar
+                            {regeneratingDescId === item.listingId ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-3 w-3" />
+                            )}
+                            {regeneratingDescId === item.listingId ? "Gerando..." : "Regenerar"}
                           </Button>
                         </div>
 
