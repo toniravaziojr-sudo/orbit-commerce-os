@@ -278,33 +278,39 @@ serve(async (req) => {
               messages: [
                 {
                   role: "system",
-                  content: `Você é um especialista em títulos de anúncios para o Mercado Livre Brasil.
+                  content: `Você é um especialista em SEO de títulos para o Mercado Livre Brasil.
 
-TAREFA: Gere exatamente UM título de anúncio com no máximo 60 caracteres.
+TAREFA: Gere exatamente UM título otimizado para buscas, com no máximo 60 caracteres.
 
 REGRAS OBRIGATÓRIAS:
-1. O título DEVE começar pelo TIPO DE PRODUTO (ex: Balm, Sérum, Kit, Camiseta), NUNCA pela marca sozinha
-2. A marca deve aparecer DEPOIS do tipo de produto (ex: "Balm Pós-Banho Respeite o Homem Calvície")
-3. Sem emojis, sem CAPS LOCK (exceto siglas como UV, LED), sem preço/promoção
-4. Sem repetir palavras
-5. Incluir: tipo de produto + marca + característica/diferencial principal
-6. Se o nome do produto já é bom, use-o como base e otimize
+1. O título DEVE começar pelo TIPO DE PRODUTO (ex: Balm, Sérum, Kit, Camiseta)
+2. NUNCA comece pela marca sozinha — a marca vem DEPOIS do tipo de produto
+3. O título deve ter entre 30 e 60 caracteres — aproveite o espaço para incluir palavras-chave relevantes
+4. Sem emojis, sem CAPS LOCK (exceto siglas como UV, LED), sem preço/promoção
+5. Sem repetir palavras
+6. Incluir: tipo de produto + nome/características + marca (se couber)
+7. Se o nome original do produto já é descritivo e tem entre 30-60 chars, use-o como base e apenas otimize a ordem das palavras
+8. NUNCA truncar nomes ou marcas — se não cabe, omita a marca em vez de cortar pela metade
+9. Priorize termos de busca que compradores usariam para encontrar este produto
 
 EXEMPLOS CORRETOS:
-- "Balm Pós-Banho Calvície Zero Respeite o Homem 60g"
-- "Sérum Facial Vitamina C 30ml Anti-idade Clareador"
-- "Kit 3 Camisetas Básicas Algodão Masculina Slim Fit"
+- "Balm Pós-Banho Calvície Zero Respeite o Homem 60g" (49 chars)
+- "Sérum Facial Vitamina C 30ml Anti-idade Clareador" (50 chars)
+- "Kit 3 Camisetas Básicas Algodão Masculina Slim Fit" (51 chars)
+- "Shampoo Anticaspa Clear Men Ice Cool Menthol 400ml" (51 chars)
 
 EXEMPLOS ERRADOS (NÃO FAÇA ISSO):
-- "Respeite o Hom" (marca truncada, sem tipo de produto)
+- "Balm Respeite o" (título truncado, incompleto — PROIBIDO)
+- "Respeite o Hom" (marca truncada — PROIBIDO)
 - "Nike Tênis" (marca antes do produto)
+- "Balm" (muito curto, sem contexto)
 
-Retorne APENAS o título, sem aspas, sem explicações.`,
+Retorne APENAS o título completo, sem aspas, sem explicações.`,
                 },
                 { role: "user", content: context },
               ],
               max_tokens: 128,
-              temperature: 0.5,
+              temperature: 0.4,
             },
             {
               supabaseUrl,
@@ -325,15 +331,19 @@ Retorne APENAS o título, sem aspas, sem explicações.`,
           const title = rawTitle.replace(/^["'*]+|["'*]+$/g, "").trim().slice(0, 60);
           console.log(`[meli-bulk-titles] Product: ${productName} → Title: "${title}" (raw: "${rawTitle}")`);
 
-          if (title && title.length >= 10) {
-            await supabase
-              .from("meli_listings")
-              .update({ title })
-              .eq("id", listing.id);
-            updated++;
-          } else {
-            errors.push(`${listing.title}: Título gerado muito curto (${title.length} chars)`);
+          // Validate: title must be at least 20 chars and not truncated (no partial words at end)
+          const isGoodTitle = title && title.length >= 20;
+          const finalTitle = isGoodTitle ? title : (productName || listing.title).slice(0, 60);
+          
+          if (!isGoodTitle) {
+            console.log(`[meli-bulk-titles] Title too short (${title.length} chars), falling back to product name: "${finalTitle}"`);
           }
+          
+          await supabase
+            .from("meli_listings")
+            .update({ title: finalTitle })
+            .eq("id", listing.id);
+          updated++;
         } catch (err) {
           errors.push(`${listing.title}: ${err instanceof Error ? err.message : "Erro"}`);
         }
