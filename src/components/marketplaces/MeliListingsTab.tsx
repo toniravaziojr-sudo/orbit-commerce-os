@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -60,12 +61,33 @@ export function MeliListingsTab() {
   const [showWizard, setShowWizard] = useState(false);
   const [editingListing, setEditingListing] = useState<MeliListing | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Bulk operations state
   const [bulkAction, setBulkAction] = useState<string | null>(null);
   const [bulkProgress, setBulkProgress] = useState({ processed: 0, total: 0, label: "" });
 
   const listedProductIds = new Set(listings.map(l => l.product_id));
+
+  const allSelected = listings.length > 0 && selectedIds.size === listings.length;
+  const someSelected = selectedIds.size > 0 && selectedIds.size < listings.length;
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(listings.map(l => l.id)));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const handleCreateSubmit = (data: any) => {
     createListing.mutate(data, {
@@ -126,7 +148,13 @@ export function MeliListingsTab() {
   // Bulk operation runner
   const runBulkOperation = async (action: string, label: string) => {
     if (!currentTenant?.id) return;
-    if (!confirm(`Executar "${label}" em massa? Isso pode levar alguns minutos.`)) return;
+    const selectedCount = selectedIds.size;
+    const confirmMsg = selectedCount > 0
+      ? `Executar "${label}" nos ${selectedCount} anúncios selecionados?`
+      : `Executar "${label}" em todos os anúncios? Isso pode levar alguns minutos.`;
+    if (!confirm(confirmMsg)) return;
+
+    const listingIds = selectedCount > 0 ? Array.from(selectedIds) : undefined;
 
     setBulkAction(action);
     setBulkProgress({ processed: 0, total: 0, label });
@@ -140,7 +168,7 @@ export function MeliListingsTab() {
       let hasMore = true;
       while (hasMore) {
         const { data, error } = await supabase.functions.invoke("meli-bulk-operations", {
-          body: { tenantId: currentTenant.id, action, offset, limit },
+          body: { tenantId: currentTenant.id, action, offset, limit, listingIds },
         });
         if (error || !data?.success) {
           toast.error(data?.error || "Erro na operação em massa");
@@ -160,6 +188,7 @@ export function MeliListingsTab() {
         toast.success(`${label}: ${totalUpdated} processados com sucesso!`);
       }
       refetch();
+      setSelectedIds(new Set());
     } catch {
       toast.error("Erro ao executar operação em massa");
     } finally {
@@ -198,7 +227,14 @@ export function MeliListingsTab() {
           {/* Bulk Actions Bar */}
           {listings.length > 0 && (
             <div className="mt-4 p-3 rounded-lg bg-muted/50 border">
-              <p className="text-xs font-medium text-muted-foreground mb-2">AÇÕES EM MASSA</p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium text-muted-foreground">AÇÕES EM MASSA</p>
+                {selectedIds.size > 0 && (
+                  <Badge variant="secondary" className="text-xs">
+                    {selectedIds.size} selecionado{selectedIds.size > 1 ? "s" : ""}
+                  </Badge>
+                )}
+              </div>
               <div className="flex flex-wrap gap-2">
                 {bulkActions.map((ba) => {
                   const Icon = ba.icon;
@@ -275,6 +311,14 @@ export function MeliListingsTab() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Selecionar todos"
+                      {...(someSelected ? { "data-state": "indeterminate" } : {})}
+                    />
+                  </TableHead>
                   <TableHead>Produto</TableHead>
                   <TableHead>Título ML</TableHead>
                   <TableHead>Tipo</TableHead>
@@ -289,7 +333,14 @@ export function MeliListingsTab() {
                   const statusInfo = STATUS_MAP[listing.status] || STATUS_MAP.draft;
                   const loading = isActionLoading(listing.id);
                   return (
-                    <TableRow key={listing.id}>
+                    <TableRow key={listing.id} className={selectedIds.has(listing.id) ? "bg-muted/50" : ""}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedIds.has(listing.id)}
+                          onCheckedChange={() => toggleSelect(listing.id)}
+                          aria-label={`Selecionar ${listing.product?.name}`}
+                        />
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           {listing.primary_image_url ? (
