@@ -456,6 +456,54 @@ import { Loader2 } from 'lucide-react';
 
 ---
 
+## 🔴 Diálogos de Confirmação — useConfirmDialog (OBRIGATÓRIO)
+
+> **REGRA OBRIGATÓRIA** — Aplica-se a TODAS as ações destrutivas ou críticas no sistema.
+
+### Hook Canônico
+
+`src/hooks/useConfirmDialog.tsx` — **useConfirmDialog**
+
+### Uso Obrigatório
+
+**Toda ação que requer confirmação do usuário DEVE usar `useConfirmDialog`.** É **PROIBIDO** usar `window.confirm()` ou `window.alert()` nativos do navegador.
+
+### API
+
+```typescript
+const { confirm, ConfirmDialog } = useConfirmDialog();
+
+// No JSX: <ConfirmDialog />
+
+// Para usar:
+const confirmed = await confirm({
+  title: "Título da ação",
+  description: "Descrição do impacto",
+  variant: "destructive" | "warning" | "info" | "default",
+  confirmText: "Texto do botão", // opcional
+});
+if (!confirmed) return;
+```
+
+### Variantes
+
+| Variante | Uso | Ícone | Cor |
+|----------|-----|-------|-----|
+| `destructive` | Exclusão permanente | Trash2 | Vermelho |
+| `warning` | Ações com impacto reversível | AlertTriangle | Amarelo |
+| `info` | Confirmações informativas | Info | Azul |
+| `default` | Ações gerais (publicar, enviar) | Send | Primary |
+
+### Proibições
+
+| ❌ Proibido | ✅ Correto |
+|-------------|------------|
+| `window.confirm("Tem certeza?")` | `await confirm({ title: "...", variant: "destructive" })` |
+| `window.alert("Feito!")` | `toast.success("Feito!")` |
+| Diálogos nativos do browser | `useConfirmDialog` com variante adequada |
+
+---
+
 ## 📅 DateRangeFilter — Componente Padrão de Seleção de Datas
 
 > **REGRA OBRIGATÓRIA** — Aplica-se a TODOS os módulos que filtram dados por período.

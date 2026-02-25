@@ -277,13 +277,19 @@ serve(async (req) => {
           const context = contextParts.join("\n");
           console.log(`[meli-bulk-titles] Context for "${productName}": ${context.slice(0, 200)}...`);
 
-          const aiRes = await aiChatCompletion(
-            "google/gemini-2.5-flash",
-            {
-              messages: [
-                {
-                  role: "system",
-                  content: `Você é um especialista em SEO de títulos para o Mercado Livre Brasil.
+          // Title generation with retry logic
+          const MAX_TITLE_ATTEMPTS = 3;
+          let finalTitle = "";
+          let lastRawTitle = "";
+
+          for (let attempt = 1; attempt <= MAX_TITLE_ATTEMPTS; attempt++) {
+            const aiRes = await aiChatCompletion(
+              "google/gemini-2.5-flash",
+              {
+                messages: [
+                  {
+                    role: "system",
+                    content: `Você é um especialista em SEO de títulos para o Mercado Livre Brasil.
 
 TAREFA: Gere exatamente UM título otimizado para buscas, com no máximo 60 caracteres.
 
@@ -299,51 +305,80 @@ REGRAS OBRIGATÓRIAS:
 9. NUNCA truncar nomes ou marcas — se não cabe, omita a marca em vez de cortar pela metade
 10. Priorize termos de busca que compradores usariam para encontrar este produto
 11. NÃO inclua código de barras, EAN ou GTIN no título
+12. O título DEVE ser uma frase COMPLETA — NUNCA termine com hífen, vírgula ou palavra cortada
+13. ANALISE a descrição completa para entender a FUNÇÃO PRINCIPAL do produto antes de gerar o título
 
 EXEMPLOS CORRETOS:
-- "Balm Pós-Banho Anti-queda Calvície Zero 60g" (44 chars) — inclui benefício "Anti-queda"
+- "Balm Pós-Banho Anti-queda Crescimento Capilar 60g" (50 chars) — inclui benefício "Anti-queda" + função
 - "Sérum Facial Vitamina C 30ml Anti-idade Clareador" (50 chars) — inclui benefícios
 - "Shampoo Fortalecedor Antiqueda Clear Men 400ml" (47 chars) — inclui função
 - "Creme Hidratante Corporal Pele Seca Nivea 400ml" (48 chars) — inclui para quem é
 
 EXEMPLOS ERRADOS (NÃO FAÇA ISSO):
 - "Balm Pós-Banho Calvície Zero Dia" (sem benefício, genérico demais)
+- "Balm Cabelo Barba Anti-" (TRUNCADO — PROIBIDO, nunca termine com hífen ou palavra cortada)
 - "Balm Respeite o" (título truncado, incompleto — PROIBIDO)
 - "Nike Tênis" (marca antes do produto)
 - "Balm" (muito curto, sem contexto)
 
-Retorne APENAS o título completo, sem aspas, sem explicações.`,
-                },
-                { role: "user", content: context },
-              ],
-              max_tokens: 256,
-              temperature: 0.3,
-            },
-            {
-              supabaseUrl,
-              supabaseServiceKey,
-              logPrefix: "[meli-bulk-titles]",
-            }
-          );
+VALIDAÇÃO FINAL ANTES DE RESPONDER:
+- O título tem pelo menos 30 caracteres? Se não, adicione mais detalhes.
+- O título termina com uma palavra completa? Se não, reescreva.
+- O título inclui o benefício principal do produto? Se não, adicione.
+- O título faz sentido para alguém buscando esse produto? Se não, reformule.
 
-          if (!aiRes.ok) {
-            const errText = await aiRes.text();
-            errors.push(`${listing.title}: AI error ${aiRes.status}`);
-            continue;
+Retorne APENAS o título completo, sem aspas, sem explicações.`,
+                  },
+                  { role: "user", content: context },
+                ],
+                max_tokens: 256,
+                temperature: attempt === 1 ? 0.3 : 0.5 + (attempt * 0.1),
+              },
+              {
+                supabaseUrl,
+                supabaseServiceKey,
+                logPrefix: "[meli-bulk-titles]",
+              }
+            );
+
+            if (!aiRes.ok) {
+              const errText = await aiRes.text();
+              console.log(`[meli-bulk-titles] AI error on attempt ${attempt}: ${aiRes.status}`);
+              if (attempt === MAX_TITLE_ATTEMPTS) {
+                errors.push(`${listing.title}: AI error ${aiRes.status}`);
+              }
+              continue;
+            }
+
+            const aiData = await aiRes.json();
+            const rawTitle = aiData.choices?.[0]?.message?.content?.trim() || "";
+            lastRawTitle = rawTitle;
+            // Clean up: remove quotes, asterisks, etc.
+            const title = rawTitle.replace(/^["'*]+|["'*]+$/g, "").trim().slice(0, 60);
+
+            // Validate title quality
+            const isTruncated = /[-,\s]$/.test(title) || /\s\w{1,2}$/.test(title);
+            const isTooShort = title.length < 25;
+            const hasNoContext = title.split(/\s+/).length < 3;
+            const isGoodTitle = !isTruncated && !isTooShort && !hasNoContext && title.length > 0;
+
+            console.log(`[meli-bulk-titles] Attempt ${attempt}/${MAX_TITLE_ATTEMPTS} for "${productName}" → "${title}" (${title.length} chars, good=${isGoodTitle}, truncated=${isTruncated})`);
+
+            if (isGoodTitle) {
+              finalTitle = title;
+              break;
+            }
+
+            if (attempt === MAX_TITLE_ATTEMPTS) {
+              // Last attempt failed validation — use best effort or fallback
+              finalTitle = !isTooShort && !hasNoContext ? title.replace(/[-,\s]+$/, "") : "";
+            }
           }
 
-          const aiData = await aiRes.json();
-          const rawTitle = aiData.choices?.[0]?.message?.content?.trim() || "";
-          // Clean up: remove quotes, asterisks, etc.
-          const title = rawTitle.replace(/^["'*]+|["'*]+$/g, "").trim().slice(0, 60);
-          console.log(`[meli-bulk-titles] Product: ${productName} → Title: "${title}" (raw: "${rawTitle}")`);
-
-          // Validate: title must be at least 20 chars and not truncated (no partial words at end)
-          const isGoodTitle = title && title.length >= 20;
-          const finalTitle = isGoodTitle ? title : (productName || listing.title).slice(0, 60);
-          
-          if (!isGoodTitle) {
-            console.log(`[meli-bulk-titles] Title too short (${title.length} chars), falling back to product name: "${finalTitle}"`);
+          // Final fallback: use product name if all attempts failed
+          if (!finalTitle || finalTitle.length < 15) {
+            finalTitle = (productName || listing.title).slice(0, 60);
+            console.log(`[meli-bulk-titles] All ${MAX_TITLE_ATTEMPTS} attempts failed for "${productName}", falling back to product name: "${finalTitle}" (last raw: "${lastRawTitle}")`);
           }
           
           await supabase
