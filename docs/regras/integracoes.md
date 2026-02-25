@@ -225,18 +225,20 @@ Disponível apenas para `isPlatformOperator`:
 1. Usuário acessa Integrações → aba Marketplaces
 2. Clica "Conectar" no card do marketplace (OAuth inicia direto, sem redirecionar)
 3. Popup abre para provider
-4. Provider redireciona de volta com code
-5. Edge function troca code por tokens
-6. Tokens armazenados (criptografados)
-7. Status atualizado para "connected"
-8. Se desconectado, módulo do marketplace redireciona para /integrations?tab=marketplaces
+4. Provider redireciona de volta com code para callback page
+5. Callback page chama edge function via POST (JSON) para trocar code por tokens
+6. Edge function retorna JSON com status (não redireciona no modo popup)
+7. Callback page envia postMessage para janela principal e fecha popup
+8. Tokens armazenados no banco
+9. Status atualizado para "connected"
+10. Se desconectado, módulo do marketplace exibe botão para /integrations?tab=marketplaces (sem redirect automático)
 ```
 
 ### Regra: Local de Conexão (OBRIGATÓRIO)
 
 > A conexão/desconexão de marketplaces **DEVE acontecer em `/integrations` (aba Marketplaces)**.
 > Os módulos individuais (`/marketplaces/mercadolivre`, `/marketplaces/shopee`, etc.) são exclusivos para **gestão**.
-> Se o usuário acessar o módulo sem conexão ativa, é **redirecionado** para `/integrations?tab=marketplaces`.
+> Se o usuário acessar o módulo sem conexão ativa, exibir **botão/link para `/integrations?tab=marketplaces`** (NÃO redirecionar automaticamente).
 
 ---
 

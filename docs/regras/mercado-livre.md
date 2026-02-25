@@ -43,8 +43,8 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 3. meli-oauth-start → URL de autorização
 4. Popup abre para ML
 5. ML redireciona para /integrations/meli/callback (MeliOAuthCallback.tsx)
-6. MeliOAuthCallback captura code/state e chama edge function meli-oauth-callback via fetch
-7. meli-oauth-callback (edge function) → Troca code por tokens e salva no banco
+6. MeliOAuthCallback captura code/state e chama edge function meli-oauth-callback via POST (JSON)
+7. meli-oauth-callback (edge function) → Troca code por tokens e salva no banco → retorna JSON
 8. MeliOAuthCallback envia window.opener.postMessage({ type: 'meli_connected' }) para janela principal
 9. MeliOAuthCallback fecha o popup automaticamente (window.close())
 10. Janela principal recebe postMessage e invalida queries de status
@@ -56,15 +56,22 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 > A conexão OAuth com o Mercado Livre **DEVE acontecer em `/integrations` (aba Marketplaces)**.
 > O módulo `/marketplaces/mercadolivre` é para **gestão** (pedidos, anúncios, métricas).
 > Se o usuário acessar `/marketplaces/mercadolivre` sem conexão ativa, a aba "Conexão" é exibida com um **botão que direciona para `/integrations?tab=marketplaces`** (NÃO redirecionar automaticamente).
-> O callback OAuth (fallback sem popup) redireciona para `/integrations?tab=marketplaces`.
+> O callback OAuth (fallback GET sem popup) redireciona para `/integrations?tab=marketplaces`.
 
 ### Regra: Popup OAuth (OBRIGATÓRIO)
 
 > O `MeliOAuthCallback.tsx` **NÃO deve redirecionar** o navegador. Deve:
 > 1. Capturar `code` e `state` dos query params
-> 2. Chamar a edge function `meli-oauth-callback` via fetch
-> 3. Enviar resultado via `window.opener.postMessage()`
-> 4. Fechar o popup com `window.close()`
+> 2. Chamar a edge function `meli-oauth-callback` via **POST fetch** (JSON body com `code` e `state`)
+> 3. Usar `hasProcessedRef` para evitar processamento duplo em re-renders do React
+> 4. Enviar resultado via `window.opener.postMessage()`
+> 5. Fechar o popup com `window.close()`
+>
+> **Edge function `meli-oauth-callback` modos:**
+> - **POST (JSON):** Recebe `{ code, state }`, troca tokens, retorna `{ success, error }` — usado pelo popup
+> - **GET (fallback):** Quando popup falha, redireciona para `/integrations?tab=marketplaces` com query params `meli_connected=true` ou `meli_error=...`
+>
+> **Prevenção de `invalid_grant`:** O code do ML só pode ser trocado **uma vez**. O `hasProcessedRef` garante que a chamada POST aconteça apenas uma vez, mesmo com StrictMode/re-renders.
 
 ### Regra: Desconectar/Reconectar (OBRIGATÓRIO)
 
