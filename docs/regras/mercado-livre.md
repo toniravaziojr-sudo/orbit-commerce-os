@@ -93,28 +93,34 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 
 ## Fluxo de Anúncios (Listings)
 
-### Pipeline: Criar em Massa → Aprovar → Publicar
+### Pipeline: Criar em Massa (6 Etapas) → Aprovar → Publicar
 
 ```
-1. Lojista clica "Novo Anúncio" → abre MeliListingCreator (dialog multi-produto)
-2. Creator Etapa 1: Seleciona um ou vários produtos com checkboxes (busca, selecionar todos)
-3. Creator Etapa 2: Define configurações padrão (tipo de anúncio, condição, frete) + toggles de IA
-4. Creator Etapa 3: Cria rascunhos no banco + processa IA se ativada (progresso visual)
-5. Rascunhos aparecem na tabela → lojista edita individualmente se necessário (MeliListingWizard modo edit)
-6. Lojista revisa e clica "Aprovar" → status 'approved'
-7. Lojista clica "Publicar" → edge function meli-publish-listing → API do ML → status 'published'
-8. Após publicação: pode pausar, reativar, sincronizar preço/estoque
+1. Lojista clica "Novo Anúncio" → abre MeliListingCreator (dialog 6 etapas)
+2. Creator Etapa 1 — Selecionar Produtos: checkboxes com busca, selecionar todos
+3. Creator Etapa 2 — Gerar Títulos IA: cria drafts no banco, chama bulk_generate_titles, exibe preview editável (input + contador 60 chars + botão Regenerar)
+4. Creator Etapa 3 — Gerar Descrições IA: chama bulk_generate_descriptions, exibe preview colapsável com textarea editável + botão Regenerar
+5. Creator Etapa 4 — Categorizar via ML API: chama bulk_auto_categories, exibe categorias com path legível + MeliCategoryPicker para troca manual
+6. Creator Etapa 5 — Condição: cards visuais radio-style (Novo / Usado / Não especificado)
+7. Creator Etapa 6 — Tipo de Anúncio: cards visuais (Clássico / Premium / Grátis) + botão Salvar
+8. Rascunhos aparecem na tabela → lojista edita individualmente se necessário (MeliListingWizard modo edit)
+9. Lojista revisa e clica "Aprovar" → status 'approved'
+10. Lojista clica "Publicar" → edge function meli-publish-listing → API do ML → status 'published'
+11. Após publicação: pode pausar, reativar, sincronizar preço/estoque
 ```
 
-### Creator Multi-Produto (MeliListingCreator)
+### Creator Multi-Produto (MeliListingCreator) — 6 Etapas
 
-Dialog de 3 etapas para criação em massa de anúncios:
+Dialog de 6 etapas para criação em massa de anúncios com validação ML sincronizada:
 
 | Etapa | Nome | Descrição |
 |-------|------|-----------|
 | 1 | Selecionar Produtos | Checkboxes com busca por nome/SKU, selecionar todos, badge de contagem |
-| 2 | Configurações Padrão | Tipo de anúncio, condição, frete + toggles IA (títulos, descrições, categorias) |
-| 3 | Processamento | Cria rascunhos + executa IA (se ativada), barra de progresso com ETA |
+| 2 | Gerar Títulos IA | Cria drafts → `bulk_generate_titles` → preview editável (input, max 60 chars, botão Regenerar) |
+| 3 | Gerar Descrições IA | `bulk_generate_descriptions` → preview colapsável, textarea editável, botão Regenerar |
+| 4 | Categorizar via ML API | `bulk_auto_categories` → preview com path legível, troca manual via `MeliCategoryPicker` |
+| 5 | Condição | Cards visuais radio-style: `new` (Novo), `used` (Usado), `not_specified` |
+| 6 | Tipo de Anúncio | Cards visuais: `gold_special` (Clássico), `gold_pro` (Premium), `free` (Grátis) → Salvar |
 
 **Props:**
 
@@ -128,10 +134,18 @@ Dialog de 3 etapas para criação em massa de anúncios:
 | `onRefetch` | `() => void` | Callback para recarregar a tabela |
 
 **Fluxo de Execução:**
-1. Cria `meli_listings` com status `draft` via `createBulkListings` (insere múltiplos de uma vez)
-2. Se IA ativada, chama `meli-bulk-operations` com `listingIds` para gerar títulos, descrições e categorias
-3. Progresso visual com `ProgressWithETA`
-4. Ao finalizar, fecha dialog e tabela mostra os novos rascunhos
+1. Etapa 2 cria `meli_listings` com status `draft` via `createBulkListings`, depois chama `bulk_generate_titles` com `listingIds`
+2. Etapa 3 chama `bulk_generate_descriptions` com mesmos `listingIds`
+3. Etapa 4 chama `bulk_auto_categories` com mesmos `listingIds`. Edge function retorna `resolvedCategories` com `categoryName` e `categoryPath` legíveis
+4. Etapas 5-6 aplicam condição e listing_type em batch via update direto
+5. Ao finalizar, fecha dialog e tabela mostra os novos rascunhos
+
+**Sincronização com o Mercado Livre:**
+- **Títulos:** Prompt IA gera com tipo de produto primeiro, max 60 chars, sem emojis/CAPS. Validação visual (vermelho se > 60)
+- **Descrições:** Texto plano, sem HTML/links/contato/emojis, max 5000 chars
+- **Categorias:** IDs válidos do ML (formato `MLBxxxx`), resolvidos via `domain_discovery/search` + fallback Search API. Nomes legíveis via `GET /categories/{id}` (path_from_root)
+- **Condição:** Valores da API ML: `new`, `used`, `not_specified`
+- **Tipo de Anúncio:** Valores da API ML: `gold_special`, `gold_pro`, `free`
 
 ### Wizard de Edição (MeliListingWizard)
 

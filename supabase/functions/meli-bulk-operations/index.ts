@@ -2,7 +2,9 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
-const VERSION = "v1.1.0";
+const VERSION = "v1.2.0"; // bulk_auto_categories returns resolved category names/paths
+
+// VERSION moved to top
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -457,11 +459,29 @@ Retorne APENAS o texto da descrição.`,
       let updated = 0;
       let skipped = 0;
       const errors: string[] = [];
+      const resolvedCategories: Array<{ listingId: string; categoryId: string; categoryName: string; categoryPath: string }> = [];
 
       for (const listing of (listings || [])) {
         try {
           // Skip if already has category
           if (listing.category_id) {
+            // Still resolve name/path for frontend display
+            let catName = "";
+            let catPath = "";
+            try {
+              const catRes = await fetch(`https://api.mercadolibre.com/categories/${listing.category_id}`, { headers: mlHeaders });
+              if (catRes.ok) {
+                const catData = await catRes.json();
+                catName = catData.name || listing.category_id;
+                catPath = (catData.path_from_root || []).map((p: any) => p.name).join(" > ");
+              }
+            } catch { /* skip */ }
+            resolvedCategories.push({
+              listingId: listing.id,
+              categoryId: listing.category_id,
+              categoryName: catName || listing.category_id,
+              categoryPath: catPath,
+            });
             skipped++;
             continue;
           }
@@ -477,10 +497,26 @@ Retorne APENAS o texto da descrição.`,
           if (discoveryRes.ok) {
             const discoveryData = await discoveryRes.json();
             if (Array.isArray(discoveryData) && discoveryData[0]?.category_id) {
+              const categoryId = discoveryData[0].category_id;
+
               await supabase
                 .from("meli_listings")
-                .update({ category_id: discoveryData[0].category_id })
+                .update({ category_id: categoryId })
                 .eq("id", listing.id);
+
+              // Resolve full category name and path
+              let catName = discoveryData[0].category_name || discoveryData[0].domain_name || categoryId;
+              let catPath = "";
+              try {
+                const catRes = await fetch(`https://api.mercadolibre.com/categories/${categoryId}`, { headers: mlHeaders });
+                if (catRes.ok) {
+                  const catData = await catRes.json();
+                  catName = catData.name || catName;
+                  catPath = (catData.path_from_root || []).map((p: any) => p.name).join(" > ");
+                }
+              } catch { /* skip path resolution */ }
+
+              resolvedCategories.push({ listingId: listing.id, categoryId, categoryName: catName, categoryPath: catPath });
               updated++;
             } else {
               skipped++;
@@ -502,6 +538,7 @@ Retorne APENAS o texto da descrição.`,
           errors,
           processed: (listings || []).length,
           hasMore: (listings || []).length === limit,
+          resolvedCategories,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
