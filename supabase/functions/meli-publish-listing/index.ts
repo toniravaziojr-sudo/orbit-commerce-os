@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "2.0.0"; // Complete ML payload with all required fields + auto-refresh
+const VERSION = "2.1.0"; // Add title length guard via category max_title_length
 // ===================
 
 const corsHeaders = {
@@ -161,6 +161,24 @@ serve(async (req) => {
     if (!listing.category_id) {
       await supabase.from("meli_listings").update({ status: "error", error_message: "Categoria do ML é obrigatória. Edite o anúncio e informe o category_id." }).eq("id", listingId);
       return jsonResponse({ success: false, error: "Categoria do ML é obrigatória (category_id). Edite o anúncio." });
+    }
+
+    // Title length guard: validate against category's max_title_length
+    try {
+      const catRes = await fetch(`https://api.mercadolibre.com/categories/${listing.category_id}`, {
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      });
+      if (catRes.ok) {
+        const catData = await catRes.json();
+        const maxLen = catData.settings?.max_title_length;
+        if (maxLen && listing.title.length > maxLen) {
+          const errMsg = `Título excede o limite da categoria (${listing.title.length}/${maxLen} caracteres). Reduza o título e tente novamente.`;
+          await supabase.from("meli_listings").update({ status: "error", error_message: errMsg }).eq("id", listingId);
+          return jsonResponse({ success: false, error: errMsg, code: "title_too_long" });
+        }
+      }
+    } catch (catErr) {
+      console.log(`[meli-publish-listing] Category title length check skipped:`, catErr);
     }
 
     if (images.length === 0) {

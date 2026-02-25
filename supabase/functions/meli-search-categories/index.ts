@@ -7,17 +7,22 @@ const corsHeaders = {
 };
 
 /**
- * Mercado Livre Category Search
+ * Mercado Livre Category Search v1.1.0
  * 
  * Busca categorias do ML via API pública.
- * - GET ?q=celular → Busca por texto (category_predictor)
+ * - GET ?q=celular → Busca por texto (domain_discovery)
  * - GET ?parentId=MLB5672 → Lista subcategorias
- * - GET ?categoryId=MLB1055 → Detalhes de uma categoria
+ * - GET ?categoryId=MLB1055 → Detalhes de uma categoria (inclui max_title_length)
+ * 
+ * v1.1.0: Inclui max_title_length na resposta de categoryId
  */
+const VERSION = "v1.1.0";
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  console.log(`[meli-search-categories][${VERSION}] Request received`);
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -117,6 +122,7 @@ serve(async (req) => {
 
     let categories: any[] = [];
     let path: any[] = [];
+    let maxTitleLength: number | null = null;
 
     if (query) {
       // Strategy 1: domain_discovery/search (replaces deprecated category_predictor)
@@ -211,6 +217,10 @@ serve(async (req) => {
           total_items: data.total_items_in_this_category,
         }];
         path = (data.path_from_root || []).map((p: any) => ({ id: p.id, name: p.name }));
+        // Extract max_title_length from category settings
+        if (data.settings?.max_title_length) {
+          maxTitleLength = data.settings.max_title_length;
+        }
       }
     } else {
       // List root categories for MLB (hardcoded since /sites/MLB/categories now requires special auth)
@@ -245,8 +255,13 @@ serve(async (req) => {
       ];
     }
 
+    const responsePayload: any = { success: true, categories, path };
+    if (maxTitleLength !== null) {
+      responsePayload.max_title_length = maxTitleLength;
+    }
+
     return new Response(
-      JSON.stringify({ success: true, categories, path }),
+      JSON.stringify(responsePayload),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
