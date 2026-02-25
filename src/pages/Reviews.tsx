@@ -3,6 +3,7 @@
 // =============================================
 
 import { useState, useEffect, useCallback } from 'react';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -66,6 +67,7 @@ export default function Reviews() {
   const [productFilter, setProductFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [lightboxMedia, setLightboxMedia] = useState<string | null>(null);
+  const { confirm: confirmAction, ConfirmDialog: ReviewConfirmDialog } = useConfirmDialog();
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -440,8 +442,14 @@ export default function Reviews() {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => {
-                if (confirm(`Excluir ${selectedIds.size} avaliação(ões)?`)) {
+              onClick={async () => {
+                const ok = await confirmAction({
+                  title: "Excluir avaliações",
+                  description: `Excluir ${selectedIds.size} avaliação(ões)? Esta ação não pode ser desfeita.`,
+                  confirmLabel: "Excluir",
+                  variant: "destructive",
+                });
+                if (ok) {
                   bulkDeleteMutation.mutate(Array.from(selectedIds));
                 }
               }}
@@ -595,8 +603,14 @@ export default function Reviews() {
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuItem
-                            onClick={() => {
-                              if (confirm('Excluir esta avaliação?')) {
+                            onClick={async () => {
+                              const ok = await confirmAction({
+                                title: "Excluir avaliação",
+                                description: "Tem certeza que deseja excluir esta avaliação? Esta ação não pode ser desfeita.",
+                                confirmLabel: "Excluir",
+                                variant: "destructive",
+                              });
+                              if (ok) {
                                 deleteMutation.mutate(review.id);
                               }
                             }}
@@ -644,6 +658,7 @@ export default function Reviews() {
           )}
         </DialogContent>
       </Dialog>
+      {ReviewConfirmDialog}
     </div>
   );
 }

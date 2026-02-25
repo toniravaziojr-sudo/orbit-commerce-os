@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save, Building2, MapPin, FileText, Settings2, Zap, Loader2, CheckCircle, AlertCircle, Upload, ShieldCheck, ShieldAlert, ShieldX, Key, Package, Trash2, Truck, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -59,6 +60,7 @@ export default function FiscalSettings() {
   const navigate = useNavigate();
   const { settings, isLoading, saveSettings, uploadCertificate, removeCertificate } = useFiscalSettings();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { confirm: confirmAction, ConfirmDialog: FiscalConfirmDialog } = useConfirmDialog();
   
   const [formData, setFormData] = useState<Partial<FiscalSettings>>({
     razao_social: '',
@@ -583,8 +585,14 @@ export default function FiscalSettings() {
                     variant="ghost"
                     size="icon"
                     className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => {
-                      if (confirm('Tem certeza que deseja remover o certificado digital? Você não poderá emitir NF-e até enviar um novo certificado.')) {
+                    onClick={async () => {
+                      const ok = await confirmAction({
+                        title: "Remover certificado digital",
+                        description: "Tem certeza que deseja remover o certificado digital? Você não poderá emitir NF-e até enviar um novo certificado.",
+                        confirmLabel: "Remover",
+                        variant: "warning",
+                      });
+                      if (ok) {
                         removeCertificate.mutate();
                       }
                     }}
@@ -921,6 +929,7 @@ Obrigado pela preferência!
           </CardContent>
         </Card>
       </div>
+      {FiscalConfirmDialog}
     </div>
   );
 }

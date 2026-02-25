@@ -3,6 +3,7 @@
 // =============================================
 
 import { useState } from 'react';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -53,8 +54,16 @@ export function TestimonialsManagerCompact() {
     });
   };
 
+  const { confirm: confirmAction, ConfirmDialog } = useConfirmDialog();
+
   const handleDelete = async (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este depoimento?')) {
+    const ok = await confirmAction({
+      title: "Excluir depoimento",
+      description: "Tem certeza que deseja excluir este depoimento? Esta ação não pode ser desfeita.",
+      confirmLabel: "Excluir",
+      variant: "destructive",
+    });
+    if (ok) {
       await deleteTestimonial.mutateAsync(id);
     }
   };
@@ -185,6 +194,7 @@ export function TestimonialsManagerCompact() {
         onOpenChange={setDialogOpen}
         testimonial={editingTestimonial}
       />
+      {ConfirmDialog}
     </div>
   );
 }
