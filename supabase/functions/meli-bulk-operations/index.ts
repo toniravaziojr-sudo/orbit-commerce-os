@@ -38,7 +38,9 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { tenantId, action, productIds, offset = 0, limit = 10 } = body;
+    const { tenantId, action, productIds, listingIds, offset = 0, limit = 10 } = body;
+    // Support both listingIds (from Creator) and productIds (legacy) for filtering
+    const filterIds = listingIds || productIds;
 
     if (!tenantId) {
       return new Response(
@@ -121,8 +123,8 @@ serve(async (req) => {
         .eq("tenant_id", tenantId)
         .eq("status", "active");
 
-      if (productIds?.length) {
-        query = query.in("id", productIds);
+      if (filterIds?.length) {
+        query = query.in("id", filterIds);
       }
 
       const { data: products, error: prodErr } = await query.range(offset, offset + limit - 1);
@@ -251,8 +253,8 @@ serve(async (req) => {
         .eq("tenant_id", tenantId)
         .in("status", ["draft", "ready", "approved", "error"]);
 
-      if (productIds?.length) {
-        query = query.in("id", productIds);
+      if (filterIds?.length) {
+        query = query.in("id", filterIds);
       }
 
       const { data: listings, error: listErr } = await query.range(offset, offset + limit - 1);
@@ -338,8 +340,8 @@ Retorne APENAS o título, sem aspas, sem explicação.`,
         .eq("tenant_id", tenantId)
         .in("status", ["draft", "ready", "approved", "error"]);
 
-      if (productIds?.length) {
-        query = query.in("id", productIds);
+      if (filterIds?.length) {
+        query = query.in("id", filterIds);
       }
 
       const { data: listings, error: listErr } = await query.range(offset, offset + limit - 1);
@@ -426,8 +428,8 @@ Retorne APENAS o texto da descrição.`,
         .eq("tenant_id", tenantId)
         .in("status", ["draft", "ready", "approved", "error"]);
 
-      if (productIds?.length) {
-        query = query.in("id", productIds);
+      if (filterIds?.length) {
+        query = query.in("id", filterIds);
       }
 
       const { data: listings, error: listErr } = await query.range(offset, offset + limit - 1);
