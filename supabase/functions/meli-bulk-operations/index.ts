@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
-const VERSION = "v1.5.1"; // Harden title validation: reject short/truncated outputs in regenerate/bulk
+const VERSION = "v1.5.2"; // Fix truncation detection: check last word against product name words
 
 const MAX_TITLE_LENGTH = 120;
 
@@ -65,7 +65,7 @@ function hasSufficientProductCoverage(title: string, productName: string): boole
   return matches >= requiredMatches;
 }
 
-function isLikelyTruncatedEnding(title: string): boolean {
+function isLikelyTruncatedEnding(title: string, productName?: string): boolean {
   const trimmed = title.trim();
   if (!trimmed) return true;
 
@@ -74,10 +74,20 @@ function isLikelyTruncatedEnding(title: string): boolean {
 
   const lastWord = trimmed.split(/\s+/).pop() || "";
   const normalizedLastWord = normalizeForComparison(lastWord);
-  const allowedShortWords = new Set(["ml", "kg", "g", "l", "cm", "mm", "dia"]);
+  const allowedShortWords = new Set(["ml", "kg", "g", "l", "cm", "mm", "dia", "kit", "gel", "wax"]);
 
   if (/\d/.test(normalizedLastWord)) return false;
   if (allowedShortWords.has(normalizedLastWord)) return false;
+
+  // Check if last word is a prefix of a longer word in the product name/brand context
+  if (productName && normalizedLastWord.length >= 3) {
+    const contextWords = normalizeForComparison(productName).split(" ").filter(w => w.length > normalizedLastWord.length);
+    for (const contextWord of contextWords) {
+      if (contextWord.startsWith(normalizedLastWord) && contextWord !== normalizedLastWord) {
+        return true; // e.g. "Respe" is prefix of "Respeite" → truncated
+      }
+    }
+  }
 
   return normalizedLastWord.length > 0 && normalizedLastWord.length <= 3;
 }
@@ -90,7 +100,7 @@ function isValidGeneratedTitle(title: string, productName: string): boolean {
   const minLength = getDynamicMinTitleLength(productName);
   if (title.length < minLength) return false;
 
-  if (isLikelyTruncatedEnding(title)) return false;
+  if (isLikelyTruncatedEnding(title, productName)) return false;
   if (!hasSufficientProductCoverage(title, productName)) return false;
 
   const lastWord = title.split(/\s+/).pop()?.toLowerCase() || "";
@@ -396,17 +406,20 @@ serve(async (req) => {
 
           for (let attempt = 1; attempt <= MAX_TITLE_ATTEMPTS; attempt++) {
             const minLength = getDynamicMinTitleLength(productName || listing.title || "Produto");
+            const hardMinLength = Math.max(minLength, 35); // Force at least 35 chars for meaningful titles
             const feedbackSection = attempt > 1
-              ? `\n\nA tentativa anterior foi rejeitada por qualidade: "${lastRawTitle || "(vazio)"}". Gere uma nova versão COMPLETA, sem final cortado, com pelo menos ${minLength} caracteres úteis e mantendo os principais termos do nome do produto.`
+              ? `\n\nTENTATIVA ANTERIOR REJEITADA: "${lastRawTitle || "(vazio)"}"\nMotivo: título muito curto ou com palavra final cortada.\nGere uma versão MAIS LONGA e COMPLETA, com pelo menos ${hardMinLength} caracteres, incluindo benefícios do produto e palavras-chave de busca.`
               : "";
 
-            const userMessage = `Gere UM título otimizado para o Mercado Livre.
+            const userMessage = `Gere UM título otimizado para o Mercado Livre com base nestes dados do produto:
 
 ${context}
 
-Requisitos extras:
-- Mínimo de ${minLength} caracteres
-- Manter no título os principais termos do nome do produto (não resumir demais)
+IMPORTANTE:
+- O título DEVE ter entre ${hardMinLength} e 120 caracteres
+- Inclua: tipo do produto + marca + principal benefício/função + característica diferenciadora
+- NÃO abrevie palavras e NÃO corte o título no meio de uma palavra
+- Exemplo de bom título para este tipo de produto: "Balm Pós-Banho Respeite o Homem Calvície Zero Tratamento Diário"
 
 Retorne APENAS o título completo, sem aspas e sem explicações.${feedbackSection}`;
 
@@ -416,35 +429,33 @@ Retorne APENAS o título completo, sem aspas e sem explicações.${feedbackSecti
                 messages: [
                   {
                     role: "system",
-                    content: `Você é um especialista em SEO de títulos para o Mercado Livre Brasil.
+                    content: `Você é um copywriter especialista em títulos de anúncios para o Mercado Livre Brasil. Seu objetivo é criar títulos que VENDEM e são encontrados nas buscas.
 
-TAREFA: Gere exatamente UM título otimizado para buscas, completo e natural.
+FORMATO DO TÍTULO:
+[Tipo do Produto] [Marca] [Função/Benefício Principal] [Detalhe Diferenciador] [Peso/Quantidade se aplicável]
 
-REGRAS OBRIGATÓRIAS:
-1. O título DEVE começar pelo TIPO DE PRODUTO (ex: Balm, Sérum, Kit, Camiseta), nunca pela marca sozinha
-2. A marca deve aparecer depois do tipo de produto (se fizer sentido)
-3. NÃO truncar palavras no final (nunca terminar em hífen, barra, vírgula ou palavra incompleta)
-4. Evite abreviações incompletas e frases cortadas
-5. Use benefícios/função reais do produto extraídos da descrição
-6. Sem emojis, sem CAPS LOCK excessivo, sem preço/promoção
+REGRAS:
+1. Comece SEMPRE pelo tipo de produto (Balm, Kit, Sérum, Camiseta, etc.)
+2. Inclua a marca completa (nunca abrevie)
+3. Adicione o principal benefício (Antiqueda, Hidratante, Anti-calvície, etc.)
+4. TODAS as palavras devem estar COMPLETAS — jamais truncar
+5. O título deve ter entre 35 e 120 caracteres
+6. Sem emojis, sem CAPS LOCK, sem preço, sem código de barras
 7. Sem repetir palavras
-8. NÃO inclua código de barras, EAN ou GTIN no título
-9. O título deve ser legível, direto e pronto para publicação
-10. Priorize termos que compradores realmente usam na busca
-11. Prefira títulos completos, podendo usar até 120 caracteres quando necessário
+8. Se for kit, mencione a quantidade e o que está incluso
 
-EXEMPLOS CORRETOS:
-- Balm Pós-Banho Antiqueda para Cabelo e Barba 60g
-- Sérum Facial Vitamina C Anti-idade e Clareador 30ml
-- Kit 3 Camisetas Básicas Algodão Masculina Slim Fit
+EXEMPLOS DE TÍTULOS EXCELENTES:
+- "Balm Pós-Banho Respeite o Homem Antiqueda Cabelo e Barba 60g"
+- "Kit 3 Balm Pós-Banho Calvície Zero Tratamento Capilar Masculino"
+- "Sérum Facial Vitamina C Anti-idade Clareador Pele Oleosa 30ml"
+- "Kit 6 Balm Respeite o Homem Calvície Zero Tratamento Completo"
 
-EXEMPLOS ERRADOS (NÃO FAÇA ISSO):
-- Kit 2 Balms Respeite (muito curto, sem informações)
-- Kit 3 Balm Pós-Banho (sem benefícios/detalhes do produto)
-- Balm Cabelo Anti- (truncado)
-- ⭐ SUPER PROMOÇÃO Camiseta BARATA ⭐ (emojis/caps/preço)
+EXEMPLOS RUINS (NUNCA FAÇA):
+- "Kit 2 Balms Pós-Ban" (truncado)
+- "Balm Respeite o Homem" (genérico demais, sem benefício)
+- "Kit 3 Balm Pós-Banho Respe" (palavra cortada)
 
-Retorne APENAS o título completo, sem aspas, sem explicações.`,
+Retorne APENAS o título, nada mais.`,
                   },
                   { role: "user", content: userMessage },
                 ],
