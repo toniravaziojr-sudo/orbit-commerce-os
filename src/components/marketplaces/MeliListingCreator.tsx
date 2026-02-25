@@ -428,87 +428,89 @@ export function MeliListingCreator({
 
         {/* STEP 2: Default Config */}
         {step === "config" && (
-          <div className="flex-1 flex flex-col gap-6 min-h-0">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Tipo de Anúncio</Label>
-                <Select value={listingType} onValueChange={setListingType}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="gold_special">Clássico</SelectItem>
-                    <SelectItem value="gold_pro">Premium</SelectItem>
-                    <SelectItem value="free">Grátis</SelectItem>
-                  </SelectContent>
-                </Select>
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex-1 overflow-y-auto space-y-6 pr-1 pb-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Tipo de Anúncio</Label>
+                  <Select value={listingType} onValueChange={setListingType}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="gold_special">Clássico</SelectItem>
+                      <SelectItem value="gold_pro">Premium</SelectItem>
+                      <SelectItem value="free">Grátis</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Condição</Label>
+                  <Select value={condition} onValueChange={setCondition}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="new">Novo</SelectItem>
+                      <SelectItem value="used">Usado</SelectItem>
+                      <SelectItem value="not_specified">Não especificado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Condição</Label>
-                <Select value={condition} onValueChange={setCondition}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="new">Novo</SelectItem>
-                    <SelectItem value="used">Usado</SelectItem>
-                    <SelectItem value="not_specified">Não especificado</SelectItem>
-                  </SelectContent>
-                </Select>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <Label className="cursor-pointer">Frete Grátis</Label>
+                  <Switch checked={freeShipping} onCheckedChange={setFreeShipping} />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <Label className="cursor-pointer">Retirada no Local</Label>
+                  <Switch checked={localPickup} onCheckedChange={setLocalPickup} />
+                </div>
+              </div>
+
+              {/* AI Options */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  Automação por IA
+                </div>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/30 transition-colors">
+                    <Checkbox checked={aiTitles} onCheckedChange={(v) => setAiTitles(!!v)} />
+                    <Wand2 className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">Gerar títulos otimizados</p>
+                      <p className="text-xs text-muted-foreground">IA cria títulos SEO para o Mercado Livre (máx. 60 chars)</p>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/30 transition-colors">
+                    <Checkbox checked={aiDescriptions} onCheckedChange={(v) => setAiDescriptions(!!v)} />
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">Gerar descrições</p>
+                      <p className="text-xs text-muted-foreground">Converte HTML para texto plano otimizado para o ML</p>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/30 transition-colors">
+                    <Checkbox checked={aiCategories} onCheckedChange={(v) => setAiCategories(!!v)} />
+                    <Tags className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">Auto-categorizar</p>
+                      <p className="text-xs text-muted-foreground">Identifica a categoria ML automaticamente para cada produto</p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
+                <strong>{selectedProductIds.size}</strong> produto{selectedProductIds.size > 1 ? "s" : ""} será{selectedProductIds.size > 1 ? "ão" : ""} criado{selectedProductIds.size > 1 ? "s" : ""} como rascunho{selectedProductIds.size > 1 ? "s" : ""}. 
+                Você poderá editar cada anúncio individualmente antes de publicar.
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex items-center justify-between rounded-lg border p-3">
-                <Label className="cursor-pointer">Frete Grátis</Label>
-                <Switch checked={freeShipping} onCheckedChange={setFreeShipping} />
-              </div>
-              <div className="flex items-center justify-between rounded-lg border p-3">
-                <Label className="cursor-pointer">Retirada no Local</Label>
-                <Switch checked={localPickup} onCheckedChange={setLocalPickup} />
-              </div>
-            </div>
-
-            {/* AI Options */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <Sparkles className="h-4 w-4 text-primary" />
-                Automação por IA
-              </div>
-              <div className="space-y-2">
-                <label className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/30 transition-colors">
-                  <Checkbox checked={aiTitles} onCheckedChange={(v) => setAiTitles(!!v)} />
-                  <Wand2 className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm font-medium">Gerar títulos otimizados</p>
-                    <p className="text-xs text-muted-foreground">IA cria títulos SEO para o Mercado Livre (máx. 60 chars)</p>
-                  </div>
-                </label>
-                <label className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/30 transition-colors">
-                  <Checkbox checked={aiDescriptions} onCheckedChange={(v) => setAiDescriptions(!!v)} />
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm font-medium">Gerar descrições</p>
-                    <p className="text-xs text-muted-foreground">Converte HTML para texto plano otimizado para o ML</p>
-                  </div>
-                </label>
-                <label className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/30 transition-colors">
-                  <Checkbox checked={aiCategories} onCheckedChange={(v) => setAiCategories(!!v)} />
-                  <Tags className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm font-medium">Auto-categorizar</p>
-                    <p className="text-xs text-muted-foreground">Identifica a categoria ML automaticamente para cada produto</p>
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
-              <strong>{selectedProductIds.size}</strong> produto{selectedProductIds.size > 1 ? "s" : ""} será{selectedProductIds.size > 1 ? "ão" : ""} criado{selectedProductIds.size > 1 ? "s" : ""} como rascunho{selectedProductIds.size > 1 ? "s" : ""}. 
-              Você poderá editar cada anúncio individualmente antes de publicar.
-            </div>
-
-            <DialogFooter className="gap-2">
+            <DialogFooter className="gap-2 pt-4 border-t shrink-0">
               <Button variant="outline" onClick={() => setStep("select")}>
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Voltar
