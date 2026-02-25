@@ -383,7 +383,7 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 | Ação | Descrição |
 |------|-----------|
 | `bulk_create` | Cria rascunhos para todos os produtos ativos sem anúncio ML |
-| `bulk_generate_titles` | Gera títulos otimizados via ai-router (Gemini 2.5 Flash), limite dinâmico por categoria, com validação semântica anti-truncamento e fallback robusto (nunca persiste título inválido) |
+| `bulk_generate_titles` | Gera títulos otimizados via ai-router (Gemini 2.5 Flash), limite dinâmico por categoria, com instrução explícita no user message ("Gere UM título otimizado..."), validação semântica anti-truncamento com feedback de tentativas rejeitadas, e fallback robusto (nunca persiste título inválido). O prompt do sistema inclui exemplos de títulos curtos demais como anti-padrão. |
 | `bulk_generate_descriptions` | Converte descrições HTML para texto plano via ai-router (sem EAN/GTIN) |
 | `bulk_auto_categories` | Categoriza em massa via ML domain_discovery + fallback Search API, com contexto de descrição |
 | `auto_suggest_category` | Categorização individual com `productName` + `productDescription` para melhor precisão |
