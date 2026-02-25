@@ -141,6 +141,22 @@ export function MeliListingsTab() {
     if (confirm("Remover este anúncio?")) deleteListing.mutate(id);
   };
 
+  const handleBulkDelete = async () => {
+    const deletableIds = Array.from(selectedIds).filter(id => {
+      const listing = listings.find(l => l.id === id);
+      return listing && !['published', 'publishing'].includes(listing.status);
+    });
+    if (deletableIds.length === 0) {
+      toast.error("Nenhum anúncio selecionado pode ser excluído (apenas rascunhos/aprovados/erros).");
+      return;
+    }
+    if (!confirm(`Excluir ${deletableIds.length} anúncio${deletableIds.length > 1 ? "s" : ""}?`)) return;
+    for (const id of deletableIds) {
+      deleteListing.mutate(id);
+    }
+    setSelectedIds(new Set());
+  };
+
   const handleApprove = (id: string) => approveListing.mutate(id);
 
   const isActionLoading = (id: string) => actionLoadingId === id && publishListing.isPending;
@@ -263,6 +279,25 @@ export function MeliListingsTab() {
                     </Tooltip>
                   );
                 })}
+                {selectedIds.size > 0 && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleBulkDelete}
+                        disabled={!!bulkAction}
+                        className="gap-1.5 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Excluir Selecionados
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p className="text-xs">Remove os anúncios selecionados (exceto publicados)</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
               </div>
               {bulkAction && (
                 <div className="mt-3">
