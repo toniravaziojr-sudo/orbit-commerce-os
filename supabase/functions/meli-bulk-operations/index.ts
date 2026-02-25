@@ -2,10 +2,83 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
-const VERSION = "v1.6.2"; // Use OpenAI as primary for titles - Gemini native returns empty, Lovable has 402
+const VERSION = "v1.7.0"; // Smart category selection: multi-result + brand/type heuristics
 
 const MAX_TITLE_LENGTH = 120;
 
+// ---- Smart category selection helpers ----
+
+// Known category domain keywords mapped to product type signals
+const CATEGORY_DOMAIN_HINTS: Record<string, string[]> = {
+  "beleza": ["balm", "sérum", "shampoo", "condicionador", "creme", "pomada", "gel", "óleo", "hidratante", "máscara capilar", "loção", "protetor", "desodorante", "perfume", "colônia", "barba", "cabelo", "capilar", "skincare", "maquiagem", "esmalte", "batom"],
+  "saúde": ["suplemento", "vitamina", "colágeno", "proteína", "whey", "creatina", "termogênico"],
+  "pet shop": ["ração", "petisco", "coleira", "brinquedo pet", "cama pet", "antipulga"],
+  "casa": ["decoração", "almofada", "cortina", "tapete", "luminária", "vaso", "organizador"],
+  "jardim": ["semente", "fertilizante", "vaso planta", "irrigação", "poda", "jardinagem"],
+  "eletrônicos": ["celular", "smartphone", "fone", "carregador", "cabo usb", "adaptador", "notebook"],
+  "esportes": ["tênis", "meia esportiva", "luva academia", "haltere", "corda", "bola"],
+  "moda": ["camiseta", "calça", "bermuda", "vestido", "jaqueta", "saia", "blusa", "camisa"],
+};
+
+/**
+ * Pick the best category from multiple domain_discovery results.
+ * Uses brand context and product type to avoid absurd categorizations
+ * like a grooming product ending up in "Jardim/Hidroponia".
+ */
+function pickBestCategory(
+  results: Array<{ category_id: string; category_name?: string; domain_name?: string; domain_id?: string }>,
+  productName: string,
+  brand?: string
+): { category_id: string; category_name?: string; domain_name?: string } | null {
+  if (!results.length) return null;
+  if (results.length === 1) return results[0];
+
+  const nameLower = productName.toLowerCase();
+  const brandLower = (brand || "").toLowerCase();
+
+  // Score each result
+  const scored = results.map((r) => {
+    let score = 0;
+    const domainLower = (r.domain_name || r.domain_id || "").toLowerCase();
+    const catNameLower = (r.category_name || "").toLowerCase();
+
+    // Check if the domain/category aligns with product type
+    for (const [domainHint, keywords] of Object.entries(CATEGORY_DOMAIN_HINTS)) {
+      const productMatchesHint = keywords.some((kw) => nameLower.includes(kw));
+      const categoryMatchesHint = domainLower.includes(domainHint) || catNameLower.includes(domainHint);
+
+      if (productMatchesHint && categoryMatchesHint) {
+        score += 10; // Strong match
+      } else if (!productMatchesHint && categoryMatchesHint) {
+        // Category domain matches a hint but product doesn't match those keywords
+        // This is suspicious (e.g., product is "Balm" but category is "Jardim")
+        score -= 5;
+      }
+    }
+
+    // Grooming/cosmetics brand boost: if brand is known in beauty space
+    if (brandLower && (domainLower.includes("beleza") || domainLower.includes("cuidado pessoal") || catNameLower.includes("barbearia"))) {
+      // Most personal care brands belong here
+      score += 3;
+    }
+
+    // Penalize clearly mismatched domains
+    const absurdDomains = ["hidroponia", "nutrientes para", "pet shop", "gatos", "cães", "aquário", "piscina", "ferramentas"];
+    for (const absurd of absurdDomains) {
+      if ((domainLower.includes(absurd) || catNameLower.includes(absurd)) && !nameLower.includes(absurd)) {
+        score -= 8;
+      }
+    }
+
+    return { ...r, score };
+  });
+
+  // Sort by score descending
+  scored.sort((a, b) => b.score - a.score);
+  console.log(`[meli-categories] Scored results:`, scored.map(s => `${s.category_name || s.domain_name}(${s.category_id}): score=${s.score}`).join(", "));
+
+  return scored[0];
+}
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -695,35 +768,43 @@ Retorne APENAS o texto da descrição.`,
             ? `${productName} ${descKeywords}`.slice(0, 200)
             : productName;
 
+          const brandName = product?.brand || "";
+          console.log(`[meli-categories] Product: "${productName}", Brand: "${brandName}", SearchTerm: "${searchTerm.slice(0, 80)}..."`);
+
           const discoveryRes = await fetch(
-            `https://api.mercadolibre.com/sites/MLB/domain_discovery/search?limit=1&q=${encodeURIComponent(searchTerm)}`,
+            `https://api.mercadolibre.com/sites/MLB/domain_discovery/search?limit=5&q=${encodeURIComponent(searchTerm)}`,
             { headers: mlHeaders }
           );
 
           if (discoveryRes.ok) {
             const discoveryData = await discoveryRes.json();
-            if (Array.isArray(discoveryData) && discoveryData[0]?.category_id) {
-              const categoryId = discoveryData[0].category_id;
+            if (Array.isArray(discoveryData) && discoveryData.length > 0) {
+              const bestMatch = pickBestCategory(discoveryData, productName, brandName);
+              if (bestMatch) {
+                const categoryId = bestMatch.category_id;
 
-              await supabase
-                .from("meli_listings")
-                .update({ category_id: categoryId })
-                .eq("id", listing.id);
+                await supabase
+                  .from("meli_listings")
+                  .update({ category_id: categoryId })
+                  .eq("id", listing.id);
 
-              // Resolve full category name and path
-              let catName = discoveryData[0].category_name || discoveryData[0].domain_name || categoryId;
-              let catPath = "";
-              try {
-                const catRes = await fetch(`https://api.mercadolibre.com/categories/${categoryId}`, { headers: mlHeaders });
-                if (catRes.ok) {
-                  const catData = await catRes.json();
-                  catName = catData.name || catName;
-                  catPath = (catData.path_from_root || []).map((p: any) => p.name).join(" > ");
-                }
-              } catch { /* skip path resolution */ }
+                // Resolve full category name and path
+                let catName = bestMatch.category_name || bestMatch.domain_name || categoryId;
+                let catPath = "";
+                try {
+                  const catRes = await fetch(`https://api.mercadolibre.com/categories/${categoryId}`, { headers: mlHeaders });
+                  if (catRes.ok) {
+                    const catData = await catRes.json();
+                    catName = catData.name || catName;
+                    catPath = (catData.path_from_root || []).map((p: any) => p.name).join(" > ");
+                  }
+                } catch { /* skip path resolution */ }
 
-              resolvedCategories.push({ listingId: listing.id, categoryId, categoryName: catName, categoryPath: catPath });
-              updated++;
+                resolvedCategories.push({ listingId: listing.id, categoryId, categoryName: catName, categoryPath: catPath });
+                updated++;
+              } else {
+                skipped++;
+              }
             } else {
               skipped++;
             }
@@ -770,17 +851,20 @@ Retorne APENAS o texto da descrição.`,
 
       // Strategy 1: domain_discovery/search with enriched search term
       try {
-        const discoveryUrl = `https://api.mercadolibre.com/sites/MLB/domain_discovery/search?limit=3&q=${encodeURIComponent(searchTerm)}`;
+        const discoveryUrl = `https://api.mercadolibre.com/sites/MLB/domain_discovery/search?limit=5&q=${encodeURIComponent(searchTerm)}`;
         console.log(`[auto_suggest] Trying domain_discovery: ${discoveryUrl}`);
         const discoveryRes = await fetch(discoveryUrl, { headers: mlHeaders });
         console.log(`[auto_suggest] Discovery status: ${discoveryRes.status}`);
         
         if (discoveryRes.ok) {
           const discoveryData = await discoveryRes.json();
-          console.log(`[auto_suggest] Discovery result:`, JSON.stringify(discoveryData).slice(0, 300));
-          if (Array.isArray(discoveryData) && discoveryData[0]?.category_id) {
-            categoryId = discoveryData[0].category_id;
-            categoryName = discoveryData[0].category_name || discoveryData[0].domain_name || categoryId;
+          console.log(`[auto_suggest] Discovery result:`, JSON.stringify(discoveryData).slice(0, 500));
+          if (Array.isArray(discoveryData) && discoveryData.length > 0) {
+            const bestMatch = pickBestCategory(discoveryData, productName);
+            if (bestMatch) {
+              categoryId = bestMatch.category_id;
+              categoryName = bestMatch.category_name || bestMatch.domain_name || categoryId;
+            }
           }
         } else {
           const errBody = await discoveryRes.text();
