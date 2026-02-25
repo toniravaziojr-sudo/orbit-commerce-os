@@ -1,0 +1,63 @@
+# ============================================
+# REFERÊNCIA DE VARIÁVEIS DE AMBIENTE DO PROJETO
+# Gerado em: 2026-02-25
+# ============================================
+# ATENÇÃO: Este arquivo é apenas REFERÊNCIA.
+# NÃO contém os valores reais (são encriptados).
+# Use para saber quais secrets reconfigurar no novo projeto.
+# ============================================
+
+# --- VARIÁVEIS AUTOMÁTICAS (gerenciadas pelo Lovable Cloud) ---
+VITE_SUPABASE_URL=https://ojssezfjhdvvncsqyhyq.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+VITE_SUPABASE_PROJECT_ID=ojssezfjhdvvncsqyhyq
+
+# --- PAGAMENTOS ---
+MP_ACCESS_TOKEN=                        # Mercado Pago - Token de acesso
+MP_PUBLIC_KEY=                          # Mercado Pago - Chave pública
+MP_WEBHOOK_SECRET=                      # Mercado Pago - Secret do webhook
+PAGARME_API_KEY=                        # Pagar.me - API Key
+PAGARME_ACCOUNT_ID=                     # Pagar.me - Account ID
+PAGARME_PUBLIC_KEY=                     # Pagar.me - Chave pública
+
+# --- FISCAL ---
+FISCAL_ENCRYPTION_KEY=                  # Chave de criptografia fiscal
+FOCUS_NFE_TOKEN=                        # Focus NFe - Token de acesso
+NUVEM_FISCAL_CLIENT_ID=                 # Nuvem Fiscal - Client ID
+NUVEM_FISCAL_CLIENT_SECRET=             # Nuvem Fiscal - Client Secret
+
+# --- LOGÍSTICA ---
+FRENET_KEY=                             # Frenet - API Key
+FRENET_PASSWORD=                        # Frenet - Senha
+FRENET_TOKEN=                           # Frenet - Token
+LOGGI_CLIENT_ID=                        # Loggi - Client ID
+LOGGI_CLIENT_SECRET=                    # Loggi - Client Secret
+LOGGI_EXTERNAL_SERVICE_ID=              # Loggi - External Service ID
+
+# --- MARKETING / ADS ---
+GOOGLE_CLIENT_ID=                       # Google OAuth - Client ID
+GOOGLE_CLIENT_SECRET=                   # Google OAuth - Client Secret
+META_APP_SECRET=                        # Meta/Facebook - App Secret
+TIKTOK_APP_ID=                          # TikTok - App ID
+TIKTOK_APP_SECRET=                      # TikTok - App Secret
+
+# --- EMAIL ---
+RESEND_API_KEY=                         # Resend - API Key
+SENDGRID_API_KEY=                       # SendGrid - API Key
+
+# --- IA ---
+OPENAI_API_KEY=                         # OpenAI - API Key
+
+# --- INFRAESTRUTURA ---
+CLOUDFLARE_API_TOKEN=                   # Cloudflare - API Token
+CLOUDFLARE_ZONE_ID=                     # Cloudflare - Zone ID
+
+# --- BILLING ---
+BILLING_TEST_TOKEN=                     # Token de teste para billing
+
+# --- CONNECTORS (gerenciados pelo Lovable) ---
+ELEVENLABS_API_KEY=                     # ElevenLabs (via connector)
+FIRECRAWL_API_KEY=                      # Firecrawl (via connector)
+
+# --- SISTEMA (não reconfigurar) ---
+LOVABLE_API_KEY=                        # Gerenciado automaticamente pelo Lovable
