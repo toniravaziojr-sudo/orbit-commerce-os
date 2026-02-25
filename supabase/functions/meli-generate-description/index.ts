@@ -1,8 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.0.0"; // Initial: AI-powered ML description generator
+const VERSION = "v1.1.0"; // Use ai-router for multi-provider fallback
 // ===================
 
 const corsHeaders = {
@@ -66,13 +67,7 @@ serve(async (req) => {
     }
 
     // Call AI to generate ML-compliant description
-    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!lovableApiKey) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Chave de IA não configurada" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    resetAIRouterCache();
 
     const systemPrompt = `Você é um especialista em criação de anúncios para o Mercado Livre Brasil.
 
@@ -145,22 +140,22 @@ ${htmlDescription}
 Gere APENAS o texto plano da descrição, sem explicações adicionais.`;
     }
 
-    const aiResponse = await fetch("https://api.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${lovableApiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+    const aiResponse = await aiChatCompletion(
+      "google/gemini-2.5-flash",
+      {
         messages: [
           { role: "system", content: systemPromptFinal },
           { role: "user", content: userPromptFinal },
         ],
         max_tokens: generateTitle ? 128 : 4096,
         temperature: generateTitle ? 0.5 : 0.3,
-      }),
-    });
+      },
+      {
+        supabaseUrl,
+        supabaseServiceKey,
+        logPrefix: "[meli-generate-description]",
+      }
+    );
 
     if (!aiResponse.ok) {
       const errText = await aiResponse.text();
