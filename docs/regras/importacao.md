@@ -135,7 +135,7 @@ O CSV exportado pela Nuvemshop usa nomes de colunas em português. O adaptador m
 
 ### Tratamento de Encoding e Mojibake
 
-O sistema corrige automaticamente problemas de encoding comuns em CSVs exportados:
+O sistema corrige automaticamente problemas de encoding comuns em CSVs exportados (especialmente Nuvemshop):
 
 #### Problema: Mojibake (Caracteres Corrompidos)
 
@@ -145,9 +145,15 @@ CSVs salvos com encoding Latin-1 (ISO-8859-1) mas lidos como UTF-8 causam mojiba
 - `é` → `Ã©`
 - `ô` → `Ã´`
 
-#### Correção Automática
+#### Correção em 2 Níveis
 
-O `normalizeHeader()` em `src/lib/import/utils.ts` implementa:
+**Nível 1: Leitura do arquivo** - `readFileWithEncoding()` em `src/lib/import/utils.ts`:
+- Lê o arquivo como UTF-8 primeiro
+- Detecta padrões mojibake (≥3 ocorrências)
+- Se detectado, relê o arquivo como `iso-8859-1` (Latin-1) via `TextDecoder`
+- Fallback: aplica `fixMojibakeText()` se releitura falhar
+
+**Nível 2: Headers** - `normalizeHeader()` em `src/lib/import/utils.ts`:
 
 ```typescript
 // Mapa de correção mojibake → caractere correto
@@ -194,7 +200,7 @@ if (/,\d{2}$/.test(normalized)) {
 ### Arquivos Relacionados
 
 - `src/lib/import/platforms/index.ts` - Central de adaptadores
-- `src/lib/import/utils.ts` - Parse CSV, consolidação Shopify
+- `src/lib/import/utils.ts` - Parse CSV, consolidação Shopify/Nuvemshop, encoding
 - `src/lib/import/types.ts` - Tipos normalizados
 - `src/components/import/ImportStep.tsx` - Step de upload
 - `supabase/functions/import-batch/index.ts` - Processamento em lote
@@ -588,9 +594,11 @@ Importar menus apenas após categorias e páginas, para poder vincular `ref_id`.
 ### RN-IMP-005: Páginas com Blocos Editáveis
 Páginas institucionais são importadas com **blocos nativos do Builder** (RichText, FAQBlock, ImageBlock, YouTubeVideo), diretamente na Section, 100% editáveis pelo cliente.
 
-### RN-IMP-006: Consolidação Shopify
-CSVs Shopify têm múltiplas linhas por produto (variantes).
+### RN-IMP-006: Consolidação Shopify e Nuvemshop
+CSVs Shopify e Nuvemshop têm múltiplas linhas por produto (variantes).
 Consolidar em produto único antes de normalizar.
+- **Shopify**: Agrupa por `Handle` via `consolidateShopifyProducts()`
+- **Nuvemshop**: Agrupa por `Identificador URL` via `consolidateNuvemshopProducts()`
 
 ### RN-IMP-007: Multi-tenant
 Todas operações validam `tenant_id` via job (nunca confiar no frontend).
@@ -769,8 +777,9 @@ Limpar clientes desvincula pedidos (customer_id = NULL) mas não deleta os pedid
 
 ### Import de Arquivos
 - Arquivo deve ser CSV ou JSON válido
-- Encoding UTF-8
+- Encoding UTF-8 ou Latin-1 (auto-detectado via `readFileWithEncoding()`)
 - Tamanho máximo: 50MB
+- Headers devem corresponder ao esperado (matching em 4 camadas)
 - Headers devem corresponder ao esperado
 
 ### Import de Estrutura
