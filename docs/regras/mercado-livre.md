@@ -349,7 +349,18 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 
 **Roteamento IA:** Ambas as edge functions (`meli-bulk-operations` e `meli-generate-description`) utilizam o `ai-router.ts` centralizado (`aiChatCompletion`) para fallback multi-provedor (Gemini → OpenAI → Lovable Gateway). **NÃO fazem fetch direto** para provedores de IA.
 
-**Pré-processamento de contexto:** Antes de enviar para a IA, o HTML da descrição do produto é stripado (`description.replace(/<[^>]*>/g, " ")`) para evitar confusão do modelo. Títulos gerados com menos de 20 caracteres são rejeitados. O contexto enviado à IA para **títulos** inclui: nome do produto, marca, SKU, peso, resumo/benefícios (`short_description`) e até 800 caracteres da descrição completa. Para **descrições**, o contexto inclui peso, dimensões e SKU, mas **NÃO inclui** código de barras/EAN/GTIN (que vão como atributos separados do anúncio).
+**Pré-processamento de contexto:** Antes de enviar para a IA, o HTML da descrição do produto é stripado (`description.replace(/<[^>]*>/g, " ")`) para evitar confusão do modelo. O contexto enviado à IA para **títulos** inclui: nome do produto, marca, SKU, peso, resumo/benefícios (`short_description`) e até 800 caracteres da descrição completa. Para **descrições**, o contexto inclui peso, dimensões e SKU, mas **NÃO inclui** código de barras/EAN/GTIN (que vão como atributos separados do anúncio).
+
+**Regra de Validação e Retry de Títulos (OBRIGATÓRIO):**
+> A geração de títulos implementa um sistema de **até 3 tentativas** com validação rigorosa entre cada uma:
+> 1. **Truncamento:** Títulos terminados em hífen (`-`), vírgula (`,`) ou espaço são rejeitados (ex: "Balm Cabelo Barba Anti-")
+> 2. **Comprimento mínimo:** Títulos com menos de 25 caracteres são rejeitados
+> 3. **Contexto mínimo:** Títulos com menos de 3 palavras são rejeitados
+> 4. **Temperatura progressiva:** A cada tentativa a temperatura da IA aumenta (0.3 → 0.6 → 0.7) para gerar variação
+> 5. **Fallback final:** Se todas as 3 tentativas falharem, usa o nome do produto do cadastro como título
+> 6. **Log detalhado:** Cada tentativa é logada com `[meli-bulk-titles] Attempt X/3` para debugging
+>
+> **Anti-padrão:** Títulos truncados como "Balm Cabelo Barba Anti-" ou genéricos como "Balm Pós-Banho Calvície Zero Dia" são automaticamente rejeitados e regenerados.
 
 **Regra de Priorização em Títulos (OBRIGATÓRIO):**
 > O prompt de geração de títulos DEVE instruir a IA a:
@@ -357,6 +368,7 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 > 2. Incluir o principal **benefício ou função** do produto (ex: Anti-queda, Hidratante, Fortalecedor)
 > 3. Usar informações da descrição e resumo para identificar o que o produto FAZ
 > 4. NÃO incluir código de barras, EAN ou GTIN no título
+> 5. O prompt inclui uma **checklist de autovalidação** que a IA deve executar antes de responder
 > **Anti-padrão:** Títulos genéricos sem benefício como "Balm Pós-Banho Calvície Zero Dia" devem ser "Balm Pós-Banho Anti-queda Calvície Zero 60g".
 
 **Regra: EAN/GTIN nas Descrições (OBRIGATÓRIO):**
@@ -435,6 +447,8 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 | Enviar `productIds` ao invés de `listingIds` no Creator | Creator envia `listingIds` dos rascunhos criados |
 | Exibir `category_id` cru na edição | Resolver nome via `meli-search-categories` |
 | Chamar IA sem contexto de produto | Usar fallback `initialData.product.name` |
+| Usar `window.confirm()` para ações destrutivas | Usar `useConfirmDialog` com variante adequada |
+| Aceitar títulos truncados da IA | Validar e retry até 3x com temperatura progressiva |
 
 ## Checklist
 
