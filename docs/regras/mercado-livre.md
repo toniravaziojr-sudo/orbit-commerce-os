@@ -297,6 +297,7 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens:
 > - **Checkbox por linha:** Seleção individual com highlight visual (`bg-muted/50`)
 > - **Badge de contagem:** Exibe "X selecionado(s)" na barra de ações em massa quando há seleção
 > - **Ações operam nos selecionados:** Quando há seleção, as ações em massa enviam `listingIds` (array de IDs) no body da edge function. Quando não há seleção, operam em todos.
+> - **Excluir Selecionados:** Botão vermelho (destructive) aparece apenas quando há seleção. Filtra automaticamente anúncios `published`/`publishing` (que não podem ser excluídos). Confirma antes de executar e limpa seleção após conclusão.
 > - **Limpeza automática:** A seleção é resetada após executar uma ação em massa.
 >
 > **Body da edge function com seleção:**
