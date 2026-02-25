@@ -1,6 +1,7 @@
  import { PageHeader } from "@/components/ui/page-header";
  import { GoogleMapsToFacebookConverter } from "@/components/tools/GoogleMapsToFacebookConverter";
  import { StorageExporter } from "@/components/tools/StorageExporter";
+ import { DatabaseExporter } from "@/components/tools/DatabaseExporter";
  
  export default function PlatformTools() {
    return (
@@ -11,6 +12,7 @@
        />
  
        <div className="space-y-6">
+         <DatabaseExporter />
          <StorageExporter />
          <GoogleMapsToFacebookConverter />
        </div>
