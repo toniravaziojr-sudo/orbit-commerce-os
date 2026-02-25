@@ -119,11 +119,30 @@ export function MeliListingsTab() {
       }
     }
 
+    // Get GTIN and brand: first from listing attributes, then fallback from product data
+    let brand = attrs.find((a: any) => a.id === "BRAND")?.value_name || "";
+    let gtin = attrs.find((a: any) => a.id === "GTIN")?.value_name || "";
+    
+    // If not in attributes, fetch from product record
+    if ((!brand || !gtin) && listing.product_id) {
+      try {
+        const { data: productData } = await supabase
+          .from("products")
+          .select("brand, gtin, barcode")
+          .eq("id", listing.product_id)
+          .single();
+        if (productData) {
+          if (!brand && productData.brand) brand = productData.brand;
+          if (!gtin) gtin = productData.gtin || productData.barcode || "";
+        }
+      } catch { /* skip */ }
+    }
+
     setEditingListing({
       ...listing,
       ...(({
-        brand: attrs.find((a: any) => a.id === "BRAND")?.value_name || "",
-        gtin: attrs.find((a: any) => a.id === "GTIN")?.value_name || "",
+        brand,
+        gtin,
         warranty: attrs.find((a: any) => a.id === "WARRANTY_TYPE")?.value_name || "",
         categoryName,
       }) as any),

@@ -27,9 +27,10 @@ interface MeliCategoryPickerProps {
   onChange: (categoryId: string, categoryName?: string) => void;
   selectedName?: string;
   productName?: string;
+  productDescription?: string;
 }
 
-export function MeliCategoryPicker({ value, onChange, selectedName, productName }: MeliCategoryPickerProps) {
+export function MeliCategoryPicker({ value, onChange, selectedName, productName, productDescription }: MeliCategoryPickerProps) {
   const { currentTenant } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -107,7 +108,7 @@ export function MeliCategoryPicker({ value, onChange, selectedName, productName 
     setIsAutoSuggesting(true);
     try {
       const { data } = await supabase.functions.invoke("meli-bulk-operations", {
-        body: { tenantId: currentTenant.id, action: "auto_suggest_category", productName: name },
+        body: { tenantId: currentTenant.id, action: "auto_suggest_category", productName: name, productDescription: productDescription || "" },
       });
       if (data?.success && data.categoryId) {
         onChange(data.categoryId, data.categoryName);
@@ -223,38 +224,40 @@ export function MeliCategoryPicker({ value, onChange, selectedName, productName 
       )}
 
       {/* Category list */}
-      <ScrollArea className="max-h-[250px]">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : categories.length === 0 ? (
-          <div className="text-center py-6 text-muted-foreground text-sm">
-            {searchQuery ? "Nenhuma categoria encontrada" : "Digite para buscar categorias"}
-          </div>
-        ) : (
-          <div className="space-y-0.5">
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                className="w-full flex items-center gap-2 p-2 rounded hover:bg-muted/50 text-left transition-colors group"
-                onClick={() => handleSelectCategory(cat)}
-              >
-                <FolderOpen className="h-4 w-4 text-muted-foreground shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{cat.name}</p>
-                  {cat.domain_name && (
-                    <p className="text-xs text-muted-foreground truncate">{cat.domain_name}</p>
-                  )}
-                </div>
-                <Badge variant="outline" className="text-[10px] shrink-0">{cat.id}</Badge>
-                {(cat.children_count && cat.children_count > 0) ? (
-                  <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100" />
-                ) : null}
-              </button>
-            ))}
-          </div>
-        )}
+      <ScrollArea className="h-[250px] border rounded-md">
+        <div className="p-1">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : categories.length === 0 ? (
+            <div className="text-center py-6 text-muted-foreground text-sm">
+              {searchQuery ? "Nenhuma categoria encontrada" : "Digite para buscar categorias"}
+            </div>
+          ) : (
+            <div className="space-y-0.5">
+              {categories.map((cat) => (
+                <button
+                  key={cat.id}
+                  className="w-full flex items-center gap-2 p-2.5 rounded hover:bg-muted/50 text-left transition-colors group"
+                  onClick={() => handleSelectCategory(cat)}
+                >
+                  <FolderOpen className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{cat.name}</p>
+                    {cat.domain_name && (
+                      <p className="text-xs text-muted-foreground truncate">{cat.domain_name}</p>
+                    )}
+                  </div>
+                  <Badge variant="outline" className="text-[10px] shrink-0">{cat.id}</Badge>
+                  {(cat.children_count && cat.children_count > 0) ? (
+                    <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100" />
+                  ) : null}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </ScrollArea>
 
       <p className="text-xs text-muted-foreground">

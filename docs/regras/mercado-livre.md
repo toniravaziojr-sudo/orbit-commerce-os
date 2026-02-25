@@ -349,19 +349,26 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 
 **Roteamento IA:** Ambas as edge functions (`meli-bulk-operations` e `meli-generate-description`) utilizam o `ai-router.ts` centralizado (`aiChatCompletion`) para fallback multi-provedor (Gemini → OpenAI → Lovable Gateway). **NÃO fazem fetch direto** para provedores de IA.
 
-**Pré-processamento de contexto:** Antes de enviar para a IA, o HTML da descrição do produto é stripado (`description.replace(/<[^>]*>/g, " ")`) para evitar confusão do modelo. Títulos gerados com menos de 10 caracteres são rejeitados. O contexto enviado à IA inclui obrigatoriamente: nome do produto, marca, SKU, peso, dimensões (largura/altura/profundidade), GTIN e até 800 caracteres da descrição original. `max_tokens` para títulos é 256.
+**Pré-processamento de contexto:** Antes de enviar para a IA, o HTML da descrição do produto é stripado (`description.replace(/<[^>]*>/g, " ")`) para evitar confusão do modelo. Títulos gerados com menos de 20 caracteres são rejeitados. O contexto enviado à IA para **títulos** inclui: nome do produto, marca, SKU, peso, resumo/benefícios (`short_description`) e até 800 caracteres da descrição completa. Para **descrições**, o contexto inclui peso, dimensões e SKU, mas **NÃO inclui** código de barras/EAN/GTIN (que vão como atributos separados do anúncio).
 
 **Regra de Priorização em Títulos (OBRIGATÓRIO):**
-> O prompt de geração de títulos DEVE instruir a IA a começar pelo **tipo de produto** (ex: Balm, Sérum, Kit, Camiseta), NUNCA pela marca sozinha. A marca deve aparecer DEPOIS do tipo de produto. Se o nome do produto já é adequado, usar como base e otimizar para SEO.
-> **Anti-padrão:** Títulos como "Respeite o Hom" (marca truncada sem tipo de produto) são rejeitados — a IA deve gerar algo como "Balm Pós-Banho Calvície Zero Respeite o Homem 60g".
+> O prompt de geração de títulos DEVE instruir a IA a:
+> 1. Começar pelo **tipo de produto** (ex: Balm, Sérum, Kit, Camiseta), NUNCA pela marca sozinha
+> 2. Incluir o principal **benefício ou função** do produto (ex: Anti-queda, Hidratante, Fortalecedor)
+> 3. Usar informações da descrição e resumo para identificar o que o produto FAZ
+> 4. NÃO incluir código de barras, EAN ou GTIN no título
+> **Anti-padrão:** Títulos genéricos sem benefício como "Balm Pós-Banho Calvície Zero Dia" devem ser "Balm Pós-Banho Anti-queda Calvície Zero 60g".
+
+**Regra: EAN/GTIN nas Descrições (OBRIGATÓRIO):**
+> Códigos de barras (EAN/GTIN) **NÃO devem aparecer** nas descrições geradas pela IA. Esses dados são enviados como atributos separados do anúncio (`GTIN` attribute). Os prompts de descrição devem explicitar essa proibição.
 
 | Ação | Descrição |
 |------|-----------|
 | `bulk_create` | Cria rascunhos para todos os produtos ativos sem anúncio ML |
-| `bulk_generate_titles` | Gera títulos otimizados via ai-router (Gemini 2.5 Flash) (≤60 chars) |
-| `bulk_generate_descriptions` | Converte descrições HTML para texto plano via ai-router |
-| `bulk_auto_categories` | Categoriza em massa via ML category_predictor + fallback Search API |
-| `auto_suggest_category` | Categorização individual de produto (usado pelo botão "Auto" e pelo Wizard) |
+| `bulk_generate_titles` | Gera títulos otimizados via ai-router (Gemini 2.5 Flash) (≤60 chars), com contexto de benefícios |
+| `bulk_generate_descriptions` | Converte descrições HTML para texto plano via ai-router (sem EAN/GTIN) |
+| `bulk_auto_categories` | Categoriza em massa via ML domain_discovery + fallback Search API, com contexto de descrição |
+| `auto_suggest_category` | Categorização individual com `productName` + `productDescription` para melhor precisão |
 
 ### Seleção em Massa (OBRIGATÓRIO)
 
@@ -378,8 +385,16 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 > { "tenantId": "...", "action": "...", "offset": 0, "limit": 5, "listingIds": ["id1", "id2"] }
 > ```
 
+**Regra: Categorização Inteligente (OBRIGATÓRIO):**
+> A categorização automática (`bulk_auto_categories` e `auto_suggest_category`) DEVE usar o nome do produto **enriquecido com a descrição/resumo** para gerar um termo de busca mais preciso no `domain_discovery`. Isso evita categorizações incorretas baseadas apenas no nome (ex: um tratamento capilar com proteção UV sendo categorizado como "Pós Sol").
+> - `bulk_auto_categories`: busca `products(name, description, short_description, brand)` e concatena keywords da descrição ao searchTerm
+> - `auto_suggest_category`: aceita `productDescription` no body para enriquecer o termo de busca
+
+**Regra: Auto-fill GTIN e Marca na Edição (OBRIGATÓRIO):**
+> Ao abrir o `MeliListingWizard` para edição, se os atributos `BRAND` e `GTIN` não existem nos `attributes` do anúncio, o `MeliListingsTab.handleEditListing` DEVE buscar esses dados diretamente do produto (`products.brand`, `products.gtin`, `products.barcode`) como fallback.
+
 **Regra: Fallback de Categorização**
-> O `auto_suggest_category` tenta primeiro o `category_predictor` do ML.
+> O `auto_suggest_category` tenta primeiro o `domain_discovery/search` do ML com termo enriquecido (nome + descrição).
 > Se falhar (status != 200 ou sem resultados), usa a Search API (`/sites/MLB/search?q=...`) e extrai categorias dos `available_filters`.
 > Resolve o path completo da categoria via `/categories/{id}` para exibição ao usuário.
 
