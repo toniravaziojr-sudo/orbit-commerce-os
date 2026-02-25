@@ -100,27 +100,30 @@ INSTRUÇÕES:
     let userPromptFinal: string;
 
     if (generateTitle) {
-      systemPromptFinal = `Você é um especialista em criação de títulos de anúncios para o Mercado Livre Brasil.
+      systemPromptFinal = `Você é um especialista em SEO de títulos para o Mercado Livre Brasil.
 
-TAREFA: Gere exatamente UM título otimizado com no máximo 60 caracteres.
+TAREFA: Gere exatamente UM título otimizado para buscas, com no máximo 60 caracteres.
 
 REGRAS OBRIGATÓRIAS:
 1. MÁXIMO 60 CARACTERES (limite absoluto do ML)
-2. O título DEVE começar pelo TIPO DE PRODUTO (ex: Balm, Sérum, Kit, Camiseta), NUNCA pela marca sozinha
-3. A marca deve aparecer DEPOIS do tipo de produto
-4. NÃO usar emojis, caracteres especiais, pontuação excessiva
-5. NÃO usar palavras em CAPS LOCK (exceto siglas como USB, LED)
-6. NÃO incluir: preço, frete grátis, promoção, desconto
-7. NÃO repetir palavras
-8. Se o nome do produto já é bom, use-o como base e otimize para SEO
+2. O título DEVE ter entre 30 e 60 caracteres — aproveite o espaço para palavras-chave
+3. O título DEVE começar pelo TIPO DE PRODUTO (ex: Balm, Sérum, Kit, Camiseta), NUNCA pela marca sozinha
+4. A marca deve aparecer DEPOIS do tipo de produto
+5. NÃO usar emojis, caracteres especiais, pontuação excessiva
+6. NÃO usar palavras em CAPS LOCK (exceto siglas como USB, LED)
+7. NÃO incluir: preço, frete grátis, promoção, desconto
+8. NÃO repetir palavras
+9. NUNCA truncar nomes ou marcas — se não cabe, omita a marca em vez de cortar pela metade
+10. Priorize termos de busca que compradores usariam
 
 EXEMPLOS CORRETOS:
-- Balm Pós-Banho Calvície Zero Respeite o Homem 60g
-- Kit 3 Camisetas Básicas Algodão Masculina Slim Fit
-- Tênis Nike Air Max 90 Masculino Original Preto
-- Sérum Facial Vitamina C 30ml Anti-idade Clareador
+- Balm Pós-Banho Calvície Zero Respeite o Homem 60g (49 chars)
+- Kit 3 Camisetas Básicas Algodão Masculina Slim Fit (51 chars)
+- Tênis Nike Air Max 90 Masculino Original Preto (47 chars)
+- Sérum Facial Vitamina C 30ml Anti-idade Clareador (50 chars)
 
 EXEMPLOS ERRADOS (NÃO FAÇA ISSO):
+- "Balm Respeite o" (truncado, incompleto — PROIBIDO)
 - "Respeite o Hom" (marca truncada, sem tipo de produto)
 - "Nike Tênis" (marca antes do produto)
 - ⭐ SUPER PROMOÇÃO Camiseta BARATA ⭐ (emojis, caps, preço)`;
