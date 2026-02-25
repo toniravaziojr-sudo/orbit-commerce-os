@@ -206,6 +206,27 @@ export function useMeliListings() {
     },
   });
 
+  const updateBulkListings = useMutation({
+    mutationFn: async ({ ids, data }: { ids: string[]; data: Record<string, any> }) => {
+      if (!currentTenant?.id) throw new Error('Tenant não selecionado');
+
+      const { error } = await supabase
+        .from('meli_listings')
+        .update(data)
+        .in('id', ids)
+        .eq('tenant_id', currentTenant.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['meli-listings'] });
+      toast.success('Anúncios atualizados');
+    },
+    onError: () => {
+      toast.error('Erro ao atualizar anúncios');
+    },
+  });
+
   const approveListing = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
@@ -255,6 +276,7 @@ export function useMeliListings() {
     createListing,
     createBulkListings,
     updateListing,
+    updateBulkListings,
     deleteListing,
     approveListing,
     publishListing,
