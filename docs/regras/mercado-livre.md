@@ -29,7 +29,7 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 | `supabase/functions/meli-oauth-*` | Fluxo OAuth |
 | `supabase/functions/meli-publish-listing/` | Publicação de anúncios na API do ML |
 | `supabase/functions/meli-search-categories/` | Busca de categorias ML (predictor + search fallback + children_count) |
-| `supabase/functions/meli-generate-description/` | Geração IA de descrição/título para ML (texto plano, sem HTML/links/contato) |
+| `supabase/functions/meli-generate-description/` | Geração IA de descrição/título para ML via ai-router (texto plano, sem HTML/links/contato) |
 | `supabase/functions/meli-sync-orders/` | Sincronização de pedidos |
 | `supabase/functions/meli-sync-questions/` | Sincronização de perguntas → Atendimento |
 | `supabase/functions/meli-answer-question/` | Responder perguntas via API ML |
@@ -331,13 +331,17 @@ Busca dados diretamente da API do ML (não armazena localmente):
 
 ## Operações em Massa (Bulk Actions)
 
-Edge function `meli-bulk-operations` processa em chunks de 5 itens:
+Edge function `meli-bulk-operations` processa em chunks de 5 itens.
+
+**Roteamento IA:** Ambas as edge functions (`meli-bulk-operations` e `meli-generate-description`) utilizam o `ai-router.ts` centralizado (`aiChatCompletion`) para fallback multi-provedor (Gemini → OpenAI → Lovable Gateway). **NÃO fazem fetch direto** para provedores de IA.
+
+**Pré-processamento de contexto:** Antes de enviar para a IA, o HTML da descrição do produto é stripado (`description.replace(/<[^>]*>/g, " ")`) para evitar confusão do modelo. Títulos gerados com menos de 10 caracteres são rejeitados.
 
 | Ação | Descrição |
 |------|-----------|
 | `bulk_create` | Cria rascunhos para todos os produtos ativos sem anúncio ML |
-| `bulk_generate_titles` | Gera títulos otimizados via Gemini 2.5 Flash (≤60 chars) |
-| `bulk_generate_descriptions` | Converte descrições HTML para texto plano via IA |
+| `bulk_generate_titles` | Gera títulos otimizados via ai-router (Gemini 2.5 Flash) (≤60 chars) |
+| `bulk_generate_descriptions` | Converte descrições HTML para texto plano via ai-router |
 | `bulk_auto_categories` | Categoriza em massa via ML category_predictor + fallback Search API |
 | `auto_suggest_category` | Categorização individual de produto (usado pelo botão "Auto" e pelo Wizard) |
 

@@ -245,6 +245,7 @@ await aiChatCompletionJSON(model, body, { preferProvider: 'lovable' }); // Apena
 | Chat & Assistentes | `ads-chat`, `command-assistant-chat` |
 | Landing Pages | `ai-landing-page-generate` |
 | Análise | `ai-analyze-page`, `ai-memory-manager` |
+| Mercado Livre | `meli-bulk-operations`, `meli-generate-description` |
 | Shared | `_shared/ai-marketing-optimizer.ts`, `_shared/ai-content-creator.ts` |
 
 ### Comportamento de Fallback com Rate Limit Queue (v1.1.0)
