@@ -462,43 +462,84 @@ Retorne APENAS o texto da descrição.`,
         );
       }
 
-      const predictRes = await fetch(
-        `https://api.mercadolibre.com/sites/MLB/category_predictor/predict?title=${encodeURIComponent(productName)}`,
-        { headers: mlHeaders }
-      );
+      let categoryId = "";
+      let categoryName = "";
+      let pathStr = "";
 
-      if (!predictRes.ok) {
-        await predictRes.text();
-        return new Response(
-          JSON.stringify({ success: false, error: "Não foi possível prever categoria" }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      // Strategy 1: category_predictor API
+      try {
+        const predictUrl = `https://api.mercadolibre.com/sites/MLB/category_predictor/predict?title=${encodeURIComponent(productName)}`;
+        console.log(`[auto_suggest] Trying predictor: ${predictUrl}`);
+        const predictRes = await fetch(predictUrl, { headers: mlHeaders });
+        console.log(`[auto_suggest] Predictor status: ${predictRes.status}`);
+        
+        if (predictRes.ok) {
+          const pred = await predictRes.json();
+          console.log(`[auto_suggest] Predictor result:`, JSON.stringify(pred).slice(0, 300));
+          if (pred.id) {
+            categoryId = pred.id;
+            categoryName = pred.name || pred.id;
+          }
+        } else {
+          const errBody = await predictRes.text();
+          console.log(`[auto_suggest] Predictor error body: ${errBody.slice(0, 200)}`);
+        }
+      } catch (e) {
+        console.log(`[auto_suggest] Predictor exception: ${e}`);
       }
 
-      const pred = await predictRes.json();
-      if (!pred.id) {
+      // Strategy 2: Fallback via search API
+      if (!categoryId) {
+        try {
+          const searchUrl = `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(productName)}&limit=5`;
+          console.log(`[auto_suggest] Trying search fallback: ${searchUrl}`);
+          const searchRes = await fetch(searchUrl, { headers: mlHeaders });
+          
+          if (searchRes.ok) {
+            const searchData = await searchRes.json();
+            
+            // Get category from filters
+            const catFilter = (searchData.available_filters || []).find((f: any) => f.id === "category")
+              || (searchData.filters || []).find((f: any) => f.id === "category");
+            
+            if (catFilter?.values?.length > 0) {
+              // Pick the top category by results count
+              const topCat = catFilter.values.sort((a: any, b: any) => (b.results || 0) - (a.results || 0))[0];
+              categoryId = topCat.id;
+              categoryName = topCat.name;
+              console.log(`[auto_suggest] Search fallback found: ${categoryId} - ${categoryName}`);
+            } else if (searchData.results?.length > 0) {
+              // Use first result's category
+              categoryId = searchData.results[0].category_id;
+              console.log(`[auto_suggest] Using first result category: ${categoryId}`);
+            }
+          }
+        } catch (e) {
+          console.log(`[auto_suggest] Search fallback exception: ${e}`);
+        }
+      }
+
+      if (!categoryId) {
         return new Response(
-          JSON.stringify({ success: false, error: "Nenhuma categoria encontrada para este produto" }),
+          JSON.stringify({ success: false, error: "Não foi possível identificar a categoria. Tente buscar manualmente." }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
       // Get full category path
-      const catRes = await fetch(`https://api.mercadolibre.com/categories/${pred.id}`, { headers: mlHeaders });
-      let categoryName = pred.name || pred.id;
-      let pathStr = "";
-      if (catRes.ok) {
-        const catData = await catRes.json();
-        categoryName = catData.name || categoryName;
-        pathStr = (catData.path_from_root || []).map((p: any) => p.name).join(" > ");
-      } else {
-        await catRes.text();
-      }
+      try {
+        const catRes = await fetch(`https://api.mercadolibre.com/categories/${categoryId}`, { headers: mlHeaders });
+        if (catRes.ok) {
+          const catData = await catRes.json();
+          categoryName = catData.name || categoryName;
+          pathStr = (catData.path_from_root || []).map((p: any) => p.name).join(" > ");
+        }
+      } catch { /* skip path resolution */ }
 
       return new Response(
         JSON.stringify({
           success: true,
-          categoryId: pred.id,
+          categoryId,
           categoryName,
           path: pathStr,
         }),

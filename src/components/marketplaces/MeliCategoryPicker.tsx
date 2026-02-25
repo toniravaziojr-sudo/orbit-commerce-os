@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Search, ChevronRight, Loader2, FolderOpen, X, ArrowLeft, Wand2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 interface MeliCategory {
   id: string;
@@ -111,10 +112,12 @@ export function MeliCategoryPicker({ value, onChange, selectedName, productName 
       if (data?.success && data.categoryId) {
         onChange(data.categoryId, data.categoryName);
         setDisplayName(data.path || data.categoryName);
-      } else {
-        // fallback: open browser
-        handleOpenBrowser();
-      }
+    } else {
+      toast.error("Não foi possível identificar a categoria automaticamente", {
+        description: "Tente buscar manualmente pelo nome do produto.",
+      });
+      handleOpenBrowser();
+    }
     } catch {
       handleOpenBrowser();
     } finally {
