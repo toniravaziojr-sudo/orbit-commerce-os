@@ -157,6 +157,55 @@ export function useMeliListings() {
     },
   });
 
+  const createBulkListings = useMutation({
+    mutationFn: async (data: {
+      products: Array<{
+        product_id: string;
+        title: string;
+        price: number;
+        available_quantity: number;
+        images?: any[];
+      }>;
+      listing_type: string;
+      condition: string;
+      shipping: Record<string, any>;
+    }) => {
+      if (!currentTenant?.id) throw new Error('Tenant não selecionado');
+
+      const rows = data.products.map(p => ({
+        tenant_id: currentTenant.id,
+        product_id: p.product_id,
+        title: p.title,
+        price: p.price,
+        available_quantity: p.available_quantity,
+        listing_type: data.listing_type,
+        condition: data.condition,
+        shipping: data.shipping,
+        images: p.images || [],
+        status: 'draft' as const,
+      }));
+
+      const { data: result, error } = await supabase
+        .from('meli_listings')
+        .insert(rows)
+        .select();
+
+      if (error) throw error;
+      return result;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['meli-listings'] });
+      toast.success(`${data.length} rascunho${data.length > 1 ? 's' : ''} criado${data.length > 1 ? 's' : ''} com sucesso!`);
+    },
+    onError: (error: Error) => {
+      if (error.message.includes('idx_meli_listings_tenant_product')) {
+        toast.error('Um ou mais produtos já possuem anúncio.');
+      } else {
+        toast.error('Erro ao criar anúncios em massa');
+      }
+    },
+  });
+
   const approveListing = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
@@ -204,6 +253,7 @@ export function useMeliListings() {
     listings: listingsQuery.data ?? [],
     isLoading: listingsQuery.isLoading,
     createListing,
+    createBulkListings,
     updateListing,
     deleteListing,
     approveListing,

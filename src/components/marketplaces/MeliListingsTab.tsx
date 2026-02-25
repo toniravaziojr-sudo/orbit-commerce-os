@@ -28,6 +28,7 @@ import {
 import { useMeliListings, type MeliListing } from "@/hooks/useMeliListings";
 import { useProductsWithImages } from "@/hooks/useProducts";
 import { MeliListingWizard } from "@/components/marketplaces/MeliListingWizard";
+import { MeliListingCreator } from "@/components/marketplaces/MeliListingCreator";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -55,10 +56,10 @@ function formatCurrency(value: number) {
 
 export function MeliListingsTab() {
   const { currentTenant } = useAuth();
-  const { listings, isLoading, createListing, updateListing, deleteListing, approveListing, publishListing, refetch } = useMeliListings();
+  const { listings, isLoading, createListing, createBulkListings, updateListing, deleteListing, approveListing, publishListing, refetch } = useMeliListings();
   const { products, isLoading: productsLoading } = useProductsWithImages();
 
-  const [showWizard, setShowWizard] = useState(false);
+  const [showCreator, setShowCreator] = useState(false);
   const [editingListing, setEditingListing] = useState<MeliListing | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -89,11 +90,7 @@ export function MeliListingsTab() {
     });
   };
 
-  const handleCreateSubmit = (data: any) => {
-    createListing.mutate(data, {
-      onSuccess: () => setShowWizard(false),
-    });
-  };
+  // Removed: handleCreateSubmit (now handled by MeliListingCreator)
 
   const handleEditSubmit = (data: any) => {
     const { id, ...rest } = data;
@@ -234,7 +231,7 @@ export function MeliListingsTab() {
                 Prepare, revise e publique seus produtos no ML
               </CardDescription>
             </div>
-            <Button onClick={() => setShowWizard(true)}>
+            <Button onClick={() => setShowCreator(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Novo Anúncio
             </Button>
@@ -328,7 +325,7 @@ export function MeliListingsTab() {
                 Selecione um produto e a IA preencherá título, descrição e categoria automaticamente.
               </p>
               <div className="flex flex-col sm:flex-row gap-2 justify-center mt-4">
-                <Button onClick={() => setShowWizard(true)}>
+                <Button onClick={() => setShowCreator(true)}>
                   <Plus className="h-4 w-4 mr-2" />
                   Criar Anúncio
                 </Button>
@@ -498,16 +495,23 @@ export function MeliListingsTab() {
         </CardContent>
       </Card>
 
-      {/* Create Wizard */}
-      <MeliListingWizard
-        open={showWizard}
-        onOpenChange={setShowWizard}
+      {/* Create Dialog (multi-product) */}
+      <MeliListingCreator
+        open={showCreator}
+        onOpenChange={setShowCreator}
         products={products}
         productsLoading={productsLoading}
         listedProductIds={listedProductIds}
-        onSubmit={handleCreateSubmit}
-        isSubmitting={createListing.isPending}
-        mode="create"
+        onBulkCreate={async (data) => {
+          return new Promise((resolve, reject) => {
+            createBulkListings.mutate(data, {
+              onSuccess: (result) => resolve(result),
+              onError: (error) => reject(error),
+            });
+          });
+        }}
+        isSubmitting={createBulkListings.isPending}
+        onRefetch={refetch}
       />
 
       {/* Edit Wizard */}
