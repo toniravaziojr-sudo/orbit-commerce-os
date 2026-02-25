@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
-const VERSION = "v1.4.0"; // Never persist invalid title on last attempt; robust fallback
+const VERSION = "v1.5.0"; // Fix bulk title prompt: add explicit user instruction
 
 const MAX_TITLE_LENGTH = 120;
 
@@ -336,7 +336,19 @@ serve(async (req) => {
           let finalTitle = "";
           let lastRawTitle = "";
 
+          const attemptFeedbacks: string[] = [];
+
           for (let attempt = 1; attempt <= MAX_TITLE_ATTEMPTS; attempt++) {
+            const feedbackSection = attempt > 1
+              ? `\n\nA tentativa anterior foi rejeitada por qualidade: "${lastRawTitle || "(vazio)"}". Gere uma nova versão COMPLETA, sem final cortado ou abreviado.`
+              : "";
+
+            const userMessage = `Gere UM título otimizado para o Mercado Livre.
+
+${context}
+
+Retorne APENAS o título completo, sem aspas e sem explicações.${feedbackSection}`;
+
             const aiRes = await aiChatCompletion(
               "google/gemini-2.5-flash",
               {
@@ -348,15 +360,17 @@ serve(async (req) => {
 TAREFA: Gere exatamente UM título otimizado para buscas, completo e natural.
 
 REGRAS OBRIGATÓRIAS:
-1. O título DEVE começar pelo tipo de produto (ex: Balm, Sérum, Kit, Camiseta)
-2. A marca deve vir depois do tipo de produto (quando fizer sentido)
-3. NÃO truncar palavras no final (nunca terminar com hífen, barra, vírgula ou palavra incompleta)
-4. Use benefícios/função reais do produto extraídos da descrição
-5. Sem emojis, sem CAPS LOCK excessivo, sem preço/promoção
-6. Sem repetir palavras
-7. NÃO inclua código de barras, EAN ou GTIN no título
-8. O título deve ser legível, direto e pronto para publicação
-9. Prefira títulos completos, podendo usar até 120 caracteres quando necessário
+1. O título DEVE começar pelo TIPO DE PRODUTO (ex: Balm, Sérum, Kit, Camiseta), nunca pela marca sozinha
+2. A marca deve aparecer depois do tipo de produto (se fizer sentido)
+3. NÃO truncar palavras no final (nunca terminar em hífen, barra, vírgula ou palavra incompleta)
+4. Evite abreviações incompletas e frases cortadas
+5. Use benefícios/função reais do produto extraídos da descrição
+6. Sem emojis, sem CAPS LOCK excessivo, sem preço/promoção
+7. Sem repetir palavras
+8. NÃO inclua código de barras, EAN ou GTIN no título
+9. O título deve ser legível, direto e pronto para publicação
+10. Priorize termos que compradores realmente usam na busca
+11. Prefira títulos completos, podendo usar até 120 caracteres quando necessário
 
 EXEMPLOS CORRETOS:
 - Balm Pós-Banho Antiqueda para Cabelo e Barba 60g
@@ -364,16 +378,17 @@ EXEMPLOS CORRETOS:
 - Kit 3 Camisetas Básicas Algodão Masculina Slim Fit
 
 EXEMPLOS ERRADOS (NÃO FAÇA ISSO):
-- Balm Pós-Banho Cabelo Bar (cortado)
+- Kit 2 Balms Respeite (muito curto, sem informações)
+- Kit 3 Balm Pós-Banho (sem benefícios/detalhes do produto)
 - Balm Cabelo Anti- (truncado)
 - ⭐ SUPER PROMOÇÃO Camiseta BARATA ⭐ (emojis/caps/preço)
 
 Retorne APENAS o título completo, sem aspas, sem explicações.`,
                   },
-                  { role: "user", content: context },
+                  { role: "user", content: userMessage },
                 ],
                 max_tokens: 256,
-                temperature: attempt === 1 ? 0.3 : 0.5 + (attempt * 0.1),
+                temperature: attempt === 1 ? 0.35 : attempt === 2 ? 0.5 : 0.65,
               },
               {
                 supabaseUrl,
