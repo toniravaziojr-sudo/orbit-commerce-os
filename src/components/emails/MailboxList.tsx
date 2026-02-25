@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MailboxSettingsDialog } from "./MailboxSettingsDialog";
 import { Button } from "@/components/ui/button";
@@ -79,8 +80,16 @@ export function MailboxList({ onOpenInbox }: MailboxListProps) {
     setNewPurpose("manual");
   };
 
+  const { confirm: confirmAction, ConfirmDialog: MailboxConfirmDialog } = useConfirmDialog();
+
   const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir esta caixa de email?')) return;
+    const ok = await confirmAction({
+      title: "Excluir caixa de email",
+      description: "Tem certeza que deseja excluir esta caixa de email? Todos os dados relacionados serão perdidos.",
+      confirmLabel: "Excluir",
+      variant: "destructive",
+    });
+    if (!ok) return;
     await deleteMailbox.mutateAsync(id);
   };
 
@@ -283,6 +292,7 @@ export function MailboxList({ onOpenInbox }: MailboxListProps) {
           onOpenChange={(open) => !open && setSettingsMailbox(null)}
         />
       )}
+      {MailboxConfirmDialog}
     </div>
   );
 }

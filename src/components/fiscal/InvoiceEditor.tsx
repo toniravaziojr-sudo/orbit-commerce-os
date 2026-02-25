@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { FileText, User, Package, MapPin, Calculator, Truck, Save, Send, Trash2, X, Loader2, AlertCircle, Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -408,9 +409,17 @@ export function InvoiceEditor({
     }
   };
 
+  const { confirm: confirmAction, ConfirmDialog: InvoiceConfirmDialog } = useConfirmDialog();
+
   const handleDelete = async () => {
     if (!onDelete) return;
-    if (!confirm('Tem certeza que deseja excluir este rascunho?')) return;
+    const ok = await confirmAction({
+      title: "Excluir rascunho",
+      description: "Tem certeza que deseja excluir este rascunho? Esta ação não pode ser desfeita.",
+      confirmLabel: "Excluir",
+      variant: "destructive",
+    });
+    if (!ok) return;
     
     try {
       await onDelete();
@@ -432,6 +441,8 @@ export function InvoiceEditor({
   const itemsWithoutNcm = data.items.filter(item => !item.ncm?.trim());
 
   return (
+    <>
+    {InvoiceConfirmDialog}
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -1157,5 +1168,6 @@ export function InvoiceEditor({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

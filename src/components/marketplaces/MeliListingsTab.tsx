@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -149,8 +150,16 @@ export function MeliListingsTab() {
     });
   };
 
-  const handlePublish = (listing: MeliListing) => {
-    if (confirm("Publicar este anúncio no Mercado Livre?")) {
+  const { confirm: confirmAction, ConfirmDialog } = useConfirmDialog();
+
+  const handlePublish = async (listing: MeliListing) => {
+    const ok = await confirmAction({
+      title: "Publicar anúncio",
+      description: "Publicar este anúncio no Mercado Livre?",
+      confirmLabel: "Publicar",
+      variant: "default",
+    });
+    if (ok) {
       setActionLoadingId(listing.id);
       publishListing.mutate({ id: listing.id }, { onSettled: () => setActionLoadingId(null) });
     }
@@ -171,8 +180,14 @@ export function MeliListingsTab() {
     publishListing.mutate({ id: listing.id, action: "update" }, { onSettled: () => setActionLoadingId(null) });
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm("Remover este anúncio?")) deleteListing.mutate(id);
+  const handleDelete = async (id: string) => {
+    const ok = await confirmAction({
+      title: "Remover anúncio",
+      description: "Tem certeza que deseja remover este anúncio? Esta ação não pode ser desfeita.",
+      confirmLabel: "Remover",
+      variant: "destructive",
+    });
+    if (ok) deleteListing.mutate(id);
   };
 
   const handleBulkDelete = async () => {
@@ -184,7 +199,13 @@ export function MeliListingsTab() {
       toast.error("Nenhum anúncio selecionado pode ser excluído (apenas rascunhos/aprovados/erros).");
       return;
     }
-    if (!confirm(`Excluir ${deletableIds.length} anúncio${deletableIds.length > 1 ? "s" : ""}?`)) return;
+    const ok = await confirmAction({
+      title: "Excluir anúncios",
+      description: `Excluir ${deletableIds.length} anúncio${deletableIds.length > 1 ? "s" : ""}? Esta ação não pode ser desfeita.`,
+      confirmLabel: "Excluir",
+      variant: "destructive",
+    });
+    if (!ok) return;
     for (const id of deletableIds) {
       deleteListing.mutate(id);
     }
@@ -202,7 +223,13 @@ export function MeliListingsTab() {
     const confirmMsg = selectedCount > 0
       ? `Executar "${label}" nos ${selectedCount} anúncios selecionados?`
       : `Executar "${label}" em todos os anúncios? Isso pode levar alguns minutos.`;
-    if (!confirm(confirmMsg)) return;
+    const ok = await confirmAction({
+      title: label,
+      description: confirmMsg,
+      confirmLabel: "Executar",
+      variant: "warning",
+    });
+    if (!ok) return;
 
     const listingIds = selectedCount > 0 ? Array.from(selectedIds) : undefined;
 
@@ -563,6 +590,7 @@ export function MeliListingsTab() {
         mode="edit"
         initialData={editingListing}
       />
+      {ConfirmDialog}
     </TooltipProvider>
   );
 }

@@ -4,6 +4,7 @@
 // =============================================
 
 import React, { useState } from 'react';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { Navigate } from 'react-router-dom';
 import { useBlockSuggestions, BlockRequestStatus, BlockImplementationRequest } from '@/hooks/useBlockSuggestions';
 import { usePlatformOperator } from '@/hooks/usePlatformOperator';
@@ -135,8 +136,16 @@ export default function BlockSuggestions() {
     });
   };
 
-  const handleReject = (request: BlockImplementationRequest) => {
-    if (!confirm('Tem certeza que deseja rejeitar esta sugestão?')) return;
+  const { confirm: confirmAction, ConfirmDialog: BlockConfirmDialog } = useConfirmDialog();
+
+  const handleReject = async (request: BlockImplementationRequest) => {
+    const ok = await confirmAction({
+      title: "Rejeitar sugestão",
+      description: "Tem certeza que deseja rejeitar esta sugestão?",
+      confirmLabel: "Rejeitar",
+      variant: "destructive",
+    });
+    if (!ok) return;
     
     rejectRequest.mutate({
       requestId: request.id,
@@ -457,6 +466,7 @@ export default function BlockSuggestions() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {BlockConfirmDialog}
     </div>
   );
 }
