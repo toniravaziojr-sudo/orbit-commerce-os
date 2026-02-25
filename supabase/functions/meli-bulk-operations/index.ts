@@ -480,7 +480,7 @@ Retorne APENAS o texto da descrição.`,
     if (action === "bulk_auto_categories") {
       let query = supabase
         .from("meli_listings")
-        .select("id, title, category_id, product_id, products(name)")
+        .select("id, title, category_id, product_id, products(name, description, short_description, brand)")
         .eq("tenant_id", tenantId)
         .in("status", ["draft", "ready", "approved", "error"]);
 
@@ -522,7 +522,15 @@ Retorne APENAS o texto da descrição.`,
           }
 
           const product = (listing as any).products;
-          const searchTerm = product?.name || listing.title;
+          const productName = product?.name || listing.title;
+          // Build smarter search term: extract key product function/type from description
+          const shortDesc = (product?.short_description || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+          const fullDesc = (product?.description || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+          // Use product name + key terms from short description for better categorization
+          const descKeywords = shortDesc.slice(0, 150) || fullDesc.slice(0, 150);
+          const searchTerm = descKeywords 
+            ? `${productName} ${descKeywords}`.slice(0, 200)
+            : productName;
 
           const discoveryRes = await fetch(
             `https://api.mercadolibre.com/sites/MLB/domain_discovery/search?limit=1&q=${encodeURIComponent(searchTerm)}`,
@@ -581,7 +589,7 @@ Retorne APENAS o texto da descrição.`,
 
     // ============ ACTION: auto_suggest_category (single product) ============
     if (action === "auto_suggest_category") {
-      const { productName } = body;
+      const { productName, productDescription } = body;
       if (!productName) {
         return new Response(
           JSON.stringify({ success: false, error: "productName obrigatório" }),
@@ -593,9 +601,13 @@ Retorne APENAS o texto da descrição.`,
       let categoryName = "";
       let pathStr = "";
 
-      // Strategy 1: domain_discovery/search (replaces deprecated category_predictor)
+      // Build smarter search term using description context
+      const descKeywords = (productDescription || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 150);
+      const searchTerm = descKeywords ? `${productName} ${descKeywords}`.slice(0, 200) : productName;
+
+      // Strategy 1: domain_discovery/search with enriched search term
       try {
-        const discoveryUrl = `https://api.mercadolibre.com/sites/MLB/domain_discovery/search?limit=1&q=${encodeURIComponent(productName)}`;
+        const discoveryUrl = `https://api.mercadolibre.com/sites/MLB/domain_discovery/search?limit=3&q=${encodeURIComponent(searchTerm)}`;
         console.log(`[auto_suggest] Trying domain_discovery: ${discoveryUrl}`);
         const discoveryRes = await fetch(discoveryUrl, { headers: mlHeaders });
         console.log(`[auto_suggest] Discovery status: ${discoveryRes.status}`);

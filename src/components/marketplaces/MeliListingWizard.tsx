@@ -225,6 +225,7 @@ export function MeliListingWizard({
           tenantId: currentTenant.id,
           action: "auto_suggest_category",
           productName: product.name,
+          productDescription: product.short_description || product.description || "",
         },
       });
       if (data?.success && data.categoryId) {
@@ -599,7 +600,8 @@ export function MeliListingWizard({
                 value={categoryId}
                 onChange={(id, name) => { setCategoryId(id); if (name) setCategoryName(name); }}
                 selectedName={categoryName}
-                productName={selectedProduct?.name || title}
+                productName={selectedProduct?.name || initialData?.product?.name || title}
+                productDescription={selectedProduct?.description || selectedProduct?.short_description || initialData?.product?.description || ""}
               />
               {!categoryId && (
                 <p className="text-xs text-destructive flex items-center gap-1">
