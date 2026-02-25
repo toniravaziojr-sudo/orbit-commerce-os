@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { useMeliListings, type MeliListing } from "@/hooks/useMeliListings";
 import { useProductsWithImages, type ProductWithImage } from "@/hooks/useProducts";
+import { MeliCategoryPicker } from "@/components/marketplaces/MeliCategoryPicker";
 import { toast } from "sonner";
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; color?: string }> = {
@@ -70,6 +71,7 @@ export function MeliListingsTab() {
   const [formListingType, setFormListingType] = useState("gold_special");
   const [formCondition, setFormCondition] = useState("new");
   const [formCategoryId, setFormCategoryId] = useState("");
+  const [formCategoryName, setFormCategoryName] = useState("");
   const [formGtin, setFormGtin] = useState("");
   const [formBrand, setFormBrand] = useState("");
   const [formWarranty, setFormWarranty] = useState("");
@@ -181,6 +183,7 @@ export function MeliListingsTab() {
     setFormListingType("gold_special");
     setFormCondition("new");
     setFormCategoryId("");
+    setFormCategoryName("");
     setFormGtin("");
     setFormBrand("");
     setFormWarranty("");
@@ -478,7 +481,7 @@ export function MeliListingsTab() {
               formQuantity={formQuantity} setFormQuantity={setFormQuantity}
               formListingType={formListingType} setFormListingType={setFormListingType}
               formCondition={formCondition} setFormCondition={setFormCondition}
-              formCategoryId={formCategoryId} setFormCategoryId={setFormCategoryId}
+              formCategoryId={formCategoryId} setFormCategoryId={(v, name) => { setFormCategoryId(v); if (name !== undefined) setFormCategoryName(name); }}
               formGtin={formGtin} setFormGtin={setFormGtin}
               formBrand={formBrand} setFormBrand={setFormBrand}
               formWarranty={formWarranty} setFormWarranty={setFormWarranty}
@@ -496,7 +499,7 @@ export function MeliListingsTab() {
             {selectedProduct && (
               <Button
                 onClick={handleCreateListing}
-                disabled={!formTitle || !formPrice || createListing.isPending}
+                disabled={!formTitle || !formPrice || !formCategoryId || createListing.isPending}
               >
                 {createListing.isPending ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvando...</>
@@ -524,7 +527,7 @@ export function MeliListingsTab() {
             formQuantity={formQuantity} setFormQuantity={setFormQuantity}
             formListingType={formListingType} setFormListingType={setFormListingType}
             formCondition={formCondition} setFormCondition={setFormCondition}
-            formCategoryId={formCategoryId} setFormCategoryId={setFormCategoryId}
+            formCategoryId={formCategoryId} setFormCategoryId={(v, name) => { setFormCategoryId(v); if (name !== undefined) setFormCategoryName(name); }}
             formGtin={formGtin} setFormGtin={setFormGtin}
             formBrand={formBrand} setFormBrand={setFormBrand}
             formWarranty={formWarranty} setFormWarranty={setFormWarranty}
@@ -536,7 +539,7 @@ export function MeliListingsTab() {
             <Button variant="outline" onClick={() => { setShowEditDialog(false); setEditingListing(null); }}>
               Cancelar
             </Button>
-            <Button onClick={handleSaveEdit} disabled={!formTitle || !formPrice || updateListing.isPending}>
+            <Button onClick={handleSaveEdit} disabled={!formTitle || !formPrice || !formCategoryId || updateListing.isPending}>
               {updateListing.isPending ? (
                 <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvando...</>
               ) : "Salvar Alterações"}
@@ -557,7 +560,7 @@ interface ListingFormProps {
   formQuantity: string; setFormQuantity: (v: string) => void;
   formListingType: string; setFormListingType: (v: string) => void;
   formCondition: string; setFormCondition: (v: string) => void;
-  formCategoryId: string; setFormCategoryId: (v: string) => void;
+  formCategoryId: string; setFormCategoryId: (v: string, name?: string) => void;
   formGtin: string; setFormGtin: (v: string) => void;
   formBrand: string; setFormBrand: (v: string) => void;
   formWarranty: string; setFormWarranty: (v: string) => void;
@@ -687,18 +690,16 @@ function ListingForm(props: ListingFormProps) {
 
       {/* Categoria ML */}
       <div className="space-y-2">
-        <Label>Categoria do Mercado Livre</Label>
-        <Input
+        <Label>Categoria do Mercado Livre *</Label>
+        <MeliCategoryPicker
           value={formCategoryId}
-          onChange={(e) => setFormCategoryId(e.target.value)}
-          placeholder="Ex: MLB1000 (ID da categoria no ML)"
+          onChange={(id, name) => setFormCategoryId(id, name)}
         />
-        <p className="text-xs text-muted-foreground">
-          Obrigatório. Encontre o ID em{" "}
-          <a href="https://api.mercadolibre.com/sites/MLB/categories" target="_blank" rel="noopener noreferrer" className="underline text-primary">
-            api.mercadolibre.com/sites/MLB/categories
-          </a>
-        </p>
+        {!formCategoryId && (
+          <p className="text-xs text-destructive">
+            Obrigatório. Selecione a categoria do produto no Mercado Livre.
+          </p>
+        )}
       </div>
 
       {/* Marca + GTIN/EAN */}
