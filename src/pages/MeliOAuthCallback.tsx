@@ -121,15 +121,15 @@ export default function MeliOAuthCallback() {
           window.close();
         }, type === 'meli_connected' ? 1500 : 3000);
       } else {
-        // Not in a popup - redirect to marketplaces page
+        // Not in a popup - redirect to integrations page
         setTimeout(() => {
-          window.location.href = `/marketplaces/mercadolivre?${type}=${encodeURIComponent(String(value))}`;
+          window.location.href = `/integrations?tab=marketplaces&${type}=${encodeURIComponent(String(value))}`;
         }, type === 'meli_connected' ? 1500 : 3000);
       }
     } catch {
       // Fallback redirect
       setTimeout(() => {
-        window.location.href = `/marketplaces/mercadolivre`;
+        window.location.href = `/integrations?tab=marketplaces`;
       }, 2000);
     }
   };
