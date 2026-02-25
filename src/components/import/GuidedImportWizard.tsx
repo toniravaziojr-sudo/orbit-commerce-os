@@ -9,7 +9,7 @@ import { useImportData } from '@/hooks/useImportJobs';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { normalizeData } from '@/lib/import/platforms';
-import { parseCSV, consolidateShopifyProducts, consolidateShopifyCustomers, consolidateShopifyOrders } from '@/lib/import/utils';
+import { parseCSV, consolidateShopifyProducts, consolidateShopifyCustomers, consolidateShopifyOrders, consolidateNuvemshopProducts, readFileWithEncoding } from '@/lib/import/utils';
 import type { PlatformType } from '@/lib/import/types';
 import { useAuth } from '@/hooks/useAuth';
 import { detectPlatform as detectPlatformFromHtml } from '@/lib/import/detector';
@@ -124,11 +124,13 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
     setFileStepStatuses(prev => ({ ...prev, [stepId]: { status: 'processing' } }));
 
     try {
-      const text = await file.text();
-      let data: any[];
-      
       const platform = analysisResult?.platform?.toLowerCase() || 'generic';
       const isShopifyPlatform = platform === 'shopify' || platform.includes('shopify');
+      const isNuvemshopPlatform = platform === 'nuvemshop' || platform.includes('nuvem');
+      
+      // CRITICAL: Use encoding-aware file reading for CSVs (fixes Latin-1 mojibake from Nuvemshop)
+      const text = file.name.endsWith('.csv') ? await readFileWithEncoding(file) : await file.text();
+      let data: any[];
       
       if (file.name.endsWith('.json')) {
         const parsed = JSON.parse(text);
@@ -139,17 +141,33 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         
         console.log(`[handleFileImport] Parsed ${rawRows.length} rows for ${stepId} (platform: ${platform})`);
         
-        // CRITICAL: Consolidate Shopify CSVs by module type
-        // This prevents each row from being treated as a separate item
+        // CRITICAL: Consolidate CSVs by platform + module type
+        // This prevents each variant row from being treated as a separate item
         if (stepId === 'products') {
           // Detect Shopify product CSV by Handle + Title columns
           const hasShopifyStructure = rawRows.length > 0 && 
             ('Handle' in rawRows[0] || 'handle' in rawRows[0]) &&
             ('Title' in rawRows[0] || 'title' in rawRows[0]);
           
+          // Detect Nuvemshop product CSV by "Identificador URL" or "Nome do produto" columns
+          const hasNuvemshopStructure = rawRows.length > 0 && (
+            'Identificador URL' in rawRows[0] || 
+            'Nome do produto' in rawRows[0] || 
+            'Nome' in rawRows[0] ||
+            // Check for normalized keys (encoding-fixed)
+            Object.keys(rawRows[0]).some(k => {
+              const norm = k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+              return norm === 'identificador url' || norm === 'nome do produto';
+            })
+          );
+          
           if (hasShopifyStructure || isShopifyPlatform) {
             console.log(`[handleFileImport] Shopify products - consolidating ${rawRows.length} rows`);
             data = consolidateShopifyProducts(rawRows);
+            console.log(`[handleFileImport] Consolidated to ${data.length} products`);
+          } else if (hasNuvemshopStructure || isNuvemshopPlatform) {
+            console.log(`[handleFileImport] Nuvemshop products - consolidating ${rawRows.length} rows`);
+            data = consolidateNuvemshopProducts(rawRows);
             console.log(`[handleFileImport] Consolidated to ${data.length} products`);
           } else {
             data = rawRows;

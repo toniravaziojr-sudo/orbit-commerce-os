@@ -356,7 +356,22 @@ export function normalizeNuvemshopProduct(raw: NuvemshopProduct): NormalizedProd
   // IMAGES - Extract from multiple possible columns
   // =====================================================
   const images: NormalizedProductImage[] = [];
-  if (raw.images && Array.isArray(raw.images)) {
+  
+  // First check for consolidated images from consolidateNuvemshopProducts
+  const collectedImages = (raw as any)._collectedImages as string[] | undefined;
+  
+  if (collectedImages && collectedImages.length > 0) {
+    collectedImages.forEach((url, idx) => {
+      if (url && url.startsWith('http')) {
+        images.push({
+          url,
+          alt: null,
+          is_primary: idx === 0,
+          position: idx,
+        });
+      }
+    });
+  } else if (raw.images && Array.isArray(raw.images)) {
     raw.images.forEach((img, idx) => {
       images.push({
         url: img.src || '',

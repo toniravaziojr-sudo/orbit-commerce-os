@@ -1,4 +1,5 @@
 // =============================================
+// VERSION: 2026-02-25 - Added Nuvemshop consolidation + encoding fix
 // UTILITÁRIOS COMPARTILHADOS PARA IMPORTAÇÃO
 // =============================================
 
@@ -704,4 +705,279 @@ export function consolidateShopifyOrders(rows: Record<string, string>[]): Record
   console.log(`[consolidateShopifyOrders] Consolidated ${rows.length} rows into ${consolidated.length} orders`);
   
   return consolidated;
+}
+
+/**
+ * Detect if text has mojibake (Latin-1 read as UTF-8) and fix it
+ * Common in Nuvemshop CSV exports
+ * Returns the fixed text if mojibake detected, original otherwise
+ */
+export function fixMojibakeText(text: string): string {
+  // Common mojibake patterns: ç→Ã§, ã→Ã£, é→Ã©, etc.
+  const mojibakePatterns = [
+    /Ã§/g, /Ã£/g, /Ã¡/g, /Ã©/g, /Ãª/g, /Ã­/g, /Ã³/g, /Ã´/g, /Ãµ/g, /Ãº/g, /Ã¼/g,
+    /Ã‡/g, /Ãƒ/g, /Ã‰/g, /Ã"/g,
+  ];
+  
+  // Count mojibake occurrences
+  let mojibakeCount = 0;
+  for (const pattern of mojibakePatterns) {
+    const matches = text.match(pattern);
+    if (matches) mojibakeCount += matches.length;
+  }
+  
+  // If very few mojibake patterns, likely not a encoding issue
+  if (mojibakeCount < 3) return text;
+  
+  console.log(`[fixMojibakeText] Detected ${mojibakeCount} mojibake patterns, attempting fix...`);
+  
+  // Fix common mojibake replacements (Latin-1 → UTF-8 corruption)
+  const fixed = text
+    // Lowercase accented
+    .replace(/Ã§/g, 'ç')
+    .replace(/Ã£/g, 'ã')
+    .replace(/Ã¡/g, 'á')
+    .replace(/Ã /g, 'à')
+    .replace(/Ã¢/g, 'â')
+    .replace(/Ã©/g, 'é')
+    .replace(/Ãª/g, 'ê')
+    .replace(/Ã­/g, 'í')
+    .replace(/Ã³/g, 'ó')
+    .replace(/Ã´/g, 'ô')
+    .replace(/Ãµ/g, 'õ')
+    .replace(/Ãº/g, 'ú')
+    .replace(/Ã¼/g, 'ü')
+    // Uppercase accented
+    .replace(/Ã‡/g, 'Ç')
+    .replace(/Ãƒ/g, 'Ã')
+    .replace(/Ã‰/g, 'É')
+    .replace(/Ã"/g, 'Ó')
+    .replace(/Ãœ/g, 'Ü')
+    .replace(/Ã€/g, 'À')
+    .replace(/Ã‚/g, 'Â')
+    .replace(/ÃŠ/g, 'Ê')
+    .replace(/ÃŒ/g, 'Ì')
+    .replace(/Ã'/g, 'Ò')
+    .replace(/Ã"/g, 'Ô')
+    .replace(/Ã•/g, 'Õ')
+    .replace(/Ã™/g, 'Ù')
+    .replace(/Ã›/g, 'Û');
+  
+  console.log(`[fixMojibakeText] Fixed mojibake encoding`);
+  return fixed;
+}
+
+/**
+ * Read file with encoding auto-detection
+ * Tries UTF-8 first, if mojibake detected re-reads as Latin-1
+ */
+export async function readFileWithEncoding(file: File): Promise<string> {
+  // First try UTF-8 (default)
+  let text = await file.text();
+  
+  // Check for mojibake patterns
+  const mojibakePatterns = /Ã§|Ã£|Ã¡|Ã©|Ãª|Ã­|Ã³|Ã´|Ãµ|Ãº/g;
+  const matches = text.match(mojibakePatterns);
+  
+  if (matches && matches.length >= 3) {
+    console.log(`[readFileWithEncoding] Detected ${matches.length} mojibake patterns, re-reading as Latin-1...`);
+    
+    // Re-read with Latin-1 encoding
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const decoder = new TextDecoder('iso-8859-1');
+      text = decoder.decode(arrayBuffer);
+      console.log('[readFileWithEncoding] Re-read file as Latin-1 successfully');
+    } catch (e) {
+      console.warn('[readFileWithEncoding] Failed to re-read as Latin-1, using mojibake fix instead');
+      text = fixMojibakeText(text);
+    }
+  }
+  
+  return text;
+}
+
+/**
+ * Consolidate Nuvemshop CSV rows by "Identificador URL" or "URL"
+ * Nuvemshop exports multiple rows per product (one per variant), similar to Shopify
+ * This function groups them back into single products with variants
+ */
+export function consolidateNuvemshopProducts(rows: Record<string, string>[]): Record<string, any>[] {
+  if (rows.length === 0) return [];
+  
+  const productMap = new Map<string, any>();
+  
+  // Determine which column is the grouping key
+  const sampleRow = rows[0];
+  const groupKey = findNuvemshopGroupKey(sampleRow);
+  
+  if (!groupKey) {
+    console.log('[consolidateNuvemshopProducts] No grouping key found, returning rows as-is');
+    return rows;
+  }
+  
+  console.log(`[consolidateNuvemshopProducts] Using grouping key: "${groupKey}"`);
+  
+  for (const row of rows) {
+    const key = (row[groupKey] || '').trim().toLowerCase();
+    if (!key) {
+      console.warn('[consolidateNuvemshopProducts] Row without grouping key, skipping');
+      continue;
+    }
+    
+    if (!productMap.has(key)) {
+      // First row for this product - use as base
+      productMap.set(key, {
+        ...row,
+        _variants: [] as Record<string, string>[],
+        _images: [] as string[],
+      });
+    }
+    
+    const product = productMap.get(key)!;
+    
+    // Collect variant data from this row
+    const variantData: Record<string, string> = {};
+    let hasVariantInfo = false;
+    
+    // Look for variant-specific columns (Variação 1, Variação 2, Variação 3, Cor, Tamanho, etc.)
+    for (const [colKey, colVal] of Object.entries(row)) {
+      const normalizedCol = colKey.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (
+        normalizedCol.includes('variacao') || 
+        normalizedCol.includes('variação') ||
+        normalizedCol.includes('variacion') ||
+        normalizedCol.match(/^(cor|tamanho|size|color|material)$/i)
+      ) {
+        if (colVal && colVal.trim()) {
+          variantData[colKey] = colVal.trim();
+          hasVariantInfo = true;
+        }
+      }
+    }
+    
+    // Also check price/sku/stock for this variant row
+    for (const colKey of Object.keys(row)) {
+      const normalizedCol = colKey.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (
+        normalizedCol.includes('preco') || normalizedCol.includes('precio') || normalizedCol === 'price' ||
+        normalizedCol === 'sku' || 
+        normalizedCol.includes('estoque') || normalizedCol === 'stock' ||
+        normalizedCol.includes('codigo de barras') || normalizedCol === 'barcode' ||
+        normalizedCol.includes('peso') || normalizedCol === 'weight'
+      ) {
+        variantData[colKey] = row[colKey] || '';
+      }
+    }
+    
+    // If this row has different variant info than the base, add as variant
+    if (hasVariantInfo) {
+      const existingVariant = product._variants.find(
+        (v: Record<string, string>) => {
+          // Check if all variant option values match
+          for (const [vk, vv] of Object.entries(variantData)) {
+            if (vk.toLowerCase().includes('variação') || vk.toLowerCase().includes('variacao')) {
+              if (v[vk] !== vv) return false;
+            }
+          }
+          return true;
+        }
+      );
+      
+      if (!existingVariant) {
+        product._variants.push(variantData);
+      }
+    }
+    
+    // Collect images from this row
+    for (let i = 1; i <= 15; i++) {
+      for (const imgCol of [`URL da imagem ${i}`, `Imagem ${i}`, `Image ${i}`]) {
+        const imgUrl = row[imgCol];
+        if (imgUrl && imgUrl.startsWith('http') && !product._images.includes(imgUrl)) {
+          product._images.push(imgUrl);
+        }
+      }
+    }
+    // Also check main image and additional
+    const mainImg = row['Imagem principal'] || row['Main Image'] || '';
+    if (mainImg && mainImg.startsWith('http') && !product._images.includes(mainImg)) {
+      product._images.unshift(mainImg); // Main image first
+    }
+    
+    // Fill in missing base fields from subsequent rows
+    const nameCol = findColumnByNormalized(row, ['nome', 'nome do produto', 'name', 'title']);
+    if (nameCol && row[nameCol] && !product[nameCol]) {
+      product[nameCol] = row[nameCol];
+    }
+    
+    const descCol = findColumnByNormalized(row, ['descricao', 'description']);
+    if (descCol && row[descCol] && !product[descCol]) {
+      product[descCol] = row[descCol];
+    }
+  }
+  
+  // Convert back to array
+  const consolidated: Record<string, any>[] = [];
+  
+  for (const [key, product] of productMap) {
+    const enrichedProduct = { ...product };
+    
+    // Keep variant and image info for the normalizer
+    if (product._images.length > 0) {
+      enrichedProduct._collectedImages = product._images;
+    }
+    if (product._variants.length > 0) {
+      enrichedProduct._collectedVariants = product._variants;
+    }
+    
+    delete enrichedProduct._variants;
+    delete enrichedProduct._images;
+    
+    consolidated.push(enrichedProduct);
+  }
+  
+  console.log(`[consolidateNuvemshopProducts] Consolidated ${rows.length} rows into ${consolidated.length} products`);
+  
+  if (consolidated.length > 0) {
+    const first = consolidated[0];
+    const nameKey = findColumnByNormalized(first, ['nome', 'nome do produto', 'name']);
+    console.log(`[consolidateNuvemshopProducts] First product: "${nameKey ? first[nameKey] : 'unknown'}", variants: ${first._collectedVariants?.length || 0}, images: ${first._collectedImages?.length || 0}`);
+  }
+  
+  return consolidated;
+}
+
+/**
+ * Find the grouping key column for Nuvemshop CSVs
+ */
+function findNuvemshopGroupKey(row: Record<string, string>): string | null {
+  const candidates = [
+    'Identificador URL', 'URL', 'Handle', 'Slug', 'slug',
+    'Identificador', 'Link', 'Permalink',
+  ];
+  
+  for (const candidate of candidates) {
+    if (row[candidate] !== undefined) return candidate;
+  }
+  
+  // Try normalized matching
+  for (const [key] of Object.entries(row)) {
+    const normalized = key.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (normalized === 'identificador url' || normalized === 'url' || normalized === 'handle') {
+      return key;
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Find a column by normalized name match
+ */
+function findColumnByNormalized(row: Record<string, string>, names: string[]): string | null {
+  for (const [key] of Object.entries(row)) {
+    const normalized = key.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    if (names.includes(normalized)) return key;
+  }
+  return null;
 }
