@@ -578,6 +578,7 @@ interface ListingFormProps {
 function ListingForm(props: ListingFormProps) {
   const { currentTenant } = useAuth();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
 
   const {
     formTitle, setFormTitle,
@@ -634,6 +635,43 @@ function ListingForm(props: ListingFormProps) {
     }
   };
 
+  const handleGenerateTitle = async () => {
+    if (!currentTenant?.id || !selectedProduct?.name) {
+      toast.error("Produto ou tenant não identificado.");
+      return;
+    }
+
+    setIsGeneratingTitle(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("meli-generate-description", {
+        body: {
+          tenantId: currentTenant.id,
+          htmlDescription: selectedProduct.name + (formDescription ? "\n" + formDescription : ""),
+          productName: selectedProduct.name,
+          productTitle: formTitle,
+          generateTitle: true,
+        },
+      });
+
+      if (error || !data?.success) {
+        toast.error(data?.error || "Erro ao gerar título");
+        return;
+      }
+
+      const title = (data.title || data.description || "").slice(0, 60);
+      if (title) {
+        setFormTitle(title);
+        toast.success("Título gerado para o Mercado Livre!");
+      } else {
+        toast.error("IA não retornou um título válido.");
+      }
+    } catch (err) {
+      toast.error("Erro de conexão ao gerar título");
+    } finally {
+      setIsGeneratingTitle(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {selectedProduct && (
@@ -659,7 +697,23 @@ function ListingForm(props: ListingFormProps) {
 
       {/* Título */}
       <div className="space-y-2">
-        <Label>Título do Anúncio *</Label>
+        <div className="flex items-center justify-between">
+          <Label>Título do Anúncio *</Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleGenerateTitle}
+            disabled={isGeneratingTitle || !selectedProduct?.name}
+            className="gap-1.5"
+          >
+            {isGeneratingTitle ? (
+              <><Loader2 className="h-3.5 w-3.5 animate-spin" />Gerando...</>
+            ) : (
+              <><Sparkles className="h-3.5 w-3.5" />Gerar Título ML</>
+            )}
+          </Button>
+        </div>
         <Input
           value={formTitle}
           onChange={(e) => setFormTitle(e.target.value)}

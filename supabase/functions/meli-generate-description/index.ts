@@ -41,7 +41,7 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { tenantId, htmlDescription, productName, productTitle } = body;
+    const { tenantId, htmlDescription, productName, productTitle, generateTitle } = body;
 
     if (!tenantId || !htmlDescription) {
       return new Response(
@@ -101,7 +101,40 @@ INSTRUÇÕES:
 - O texto deve ser persuasivo e profissional
 - Não invente informações que não estejam no original`;
 
-    const userPrompt = `Converta a seguinte descrição HTML de produto para texto plano compatível com o Mercado Livre.
+    let systemPromptFinal = systemPrompt;
+    let userPromptFinal: string;
+
+    if (generateTitle) {
+      systemPromptFinal = `Você é um especialista em criação de títulos de anúncios para o Mercado Livre Brasil.
+
+REGRAS OBRIGATÓRIAS PARA TÍTULOS DO MERCADO LIVRE:
+1. MÁXIMO 60 CARACTERES (limite absoluto do ML)
+2. NÃO usar emojis, caracteres especiais, pontuação excessiva
+3. NÃO usar palavras em CAPS LOCK (exceto siglas como ML, USB, LED)
+4. NÃO incluir: preço, frete grátis, promoção, desconto
+5. NÃO repetir palavras
+6. INCLUIR: marca + modelo/tipo + característica principal + diferencial
+7. Palavras-chave relevantes para SEO dentro do ML
+8. Linguagem clara e direta
+
+EXEMPLOS BONS:
+- Kit 3 Camisetas Básicas Algodão Masculina Slim Fit
+- Tênis Nike Air Max 90 Masculino Original Preto
+- Sérum Facial Vitamina C 30ml Anti-idade Clareador
+
+EXEMPLOS RUINS:
+- ⭐ SUPER PROMOÇÃO Camiseta BARATA ⭐ (emojis, caps, preço)
+- Camiseta Camiseta Algodão Algodão (repetição)`;
+
+      userPromptFinal = `Gere UM título otimizado para o Mercado Livre com no máximo 60 caracteres.
+
+Produto: ${productName || "Produto"}
+${productTitle ? `Título atual: ${productTitle}` : ""}
+${htmlDescription ? `Descrição: ${htmlDescription.slice(0, 500)}` : ""}
+
+Retorne APENAS o título, sem explicações, sem aspas.`;
+    } else {
+      userPromptFinal = `Converta a seguinte descrição HTML de produto para texto plano compatível com o Mercado Livre.
 
 Produto: ${productName || productTitle || "Produto"}
 ${productTitle ? `Título do anúncio: ${productTitle}` : ""}
@@ -110,6 +143,7 @@ Descrição HTML original:
 ${htmlDescription}
 
 Gere APENAS o texto plano da descrição, sem explicações adicionais.`;
+    }
 
     const aiResponse = await fetch("https://api.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -120,11 +154,11 @@ Gere APENAS o texto plano da descrição, sem explicações adicionais.`;
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
+          { role: "system", content: systemPromptFinal },
+          { role: "user", content: userPromptFinal },
         ],
-        max_tokens: 4096,
-        temperature: 0.3,
+        max_tokens: generateTitle ? 128 : 4096,
+        temperature: generateTitle ? 0.5 : 0.3,
       }),
     });
 
@@ -147,10 +181,14 @@ Gere APENAS o texto plano da descrição, sem explicações adicionais.`;
       );
     }
 
-    console.log(`[meli-generate-description][${VERSION}] Generated ${generatedText.length} chars`);
+    console.log(`[meli-generate-description][${VERSION}] Generated ${generatedText.length} chars, mode=${generateTitle ? 'title' : 'description'}`);
+
+    const responseBody = generateTitle
+      ? { success: true, title: generatedText.slice(0, 60) }
+      : { success: true, description: generatedText };
 
     return new Response(
-      JSON.stringify({ success: true, description: generatedText }),
+      JSON.stringify(responseBody),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
