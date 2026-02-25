@@ -85,17 +85,20 @@ interface GeneratedItem {
   categoryPath: string;
 }
 
-const TITLE_MIN_LENGTH = 30;
-const TITLE_MAX_LENGTH = 60;
+const TITLE_SOFT_WARNING_LENGTH = 90;
 
-function isInvalidMeliTitle(title: string): boolean {
+function getMeliTitleIssue(title: string): string | null {
   const normalized = title.trim();
-  if (normalized.length < TITLE_MIN_LENGTH || normalized.length > TITLE_MAX_LENGTH) return true;
-  if (/[-,/:;]$/.test(normalized)) return true;
-  if (normalized.split(/\s+/).length < 3) return true;
+  if (!normalized) return "Título obrigatório.";
+  if (/[-,/:;]$/.test(normalized)) return "Título parece truncado no final.";
+  if (normalized.split(/\s+/).length < 2) return "Título muito curto/incompleto.";
 
   const lastWord = normalized.split(/\s+/).pop()?.toLowerCase() || "";
-  return ["de", "da", "do", "das", "dos", "e", "com", "para", "por", "a", "o", "em"].includes(lastWord);
+  if (["de", "da", "do", "das", "dos", "e", "com", "para", "por", "a", "o", "em"].includes(lastWord)) {
+    return "Título termina com palavra incompleta.";
+  }
+
+  return null;
 }
 
 export function MeliListingCreator({
@@ -148,7 +151,7 @@ export function MeliListingCreator({
   const allFilteredSelected = filteredProducts.length > 0 && filteredProducts.every(p => selectedProductIds.has(p.id));
 
   const invalidTitleCount = useMemo(
-    () => generatedItems.filter(item => isInvalidMeliTitle(item.title)).length,
+    () => generatedItems.filter(item => !!getMeliTitleIssue(item.title)).length,
     [generatedItems]
   );
 
@@ -209,7 +212,7 @@ export function MeliListingCreator({
       const result = await onBulkCreate({
         products: selectedProducts.map(p => ({
           product_id: p.id,
-          title: p.name.slice(0, 60),
+          title: p.name,
           price: p.price,
           available_quantity: p.stock_quantity || 1,
           images: p.primary_image_url ? [{ url: p.primary_image_url }] : [],
@@ -233,7 +236,7 @@ export function MeliListingCreator({
         listingId: ids[selectedProducts.findIndex(sp => sp.id === p.id)] || "",
         productId: p.id,
         productName: p.name,
-        title: p.name.slice(0, 60),
+        title: p.name,
         description: "",
         categoryId: "",
         categoryName: "",
@@ -444,10 +447,10 @@ export function MeliListingCreator({
       const newTitle = data.title || "";
       if (newTitle) {
         setGeneratedItems(prev => prev.map(i =>
-          i.listingId === item.listingId ? { ...i, title: newTitle.slice(0, 60) } : i
+          i.listingId === item.listingId ? { ...i, title: newTitle } : i
         ));
         // Also update in DB
-        await supabase.from("meli_listings").update({ title: newTitle.slice(0, 60) }).eq("id", item.listingId);
+        await supabase.from("meli_listings").update({ title: newTitle }).eq("id", item.listingId);
         toast.success("Título regenerado!");
       }
     } catch {
@@ -625,7 +628,7 @@ export function MeliListingCreator({
           </DialogTitle>
           <DialogDescription>
             {step === "select" && "Escolha os produtos que deseja anunciar no Mercado Livre"}
-            {step === "titles" && "Revise e edite os títulos gerados pela IA (entre 30 e 60 caracteres, sem truncar)"}
+            {step === "titles" && "Revise e edite os títulos gerados pela IA (sem final truncado)"}
             {step === "descriptions" && "Revise as descrições geradas (texto plano, sem HTML)"}
             {step === "categories" && "Confirme as categorias atribuídas pela API do Mercado Livre"}
             {step === "condition" && "Defina a condição dos produtos"}
@@ -741,13 +744,14 @@ export function MeliListingCreator({
               <ScrollArea className="flex-1 max-h-[400px]">
                 <div className="space-y-3 pr-3">
                   {invalidTitleCount > 0 && (
-                    <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                      {invalidTitleCount} título{invalidTitleCount > 1 ? "s" : ""} precisa{invalidTitleCount > 1 ? "m" : ""} de ajuste (entre 30 e 60 caracteres, sem final truncado).
-                    </div>
+                     <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                       {invalidTitleCount} título{invalidTitleCount > 1 ? "s" : ""} precisa{invalidTitleCount > 1 ? "m" : ""} de ajuste (remova final truncado/incompleto).
+                     </div>
                   )}
 
                   {generatedItems.map(item => {
-                    const titleInvalid = isInvalidMeliTitle(item.title);
+                    const titleIssue = getMeliTitleIssue(item.title);
+                    const titleInvalid = !!titleIssue;
 
                     return (
                     <div key={item.listingId} className="rounded-lg border p-3 space-y-2">
@@ -774,20 +778,19 @@ export function MeliListingCreator({
                         <Input
                           value={item.title}
                           onChange={(e) => handleTitleChange(item.listingId, e.target.value)}
-                          maxLength={60}
                           className={titleInvalid ? "border-destructive" : ""}
                         />
                         <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-xs ${
                           titleInvalid ? "text-destructive font-bold" :
-                          item.title.length > 50 ? "text-amber-500" :
+                          item.title.length > TITLE_SOFT_WARNING_LENGTH ? "text-amber-500" :
                           "text-muted-foreground"
                         }`}>
-                          {item.title.length}/60
+                          {item.title.length} chars
                         </span>
                       </div>
                       {titleInvalid && (
                         <p className="text-xs text-destructive">
-                          Ajuste para 30-60 caracteres e finalize com frase completa (sem hífen no fim).
+                          {titleIssue}
                         </p>
                       )}
                     </div>
