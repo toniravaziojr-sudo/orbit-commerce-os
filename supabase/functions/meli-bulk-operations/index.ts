@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
-const VERSION = "v1.5.0"; // Fix bulk title prompt: add explicit user instruction
+const VERSION = "v1.5.1"; // Harden title validation: reject short/truncated outputs in regenerate/bulk
 
 const MAX_TITLE_LENGTH = 120;
 
@@ -31,11 +31,67 @@ function sanitizeGeneratedTitle(rawTitle: string): string {
   return truncateAtWordBoundary(normalized, MAX_TITLE_LENGTH);
 }
 
-function isValidGeneratedTitle(title: string): boolean {
+function normalizeForComparison(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getDynamicMinTitleLength(productName: string): number {
+  const baseLength = normalizeWhitespace(productName || "").length;
+  return Math.max(24, Math.min(48, Math.floor(baseLength * 0.6)));
+}
+
+function hasSufficientProductCoverage(title: string, productName: string): boolean {
+  const normalizedTitle = normalizeForComparison(title);
+  const normalizedProduct = normalizeForComparison(productName);
+
+  const stopwords = new Set(["de", "da", "do", "das", "dos", "e", "com", "para", "por", "a", "o", "em", "kit"]);
+  const productKeywords = Array.from(new Set(
+    normalizedProduct
+      .split(" ")
+      .filter((word) => word.length >= 4 && !stopwords.has(word))
+  ));
+
+  if (productKeywords.length === 0) return true;
+
+  const requiredMatches = Math.min(2, productKeywords.length);
+  const matches = productKeywords.filter((keyword) => normalizedTitle.includes(keyword)).length;
+
+  return matches >= requiredMatches;
+}
+
+function isLikelyTruncatedEnding(title: string): boolean {
+  const trimmed = title.trim();
+  if (!trimmed) return true;
+
+  if (/[\-_,/:;]$/.test(trimmed)) return true;
+  if (/-[A-Za-zÀ-ÿ]{1,4}$/.test(trimmed)) return true;
+
+  const lastWord = trimmed.split(/\s+/).pop() || "";
+  const normalizedLastWord = normalizeForComparison(lastWord);
+  const allowedShortWords = new Set(["ml", "kg", "g", "l", "cm", "mm", "dia"]);
+
+  if (/\d/.test(normalizedLastWord)) return false;
+  if (allowedShortWords.has(normalizedLastWord)) return false;
+
+  return normalizedLastWord.length > 0 && normalizedLastWord.length <= 3;
+}
+
+function isValidGeneratedTitle(title: string, productName: string): boolean {
   if (!title) return false;
-  if (title.length < 10 || title.length > MAX_TITLE_LENGTH) return false;
-  if (/[-,/:;]$/.test(title)) return false;
-  if (title.split(/\s+/).length < 2) return false;
+  if (title.length > MAX_TITLE_LENGTH) return false;
+  if (title.split(/\s+/).length < 3) return false;
+
+  const minLength = getDynamicMinTitleLength(productName);
+  if (title.length < minLength) return false;
+
+  if (isLikelyTruncatedEnding(title)) return false;
+  if (!hasSufficientProductCoverage(title, productName)) return false;
 
   const lastWord = title.split(/\s+/).pop()?.toLowerCase() || "";
   const danglingWords = new Set(["de", "da", "do", "das", "dos", "e", "com", "para", "por", "a", "o", "em"]);
@@ -55,11 +111,11 @@ function extractBenefitKeyword(context: string): string {
 
 function buildFallbackTitle(productName: string, context: string): string {
   const base = sanitizeGeneratedTitle(productName || "Produto");
-  if (isValidGeneratedTitle(base)) return base;
+  if (isValidGeneratedTitle(base, productName || "Produto")) return base;
 
   const benefit = extractBenefitKeyword(context);
   const withBenefit = sanitizeGeneratedTitle(`${base} ${benefit}`);
-  if (isValidGeneratedTitle(withBenefit)) return withBenefit;
+  if (isValidGeneratedTitle(withBenefit, productName || "Produto")) return withBenefit;
 
   const finalFallback = sanitizeGeneratedTitle(`${base} Produto Original`);
   return finalFallback || "Produto Original";
@@ -336,16 +392,21 @@ serve(async (req) => {
           let finalTitle = "";
           let lastRawTitle = "";
 
-          const attemptFeedbacks: string[] = [];
+          
 
           for (let attempt = 1; attempt <= MAX_TITLE_ATTEMPTS; attempt++) {
+            const minLength = getDynamicMinTitleLength(productName || listing.title || "Produto");
             const feedbackSection = attempt > 1
-              ? `\n\nA tentativa anterior foi rejeitada por qualidade: "${lastRawTitle || "(vazio)"}". Gere uma nova versão COMPLETA, sem final cortado ou abreviado.`
+              ? `\n\nA tentativa anterior foi rejeitada por qualidade: "${lastRawTitle || "(vazio)"}". Gere uma nova versão COMPLETA, sem final cortado, com pelo menos ${minLength} caracteres úteis e mantendo os principais termos do nome do produto.`
               : "";
 
             const userMessage = `Gere UM título otimizado para o Mercado Livre.
 
 ${context}
+
+Requisitos extras:
+- Mínimo de ${minLength} caracteres
+- Manter no título os principais termos do nome do produto (não resumir demais)
 
 Retorne APENAS o título completo, sem aspas e sem explicações.${feedbackSection}`;
 
@@ -412,7 +473,7 @@ Retorne APENAS o título completo, sem aspas, sem explicações.`,
             const title = sanitizeGeneratedTitle(rawTitle);
 
             // Validate title quality
-            const isGoodTitle = isValidGeneratedTitle(title);
+            const isGoodTitle = isValidGeneratedTitle(title, productName || listing.title || "Produto");
 
             console.log(`[meli-bulk-titles] Attempt ${attempt}/${MAX_TITLE_ATTEMPTS} for "${productName}" → "${title}" (${title.length} chars, good=${isGoodTitle})`);
 
@@ -428,7 +489,7 @@ Retorne APENAS o título completo, sem aspas, sem explicações.`,
           }
 
           // Final fallback: use buildFallbackTitle if all attempts failed
-          if (!finalTitle || !isValidGeneratedTitle(finalTitle)) {
+          if (!finalTitle || !isValidGeneratedTitle(finalTitle, productName || listing.title || "Produto")) {
             const context = contextParts.join("\n");
             finalTitle = buildFallbackTitle(productName || listing.title || "Produto Original", context);
             console.log(`[meli-bulk-titles] Fallback title for "${productName}": "${finalTitle}" (last raw: "${lastRawTitle}")`);
