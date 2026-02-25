@@ -337,6 +337,10 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 
 **Pré-processamento de contexto:** Antes de enviar para a IA, o HTML da descrição do produto é stripado (`description.replace(/<[^>]*>/g, " ")`) para evitar confusão do modelo. Títulos gerados com menos de 10 caracteres são rejeitados.
 
+**Regra de Priorização em Títulos (OBRIGATÓRIO):**
+> O prompt de geração de títulos DEVE instruir a IA a começar pelo **tipo de produto** (ex: Balm, Sérum, Kit, Camiseta), NUNCA pela marca sozinha. A marca deve aparecer DEPOIS do tipo de produto. Se o nome do produto já é adequado, usar como base e otimizar para SEO.
+> **Anti-padrão:** Títulos como "Respeite o Hom" (marca truncada sem tipo de produto) são rejeitados — a IA deve gerar algo como "Balm Pós-Banho Calvície Zero Respeite o Homem 60g".
+
 | Ação | Descrição |
 |------|-----------|
 | `bulk_create` | Cria rascunhos para todos os produtos ativos sem anúncio ML |
