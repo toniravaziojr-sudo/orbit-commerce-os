@@ -385,7 +385,7 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 | `bulk_create` | Cria rascunhos para todos os produtos ativos sem anúncio ML |
 | `bulk_generate_titles` | Gera títulos otimizados via ai-router (OpenAI como provedor primário, modelo `google/gemini-2.5-pro` roteado para `gpt-4o`), limite dinâmico por categoria, com instrução explícita no user message ("Gere UM título otimizado..."), validação semântica anti-truncamento com feedback de tentativas rejeitadas, e fallback robusto (nunca persiste título inválido). O prompt inclui exemplos de bons/maus títulos e checklist. |
 | `bulk_generate_descriptions` | Converte descrições HTML para texto plano via ai-router (sem EAN/GTIN) |
-| `bulk_auto_categories` | Categoriza em massa via ML domain_discovery + fallback Search API, com contexto de descrição |
+| `bulk_auto_categories` | Categoriza em massa via ML domain_discovery (limit=5) + `pickBestCategory` com scoring inteligente baseado em `CATEGORY_DOMAIN_HINTS`, penalidades para domínios absurdos (Pet Shop, Hidroponia) e resolução de path completo para validação. Se todos os candidatos pontuam negativamente, tenta fallback com busca simplificada (nome + marca). |
 | `auto_suggest_category` | Categorização individual com `productName` + `productDescription` para melhor precisão |
 
 ### Seleção em Massa (OBRIGATÓRIO)
@@ -403,17 +403,25 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 > { "tenantId": "...", "action": "...", "offset": 0, "limit": 5, "listingIds": ["id1", "id2"] }
 > ```
 
-**Regra: Categorização Inteligente (OBRIGATÓRIO):**
-> A categorização automática (`bulk_auto_categories` e `auto_suggest_category`) DEVE usar o nome do produto **enriquecido com a descrição/resumo** para gerar um termo de busca mais preciso no `domain_discovery`. Isso evita categorizações incorretas baseadas apenas no nome (ex: um tratamento capilar com proteção UV sendo categorizado como "Pós Sol").
+**Regra: Categorização Inteligente com Scoring (OBRIGATÓRIO):**
+> A categorização automática (`bulk_auto_categories` e `auto_suggest_category`) utiliza um sistema de scoring multi-candidato (`pickBestCategory`) para evitar categorizações absurdas:
+> - Busca **5 candidatos** do `domain_discovery` (não apenas 1)
+> - **Resolve o path completo** de cada candidato via `/categories/{id}` antes de pontuar
+> - Pontua usando `CATEGORY_DOMAIN_HINTS` (mapa de palavras-chave → domínios esperados, ex: "balm" → "beleza")
+> - **Boost +5** para categorias em "Beleza e Cuidado Pessoal", "Barbearia", "Cuidados com o Cabelo"
+> - **Penalidade -10** para domínios absurdos: Pet Shop, Hidroponia, Jardinagem, Aquário, Ferramentas (se o produto não menciona esses termos)
+> - Se o **melhor score ≤ -5**, todos os resultados são descartados e tenta **fallback** com busca simplificada (nome + marca)
 > - `bulk_auto_categories`: busca `products(name, description, short_description, brand)` e concatena keywords da descrição ao searchTerm
 > - `auto_suggest_category`: aceita `productDescription` no body para enriquecer o termo de busca
+>
+> **Anti-padrão corrigido (v1.7.0):** Antes o sistema usava `limit=1` e aceitava cegamente o primeiro resultado da API, causando "Balm Pós-Banho" → "Nutrientes para Hidroponia" e "Balm Capilar" → "Pet Shop > Gatos".
 
 **Regra: Auto-fill GTIN e Marca na Edição (OBRIGATÓRIO):**
 > Ao abrir o `MeliListingWizard` para edição, se os atributos `BRAND` e `GTIN` não existem nos `attributes` do anúncio, o `MeliListingsTab.handleEditListing` DEVE buscar esses dados diretamente do produto (`products.brand`, `products.gtin`, `products.barcode`) como fallback.
 
 **Regra: Fallback de Categorização**
-> O `auto_suggest_category` tenta primeiro o `domain_discovery/search` do ML com termo enriquecido (nome + descrição).
-> Se falhar (status != 200 ou sem resultados), usa a Search API (`/sites/MLB/search?q=...`) e extrai categorias dos `available_filters`.
+> O `auto_suggest_category` tenta primeiro o `domain_discovery/search` do ML com termo enriquecido (nome + descrição) e `pickBestCategory`.
+> Se falhar (status != 200, sem resultados, ou todos os scores negativos), usa a Search API (`/sites/MLB/search?q=...`) e extrai categorias dos `available_filters`.
 > Resolve o path completo da categoria via `/categories/{id}` para exibição ao usuário.
 
 ## Regra: Aba de Pedidos — Auto-Refresh (OBRIGATÓRIO)
