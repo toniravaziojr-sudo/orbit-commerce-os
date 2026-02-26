@@ -153,6 +153,42 @@ export function useMeliListings() {
     },
   });
 
+  const bulkDeleteListings = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase
+        .from('meli_listings')
+        .delete()
+        .in('id', ids);
+      if (error) throw error;
+      return ids.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ['meli-listings'] });
+      toast.success(`${count} anúncio${count > 1 ? 's' : ''} removido${count > 1 ? 's' : ''}`);
+    },
+    onError: () => {
+      toast.error('Erro ao remover anúncios');
+    },
+  });
+
+  const bulkApproveListings = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase
+        .from('meli_listings')
+        .update({ status: 'approved' as const })
+        .in('id', ids);
+      if (error) throw error;
+      return ids.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ['meli-listings'] });
+      toast.success(`${count} anúncio${count > 1 ? 's' : ''} aprovado${count > 1 ? 's' : ''}`);
+    },
+    onError: () => {
+      toast.error('Erro ao aprovar anúncios');
+    },
+  });
+
   const createBulkListings = useMutation({
     mutationFn: async (data: {
       products: Array<{
@@ -294,6 +330,8 @@ export function useMeliListings() {
     updateListing,
     updateBulkListings,
     deleteListing,
+    bulkDeleteListings,
+    bulkApproveListings,
     approveListing,
     publishListing,
     syncListings,
