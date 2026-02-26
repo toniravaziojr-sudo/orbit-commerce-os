@@ -213,7 +213,7 @@ INSTRUÇÕES:
 - Não invente informações que não estejam no original`;
 
     let systemPromptFinal = systemPrompt;
-    let userPromptFinal: string;
+    let userPromptFinal: string = `Converta a seguinte descrição HTML do produto para texto plano compatível com o Mercado Livre:\n\nProduto: ${productName || "Produto"}\n\n${htmlDescription}`;
 
     if (generateTitle) {
       // Resolve category_id: from body, listing, or skip
