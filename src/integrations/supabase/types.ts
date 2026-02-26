@@ -13515,37 +13515,46 @@ export type Database = {
       quiz_questions: {
         Row: {
           created_at: string
+          description: string | null
           id: string
           is_required: boolean | null
           mapping: Json | null
+          media: Json | null
           options: Json | null
           order_index: number
           question: string
           quiz_id: string
+          step_type: string
           tenant_id: string
           type: string
         }
         Insert: {
           created_at?: string
+          description?: string | null
           id?: string
           is_required?: boolean | null
           mapping?: Json | null
+          media?: Json | null
           options?: Json | null
           order_index?: number
           question: string
           quiz_id: string
+          step_type?: string
           tenant_id: string
           type: string
         }
         Update: {
           created_at?: string
+          description?: string | null
           id?: string
           is_required?: boolean | null
           mapping?: Json | null
+          media?: Json | null
           options?: Json | null
           order_index?: number
           question?: string
           quiz_id?: string
+          step_type?: string
           tenant_id?: string
           type?: string
         }

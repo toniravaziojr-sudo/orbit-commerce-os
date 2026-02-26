@@ -3,13 +3,31 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
+export interface QuizQuestionOption {
+  value: string;
+  label: string;
+  tags?: string[];
+  image_url?: string;
+  [key: string]: string | string[] | undefined;
+}
+
+export interface QuizQuestionMedia {
+  type: 'image' | 'video';
+  url: string;
+  alt?: string;
+  [key: string]: string | undefined;
+}
+
 export interface QuizQuestion {
   id: string;
   quiz_id: string;
   order_index: number;
+  step_type: 'question' | 'content';
   type: 'single_choice' | 'multiple_choice' | 'text' | 'email' | 'phone' | 'name';
   question: string;
-  options?: { value: string; label: string; tags?: string[] }[];
+  description?: string;
+  media?: QuizQuestionMedia;
+  options?: QuizQuestionOption[];
   is_required: boolean;
   mapping?: { field?: string; tags?: string[] };
 }
@@ -43,9 +61,12 @@ export interface QuizFormData {
 }
 
 export interface QuestionFormData {
+  step_type: 'question' | 'content';
   type: QuizQuestion['type'];
   question: string;
-  options?: { value: string; label: string; tags?: string[] }[];
+  description?: string;
+  media?: QuizQuestionMedia | null;
+  options?: QuizQuestionOption[];
   is_required?: boolean;
   mapping?: { field?: string; tags?: string[] };
 }
@@ -192,8 +213,11 @@ export function useQuizzes() {
       const insertData = {
         quiz_id: quizId,
         order_index: nextIndex + 1,
+        step_type: question.step_type || 'question',
         type: question.type,
         question: question.question,
+        description: question.description || null,
+        media: question.media || null,
         is_required: question.is_required ?? true,
         options: question.options ?? null,
         mapping: question.mapping ?? null,
@@ -210,7 +234,7 @@ export function useQuizzes() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["quizzes"] });
-      toast.success("Pergunta adicionada");
+      toast.success("Etapa adicionada");
     },
   });
 
@@ -226,7 +250,7 @@ export function useQuizzes() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["quizzes"] });
-      toast.success("Pergunta atualizada");
+      toast.success("Etapa atualizada");
     },
   });
 
@@ -242,7 +266,7 @@ export function useQuizzes() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["quizzes"] });
-      toast.success("Pergunta removida");
+      toast.success("Etapa removida");
     },
   });
 
