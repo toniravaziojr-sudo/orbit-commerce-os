@@ -296,6 +296,76 @@ Quando uma lista é criada:
 
 ---
 
+## Campaign Builder (Editor Visual)
+
+### Arquitetura
+
+Página dedicada em `/email-marketing/campaign/new` com wizard de 3 steps:
+
+| Step | Componente | Descrição |
+|------|-----------|-----------|
+| 1. Configuração | `StepConfig.tsx` | Nome, tipo (broadcast/automation), lista de destino |
+| 2. Conteúdo | `StepContent.tsx` | Editor visual drag-and-drop com blocos |
+| 3. Revisão | `StepReview.tsx` | Preview final, resumo, enviar/agendar |
+
+### Arquivos do Builder
+
+| Arquivo | Propósito |
+|---------|-----------|
+| `src/pages/EmailMarketingCampaignBuilder.tsx` | Página do wizard (rota) |
+| `src/hooks/useEmailCampaignBuilder.ts` | State machine (blocos, seleção, envio) |
+| `src/lib/email-builder-utils.ts` | Serializar blocos → HTML inline-style |
+| `src/components/email-marketing/campaign-builder/CampaignStepBar.tsx` | Barra de progresso |
+| `src/components/email-marketing/campaign-builder/StepConfig.tsx` | Step 1 |
+| `src/components/email-marketing/campaign-builder/StepContent.tsx` | Step 2 |
+| `src/components/email-marketing/campaign-builder/StepReview.tsx` | Step 3 |
+| `src/components/email-marketing/campaign-builder/EmailBlocksSidebar.tsx` | Sidebar de blocos |
+| `src/components/email-marketing/campaign-builder/EmailCanvas.tsx` | Canvas sortable |
+| `src/components/email-marketing/campaign-builder/BlockPropertyEditor.tsx` | Propriedades do bloco |
+| `src/components/email-marketing/campaign-builder/EmailPreview.tsx` | Preview iframe |
+
+### Blocos Disponíveis
+
+| Tipo | Props Principais |
+|------|-----------------|
+| `text` | content, tag (h1/h2/p), align, color, fontSize |
+| `image` | src, alt, width, link |
+| `button` | text, url, bgColor, textColor, borderRadius |
+| `divider` | color, thickness |
+| `spacer` | height |
+| `columns` | columns (EmailBlock[][]) |
+| `product` | product_id, showPrice, showImage, showButton |
+
+### Modelo de Dados (EmailBlock)
+
+```typescript
+interface EmailBlock {
+  id: string;
+  type: EmailBlockType;
+  props: Record<string, any>;
+}
+```
+
+### Conversão HTML
+
+`blocksToHtml()` converte blocos → HTML table-based com inline styles (compatível com email clients). Não depende de CSS externo.
+
+### Fluxo de Envio
+
+1. Usuário monta email no builder (Step 2)
+2. Step 3: `blocksToHtml()` gera HTML final
+3. "Enviar" → salva template + campanha no banco
+4. Invoca `email-campaign-broadcast` edge function
+5. Redireciona para listagem com toast
+
+### Drag-and-Drop
+
+Usa `@dnd-kit/core` + `@dnd-kit/sortable`:
+- Sidebar: blocos clicáveis para adicionar
+- Canvas: blocos sortable para reordenar
+
+---
+
 ## Checklist
 
 - [x] Listas CRUD funcional
@@ -311,3 +381,7 @@ Quando uma lista é criada:
 - [x] NewsletterPopup block com triggers
 - [x] QuizEmbed block integrado
 - [x] sync_subscriber_to_customer_with_tag unificado
+- [x] **Campaign Builder visual com wizard 3 steps**
+- [x] **Editor drag-and-drop de blocos de email**
+- [x] **Serialização blocos → HTML inline-style**
+- [x] **Preview do email em tempo real**
