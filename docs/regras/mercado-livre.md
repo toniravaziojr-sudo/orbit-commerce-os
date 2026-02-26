@@ -413,9 +413,10 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 > - **Checkbox por linha:** Seleção individual com highlight visual (`bg-muted/50`)
 > - **Badge de contagem:** Exibe "X selecionado(s)" na barra de ações em massa quando há seleção
 > - **Ações operam nos selecionados:** Quando há seleção, as ações em massa enviam `listingIds` (array de IDs) no body da edge function. Quando não há seleção, operam em todos.
-> - **Excluir Selecionados:** Botão vermelho (destructive) aparece apenas quando há seleção. Filtra automaticamente anúncios `published`/`publishing` (que não podem ser excluídos). Confirma antes de executar e limpa seleção após conclusão.
-> - **Publicar Selecionados:** Botão primário que aparece junto com "Excluir Selecionados" quando há seleção. Publica sequencialmente todos os anúncios selecionados com status `approved` ou `error` via `meli-publish-listing`. Exibe barra de progresso durante a operação. Confirma antes de executar e limpa seleção após conclusão.
+> - **Excluir Selecionados:** Botão vermelho (destructive) aparece apenas quando há seleção. Filtra automaticamente anúncios `published`/`publishing` (que não podem ser excluídos). Usa `bulkDeleteListings` (DELETE em batch com `.in('id', ids)`) para exibir um único toast de resumo ("X anúncios removidos"). Confirma antes de executar e limpa seleção após conclusão.
+> - **Publicar Selecionados:** Botão primário que aparece junto com "Excluir Selecionados" quando há seleção. Aprova rascunhos em batch silenciosamente (UPDATE direto no Supabase), depois publica sequencialmente via `meli-publish-listing` (chamada direta ao Supabase, sem mutation individual). Exibe barra de progresso e um único toast de resumo no final. Confirma antes de executar e limpa seleção após conclusão.
 > - **Limpeza automática:** A seleção é resetada após executar uma ação em massa.
+> - **Toasts em operações em massa (OBRIGATÓRIO):** Operações em massa DEVEM exibir um **único toast de resumo** (ex: "5 anúncios removidos", "3 anúncios enviados para publicação, 1 com erro"). **PROIBIDO** exibir um toast por item processado. Para isso, usar mutations batch (`bulkDeleteListings`, `bulkApproveListings`) ou chamadas diretas ao Supabase em vez de mutations individuais que possuem toasts em `onSuccess`.
 >
 > **Body da edge function com seleção:**
 > ```json
@@ -539,6 +540,8 @@ POST /meli-sync-listings
 | Chamar IA sem contexto de produto | Usar fallback `initialData.product.name` |
 | Usar `window.confirm()` para ações destrutivas | Usar `useConfirmDialog` com variante adequada |
 | Aceitar títulos truncados da IA | Validar e retry até 3x com temperatura progressiva |
+| Exibir um toast por item em operações em massa | Usar mutations batch (`bulkDeleteListings`, `bulkApproveListings`) ou chamadas diretas, com um único toast de resumo |
+| Chamar `mutation.mutate()` em loop (for/forEach) | Usar mutation batch ou chamada direta ao Supabase com `.in('id', ids)` |
 | Não sincronizar status com ML | Usar `meli-sync-listings` para detectar excluídos/encerrados |
 
 ## Checklist
