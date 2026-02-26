@@ -3,10 +3,28 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.4.0"; // Remove bloqueio rígido 30-60 e evita truncamento de título
+const VERSION = "v1.5.0"; // Use category max_title_length for dynamic limits
 // ===================
 
-const MAX_TITLE_LENGTH = 120;
+const DEFAULT_MAX_TITLE_LENGTH = 120;
+
+// Fetch the real max_title_length from ML category API
+async function getCategoryMaxTitleLength(categoryId: string | null): Promise<number> {
+  if (!categoryId) return DEFAULT_MAX_TITLE_LENGTH;
+  try {
+    const res = await fetch(`https://api.mercadolibre.com/categories/${categoryId}`);
+    if (res.ok) {
+      const data = await res.json();
+      const maxLen = data.settings?.max_title_length;
+      if (maxLen && typeof maxLen === 'number' && maxLen > 0) {
+        return maxLen;
+      }
+    }
+  } catch (err) {
+    console.warn(`[meli-generate-description] Failed to fetch category max_title_length:`, err);
+  }
+  return DEFAULT_MAX_TITLE_LENGTH;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,16 +44,16 @@ function truncateAtWordBoundary(value: string, maxLength: number): string {
   return bounded.replace(/[\s\-_,;:.]+$/g, "").trim();
 }
 
-function sanitizeGeneratedTitle(rawTitle: string): string {
+function sanitizeGeneratedTitle(rawTitle: string, maxLength: number = DEFAULT_MAX_TITLE_LENGTH): string {
   const firstLine = rawTitle.split("\n")[0] || "";
   const noDecorators = firstLine.replace(/^['"*`\-\s]+|['"*`\-\s]+$/g, "");
   const normalized = normalizeWhitespace(noDecorators);
-  return truncateAtWordBoundary(normalized, MAX_TITLE_LENGTH);
+  return truncateAtWordBoundary(normalized, maxLength);
 }
 
-function isValidGeneratedTitle(title: string): boolean {
+function isValidGeneratedTitle(title: string, maxLength: number = DEFAULT_MAX_TITLE_LENGTH): boolean {
   if (!title) return false;
-  if (title.length < 10 || title.length > MAX_TITLE_LENGTH) return false;
+  if (title.length < 10 || title.length > maxLength) return false;
   if (/[-,/:;]$/.test(title)) return false;
   if (title.split(/\s+/).length < 2) return false;
 
@@ -100,7 +118,7 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { tenantId, productId, generateTitle } = body;
+    const { tenantId, productId, generateTitle, categoryId: bodyCategoryId, listingId } = body;
     let { htmlDescription, productName, productTitle } = body;
 
     if (!tenantId) {
@@ -198,6 +216,21 @@ INSTRUÇÕES:
     let userPromptFinal: string;
 
     if (generateTitle) {
+      // Resolve category_id: from body, listing, or skip
+      let categoryId = bodyCategoryId || null;
+      if (!categoryId && listingId) {
+        const { data: listingData } = await supabase
+          .from("meli_listings")
+          .select("category_id")
+          .eq("id", listingId)
+          .single();
+        categoryId = listingData?.category_id || null;
+      }
+
+      // Fetch category-specific max title length
+      const maxTitleLen = await getCategoryMaxTitleLength(categoryId);
+      console.log(`[meli-generate-description][${VERSION}] Using max_title_length=${maxTitleLen} for category=${categoryId || "none"}`);
+
       systemPromptFinal = `Você é um especialista em SEO de títulos para o Mercado Livre Brasil.
 
 TAREFA: Gere exatamente UM título otimizado para buscas, completo e natural.
@@ -212,7 +245,8 @@ REGRAS OBRIGATÓRIAS:
 7. Não incluir EAN/GTIN/código de barras no título
 8. Título deve ser objetivo, legível e pronto para publicação
 9. Priorize termos que compradores realmente usam na busca
-10. Prefira títulos completos, podendo usar até 120 caracteres quando necessário
+10. O título deve ter NO MÁXIMO ${maxTitleLen} caracteres (LIMITE DA CATEGORIA)
+${maxTitleLen <= 60 ? '11. ATENÇÃO: Limite curto! Seja conciso: tipo + marca + benefício principal.' : ''}
 
 EXEMPLOS CORRETOS:
 - Balm Pós-Banho Antiqueda para Cabelo e Barba 60g
@@ -224,33 +258,21 @@ EXEMPLOS ERRADOS (NÃO FAÇA ISSO):
 - Balm Cabelo Anti- (truncado)
 - ⭐ SUPER PROMOÇÃO Camiseta BARATA ⭐ (emojis/caps/preço)`;
 
-      userPromptFinal = `Gere UM título otimizado para o Mercado Livre.
+      userPromptFinal = `Gere UM título otimizado para o Mercado Livre (MÁXIMO ${maxTitleLen} caracteres).
 
 Produto: ${productName || "Produto"}
 ${productTitle ? `Título atual: ${productTitle}` : ""}
 ${htmlDescription ? `Descrição: ${htmlDescription.slice(0, 700)}` : ""}
 
 Retorne APENAS o título, sem aspas e sem explicações.`;
-    } else {
-      userPromptFinal = `Converta a seguinte descrição HTML de produto para texto plano compatível com o Mercado Livre.
 
-Produto: ${productName || productTitle || "Produto"}
-${productTitle ? `Título do anúncio: ${productTitle}` : ""}
-
-Descrição HTML original:
-${htmlDescription}
-
-Gere APENAS o texto plano da descrição, sem explicações adicionais.`;
-    }
-
-    if (generateTitle) {
       const MAX_ATTEMPTS = 3;
       let finalTitle = "";
       let lastCandidate = "";
 
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
         const attemptFeedback = attempt > 1
-          ? `\n\nA tentativa anterior foi rejeitada por qualidade: "${lastCandidate || "(vazio)"}". Gere uma nova versão COMPLETA, sem final cortado ou abreviado.`
+          ? `\n\nA tentativa anterior foi rejeitada por qualidade: "${lastCandidate || "(vazio)"}". Gere uma nova versão COMPLETA, sem final cortado ou abreviado. MÁXIMO ${maxTitleLen} caracteres.`
           : "";
 
         const aiResponse = await aiChatCompletion(
@@ -278,11 +300,11 @@ Gere APENAS o texto plano da descrição, sem explicações adicionais.`;
 
         const aiData = await aiResponse.json();
         const rawTitle = aiData.choices?.[0]?.message?.content?.trim() || "";
-        const candidate = sanitizeGeneratedTitle(rawTitle);
+        const candidate = sanitizeGeneratedTitle(rawTitle, maxTitleLen);
         lastCandidate = candidate;
 
-        const isValid = isValidGeneratedTitle(candidate);
-        console.log(`[meli-generate-description][${VERSION}] attempt ${attempt}/${MAX_ATTEMPTS} title="${candidate}" (${candidate.length} chars, valid=${isValid})`);
+        const isValid = isValidGeneratedTitle(candidate, maxTitleLen);
+        console.log(`[meli-generate-description][${VERSION}] attempt ${attempt}/${MAX_ATTEMPTS} title="${candidate}" (${candidate.length}/${maxTitleLen} chars, valid=${isValid})`);
 
         if (isValid) {
           finalTitle = candidate;
@@ -292,6 +314,10 @@ Gere APENAS o texto plano da descrição, sem explicações adicionais.`;
 
       if (!finalTitle) {
         finalTitle = buildFallbackTitle(productName || productTitle || "Produto", htmlDescription || "");
+        // Ensure fallback also respects limit
+        if (finalTitle.length > maxTitleLen) {
+          finalTitle = truncateAtWordBoundary(finalTitle, maxTitleLen);
+        }
         console.log(`[meli-generate-description][${VERSION}] fallback title used: "${finalTitle}"`);
       }
 

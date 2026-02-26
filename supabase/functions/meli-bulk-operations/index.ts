@@ -2,9 +2,28 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
-const VERSION = "v1.7.0"; // Smart category selection: multi-result + brand/type heuristics
+const VERSION = "v1.8.0"; // Use category max_title_length for title generation
 
-const MAX_TITLE_LENGTH = 120;
+const DEFAULT_MAX_TITLE_LENGTH = 120;
+
+// Fetch the real max_title_length from ML category API
+async function getCategoryMaxTitleLength(categoryId: string | null): Promise<number> {
+  if (!categoryId) return DEFAULT_MAX_TITLE_LENGTH;
+  try {
+    const res = await fetch(`https://api.mercadolibre.com/categories/${categoryId}`);
+    if (res.ok) {
+      const data = await res.json();
+      const maxLen = data.settings?.max_title_length;
+      if (maxLen && typeof maxLen === 'number' && maxLen > 0) {
+        console.log(`[meli-bulk] Category ${categoryId} max_title_length: ${maxLen}`);
+        return maxLen;
+      }
+    }
+  } catch (err) {
+    console.warn(`[meli-bulk] Failed to fetch category ${categoryId} max_title_length:`, err);
+  }
+  return DEFAULT_MAX_TITLE_LENGTH;
+}
 
 // ---- Smart category selection helpers ----
 
@@ -102,11 +121,11 @@ function truncateAtWordBoundary(value: string, maxLength: number): string {
   return bounded.replace(/[\s\-_,;:.]+$/g, "").trim();
 }
 
-function sanitizeGeneratedTitle(rawTitle: string): string {
+function sanitizeGeneratedTitle(rawTitle: string, maxLength: number = DEFAULT_MAX_TITLE_LENGTH): string {
   const firstLine = rawTitle.split("\n")[0] || "";
   const noDecorators = firstLine.replace(/^['"*`\-\s]+|['"*`\-\s]+$/g, "");
   const normalized = normalizeWhitespace(noDecorators);
-  return truncateAtWordBoundary(normalized, MAX_TITLE_LENGTH);
+  return truncateAtWordBoundary(normalized, maxLength);
 }
 
 function normalizeForComparison(value: string): string {
@@ -170,9 +189,9 @@ function isLikelyTruncatedEnding(title: string, productName?: string): boolean {
   return normalizedLastWord.length > 0 && normalizedLastWord.length <= 3;
 }
 
-function isValidGeneratedTitle(title: string, productName: string): boolean {
+function isValidGeneratedTitle(title: string, productName: string, maxLength: number = DEFAULT_MAX_TITLE_LENGTH): boolean {
   if (!title) return false;
-  if (title.length > MAX_TITLE_LENGTH) return false;
+  if (title.length > maxLength) return false;
   if (title.split(/\s+/).length < 3) return false;
 
   const minLength = getDynamicMinTitleLength(productName);
@@ -197,15 +216,15 @@ function extractBenefitKeyword(context: string): string {
   return "Uso Diário";
 }
 
-function buildFallbackTitle(productName: string, context: string): string {
-  const base = sanitizeGeneratedTitle(productName || "Produto");
-  if (isValidGeneratedTitle(base, productName || "Produto")) return base;
+function buildFallbackTitle(productName: string, context: string, maxLength: number = DEFAULT_MAX_TITLE_LENGTH): string {
+  const base = sanitizeGeneratedTitle(productName || "Produto", maxLength);
+  if (isValidGeneratedTitle(base, productName || "Produto", maxLength)) return base;
 
   const benefit = extractBenefitKeyword(context);
-  const withBenefit = sanitizeGeneratedTitle(`${base} ${benefit}`);
-  if (isValidGeneratedTitle(withBenefit, productName || "Produto")) return withBenefit;
+  const withBenefit = sanitizeGeneratedTitle(`${base} ${benefit}`, maxLength);
+  if (isValidGeneratedTitle(withBenefit, productName || "Produto", maxLength)) return withBenefit;
 
-  const finalFallback = sanitizeGeneratedTitle(`${base} Produto Original`);
+  const finalFallback = sanitizeGeneratedTitle(`${base} Produto Original`, maxLength);
   return finalFallback || "Produto Original";
 }
 
@@ -445,7 +464,7 @@ serve(async (req) => {
 
       let query = supabase
         .from("meli_listings")
-        .select("id, title, product_id, description, products(name, description, brand, short_description, sku, weight, width, height, depth, gtin, barcode)")
+        .select("id, title, product_id, category_id, description, products(name, description, brand, short_description, sku, weight, width, height, depth, gtin, barcode)")
         .eq("tenant_id", tenantId)
         .in("status", ["draft", "ready", "approved", "error"]);
 
@@ -459,10 +478,27 @@ serve(async (req) => {
       let updated = 0;
       const errors: string[] = [];
 
+      // Cache category max_title_length to avoid repeated API calls
+      const categoryLimitCache = new Map<string, number>();
+
       for (const listing of (listings || [])) {
         try {
           const product = (listing as any).products;
           const productName = product?.name || listing.title;
+          const categoryId = (listing as any).category_id;
+
+          // Get category-specific max title length
+          let maxTitleLen = DEFAULT_MAX_TITLE_LENGTH;
+          if (categoryId) {
+            if (categoryLimitCache.has(categoryId)) {
+              maxTitleLen = categoryLimitCache.get(categoryId)!;
+            } else {
+              maxTitleLen = await getCategoryMaxTitleLength(categoryId);
+              categoryLimitCache.set(categoryId, maxTitleLen);
+            }
+          }
+          console.log(`[meli-bulk-titles] Using max_title_length=${maxTitleLen} for category=${categoryId || "none"}`);
+
           // Strip HTML for cleaner context
           const cleanDesc = (product?.description || product?.short_description || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 800);
           const shortDesc = (product?.short_description || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
@@ -480,11 +516,11 @@ serve(async (req) => {
           let finalTitle = "";
           let lastRawTitle = "";
 
-          
+
 
           for (let attempt = 1; attempt <= MAX_TITLE_ATTEMPTS; attempt++) {
             const minLength = getDynamicMinTitleLength(productName || listing.title || "Produto");
-            const hardMinLength = Math.max(minLength, 35); // Force at least 35 chars for meaningful titles
+            const hardMinLength = Math.max(minLength, maxTitleLen <= 60 ? 20 : 35); // Adjust min for short-limit categories
             const feedbackSection = attempt > 1
               ? `\n\nTENTATIVA ANTERIOR REJEITADA: "${lastRawTitle || "(vazio)"}"\nMotivo: título muito curto ou com palavra final cortada.\nGere uma versão MAIS LONGA e COMPLETA, com pelo menos ${hardMinLength} caracteres, incluindo benefícios do produto e palavras-chave de busca.`
               : "";
@@ -494,10 +530,10 @@ serve(async (req) => {
 ${context}
 
 IMPORTANTE:
-- O título DEVE ter entre ${hardMinLength} e 120 caracteres
+- O título DEVE ter entre ${hardMinLength} e ${maxTitleLen} caracteres (LIMITE MÁXIMO DA CATEGORIA: ${maxTitleLen})
 - Inclua: tipo do produto + marca + principal benefício/função + característica diferenciadora
 - NÃO abrevie palavras e NÃO corte o título no meio de uma palavra
-- Exemplo de bom título para este tipo de produto: "Balm Pós-Banho Respeite o Homem Calvície Zero Tratamento Diário"
+${maxTitleLen <= 60 ? '- ATENÇÃO: Esta categoria tem limite CURTO de ' + maxTitleLen + ' caracteres. Seja conciso mas informativo.\n- Priorize: tipo + marca + benefício principal. Omita detalhes secundários.' : '- Exemplo de bom título para este tipo de produto: "Balm Pós-Banho Respeite o Homem Calvície Zero Tratamento Diário"'}
 
 Retorne APENAS o título completo, sem aspas e sem explicações.${feedbackSection}`;
 
@@ -517,21 +553,10 @@ REGRAS:
 2. Inclua a marca completa (nunca abrevie)
 3. Adicione o principal benefício (Antiqueda, Hidratante, Anti-calvície, etc.)
 4. TODAS as palavras devem estar COMPLETAS — jamais truncar
-5. O título deve ter entre 35 e 120 caracteres
+5. O título deve ter NO MÁXIMO ${maxTitleLen} caracteres (limite da categoria)
 6. Sem emojis, sem CAPS LOCK, sem preço, sem código de barras
 7. Sem repetir palavras
 8. Se for kit, mencione a quantidade e o que está incluso
-
-EXEMPLOS DE TÍTULOS EXCELENTES:
-- "Balm Pós-Banho Respeite o Homem Antiqueda Cabelo e Barba 60g"
-- "Kit 3 Balm Pós-Banho Calvície Zero Tratamento Capilar Masculino"
-- "Sérum Facial Vitamina C Anti-idade Clareador Pele Oleosa 30ml"
-- "Kit 6 Balm Respeite o Homem Calvície Zero Tratamento Completo"
-
-EXEMPLOS RUINS (NUNCA FAÇA):
-- "Kit 2 Balms Pós-Ban" (truncado)
-- "Balm Respeite o Homem" (genérico demais, sem benefício)
-- "Kit 3 Balm Pós-Banho Respe" (palavra cortada)
 
 Retorne APENAS o título, nada mais.`,
                   },
@@ -562,12 +587,12 @@ Retorne APENAS o título, nada mais.`,
             const finishReason = aiData.choices?.[0]?.finish_reason || "unknown";
             console.log(`[meli-bulk-titles] Raw AI response: finish_reason=${finishReason}, content="${rawTitle.slice(0, 150)}", model=${aiData.model || "?"}`);
             lastRawTitle = rawTitle;
-            const title = sanitizeGeneratedTitle(rawTitle);
+            const title = sanitizeGeneratedTitle(rawTitle, maxTitleLen);
 
-            // Validate title quality
-            const isGoodTitle = isValidGeneratedTitle(title, productName || listing.title || "Produto");
+            // Validate title quality with category-specific max length
+            const isGoodTitle = isValidGeneratedTitle(title, productName || listing.title || "Produto", maxTitleLen);
 
-            console.log(`[meli-bulk-titles] Attempt ${attempt}/${MAX_TITLE_ATTEMPTS} for "${productName}" → "${title}" (${title.length} chars, good=${isGoodTitle})`);
+            console.log(`[meli-bulk-titles] Attempt ${attempt}/${MAX_TITLE_ATTEMPTS} for "${productName}" → "${title}" (${title.length}/${maxTitleLen} chars, good=${isGoodTitle})`);
 
             if (isGoodTitle) {
               finalTitle = title;
@@ -581,9 +606,9 @@ Retorne APENAS o título, nada mais.`,
           }
 
           // Final fallback: use buildFallbackTitle if all attempts failed
-          if (!finalTitle || !isValidGeneratedTitle(finalTitle, productName || listing.title || "Produto")) {
+          if (!finalTitle || !isValidGeneratedTitle(finalTitle, productName || listing.title || "Produto", maxTitleLen)) {
             const context = contextParts.join("\n");
-            finalTitle = buildFallbackTitle(productName || listing.title || "Produto Original", context);
+            finalTitle = buildFallbackTitle(productName || listing.title || "Produto Original", context, maxTitleLen);
             console.log(`[meli-bulk-titles] Fallback title for "${productName}": "${finalTitle}" (last raw: "${lastRawTitle}")`);
           }
           
