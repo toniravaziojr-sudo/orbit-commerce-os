@@ -91,6 +91,10 @@ const channelDocs: Record<SupportChannelType, { url: string; instructions: strin
     url: 'https://open.shopee.com',
     instructions: 'Registre-se como parceiro Shopee e obtenha as credenciais da API para sua loja.',
   },
+  tiktokshop: {
+    url: '/integrations?tab=tiktok',
+    instructions: 'A conexão com o TikTok Shop é feita pelo Hub de Integrações. Vincule sua conta para receber mensagens.',
+  },
   chat: {
     url: '',
     instructions: 'O chat do site é ativado automaticamente. Ele aparecerá como um widget flutuante na sua loja virtual.',

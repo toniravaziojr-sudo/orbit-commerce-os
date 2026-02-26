@@ -130,3 +130,54 @@ O TikTok Shop **DEVE** ter um card visível na aba **Marketplaces** do Hub de In
 
 - **Rota registrada em:** `src/config/module-status.ts`
 - **Valor:** `'/marketplaces/tiktokshop': 'pending'`
+
+## Integração com Atendimento (Suporte)
+
+O TikTok Shop é registrado como canal de atendimento no sistema de suporte.
+
+| Arquivo | Mudança |
+|---------|---------|
+| `src/hooks/useConversations.ts` | `SupportChannelType` inclui `'tiktokshop'` |
+| `src/components/support/ConversationList.tsx` | Ícone: `🎵` |
+| `src/components/support/ChannelIntegrations.tsx` | Card com `integrationPath: '/integrations?tab=tiktok'` |
+| `src/components/support/ChannelConfigDialog.tsx` | Docs do canal TikTok Shop |
+| `src/components/support/AIChannelConfigDialog.tsx` | Restrições IA para TikTok Shop |
+
+### Restrições IA do Canal (OBRIGATÓRIO)
+
+> - Não enviar links externos
+> - Não mencionar outras plataformas de venda
+> - Não solicitar contato fora da plataforma
+
+## Integração com Pedidos Principais
+
+Pedidos sincronizados do TikTok Shop são **espelhados na tabela `orders`** para aparecerem no módulo de Pedidos e permitir emissão de NF.
+
+| Campo | Valor |
+|-------|-------|
+| `source_platform` | `tiktokshop` |
+| `marketplace_source` | `tiktokshop` |
+| `source_hash` | `tiktokshop:{tenantId}:{tiktokOrderId}` |
+| `marketplace_order_id` | ID do pedido no TikTok |
+| `marketplace_data` | JSON com `tiktokOrderId`, `tiktokStatus`, `items` |
+
+### Mapeamento de Status (TikTok → Orders)
+
+| TikTok Status | `status` | `payment_status` | `shipping_status` |
+|---------------|----------|-------------------|--------------------|
+| UNPAID | awaiting_payment | pending | pending |
+| AWAITING_SHIPMENT | processing | paid | pending |
+| IN_TRANSIT | in_transit | paid | in_transit |
+| DELIVERED | delivered | paid | delivered |
+| CANCELLED | cancelled | refunded | cancelled |
+
+### Regra: OrderSourceBadge
+
+> O `OrderSourceBadge` reconhece `tiktokshop` (cor rosa/pink).
+> O filtro de origem (`MARKETPLACE_OPTIONS`) inclui `{ value: 'tiktokshop', label: 'TikTok Shop' }`.
+
+### Edge Function
+
+- **Arquivo:** `supabase/functions/tiktok-shop-orders-sync/index.ts` (v2.0.0)
+- **Comportamento:** Ao sincronizar, cria/atualiza tanto `tiktok_shop_orders` quanto `orders` + `order_items`
+- **Deduplicação:** Via `source_hash` na tabela `orders`
