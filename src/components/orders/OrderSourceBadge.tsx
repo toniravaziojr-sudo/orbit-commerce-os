@@ -31,6 +31,12 @@ const marketplaceConfig: Record<string, {
     color: 'text-orange-600',
     bgColor: 'bg-orange-100',
   },
+  tiktokshop: {
+    name: 'TikTok Shop',
+    icon: ShoppingBag,
+    color: 'text-pink-600',
+    bgColor: 'bg-pink-100',
+  },
   amazon: {
     name: 'Amazon',
     icon: ShoppingBag,
@@ -133,6 +139,7 @@ export const MARKETPLACE_OPTIONS = [
   { value: 'loja', label: 'Loja Própria' },
   { value: 'mercadolivre', label: 'Mercado Livre' },
   { value: 'shopee', label: 'Shopee' },
+  { value: 'tiktokshop', label: 'TikTok Shop' },
   { value: 'amazon', label: 'Amazon' },
   { value: 'magazineluiza', label: 'Magazine Luiza' },
 ];
