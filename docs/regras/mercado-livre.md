@@ -466,7 +466,7 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 | Proibido | Correto |
 |----------|---------|
 | Manter aba de mensagens no marketplace | Mensagens vão para Atendimento |
-| Publicar sem aprovação | Fluxo: draft → approved → published |
+| Exigir aprovação manual antes de enviar em massa | Botão "Enviar Selecionados" auto-aprova rascunhos antes de publicar |
 | Hardcodar categoria ML | Usar `category_id` configurável |
 | Ignorar erro da API ML | Salvar `error_message` e `meli_response` |
 | Criar anúncio sem creator | Usar MeliListingCreator para criação (multi-produto) |
@@ -493,5 +493,6 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 - [x] Geração IA de descrição para ML (texto plano, sem HTML/links)
 - [x] Geração IA de título otimizado para ML (limite dinâmico por categoria via `max_title_length`)
 - [x] Operações em massa (enviar todos, gerar títulos/descrições, auto-categorizar)
+- [x] Envio em massa: "Enviar Selecionados" (auto-aprova draft/ready + publica)
 - [x] Auto-suggest de categoria via category_predictor no formulário individual
 - [ ] Webhook de notificações de pedidos (real-time)
