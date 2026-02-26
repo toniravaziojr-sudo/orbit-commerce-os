@@ -63,6 +63,7 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   '/marketplaces': 'pending',
   '/marketplaces/mercadolivre': 'pending',
   '/marketplaces/shopee': 'pending',
+  '/marketplaces/tiktokshop': 'pending',
   '/system/users': 'ready',
   
   // Plataforma
