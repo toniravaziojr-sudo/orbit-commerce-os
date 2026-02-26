@@ -213,7 +213,7 @@ export default function EmailMarketing() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Campanhas</CardTitle>
-              <Button size="sm" onClick={() => setCampaignDialogOpen(true)}>
+              <Button size="sm" onClick={() => navigate("/email-marketing/campaign/new")}>
                 <Plus className="h-4 w-4 mr-2" />Nova Campanha
               </Button>
             </CardHeader>
@@ -223,7 +223,7 @@ export default function EmailMarketing() {
                   icon={Megaphone} 
                   title="Nenhuma campanha" 
                   description="Crie campanhas para enviar emails em massa"
-                  action={{ label: "Criar Campanha", onClick: () => setCampaignDialogOpen(true) }}
+                  action={{ label: "Criar Campanha", onClick: () => navigate("/email-marketing/campaign/new") }}
                 />
               ) : (
                 <div className="space-y-2">
