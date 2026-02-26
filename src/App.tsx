@@ -79,6 +79,7 @@ import Emails from "@/pages/Emails";
 import EmailMarketing from "@/pages/EmailMarketing";
 import EmailMarketingListDetail from "@/pages/EmailMarketingListDetail";
 import EmailMarketingCampaignBuilder from "@/pages/EmailMarketingCampaignBuilder";
+import EmailMarketingAutomationBuilder from "@/pages/EmailMarketingAutomationBuilder";
 import Import from "@/pages/Import";
 import Blog from "@/pages/Blog";
 import BlogCampaigns from "@/pages/BlogCampaigns";
@@ -388,6 +389,8 @@ const App = () => {
                   <Route path="/email-marketing" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado" moduleDescription="Email Marketing para campanhas"><EmailMarketing /></GatedRoute>} />
                   <Route path="/email-marketing/list/:listId" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado"><EmailMarketingListDetail /></GatedRoute>} />
                   <Route path="/email-marketing/campaign/new" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado"><EmailMarketingCampaignBuilder /></GatedRoute>} />
+                  <Route path="/email-marketing/automation/new" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado"><EmailMarketingAutomationBuilder /></GatedRoute>} />
+                  <Route path="/email-marketing/automation/:flowId" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado"><EmailMarketingAutomationBuilder /></GatedRoute>} />
                   <Route path="/quizzes" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado" moduleDescription="Quizzes interativos"><Quizzes /></GatedRoute>} />
                   <Route path="/quizzes/:quizId" element={<GatedRoute moduleKey="marketing_avancado" moduleName="Marketing Avançado"><QuizEditor /></GatedRoute>} />
                   <Route path="/finance" element={<GatedRoute moduleKey="erp_financeiro" moduleName="ERP Financeiro" moduleDescription="Gestão financeira e contas"><Finance /></GatedRoute>} />

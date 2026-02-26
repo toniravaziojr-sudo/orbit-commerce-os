@@ -4580,6 +4580,299 @@ export type Database = {
           },
         ]
       }
+      email_automation_edges: {
+        Row: {
+          created_at: string
+          flow_id: string
+          id: string
+          label: string | null
+          source_handle: string | null
+          source_node_id: string
+          target_node_id: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          flow_id: string
+          id?: string
+          label?: string | null
+          source_handle?: string | null
+          source_node_id: string
+          target_node_id: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          flow_id?: string
+          id?: string
+          label?: string | null
+          source_handle?: string | null
+          source_node_id?: string
+          target_node_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_automation_edges_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "email_automation_flows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_automation_edges_source_node_id_fkey"
+            columns: ["source_node_id"]
+            isOneToOne: false
+            referencedRelation: "email_automation_nodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_automation_edges_target_node_id_fkey"
+            columns: ["target_node_id"]
+            isOneToOne: false
+            referencedRelation: "email_automation_nodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_automation_edges_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_automation_enrollments: {
+        Row: {
+          completed_at: string | null
+          current_node_id: string | null
+          enrolled_at: string
+          flow_id: string
+          id: string
+          metadata: Json | null
+          next_action_at: string | null
+          status: string
+          subscriber_id: string
+          tenant_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          current_node_id?: string | null
+          enrolled_at?: string
+          flow_id: string
+          id?: string
+          metadata?: Json | null
+          next_action_at?: string | null
+          status?: string
+          subscriber_id: string
+          tenant_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          current_node_id?: string | null
+          enrolled_at?: string
+          flow_id?: string
+          id?: string
+          metadata?: Json | null
+          next_action_at?: string | null
+          status?: string
+          subscriber_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_automation_enrollments_current_node_id_fkey"
+            columns: ["current_node_id"]
+            isOneToOne: false
+            referencedRelation: "email_automation_nodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_automation_enrollments_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "email_automation_flows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_automation_enrollments_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: false
+            referencedRelation: "email_marketing_subscribers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_automation_enrollments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_automation_flows: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          stats: Json | null
+          status: string
+          tenant_id: string
+          trigger_config: Json
+          trigger_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          stats?: Json | null
+          status?: string
+          tenant_id: string
+          trigger_config?: Json
+          trigger_type?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          stats?: Json | null
+          status?: string
+          tenant_id?: string
+          trigger_config?: Json
+          trigger_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_automation_flows_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_automation_logs: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json | null
+          enrollment_id: string | null
+          flow_id: string
+          id: string
+          node_id: string | null
+          result: string | null
+          tenant_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json | null
+          enrollment_id?: string | null
+          flow_id: string
+          id?: string
+          node_id?: string | null
+          result?: string | null
+          tenant_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json | null
+          enrollment_id?: string | null
+          flow_id?: string
+          id?: string
+          node_id?: string | null
+          result?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_automation_logs_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "email_automation_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_automation_logs_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "email_automation_flows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_automation_logs_node_id_fkey"
+            columns: ["node_id"]
+            isOneToOne: false
+            referencedRelation: "email_automation_nodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_automation_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_automation_nodes: {
+        Row: {
+          config: Json
+          created_at: string
+          flow_id: string
+          id: string
+          label: string | null
+          node_type: string
+          position_x: number
+          position_y: number
+          tenant_id: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          flow_id: string
+          id?: string
+          label?: string | null
+          node_type: string
+          position_x?: number
+          position_y?: number
+          tenant_id: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          flow_id?: string
+          id?: string
+          label?: string | null
+          node_type?: string
+          position_x?: number
+          position_y?: number
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_automation_nodes_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "email_automation_flows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_automation_nodes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_events: {
         Row: {
           created_at: string

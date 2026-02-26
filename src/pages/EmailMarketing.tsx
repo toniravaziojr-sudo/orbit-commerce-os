@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useEmailMarketing } from "@/hooks/useEmailMarketing";
-import { Mail, Users, Megaphone, ListPlus, Plus, MoreHorizontal, Eye, Trash2, Edit, ChevronRight } from "lucide-react";
+import { Mail, Users, Megaphone, ListPlus, Plus, MoreHorizontal, Eye, Trash2, Edit, ChevronRight, Workflow } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ListDialog } from "@/components/email-marketing/ListDialog";
 import { TemplateDialog } from "@/components/email-marketing/TemplateDialog";
@@ -81,6 +81,7 @@ export default function EmailMarketing() {
           <TabsTrigger value="subscribers" className="gap-2"><Users className="h-4 w-4" />Assinantes</TabsTrigger>
           <TabsTrigger value="templates" className="gap-2"><Mail className="h-4 w-4" />Templates</TabsTrigger>
           <TabsTrigger value="campaigns" className="gap-2"><Megaphone className="h-4 w-4" />Campanhas</TabsTrigger>
+          <TabsTrigger value="automations" className="gap-2"><Workflow className="h-4 w-4" />Automações</TabsTrigger>
         </TabsList>
 
         <TabsContent value="lists">
@@ -266,6 +267,30 @@ export default function EmailMarketing() {
                   ))}
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="automations">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Automações</CardTitle>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Crie fluxos automatizados com condições, delays e ações
+                </p>
+              </div>
+              <Button size="sm" onClick={() => navigate("/email-marketing/automation/new")}>
+                <Plus className="h-4 w-4 mr-2" />Nova Automação
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <EmptyState
+                icon={Workflow}
+                title="Nenhuma automação"
+                description="Crie fluxos visuais para automatizar emails, tags e segmentação"
+                action={{ label: "Criar Automação", onClick: () => navigate("/email-marketing/automation/new") }}
+              />
             </CardContent>
           </Card>
         </TabsContent>
