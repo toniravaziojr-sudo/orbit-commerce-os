@@ -187,10 +187,18 @@ POST /meli-publish-listing
 
 | Ação | Descrição | API ML |
 |------|-----------|--------|
-| `publish` (default) | Publica novo anúncio | `POST /items` |
+| `publish` (default) | Publica novo anúncio | `POST /items` + `POST /items/{id}/description` (2 etapas) |
 | `pause` | Pausa anúncio ativo | `PUT /items/{id}` status=paused |
 | `activate` | Reativa anúncio pausado | `PUT /items/{id}` status=active |
 | `update` | Sincroniza preço/estoque | `PUT /items/{id}` + `PUT /items/{id}/description` |
+
+### Regras de Publicação (v3.0.0)
+
+- **Descrição em 2 etapas:** O ML não aceita `description` no body do `POST /items`. A descrição é enviada separadamente via `POST /items/{id}/description` após a criação do item.
+- **Multi-imagem:** Busca até 10 imagens do produto (deduplica primária + galeria). Mínimo 1 obrigatória.
+- **GTIN automático:** Busca `products.gtin` e `products.barcode` como fallback para o atributo `GTIN`.
+- **Garantia:** Envia `WARRANTY_TYPE` e `WARRANTY_TIME` a partir de `products.warranty_type` e `products.warranty_duration`.
+- **Permalink:** Armazena `meli_response.permalink` para link "Ver no ML" funcional.
 
 ### Regras de Anúncio
 
@@ -264,12 +272,14 @@ A edge function `meli-publish-listing` monta os atributos a partir do formulári
 | Atributo | Fonte |
 |----------|-------|
 | `BRAND` | Formulário ou `products.brand` |
-| `GTIN` | Formulário |
+| `GTIN` | `products.gtin` ou `products.barcode` (fallback automático) |
 | `SELLER_SKU` | `products.sku` |
 | `PACKAGE_WEIGHT` | `products.weight` |
 | `PACKAGE_WIDTH` | `products.width` |
 | `PACKAGE_HEIGHT` | `products.height` |
 | `PACKAGE_LENGTH` | `products.depth` |
+| `WARRANTY_TYPE` | `products.warranty_type` (vendor/factory) |
+| `WARRANTY_TIME` | `products.warranty_duration` |
 
 ### Status do Anúncio
 
@@ -312,8 +322,8 @@ A edge function `meli-publish-listing` monta os atributos a partir do formulári
 | `product_id` | UUID | FK products |
 | `status` | TEXT | draft/ready/approved/publishing/published/paused/error |
 | `meli_item_id` | TEXT | ID do anúncio no ML (após publicação) |
-| `title` | TEXT | Título do anúncio (até 120 chars) |
-| `description` | TEXT | Descrição HTML |
+| `title` | TEXT | Título do anúncio (limite dinâmico por categoria) |
+| `description` | TEXT | Descrição texto plano |
 | `price` | NUMERIC | Preço no ML |
 | `available_quantity` | INT | Estoque disponível |
 | `category_id` | TEXT | Categoria ML |
