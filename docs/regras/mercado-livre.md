@@ -18,7 +18,7 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 | `src/pages/MeliOAuthCallback.tsx` | Proxy page para callback OAuth |
 | `src/hooks/useMeliConnection.ts` | Status/OAuth com listener de postMessage |
 | `src/hooks/useMeliOrders.ts` | Pedidos |
-| `src/hooks/useMeliListings.ts` | CRUD + publicação + criação em massa (`createBulkListings`) |
+| `src/hooks/useMeliListings.ts` | CRUD + publicação + criação em massa (`createBulkListings`) + sincronização (`syncListings`) |
 | `src/components/marketplaces/MeliListingsTab.tsx` | UI da aba Anúncios (lista + ações em massa + creator/wizard) |
 | `src/components/marketplaces/MeliListingCreator.tsx` | Dialog multi-produto de 3 etapas para criação em massa com IA |
 | `src/components/marketplaces/MeliListingWizard.tsx` | Wizard para edição individual de anúncios |
@@ -34,6 +34,7 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 | `supabase/functions/meli-sync-questions/` | Sincronização de perguntas → Atendimento |
 | `supabase/functions/meli-answer-question/` | Responder perguntas via API ML |
 | `supabase/functions/meli-webhook/` | Notificações do ML |
+| `supabase/functions/meli-sync-listings/` | Sincronização de status dos anúncios com o ML (detecta excluídos/pausados/encerrados) |
 
 ## Fluxo OAuth
 
@@ -476,6 +477,52 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 >
 > Objetivo: impedir títulos truncados como `"Balm Respeite o Homem Anti-"` no botão **Regenerar** do Creator/Wizard.
 
+## Sincronização de Status dos Anúncios (`meli-sync-listings`)
+
+Edge function que consulta a API do ML para detectar anúncios excluídos, pausados ou encerrados externamente e atualizar o status local.
+
+```typescript
+POST /meli-sync-listings
+{
+  "tenantId": "...",
+  "listingIds": ["id1", "id2"]  // opcional — se vazio, sincroniza todos published/paused/publishing
+}
+```
+
+### Mapeamento de Status ML → Local
+
+| Status ML | Sub-status | Status Local | Descrição |
+|-----------|-----------|--------------|-----------|
+| `active` | — | `published` | Anúncio ativo |
+| `paused` | — | `paused` | Pausado |
+| `closed` | `deleted` | `error` | Excluído no ML |
+| `closed` | `expired` | `error` | Expirado no ML |
+| `closed` | outros | `error` | Encerrado no ML |
+| `under_review` | — | `publishing` | Em revisão pelo ML |
+| `inactive` | — | `paused` | Inativo (sem estoque, etc.) |
+| Item não encontrado | — | `error` | Excluído ou encerrado |
+
+### Dados Sincronizados
+
+- **Status** (mapeado conforme tabela acima)
+- **Preço** (`price`) — atualizado do ML
+- **Estoque** (`available_quantity`) — atualizado do ML
+- **Permalink** (`meli_response.permalink`) — para link "Ver no ML"
+- **Mensagem de erro** (`error_message`) — descrição do motivo quando status vira `error`
+
+### Regras
+
+- Usa API multiget (`GET /items?ids=...`) com chunks de 20 itens
+- Auto-refresh de token expirado via `meli-token-refresh`
+- Só atualiza registros cujo status realmente mudou
+- Anúncios com status `error` (detectados como excluídos/encerrados no ML) podem ser **excluídos localmente** pelo usuário
+
+### UI
+
+- Botão **"Sincronizar"** (ícone RefreshCw) no header da aba Anúncios (`MeliListingsTab`)
+- Exibe toast com resultado da sincronização
+- Invalida cache de listings após conclusão
+
 ## Anti-Patterns
 
 | Proibido | Correto |
@@ -492,6 +539,7 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 | Chamar IA sem contexto de produto | Usar fallback `initialData.product.name` |
 | Usar `window.confirm()` para ações destrutivas | Usar `useConfirmDialog` com variante adequada |
 | Aceitar títulos truncados da IA | Validar e retry até 3x com temperatura progressiva |
+| Não sincronizar status com ML | Usar `meli-sync-listings` para detectar excluídos/encerrados |
 
 ## Checklist
 
@@ -510,4 +558,5 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 - [x] Operações em massa (enviar todos, gerar títulos/descrições, auto-categorizar)
 - [x] Envio em massa: "Enviar Selecionados" (auto-aprova draft/ready + publica)
 - [x] Auto-suggest de categoria via category_predictor no formulário individual
+- [x] Sincronização de status de anúncios com ML (detecta excluídos/pausados/encerrados)
 - [ ] Webhook de notificações de pedidos (real-time)
