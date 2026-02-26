@@ -51,10 +51,10 @@ export function useChannelAccounts() {
         .from('channel_accounts')
         .insert({
           tenant_id: currentTenant.id,
-          channel_type: input.channel_type,
+          channel_type: input.channel_type as any,
           account_name: input.account_name,
           external_account_id: input.external_account_id,
-        })
+        } as any)
         .select()
         .single();
 

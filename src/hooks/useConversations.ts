@@ -65,7 +65,7 @@ export function useConversations(filters?: ConversationFilters) {
 
       // Filter by channel
       if (filters?.channel) {
-        query = query.eq('channel_type', filters.channel);
+        query = query.eq('channel_type', filters.channel as any);
       }
 
       // Filter by assignment

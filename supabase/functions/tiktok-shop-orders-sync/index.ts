@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.0.0"; // Fase 6: TikTok Shop orders sync
+const VERSION = "v2.0.0"; // Fase 6b: Sync to main orders table
 // ===================
 
 const corsHeaders = {
@@ -236,6 +236,118 @@ serve(async (req) => {
             errorCount++;
           } else {
             syncedCount++;
+
+            // === Sync to main orders table ===
+            const mainOrderStatus = mapToMainOrderStatus(order.status);
+            const mainPaymentStatus = mapToMainPaymentStatus(order.status);
+            const mainShippingStatus = mapToMainShippingStatus(order.status);
+
+            const sourceHash = `tiktokshop:${tenantId}:${tiktokOrderId}`;
+
+            const mainOrderData: Record<string, any> = {
+              tenant_id: tenantId,
+              source_platform: "tiktokshop",
+              marketplace_source: "tiktokshop",
+              marketplace_order_id: tiktokOrderId,
+              source_order_number: tiktokOrderId,
+              source_hash: sourceHash,
+              status: mainOrderStatus,
+              payment_status: mainPaymentStatus,
+              shipping_status: mainShippingStatus,
+              customer_name: buyerInfo.name || "TikTok Shop Buyer",
+              customer_email: buyerInfo.email || `tiktok_${tiktokOrderId}@marketplace.local`,
+              customer_phone: buyerInfo.phone || null,
+              subtotal: totalCents / 100,
+              total: totalCents / 100,
+              discount_total: 0,
+              shipping_total: 0,
+              tax_total: 0,
+              currency: paymentInfo.currency || "BRL",
+              marketplace_data: { tiktokOrderId, tiktokStatus: order.status, items },
+              updated_at: new Date().toISOString(),
+            };
+
+            // Add shipping address if available
+            if (shippingAddress) {
+              mainOrderData.shipping_street = shippingAddress.address_detail || shippingAddress.full_address || null;
+              mainOrderData.shipping_city = shippingAddress.city || null;
+              mainOrderData.shipping_state = shippingAddress.state || shippingAddress.region || null;
+              mainOrderData.shipping_postal_code = shippingAddress.zipcode || shippingAddress.postal_code || null;
+              mainOrderData.shipping_country = shippingAddress.country || "BR";
+            }
+
+            if (mainOrderStatus === "delivered") {
+              mainOrderData.delivered_at = new Date().toISOString();
+            }
+            if (mainPaymentStatus === "paid") {
+              mainOrderData.paid_at = new Date().toISOString();
+            }
+
+            // Check if order exists in main table
+            const { data: existingOrder } = await supabase
+              .from("orders")
+              .select("id")
+              .eq("source_hash", sourceHash)
+              .maybeSingle();
+
+            if (existingOrder) {
+              // Update existing
+              await supabase
+                .from("orders")
+                .update(mainOrderData)
+                .eq("id", existingOrder.id);
+
+              // Link tiktok_shop_orders to main order
+              await supabase
+                .from("tiktok_shop_orders")
+                .update({ order_id: existingOrder.id })
+                .eq("tenant_id", tenantId)
+                .eq("tiktok_order_id", tiktokOrderId);
+            } else {
+              // Insert new with order_number
+              const { data: lastOrder } = await supabase
+                .from("orders")
+                .select("order_number")
+                .eq("tenant_id", tenantId)
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+              const lastNum = lastOrder?.order_number
+                ? parseInt(lastOrder.order_number.replace(/\D/g, ""), 10) || 0
+                : 0;
+              mainOrderData.order_number = `ORD-${String(lastNum + 1).padStart(4, "0")}`;
+
+              const { data: newOrder } = await supabase
+                .from("orders")
+                .insert(mainOrderData)
+                .select("id")
+                .single();
+
+              if (newOrder) {
+                // Link tiktok_shop_orders to main order
+                await supabase
+                  .from("tiktok_shop_orders")
+                  .update({ order_id: newOrder.id })
+                  .eq("tenant_id", tenantId)
+                  .eq("tiktok_order_id", tiktokOrderId);
+
+                // Insert order items
+                const orderItems = items.map((item: any, idx: number) => ({
+                  order_id: newOrder.id,
+                  tenant_id: tenantId,
+                  product_name: item.productName,
+                  quantity: item.quantity,
+                  unit_price: item.salePriceCents / 100,
+                  total_price: (item.salePriceCents * item.quantity) / 100,
+                  sort_order: idx,
+                }));
+
+                if (orderItems.length > 0) {
+                  await supabase.from("order_items").insert(orderItems);
+                }
+              }
+            }
           }
         } catch (err) {
           console.warn(`[tiktok-shop-orders-sync][${VERSION}] Error processing order:`, err);
@@ -287,6 +399,51 @@ function mapTikTokOrderStatus(tiktokStatus: string): string {
     IN_TRANSIT: "shipping",
     DELIVERED: "delivered",
     COMPLETED: "completed",
+    CANCELLED: "cancelled",
+  };
+  return map[tiktokStatus] || "pending";
+}
+
+function mapToMainOrderStatus(tiktokStatus: string): string {
+  const map: Record<string, string> = {
+    UNPAID: "awaiting_payment",
+    ON_HOLD: "pending",
+    AWAITING_SHIPMENT: "processing",
+    AWAITING_COLLECTION: "processing",
+    PARTIALLY_SHIPPING: "shipped",
+    IN_TRANSIT: "in_transit",
+    DELIVERED: "delivered",
+    COMPLETED: "delivered",
+    CANCELLED: "cancelled",
+  };
+  return map[tiktokStatus] || "pending";
+}
+
+function mapToMainPaymentStatus(tiktokStatus: string): string {
+  const map: Record<string, string> = {
+    UNPAID: "pending",
+    ON_HOLD: "pending",
+    AWAITING_SHIPMENT: "paid",
+    AWAITING_COLLECTION: "paid",
+    PARTIALLY_SHIPPING: "paid",
+    IN_TRANSIT: "paid",
+    DELIVERED: "paid",
+    COMPLETED: "paid",
+    CANCELLED: "refunded",
+  };
+  return map[tiktokStatus] || "pending";
+}
+
+function mapToMainShippingStatus(tiktokStatus: string): string {
+  const map: Record<string, string> = {
+    UNPAID: "pending",
+    ON_HOLD: "pending",
+    AWAITING_SHIPMENT: "pending",
+    AWAITING_COLLECTION: "ready",
+    PARTIALLY_SHIPPING: "shipped",
+    IN_TRANSIT: "in_transit",
+    DELIVERED: "delivered",
+    COMPLETED: "delivered",
     CANCELLED: "cancelled",
   };
   return map[tiktokStatus] || "pending";
