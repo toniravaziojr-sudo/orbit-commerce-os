@@ -129,7 +129,7 @@ A aba `domain-email` unifica duas seções:
 | Mercado Livre | ✅ Ready | Sincronização de produtos |
 | Shopee | ✅ Ready | Sincronização de pedidos e OAuth |
 | Olist | ✅ Ready | ERP (Tiny) + E-commerce (Vnda) via token |
-| TikTok Shop | ✅ Ready | Marketplace integrado (via Hub TikTok, tabela `tiktok_shop_connections`) |
+| TikTok Shop | ✅ Ready | Marketplace integrado (via Hub TikTok, tabela `tiktok_shop_connections`). Módulo de gestão em `/marketplaces/tiktokshop` |
 | Amazon | 🟧 Pending | Planejado |
 
 ### 4. WhatsApp
