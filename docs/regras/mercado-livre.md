@@ -93,25 +93,26 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 
 ## Fluxo de Anúncios (Listings)
 
-### Pipeline: Criar em Massa (6 Etapas) → Aprovar → Publicar
+### Pipeline: Criar em Massa (7 Etapas) → Aprovar → Publicar
 
 ```
-1. Lojista clica "Novo Anúncio" → abre MeliListingCreator (dialog 6 etapas)
+1. Lojista clica "Novo Anúncio" → abre MeliListingCreator (dialog 7 etapas)
 2. Creator Etapa 1 — Selecionar Produtos: checkboxes com busca, selecionar todos
 3. Creator Etapa 2 — Gerar Títulos IA: cria drafts no banco, chama bulk_generate_titles, exibe preview editável (input + contador chars + botão Regenerar)
 4. Creator Etapa 3 — Gerar Descrições IA: chama bulk_generate_descriptions, exibe preview colapsável com textarea editável + botão Regenerar
 5. Creator Etapa 4 — Categorizar via ML API: chama bulk_auto_categories, exibe categorias com path legível + MeliCategoryPicker para troca manual
 6. Creator Etapa 5 — Condição: cards visuais radio-style (Novo / Usado / Não especificado)
-7. Creator Etapa 6 — Tipo de Anúncio: cards visuais (Clássico / Premium / Grátis) + botão Salvar
-8. Rascunhos aparecem na tabela → lojista edita individualmente se necessário (MeliListingWizard modo edit)
-9. Lojista revisa e clica "Aprovar" → status 'approved'
-10. Lojista clica "Publicar" → edge function meli-publish-listing → API do ML → status 'published'
-11. Após publicação: pode pausar, reativar, sincronizar preço/estoque
+7. Creator Etapa 6 — Tipo de Anúncio: cards visuais (Clássico / Premium / Grátis)
+8. Creator Etapa 7 — Frete: switches para Frete Grátis e Retirada no Local + botão Salvar
+9. Rascunhos aparecem na tabela → lojista edita individualmente se necessário (MeliListingWizard modo edit)
+10. Lojista revisa e clica "Aprovar" → status 'approved'
+11. Lojista clica "Publicar" (individual) ou "Publicar Selecionados" (em massa) → edge function meli-publish-listing → API do ML → status 'published'
+12. Após publicação: pode pausar, reativar, sincronizar preço/estoque
 ```
 
-### Creator Multi-Produto (MeliListingCreator) — 6 Etapas
+### Creator Multi-Produto (MeliListingCreator) — 7 Etapas
 
-Dialog de 6 etapas para criação em massa de anúncios com validação ML sincronizada:
+Dialog de 7 etapas para criação em massa de anúncios com validação ML sincronizada:
 
 | Etapa | Nome | Descrição |
 |-------|------|-----------|
@@ -120,7 +121,8 @@ Dialog de 6 etapas para criação em massa de anúncios com validação ML sincr
 | 3 | Gerar Descrições IA | `bulk_generate_descriptions` → preview colapsável, textarea editável, botão Regenerar com loading spinner |
 | 4 | Categorizar via ML API | `bulk_auto_categories` → preview com path legível, troca manual via `MeliCategoryPicker` |
 | 5 | Condição | Cards visuais radio-style: `new` (Novo), `used` (Usado), `not_specified` |
-| 6 | Tipo de Anúncio | Cards visuais: `gold_special` (Clássico), `gold_pro` (Premium), `free` (Grátis) → Salvar |
+| 6 | Tipo de Anúncio | Cards visuais: `gold_special` (Clássico), `gold_pro` (Premium), `free` (Grátis) |
+| 7 | Frete | Switches para `free_shipping` (Frete Grátis) e `local_pick_up` (Retirada no Local). Botão Salvar finaliza o wizard. |
 
 **Props:**
 
@@ -137,7 +139,7 @@ Dialog de 6 etapas para criação em massa de anúncios com validação ML sincr
 1. Etapa 2 cria `meli_listings` com status `draft` via `createBulkListings`, depois chama `bulk_generate_titles` com `listingIds`
 2. Etapa 3 chama `bulk_generate_descriptions` com mesmos `listingIds`
 3. Etapa 4 chama `bulk_auto_categories` com mesmos `listingIds`. Edge function retorna `resolvedCategories` com `categoryName` e `categoryPath` legíveis. **IMPORTANTE:** `categoryPath` pode vir como string ou array de objetos `{name}` da API; o frontend normaliza via `normalizeCategoryPath()` para evitar crashes de renderização
-4. Etapas 5-6 aplicam condição e listing_type em batch via update direto
+4. Etapas 5-7 aplicam condição, listing_type e shipping em batch via update direto
 5. Ao finalizar, fecha dialog e tabela mostra os novos rascunhos
 
 **Sincronização com o Mercado Livre:**
@@ -396,6 +398,7 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 > - **Badge de contagem:** Exibe "X selecionado(s)" na barra de ações em massa quando há seleção
 > - **Ações operam nos selecionados:** Quando há seleção, as ações em massa enviam `listingIds` (array de IDs) no body da edge function. Quando não há seleção, operam em todos.
 > - **Excluir Selecionados:** Botão vermelho (destructive) aparece apenas quando há seleção. Filtra automaticamente anúncios `published`/`publishing` (que não podem ser excluídos). Confirma antes de executar e limpa seleção após conclusão.
+> - **Publicar Selecionados:** Botão primário que aparece junto com "Excluir Selecionados" quando há seleção. Publica sequencialmente todos os anúncios selecionados com status `approved` ou `error` via `meli-publish-listing`. Exibe barra de progresso durante a operação. Confirma antes de executar e limpa seleção após conclusão.
 > - **Limpeza automática:** A seleção é resetada após executar uma ação em massa.
 >
 > **Body da edge function com seleção:**
