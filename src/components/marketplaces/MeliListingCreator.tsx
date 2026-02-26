@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +31,8 @@ import {
   ShieldCheck,
   Recycle,
   HelpCircle,
+  Truck,
+  MapPin,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -63,7 +66,7 @@ interface MeliListingCreatorProps {
   onRefetch: () => void;
 }
 
-type Step = "select" | "titles" | "descriptions" | "categories" | "condition" | "listing_type";
+type Step = "select" | "titles" | "descriptions" | "categories" | "condition" | "listing_type" | "shipping";
 
 const STEPS: { key: Step; label: string }[] = [
   { key: "select", label: "Produtos" },
@@ -72,6 +75,7 @@ const STEPS: { key: Step; label: string }[] = [
   { key: "categories", label: "Categorias" },
   { key: "condition", label: "Condição" },
   { key: "listing_type", label: "Tipo" },
+  { key: "shipping", label: "Frete" },
 ];
 
 interface GeneratedItem {
@@ -142,9 +146,11 @@ export function MeliListingCreator({
   const [processingProgress, setProcessingProgress] = useState(0);
   const [processingLabel, setProcessingLabel] = useState("");
 
-  // Step 5 & 6
+  // Step 5, 6 & 7
   const [condition, setCondition] = useState("new");
   const [listingType, setListingType] = useState("gold_special");
+  const [freeShipping, setFreeShipping] = useState(false);
+  const [localPickup, setLocalPickup] = useState(false);
 
   // Expanded descriptions
   const [expandedDescs, setExpandedDescs] = useState<Set<string>>(new Set());
@@ -182,6 +188,8 @@ export function MeliListingCreator({
       setProcessingProgress(0);
       setCondition("new");
       setListingType("gold_special");
+      setFreeShipping(false);
+      setLocalPickup(false);
       setExpandedDescs(new Set());
     }
   }, [open]);
@@ -574,14 +582,22 @@ export function MeliListingCreator({
     }
   };
 
-  // ====== Final save: condition + listing_type ======
+  // ====== Final save: condition + listing_type + shipping ======
   const handleFinalSave = async () => {
     if (listingIds.length === 0) return;
     setIsProcessing(true);
     try {
       const { error } = await supabase
         .from("meli_listings")
-        .update({ condition, listing_type: listingType })
+        .update({
+          condition,
+          listing_type: listingType,
+          shipping: {
+            mode: "me2",
+            free_shipping: freeShipping,
+            local_pick_up: localPickup,
+          },
+        })
         .in("id", listingIds)
         .eq("tenant_id", currentTenant?.id);
 
@@ -618,6 +634,8 @@ export function MeliListingCreator({
       setStep("condition");
     } else if (idx === 4) {
       setStep("listing_type");
+    } else if (idx === 5) {
+      setStep("shipping");
     }
   };
 
@@ -634,6 +652,7 @@ export function MeliListingCreator({
     if (step === "descriptions") return !isProcessing;
     if (step === "categories") return !isProcessing;
     if (step === "condition") return !!condition;
+    if (step === "listing_type") return !!listingType;
     return false;
   };
 
@@ -648,6 +667,7 @@ export function MeliListingCreator({
             {step === "categories" && "Categorias do Mercado Livre"}
             {step === "condition" && "Condição dos Produtos"}
             {step === "listing_type" && "Tipo de Anúncio"}
+            {step === "shipping" && "Configuração de Frete"}
           </DialogTitle>
           <DialogDescription>
             {step === "select" && "Escolha os produtos que deseja anunciar no Mercado Livre"}
@@ -1052,6 +1072,50 @@ export function MeliListingCreator({
           </div>
         )}
 
+        {/* ===== STEP 7: Shipping ===== */}
+        {step === "shipping" && (
+          <div className="flex-1 flex flex-col gap-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Configure o frete para todos os {generatedItems.length} anúncios.
+            </p>
+            <div className="grid gap-3">
+              <div className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all ${
+                freeShipping ? "border-primary bg-primary/5" : "border-border"
+              }`}>
+                <div className="flex items-center gap-4">
+                  <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${
+                    freeShipping ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                  }`}>
+                    <Truck className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">Frete Grátis</p>
+                    <p className="text-xs text-muted-foreground">O vendedor assume o custo do frete</p>
+                  </div>
+                </div>
+                <Switch checked={freeShipping} onCheckedChange={setFreeShipping} />
+              </div>
+
+              <div className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all ${
+                localPickup ? "border-primary bg-primary/5" : "border-border"
+              }`}>
+                <div className="flex items-center gap-4">
+                  <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${
+                    localPickup ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                  }`}>
+                    <MapPin className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">Retirada no Local</p>
+                    <p className="text-xs text-muted-foreground">Comprador retira pessoalmente</p>
+                  </div>
+                </div>
+                <Switch checked={localPickup} onCheckedChange={setLocalPickup} />
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
         <DialogFooter className="gap-2 pt-4 border-t shrink-0">
           {currentStepIndex > 0 && !isProcessing && (
@@ -1061,7 +1125,7 @@ export function MeliListingCreator({
             </Button>
           )}
           <div className="flex-1" />
-          {step === "listing_type" ? (
+          {step === "shipping" ? (
             <Button onClick={handleFinalSave} disabled={isProcessing}>
               {isProcessing ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
