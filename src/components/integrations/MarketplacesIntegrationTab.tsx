@@ -7,6 +7,7 @@ import { ExternalLink, ShoppingBag, Info, CheckCircle2, Unplug, RefreshCw } from
 import { useMeliConnection } from "@/hooks/useMeliConnection";
 import { useShopeeConnection } from "@/hooks/useShopeeConnection";
 import { useOlistConnection } from "@/hooks/useOlistConnection";
+import { useTikTokShopConnection } from "@/hooks/useTikTokShopConnection";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 // Mercado Livre Logo Component
@@ -44,6 +45,17 @@ function OlistLogo({ className }: { className?: string }) {
   );
 }
 
+// TikTok Shop Logo Component
+function TikTokShopLogo({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="48" height="48" rx="8" fill="#000000"/>
+      <path d="M33.6 18.4c-1.8 0-3.4-.7-4.6-1.8v8.2c0 4.2-3.4 7.6-7.6 7.6s-7.6-3.4-7.6-7.6 3.4-7.6 7.6-7.6c.4 0 .8 0 1.2.1v3.8c-.4-.1-.8-.2-1.2-.2-2.1 0-3.8 1.7-3.8 3.8s1.7 3.8 3.8 3.8c2.1 0 3.9-1.6 3.9-3.7V12h3.7c.3 2.5 2.2 4.5 4.6 4.9v1.5z" fill="#25F4EE"/>
+      <path d="M34.6 19.4c-1.8 0-3.4-.7-4.6-1.8v8.2c0 4.2-3.4 7.6-7.6 7.6s-7.6-3.4-7.6-7.6 3.4-7.6 7.6-7.6c.4 0 .8 0 1.2.1v3.8c-.4-.1-.8-.2-1.2-.2-2.1 0-3.8 1.7-3.8 3.8s1.7 3.8 3.8 3.8c2.1 0 3.9-1.6 3.9-3.7V13h3.7c.3 2.5 2.2 4.5 4.6 4.9v1.5z" fill="#FE2C55"/>
+    </svg>
+  );
+}
+
 // Upcoming marketplaces (Olist and Shopee removed - now functional)
 const UPCOMING_MARKETPLACES = [
   { id: "amazon", name: "Amazon", icon: "📦", url: "https://amazon.com.br" },
@@ -54,6 +66,8 @@ export function MarketplacesIntegrationTab() {
   const { isConnected: meliConnected, isLoading: meliLoading, platformConfigured: meliConfigured, connect: meliConnect, disconnect: meliDisconnect, isConnecting: meliConnecting, isDisconnecting: meliDisconnecting, isExpired: meliExpired } = useMeliConnection();
   const { isConnected: shopeeConnected, isLoading: shopeeLoading, platformConfigured: shopeeConfigured } = useShopeeConnection();
   const { isConnected: olistConnected, isLoading: olistLoading, platformConfigured: olistConfigured } = useOlistConnection();
+  const { connectionStatus: tiktokStatus, isLoading: tiktokLoading } = useTikTokShopConnection();
+  const tiktokConnected = tiktokStatus.isConnected;
 
   return (
     <div className="space-y-6">
@@ -248,6 +262,58 @@ export function MarketplacesIntegrationTab() {
               </Button>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* TikTok Shop Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <TikTokShopLogo className="h-10 w-10" />
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  TikTok Shop
+                  {tiktokConnected && (
+                    <Badge variant="default" className="bg-green-600">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Conectado
+                    </Badge>
+                  )}
+                  {!tiktokConnected && !tiktokLoading && (
+                    <Badge variant="secondary">Não conectado</Badge>
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  Venda no TikTok Shop Brasil
+                </CardDescription>
+              </div>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline">Pedidos</Badge>
+              <Badge variant="outline">Catálogo</Badge>
+              <Badge variant="outline">Envios</Badge>
+            </div>
+            {tiktokConnected ? (
+              <Button asChild>
+                <Link to="/marketplaces/tiktokshop">
+                  <ShoppingBag className="h-4 w-4 mr-2" />
+                  Gerenciar
+                </Link>
+              </Button>
+            ) : (
+              <Button asChild>
+                <Link to="/integrations?tab=tiktok">
+                  <ShoppingBag className="h-4 w-4 mr-2" />
+                  Conectar
+                </Link>
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
 
