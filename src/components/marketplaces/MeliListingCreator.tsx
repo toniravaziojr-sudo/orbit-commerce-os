@@ -442,6 +442,8 @@ export function MeliListingCreator({
         body: {
           tenantId: currentTenant.id,
           productId: item.productId,
+          listingId: item.listingId,
+          categoryId: item.categoryId || undefined,
           generateTitle: true,
         },
       });
