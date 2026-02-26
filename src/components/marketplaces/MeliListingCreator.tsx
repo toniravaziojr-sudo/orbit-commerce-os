@@ -101,6 +101,21 @@ function getMeliTitleIssue(title: string): string | null {
   return null;
 }
 
+function normalizeCategoryPath(pathData: unknown): string {
+  if (typeof pathData === "string") return pathData;
+  if (Array.isArray(pathData)) {
+    return pathData
+      .map((entry: any) => {
+        if (typeof entry === "string") return entry;
+        if (entry && typeof entry === "object" && "name" in entry) return String((entry as any).name);
+        return "";
+      })
+      .filter(Boolean)
+      .join(" > ");
+  }
+  return "";
+}
+
 export function MeliListingCreator({
   open,
   onOpenChange,
@@ -380,7 +395,7 @@ export function MeliListingCreator({
                 ...item,
                 categoryId: resolved.categoryId,
                 categoryName: resolved.categoryName || "",
-                categoryPath: resolved.categoryPath || "",
+                categoryPath: normalizeCategoryPath(resolved.categoryPath),
               };
             }
             return item;
@@ -521,13 +536,21 @@ export function MeliListingCreator({
       );
       if (res.ok) {
         const data = await res.json();
-        if (data.path) categoryPath = data.path;
+        const normalizedPath = normalizeCategoryPath(data.path || data.path_from_root);
+        if (normalizedPath) categoryPath = normalizedPath;
         if (data.name) categoryName = data.name;
       }
     } catch { /* skip */ }
 
     setGeneratedItems(prev => prev.map(i =>
-      i.listingId === listingId ? { ...i, categoryId, categoryName: categoryName || categoryId, categoryPath } : i
+      i.listingId === listingId
+        ? {
+            ...i,
+            categoryId,
+            categoryName: categoryName || categoryId,
+            categoryPath: normalizeCategoryPath(categoryPath),
+          }
+        : i
     ));
     // Update in DB
     await supabase.from("meli_listings").update({ category_id: categoryId }).eq("id", listingId);
