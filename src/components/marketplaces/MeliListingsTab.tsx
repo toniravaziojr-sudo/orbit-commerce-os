@@ -57,7 +57,7 @@ function formatCurrency(value: number) {
 
 export function MeliListingsTab() {
   const { currentTenant } = useAuth();
-  const { listings, isLoading, createListing, createBulkListings, updateListing, deleteListing, approveListing, publishListing, refetch } = useMeliListings();
+  const { listings, isLoading, createListing, createBulkListings, updateListing, deleteListing, approveListing, publishListing, syncListings, refetch } = useMeliListings();
   const { products, isLoading: productsLoading } = useProductsWithImages();
 
   const [showCreator, setShowCreator] = useState(false);
@@ -339,6 +339,16 @@ export function MeliListingsTab() {
     { key: "bulk_auto_categories", label: "Auto-Categorizar", desc: "Identifica categorias automaticamente", icon: Tags },
   ];
 
+  const [isSyncing, setIsSyncing] = useState(false);
+  const handleSyncAll = async () => {
+    setIsSyncing(true);
+    try {
+      await syncListings.mutateAsync(undefined);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
     <TooltipProvider>
       <Card>
@@ -353,10 +363,21 @@ export function MeliListingsTab() {
                 Prepare, revise e publique seus produtos no ML
               </CardDescription>
             </div>
-            <Button onClick={() => setShowCreator(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Novo Anúncio
-            </Button>
+            <div className="flex gap-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" onClick={handleSyncAll} disabled={isSyncing || !!bulkAction}>
+                    {isSyncing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                    Sincronizar
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Sincroniza o status dos anúncios com o Mercado Livre</TooltipContent>
+              </Tooltip>
+              <Button onClick={() => setShowCreator(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Anúncio
+              </Button>
+            </div>
           </div>
 
           {/* Bulk Actions Bar */}

@@ -262,6 +262,30 @@ export function useMeliListings() {
     },
   });
 
+  const syncListings = useMutation({
+    mutationFn: async (listingIds?: string[]) => {
+      if (!currentTenant?.id) throw new Error('Tenant não selecionado');
+
+      const { data, error } = await supabase.functions.invoke('meli-sync-listings', {
+        body: {
+          tenantId: currentTenant.id,
+          listingIds: listingIds || undefined,
+        },
+      });
+
+      if (error) throw new Error(error.message || 'Erro ao sincronizar');
+      if (!data?.success) throw new Error(data?.error || 'Erro ao sincronizar com o Mercado Livre');
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['meli-listings'] });
+      toast.success(data.message || 'Sincronização concluída');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao sincronizar anúncios');
+    },
+  });
+
   return {
     listings: listingsQuery.data ?? [],
     isLoading: listingsQuery.isLoading,
@@ -272,6 +296,7 @@ export function useMeliListings() {
     deleteListing,
     approveListing,
     publishListing,
+    syncListings,
     refetch: listingsQuery.refetch,
   };
 }
