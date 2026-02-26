@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "3.0.0"; // Fix GTIN, all images, description, permalink storage
+const VERSION = "3.1.0"; // Fix warranty via attributes (WARRANTY_TYPE/WARRANTY_TIME), remove deprecated warranty field and non-modifiable package dimensions
 // ===================
 
 const corsHeaders = {
@@ -224,27 +224,18 @@ serve(async (req) => {
       attributes.push({ id: "SELLER_SKU", value_name: listing.product.sku });
     }
     
-    // Package dimensions
-    if (!attrIds.has("PACKAGE_WEIGHT") && listing.product?.weight) {
-      attributes.push({ id: "PACKAGE_WEIGHT", value_name: `${listing.product.weight} g` });
-    }
-    if (!attrIds.has("PACKAGE_WIDTH") && listing.product?.width) {
-      attributes.push({ id: "PACKAGE_WIDTH", value_name: `${listing.product.width} cm` });
-    }
-    if (!attrIds.has("PACKAGE_HEIGHT") && listing.product?.height) {
-      attributes.push({ id: "PACKAGE_HEIGHT", value_name: `${listing.product.height} cm` });
-    }
-    if (!attrIds.has("PACKAGE_LENGTH") && listing.product?.depth) {
-      attributes.push({ id: "PACKAGE_LENGTH", value_name: `${listing.product.depth} cm` });
-    }
+    // Note: PACKAGE_WEIGHT/WIDTH/HEIGHT/LENGTH are NOT modifiable via attributes on ML
+    // They must be set via shipping dimensions, not attributes
 
-    // Warranty from product
+    // Warranty via attributes (warranty field is deprecated on ML API)
     if (listing.product?.warranty_type && listing.product.warranty_type !== 'none') {
-      const warrantyLabel = listing.product.warranty_type === 'vendor' ? 'Garantia do vendedor' : 'Garantia de fábrica';
-      const warrantyText = listing.product.warranty_duration 
-        ? `${warrantyLabel}: ${listing.product.warranty_duration}`
-        : warrantyLabel;
-      itemPayload.warranty = warrantyText;
+      if (!attrIds.has("WARRANTY_TYPE")) {
+        const warrantyTypeValue = listing.product.warranty_type === 'vendor' ? 'Garantía del vendedor' : 'Garantía de fábrica';
+        attributes.push({ id: "WARRANTY_TYPE", value_name: warrantyTypeValue });
+      }
+      if (!attrIds.has("WARRANTY_TIME") && listing.product.warranty_duration) {
+        attributes.push({ id: "WARRANTY_TIME", value_name: listing.product.warranty_duration });
+      }
     }
 
     if (attributes.length > 0) {
