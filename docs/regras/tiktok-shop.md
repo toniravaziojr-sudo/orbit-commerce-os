@@ -106,3 +106,27 @@ Integração OAuth com TikTok Shop para sincronização de catálogo, gestão de
 | `disconnected` | Desconectado |
 
 > Token expirado (`isExpired`) é detectado automaticamente comparando `token_expires_at` com a data atual.
+
+## Card no Hub de Integrações (OBRIGATÓRIO)
+
+O TikTok Shop **DEVE** ter um card visível na aba **Marketplaces** do Hub de Integrações (`/integrations`).
+
+| Elemento | Descrição |
+|----------|-----------|
+| **Arquivo** | `src/components/integrations/MarketplacesIntegrationTab.tsx` |
+| **Logo** | `TikTokShopLogo` (SVG inline no componente) |
+| **Badges** | `Pedidos`, `Catálogo`, `Envios` |
+| **Status** | Badge "Conectado" (verde) ou "Não conectado" via `useTikTokShopConnection` |
+| **Ação (desconectado)** | Botão "Conectar" → `/integrations?tab=tiktok` |
+| **Ação (conectado)** | Botão "Gerenciar" → `/marketplaces/tiktokshop` |
+
+### Regra: Roteamento Dinâmico do Card
+
+> O botão de ação do card **DEVE** mudar conforme o status da conexão:
+> - **Desconectado**: redireciona para `/integrations?tab=tiktok` (configuração OAuth)
+> - **Conectado**: redireciona para `/marketplaces/tiktokshop` (dashboard de gestão)
+
+## Module Status
+
+- **Rota registrada em:** `src/config/module-status.ts`
+- **Valor:** `'/marketplaces/tiktokshop': 'pending'`
