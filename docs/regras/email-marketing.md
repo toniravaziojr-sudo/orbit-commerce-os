@@ -366,6 +366,75 @@ Usa `@dnd-kit/core` + `@dnd-kit/sortable`:
 
 ---
 
+## Automation Flow Builder (Visual)
+
+### Arquitetura
+
+Página dedicada em `/email-marketing/automation/new` (e `/:flowId` para edição) com canvas visual usando `@xyflow/react` (React Flow).
+
+### Arquivos do Automation Builder
+
+| Arquivo | Propósito |
+|---------|-----------|
+| `src/pages/EmailMarketingAutomationBuilder.tsx` | Página do builder (rota) |
+| `src/hooks/useAutomationBuilder.ts` | State machine (nodes, edges, save/load) |
+| `src/components/email-marketing/automation-builder/AutomationFlowCanvas.tsx` | Canvas React Flow |
+| `src/components/email-marketing/automation-builder/AutomationSidebar.tsx` | Sidebar com blocos arrastáveis |
+| `src/components/email-marketing/automation-builder/AutomationNodeComponent.tsx` | Componente visual de cada nó |
+| `src/components/email-marketing/automation-builder/AutomationNodePanel.tsx` | Painel de propriedades do nó selecionado |
+| `src/components/email-marketing/automation-builder/AutomationTopBar.tsx` | Barra superior (nome, trigger, salvar) |
+
+### Tipos de Nós (AutomationNodeType)
+
+| Tipo | Categoria | Descrição |
+|------|-----------|-----------|
+| `trigger` | Gatilho | Ponto de entrada (list_subscription, tag_added, order_placed, cart_abandoned) |
+| `send_email` | Ação | Enviar email (template_id, subject) |
+| `delay` | Controle | Aguardar X minutos/horas/dias |
+| `condition` | Condição | If/else (opened_email, clicked_link, has_tag, is_customer, order_count) |
+| `add_tag` | Ação | Adicionar tag ao subscriber |
+| `remove_tag` | Ação | Remover tag do subscriber |
+| `move_to_list` | Ação | Mover subscriber para outra lista |
+| `split_ab` | Condição | Split A/B com porcentagem configurável |
+| `end` | Controle | Fim do fluxo |
+
+### Tabelas do Banco (Automação)
+
+| Tabela | Descrição |
+|--------|-----------|
+| `email_automation_flows` | Metadados do fluxo (nome, trigger_type, status) |
+| `email_automation_nodes` | Nós do canvas (tipo, posição, config) |
+| `email_automation_edges` | Conexões entre nós (source, target, handle) |
+| `email_automation_enrollments` | Subscribers em execução no fluxo |
+| `email_automation_logs` | Histórico de execução por nó |
+
+### Modelo de Dados (FlowConfig)
+
+```typescript
+interface FlowConfig {
+  name: string;
+  description: string;
+  trigger_type: string; // list_subscription | tag_added | order_placed | cart_abandoned
+  trigger_config: Record<string, any>;
+}
+```
+
+### Fluxo de Persistência
+
+1. Usuário monta fluxo no canvas visual
+2. Clica "Salvar" → `useAutomationBuilder.saveFlow()`:
+   - Upsert em `email_automation_flows`
+   - Delete + recreate nodes/edges (com novo mapeamento de IDs)
+3. Ao carregar (`flowId`), reconstrói nodes/edges do banco
+
+### Interface no Admin
+
+- Aba "Automações" no dashboard de Email Marketing
+- Botão "Nova Automação" → `/email-marketing/automation/new`
+- Lista de automações existentes com status (draft, active, paused)
+
+---
+
 ## Checklist
 
 - [x] Listas CRUD funcional
@@ -385,3 +454,7 @@ Usa `@dnd-kit/core` + `@dnd-kit/sortable`:
 - [x] **Editor drag-and-drop de blocos de email**
 - [x] **Serialização blocos → HTML inline-style**
 - [x] **Preview do email em tempo real**
+- [x] **Automation Flow Builder visual com React Flow**
+- [x] **Nós: trigger, send_email, delay, condition, add/remove_tag, move_to_list, split_ab, end**
+- [x] **Tabelas de automação com RLS**
+- [x] **Persistência de fluxos (save/load)**
