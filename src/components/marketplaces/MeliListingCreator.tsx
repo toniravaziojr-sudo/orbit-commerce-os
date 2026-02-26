@@ -366,7 +366,7 @@ export function MeliListingCreator({
     }
   }, [currentTenant?.id, listingIds]);
 
-  // ====== STEP 4: Auto-categorize ======
+  // ====== STEP 4: Auto-categorize + Refit Titles by Category Limit ======
   const handleAutoCategories = useCallback(async () => {
     if (!currentTenant?.id || listingIds.length === 0) return;
     setIsProcessing(true);
@@ -374,6 +374,7 @@ export function MeliListingCreator({
     setProcessingLabel("Categorizando produtos via API do Mercado Livre...");
 
     try {
+      // 1) Resolve categories in chunks
       let offset = 0;
       const limit = 5;
       let hasMore = true;
@@ -394,50 +395,60 @@ export function MeliListingCreator({
         totalProcessed += data.processed || 0;
         setProcessingProgress(Math.round((totalProcessed / listingIds.length) * 100));
 
-        // Update from resolved categories returned by edge function
         if (data.resolvedCategories?.length) {
           setGeneratedItems(prev => prev.map(item => {
             const resolved = data.resolvedCategories.find((r: any) => r.listingId === item.listingId);
-            if (resolved) {
-              return {
-                ...item,
-                categoryId: resolved.categoryId,
-                categoryName: resolved.categoryName || "",
-                categoryPath: normalizeCategoryPath(resolved.categoryPath),
-              };
-            }
-            return item;
+            if (!resolved) return item;
+
+            return {
+              ...item,
+              categoryId: resolved.categoryId,
+              categoryName: resolved.categoryName || "",
+              categoryPath: normalizeCategoryPath(resolved.categoryPath),
+            };
           }));
         }
       }
 
-      // Also fetch from DB to fill any missed
+      // 2) Re-generate titles AFTER categories are set (uses category max_title_length)
+      setProcessingLabel("Ajustando títulos ao limite real da categoria...");
+      setProcessingProgress(0);
+      offset = 0;
+      hasMore = true;
+      totalProcessed = 0;
+
+      while (hasMore) {
+        const { data, error } = await supabase.functions.invoke("meli-bulk-operations", {
+          body: { tenantId: currentTenant.id, action: "bulk_generate_titles", offset, limit, listingIds },
+        });
+
+        if (error || !data?.success) {
+          console.error("Bulk title refit error:", data?.error || error);
+          break;
+        }
+
+        hasMore = data.hasMore;
+        offset += limit;
+        totalProcessed += data.processed || 0;
+        setProcessingProgress(Math.round((totalProcessed / listingIds.length) * 100));
+      }
+
+      // 3) Sync final categories + titles from DB
       const { data: updatedListings } = await supabase
         .from("meli_listings")
-        .select("id, category_id")
+        .select("id, title, category_id")
         .in("id", listingIds);
 
       if (updatedListings) {
-        // Resolve category names for items that don't have them yet
-        for (const listing of updatedListings) {
-          const item = generatedItems.find(i => i.listingId === listing.id);
-          if (listing.category_id && item && !item.categoryName) {
-            try {
-              const { data: catData } = await supabase.functions.invoke("meli-search-categories", {
-                body: {},
-                headers: {},
-              });
-              // Use GET with query params
-            } catch { /* skip */ }
-          }
-        }
-
         setGeneratedItems(prev => prev.map(item => {
           const updated = updatedListings.find(l => l.id === item.listingId);
-          if (updated?.category_id && !item.categoryId) {
-            return { ...item, categoryId: updated.category_id };
-          }
-          return item;
+          if (!updated) return item;
+
+          return {
+            ...item,
+            title: updated.title || item.title,
+            categoryId: updated.category_id || item.categoryId,
+          };
         }));
       }
 
@@ -448,7 +459,7 @@ export function MeliListingCreator({
       toast.error("Erro ao categorizar produtos");
       setIsProcessing(false);
     }
-  }, [currentTenant?.id, listingIds, generatedItems]);
+  }, [currentTenant?.id, listingIds]);
 
   // ====== Regenerate single title ======
   const [regeneratingTitleId, setRegeneratingTitleId] = useState<string | null>(null);
