@@ -214,27 +214,47 @@ export function MeliListingsTab() {
 
   const handleApprove = (id: string) => approveListing.mutate(id);
 
-  const handleBulkPublish = async () => {
-    const publishableIds = Array.from(selectedIds).filter(id => {
+  const handleBulkSend = async () => {
+    // Sendable: draft, ready, approved, error (exclude published/publishing/paused)
+    const sendableIds = Array.from(selectedIds).filter(id => {
       const listing = listings.find(l => l.id === id);
-      return listing && ['approved', 'error'].includes(listing.status);
+      return listing && ['draft', 'ready', 'approved', 'error'].includes(listing.status);
     });
-    if (publishableIds.length === 0) {
-      toast.error("Nenhum anúncio selecionado pode ser publicado (apenas aprovados/erros).");
+    if (sendableIds.length === 0) {
+      toast.error("Nenhum anúncio selecionado pode ser enviado.");
       return;
     }
+    const draftsCount = sendableIds.filter(id => {
+      const listing = listings.find(l => l.id === id);
+      return listing && ['draft', 'ready'].includes(listing.status);
+    }).length;
+    const description = draftsCount > 0
+      ? `Enviar ${sendableIds.length} anúncio${sendableIds.length > 1 ? "s" : ""} ao Mercado Livre? (${draftsCount} rascunho${draftsCount > 1 ? "s" : ""} será${draftsCount > 1 ? "ão" : ""} aprovado${draftsCount > 1 ? "s" : ""} automaticamente)`
+      : `Enviar ${sendableIds.length} anúncio${sendableIds.length > 1 ? "s" : ""} ao Mercado Livre?`;
     const ok = await confirmAction({
-      title: "Publicar anúncios",
-      description: `Publicar ${publishableIds.length} anúncio${publishableIds.length > 1 ? "s" : ""} no Mercado Livre?`,
-      confirmLabel: "Publicar",
+      title: "Enviar anúncios",
+      description,
+      confirmLabel: "Enviar",
       variant: "default",
     });
     if (!ok) return;
-    setBulkAction("bulk_publish");
-    setBulkProgress({ processed: 0, total: publishableIds.length, label: "Publicando anúncios..." });
+    setBulkAction("bulk_send");
+    const total = sendableIds.length;
+    setBulkProgress({ processed: 0, total, label: "Enviando anúncios..." });
     let processed = 0;
-    for (const id of publishableIds) {
+    for (const id of sendableIds) {
+      const listing = listings.find(l => l.id === id);
       try {
+        // Auto-approve drafts first
+        if (listing && ['draft', 'ready'].includes(listing.status)) {
+          await new Promise<void>((resolve, reject) => {
+            approveListing.mutate(id, {
+              onSuccess: () => resolve(),
+              onError: (err) => reject(err),
+            });
+          });
+        }
+        // Then publish
         await new Promise<void>((resolve, reject) => {
           publishListing.mutate({ id }, {
             onSuccess: () => resolve(),
@@ -243,7 +263,7 @@ export function MeliListingsTab() {
         });
       } catch { /* continue */ }
       processed++;
-      setBulkProgress({ processed, total: publishableIds.length, label: "Publicando anúncios..." });
+      setBulkProgress({ processed, total, label: "Enviando anúncios..." });
     }
     toast.success(`${processed} anúncio${processed > 1 ? "s" : ""} enviado${processed > 1 ? "s" : ""} para publicação!`);
     setSelectedIds(new Set());
@@ -385,16 +405,16 @@ export function MeliListingsTab() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={handleBulkPublish}
+                          onClick={handleBulkSend}
                           disabled={!!bulkAction}
                           className="gap-1.5 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
                         >
                           <Send className="h-3.5 w-3.5" />
-                          Publicar Selecionados
+                          Enviar Selecionados
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent side="bottom">
-                        <p className="text-xs">Publica os anúncios aprovados selecionados no Mercado Livre</p>
+                        <p className="text-xs">Aprova e publica os anúncios selecionados no Mercado Livre</p>
                       </TooltipContent>
                     </Tooltip>
                     <Tooltip>
