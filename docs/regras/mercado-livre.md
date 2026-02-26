@@ -98,9 +98,9 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 ```
 1. Lojista clica "Novo Anúncio" → abre MeliListingCreator (dialog 7 etapas)
 2. Creator Etapa 1 — Selecionar Produtos: checkboxes com busca, selecionar todos
-3. Creator Etapa 2 — Gerar Títulos IA: cria drafts no banco, chama bulk_generate_titles, exibe preview editável (input + contador chars + botão Regenerar)
-4. Creator Etapa 3 — Gerar Descrições IA: chama bulk_generate_descriptions, exibe preview colapsável com textarea editável + botão Regenerar
-5. Creator Etapa 4 — Categorizar via ML API: chama bulk_auto_categories, exibe categorias com path legível + MeliCategoryPicker para troca manual
+3. Creator Etapa 2 — Categorizar via ML API: cria drafts no banco + chama bulk_auto_categories, exibe categorias com path legível + MeliCategoryPicker para troca manual
+4. Creator Etapa 3 — Gerar Títulos IA: chama bulk_generate_titles (já com category_id definido, respeitando max_title_length da categoria), exibe preview editável (input + contador chars + botão Regenerar)
+5. Creator Etapa 4 — Gerar Descrições IA: chama bulk_generate_descriptions, exibe preview colapsável com textarea editável + botão Regenerar
 6. Creator Etapa 5 — Condição: cards visuais radio-style (Novo / Usado / Não especificado)
 7. Creator Etapa 6 — Tipo de Anúncio: cards visuais (Clássico / Premium / Grátis)
 8. Creator Etapa 7 — Frete: switches para Frete Grátis e Retirada no Local + botão Salvar
@@ -114,12 +114,15 @@ Integração OAuth com Mercado Livre para sincronização de pedidos, atendiment
 
 Dialog de 7 etapas para criação em massa de anúncios com validação ML sincronizada:
 
+> **IMPORTANTE:** A ordem das etapas é **Categorias → Títulos → Descrições** (não o inverso).
+> Isso garante que os títulos sejam gerados já respeitando o `max_title_length` da categoria atribuída, evitando erros de limite de caracteres.
+
 | Etapa | Nome | Descrição |
 |-------|------|-----------|
 | 1 | Selecionar Produtos | Checkboxes com busca por nome/SKU, selecionar todos, badge de contagem |
-| 2 | Gerar Títulos IA | Cria drafts → `bulk_generate_titles` → preview editável (input, limite dinâmico por categoria via `max_title_length` da API ML, validação semântica anti-truncamento, botão Regenerar com loading spinner) |
-| 3 | Gerar Descrições IA | `bulk_generate_descriptions` → preview colapsável, textarea editável, botão Regenerar com loading spinner |
-| 4 | Categorizar via ML API | `bulk_auto_categories` → preview com path legível, troca manual via `MeliCategoryPicker` |
+| 2 | Categorizar via ML API | Cria drafts no banco + `bulk_auto_categories` → preview com path legível, troca manual via `MeliCategoryPicker` |
+| 3 | Gerar Títulos IA | `bulk_generate_titles` (com `category_id` já definido → usa `max_title_length` real da categoria) → preview editável (input, validação semântica anti-truncamento, botão Regenerar com loading spinner) |
+| 4 | Gerar Descrições IA | `bulk_generate_descriptions` → preview colapsável, textarea editável, botão Regenerar com loading spinner |
 | 5 | Condição | Cards visuais radio-style: `new` (Novo), `used` (Usado), `not_specified` |
 | 6 | Tipo de Anúncio | Cards visuais: `gold_special` (Clássico), `gold_pro` (Premium), `free` (Grátis) |
 | 7 | Frete | Switches para `free_shipping` (Frete Grátis) e `local_pick_up` (Retirada no Local). Botão Salvar finaliza o wizard. |
@@ -136,9 +139,9 @@ Dialog de 7 etapas para criação em massa de anúncios com validação ML sincr
 | `onRefetch` | `() => void` | Callback para recarregar a tabela |
 
 **Fluxo de Execução:**
-1. Etapa 2 cria `meli_listings` com status `draft` via `createBulkListings`, depois chama `bulk_generate_titles` com `listingIds`
-2. Etapa 3 chama `bulk_generate_descriptions` com mesmos `listingIds`
-3. Etapa 4 chama `bulk_auto_categories` com mesmos `listingIds`. Edge function retorna `resolvedCategories` com `categoryName` e `categoryPath` legíveis. **IMPORTANTE:** `categoryPath` pode vir como string ou array de objetos `{name}` da API; o frontend normaliza via `normalizeCategoryPath()` para evitar crashes de renderização
+1. Etapa 2 cria `meli_listings` com status `draft` via `createBulkListings`, depois chama `bulk_auto_categories` com `listingIds` para definir categorias
+2. Etapa 3 chama `bulk_generate_titles` com mesmos `listingIds` — como `category_id` já está definido, a edge function consulta `max_title_length` da categoria e gera títulos dentro do limite
+3. Etapa 4 chama `bulk_generate_descriptions` com mesmos `listingIds`
 4. Etapas 5-7 aplicam condição, listing_type e shipping em batch via update direto
 5. Ao finalizar, fecha dialog e tabela mostra os novos rascunhos
 
