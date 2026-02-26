@@ -364,11 +364,14 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 > **PROIBIDO:** Cortes com `.slice(0, 60)` ou qualquer truncamento cego. O título deve ser uma frase naturalmente completa.
 > **Anti-padrão:** Títulos truncados como "Balm Cabelo Barba Anti-" são automaticamente rejeitados e regenerados.
 >
-> **Limite dinâmico por categoria:**
+> **Limite dinâmico por categoria (aplicado na geração E na publicação):**
 > - A edge function `meli-search-categories` retorna `max_title_length` ao consultar uma categoria específica (`?categoryId=MLBxxxx`)
 > - O frontend armazena e usa esse valor para validação e exibição do contador de caracteres
-> - A edge function `meli-publish-listing` valida `title.length <= max_title_length` antes de publicar, consultando a categoria na API do ML
-> - Fallback: se `max_title_length` não estiver disponível, usa 60 chars como limite conservador
+> - **As edge functions de geração (`meli-bulk-operations` v1.8.0+ e `meli-generate-description` v1.5.0+) consultam a API do ML (`GET /categories/{id}`) para obter o `max_title_length` ANTES de gerar o título.** O prompt da IA, a sanitização (`sanitizeGeneratedTitle`) e a validação (`isValidGeneratedTitle`) usam esse limite dinâmico.
+> - A edge function `meli-publish-listing` valida `title.length <= max_title_length` antes de publicar como guard final
+> - Cache por `category_id` no bulk para evitar chamadas repetidas à API do ML
+> - Para categorias com limite ≤60 chars, o `hardMinLength` é reduzido e o prompt instrui a IA a ser mais concisa
+> - Fallback: se `max_title_length` não estiver disponível na API, usa 120 chars como limite padrão
 
 **Regra de Priorização em Títulos (OBRIGATÓRIO):**
 > O prompt de geração de títulos DEVE instruir a IA a:
