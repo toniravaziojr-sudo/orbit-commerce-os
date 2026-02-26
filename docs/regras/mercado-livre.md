@@ -1,7 +1,7 @@
 # Mercado Livre — Regras e Especificações
 
 > **Status:** 🟩 Atualizado  
-> **Última atualização:** 2026-02-26
+> **Última atualização:** 2026-02-26 (v2.0.0: cron automático de sync)
 
 ---
 
