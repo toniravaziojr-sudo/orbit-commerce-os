@@ -192,12 +192,13 @@ POST /meli-publish-listing
 | `activate` | Reativa anúncio pausado | `PUT /items/{id}` status=active |
 | `update` | Sincroniza preço/estoque | `PUT /items/{id}` + `PUT /items/{id}/description` |
 
-### Regras de Publicação (v3.0.0)
+### Regras de Publicação (v3.1.0)
 
 - **Descrição em 2 etapas:** O ML não aceita `description` no body do `POST /items`. A descrição é enviada separadamente via `POST /items/{id}/description` após a criação do item.
 - **Multi-imagem:** Busca até 10 imagens do produto (deduplica primária + galeria). Mínimo 1 obrigatória.
 - **GTIN automático:** Busca `products.gtin` e `products.barcode` como fallback para o atributo `GTIN`.
-- **Garantia:** Envia `WARRANTY_TYPE` e `WARRANTY_TIME` a partir de `products.warranty_type` e `products.warranty_duration`.
+- **Garantia:** Envia obrigatoriamente via atributos `WARRANTY_TYPE` e `WARRANTY_TIME` (campo `warranty` de topo é **depreciado** na API ML). Valores: vendor → "Garantía del vendedor", factory → "Garantía de fábrica".
+- **Dimensões de frete:** `PACKAGE_WEIGHT/WIDTH/HEIGHT/LENGTH` **NÃO são enviados** como atributos (não modificáveis via API de itens, removidos na v3.1.0).
 - **Permalink:** Armazena `meli_response.permalink` para link "Ver no ML" funcional.
 
 ### Regras de Anúncio
@@ -274,12 +275,10 @@ A edge function `meli-publish-listing` monta os atributos a partir do formulári
 | `BRAND` | Formulário ou `products.brand` |
 | `GTIN` | `products.gtin` ou `products.barcode` (fallback automático) |
 | `SELLER_SKU` | `products.sku` |
-| `PACKAGE_WEIGHT` | `products.weight` |
-| `PACKAGE_WIDTH` | `products.width` |
-| `PACKAGE_HEIGHT` | `products.height` |
-| `PACKAGE_LENGTH` | `products.depth` |
-| `WARRANTY_TYPE` | `products.warranty_type` (vendor/factory) |
-| `WARRANTY_TIME` | `products.warranty_duration` |
+| `WARRANTY_TYPE` | `products.warranty_type` (vendor → "Garantía del vendedor", factory → "Garantía de fábrica") |
+| `WARRANTY_TIME` | `products.warranty_duration` (ex: "6 meses") |
+
+> **⚠️ Removidos na v3.1.0:** `PACKAGE_WEIGHT`, `PACKAGE_WIDTH`, `PACKAGE_HEIGHT` e `PACKAGE_LENGTH` **NÃO são enviados** como atributos na publicação. Esses campos não são modificáveis via API de itens do ML e causavam erros/warnings. Dimensões de frete devem ser configuradas via painel do ML ou API de shipping separada.
 
 ### Status do Anúncio
 
