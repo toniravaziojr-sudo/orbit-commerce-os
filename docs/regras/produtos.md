@@ -80,6 +80,13 @@ interface Product {
   barcode: string | null;
   gtin: string | null;
   ncm: string | null;            // Código fiscal
+  regulatory_info: {              // Informações regulatórias (JSONB)
+    anvisa?: string;              // Nº notificação Anvisa
+    afe?: string;                 // Nº AFE
+    conama?: string;              // Nº CONAMA
+  } | null;
+  warranty_type: string | null;   // 'vendor' | 'factory' | 'none'
+  warranty_duration: string | null; // Ex: "6 meses", "1 ano"
   seo_title: string | null;
   seo_description: string | null;
   status: 'draft' | 'active' | 'inactive' | 'archived';
@@ -266,6 +273,8 @@ graph TD
 | **Variantes** | Opções 1-3, geração automática |
 | **Componentes** | Lista de produtos do kit |
 | **Fiscal** | NCM, CEST, código de origem |
+| **Regulatório** | Anvisa (nº notificação), AFE (nº autorização), CONAMA |
+| **Garantia** | Tipo (fabricante/vendedor/sem), Duração |
 | **Dimensões** | Peso, largura, altura, profundidade |
 | **SEO** | Título, descrição, contador de caracteres |
 | **Categorias** | Vincular a múltiplas categorias |
