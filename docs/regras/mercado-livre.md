@@ -1,7 +1,7 @@
 # Mercado Livre — Regras e Especificações
 
 > **Status:** 🟩 Atualizado  
-> **Última atualização:** 2026-02-25
+> **Última atualização:** 2026-02-26
 
 ---
 
@@ -136,7 +136,7 @@ Dialog de 6 etapas para criação em massa de anúncios com validação ML sincr
 **Fluxo de Execução:**
 1. Etapa 2 cria `meli_listings` com status `draft` via `createBulkListings`, depois chama `bulk_generate_titles` com `listingIds`
 2. Etapa 3 chama `bulk_generate_descriptions` com mesmos `listingIds`
-3. Etapa 4 chama `bulk_auto_categories` com mesmos `listingIds`. Edge function retorna `resolvedCategories` com `categoryName` e `categoryPath` legíveis
+3. Etapa 4 chama `bulk_auto_categories` com mesmos `listingIds`. Edge function retorna `resolvedCategories` com `categoryName` e `categoryPath` legíveis. **IMPORTANTE:** `categoryPath` pode vir como string ou array de objetos `{name}` da API; o frontend normaliza via `normalizeCategoryPath()` para evitar crashes de renderização
 4. Etapas 5-6 aplicam condição e listing_type em batch via update direto
 5. Ao finalizar, fecha dialog e tabela mostra os novos rascunhos
 
