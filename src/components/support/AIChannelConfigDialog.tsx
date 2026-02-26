@@ -34,6 +34,14 @@ const channelRestrictions: Partial<Record<SupportChannelType, { name: string; re
       "Não mencionar outras plataformas de venda",
     ]
   },
+  tiktokshop: {
+    name: "TikTok Shop",
+    restrictions: [
+      "Não é permitido enviar links externos",
+      "Não mencionar outras plataformas de venda",
+      "Não solicitar contato fora da plataforma",
+    ]
+  },
   whatsapp: { name: "WhatsApp", restrictions: [] },
   email: { name: "Email", restrictions: [] },
   facebook_messenger: { name: "Messenger", restrictions: [] },

@@ -63,6 +63,12 @@ const channelInfo: Record<SupportChannelType, { name: string; icon: string; desc
     description: 'Atenda no chat da Shopee',
     integrationPath: '',
   },
+  tiktokshop: {
+    name: 'TikTok Shop',
+    icon: '🎵',
+    description: 'Responda mensagens e perguntas do TikTok Shop',
+    integrationPath: '/integrations?tab=tiktok',
+  },
   chat: {
     name: 'Chat do Site',
     icon: '🌐',
@@ -192,7 +198,7 @@ export function ChannelIntegrations() {
   };
 
   // Canais que usam integrações externas (não WhatsApp/Email que já estão no linkedChannels)
-  const marketplaceChannels: SupportChannelType[] = ['mercadolivre', 'shopee'];
+  const marketplaceChannels: SupportChannelType[] = ['mercadolivre', 'shopee', 'tiktokshop'];
 
   if (isLoading || loadingStatus || meliLoading) {
     return (
