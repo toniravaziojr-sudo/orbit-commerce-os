@@ -97,6 +97,7 @@ import Marketplaces from "@/pages/Marketplaces";
 import MercadoLivre from "@/pages/marketplaces/MercadoLivre";
 import Shopee from "@/pages/marketplaces/Shopee";
 import Olist from "@/pages/marketplaces/Olist";
+import TikTokShop from "@/pages/marketplaces/TikTokShop";
 import Files from "@/pages/Files";
 import Reports from "@/pages/Reports";
 
@@ -377,6 +378,7 @@ const App = () => {
                   <Route path="/marketplaces/mercadolivre" element={<FeatureGatedRoute moduleKey="marketplaces" featureKey="mercadolivre" featureName="Mercado Livre" featureDescription="Integração com Mercado Livre"><MercadoLivre /></FeatureGatedRoute>} />
                   <Route path="/marketplaces/shopee" element={<FeatureGatedRoute moduleKey="marketplaces" featureKey="shopee" featureName="Shopee" featureDescription="Integração com Shopee"><Shopee /></FeatureGatedRoute>} />
                   <Route path="/marketplaces/olist" element={<Olist />} />
+                  <Route path="/marketplaces/tiktokshop" element={<FeatureGatedRoute moduleKey="marketplaces" featureKey="tiktokshop" featureName="TikTok Shop" featureDescription="Integração com TikTok Shop"><TikTokShop /></FeatureGatedRoute>} />
                   <Route path="/files" element={<Files />} />
                   <Route path="/reports" element={<FeatureGatedRoute moduleKey="central" featureKey="reports" featureName="Relatórios" featureDescription="Relatórios avançados"><Reports /></FeatureGatedRoute>} />
                   

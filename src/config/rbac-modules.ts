@@ -67,6 +67,7 @@ export const ROUTE_TO_PERMISSION: Record<string, { module: string; submodule?: s
   '/marketplaces': { module: 'marketplaces' },
   '/marketplaces/mercadolivre': { module: 'marketplaces', submodule: 'mercadolivre' },
   '/marketplaces/shopee': { module: 'marketplaces', submodule: 'shopee' },
+  '/marketplaces/tiktokshop': { module: 'marketplaces', submodule: 'tiktokshop' },
   '/marketplaces/olist': { module: 'marketplaces', submodule: 'olist' },
   
   // Sistema
@@ -182,6 +183,7 @@ export const MODULES: ModuleConfig[] = [
     submodules: [
       { key: 'mercadolivre', label: 'Mercado Livre', route: '/marketplaces/mercadolivre' },
       { key: 'shopee', label: 'Shopee', route: '/marketplaces/shopee' },
+      { key: 'tiktokshop', label: 'TikTok Shop', route: '/marketplaces/tiktokshop' },
       { key: 'olist', label: 'Olist', route: '/marketplaces/olist' },
     ],
   },
