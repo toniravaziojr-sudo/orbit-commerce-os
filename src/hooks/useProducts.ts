@@ -48,6 +48,9 @@ export interface Product {
   cest: string | null;
   origin_code: string | null;
   uom: string | null;
+  regulatory_info: Record<string, any> | null;
+  warranty_type: string | null;
+  warranty_duration: string | null;
   published_at: string | null;
 }
 
@@ -106,7 +109,8 @@ export interface Category {
 export type ProductFormData = Omit<Product, 
   'id' | 'tenant_id' | 'created_at' | 'updated_at' | 
   'brand' | 'vendor' | 'product_type' | 'tags' | 'requires_shipping' | 'taxable' | 
-  'tax_code' | 'cest' | 'origin_code' | 'uom' | 'published_at'
+  'tax_code' | 'cest' | 'origin_code' | 'uom' | 'published_at' |
+  'regulatory_info' | 'warranty_type' | 'warranty_duration'
 > & {
   brand?: string | null;
   vendor?: string | null;
@@ -119,6 +123,9 @@ export type ProductFormData = Omit<Product,
   origin_code?: string | null;
   uom?: string | null;
   published_at?: string | null;
+  regulatory_info?: Record<string, any> | null;
+  warranty_type?: string | null;
+  warranty_duration?: string | null;
 };
 export type CategoryFormData = Omit<Category, 'id' | 'tenant_id' | 'created_at' | 'updated_at'>;
 
