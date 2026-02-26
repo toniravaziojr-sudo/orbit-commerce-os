@@ -214,6 +214,44 @@ export function MeliListingsTab() {
 
   const handleApprove = (id: string) => approveListing.mutate(id);
 
+  const handleBulkPublish = async () => {
+    const publishableIds = Array.from(selectedIds).filter(id => {
+      const listing = listings.find(l => l.id === id);
+      return listing && ['approved', 'error'].includes(listing.status);
+    });
+    if (publishableIds.length === 0) {
+      toast.error("Nenhum anúncio selecionado pode ser publicado (apenas aprovados/erros).");
+      return;
+    }
+    const ok = await confirmAction({
+      title: "Publicar anúncios",
+      description: `Publicar ${publishableIds.length} anúncio${publishableIds.length > 1 ? "s" : ""} no Mercado Livre?`,
+      confirmLabel: "Publicar",
+      variant: "default",
+    });
+    if (!ok) return;
+    setBulkAction("bulk_publish");
+    setBulkProgress({ processed: 0, total: publishableIds.length, label: "Publicando anúncios..." });
+    let processed = 0;
+    for (const id of publishableIds) {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          publishListing.mutate({ id }, {
+            onSuccess: () => resolve(),
+            onError: (err) => reject(err),
+          });
+        });
+      } catch { /* continue */ }
+      processed++;
+      setBulkProgress({ processed, total: publishableIds.length, label: "Publicando anúncios..." });
+    }
+    toast.success(`${processed} anúncio${processed > 1 ? "s" : ""} enviado${processed > 1 ? "s" : ""} para publicação!`);
+    setSelectedIds(new Set());
+    setBulkAction(null);
+    setBulkProgress({ processed: 0, total: 0, label: "" });
+    refetch();
+  };
+
   const isActionLoading = (id: string) => actionLoadingId === id && publishListing.isPending;
 
   // Bulk operation runner
@@ -341,23 +379,42 @@ export function MeliListingsTab() {
                   );
                 })}
                 {selectedIds.size > 0 && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleBulkDelete}
-                        disabled={!!bulkAction}
-                        className="gap-1.5 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        Excluir Selecionados
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">
-                      <p className="text-xs">Remove os anúncios selecionados (exceto publicados)</p>
-                    </TooltipContent>
-                  </Tooltip>
+                  <>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleBulkPublish}
+                          disabled={!!bulkAction}
+                          className="gap-1.5 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                        >
+                          <Send className="h-3.5 w-3.5" />
+                          Publicar Selecionados
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <p className="text-xs">Publica os anúncios aprovados selecionados no Mercado Livre</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleBulkDelete}
+                          disabled={!!bulkAction}
+                          className="gap-1.5 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Excluir Selecionados
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <p className="text-xs">Remove os anúncios selecionados (exceto publicados)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </>
                 )}
               </div>
               {bulkAction && (
