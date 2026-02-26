@@ -66,13 +66,13 @@ interface MeliListingCreatorProps {
   onRefetch: () => void;
 }
 
-type Step = "select" | "titles" | "descriptions" | "categories" | "condition" | "listing_type" | "shipping";
+type Step = "select" | "categories" | "titles" | "descriptions" | "condition" | "listing_type" | "shipping";
 
 const STEPS: { key: Step; label: string }[] = [
   { key: "select", label: "Produtos" },
+  { key: "categories", label: "Categorias" },
   { key: "titles", label: "Títulos" },
   { key: "descriptions", label: "Descrições" },
-  { key: "categories", label: "Categorias" },
   { key: "condition", label: "Condição" },
   { key: "listing_type", label: "Tipo" },
   { key: "shipping", label: "Frete" },
@@ -221,8 +221,8 @@ export function MeliListingCreator({
 
   const currentStepIndex = STEPS.findIndex(s => s.key === step);
 
-  // ====== STEP 2: Create drafts + Generate Titles ======
-  const handleGenerateTitles = useCallback(async () => {
+  // ====== STEP 2: Create drafts + Auto-categorize ======
+  const handleCreateDraftsAndCategorize = useCallback(async () => {
     if (!currentTenant?.id) return;
     setIsProcessing(true);
     setProcessingProgress(0);
@@ -265,10 +265,10 @@ export function MeliListingCreator({
         categoryName: "",
         categoryPath: "",
       }));
+      setGeneratedItems(items);
 
-      setProcessingLabel("Gerando títulos via IA...");
-
-      // Generate titles in chunks
+      // Auto-categorize
+      setProcessingLabel("Categorizando produtos via API do Mercado Livre...");
       let offset = 0;
       const limit = 5;
       let hasMore = true;
@@ -276,7 +276,74 @@ export function MeliListingCreator({
 
       while (hasMore) {
         const { data, error } = await supabase.functions.invoke("meli-bulk-operations", {
-          body: { tenantId: currentTenant.id, action: "bulk_generate_titles", offset, limit, listingIds: ids },
+          body: { tenantId: currentTenant.id, action: "bulk_auto_categories", offset, limit, listingIds: ids },
+        });
+
+        if (error || !data?.success) {
+          console.error("Bulk categories error:", data?.error || error);
+          break;
+        }
+
+        hasMore = data.hasMore;
+        offset += limit;
+        totalProcessed += data.processed || 0;
+        setProcessingProgress(Math.round((totalProcessed / ids.length) * 100));
+
+        if (data.resolvedCategories?.length) {
+          setGeneratedItems(prev => prev.map(item => {
+            const resolved = data.resolvedCategories.find((r: any) => r.listingId === item.listingId);
+            if (!resolved) return item;
+            return {
+              ...item,
+              categoryId: resolved.categoryId,
+              categoryName: resolved.categoryName || "",
+              categoryPath: normalizeCategoryPath(resolved.categoryPath),
+            };
+          }));
+        }
+      }
+
+      // Sync from DB
+      const { data: updatedListings } = await supabase
+        .from("meli_listings")
+        .select("id, category_id")
+        .in("id", ids);
+
+      if (updatedListings) {
+        setGeneratedItems(prev => prev.map(item => {
+          const updated = updatedListings.find(l => l.id === item.listingId);
+          if (updated?.category_id && !item.categoryId) {
+            return { ...item, categoryId: updated.category_id };
+          }
+          return item;
+        }));
+      }
+
+      setIsProcessing(false);
+      setProcessingProgress(100);
+    } catch (error) {
+      console.error("Create drafts + categorize error:", error);
+      toast.error("Erro ao criar rascunhos");
+      setIsProcessing(false);
+    }
+  }, [currentTenant?.id, selectedProductIds, products, onBulkCreate]);
+
+  // ====== STEP 3: Generate Titles (categories already set, so max_title_length is respected) ======
+  const handleGenerateTitles = useCallback(async () => {
+    if (!currentTenant?.id || listingIds.length === 0) return;
+    setIsProcessing(true);
+    setProcessingProgress(0);
+    setProcessingLabel("Gerando títulos via IA...");
+
+    try {
+      let offset = 0;
+      const limit = 5;
+      let hasMore = true;
+      let totalProcessed = 0;
+
+      while (hasMore) {
+        const { data, error } = await supabase.functions.invoke("meli-bulk-operations", {
+          body: { tenantId: currentTenant.id, action: "bulk_generate_titles", offset, limit, listingIds },
         });
 
         if (error || !data?.success) {
@@ -287,25 +354,22 @@ export function MeliListingCreator({
         hasMore = data.hasMore;
         offset += limit;
         totalProcessed += data.processed || 0;
-        setProcessingProgress(Math.round((totalProcessed / ids.length) * 100));
+        setProcessingProgress(Math.round((totalProcessed / listingIds.length) * 100));
       }
 
       // Fetch updated listings to get generated titles
       const { data: updatedListings } = await supabase
         .from("meli_listings")
         .select("id, title, product_id")
-        .in("id", ids);
+        .in("id", listingIds);
 
       if (updatedListings) {
-        for (const listing of updatedListings) {
-          const itemIdx = items.findIndex(i => i.listingId === listing.id);
-          if (itemIdx >= 0) {
-            items[itemIdx].title = listing.title || items[itemIdx].title;
-          }
-        }
+        setGeneratedItems(prev => prev.map(item => {
+          const updated = updatedListings.find(l => l.id === item.listingId);
+          return updated ? { ...item, title: updated.title || item.title } : item;
+        }));
       }
 
-      setGeneratedItems(items);
       setIsProcessing(false);
       setProcessingProgress(100);
     } catch (error) {
@@ -313,7 +377,7 @@ export function MeliListingCreator({
       toast.error("Erro ao gerar títulos");
       setIsProcessing(false);
     }
-  }, [currentTenant?.id, selectedProductIds, products, onBulkCreate]);
+  }, [currentTenant?.id, listingIds]);
 
   // ====== STEP 3: Generate Descriptions ======
   const handleGenerateDescriptions = useCallback(async () => {
@@ -366,100 +430,7 @@ export function MeliListingCreator({
     }
   }, [currentTenant?.id, listingIds]);
 
-  // ====== STEP 4: Auto-categorize + Refit Titles by Category Limit ======
-  const handleAutoCategories = useCallback(async () => {
-    if (!currentTenant?.id || listingIds.length === 0) return;
-    setIsProcessing(true);
-    setProcessingProgress(0);
-    setProcessingLabel("Categorizando produtos via API do Mercado Livre...");
-
-    try {
-      // 1) Resolve categories in chunks
-      let offset = 0;
-      const limit = 5;
-      let hasMore = true;
-      let totalProcessed = 0;
-
-      while (hasMore) {
-        const { data, error } = await supabase.functions.invoke("meli-bulk-operations", {
-          body: { tenantId: currentTenant.id, action: "bulk_auto_categories", offset, limit, listingIds },
-        });
-
-        if (error || !data?.success) {
-          console.error("Bulk categories error:", data?.error || error);
-          break;
-        }
-
-        hasMore = data.hasMore;
-        offset += limit;
-        totalProcessed += data.processed || 0;
-        setProcessingProgress(Math.round((totalProcessed / listingIds.length) * 100));
-
-        if (data.resolvedCategories?.length) {
-          setGeneratedItems(prev => prev.map(item => {
-            const resolved = data.resolvedCategories.find((r: any) => r.listingId === item.listingId);
-            if (!resolved) return item;
-
-            return {
-              ...item,
-              categoryId: resolved.categoryId,
-              categoryName: resolved.categoryName || "",
-              categoryPath: normalizeCategoryPath(resolved.categoryPath),
-            };
-          }));
-        }
-      }
-
-      // 2) Re-generate titles AFTER categories are set (uses category max_title_length)
-      setProcessingLabel("Ajustando títulos ao limite real da categoria...");
-      setProcessingProgress(0);
-      offset = 0;
-      hasMore = true;
-      totalProcessed = 0;
-
-      while (hasMore) {
-        const { data, error } = await supabase.functions.invoke("meli-bulk-operations", {
-          body: { tenantId: currentTenant.id, action: "bulk_generate_titles", offset, limit, listingIds },
-        });
-
-        if (error || !data?.success) {
-          console.error("Bulk title refit error:", data?.error || error);
-          break;
-        }
-
-        hasMore = data.hasMore;
-        offset += limit;
-        totalProcessed += data.processed || 0;
-        setProcessingProgress(Math.round((totalProcessed / listingIds.length) * 100));
-      }
-
-      // 3) Sync final categories + titles from DB
-      const { data: updatedListings } = await supabase
-        .from("meli_listings")
-        .select("id, title, category_id")
-        .in("id", listingIds);
-
-      if (updatedListings) {
-        setGeneratedItems(prev => prev.map(item => {
-          const updated = updatedListings.find(l => l.id === item.listingId);
-          if (!updated) return item;
-
-          return {
-            ...item,
-            title: updated.title || item.title,
-            categoryId: updated.category_id || item.categoryId,
-          };
-        }));
-      }
-
-      setIsProcessing(false);
-      setProcessingProgress(100);
-    } catch (error) {
-      console.error("Auto categories error:", error);
-      toast.error("Erro ao categorizar produtos");
-      setIsProcessing(false);
-    }
-  }, [currentTenant?.id, listingIds]);
+  // handleAutoCategories is no longer needed as a separate step — integrated into handleCreateDraftsAndCategorize
 
   // ====== Regenerate single title ======
   const [regeneratingTitleId, setRegeneratingTitleId] = useState<string | null>(null);
@@ -628,20 +599,21 @@ export function MeliListingCreator({
   const goNext = async () => {
     const idx = currentStepIndex;
     if (idx === 0) {
-      // Select → Titles: create drafts + generate titles
+      // Select → Categories: create drafts + auto-categorize
+      setStep("categories");
+      setTimeout(() => handleCreateDraftsAndCategorize(), 100);
+    } else if (idx === 1) {
+      // Categories → Titles: generate titles (category already set, max_title_length respected)
       setStep("titles");
       setTimeout(() => handleGenerateTitles(), 100);
-    } else if (idx === 1) {
+    } else if (idx === 2) {
       // Titles → Descriptions: save titles, then generate descriptions
       await handleSaveTitles();
       setStep("descriptions");
       setTimeout(() => handleGenerateDescriptions(), 100);
-    } else if (idx === 2) {
-      // Descriptions → Categories: save descriptions, then auto-categorize
-      await handleSaveDescriptions();
-      setStep("categories");
-      setTimeout(() => handleAutoCategories(), 100);
     } else if (idx === 3) {
+      // Descriptions → Condition
+      await handleSaveDescriptions();
       setStep("condition");
     } else if (idx === 4) {
       setStep("listing_type");
@@ -659,9 +631,9 @@ export function MeliListingCreator({
 
   const canGoNext = () => {
     if (step === "select") return selectedProductIds.size > 0;
+    if (step === "categories") return !isProcessing;
     if (step === "titles") return !isProcessing && generatedItems.length > 0 && invalidTitleCount === 0;
     if (step === "descriptions") return !isProcessing;
-    if (step === "categories") return !isProcessing;
     if (step === "condition") return !!condition;
     if (step === "listing_type") return !!listingType;
     return false;
@@ -673,18 +645,18 @@ export function MeliListingCreator({
         <DialogHeader>
           <DialogTitle>
             {step === "select" && "Selecionar Produtos"}
+            {step === "categories" && "Categorias do Mercado Livre"}
             {step === "titles" && "Títulos dos Anúncios"}
             {step === "descriptions" && "Descrições dos Anúncios"}
-            {step === "categories" && "Categorias do Mercado Livre"}
             {step === "condition" && "Condição dos Produtos"}
             {step === "listing_type" && "Tipo de Anúncio"}
             {step === "shipping" && "Configuração de Frete"}
           </DialogTitle>
           <DialogDescription>
             {step === "select" && "Escolha os produtos que deseja anunciar no Mercado Livre"}
-            {step === "titles" && "Revise e edite os títulos gerados pela IA (sem final truncado)"}
-            {step === "descriptions" && "Revise as descrições geradas (texto plano, sem HTML)"}
             {step === "categories" && "Confirme as categorias atribuídas pela API do Mercado Livre"}
+            {step === "titles" && "Revise e edite os títulos gerados pela IA (respeitando o limite da categoria)"}
+            {step === "descriptions" && "Revise as descrições geradas (texto plano, sem HTML)"}
             {step === "condition" && "Defina a condição dos produtos"}
             {step === "listing_type" && "Escolha o tipo de anúncio e salve"}
           </DialogDescription>
@@ -779,7 +751,53 @@ export function MeliListingCreator({
           </div>
         )}
 
-        {/* ===== STEP 2: Titles ===== */}
+        {/* ===== STEP 2: Categories ===== */}
+        {step === "categories" && (
+          <div className="flex-1 flex flex-col gap-4 min-h-0">
+            {isProcessing ? (
+              <div className="flex-1 flex flex-col items-center justify-center gap-6 py-8">
+                <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-primary/10">
+                  <Wand2 className="h-8 w-8 text-primary animate-pulse" />
+                </div>
+                <ProgressWithETA
+                  value={processingProgress}
+                  label={processingLabel}
+                  showPercentage
+                  size="md"
+                />
+              </div>
+            ) : (
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                <div className="space-y-3 pr-3">
+                  {generatedItems.map(item => (
+                    <div key={item.listingId} className="rounded-lg border p-3 space-y-2">
+                      <p className="text-sm font-medium truncate">{item.productName}</p>
+                      {item.categoryPath ? (
+                        <p className="text-xs text-muted-foreground">{item.categoryPath}</p>
+                      ) : item.categoryName ? (
+                        <p className="text-xs text-muted-foreground">{item.categoryName}</p>
+                      ) : item.categoryId ? (
+                        <p className="text-xs text-muted-foreground">{item.categoryId}</p>
+                      ) : (
+                        <p className="text-xs text-amber-500 flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" /> Categoria não identificada
+                        </p>
+                      )}
+                      <MeliCategoryPicker
+                        value={item.categoryId}
+                        onChange={(catId, catName) => handleCategoryChange(item.listingId, catId, catName)}
+                        selectedName={item.categoryName}
+                        productName={item.productName}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ===== STEP 3: Titles ===== */}
         {step === "titles" && (
           <div className="flex-1 flex flex-col gap-4 min-h-0">
             {isProcessing ? (
@@ -856,7 +874,7 @@ export function MeliListingCreator({
           </div>
         )}
 
-        {/* ===== STEP 3: Descriptions ===== */}
+        {/* ===== STEP 4: Descriptions ===== */}
         {step === "descriptions" && (
           <div className="flex-1 flex flex-col gap-4 min-h-0">
             {isProcessing ? (
@@ -939,52 +957,6 @@ export function MeliListingCreator({
                       </div>
                     );
                   })}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ===== STEP 4: Categories ===== */}
-        {step === "categories" && (
-          <div className="flex-1 flex flex-col gap-4 min-h-0">
-            {isProcessing ? (
-              <div className="flex-1 flex flex-col items-center justify-center gap-6 py-8">
-                <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-primary/10">
-                  <Wand2 className="h-8 w-8 text-primary animate-pulse" />
-                </div>
-                <ProgressWithETA
-                  value={processingProgress}
-                  label={processingLabel}
-                  showPercentage
-                  size="md"
-                />
-              </div>
-            ) : (
-              <div className="flex-1 min-h-0 overflow-y-auto">
-                <div className="space-y-3 pr-3">
-                  {generatedItems.map(item => (
-                    <div key={item.listingId} className="rounded-lg border p-3 space-y-2">
-                      <p className="text-sm font-medium truncate">{item.productName}</p>
-                      {item.categoryPath ? (
-                        <p className="text-xs text-muted-foreground">{item.categoryPath}</p>
-                      ) : item.categoryName ? (
-                        <p className="text-xs text-muted-foreground">{item.categoryName}</p>
-                      ) : item.categoryId ? (
-                        <p className="text-xs text-muted-foreground">{item.categoryId}</p>
-                      ) : (
-                        <p className="text-xs text-amber-500 flex items-center gap-1">
-                          <AlertCircle className="h-3 w-3" /> Categoria não identificada
-                        </p>
-                      )}
-                      <MeliCategoryPicker
-                        value={item.categoryId}
-                        onChange={(catId, catName) => handleCategoryChange(item.listingId, catId, catName)}
-                        selectedName={item.categoryName}
-                        productName={item.productName}
-                      />
-                    </div>
-                  ))}
                 </div>
               </div>
             )}
