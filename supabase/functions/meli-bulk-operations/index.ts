@@ -28,7 +28,8 @@ const CATEGORY_DOMAIN_HINTS: Record<string, string[]> = {
 function pickBestCategory(
   results: Array<{ category_id: string; category_name?: string; domain_name?: string; domain_id?: string }>,
   productName: string,
-  brand?: string
+  brand?: string,
+  fullCategoryPaths?: Map<string, string>
 ): { category_id: string; category_name?: string; domain_name?: string } | null {
   if (!results.length) return null;
   if (results.length === 1) return results[0];
@@ -41,32 +42,30 @@ function pickBestCategory(
     let score = 0;
     const domainLower = (r.domain_name || r.domain_id || "").toLowerCase();
     const catNameLower = (r.category_name || "").toLowerCase();
+    const fullPath = (fullCategoryPaths?.get(r.category_id) || "").toLowerCase();
 
     // Check if the domain/category aligns with product type
     for (const [domainHint, keywords] of Object.entries(CATEGORY_DOMAIN_HINTS)) {
       const productMatchesHint = keywords.some((kw) => nameLower.includes(kw));
-      const categoryMatchesHint = domainLower.includes(domainHint) || catNameLower.includes(domainHint);
+      const categoryMatchesHint = domainLower.includes(domainHint) || catNameLower.includes(domainHint) || fullPath.includes(domainHint);
 
       if (productMatchesHint && categoryMatchesHint) {
         score += 10; // Strong match
       } else if (!productMatchesHint && categoryMatchesHint) {
-        // Category domain matches a hint but product doesn't match those keywords
-        // This is suspicious (e.g., product is "Balm" but category is "Jardim")
-        score -= 5;
+        score -= 3;
       }
     }
 
-    // Grooming/cosmetics brand boost: if brand is known in beauty space
-    if (brandLower && (domainLower.includes("beleza") || domainLower.includes("cuidado pessoal") || catNameLower.includes("barbearia"))) {
-      // Most personal care brands belong here
-      score += 3;
+    // Boost categories in human personal care path
+    if (fullPath.includes("beleza") || fullPath.includes("cuidado pessoal") || fullPath.includes("barbearia") || fullPath.includes("cuidados com o cabelo")) {
+      score += 5;
     }
 
-    // Penalize clearly mismatched domains
-    const absurdDomains = ["hidroponia", "nutrientes para", "pet shop", "gatos", "cães", "aquário", "piscina", "ferramentas"];
+    // Penalize pet shop, garden, etc. for non-pet/garden products
+    const absurdDomains = ["hidroponia", "nutrientes para", "pet shop", "gatos", "cães", "aquário", "piscina", "ferramentas", "jardinagem"];
     for (const absurd of absurdDomains) {
-      if ((domainLower.includes(absurd) || catNameLower.includes(absurd)) && !nameLower.includes(absurd)) {
-        score -= 8;
+      if ((domainLower.includes(absurd) || catNameLower.includes(absurd) || fullPath.includes(absurd)) && !nameLower.includes(absurd)) {
+        score -= 10;
       }
     }
 
@@ -76,6 +75,12 @@ function pickBestCategory(
   // Sort by score descending
   scored.sort((a, b) => b.score - a.score);
   console.log(`[meli-categories] Scored results:`, scored.map(s => `${s.category_name || s.domain_name}(${s.category_id}): score=${s.score}`).join(", "));
+
+  // If best score is very negative, all results are bad
+  if (scored[0].score <= -5) {
+    console.log(`[meli-categories] All results scored poorly (best=${scored[0].score}), returning null for fallback`);
+    return null;
+  }
 
   return scored[0];
 }
@@ -771,6 +776,8 @@ Retorne APENAS o texto da descrição.`,
           const brandName = product?.brand || "";
           console.log(`[meli-categories] Product: "${productName}", Brand: "${brandName}", SearchTerm: "${searchTerm.slice(0, 80)}..."`);
 
+          let categoryFound = false;
+
           const discoveryRes = await fetch(
             `https://api.mercadolibre.com/sites/MLB/domain_discovery/search?limit=5&q=${encodeURIComponent(searchTerm)}`,
             { headers: mlHeaders }
@@ -779,37 +786,71 @@ Retorne APENAS o texto da descrição.`,
           if (discoveryRes.ok) {
             const discoveryData = await discoveryRes.json();
             if (Array.isArray(discoveryData) && discoveryData.length > 0) {
-              const bestMatch = pickBestCategory(discoveryData, productName, brandName);
-              if (bestMatch) {
-                const categoryId = bestMatch.category_id;
-
-                await supabase
-                  .from("meli_listings")
-                  .update({ category_id: categoryId })
-                  .eq("id", listing.id);
-
-                // Resolve full category name and path
-                let catName = bestMatch.category_name || bestMatch.domain_name || categoryId;
-                let catPath = "";
+              // Resolve full paths for better scoring
+              const pathMap = new Map<string, string>();
+              for (const d of discoveryData) {
                 try {
-                  const catRes = await fetch(`https://api.mercadolibre.com/categories/${categoryId}`, { headers: mlHeaders });
+                  const catRes = await fetch(`https://api.mercadolibre.com/categories/${d.category_id}`, { headers: mlHeaders });
                   if (catRes.ok) {
                     const catData = await catRes.json();
-                    catName = catData.name || catName;
-                    catPath = (catData.path_from_root || []).map((p: any) => p.name).join(" > ");
+                    pathMap.set(d.category_id, (catData.path_from_root || []).map((p: any) => p.name).join(" > "));
                   }
-                } catch { /* skip path resolution */ }
+                } catch { /* skip */ }
+              }
 
+              const bestMatch = pickBestCategory(discoveryData, productName, brandName, pathMap);
+              if (bestMatch) {
+                const categoryId = bestMatch.category_id;
+                await supabase.from("meli_listings").update({ category_id: categoryId }).eq("id", listing.id);
+                const catPath = pathMap.get(categoryId) || "";
+                const catName = catPath ? catPath.split(" > ").pop()! : (bestMatch.category_name || bestMatch.domain_name || categoryId);
                 resolvedCategories.push({ listingId: listing.id, categoryId, categoryName: catName, categoryPath: catPath });
                 updated++;
-              } else {
-                skipped++;
+                categoryFound = true;
               }
-            } else {
-              skipped++;
             }
           } else {
             await discoveryRes.text();
+          }
+
+          // Fallback: simpler search with product name + brand only
+          if (!categoryFound && brandName) {
+            const fallbackTerm = `${productName} ${brandName}`.slice(0, 120);
+            console.log(`[meli-categories] Fallback search: "${fallbackTerm}"`);
+            try {
+              const fbRes = await fetch(
+                `https://api.mercadolibre.com/sites/MLB/domain_discovery/search?limit=5&q=${encodeURIComponent(fallbackTerm)}`,
+                { headers: mlHeaders }
+              );
+              if (fbRes.ok) {
+                const fbData = await fbRes.json();
+                if (Array.isArray(fbData) && fbData.length > 0) {
+                  const fbPathMap = new Map<string, string>();
+                  for (const d of fbData) {
+                    try {
+                      const catRes = await fetch(`https://api.mercadolibre.com/categories/${d.category_id}`, { headers: mlHeaders });
+                      if (catRes.ok) {
+                        const catData = await catRes.json();
+                        fbPathMap.set(d.category_id, (catData.path_from_root || []).map((p: any) => p.name).join(" > "));
+                      }
+                    } catch { /* skip */ }
+                  }
+                  const bestFb = pickBestCategory(fbData, productName, brandName, fbPathMap);
+                  if (bestFb) {
+                    const categoryId = bestFb.category_id;
+                    await supabase.from("meli_listings").update({ category_id: categoryId }).eq("id", listing.id);
+                    const catPath = fbPathMap.get(categoryId) || "";
+                    const catName = catPath ? catPath.split(" > ").pop()! : (bestFb.category_name || bestFb.domain_name || categoryId);
+                    resolvedCategories.push({ listingId: listing.id, categoryId, categoryName: catName, categoryPath: catPath });
+                    updated++;
+                    categoryFound = true;
+                  }
+                }
+              }
+            } catch { /* skip fallback */ }
+          }
+
+          if (!categoryFound) {
             skipped++;
           }
         } catch (err) {
