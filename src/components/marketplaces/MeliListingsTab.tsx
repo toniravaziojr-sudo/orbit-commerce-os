@@ -57,7 +57,7 @@ function formatCurrency(value: number) {
 
 export function MeliListingsTab() {
   const { currentTenant } = useAuth();
-  const { listings, isLoading, createListing, createBulkListings, updateListing, deleteListing, approveListing, publishListing, syncListings, refetch } = useMeliListings();
+  const { listings, isLoading, createListing, createBulkListings, updateListing, deleteListing, bulkDeleteListings, bulkApproveListings, approveListing, publishListing, syncListings, refetch } = useMeliListings();
   const { products, isLoading: productsLoading } = useProductsWithImages();
 
   const [showCreator, setShowCreator] = useState(false);
@@ -206,9 +206,7 @@ export function MeliListingsTab() {
       variant: "destructive",
     });
     if (!ok) return;
-    for (const id of deletableIds) {
-      deleteListing.mutate(id);
-    }
+    bulkDeleteListings.mutate(deletableIds);
     setSelectedIds(new Set());
   };
 
@@ -224,12 +222,12 @@ export function MeliListingsTab() {
       toast.error("Nenhum anúncio selecionado pode ser enviado.");
       return;
     }
-    const draftsCount = sendableIds.filter(id => {
+    const draftsToApprove = sendableIds.filter(id => {
       const listing = listings.find(l => l.id === id);
       return listing && ['draft', 'ready'].includes(listing.status);
-    }).length;
-    const description = draftsCount > 0
-      ? `Enviar ${sendableIds.length} anúncio${sendableIds.length > 1 ? "s" : ""} ao Mercado Livre? (${draftsCount} rascunho${draftsCount > 1 ? "s" : ""} será${draftsCount > 1 ? "ão" : ""} aprovado${draftsCount > 1 ? "s" : ""} automaticamente)`
+    });
+    const description = draftsToApprove.length > 0
+      ? `Enviar ${sendableIds.length} anúncio${sendableIds.length > 1 ? "s" : ""} ao Mercado Livre? (${draftsToApprove.length} rascunho${draftsToApprove.length > 1 ? "s" : ""} será${draftsToApprove.length > 1 ? "ão" : ""} aprovado${draftsToApprove.length > 1 ? "s" : ""} automaticamente)`
       : `Enviar ${sendableIds.length} anúncio${sendableIds.length > 1 ? "s" : ""} ao Mercado Livre?`;
     const ok = await confirmAction({
       title: "Enviar anúncios",
@@ -241,31 +239,46 @@ export function MeliListingsTab() {
     setBulkAction("bulk_send");
     const total = sendableIds.length;
     setBulkProgress({ processed: 0, total, label: "Enviando anúncios..." });
-    let processed = 0;
-    for (const id of sendableIds) {
-      const listing = listings.find(l => l.id === id);
+
+    // Batch-approve drafts silently (single DB call, no individual toasts)
+    if (draftsToApprove.length > 0) {
       try {
-        // Auto-approve drafts first
-        if (listing && ['draft', 'ready'].includes(listing.status)) {
-          await new Promise<void>((resolve, reject) => {
-            approveListing.mutate(id, {
-              onSuccess: () => resolve(),
-              onError: (err) => reject(err),
-            });
-          });
-        }
-        // Then publish
-        await new Promise<void>((resolve, reject) => {
-          publishListing.mutate({ id }, {
-            onSuccess: () => resolve(),
-            onError: (err) => reject(err),
-          });
-        });
+        await supabase
+          .from('meli_listings')
+          .update({ status: 'approved' as const })
+          .in('id', draftsToApprove);
       } catch { /* continue */ }
-      processed++;
-      setBulkProgress({ processed, total, label: "Enviando anúncios..." });
     }
-    toast.success(`${processed} anúncio${processed > 1 ? "s" : ""} enviado${processed > 1 ? "s" : ""} para publicação!`);
+
+    // Publish sequentially (edge function calls) - track results for summary toast
+    let successCount = 0;
+    let errorCount = 0;
+    for (const id of sendableIds) {
+      try {
+        const { data, error } = await supabase.functions.invoke('meli-publish-listing', {
+          body: {
+            tenantId: currentTenant?.id,
+            listingId: id,
+          },
+        });
+        if (error || !data?.success) {
+          errorCount++;
+        } else {
+          successCount++;
+        }
+      } catch {
+        errorCount++;
+      }
+      setBulkProgress({ processed: successCount + errorCount, total, label: "Enviando anúncios..." });
+    }
+
+    // Single summary toast
+    if (successCount > 0) {
+      toast.success(`${successCount} anúncio${successCount > 1 ? "s" : ""} enviado${successCount > 1 ? "s" : ""} para publicação!`);
+    }
+    if (errorCount > 0) {
+      toast.error(`${errorCount} anúncio${errorCount > 1 ? "s" : ""} com erro ao publicar`);
+    }
     setSelectedIds(new Set());
     setBulkAction(null);
     setBulkProgress({ processed: 0, total: 0, label: "" });
