@@ -1,10 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,28 +21,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { 
-  ArrowLeft, 
-  Plus, 
-  Edit2, 
-  Trash2, 
-  MoreVertical,
-  GripVertical,
-  Eye,
-  EyeOff,
-  Copy,
-  ExternalLink,
-  Mail,
-  User,
-  Phone,
-  Type,
-  CheckSquare,
-  Circle,
+  ArrowLeft, Plus, Edit2, Trash2, MoreVertical,
+  GripVertical, Eye, EyeOff, Copy, ExternalLink,
+  Mail, User, Phone, Type, CheckSquare, Circle,
+  Image, Video, FileText, HelpCircle,
 } from "lucide-react";
 import { useQuizzes, Quiz, QuizQuestion } from "@/hooks/useQuizzes";
 import { QuizDialog } from "./QuizDialog";
 import { QuestionDialog } from "./QuestionDialog";
-import { supabase } from "@/integrations/supabase/client";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 const questionTypeIcons: Record<string, any> = {
@@ -64,10 +49,51 @@ const questionTypeLabels: Record<string, string> = {
   name: 'Nome',
 };
 
+function StepBadge({ step }: { step: QuizQuestion }) {
+  if (step.step_type === 'content') {
+    return (
+      <Badge variant="outline" className="text-xs bg-accent text-accent-foreground border-accent">
+        <FileText className="h-3 w-3 mr-1" />
+        Conteúdo
+      </Badge>
+    );
+  }
+  const Icon = questionTypeIcons[step.type] || Type;
+  return (
+    <Badge variant="outline" className="text-xs">
+      <Icon className="h-3 w-3 mr-1" />
+      {questionTypeLabels[step.type]}
+    </Badge>
+  );
+}
+
+function MediaPreview({ media }: { media?: { type: string; url: string; alt?: string } }) {
+  if (!media) return null;
+  
+  if (media.type === 'image') {
+    return (
+      <div className="mt-2 w-20 h-14 rounded border overflow-hidden bg-muted/30">
+        <img src={media.url} alt={media.alt || ''} className="w-full h-full object-cover" />
+      </div>
+    );
+  }
+  
+  if (media.type === 'video') {
+    return (
+      <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Video className="h-3.5 w-3.5" />
+        <span className="truncate max-w-[200px]">{media.url}</span>
+      </div>
+    );
+  }
+  
+  return null;
+}
+
 export function QuizEditor() {
   const { quizId } = useParams<{ quizId: string }>();
   const navigate = useNavigate();
-  const { getQuiz, updateQuiz, deleteQuiz, togglePublish, deleteQuestion } = useQuizzes();
+  const { getQuiz, deleteQuiz, togglePublish, deleteQuestion } = useQuizzes();
   
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [questionDialogOpen, setQuestionDialogOpen] = useState(false);
@@ -140,16 +166,14 @@ export function QuizEditor() {
   }
 
   const questions = quiz.quiz_questions || [];
+  const questionSteps = questions.filter(q => q.step_type !== 'content');
+  const contentSteps = questions.filter(q => q.step_type === 'content');
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button 
-          variant="ghost" 
-          size="icon"
-          onClick={() => navigate("/quizzes")}
-        >
+        <Button variant="ghost" size="icon" onClick={() => navigate("/quizzes")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         
@@ -161,35 +185,21 @@ export function QuizEditor() {
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            /{quiz.slug} • {questions.length} perguntas
+            /{quiz.slug} • {questions.length} etapas ({questionSteps.length} perguntas, {contentSteps.length} conteúdo)
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={copyQuizUrl}
-          >
+          <Button variant="outline" size="sm" onClick={copyQuizUrl}>
             <Copy className="h-4 w-4 mr-2" />
             Copiar URL
           </Button>
           
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleTogglePublish}
-          >
+          <Button variant="outline" size="sm" onClick={handleTogglePublish}>
             {quiz.status === 'published' ? (
-              <>
-                <EyeOff className="h-4 w-4 mr-2" />
-                Despublicar
-              </>
+              <><EyeOff className="h-4 w-4 mr-2" />Despublicar</>
             ) : (
-              <>
-                <Eye className="h-4 w-4 mr-2" />
-                Publicar
-              </>
+              <><Eye className="h-4 w-4 mr-2" />Publicar</>
             )}
           </Button>
 
@@ -201,21 +211,13 @@ export function QuizEditor() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => setEditDialogOpen(true)}>
-                <Edit2 className="h-4 w-4 mr-2" />
-                Editar Configurações
+                <Edit2 className="h-4 w-4 mr-2" />Editar Configurações
               </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={() => window.open(`/quiz/${quiz.slug}`, '_blank')}
-              >
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Visualizar
+              <DropdownMenuItem onClick={() => window.open(`/quiz/${quiz.slug}`, '_blank')}>
+                <ExternalLink className="h-4 w-4 mr-2" />Visualizar
               </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={() => setDeleteDialogOpen(true)}
-                className="text-destructive"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Excluir Quiz
+              <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="text-destructive">
+                <Trash2 className="h-4 w-4 mr-2" />Excluir Quiz
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -225,20 +227,15 @@ export function QuizEditor() {
       {/* Quiz Info */}
       <div className="grid md:grid-cols-2 gap-6">
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Introdução</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-base">Introdução</CardTitle></CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
               {quiz.intro_text || "Nenhum texto de introdução definido"}
             </p>
           </CardContent>
         </Card>
-
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Conclusão</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-base">Conclusão</CardTitle></CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
               {quiz.outro_text || "Obrigado por completar o quiz!"}
@@ -247,157 +244,120 @@ export function QuizEditor() {
         </Card>
       </div>
 
-      {/* Questions */}
+      {/* Steps */}
       <Card>
         <CardHeader className="flex-row items-center justify-between">
           <div>
-            <CardTitle>Perguntas</CardTitle>
+            <CardTitle>Etapas do Quiz</CardTitle>
             <CardDescription>
-              Arraste para reordenar as perguntas
+              Adicione perguntas ou etapas de conteúdo (vídeos, imagens, textos)
             </CardDescription>
           </div>
           <Button onClick={handleAddQuestion}>
             <Plus className="h-4 w-4 mr-2" />
-            Adicionar Pergunta
+            Adicionar Etapa
           </Button>
         </CardHeader>
         <CardContent>
           {questions.length === 0 ? (
             <div className="text-center py-12 border-2 border-dashed rounded-lg">
               <p className="text-muted-foreground mb-4">
-                Nenhuma pergunta adicionada ainda
+                Nenhuma etapa adicionada ainda
               </p>
               <Button variant="outline" onClick={handleAddQuestion}>
                 <Plus className="h-4 w-4 mr-2" />
-                Adicionar primeira pergunta
+                Adicionar primeira etapa
               </Button>
             </div>
           ) : (
             <div className="space-y-3">
-              {questions.map((question, index) => {
-                const Icon = questionTypeIcons[question.type] || Type;
-                
-                return (
-                  <div
-                    key={question.id}
-                    className="flex items-start gap-3 p-4 border rounded-lg group hover:bg-muted/30 transition-colors"
-                  >
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <GripVertical className="h-4 w-4 cursor-grab" />
-                      <span className="text-sm font-medium w-6">
-                        {index + 1}.
-                      </span>
-                    </div>
+              {questions.map((step, index) => (
+                <div
+                  key={step.id}
+                  className={`flex items-start gap-3 p-4 border rounded-lg group hover:bg-muted/30 transition-colors ${
+                    step.step_type === 'content' ? 'border-accent bg-accent/10' : ''
+                  }`}
+                >
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <GripVertical className="h-4 w-4 cursor-grab" />
+                    <span className="text-sm font-medium w-6">{index + 1}.</span>
+                  </div>
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Icon className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">
-                          {questionTypeLabels[question.type]}
-                        </span>
-                        {question.is_required && (
-                          <Badge variant="outline" className="text-xs">
-                            Obrigatória
-                          </Badge>
-                        )}
-                      </div>
-                      
-                      <p className="font-medium">{question.question}</p>
-                      
-                      {question.options && question.options.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          {question.options.map((opt: any, idx: number) => (
-                            <span 
-                              key={idx}
-                              className="text-xs px-2 py-0.5 bg-muted rounded"
-                            >
-                              {opt.label}
-                            </span>
-                          ))}
-                        </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <StepBadge step={step} />
+                      {step.is_required && step.step_type === 'question' && (
+                        <Badge variant="outline" className="text-xs">Obrigatória</Badge>
+                      )}
+                      {step.media && (
+                        <Badge variant="outline" className="text-xs">
+                          {step.media.type === 'image' ? <Image className="h-3 w-3 mr-1" /> : <Video className="h-3 w-3 mr-1" />}
+                          {step.media.type === 'image' ? 'Imagem' : 'Vídeo'}
+                        </Badge>
                       )}
                     </div>
+                    
+                    <p className="font-medium">{step.question}</p>
+                    
+                    {step.description && (
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{step.description}</p>
+                    )}
+                    
+                    {step.options && step.options.length > 0 && step.step_type === 'question' && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {step.options.map((opt: any, idx: number) => (
+                          <span key={idx} className="text-xs px-2 py-0.5 bg-muted rounded inline-flex items-center gap-1">
+                            {opt.image_url && <Image className="h-3 w-3" />}
+                            {opt.label}
+                          </span>
+                        ))}
+                      </div>
+                    )}
 
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleEditQuestion(question)}
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setDeleteQuestionId(question.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
+                    <MediaPreview media={step.media as any} />
                   </div>
-                );
-              })}
+
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button variant="ghost" size="icon" onClick={() => handleEditQuestion(step)}>
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => setDeleteQuestionId(step.id)}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </CardContent>
       </Card>
 
       {/* Dialogs */}
-      <QuizDialog
-        open={editDialogOpen}
-        onOpenChange={setEditDialogOpen}
-        quiz={quiz}
-        onSuccess={() => refetch()}
-      />
-
-      <QuestionDialog
-        open={questionDialogOpen}
-        onOpenChange={setQuestionDialogOpen}
-        quizId={quiz.id}
-        question={editingQuestion}
-        onSuccess={() => refetch()}
-      />
+      <QuizDialog open={editDialogOpen} onOpenChange={setEditDialogOpen} quiz={quiz} onSuccess={() => refetch()} />
+      <QuestionDialog open={questionDialogOpen} onOpenChange={setQuestionDialogOpen} quizId={quiz.id} question={editingQuestion} onSuccess={() => refetch()} />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir Quiz</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja excluir este quiz? Esta ação não pode ser desfeita.
-              Todas as perguntas e respostas serão perdidas.
-            </AlertDialogDescription>
+            <AlertDialogDescription>Tem certeza? Todas as etapas e respostas serão perdidas.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteQuiz}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Excluir
-            </AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteQuiz} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Excluir</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog 
-        open={!!deleteQuestionId} 
-        onOpenChange={(open) => !open && setDeleteQuestionId(null)}
-      >
+      <AlertDialog open={!!deleteQuestionId} onOpenChange={(open) => !open && setDeleteQuestionId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir Pergunta</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja excluir esta pergunta?
-            </AlertDialogDescription>
+            <AlertDialogTitle>Excluir Etapa</AlertDialogTitle>
+            <AlertDialogDescription>Tem certeza que deseja excluir esta etapa?</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteQuestion}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Excluir
-            </AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteQuestion} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Excluir</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
