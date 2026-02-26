@@ -581,7 +581,7 @@ export function MeliListingsTab() {
                             <>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" onClick={() => window.open(`https://produto.mercadolivre.com.br/${listing.meli_item_id}`, '_blank')}>
+                                  <Button variant="ghost" size="icon" onClick={() => window.open(listing.meli_response?.permalink || `https://www.mercadolivre.com.br/p/${listing.meli_item_id}`, '_blank')}>
                                     <Eye className="h-4 w-4" />
                                   </Button>
                                 </TooltipTrigger>

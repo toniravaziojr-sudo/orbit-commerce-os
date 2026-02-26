@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "2.1.0"; // Add title length guard via category max_title_length
+const VERSION = "3.0.0"; // Fix GTIN, all images, description, permalink storage
 // ===================
 
 const corsHeaders = {
@@ -17,15 +17,6 @@ function jsonResponse(data: any) {
   });
 }
 
-/**
- * Mercado Livre Publish Listing v2.0.0
- * 
- * Publica um anúncio aprovado na API do Mercado Livre com payload completo.
- * POST /items - Cria novo item
- * PUT /items/{id} - Atualiza item existente
- * 
- * Contrato: HTTP 200 + { success: true/false }
- */
 serve(async (req) => {
   console.log(`[meli-publish-listing][${VERSION}] Request received`);
 
@@ -69,10 +60,10 @@ serve(async (req) => {
       return jsonResponse({ success: false, error: "Sem acesso ao tenant" });
     }
 
-    // Get listing with product data
+    // Get listing with product data - include gtin, regulatory_info, warranty
     const { data: listing, error: listingError } = await supabase
       .from("meli_listings")
-      .select("*, product:products(name, sku, price, stock_quantity, description, weight, width, height, depth, brand)")
+      .select("*, product:products(name, sku, price, stock_quantity, description, weight, width, height, depth, brand, gtin, regulatory_info, warranty_type, warranty_duration)")
       .eq("id", listingId)
       .eq("tenant_id", tenantId)
       .maybeSingle();
@@ -124,12 +115,13 @@ serve(async (req) => {
       }
     }
 
-    // Get product images
+    // Get ALL product images (not just primary)
     const { data: productImages } = await supabase
       .from("product_images")
-      .select("url, position")
+      .select("url, sort_order, is_primary")
       .eq("product_id", listing.product_id)
-      .order("position", { ascending: true })
+      .order("is_primary", { ascending: false })
+      .order("sort_order", { ascending: true })
       .limit(10);
 
     // Handle different actions
@@ -154,7 +146,7 @@ serve(async (req) => {
       .update({ status: "publishing" })
       .eq("id", listingId);
 
-    // Build complete ML item payload
+    // Build images list — ALWAYS use all product images, merge with listing images
     const images = buildImagesList(listing.images, productImages);
     
     // Validate required fields
@@ -163,7 +155,7 @@ serve(async (req) => {
       return jsonResponse({ success: false, error: "Categoria do ML é obrigatória (category_id). Edite o anúncio." });
     }
 
-    // Title length guard: validate against category's max_title_length
+    // Title length guard
     try {
       const catRes = await fetch(`https://api.mercadolibre.com/categories/${listing.category_id}`, {
         headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
@@ -202,11 +194,6 @@ serve(async (req) => {
       pictures: images,
     };
 
-    // Description (separate field, plain text)
-    if (plainDescription) {
-      itemPayload.description = { plain_text: plainDescription };
-    }
-
     // Shipping
     if (listing.shipping && Object.keys(listing.shipping).length > 0) {
       itemPayload.shipping = listing.shipping;
@@ -225,17 +212,19 @@ serve(async (req) => {
       attributes.push(...listing.attributes);
     }
     
-    // Add product-level fallbacks if not already in attributes
     const attrIds = new Set(attributes.map((a: any) => a.id));
     
     if (!attrIds.has("BRAND") && listing.product?.brand) {
       attributes.push({ id: "BRAND", value_name: listing.product.brand });
     }
+    if (!attrIds.has("GTIN") && listing.product?.gtin) {
+      attributes.push({ id: "GTIN", value_name: listing.product.gtin });
+    }
     if (!attrIds.has("SELLER_SKU") && listing.product?.sku) {
       attributes.push({ id: "SELLER_SKU", value_name: listing.product.sku });
     }
     
-    // Add package dimensions from product if available
+    // Package dimensions
     if (!attrIds.has("PACKAGE_WEIGHT") && listing.product?.weight) {
       attributes.push({ id: "PACKAGE_WEIGHT", value_name: `${listing.product.weight} g` });
     }
@@ -249,14 +238,23 @@ serve(async (req) => {
       attributes.push({ id: "PACKAGE_LENGTH", value_name: `${listing.product.depth} cm` });
     }
 
+    // Warranty from product
+    if (listing.product?.warranty_type && listing.product.warranty_type !== 'none') {
+      const warrantyLabel = listing.product.warranty_type === 'vendor' ? 'Garantia do vendedor' : 'Garantia de fábrica';
+      const warrantyText = listing.product.warranty_duration 
+        ? `${warrantyLabel}: ${listing.product.warranty_duration}`
+        : warrantyLabel;
+      itemPayload.warranty = warrantyText;
+    }
+
     if (attributes.length > 0) {
       itemPayload.attributes = attributes;
     }
 
     console.log(`[meli-publish-listing] Publishing item: ${listing.title}, category: ${listing.category_id}, images: ${images.length}, attrs: ${attributes.length}`);
-    console.log(`[meli-publish-listing] Payload:`, JSON.stringify(itemPayload).slice(0, 500));
+    console.log(`[meli-publish-listing] Description length: ${plainDescription.length}`);
 
-    // Call ML API
+    // Call ML API to create item (WITHOUT description - must be sent separately)
     const publishRes = await fetch("https://api.mercadolibre.com/items", {
       method: "POST",
       headers: {
@@ -275,7 +273,6 @@ serve(async (req) => {
     }
 
     if (!publishRes.ok) {
-      // Build detailed error message
       let errorMsg = responseData?.message || "Erro ao publicar no Mercado Livre";
       const causes = responseData?.cause || [];
       if (Array.isArray(causes) && causes.length > 0) {
@@ -300,11 +297,33 @@ serve(async (req) => {
       });
     }
 
-    // Success
+    // Success - now send description separately (ML API requires this)
     const meliItemId = responseData.id;
     const permalink = responseData.permalink;
 
-    console.log(`[meli-publish-listing] Published successfully: ${meliItemId}`);
+    if (plainDescription) {
+      console.log(`[meli-publish-listing] Sending description for ${meliItemId} (${plainDescription.length} chars)`);
+      try {
+        const descRes = await fetch(`https://api.mercadolibre.com/items/${meliItemId}/description`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ plain_text: plainDescription }),
+        });
+        if (!descRes.ok) {
+          const descError = await descRes.text();
+          console.error(`[meli-publish-listing] Description upload failed:`, descError);
+        } else {
+          console.log(`[meli-publish-listing] Description uploaded successfully`);
+        }
+      } catch (descErr) {
+        console.error(`[meli-publish-listing] Description upload error:`, descErr);
+      }
+    }
+
+    console.log(`[meli-publish-listing] Published successfully: ${meliItemId}, permalink: ${permalink}`);
 
     await supabase
       .from("meli_listings")
@@ -333,19 +352,27 @@ serve(async (req) => {
 // ===================== Helper Functions =====================
 
 function buildImagesList(listingImages: any[], productImages: any[] | null): any[] {
+  const seenUrls = new Set<string>();
   const images: any[] = [];
 
+  // First: add listing-specific images
   if (Array.isArray(listingImages) && listingImages.length > 0) {
     for (const img of listingImages) {
       const url = typeof img === "string" ? img : img.url || img.source;
-      if (url) images.push({ source: url });
+      if (url && !seenUrls.has(url)) {
+        seenUrls.add(url);
+        images.push({ source: url });
+      }
     }
   }
 
-  // Fall back to product images
-  if (images.length === 0 && productImages?.length) {
+  // Then: add ALL product images (not just fallback)
+  if (productImages?.length) {
     for (const img of productImages) {
-      if (img.url) images.push({ source: img.url });
+      if (img.url && !seenUrls.has(img.url)) {
+        seenUrls.add(img.url);
+        images.push({ source: img.url });
+      }
     }
   }
 

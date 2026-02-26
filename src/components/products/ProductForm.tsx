@@ -103,6 +103,13 @@ const productSchema = z.object({
     .transform(val => val ? val.replace(/[^\d]/g, '') : val),
   origin_code: z.string().max(10).nullable().optional(),
   uom: z.string().max(20).nullable().optional(),
+  
+  // Regulatory & Warranty
+  regulatory_anvisa: z.string().max(100).nullable().optional(),
+  regulatory_afe: z.string().max(100).nullable().optional(),
+  regulatory_conama: z.string().max(100).nullable().optional(),
+  warranty_type: z.enum(['vendor', 'factory', 'none', '']).nullable().optional(),
+  warranty_duration: z.string().max(50).nullable().optional(),
 });
 
 type ProductFormData = z.infer<typeof productSchema>;
@@ -283,6 +290,13 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       cest: product?.cest ?? '',
       origin_code: product?.origin_code ?? '',
       uom: product?.uom ?? '',
+      
+      // Regulatory & Warranty
+      regulatory_anvisa: (product as any)?.regulatory_info?.anvisa ?? '',
+      regulatory_afe: (product as any)?.regulatory_info?.afe ?? '',
+      regulatory_conama: (product as any)?.regulatory_info?.conama ?? '',
+      warranty_type: (product as any)?.warranty_type ?? '',
+      warranty_duration: (product as any)?.warranty_duration ?? '',
     },
   });
 
@@ -488,7 +502,18 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
     setIsSaving(true);
     try {
       if (isEditing && product) {
-        await updateProduct.mutateAsync({ id: product.id, ...data });
+        const { regulatory_anvisa, regulatory_afe, regulatory_conama, warranty_type: wt, warranty_duration: wd, ...restData } = data;
+        await updateProduct.mutateAsync({ 
+          id: product.id, 
+          ...restData,
+          regulatory_info: {
+            anvisa: regulatory_anvisa || null,
+            afe: regulatory_afe || null,
+            conama: regulatory_conama || null,
+          },
+          warranty_type: wt || null,
+          warranty_duration: wd || null,
+        } as any);
         
         // Update related products and variants
         // Note: Components are managed directly by ProductStructureEditor (saves to DB on each action)
@@ -530,6 +555,13 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           has_variants: data.has_variants,
           product_format: data.product_format,
           stock_type: data.stock_type,
+          regulatory_info: {
+            anvisa: data.regulatory_anvisa || null,
+            afe: data.regulatory_afe || null,
+            conama: data.regulatory_conama || null,
+          },
+          warranty_type: data.warranty_type || null,
+          warranty_duration: data.warranty_duration || null,
         });
 
         // Save pending data using the new product ID
@@ -1603,6 +1635,126 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       </FormItem>
                     )}
                   />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Informação Regulatória</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <FormField
+                      control={form.control}
+                      name="regulatory_anvisa"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Notificação Anvisa</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ''}
+                              placeholder="Ex: 25351.316634/2024-16"
+                            />
+                          </FormControl>
+                          <FormDescription>Nº do documento de Notificação/Comunicação prévia</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="regulatory_afe"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Certificado AFE</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ''}
+                              placeholder="Nº do certificado"
+                            />
+                          </FormControl>
+                          <FormDescription>Autorização de Funcionamento de Empresa</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="regulatory_conama"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Licença CONAMA</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ''}
+                              placeholder="Nº da licença"
+                            />
+                          </FormControl>
+                          <FormDescription>Conselho Nacional do Meio Ambiente</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Garantia</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="warranty_type"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Tipo de Garantia</FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            value={field.value ?? ''}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="none">Sem garantia</SelectItem>
+                              <SelectItem value="vendor">Garantia do vendedor</SelectItem>
+                              <SelectItem value="factory">Garantia de fábrica</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="warranty_duration"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Duração da Garantia</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ''}
+                              placeholder="Ex: 6 meses, 1 ano"
+                            />
+                          </FormControl>
+                          <FormDescription>Período de cobertura da garantia</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>

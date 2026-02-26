@@ -133,6 +133,9 @@ export function ProductList({ onCreateProduct, onEditProduct }: ProductListProps
         has_variants: product.has_variants,
         product_format: product.product_format || 'simple',
         stock_type: product.stock_type || 'physical',
+        regulatory_info: (product as any).regulatory_info ?? {},
+        warranty_type: (product as any).warranty_type ?? null,
+        warranty_duration: (product as any).warranty_duration ?? null,
       });
 
       toast.success('Produto duplicado com sucesso!');

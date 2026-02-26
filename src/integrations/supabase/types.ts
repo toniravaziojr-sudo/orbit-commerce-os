@@ -12811,6 +12811,7 @@ export type Database = {
           promotion_end_date: string | null
           promotion_start_date: string | null
           published_at: string | null
+          regulatory_info: Json | null
           requires_shipping: boolean | null
           seo_description: string | null
           seo_title: string | null
@@ -12827,6 +12828,8 @@ export type Database = {
           uom: string | null
           updated_at: string
           vendor: string | null
+          warranty_duration: string | null
+          warranty_type: string | null
           weight: number | null
           width: number | null
         }
@@ -12859,6 +12862,7 @@ export type Database = {
           promotion_end_date?: string | null
           promotion_start_date?: string | null
           published_at?: string | null
+          regulatory_info?: Json | null
           requires_shipping?: boolean | null
           seo_description?: string | null
           seo_title?: string | null
@@ -12875,6 +12879,8 @@ export type Database = {
           uom?: string | null
           updated_at?: string
           vendor?: string | null
+          warranty_duration?: string | null
+          warranty_type?: string | null
           weight?: number | null
           width?: number | null
         }
@@ -12907,6 +12913,7 @@ export type Database = {
           promotion_end_date?: string | null
           promotion_start_date?: string | null
           published_at?: string | null
+          regulatory_info?: Json | null
           requires_shipping?: boolean | null
           seo_description?: string | null
           seo_title?: string | null
@@ -12923,6 +12930,8 @@ export type Database = {
           uom?: string | null
           updated_at?: string
           vendor?: string | null
+          warranty_duration?: string | null
+          warranty_type?: string | null
           weight?: number | null
           width?: number | null
         }
