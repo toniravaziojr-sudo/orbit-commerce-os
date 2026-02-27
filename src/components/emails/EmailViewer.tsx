@@ -170,9 +170,22 @@ export function EmailViewer({ messageId, onClose, onReply }: EmailViewerProps) {
       <ScrollArea className="flex-1">
         <div className="p-4">
           {message.body_html ? (
-            <div 
-              className="prose prose-sm max-w-none dark:prose-invert"
-              dangerouslySetInnerHTML={{ __html: message.body_html }}
+            <iframe
+              srcDoc={message.body_html}
+              title="Email content"
+              className="w-full border-0 min-h-[400px]"
+              sandbox="allow-same-origin"
+              style={{ height: '600px' }}
+              onLoad={(e) => {
+                // Auto-resize iframe to content height
+                const iframe = e.currentTarget;
+                try {
+                  const contentHeight = iframe.contentDocument?.documentElement?.scrollHeight;
+                  if (contentHeight) {
+                    iframe.style.height = `${contentHeight + 20}px`;
+                  }
+                } catch {}
+              }}
             />
           ) : (
             <pre className="whitespace-pre-wrap font-sans text-sm">

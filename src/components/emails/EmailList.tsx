@@ -15,6 +15,13 @@ interface EmailListProps {
   onSelect: (id: string) => void;
 }
 
+function stripHtmlTags(text: string): string {
+  if (!text) return '';
+  // Decode HTML entities and strip tags
+  const doc = new DOMParser().parseFromString(text, 'text/html');
+  return doc.body.textContent?.substring(0, 120) || '';
+}
+
 function formatEmailDate(dateStr: string | null) {
   if (!dateStr) return '';
   const date = new Date(dateStr);
@@ -96,7 +103,7 @@ export function EmailList({ messages, isLoading, selectedId, onSelect }: EmailLi
                 </div>
 
                 <div className="text-xs text-muted-foreground truncate mt-0.5">
-                  {message.snippet || message.body_text?.substring(0, 100)}
+                  {stripHtmlTags(message.snippet || message.body_text?.substring(0, 300) || '')}
                 </div>
 
                 <div className="flex items-center gap-2 mt-1">
