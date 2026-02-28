@@ -38,7 +38,7 @@ Hub central de integrações com serviços externos: pagamentos, redes sociais, 
 | Fiscal | Nuvem Fiscal, Focus NFe |
 | Logística | Loggi OAuth global |
 | IA | Gemini Nativa, OpenAI Nativa, Lovable AI Gateway (fallback), Firecrawl |
-| **Meta** | Meta Ads/Pixel (APP_ID, APP_SECRET, GRAPH_API_VERSION, WEBHOOK_VERIFY_TOKEN) |
+| **Meta** | Meta Ads/Pixel (APP_ID, APP_SECRET) — GRAPH_API_VERSION e WEBHOOK_VERIFY_TOKEN são internos |
 | **Google** | Google OAuth (CLIENT_ID, CLIENT_SECRET) |
 | **TikTok Ads** | TikTok Ads (APP_ID, APP_SECRET) — Business Developer Portal |
 | **TikTok Shop** | TikTok Shop (SHOP_APP_KEY, SHOP_APP_SECRET) — Shop Partner Center |
@@ -216,7 +216,7 @@ Disponível apenas para `isPlatformOperator`:
 | Fiscal | Focus NFe | `FOCUS_NFE_TOKEN` |
 | Logística | Loggi OAuth | `LOGGI_CLIENT_ID`, `LOGGI_CLIENT_SECRET` |
 | IA | Firecrawl e AI config | `FIRECRAWL_API_KEY` |
-| **Meta** | Meta Ads/Pixel platform config | `META_APP_ID`, `META_APP_SECRET`, `META_GRAPH_API_VERSION`, `META_WEBHOOK_VERIFY_TOKEN` |
+| **Meta** | Meta Ads/Pixel platform config | `META_APP_ID`, `META_APP_SECRET` (+ `META_GRAPH_API_VERSION` e `META_WEBHOOK_VERIFY_TOKEN` internos, não editáveis na UI) |
 | **Google** | Google OAuth platform config | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 | **TikTok Ads** | TikTok Ads platform config (Pixel, CAPI, Campanhas) | `TIKTOK_APP_ID`, `TIKTOK_APP_SECRET` |
 | **TikTok Shop** | TikTok Shop platform config (Catálogo, Pedidos, Fulfillment) | `TIKTOK_SHOP_APP_KEY`, `TIKTOK_SHOP_APP_SECRET` |
