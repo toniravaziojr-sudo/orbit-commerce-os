@@ -673,10 +673,44 @@ Browser → storefront-bootstrap (Edge Function)
 
 ---
 
+## Otimizações PageSpeed (Padrões Obrigatórios)
+
+### Code Splitting (Lazy Loading de Rotas)
+
+Todas as páginas do storefront em `src/App.tsx` DEVEM usar `React.lazy()` + `Suspense`:
+
+```tsx
+// ✅ CORRETO
+const StorefrontHome = lazy(() => import('./pages/storefront/StorefrontHome'));
+<Suspense fallback={<LoadingFallback />}><StorefrontHome /></Suspense>
+
+// ❌ ERRADO - import estático de páginas storefront
+import StorefrontHome from './pages/storefront/StorefrontHome';
+```
+
+### Atributos de Imagem Obrigatórios
+
+| Contexto | `loading` | `decoding` | `fetchPriority` | `width/height` |
+|----------|-----------|------------|-----------------|----------------|
+| Banner/Hero (LCP) | omitir | `async` | `high` | `1920`/`686` |
+| ProductCard | `lazy` | `async` | omitir | `400`/`400` |
+| ImageBlock | `lazy` | `async` | omitir | conforme config |
+| CartPromoBanner | `lazy` | `async` | omitir | omitir |
+
+### Regras
+
+1. **LCP (Largest Contentful Paint):** Banner principal DEVE ter `fetchPriority="high"` e NÃO ter `loading="lazy"`
+2. **CLS (Layout Shift):** Todas as `<img>` DEVEM ter `width` e `height` explícitos
+3. **Lazy loading:** Imagens abaixo da dobra DEVEM ter `loading="lazy"` e `decoding="async"`
+4. **`<picture>` responsivo:** Storefront usa `<source media="(max-width: 767px)">` para imagens mobile
+
+---
+
 ## Histórico de Alterações
 
 | Data | Alteração |
 |------|-----------|
+| 2025-02-28 | PageSpeed: code splitting, lazy loading, fetchPriority, width/height em imagens |
 | 2025-02-28 | Storefront Bootstrap: Edge Function de carregamento consolidado + hooks com cache agressivo |
 | 2025-01-26 | SEO Home: configuração de meta título/descrição + geração IA em Configurações do Tema |
 | 2025-01-25 | Newsletter Popup: campo `icon_image_url` para ícone customizado do incentivo |
