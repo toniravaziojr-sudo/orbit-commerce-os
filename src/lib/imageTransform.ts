@@ -11,8 +11,8 @@ const WSRV_BASE = 'https://wsrv.nl/?';
  */
 function isOptimizableUrl(url: string): boolean {
   if (!url) return false;
-  // Only optimize Supabase storage URLs
-  return url.includes('supabase.co/storage/') || url.includes('supabase.in/storage/');
+  // Optimize Supabase storage URLs and Shopify CDN URLs
+  return url.includes('supabase.co/storage/') || url.includes('supabase.in/storage/') || url.includes('cdn.shopify.com/');
 }
 
 /**

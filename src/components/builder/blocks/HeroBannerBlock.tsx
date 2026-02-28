@@ -50,7 +50,7 @@ export function HeroBannerBlock({
   // Mark first paint complete after initial render (defer autoplay to avoid rotating before LCP)
   useEffect(() => {
     if (!isBuilderMode && isFirstPaint) {
-      const timer = setTimeout(() => setIsFirstPaint(false), 3000);
+      const timer = setTimeout(() => setIsFirstPaint(false), 5000);
       return () => clearTimeout(timer);
     }
   }, [isBuilderMode, isFirstPaint]);
