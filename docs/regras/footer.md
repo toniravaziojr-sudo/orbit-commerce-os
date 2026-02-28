@@ -343,10 +343,25 @@ const hiddenCount = configuredItems.length - validItems.length;
 
 ---
 
+## Otimização de Imagens (PageSpeed)
+
+> **REGRA:** Todas as imagens do footer (selos de segurança, formas de envio, lojas oficiais) DEVEM usar o helper `getLogoImageUrl()` de `src/lib/imageTransform.ts` para conversão automática via proxy wsrv.nl.
+
+| Seção | Helper | Tamanho | Atributos obrigatórios |
+|-------|--------|---------|------------------------|
+| Selos de Segurança | `getLogoImageUrl(url, 200)` | 200px WebP | `loading="lazy" decoding="async"` |
+| Formas de Envio | `getLogoImageUrl(url, 200)` | 200px WebP | `loading="lazy" decoding="async"` |
+| Lojas Oficiais | `getLogoImageUrl(url, 200)` | 200px WebP | `loading="lazy" decoding="async"` |
+
+**Impacto:** Reduz ~1.5-2MB de payload por página (PNGs 2000px → WebP 200px).
+
+---
+
 ## Histórico de Alterações
 
 | Data | Alteração |
 |------|-----------|
+| 2026-02-28 | **PERFORMANCE**: Selos, formas de envio e lojas oficiais agora usam `getLogoImageUrl()` com `loading="lazy"` e `decoding="async"` para otimização PageSpeed |
 | 2026-02-02 | **AJUSTE**: Bandeiras de pagamento agora são 30% menores que os outros selos para equilíbrio visual |
 | 2026-02-02 | **UNIFICAÇÃO**: Tamanhos de selos padronizados para todos os tipos (Pagamento, Segurança, Frete, Lojas) |
 | 2026-02-02 | Referência de dimensões (px) adicionada no UI do builder para orientar uploads |
