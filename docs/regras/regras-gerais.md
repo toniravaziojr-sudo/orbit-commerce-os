@@ -549,6 +549,62 @@ import { DateRangeFilter } from "@/components/ui/date-range-filter";
 
 ---
 
+## 🚀 Performance e Latência — Regras Estruturais
+
+> **REGRA OBRIGATÓRIA** — Aplica-se a toda implementação que envolve carregamento de dados ou processamento assíncrono.
+
+### Princípios
+
+| Princípio | Descrição |
+|-----------|-----------|
+| **Execução Paralela** | Edge Functions com múltiplas sub-tarefas DEVEM usar `Promise.allSettled()` para execução concorrente |
+| **Bootstrap Pattern** | Páginas que precisam de 3+ queries iniciais DEVEM consolidar em uma única Edge Function bootstrap |
+| **Cache Agressivo** | Dados que mudam raramente (settings, menus, templates) DEVEM usar `staleTime` ≥ 2 minutos |
+| **Batch Processing** | Processamento de listas DEVE usar batches concorrentes (max 5-10 paralelos) em vez de loops sequenciais |
+
+### Edge Functions — Padrão de Concorrência
+
+```typescript
+// ❌ ERRADO: Execução sequencial
+const result1 = await step1();
+const result2 = await step2();
+const result3 = await step3();
+
+// ✅ CORRETO: Execução paralela
+const [r1, r2, r3] = await Promise.allSettled([step1(), step2(), step3()]);
+```
+
+### Frontend — Cache Pattern
+
+```typescript
+// ✅ CORRETO: staleTime para dados estáveis
+useQuery({
+  queryKey: ['storefront-bootstrap', tenantSlug],
+  queryFn: fetchBootstrap,
+  staleTime: 2 * 60 * 1000, // 2 min
+  gcTime: 5 * 60 * 1000,    // 5 min
+});
+```
+
+### Edge Functions Otimizadas
+
+| Edge Function | Padrão | Descrição |
+|---------------|--------|-----------|
+| `scheduler-tick` | Hybrid Dispatcher | Steps 4-7 executam em paralelo via `Promise.allSettled` |
+| `reconcile-payments` | Concurrent Batches | Tenants processados em paralelo, pagamentos em batches de 5 |
+| `storefront-bootstrap` | Single-Request Bundle | 6+ queries em paralelo, retorna tudo em uma chamada |
+
+### Proibições
+
+| ❌ Proibido | ✅ Correto |
+|-------------|------------|
+| Loops `for...of` com `await` sequencial em Edge Functions | `Promise.allSettled()` para operações independentes |
+| Múltiplas queries individuais no frontend para dados iniciais | Agrupar em Edge Function bootstrap |
+| `staleTime: 0` para dados que mudam raramente | `staleTime` ≥ 2 minutos para settings/menus/templates |
+| Acesso direto a `auth.users` via client | Usar tabela `profiles` ou funções `SECURITY DEFINER` |
+
+---
+
 ## Regra de Imutabilidade
 
 | Regra | Descrição |
