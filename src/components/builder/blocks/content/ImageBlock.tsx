@@ -4,6 +4,7 @@
 
 import React from 'react';
 import { BlockRenderContext } from '@/lib/builder/types';
+import { getBlockImageUrl } from '@/lib/imageTransform';
 
 interface ImageBlockProps {
   imageDesktop?: string;
@@ -66,9 +67,11 @@ export function ImageBlock({
   linkUrl,
   context,
 }: ImageBlockProps) {
-  // Use actual images (with legacy fallback)
-  const desktopImage = imageDesktop || src;
-  const mobileImage = imageMobile || desktopImage;
+  // Use actual images (with legacy fallback) + optimize via transform
+  const rawDesktopImage = imageDesktop || src;
+  const rawMobileImage = imageMobile || rawDesktopImage;
+  const desktopImage = getBlockImageUrl(rawDesktopImage, 1200);
+  const mobileImage = getBlockImageUrl(rawMobileImage, 768);
   
   // Builder mode: use context.viewport state; Storefront: use <picture>
   const isBuilderMode = context?.viewport !== undefined;

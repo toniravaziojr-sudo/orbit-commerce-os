@@ -11,6 +11,7 @@ import { ShoppingCart, Check } from 'lucide-react';
 import { RatingSummary } from '@/components/storefront/RatingSummary';
 import { ProductCardBadges, DynamicBadge } from '@/components/storefront/product/ProductCardBadges';
 import { getPublicProductUrl } from '@/lib/publicUrls';
+import { getProductCardImageUrl } from '@/lib/imageTransform';
 import type { CategorySettings } from '@/hooks/usePageSettings';
 
 // Tipo de produto compatível com os blocos
@@ -64,10 +65,11 @@ const formatPrice = (price: number) => {
   }).format(price);
 };
 
-// Helper para obter imagem do produto
+// Helper para obter imagem do produto (otimizada via Supabase Image Transform)
 const getProductImage = (product: ProductCardProduct) => {
   const primary = product.product_images?.find(img => img.is_primary);
-  return primary?.url || product.product_images?.[0]?.url || '/placeholder.svg';
+  const rawUrl = primary?.url || product.product_images?.[0]?.url;
+  return getProductCardImageUrl(rawUrl);
 };
 
 export function ProductCard({
