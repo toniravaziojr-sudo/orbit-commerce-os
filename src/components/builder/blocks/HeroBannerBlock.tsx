@@ -90,12 +90,16 @@ export function HeroBannerBlock({
 
   // Safe access to current slide
   const currentSlide = safeSlides[currentIndex] || safeSlides[0];
-  const rawDesktopImage = currentSlide?.imageDesktop;
-  const rawMobileImage = currentSlide?.imageMobile || rawDesktopImage;
+  const rawDesktopImage = currentSlide?.imageDesktop?.trim() || '';
+  const rawMobileImage = currentSlide?.imageMobile?.trim() || rawDesktopImage;
   
-  // Apply image transforms for optimized WebP delivery
-  const desktopImage = getHeroBannerImageUrl(rawDesktopImage, 'desktop');
-  const mobileImage = getHeroBannerImageUrl(rawMobileImage, 'mobile');
+  // Determine the best available image (fallback mobile→desktop and vice-versa)
+  const effectiveDesktop = rawDesktopImage || rawMobileImage;
+  const effectiveMobile = rawMobileImage || rawDesktopImage;
+  
+  // Apply image transforms
+  const desktopImage = getHeroBannerImageUrl(effectiveDesktop, 'desktop');
+  const mobileImage = getHeroBannerImageUrl(effectiveMobile, 'mobile');
 
   const content = (
     <div className={cn(
@@ -104,26 +108,27 @@ export function HeroBannerBlock({
     )}>
       {/* Banner Image - Builder uses state-based selection; Storefront uses <picture> */}
       <div className="relative aspect-[21/9] md:aspect-[21/7]">
-        {rawDesktopImage ? (
+        {effectiveDesktop ? (
           isBuilderMode ? (
             // Builder mode: select image based on viewport state
             <img
-              src={isMobile && rawMobileImage ? mobileImage : desktopImage}
+              src={isMobile ? mobileImage : desktopImage}
               alt={currentSlide?.altText || `Banner ${currentIndex + 1}`}
               className="w-full h-full object-cover"
             />
           ) : (
             // Storefront mode: use <picture> for real responsive behavior
             <picture>
-              {rawMobileImage && rawMobileImage !== rawDesktopImage && (
+              {effectiveMobile && effectiveMobile !== effectiveDesktop && (
                 <source media="(max-width: 767px)" srcSet={mobileImage} />
               )}
               <img
                 src={desktopImage}
                 alt={currentSlide?.altText || `Banner ${currentIndex + 1}`}
                 className="w-full h-full object-cover"
-                fetchPriority="high"
-                decoding="async"
+                fetchPriority={currentIndex === 0 ? "high" : "auto"}
+                decoding={currentIndex === 0 ? "sync" : "async"}
+                loading={currentIndex === 0 ? "eager" : "lazy"}
                 width={1920}
                 height={686}
               />
