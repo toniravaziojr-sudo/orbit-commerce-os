@@ -213,6 +213,10 @@ export function BannerBlock({
                 src={currentDesktopImage}
                 alt={currentSlide?.altText || currentTitle || 'Banner'}
                 className="w-full h-full object-cover"
+                fetchPriority="high"
+                decoding="async"
+                width={1920}
+                height={686}
               />
             </picture>
           )

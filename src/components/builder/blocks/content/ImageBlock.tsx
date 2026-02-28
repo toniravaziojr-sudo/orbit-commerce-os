@@ -107,6 +107,8 @@ export function ImageBlock({
             <img 
               src={desktopImage} 
               alt={alt || 'Imagem'} 
+              loading="lazy"
+              decoding="async"
               style={{ 
                 width: '100%',
                 height: height === 'auto' ? 'auto' : (height || 'auto'),

@@ -46,13 +46,15 @@ export function CartPromoBanner({ config, location = 'cart_page' }: CartPromoBan
             alt="Promoção"
             className="w-full h-auto object-cover rounded-lg sf-show-mobile sf-hide-desktop"
             loading="lazy"
+            decoding="async"
           />
           {/* Desktop banner - visible only on desktop (container query) */}
           <img
             src={config.bannerDesktopUrl!}
             alt="Promoção"
-            className="w-full h-auto object-cover rounded-lg sf-hide-mobile sf-show-desktop"
             loading="lazy"
+            decoding="async"
+            className="w-full h-auto object-cover rounded-lg sf-hide-mobile sf-show-desktop"
           />
         </>
       );

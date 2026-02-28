@@ -120,30 +120,32 @@ import SupportCenter from "@/pages/SupportCenter";
 import AIPackages from "@/pages/AIPackages";
 import QAStorefront from "@/pages/admin/QAStorefront";
 
-// Storefront Pages
+// Storefront Pages — LAZY LOADED for code splitting (reduces initial JS bundle ~1.2MB)
 import { StorefrontLayout } from "@/components/storefront/StorefrontLayout";
 import { TenantStorefrontLayout } from "@/components/storefront/TenantStorefrontLayout";
-import StorefrontHome from "@/pages/storefront/StorefrontHome";
-import StorefrontCategory from "@/pages/storefront/StorefrontCategory";
-import StorefrontProduct from "@/pages/storefront/StorefrontProduct";
-import StorefrontPage from "@/pages/storefront/StorefrontPage";
-import StorefrontLandingPage from "@/pages/storefront/StorefrontLandingPage";
-import StorefrontAILandingPage from "@/pages/storefront/StorefrontAILandingPage";
-import StorefrontCart from "@/pages/storefront/StorefrontCart";
-import StorefrontCheckout from "@/pages/storefront/StorefrontCheckout";
-import StorefrontThankYou from "@/pages/storefront/StorefrontThankYou";
-import StorefrontMyOrders from "@/pages/storefront/StorefrontMyOrders";
-import StorefrontAccount from "@/pages/storefront/StorefrontAccount";
-import StorefrontAccountLogin from "@/pages/storefront/StorefrontAccountLogin";
-import StorefrontAccountForgotPassword from "@/pages/storefront/StorefrontAccountForgotPassword";
-import StorefrontOrdersList from "@/pages/storefront/StorefrontOrdersList";
-import StorefrontOrderDetail from "@/pages/storefront/StorefrontOrderDetail";
-import StorefrontResetPassword from "@/pages/storefront/StorefrontResetPassword";
-import StorefrontBlogPost from "@/pages/storefront/StorefrontBlogPost";
-import StorefrontBlog from "@/pages/storefront/StorefrontBlog";
-import StorefrontTracking from "@/pages/storefront/StorefrontTracking";
-import StorefrontQuiz from "@/pages/storefront/StorefrontQuiz";
-import StorefrontReview from "@/pages/storefront/StorefrontReview";
+import { lazy, Suspense } from "react";
+
+const StorefrontHome = lazy(() => import("@/pages/storefront/StorefrontHome"));
+const StorefrontCategory = lazy(() => import("@/pages/storefront/StorefrontCategory"));
+const StorefrontProduct = lazy(() => import("@/pages/storefront/StorefrontProduct"));
+const StorefrontPage = lazy(() => import("@/pages/storefront/StorefrontPage"));
+const StorefrontLandingPage = lazy(() => import("@/pages/storefront/StorefrontLandingPage"));
+const StorefrontAILandingPage = lazy(() => import("@/pages/storefront/StorefrontAILandingPage"));
+const StorefrontCart = lazy(() => import("@/pages/storefront/StorefrontCart"));
+const StorefrontCheckout = lazy(() => import("@/pages/storefront/StorefrontCheckout"));
+const StorefrontThankYou = lazy(() => import("@/pages/storefront/StorefrontThankYou"));
+const StorefrontMyOrders = lazy(() => import("@/pages/storefront/StorefrontMyOrders"));
+const StorefrontAccount = lazy(() => import("@/pages/storefront/StorefrontAccount"));
+const StorefrontAccountLogin = lazy(() => import("@/pages/storefront/StorefrontAccountLogin"));
+const StorefrontAccountForgotPassword = lazy(() => import("@/pages/storefront/StorefrontAccountForgotPassword"));
+const StorefrontOrdersList = lazy(() => import("@/pages/storefront/StorefrontOrdersList"));
+const StorefrontOrderDetail = lazy(() => import("@/pages/storefront/StorefrontOrderDetail"));
+const StorefrontResetPassword = lazy(() => import("@/pages/storefront/StorefrontResetPassword"));
+const StorefrontBlogPost = lazy(() => import("@/pages/storefront/StorefrontBlogPost"));
+const StorefrontBlog = lazy(() => import("@/pages/storefront/StorefrontBlog"));
+const StorefrontTracking = lazy(() => import("@/pages/storefront/StorefrontTracking"));
+const StorefrontQuiz = lazy(() => import("@/pages/storefront/StorefrontQuiz"));
+const StorefrontReview = lazy(() => import("@/pages/storefront/StorefrontReview"));
 
 // Helper to check if we're on a tenant host (custom domain or platform subdomain)
 import { isPlatformSubdomain, isAppDomain, SAAS_CONFIG } from "@/lib/canonicalDomainService";
