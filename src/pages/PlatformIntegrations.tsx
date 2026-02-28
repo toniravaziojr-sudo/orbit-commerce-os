@@ -6,11 +6,13 @@ import { WhatsAppPlatformSettings } from "@/components/integrations/WhatsAppPlat
 import { FiscalPlatformSettings } from "@/components/integrations/FiscalPlatformSettings";
 import { LogisticsPlatformSettings } from "@/components/integrations/LogisticsPlatformSettings";
 import { AIPlatformSettings } from "@/components/integrations/AIPlatformSettings";
-
 import { MeliPlatformSettings } from "@/components/integrations/MeliPlatformSettings";
 import { ShopeePlatformSettings } from "@/components/integrations/ShopeePlatformSettings";
 import { SmokeTestDialog } from "@/components/integrations/SmokeTestDialog";
-import { Shield, MessageCircle, Mail, FileText, Truck, Bot, LayoutGrid, Send, Calendar, ShoppingBag, Store, CreditCard } from "lucide-react";
+import { MetaPlatformSettings } from "@/components/integrations/platform/MetaPlatformSettings";
+import { GooglePlatformSettings } from "@/components/integrations/platform/GooglePlatformSettings";
+import { TikTokPlatformSettings } from "@/components/integrations/platform/TikTokPlatformSettings";
+import { Shield, MessageCircle, Mail, FileText, Truck, Bot, LayoutGrid, Send, ShoppingBag, Store, CreditCard, Globe, Music2 } from "lucide-react";
 import { MercadoPagoPlatformSettings } from "@/components/integrations/platform/MercadoPagoPlatformSettings";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -95,6 +97,18 @@ export default function PlatformIntegrations() {
             <Bot className="h-4 w-4" />
             <span className="hidden sm:inline">IA</span>
           </TabsTrigger>
+          <TabsTrigger value="meta" className="gap-2">
+            <Globe className="h-4 w-4" />
+            <span className="hidden sm:inline">Meta</span>
+          </TabsTrigger>
+          <TabsTrigger value="google" className="gap-2">
+            <Globe className="h-4 w-4" />
+            <span className="hidden sm:inline">Google</span>
+          </TabsTrigger>
+          <TabsTrigger value="tiktok" className="gap-2">
+            <Music2 className="h-4 w-4" />
+            <span className="hidden sm:inline">TikTok</span>
+          </TabsTrigger>
           <TabsTrigger value="mercadolivre" className="gap-2">
             <ShoppingBag className="h-4 w-4" />
             <span className="hidden sm:inline">Mercado Livre</span>
@@ -131,6 +145,18 @@ export default function PlatformIntegrations() {
 
         <TabsContent value="ai">
           <AIPlatformSettings />
+        </TabsContent>
+
+        <TabsContent value="meta">
+          <MetaPlatformSettings />
+        </TabsContent>
+
+        <TabsContent value="google">
+          <GooglePlatformSettings />
+        </TabsContent>
+
+        <TabsContent value="tiktok">
+          <TikTokPlatformSettings />
         </TabsContent>
 
 
