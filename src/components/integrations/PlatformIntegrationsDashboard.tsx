@@ -62,6 +62,15 @@ export function PlatformIntegrationsDashboard({ onNavigateToTab }: PlatformInteg
     openai: 'ai',
     zapi: 'whatsapp',
     whatsapp_meta: 'whatsapp',
+    meta_platform: 'meta',
+    google_platform: 'google',
+    tiktok_platform: 'tiktok',
+    shopee_platform: 'shopee',
+    mercadolivre: 'mercadolivre',
+    mercadopago_platform: 'mercadopago',
+    nuvem_fiscal: 'fiscal',
+    fal_ai: 'ai',
+    gemini: 'ai',
   };
 
   const getStatusBadge = (status: string) => {

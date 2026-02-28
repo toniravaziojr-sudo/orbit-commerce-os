@@ -118,6 +118,18 @@ serve(async (req) => {
     const falApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'FAL_API_KEY');
     // Google Gemini (Geração de Imagens Nativa)
     const geminiApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'GEMINI_API_KEY');
+    // Google (Ads, Analytics, YouTube, etc.)
+    const googleClientId = await checkCredential(supabaseUrl, supabaseServiceKey, 'GOOGLE_CLIENT_ID');
+    const googleClientSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'GOOGLE_CLIENT_SECRET');
+    // TikTok Ads
+    const tiktokAppId = await checkCredential(supabaseUrl, supabaseServiceKey, 'TIKTOK_APP_ID');
+    const tiktokAppSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'TIKTOK_APP_SECRET');
+    // TikTok Shop
+    const tiktokShopAppKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'TIKTOK_SHOP_APP_KEY');
+    const tiktokShopAppSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'TIKTOK_SHOP_APP_SECRET');
+    // Shopee
+    const shopeePartnerId = await checkCredential(supabaseUrl, supabaseServiceKey, 'SHOPEE_PARTNER_ID');
+    const shopeePartnerKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'SHOPEE_PARTNER_KEY');
     
     const secrets: Record<string, IntegrationConfig & { previews?: Record<string, string>; sources?: Record<string, string> }> = {
       nuvem_fiscal: {
@@ -368,6 +380,84 @@ serve(async (req) => {
         },
         sources: {
           GEMINI_API_KEY: geminiApiKey.source || '',
+        },
+      },
+      meta_platform: {
+        name: 'Meta (Facebook/Instagram)',
+        description: 'OAuth, Pixel, Catálogo, Ads e WhatsApp Cloud API',
+        icon: 'Globe',
+        docs: 'https://developers.facebook.com/',
+        secrets: {
+          META_APP_ID: metaAppId.exists,
+          META_APP_SECRET: metaAppSecret.exists,
+        },
+        previews: {
+          META_APP_ID: metaAppId.preview || '',
+          META_APP_SECRET: metaAppSecret.preview || '',
+        },
+        sources: {
+          META_APP_ID: metaAppId.source || '',
+          META_APP_SECRET: metaAppSecret.source || '',
+        },
+      },
+      google_platform: {
+        name: 'Google (Ads, YouTube, Analytics)',
+        description: 'OAuth para Google Ads, YouTube, Analytics, Merchant, Search Console',
+        icon: 'Globe',
+        docs: 'https://console.cloud.google.com/',
+        secrets: {
+          GOOGLE_CLIENT_ID: googleClientId.exists,
+          GOOGLE_CLIENT_SECRET: googleClientSecret.exists,
+        },
+        previews: {
+          GOOGLE_CLIENT_ID: googleClientId.preview || '',
+          GOOGLE_CLIENT_SECRET: googleClientSecret.preview || '',
+        },
+        sources: {
+          GOOGLE_CLIENT_ID: googleClientId.source || '',
+          GOOGLE_CLIENT_SECRET: googleClientSecret.source || '',
+        },
+      },
+      tiktok_platform: {
+        name: 'TikTok (Ads + Shop)',
+        description: 'OAuth para TikTok Ads (Pixel/CAPI) e TikTok Shop (Catálogo/Pedidos)',
+        icon: 'Music',
+        docs: 'https://partner.tiktokshop.com/',
+        secrets: {
+          TIKTOK_APP_ID: tiktokAppId.exists,
+          TIKTOK_APP_SECRET: tiktokAppSecret.exists,
+          TIKTOK_SHOP_APP_KEY: tiktokShopAppKey.exists,
+          TIKTOK_SHOP_APP_SECRET: tiktokShopAppSecret.exists,
+        },
+        previews: {
+          TIKTOK_APP_ID: tiktokAppId.preview || '',
+          TIKTOK_APP_SECRET: tiktokAppSecret.preview || '',
+          TIKTOK_SHOP_APP_KEY: tiktokShopAppKey.preview || '',
+          TIKTOK_SHOP_APP_SECRET: tiktokShopAppSecret.preview || '',
+        },
+        sources: {
+          TIKTOK_APP_ID: tiktokAppId.source || '',
+          TIKTOK_APP_SECRET: tiktokAppSecret.source || '',
+          TIKTOK_SHOP_APP_KEY: tiktokShopAppKey.source || '',
+          TIKTOK_SHOP_APP_SECRET: tiktokShopAppSecret.source || '',
+        },
+      },
+      shopee_platform: {
+        name: 'Shopee',
+        description: 'OAuth para marketplace Shopee (Partner ID + Partner Key)',
+        icon: 'Store',
+        docs: 'https://open.shopee.com/',
+        secrets: {
+          SHOPEE_PARTNER_ID: shopeePartnerId.exists,
+          SHOPEE_PARTNER_KEY: shopeePartnerKey.exists,
+        },
+        previews: {
+          SHOPEE_PARTNER_ID: shopeePartnerId.preview || '',
+          SHOPEE_PARTNER_KEY: shopeePartnerKey.preview || '',
+        },
+        sources: {
+          SHOPEE_PARTNER_ID: shopeePartnerId.source || '',
+          SHOPEE_PARTNER_KEY: shopeePartnerKey.source || '',
         },
       },
     };
