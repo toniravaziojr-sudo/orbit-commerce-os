@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import type { BlockNode } from '@/lib/builder/types';
 import { FooterNewsletterForm } from './footer/FooterNewsletterForm';
 import { paymentSvgPresets, securitySvgPresets, svgToDataUri } from '@/lib/builder/svg-presets';
+import { getLogoImageUrl } from '@/lib/imageTransform';
 
 // TikTok icon component (not in lucide)
 function TikTokIcon({ className }: { className?: string }) {
@@ -1366,17 +1367,21 @@ export function StorefrontFooterContent({
                         onClick={e => isEditing && e.preventDefault()}
                       >
                         <img
-                          src={item.imageUrl}
+                          src={getLogoImageUrl(item.imageUrl, 200)}
                           alt={`Selo ${index + 1}`}
                           className={`${badgeSizeClasses[badgeSize]} w-auto object-contain`}
+                          loading="lazy"
+                          decoding="async"
                         />
                       </a>
                     ) : (
                       <img
                         key={index}
-                        src={item.imageUrl}
+                        src={getLogoImageUrl(item.imageUrl, 200)}
                         alt={`Selo ${index + 1}`}
                         className={`${badgeSizeClasses[badgeSize]} w-auto object-contain`}
+                        loading="lazy"
+                        decoding="async"
                       />
                     )
                   )}
@@ -1397,9 +1402,11 @@ export function StorefrontFooterContent({
                   {shippingMethods.items.map((item, index) => (
                     <img
                       key={index}
-                      src={item.imageUrl}
+                      src={getLogoImageUrl(item.imageUrl, 200)}
                       alt={`Envio ${index + 1}`}
                       className={`${badgeSizeClasses[badgeSize]} w-auto object-contain`}
+                      loading="lazy"
+                      decoding="async"
                     />
                   ))}
                 </div>
@@ -1425,9 +1432,11 @@ export function StorefrontFooterContent({
                       onClick={e => isEditing && e.preventDefault()}
                     >
                       <img
-                        src={item.imageUrl}
+                        src={getLogoImageUrl(item.imageUrl, 200)}
                         alt={`Loja ${index + 1}`}
                         className={`${badgeSizeClasses[badgeSize]} w-auto object-contain hover:opacity-80 transition-opacity`}
+                        loading="lazy"
+                        decoding="async"
                       />
                     </a>
                   ))}
