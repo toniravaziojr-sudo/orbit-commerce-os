@@ -717,6 +717,8 @@ O helper centralizado é `src/lib/imageTransform.ts`:
 | HeroBanner mobile | `getHeroBannerImageUrl(url, 'mobile')` | 768px | 75 | WebP |
 | ImageBlock | `getBlockImageUrl(url, maxWidth)` | custom | 80 | WebP |
 | Logo (header/footer) | `getLogoImageUrl(url, 200)` | 200px | 85 | WebP |
+| Footer selos/badges | `getLogoImageUrl(url, 200)` | 200px | 85 | WebP |
+| FeaturedCategories thumbs | `getLogoImageUrl(url, 200)` | 200px | 85 | WebP |
 
 **Regras:**
 - **NUNCA** chamar URLs de storage diretamente em `<img>` — sempre usar os helpers
@@ -737,6 +739,7 @@ O `MarketingTrackerProvider` usa `requestIdleCallback` (fallback `setTimeout 2s`
 
 | Data | Alteração |
 |------|-----------|
+| 2026-02-28 | **PERFORMANCE**: Footer selos e FeaturedCategories thumbs agora usam `getLogoImageUrl()` com lazy loading |
 | 2026-02-28 | Image Proxy: wsrv.nl para auto-resize + WebP + CDN cache em todas as imagens Supabase |
 | 2026-02-28 | PageSpeed Mobile: LCP preload, defer marketing scripts, autoplay defer 3s |
 | 2025-02-28 | PageSpeed: code splitting, lazy loading, fetchPriority, width/height em imagens |
