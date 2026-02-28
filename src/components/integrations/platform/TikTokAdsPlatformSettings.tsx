@@ -3,24 +3,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle2, AlertCircle, ExternalLink, Info, Loader2, Music2 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { usePlatformIntegrationStatus } from "@/hooks/usePlatformSecretsStatus";
 import { CredentialEditor } from "../CredentialEditor";
 
 export function TikTokAdsPlatformSettings() {
-  const { data: credentials, isLoading } = useQuery({
-    queryKey: ["platform-secrets-status", "tiktok-ads"],
-    queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Não autenticado");
-      const response = await supabase.functions.invoke("platform-secrets-check", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (response.error) throw response.error;
-      if (!response.data.success) throw new Error(response.data.error);
-      return (response.data.integrations as any[]).find((i) => i.key === "tiktok_ads_platform") || null;
-    },
-  });
+  const { data: credentials, isLoading } = usePlatformIntegrationStatus("tiktok_ads_platform");
 
   const appIdConfigured = !!credentials?.secrets?.TIKTOK_APP_ID;
   const appSecretConfigured = !!credentials?.secrets?.TIKTOK_APP_SECRET;

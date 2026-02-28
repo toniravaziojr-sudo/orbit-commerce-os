@@ -3,30 +3,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle2, AlertCircle, ExternalLink, Globe, Info, Loader2 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { usePlatformIntegrationStatus } from "@/hooks/usePlatformSecretsStatus";
 import { CredentialEditor } from "../CredentialEditor";
 
 export function MetaPlatformSettings() {
-  const { data: secretsStatus, isLoading } = useQuery({
-    queryKey: ["platform-secrets-status", "meta"],
-    queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Não autenticado");
-
-      const response = await supabase.functions.invoke("platform-secrets-check", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-
-      if (response.error) throw response.error;
-      if (!response.data.success) throw new Error(response.data.error);
-
-      const meta = response.data.integrations?.find(
-        (i: any) => i.key === "meta_platform" || i.key === "whatsapp_meta"
-      );
-      return meta || null;
-    },
-  });
+  const { data: secretsStatus, isLoading } = usePlatformIntegrationStatus("meta_platform");
 
   const appIdConfigured = !!secretsStatus?.secrets?.META_APP_ID;
   const appSecretConfigured = !!secretsStatus?.secrets?.META_APP_SECRET;

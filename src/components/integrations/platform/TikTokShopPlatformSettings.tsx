@@ -2,24 +2,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle2, AlertCircle, ExternalLink, Info, Loader2, ShoppingBag } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { usePlatformIntegrationStatus } from "@/hooks/usePlatformSecretsStatus";
 import { CredentialEditor } from "../CredentialEditor";
 
 export function TikTokShopPlatformSettings() {
-  const { data: credentials, isLoading } = useQuery({
-    queryKey: ["platform-secrets-status", "tiktok-shop"],
-    queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Não autenticado");
-      const response = await supabase.functions.invoke("platform-secrets-check", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (response.error) throw response.error;
-      if (!response.data.success) throw new Error(response.data.error);
-      return (response.data.integrations as any[]).find((i) => i.key === "tiktok_shop_platform") || null;
-    },
-  });
+  const { data: credentials, isLoading } = usePlatformIntegrationStatus("tiktok_shop_platform");
 
   const appKeyConfigured = !!credentials?.secrets?.TIKTOK_SHOP_APP_KEY;
   const appSecretConfigured = !!credentials?.secrets?.TIKTOK_SHOP_APP_SECRET;

@@ -2,36 +2,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Bot, CheckCircle2, AlertCircle, ExternalLink, Info, Shield, Flame, Sparkles, Cpu, Image } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { Loader2 } from "lucide-react";
+import { Bot, CheckCircle2, AlertCircle, ExternalLink, Info, Shield, Flame, Sparkles, Cpu, Image, Loader2 } from "lucide-react";
+import { usePlatformSecretsStatus } from "@/hooks/usePlatformSecretsStatus";
 import { CredentialEditor } from "./CredentialEditor";
 
 export function AIPlatformSettings() {
-  const { data: secretsStatus, isLoading } = useQuery({
-    queryKey: ['platform-secrets-status', 'ai'],
-    queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Não autenticado');
+  const { data: allIntegrations, isLoading } = usePlatformSecretsStatus();
 
-      const response = await supabase.functions.invoke('platform-secrets-check', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-
-      if (response.error) throw response.error;
-      if (!response.data.success) throw new Error(response.data.error);
-      
-      const firecrawl = response.data.integrations?.find((i: any) => i.key === 'firecrawl');
-      const lovableAi = response.data.integrations?.find((i: any) => i.key === 'lovable_ai');
-      const openai = response.data.integrations?.find((i: any) => i.key === 'openai');
-      const gemini = response.data.integrations?.find((i: any) => i.key === 'gemini');
-      
-      return { firecrawl, lovableAi, openai, gemini };
-    },
-  });
+  const secretsStatus = {
+    firecrawl: allIntegrations?.find((i) => i.key === 'firecrawl'),
+    lovableAi: allIntegrations?.find((i) => i.key === 'lovable_ai'),
+    openai: allIntegrations?.find((i) => i.key === 'openai'),
+    gemini: allIntegrations?.find((i) => i.key === 'gemini'),
+  };
 
   const firecrawlConfigured = secretsStatus?.firecrawl?.status === 'configured';
   const openaiConfigured = secretsStatus?.openai?.status === 'configured';
