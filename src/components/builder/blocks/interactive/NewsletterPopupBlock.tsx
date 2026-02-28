@@ -261,7 +261,11 @@ export function NewsletterPopupBlock({
       >
         <button 
           onClick={handleClose}
-          className="absolute top-2 right-2 p-1 rounded-full hover:bg-muted"
+          className="absolute top-2 right-2 p-1.5 rounded-full hover:bg-muted z-10"
+          style={{
+            backgroundColor: buttonBgColor || '#e41111',
+            color: buttonTextColor || '#ffffff',
+          }}
         >
           <X className="w-4 h-4" />
         </button>
@@ -321,11 +325,11 @@ export function NewsletterPopupBlock({
        <DialogPortal>
         <DialogOverlay />
         <DialogPrimitive.Content
-          className={cn(
+        className={cn(
             "fixed left-[50%] top-[50%] z-50 grid w-full translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
-            "sm:max-w-md max-w-[92vw] rounded-xl p-6",
+            "sm:max-w-md max-w-[92vw] rounded-xl p-6 overflow-visible",
             layout === 'fullscreen' && "sm:max-w-3xl",
-            layout === 'side-image' && imageUrl && "sm:max-w-2xl p-0 overflow-hidden"
+            layout === 'side-image' && imageUrl && "sm:max-w-2xl p-0"
           )}
           style={containerStyle}
           onInteractOutside={handleClose}
@@ -334,7 +338,7 @@ export function NewsletterPopupBlock({
           <button
             type="button"
             onClick={handleClose}
-            className="absolute -right-2 -top-2 z-[60] flex items-center justify-center w-7 h-7 rounded-full shadow-lg transition-transform hover:scale-110 focus:outline-none"
+            className="absolute right-2 top-2 z-[60] flex items-center justify-center w-8 h-8 rounded-full shadow-lg transition-transform hover:scale-110 focus:outline-none"
             style={{
               backgroundColor: buttonBgColor || '#e41111',
               color: buttonTextColor || '#ffffff',
