@@ -692,3 +692,6 @@ verify_jwt = false
 
 [functions.ai-generate-related-products]
 verify_jwt = false
+
+[functions.storefront-bootstrap]
+verify_jwt = false

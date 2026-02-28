@@ -1,25 +1,26 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
+const VERSION = "v2.0.0"; // Parallel dispatcher: steps 4-7 run concurrently via Promise.allSettled
+// ===========================================================
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
 // Tempo de abandono em minutos baseado em INATIVIDADE (last_seen_at)
-// Produção = 30 min, Preview/Dev = usar env CHECKOUT_ABANDON_MINUTES para testes rápidos
 const ABANDON_THRESHOLD_MINUTES = parseInt(Deno.env.get('CHECKOUT_ABANDON_MINUTES') || '30', 10);
 
 // Security: Verify the request is from an authorized source
 async function isAuthorizedRequest(req: Request): Promise<boolean> {
-  // Check if this is a scheduled invocation (internal Supabase call)
   const isScheduledInvocation = req.headers.get('x-supabase-function-version') !== null;
   if (isScheduledInvocation) {
     console.log('[scheduler-tick] Authorized: Scheduled invocation');
     return true;
   }
   
-  // For manual calls, verify service role or admin JWT
   const authHeader = req.headers.get('authorization');
   if (!authHeader) {
     console.log('[scheduler-tick] Unauthorized: No authorization header');
@@ -29,33 +30,26 @@ async function isAuthorizedRequest(req: Request): Promise<boolean> {
   const token = authHeader.replace('Bearer ', '');
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   
-  // Try multiple possible env var names for anon key
   const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') 
     || Deno.env.get('SUPABASE_PUBLISHABLE_KEY') 
     || '';
   
-  // Allow service role key (for internal system calls / pg_cron)
   if (token === supabaseServiceKey) {
     console.log('[scheduler-tick] Authorized: Service role key');
     return true;
   }
   
-  // Allow anon key when called from pg_cron/pg_net (scheduled cron job)
-  // pg_cron typically sends the anon key in Authorization header
   if (supabaseAnonKey && token === supabaseAnonKey) {
     console.log('[scheduler-tick] Authorized: Anon key (pg_cron scheduled call)');
     return true;
   }
   
-  // Also check if the token is the hardcoded anon key from pg_cron job
-  // This is a fallback for cases where env vars aren't matching
   const expectedAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qc3NlemZqaGR2dm5jc3F5aHlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU1ODcyMDksImV4cCI6MjA4MTE2MzIwOX0.xijqzFrwy221qrnnwU2PAH7Kk6Qm2AlfXhbk6uEVAVg';
   if (token === expectedAnonKey) {
     console.log('[scheduler-tick] Authorized: Matched known anon key from pg_cron');
     return true;
   }
   
-  // Verify JWT and check for admin/owner role
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -66,7 +60,6 @@ async function isAuthorizedRequest(req: Request): Promise<boolean> {
       return false;
     }
     
-    // Check if user has owner or admin role in any tenant
     const { data: roles } = await supabase
       .from('user_roles')
       .select('role')
@@ -118,8 +111,6 @@ async function runAbandonSweep(supabaseUrl: string, supabaseServiceKey: string):
     const thresholdTime = new Date(Date.now() - ABANDON_THRESHOLD_MINUTES * 60 * 1000).toISOString();
     console.log(`[abandon-sweep] Threshold: ${ABANDON_THRESHOLD_MINUTES} min. Looking for sessions inactive before ${thresholdTime}`);
 
-    // Buscar sessões ativas COM contato capturado
-    // Filtro: status=active, contact_captured_at IS NOT NULL, order_id IS NULL
     const selectUrl = `${supabaseUrl}/rest/v1/checkout_sessions?status=eq.active&order_id=is.null&contact_captured_at=not.is.null&limit=100&select=id,tenant_id,customer_email,customer_phone,customer_name,total_estimated,items_snapshot,started_at,last_seen_at,contact_captured_at`;
     
     const fetchResponse = await fetch(selectUrl, {
@@ -148,10 +139,8 @@ async function runAbandonSweep(supabaseUrl: string, supabaseServiceKey: string):
     console.log(`[abandon-sweep] Found ${activeSessions.length} active sessions to evaluate`);
 
     const now = new Date();
-    const nowIso = now.toISOString();
     const thresholdMs = ABANDON_THRESHOLD_MINUTES * 60 * 1000;
 
-    // Avaliar cada sessão baseado em last_activity_at = COALESCE(last_seen_at, contact_captured_at, started_at)
     const sessionsToAbandon = activeSessions.filter(session => {
       const lastActivity = session.last_seen_at || session.contact_captured_at || session.started_at;
       const lastActivityTime = new Date(lastActivity).getTime();
@@ -172,7 +161,6 @@ async function runAbandonSweep(supabaseUrl: string, supabaseServiceKey: string):
 
     for (const session of sessionsToAbandon) {
       try {
-        // Marcar como abandonado via REST
         const updateUrl = `${supabaseUrl}/rest/v1/checkout_sessions?id=eq.${session.id}&status=eq.active`;
         const updateResponse = await fetch(updateUrl, {
           method: 'PATCH',
@@ -197,7 +185,6 @@ async function runAbandonSweep(supabaseUrl: string, supabaseServiceKey: string):
 
         stats.sessions_abandoned++;
 
-        // Emitir evento checkout.abandoned (idempotente) via REST
         try {
           const idempotencyKey = `checkout.abandoned:${session.id}`;
           const eventUrl = `${supabaseUrl}/rest/v1/events_inbox`;
@@ -231,7 +218,6 @@ async function runAbandonSweep(supabaseUrl: string, supabaseServiceKey: string):
           stats.events_emitted++;
           console.log(`[abandon-sweep] Session ${session.id} abandoned, event emitted`);
         } catch (eventError) {
-          // Ignorar erro de duplicidade (evento já existia)
           console.log(`[abandon-sweep] Event for session ${session.id} already exists or error:`, eventError);
         }
       } catch (sessionError) {
@@ -318,13 +304,42 @@ interface AggregatedStats {
   passes: TickStats[];
 }
 
+// Helper: call a sub-function and return typed result
+async function callSubFunction(
+  supabaseUrl: string,
+  supabaseServiceKey: string,
+  functionName: string,
+  body: Record<string, unknown> = {}
+): Promise<{ ok: boolean; data?: any; error?: string }> {
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/${functionName}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseServiceKey}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return { ok: true, data };
+    } else {
+      const errorText = await response.text();
+      return { ok: false, error: `${response.status} - ${errorText}` };
+    }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Security check: Only allow authorized requests
+  console.log(`[scheduler-tick][${VERSION}] Request received`);
+
   const authorized = await isAuthorizedRequest(req);
   if (!authorized) {
     console.log('[scheduler-tick] Request rejected: Unauthorized');
@@ -340,9 +355,7 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
-    // Parse optional parameters
     let body: { passes?: number; process_limit?: number; run_limit?: number } = {};
     try {
       body = await req.json();
@@ -350,7 +363,7 @@ serve(async (req) => {
       // No body or invalid JSON, use defaults
     }
 
-    const passes = body.passes ?? 2; // Default 2 passes per tick (for 1-min cron = ~30s effective)
+    const passes = body.passes ?? 2;
     const processLimit = body.process_limit ?? 50;
     const runLimit = body.run_limit ?? 50;
 
@@ -375,48 +388,21 @@ serve(async (req) => {
       const passStats: TickStats = {
         tick_at: new Date().toISOString(),
         pass,
-        process_events: {
-          processed: 0,
-          ignored: 0,
-          errors: 0,
-          notifications_created: 0,
-        },
-        run_notifications: {
-          claimed: 0,
-          sent: 0,
-          retrying: 0,
-          failed: 0,
-          errors: 0,
-        },
-        abandon_sweep: {
-          sessions_abandoned: 0,
-          events_emitted: 0,
-          errors: 0,
-        },
-        reconcile_payments: {
-          checked: 0,
-          updated: 0,
-          unchanged: 0,
-          errors: 0,
-        },
-        tracking_poll: {
-          polled: 0,
-          updated: 0,
-          errors_count: 0,
-        },
-        scheduled_emails: {
-          processed: 0,
-          sent: 0,
-          failed: 0,
-          skipped: 0,
-        },
-        creative_poll: {
-          resumed: 0,
-          errors: 0,
-        },
+        process_events: { processed: 0, ignored: 0, errors: 0, notifications_created: 0 },
+        run_notifications: { claimed: 0, sent: 0, retrying: 0, failed: 0, errors: 0 },
+        abandon_sweep: { sessions_abandoned: 0, events_emitted: 0, errors: 0 },
+        reconcile_payments: { checked: 0, updated: 0, unchanged: 0, errors: 0 },
+        tracking_poll: { polled: 0, updated: 0, errors_count: 0 },
+        scheduled_emails: { processed: 0, sent: 0, failed: 0, skipped: 0 },
+        creative_poll: { resumed: 0, errors: 0 },
       };
 
-      // --- Step 1: Abandon Sweep (check for abandoned checkouts) ---
+      // ====================================================================
+      // PHASE 1: Sequential pipeline (order matters)
+      // abandon-sweep → process-events → run-notifications
+      // ====================================================================
+
+      // --- Step 1: Abandon Sweep ---
       try {
         console.log(`[scheduler-tick] Running abandon sweep...`);
         passStats.abandon_sweep = await runAbandonSweep(supabaseUrl, supabaseServiceKey);
@@ -426,32 +412,21 @@ serve(async (req) => {
         passStats.abandon_sweep.errors = 1;
       }
 
-      // --- Step 2: Call process-events ---
+      // --- Step 2: Process Events ---
       try {
         console.log(`[scheduler-tick] Calling process-events with limit=${processLimit}`);
-        const processResponse = await fetch(`${supabaseUrl}/functions/v1/process-events`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseServiceKey}`,
-          },
-          body: JSON.stringify({ limit: processLimit }),
-        });
-
-        if (processResponse.ok) {
-          const processResult = await processResponse.json();
-          console.log(`[scheduler-tick] process-events result:`, processResult);
-          
-          passStats.process_events.processed = processResult.processed_count ?? 0;
-          passStats.process_events.ignored = processResult.ignored_count ?? 0;
-          passStats.process_events.notifications_created = processResult.notifications_created ?? 0;
-          
+        const result = await callSubFunction(supabaseUrl, supabaseServiceKey, 'process-events', { limit: processLimit });
+        
+        if (result.ok) {
+          console.log(`[scheduler-tick] process-events result:`, result.data);
+          passStats.process_events.processed = result.data.processed_count ?? 0;
+          passStats.process_events.ignored = result.data.ignored_count ?? 0;
+          passStats.process_events.notifications_created = result.data.notifications_created ?? 0;
           aggregatedTotals.events_processed += passStats.process_events.processed;
           aggregatedTotals.events_ignored += passStats.process_events.ignored;
           aggregatedTotals.notifications_created += passStats.process_events.notifications_created;
         } else {
-          const errorText = await processResponse.text();
-          console.error(`[scheduler-tick] process-events error: ${processResponse.status} - ${errorText}`);
+          console.error(`[scheduler-tick] process-events error: ${result.error}`);
           passStats.process_events.errors = 1;
         }
       } catch (error) {
@@ -459,33 +434,22 @@ serve(async (req) => {
         passStats.process_events.errors = 1;
       }
 
-      // --- Step 3: Call run-notifications ---
+      // --- Step 3: Run Notifications ---
       try {
         console.log(`[scheduler-tick] Calling run-notifications with limit=${runLimit}`);
-        const runResponse = await fetch(`${supabaseUrl}/functions/v1/run-notifications`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseServiceKey}`,
-          },
-          body: JSON.stringify({ limit: runLimit }),
-        });
-
-        if (runResponse.ok) {
-          const runResult = await runResponse.json();
-          console.log(`[scheduler-tick] run-notifications result:`, runResult);
-          
-          passStats.run_notifications.claimed = runResult.claimed_count ?? 0;
-          passStats.run_notifications.sent = runResult.processed_success ?? 0;
-          passStats.run_notifications.retrying = runResult.scheduled_retries ?? 0;
-          passStats.run_notifications.failed = runResult.failed_final ?? 0;
-          
+        const result = await callSubFunction(supabaseUrl, supabaseServiceKey, 'run-notifications', { limit: runLimit });
+        
+        if (result.ok) {
+          console.log(`[scheduler-tick] run-notifications result:`, result.data);
+          passStats.run_notifications.claimed = result.data.claimed_count ?? 0;
+          passStats.run_notifications.sent = result.data.processed_success ?? 0;
+          passStats.run_notifications.retrying = result.data.scheduled_retries ?? 0;
+          passStats.run_notifications.failed = result.data.failed_final ?? 0;
           aggregatedTotals.notifications_sent += passStats.run_notifications.sent;
           aggregatedTotals.notifications_retrying += passStats.run_notifications.retrying;
           aggregatedTotals.notifications_failed += passStats.run_notifications.failed;
         } else {
-          const errorText = await runResponse.text();
-          console.error(`[scheduler-tick] run-notifications error: ${runResponse.status} - ${errorText}`);
+          console.error(`[scheduler-tick] run-notifications error: ${result.error}`);
           passStats.run_notifications.errors = 1;
         }
       } catch (error) {
@@ -493,140 +457,91 @@ serve(async (req) => {
         passStats.run_notifications.errors = 1;
       }
 
-      // --- Step 4: Call reconcile-payments (only on first pass to avoid hammering) ---
+      // ====================================================================
+      // PHASE 2: Parallel dispatcher (independent tasks, only pass 1)
+      // reconcile-payments, tracking-poll, process-scheduled-emails, creative-process
+      // ALL run concurrently via Promise.allSettled
+      // ====================================================================
       if (pass === 1) {
-        try {
-          console.log(`[scheduler-tick] Calling reconcile-payments...`);
-          const reconcileResponse = await fetch(`${supabaseUrl}/functions/v1/reconcile-payments`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${supabaseServiceKey}`,
-            },
-            body: JSON.stringify({ limit: 20 }),
-          });
+        console.log(`[scheduler-tick] Starting parallel phase (4 tasks)...`);
+        const parallelStart = Date.now();
 
-          if (reconcileResponse.ok) {
-            const reconcileResult = await reconcileResponse.json();
-            console.log(`[scheduler-tick] reconcile-payments result:`, reconcileResult);
-            
-            passStats.reconcile_payments.checked = reconcileResult.stats?.checked ?? 0;
-            passStats.reconcile_payments.updated = reconcileResult.stats?.updated ?? 0;
-            passStats.reconcile_payments.unchanged = reconcileResult.stats?.unchanged ?? 0;
-            passStats.reconcile_payments.errors = reconcileResult.stats?.errors ?? 0;
-            
-            aggregatedTotals.payments_reconciled += passStats.reconcile_payments.updated;
-          } else {
-            const errorText = await reconcileResponse.text();
-            console.error(`[scheduler-tick] reconcile-payments error: ${reconcileResponse.status} - ${errorText}`);
-            passStats.reconcile_payments.errors = 1;
-          }
-        } catch (error) {
-          console.error(`[scheduler-tick] reconcile-payments exception:`, error);
+        const [reconcileResult, trackingResult, emailsResult, creativeResult] = await Promise.allSettled([
+          // Task A: reconcile-payments
+          callSubFunction(supabaseUrl, supabaseServiceKey, 'reconcile-payments', { limit: 20 }),
+          // Task B: tracking-poll
+          callSubFunction(supabaseUrl, supabaseServiceKey, 'tracking-poll', {}),
+          // Task C: process-scheduled-emails
+          callSubFunction(supabaseUrl, supabaseServiceKey, 'process-scheduled-emails', {}),
+          // Task D: creative-process (poll_running)
+          callSubFunction(supabaseUrl, supabaseServiceKey, 'creative-process', { poll_running: true }),
+        ]);
+
+        const parallelDuration = Date.now() - parallelStart;
+        console.log(`[scheduler-tick] Parallel phase completed in ${parallelDuration}ms`);
+
+        // Process reconcile-payments result
+        if (reconcileResult.status === 'fulfilled' && reconcileResult.value.ok) {
+          const data = reconcileResult.value.data;
+          console.log(`[scheduler-tick] reconcile-payments result:`, data);
+          passStats.reconcile_payments.checked = data.stats?.checked ?? 0;
+          passStats.reconcile_payments.updated = data.stats?.updated ?? 0;
+          passStats.reconcile_payments.unchanged = data.stats?.unchanged ?? 0;
+          passStats.reconcile_payments.errors = data.stats?.errors ?? 0;
+          aggregatedTotals.payments_reconciled += passStats.reconcile_payments.updated;
+        } else {
+          const error = reconcileResult.status === 'rejected' ? reconcileResult.reason : reconcileResult.value.error;
+          console.error(`[scheduler-tick] reconcile-payments error:`, error);
           passStats.reconcile_payments.errors = 1;
         }
-      }
 
-      // --- Step 5: Call tracking-poll (only on first pass to avoid duplicate polling) ---
-      if (pass === 1) {
-        try {
-          console.log(`[scheduler-tick] Calling tracking-poll...`);
-          const trackingResponse = await fetch(`${supabaseUrl}/functions/v1/tracking-poll`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${supabaseServiceKey}`,
-            },
-            body: JSON.stringify({}),
-          });
-
-          if (trackingResponse.ok) {
-            const trackingResult = await trackingResponse.json();
-            console.log(`[scheduler-tick] tracking-poll result:`, trackingResult);
-            
-            passStats.tracking_poll.polled = trackingResult.shipments_checked ?? 0;
-            passStats.tracking_poll.updated = trackingResult.shipments_updated ?? 0;
-            passStats.tracking_poll.errors_count = trackingResult.errors ?? 0;
-            
-            aggregatedTotals.shipments_polled += passStats.tracking_poll.polled;
-            aggregatedTotals.shipments_updated += passStats.tracking_poll.updated;
-          } else {
-            const errorText = await trackingResponse.text();
-            console.error(`[scheduler-tick] tracking-poll error: ${trackingResponse.status} - ${errorText}`);
-            passStats.tracking_poll.errors_count = 1;
-          }
-        } catch (error) {
-          console.error(`[scheduler-tick] tracking-poll exception:`, error);
+        // Process tracking-poll result
+        if (trackingResult.status === 'fulfilled' && trackingResult.value.ok) {
+          const data = trackingResult.value.data;
+          console.log(`[scheduler-tick] tracking-poll result:`, data);
+          passStats.tracking_poll.polled = data.shipments_checked ?? 0;
+          passStats.tracking_poll.updated = data.shipments_updated ?? 0;
+          passStats.tracking_poll.errors_count = data.errors ?? 0;
+          aggregatedTotals.shipments_polled += passStats.tracking_poll.polled;
+          aggregatedTotals.shipments_updated += passStats.tracking_poll.updated;
+        } else {
+          const error = trackingResult.status === 'rejected' ? trackingResult.reason : trackingResult.value.error;
+          console.error(`[scheduler-tick] tracking-poll error:`, error);
           passStats.tracking_poll.errors_count = 1;
         }
-      }
 
-      // --- Step 6: Call process-scheduled-emails (only on first pass) ---
-      if (pass === 1) {
-        try {
-          console.log(`[scheduler-tick] Calling process-scheduled-emails...`);
-          const emailsResponse = await fetch(`${supabaseUrl}/functions/v1/process-scheduled-emails`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${supabaseServiceKey}`,
-            },
-            body: JSON.stringify({}),
-          });
-
-          if (emailsResponse.ok) {
-            const emailsResult = await emailsResponse.json();
-            console.log(`[scheduler-tick] process-scheduled-emails result:`, emailsResult);
-            
-            passStats.scheduled_emails.processed = emailsResult.stats?.processed ?? 0;
-            passStats.scheduled_emails.sent = emailsResult.stats?.sent ?? 0;
-            passStats.scheduled_emails.failed = emailsResult.stats?.failed ?? 0;
-            passStats.scheduled_emails.skipped = emailsResult.stats?.skipped ?? 0;
-            
-            aggregatedTotals.scheduled_emails_sent += passStats.scheduled_emails.sent;
-          } else {
-            const errorText = await emailsResponse.text();
-            console.error(`[scheduler-tick] process-scheduled-emails error: ${emailsResponse.status} - ${errorText}`);
-          }
-        } catch (error) {
-          console.error(`[scheduler-tick] process-scheduled-emails exception:`, error);
+        // Process scheduled-emails result
+        if (emailsResult.status === 'fulfilled' && emailsResult.value.ok) {
+          const data = emailsResult.value.data;
+          console.log(`[scheduler-tick] process-scheduled-emails result:`, data);
+          passStats.scheduled_emails.processed = data.stats?.processed ?? 0;
+          passStats.scheduled_emails.sent = data.stats?.sent ?? 0;
+          passStats.scheduled_emails.failed = data.stats?.failed ?? 0;
+          passStats.scheduled_emails.skipped = data.stats?.skipped ?? 0;
+          aggregatedTotals.scheduled_emails_sent += passStats.scheduled_emails.sent;
+        } else {
+          const error = emailsResult.status === 'rejected' ? emailsResult.reason : emailsResult.value.error;
+          console.error(`[scheduler-tick] process-scheduled-emails error:`, error);
         }
-      }
 
-      // --- Step 7: Resume creative polling (only on first pass) ---
-      if (pass === 1) {
-        try {
-          console.log(`[scheduler-tick] Calling creative-process (poll_running)...`);
-          const creativeResponse = await fetch(`${supabaseUrl}/functions/v1/creative-process`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${supabaseServiceKey}`,
-            },
-            body: JSON.stringify({ poll_running: true }),
-          });
-
-          if (creativeResponse.ok) {
-            const creativeResult = await creativeResponse.json();
-            console.log(`[scheduler-tick] creative-process result:`, creativeResult);
-            passStats.creative_poll.resumed = creativeResult.jobs?.length ?? 0;
-          } else {
-            const errorText = await creativeResponse.text();
-            console.error(`[scheduler-tick] creative-process error: ${creativeResponse.status} - ${errorText}`);
-            passStats.creative_poll.errors = 1;
-          }
-        } catch (error) {
-          console.error(`[scheduler-tick] creative-process exception:`, error);
+        // Process creative-process result
+        if (creativeResult.status === 'fulfilled' && creativeResult.value.ok) {
+          const data = creativeResult.value.data;
+          console.log(`[scheduler-tick] creative-process result:`, data);
+          passStats.creative_poll.resumed = data.jobs?.length ?? 0;
+        } else {
+          const error = creativeResult.status === 'rejected' ? creativeResult.reason : creativeResult.value.error;
+          console.error(`[scheduler-tick] creative-process error:`, error);
           passStats.creative_poll.errors = 1;
         }
       }
 
       allPassStats.push(passStats);
 
-      // Small delay between passes to avoid hammering (only if more passes remain)
+      // Small delay between passes (only if more passes remain)
       if (pass < passes) {
         console.log(`[scheduler-tick] Waiting 25s before next pass...`);
-        await new Promise(resolve => setTimeout(resolve, 25000)); // 25s delay = ~30s effective interval
+        await new Promise(resolve => setTimeout(resolve, 25000));
       }
     }
 
