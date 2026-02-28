@@ -88,7 +88,7 @@ export function getProductCardImageUrl(url: string | undefined | null): string {
   const trimmed = url.trim();
   if (trimmed === '' || !isOptimizableUrl(trimmed)) return trimmed || '/placeholder.svg';
   
-  return buildWsrvUrl(trimmed, { width: 480, quality: 80, fit: 'cover' });
+  return buildWsrvUrl(trimmed, { width: 400, quality: 80, fit: 'cover' });
 }
 
 /**

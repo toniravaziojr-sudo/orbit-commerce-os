@@ -850,6 +850,7 @@ export function StorefrontHeaderContent({
                 className={cn(getLogoSizeClasses(), "object-contain")}
                 width={180}
                 height={60}
+                loading="eager"
                 decoding="async"
               />
             ) : (
