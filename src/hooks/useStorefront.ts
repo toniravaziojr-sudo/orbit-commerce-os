@@ -110,137 +110,43 @@ export interface StorefrontTemplate {
   updated_at: string;
 }
 
-// Hook for public storefront data (by tenant slug)
+// Hook for public storefront data (by tenant slug) — OPTIMIZED with bootstrap
 export function usePublicStorefront(tenantSlug: string) {
   const { toast } = useToast();
 
-  // Fetch tenant by slug
-  const { data: tenant, isLoading: tenantLoading } = useQuery({
-    queryKey: ['public-tenant', tenantSlug],
+  // Single bootstrap call that fetches everything in parallel on the server
+  const { data: bootstrap, isLoading: bootstrapLoading } = useQuery({
+    queryKey: ['storefront-bootstrap', tenantSlug],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('tenants')
-        .select('id, name, slug, logo_url')
-        .eq('slug', tenantSlug)
-        .maybeSingle();
+      const { data, error } = await supabase.functions.invoke('storefront-bootstrap', {
+        body: { tenant_slug: tenantSlug, include_products: true },
+      });
 
       if (error) throw error;
+      if (!data?.success) return null;
       return data;
     },
     enabled: !!tenantSlug,
+    staleTime: 2 * 60 * 1000, // 2 min — storefront data rarely changes
+    gcTime: 5 * 60 * 1000,    // 5 min cache
   });
 
-  // Fetch store settings
-  const { data: storeSettings, isLoading: settingsLoading } = useQuery({
-    queryKey: ['public-store-settings', tenant?.id],
-    queryFn: async (): Promise<StoreSettings | null> => {
-      const { data, error } = await supabase
-        .from('store_settings')
-        .select('*')
-        .eq('tenant_id', tenant!.id)
-        .maybeSingle();
+  // Derive all data from the single bootstrap response
+  const tenant = bootstrap?.tenant || null;
+  
+  const storeSettings = bootstrap?.store_settings
+    ? {
+        ...bootstrap.store_settings,
+        social_custom: parseSocialCustom(bootstrap.store_settings.social_custom),
+      } as StoreSettings
+    : null;
 
-      if (error) throw error;
-      if (!data) return null;
-      
-      // Parse and transform the data
-      return {
-        ...data,
-        social_custom: parseSocialCustom(data.social_custom),
-      } as StoreSettings;
-    },
-    enabled: !!tenant?.id,
-  });
+  const headerMenu = bootstrap?.header_menu || { menu: null, items: [] };
+  const footerMenu = bootstrap?.footer_menu || { menu: null, items: [] };
+  const categories = bootstrap?.categories || [];
+  const products = bootstrap?.products || [];
 
-  // Fetch header menu
-  const { data: headerMenu } = useQuery({
-    queryKey: ['public-header-menu', tenant?.id],
-    queryFn: async () => {
-      const { data: menu, error: menuError } = await supabase
-        .from('menus')
-        .select('*')
-        .eq('tenant_id', tenant!.id)
-        .eq('location', 'header')
-        .maybeSingle();
-
-      if (menuError) throw menuError;
-      if (!menu) return { menu: null, items: [] };
-
-      const { data: items, error: itemsError } = await supabase
-        .from('menu_items')
-        .select('*')
-        .eq('menu_id', menu.id)
-        .order('sort_order');
-
-      if (itemsError) throw itemsError;
-
-      return { menu: menu as Menu, items: (items || []) as MenuItem[] };
-    },
-    enabled: !!tenant?.id,
-  });
-
-  // Fetch footer menu (footer_1, with legacy 'footer' fallback)
-  const { data: footerMenu } = useQuery({
-    queryKey: ['public-footer-menu', tenant?.id],
-    queryFn: async () => {
-      const { data: menu, error: menuError } = await supabase
-        .from('menus')
-        .select('*')
-        .eq('tenant_id', tenant!.id)
-        .in('location', ['footer', 'footer_1'])
-        .maybeSingle();
-
-      if (menuError) throw menuError;
-      if (!menu) return { menu: null, items: [] };
-
-      const { data: items, error: itemsError } = await supabase
-        .from('menu_items')
-        .select('*')
-        .eq('menu_id', menu.id)
-        .order('sort_order');
-
-      if (itemsError) throw itemsError;
-
-      return { menu: menu as Menu, items: (items || []) as MenuItem[] };
-    },
-    enabled: !!tenant?.id,
-  });
-
-  // Fetch active categories
-  const { data: categories } = useQuery({
-    queryKey: ['public-categories', tenant?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .eq('tenant_id', tenant!.id)
-        .eq('is_active', true)
-        .order('sort_order');
-
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!tenant?.id,
-  });
-
-  // Fetch active products
-  const { data: products } = useQuery({
-    queryKey: ['public-products', tenant?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*, product_images(*)')
-        .eq('tenant_id', tenant!.id)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!tenant?.id,
-  });
-
-  const isLoading = tenantLoading || settingsLoading;
+  const isLoading = bootstrapLoading;
   const isPublished = storeSettings?.is_published ?? false;
 
   return {
@@ -274,12 +180,12 @@ export function usePublicCategory(tenantSlug: string, categorySlug: string) {
       return data;
     },
     enabled: !!tenant?.id && !!categorySlug,
+    staleTime: 2 * 60 * 1000,
   });
 
   const { data: products, isLoading: productsLoading } = useQuery({
     queryKey: ['public-category-products', category?.id],
     queryFn: async () => {
-      // Get product IDs with position from product_categories, ordered by position
       const { data: productCategories, error: pcError } = await supabase
         .from('product_categories')
         .select('product_id, position')
@@ -300,7 +206,6 @@ export function usePublicCategory(tenantSlug: string, categorySlug: string) {
 
       if (error) throw error;
 
-      // Sort products by position from product_categories
       const sortedProducts = (products || []).sort((a, b) => {
         const posA = positionMap.get(a.id) ?? 999999;
         const posB = positionMap.get(b.id) ?? 999999;
@@ -310,6 +215,7 @@ export function usePublicCategory(tenantSlug: string, categorySlug: string) {
       return sortedProducts;
     },
     enabled: !!category?.id,
+    staleTime: 2 * 60 * 1000,
   });
 
   return {
@@ -338,6 +244,7 @@ export function usePublicProduct(tenantSlug: string, productSlug: string) {
       return data;
     },
     enabled: !!tenant?.id && !!productSlug,
+    staleTime: 60 * 1000, // 1 min for product detail
   });
 
   // Get first category for breadcrumbs
@@ -364,6 +271,7 @@ export function usePublicProduct(tenantSlug: string, productSlug: string) {
       return category;
     },
     enabled: !!product?.id,
+    staleTime: 2 * 60 * 1000,
   });
 
   return {
@@ -392,6 +300,7 @@ export function usePublicPage(tenantSlug: string, pageSlug: string) {
       return data as StorePage | null;
     },
     enabled: !!tenant?.id && !!pageSlug,
+    staleTime: 2 * 60 * 1000,
   });
 
   return { page, isLoading };
