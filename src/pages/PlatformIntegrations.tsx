@@ -11,7 +11,8 @@ import { ShopeePlatformSettings } from "@/components/integrations/ShopeePlatform
 import { SmokeTestDialog } from "@/components/integrations/SmokeTestDialog";
 import { MetaPlatformSettings } from "@/components/integrations/platform/MetaPlatformSettings";
 import { GooglePlatformSettings } from "@/components/integrations/platform/GooglePlatformSettings";
-import { TikTokPlatformSettings } from "@/components/integrations/platform/TikTokPlatformSettings";
+import { TikTokAdsPlatformSettings } from "@/components/integrations/platform/TikTokAdsPlatformSettings";
+import { TikTokShopPlatformSettings } from "@/components/integrations/platform/TikTokShopPlatformSettings";
 import { Shield, MessageCircle, Mail, FileText, Truck, Bot, LayoutGrid, Send, ShoppingBag, Store, CreditCard, Globe, Music2 } from "lucide-react";
 import { MercadoPagoPlatformSettings } from "@/components/integrations/platform/MercadoPagoPlatformSettings";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -105,9 +106,13 @@ export default function PlatformIntegrations() {
             <Globe className="h-4 w-4" />
             <span className="hidden sm:inline">Google</span>
           </TabsTrigger>
-          <TabsTrigger value="tiktok" className="gap-2">
+          <TabsTrigger value="tiktok-ads" className="gap-2">
             <Music2 className="h-4 w-4" />
-            <span className="hidden sm:inline">TikTok</span>
+            <span className="hidden sm:inline">TikTok Ads</span>
+          </TabsTrigger>
+          <TabsTrigger value="tiktok-shop" className="gap-2">
+            <ShoppingBag className="h-4 w-4" />
+            <span className="hidden sm:inline">TikTok Shop</span>
           </TabsTrigger>
           <TabsTrigger value="mercadolivre" className="gap-2">
             <ShoppingBag className="h-4 w-4" />
@@ -155,8 +160,12 @@ export default function PlatformIntegrations() {
           <GooglePlatformSettings />
         </TabsContent>
 
-        <TabsContent value="tiktok">
-          <TikTokPlatformSettings />
+        <TabsContent value="tiktok-ads">
+          <TikTokAdsPlatformSettings />
+        </TabsContent>
+
+        <TabsContent value="tiktok-shop">
+          <TikTokShopPlatformSettings />
         </TabsContent>
 
 

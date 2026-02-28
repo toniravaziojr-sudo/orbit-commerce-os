@@ -3,30 +3,24 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Separator } from "@/components/ui/separator";
 import { CheckCircle2, ExternalLink, Eye, EyeOff, Info, Loader2, Save } from "lucide-react";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-const TIKTOK_ADS_KEYS = [
-  { key: "TIKTOK_APP_ID", label: "App ID (Ads)", description: "App ID do TikTok Business Developer Portal", sensitive: false },
-  { key: "TIKTOK_APP_SECRET", label: "App Secret (Ads)", description: "App Secret para TikTok Ads API", sensitive: true },
-];
-
 const TIKTOK_SHOP_KEYS = [
-  { key: "TIKTOK_SHOP_APP_KEY", label: "App Key (Shop)", description: "App Key do TikTok Shop Partner Center", sensitive: false },
-  { key: "TIKTOK_SHOP_APP_SECRET", label: "App Secret (Shop)", description: "App Secret para TikTok Shop API", sensitive: true },
+  { key: "TIKTOK_SHOP_APP_KEY", label: "App Key", description: "App Key do TikTok Shop Partner Center", sensitive: false },
+  { key: "TIKTOK_SHOP_APP_SECRET", label: "App Secret", description: "App Secret para TikTok Shop API", sensitive: true },
 ];
 
-export function TikTokPlatformSettings() {
+export function TikTokShopPlatformSettings() {
   const queryClient = useQueryClient();
   const [values, setValues] = useState<Record<string, string>>({});
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
 
   const { data: credentials, isLoading } = useQuery({
-    queryKey: ["platform-credentials-tiktok"],
+    queryKey: ["platform-credentials-tiktok-shop"],
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Não autenticado");
@@ -34,7 +28,7 @@ export function TikTokPlatformSettings() {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       if (error || !data?.success) throw new Error(data?.error || "Erro");
-      return (data.integrations as any[]).find((i) => i.key === "tiktok_platform") || null;
+      return (data.integrations as any[]).find((i) => i.key === "tiktok_shop_platform") || null;
     },
   });
 
@@ -51,14 +45,14 @@ export function TikTokPlatformSettings() {
     },
     onSuccess: (_, vars) => {
       toast.success(`${vars.key} atualizado`);
-      queryClient.invalidateQueries({ queryKey: ["platform-credentials-tiktok"] });
+      queryClient.invalidateQueries({ queryKey: ["platform-credentials-tiktok-shop"] });
       queryClient.invalidateQueries({ queryKey: ["platform-secrets-status"] });
       setValues((prev) => ({ ...prev, [vars.key]: "" }));
     },
     onError: (err: Error) => toast.error(err.message),
   });
 
-  const renderCredentialCard = ({ key, label, description, sensitive }: typeof TIKTOK_ADS_KEYS[0]) => {
+  const renderCredentialCard = ({ key, label, description, sensitive }: typeof TIKTOK_SHOP_KEYS[0]) => {
     const isConfigured = credentials?.secrets?.[key];
     const preview = credentials?.previews?.[key] || "";
     const source = credentials?.sources?.[key] || "";
@@ -131,37 +125,16 @@ export function TikTokPlatformSettings() {
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          Credenciais do TikTok são separadas entre <strong>Ads</strong> (Business Developer Portal) e <strong>Shop</strong> (Partner Center).
-          Cada um requer um app independente.
+          Credenciais para <strong>TikTok Shop</strong> (Catálogo, Pedidos, Fulfillment, Devoluções).
+          Registre seu app no{" "}
+          <a href="https://partner.tiktokshop.com/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
+            Shop Partner Center <ExternalLink className="h-3 w-3" />
+          </a>.
         </AlertDescription>
       </Alert>
 
-      <div>
-        <h3 className="text-base font-semibold mb-1">TikTok Ads</h3>
-        <p className="text-sm text-muted-foreground mb-4">
-          Pixel, CAPI, Campanhas de anúncios.{" "}
-          <a href="https://business-api.tiktok.com/portal/apps" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
-            Business Developer Portal <ExternalLink className="h-3 w-3" />
-          </a>
-        </p>
-        <div className="grid gap-4 md:grid-cols-2">
-          {TIKTOK_ADS_KEYS.map(renderCredentialCard)}
-        </div>
-      </div>
-
-      <Separator />
-
-      <div>
-        <h3 className="text-base font-semibold mb-1">TikTok Shop</h3>
-        <p className="text-sm text-muted-foreground mb-4">
-          Catálogo, Pedidos, Fulfillment, Devoluções.{" "}
-          <a href="https://partner.tiktokshop.com/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
-            Shop Partner Center <ExternalLink className="h-3 w-3" />
-          </a>
-        </p>
-        <div className="grid gap-4 md:grid-cols-2">
-          {TIKTOK_SHOP_KEYS.map(renderCredentialCard)}
-        </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        {TIKTOK_SHOP_KEYS.map(renderCredentialCard)}
       </div>
     </div>
   );

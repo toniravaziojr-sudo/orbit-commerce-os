@@ -418,26 +418,38 @@ serve(async (req) => {
           GOOGLE_CLIENT_SECRET: googleClientSecret.source || '',
         },
       },
-      tiktok_platform: {
-        name: 'TikTok (Ads + Shop)',
-        description: 'OAuth para TikTok Ads (Pixel/CAPI) e TikTok Shop (Catálogo/Pedidos)',
+      tiktok_ads_platform: {
+        name: 'TikTok Ads',
+        description: 'OAuth para TikTok Ads — Pixel, CAPI, Campanhas (Business Developer Portal)',
         icon: 'Music',
-        docs: 'https://partner.tiktokshop.com/',
+        docs: 'https://business-api.tiktok.com/portal/apps',
         secrets: {
           TIKTOK_APP_ID: tiktokAppId.exists,
           TIKTOK_APP_SECRET: tiktokAppSecret.exists,
-          TIKTOK_SHOP_APP_KEY: tiktokShopAppKey.exists,
-          TIKTOK_SHOP_APP_SECRET: tiktokShopAppSecret.exists,
         },
         previews: {
           TIKTOK_APP_ID: tiktokAppId.preview || '',
           TIKTOK_APP_SECRET: tiktokAppSecret.preview || '',
-          TIKTOK_SHOP_APP_KEY: tiktokShopAppKey.preview || '',
-          TIKTOK_SHOP_APP_SECRET: tiktokShopAppSecret.preview || '',
         },
         sources: {
           TIKTOK_APP_ID: tiktokAppId.source || '',
           TIKTOK_APP_SECRET: tiktokAppSecret.source || '',
+        },
+      },
+      tiktok_shop_platform: {
+        name: 'TikTok Shop',
+        description: 'OAuth para TikTok Shop — Catálogo, Pedidos, Fulfillment (Partner Center)',
+        icon: 'ShoppingBag',
+        docs: 'https://partner.tiktokshop.com/',
+        secrets: {
+          TIKTOK_SHOP_APP_KEY: tiktokShopAppKey.exists,
+          TIKTOK_SHOP_APP_SECRET: tiktokShopAppSecret.exists,
+        },
+        previews: {
+          TIKTOK_SHOP_APP_KEY: tiktokShopAppKey.preview || '',
+          TIKTOK_SHOP_APP_SECRET: tiktokShopAppSecret.preview || '',
+        },
+        sources: {
           TIKTOK_SHOP_APP_KEY: tiktokShopAppKey.source || '',
           TIKTOK_SHOP_APP_SECRET: tiktokShopAppSecret.source || '',
         },
