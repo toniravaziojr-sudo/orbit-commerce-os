@@ -7,6 +7,7 @@ import { BlockRenderContext } from '@/lib/builder/types';
 import { cn } from '@/lib/utils';
 import { ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { getHeroBannerImageUrl } from '@/lib/imageTransform';
 
 interface BannerSlide {
   id: string;
@@ -89,8 +90,12 @@ export function HeroBannerBlock({
 
   // Safe access to current slide
   const currentSlide = safeSlides[currentIndex] || safeSlides[0];
-  const desktopImage = currentSlide?.imageDesktop;
-  const mobileImage = currentSlide?.imageMobile || desktopImage;
+  const rawDesktopImage = currentSlide?.imageDesktop;
+  const rawMobileImage = currentSlide?.imageMobile || rawDesktopImage;
+  
+  // Apply image transforms for optimized WebP delivery
+  const desktopImage = getHeroBannerImageUrl(rawDesktopImage, 'desktop');
+  const mobileImage = getHeroBannerImageUrl(rawMobileImage, 'mobile');
 
   const content = (
     <div className={cn(
@@ -99,18 +104,18 @@ export function HeroBannerBlock({
     )}>
       {/* Banner Image - Builder uses state-based selection; Storefront uses <picture> */}
       <div className="relative aspect-[21/9] md:aspect-[21/7]">
-        {desktopImage ? (
+        {rawDesktopImage ? (
           isBuilderMode ? (
             // Builder mode: select image based on viewport state
             <img
-              src={isMobile && mobileImage ? mobileImage : desktopImage}
+              src={isMobile && rawMobileImage ? mobileImage : desktopImage}
               alt={currentSlide?.altText || `Banner ${currentIndex + 1}`}
               className="w-full h-full object-cover"
             />
           ) : (
             // Storefront mode: use <picture> for real responsive behavior
             <picture>
-              {mobileImage && mobileImage !== desktopImage && (
+              {rawMobileImage && rawMobileImage !== rawDesktopImage && (
                 <source media="(max-width: 767px)" srcSet={mobileImage} />
               )}
               <img

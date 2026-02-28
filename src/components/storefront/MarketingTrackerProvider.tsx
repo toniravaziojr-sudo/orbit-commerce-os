@@ -45,6 +45,8 @@ export function MarketingTrackerProvider({ tenantId, children }: Props) {
   useAffiliateTracking(tenantId);
 
   // Create and initialize tracker when config is available
+  // DEFERRED: Wait for page to fully load before injecting marketing scripts
+  // This improves FCP and TBT on mobile by avoiding render-blocking scripts
   useEffect(() => {
     if (!config || initializedTracker) return;
     
@@ -52,24 +54,34 @@ export function MarketingTrackerProvider({ tenantId, children }: Props) {
     const hasAnyEnabled = config.meta_enabled || config.google_enabled || config.tiktok_enabled;
     if (!hasAnyEnabled) return;
 
-    const tracker = new MarketingTracker({
-      meta_pixel_id: config.meta_pixel_id,
-      meta_enabled: config.meta_enabled,
-      google_measurement_id: config.google_measurement_id,
-      google_ads_conversion_id: config.google_ads_conversion_id,
-      google_enabled: config.google_enabled,
-      tiktok_pixel_id: config.tiktok_pixel_id,
-      tiktok_enabled: config.tiktok_enabled,
-    });
-    
-    tracker.initialize();
-    setInitializedTracker(tracker);
-    
-    // Track initial page view
-    tracker.trackPageView();
-    lastPathRef.current = location.pathname + location.search;
-    
-    console.log('[MarketingTrackerProvider] Tracker initialized and ready');
+    const initTracker = () => {
+      const tracker = new MarketingTracker({
+        meta_pixel_id: config.meta_pixel_id,
+        meta_enabled: config.meta_enabled,
+        google_measurement_id: config.google_measurement_id,
+        google_ads_conversion_id: config.google_ads_conversion_id,
+        google_enabled: config.google_enabled,
+        tiktok_pixel_id: config.tiktok_pixel_id,
+        tiktok_enabled: config.tiktok_enabled,
+      });
+      
+      tracker.initialize();
+      setInitializedTracker(tracker);
+      
+      // Track initial page view
+      tracker.trackPageView();
+      lastPathRef.current = location.pathname + location.search;
+      
+      console.log('[MarketingTrackerProvider] Tracker initialized (deferred) and ready');
+    };
+
+    // Defer initialization: use requestIdleCallback if available, otherwise setTimeout
+    // This ensures marketing scripts don't compete with critical rendering
+    if ('requestIdleCallback' in window) {
+      (window as any).requestIdleCallback(initTracker, { timeout: 3000 });
+    } else {
+      setTimeout(initTracker, 2000);
+    }
   }, [config, initializedTracker, location.pathname, location.search]);
 
   // Track page views on route change (SPA navigation)

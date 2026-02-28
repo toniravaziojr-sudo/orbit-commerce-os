@@ -653,6 +653,10 @@ export function StorefrontFooterContent({
                         src={logoUrl}
                         alt={displayStoreName || 'Loja'}
                         className="h-12 max-w-[180px] object-contain"
+                        loading="lazy"
+                        decoding="async"
+                        width={180}
+                        height={48}
                       />
                     ) : (
                       <span
@@ -995,6 +999,10 @@ export function StorefrontFooterContent({
                         src={logoUrl}
                         alt={displayStoreName || 'Loja'}
                         className="h-12 max-w-[180px] object-contain"
+                        loading="lazy"
+                        decoding="async"
+                        width={180}
+                        height={48}
                       />
                     ) : (
                       <span

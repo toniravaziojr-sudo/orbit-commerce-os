@@ -16,6 +16,7 @@ import { MarketingTrackerProvider } from '@/components/storefront/MarketingTrack
 import { useTenantCanonicalDomain } from '@/hooks/useTenantCanonicalDomain';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { StorefrontHead } from '@/components/storefront/StorefrontHead';
+import { LcpPreloader } from '@/components/storefront/LcpPreloader';
 import { StorefrontThemeInjector } from '@/components/storefront/StorefrontThemeInjector';
 import { 
   isPlatformSubdomain, 
@@ -191,6 +192,7 @@ export function TenantStorefrontLayout() {
         <StorefrontConfigProvider tenantId={tenant.id} customDomain={customDomain}>
           <MarketingTrackerProvider tenantId={tenant.id}>
             <StorefrontHead tenantId={tenant.id} />
+            <LcpPreloader tenantId={tenant.id} />
             <StorefrontThemeInjector tenantSlug={tenantSlug} />
             <Suspense fallback={null}>
               <DomainDisabledGuard tenantSlug={tenantSlug}>

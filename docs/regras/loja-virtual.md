@@ -704,12 +704,33 @@ import StorefrontHome from './pages/storefront/StorefrontHome';
 3. **Lazy loading:** Imagens abaixo da dobra DEVEM ter `loading="lazy"` e `decoding="async"`
 4. **`<picture>` responsivo:** Storefront usa `<source media="(max-width: 767px)">` para imagens mobile
 
+### Supabase Image Transform (WebP otimizado)
+
+Todas as imagens de storage do Supabase DEVEM usar o helper `src/lib/imageTransform.ts`:
+
+| Contexto | Helper | Dimensão |
+|----------|--------|----------|
+| ProductCard | `getProductCardImageUrl()` | 400x400 WebP q75 |
+| HeroBanner desktop | `getHeroBannerImageUrl(url, 'desktop')` | 1920w WebP q80 |
+| HeroBanner mobile | `getHeroBannerImageUrl(url, 'mobile')` | 768w WebP q75 |
+| ImageBlock | `getBlockImageUrl(url, maxWidth)` | custom WebP q80 |
+| Logo (header/footer) | `getLogoImageUrl(url, 300)` | 300x300 WebP q85 contain |
+
+### LCP Preloading
+
+O componente `LcpPreloader` (`src/components/storefront/LcpPreloader.tsx`) é montado nos layouts do storefront e injeta `<link rel="preload">` para a imagem do primeiro banner hero, com media queries separadas para desktop e mobile.
+
+### Defer de Scripts de Marketing
+
+O `MarketingTrackerProvider` usa `requestIdleCallback` (fallback `setTimeout 2s`) para atrasar a injeção dos pixels (Meta, Google, TikTok), evitando bloqueio do FCP/TBT.
+
 ---
 
 ## Histórico de Alterações
 
 | Data | Alteração |
 |------|-----------|
+| 2026-02-28 | PageSpeed Mobile: Image Transform WebP, LCP preload, defer marketing scripts |
 | 2025-02-28 | PageSpeed: code splitting, lazy loading, fetchPriority, width/height em imagens |
 | 2025-02-28 | Storefront Bootstrap: Edge Function de carregamento consolidado + hooks com cache agressivo |
 | 2025-01-26 | SEO Home: configuração de meta título/descrição + geração IA em Configurações do Tema |

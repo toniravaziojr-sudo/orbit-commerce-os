@@ -210,8 +210,7 @@ export function StorefrontHead({ tenantId, pageTitle, pageDescription }: Storefr
     metaDesc.content = description;
   }, [pageDescription, storeSettings?.seo_description]);
 
-  // NOTE: Theme colors are now managed via Configuração do tema > Cores
-  // Legacy primary_color/secondary_color/accent_color from store_settings are no longer used here
+  // NOTE: LCP preloading is handled by LcpPreloader component
 
   // This component doesn't render anything visible
   return null;

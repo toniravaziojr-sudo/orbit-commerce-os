@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { getLogoImageUrl } from '@/lib/imageTransform';
 import { Search, ShoppingCart, Menu, Phone, MessageCircle, User, Mail, Facebook, Instagram, ChevronDown, ChevronRight } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
@@ -167,9 +168,10 @@ export function StorefrontHeaderContent({
   
   // Logo URL - props.logoUrl has PRIORITY over storeSettings.logo_url
   // This allows checkout to have a different logo or inherit from global layout
-  const effectiveLogoUrl = props.logoUrl && String(props.logoUrl).trim() !== '' 
+  const rawLogoUrl = props.logoUrl && String(props.logoUrl).trim() !== '' 
     ? String(props.logoUrl) 
     : storeSettings?.logo_url || '';
+  const effectiveLogoUrl = getLogoImageUrl(rawLogoUrl, 300);
   
   // Nav bar height - 'small', 'medium', 'large'
   const navBarHeight = String(props.navBarHeight || 'medium') as 'small' | 'medium' | 'large';
@@ -846,6 +848,9 @@ export function StorefrontHeaderContent({
                 src={effectiveLogoUrl}
                 alt={storeSettings?.store_name || 'Loja'}
                 className={cn(getLogoSizeClasses(), "object-contain")}
+                width={180}
+                height={60}
+                decoding="async"
               />
             ) : (
               <span
