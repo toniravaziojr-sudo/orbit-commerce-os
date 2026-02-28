@@ -104,6 +104,8 @@ serve(async (req) => {
     const openaiApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'OPENAI_API_KEY');
     const metaAppId = await checkCredential(supabaseUrl, supabaseServiceKey, 'META_APP_ID');
     const metaAppSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'META_APP_SECRET');
+    const metaGraphApiVersion = await checkCredential(supabaseUrl, supabaseServiceKey, 'META_GRAPH_API_VERSION');
+    const metaWebhookVerifyToken = await checkCredential(supabaseUrl, supabaseServiceKey, 'META_WEBHOOK_VERIFY_TOKEN');
     const lateApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'LATE_API_KEY');
     const meliAppId = await checkCredential(supabaseUrl, supabaseServiceKey, 'MELI_APP_ID');
     const meliClientSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'MELI_CLIENT_SECRET');
@@ -390,14 +392,20 @@ serve(async (req) => {
         secrets: {
           META_APP_ID: metaAppId.exists,
           META_APP_SECRET: metaAppSecret.exists,
+          META_GRAPH_API_VERSION: metaGraphApiVersion.exists,
+          META_WEBHOOK_VERIFY_TOKEN: metaWebhookVerifyToken.exists,
         },
         previews: {
           META_APP_ID: metaAppId.preview || '',
           META_APP_SECRET: metaAppSecret.preview || '',
+          META_GRAPH_API_VERSION: metaGraphApiVersion.preview || '',
+          META_WEBHOOK_VERIFY_TOKEN: metaWebhookVerifyToken.preview || '',
         },
         sources: {
           META_APP_ID: metaAppId.source || '',
           META_APP_SECRET: metaAppSecret.source || '',
+          META_GRAPH_API_VERSION: metaGraphApiVersion.source || '',
+          META_WEBHOOK_VERIFY_TOKEN: metaWebhookVerifyToken.source || '',
         },
       },
       google_platform: {
