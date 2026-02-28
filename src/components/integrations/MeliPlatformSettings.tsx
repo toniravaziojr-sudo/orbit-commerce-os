@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,9 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CheckCircle2, AlertCircle, Loader2, ExternalLink, Info, Copy, Check, ShoppingBag } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { CredentialEditor } from "./CredentialEditor";
+import { usePlatformIntegrationStatus } from "@/hooks/usePlatformSecretsStatus";
 
 export function MeliPlatformSettings() {
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
@@ -17,19 +16,7 @@ export function MeliPlatformSettings() {
   const redirectUri = `https://app.comandocentral.com.br/integrations/meli/callback`;
   const webhookUri = `https://app.comandocentral.com.br/integrations/meli/webhook`;
 
-  const { data: integrationData, isLoading } = useQuery({
-    queryKey: ["platform-secrets-status", "meli"],
-    queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Não autenticado");
-      const response = await supabase.functions.invoke("platform-secrets-check", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (response.error) throw response.error;
-      if (!response.data.success) throw new Error(response.data.error);
-      return (response.data.integrations as any[]).find((i) => i.key === "mercadolivre") || null;
-    },
-  });
+  const { data: integrationData, isLoading } = usePlatformIntegrationStatus("mercadolivre");
 
   const appIdConfigured = !!integrationData?.secrets?.MELI_APP_ID;
   const secretConfigured = !!integrationData?.secrets?.MELI_CLIENT_SECRET;

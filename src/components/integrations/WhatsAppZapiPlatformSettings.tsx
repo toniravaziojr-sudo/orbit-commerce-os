@@ -25,6 +25,7 @@ import {
   Phone
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { usePlatformIntegrationStatus } from "@/hooks/usePlatformSecretsStatus";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { CredentialEditor } from "./CredentialEditor";
@@ -50,26 +51,8 @@ interface WhatsAppInstance {
 export function WhatsAppZapiPlatformSettings() {
   const queryClient = useQueryClient();
 
-  // Fetch platform secret status
-  const { data: secretStatus, isLoading: isLoadingSecrets } = useQuery({
-    queryKey: ['platform-secrets-status', 'zapi'],
-    queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Não autenticado');
-
-      const response = await supabase.functions.invoke('platform-secrets-check', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-
-      if (response.error) throw response.error;
-      if (!response.data.success) throw new Error(response.data.error);
-      
-      const zapi = response.data.integrations?.find((i: any) => i.key === 'zapi');
-      return zapi || null;
-    },
-  });
+  // Fetch platform secret status (shared cache)
+  const { data: secretStatus, isLoading: isLoadingSecrets } = usePlatformIntegrationStatus("zapi");
 
   // Fetch all instances
   const { data: instancesData, isLoading: isLoadingInstances } = useQuery({

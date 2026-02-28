@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,28 +6,16 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CheckCircle2, AlertCircle, Loader2, Info, Copy, Check, CreditCard } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { CredentialEditor } from "../CredentialEditor";
+import { usePlatformIntegrationStatus } from "@/hooks/usePlatformSecretsStatus";
 
 export function MercadoPagoPlatformSettings() {
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
   const webhookUri = `https://app.comandocentral.com.br/integrations/billing/webhook`;
 
-  const { data: integrationData, isLoading } = useQuery({
-    queryKey: ["platform-secrets-status", "mercadopago"],
-    queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Não autenticado");
-      const response = await supabase.functions.invoke("platform-secrets-check", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (response.error) throw response.error;
-      if (!response.data.success) throw new Error(response.data.error);
-      return (response.data.integrations as any[]).find((i) => i.key === "mercadopago_platform") || null;
-    },
-  });
+  const { data: integrationData, isLoading } = usePlatformIntegrationStatus("mercadopago_platform");
 
   const accessTokenConfigured = !!integrationData?.secrets?.MP_ACCESS_TOKEN;
   const publicKeyConfigured = !!integrationData?.secrets?.MP_PUBLIC_KEY;

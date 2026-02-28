@@ -2,21 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, Mail, MessageSquare, FileText, Globe, Truck, Bot, CheckCircle2, AlertCircle, ExternalLink } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-
-interface IntegrationStatus {
-  key: string;
-  name: string;
-  description: string;
-  icon: string;
-  docs: string;
-  isSystem?: boolean;
-  secrets: Record<string, boolean>;
-  status: 'configured' | 'partial' | 'pending' | 'system';
-  configuredCount: number;
-  totalCount: number;
-}
+import { usePlatformSecretsStatus, type IntegrationStatus } from "@/hooks/usePlatformSecretsStatus";
 
 interface PlatformIntegrationsDashboardProps {
   onNavigateToTab: (tab: string) => void;
@@ -33,24 +19,7 @@ const iconMap: Record<string, React.ElementType> = {
 };
 
 export function PlatformIntegrationsDashboard({ onNavigateToTab }: PlatformIntegrationsDashboardProps) {
-  const { data: integrations, isLoading, error } = useQuery({
-    queryKey: ['platform-secrets-status'],
-    queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Não autenticado');
-
-      const response = await supabase.functions.invoke('platform-secrets-check', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-
-      if (response.error) throw response.error;
-      if (!response.data.success) throw new Error(response.data.error);
-      
-      return response.data.integrations as IntegrationStatus[];
-    },
-  });
+  const { data: integrations, isLoading, error } = usePlatformSecretsStatus();
 
   const tabMap: Record<string, string> = {
     sendgrid: 'emaildomains',

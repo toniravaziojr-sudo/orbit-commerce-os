@@ -3,24 +3,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle2, AlertCircle, ExternalLink, Globe, Info, Loader2 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { usePlatformIntegrationStatus } from "@/hooks/usePlatformSecretsStatus";
 import { CredentialEditor } from "../CredentialEditor";
 
 export function GooglePlatformSettings() {
-  const { data: credentials, isLoading } = useQuery({
-    queryKey: ["platform-secrets-status", "google"],
-    queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Não autenticado");
-      const response = await supabase.functions.invoke("platform-secrets-check", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (response.error) throw response.error;
-      if (!response.data.success) throw new Error(response.data.error);
-      return (response.data.integrations as any[]).find((i) => i.key === "google_platform") || null;
-    },
-  });
+  const { data: credentials, isLoading } = usePlatformIntegrationStatus("google_platform");
 
   const clientIdConfigured = !!credentials?.secrets?.GOOGLE_CLIENT_ID;
   const clientSecretConfigured = !!credentials?.secrets?.GOOGLE_CLIENT_SECRET;

@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { usePlatformSecretsStatus } from "@/hooks/usePlatformSecretsStatus";
 import { CredentialEditor } from "./CredentialEditor";
 import { 
   Mail, 
@@ -80,28 +81,12 @@ export function EmailAndDomainsPlatformSettings() {
   const [replyTo, setReplyTo] = useState("");
   const [testEmail, setTestEmail] = useState("");
 
-  // Fetch platform secrets status for both SendGrid and Cloudflare
-  const { data: secretsStatus, isLoading: isLoadingSecrets } = useQuery({
-    queryKey: ['platform-secrets-status', 'email-domains'],
-    queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Não autenticado');
-
-      const response = await supabase.functions.invoke('platform-secrets-check', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-
-      if (response.error) throw response.error;
-      if (!response.data.success) throw new Error(response.data.error);
-      
-      const sendgrid = response.data.integrations?.find((i: any) => i.key === 'sendgrid');
-      const cloudflare = response.data.integrations?.find((i: any) => i.key === 'cloudflare');
-      
-      return { sendgrid, cloudflare };
-    },
-  });
+  // Fetch platform secrets status for both SendGrid and Cloudflare (shared cache)
+  const { data: allIntegrations, isLoading: isLoadingSecrets } = usePlatformSecretsStatus();
+  const secretsStatus = {
+    sendgrid: allIntegrations?.find((i) => i.key === 'sendgrid'),
+    cloudflare: allIntegrations?.find((i) => i.key === 'cloudflare'),
+  };
 
   // Test Cloudflare connection mutation
   const testCloudflareConnection = useMutation({

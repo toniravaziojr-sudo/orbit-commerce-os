@@ -4,33 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { FileText, CheckCircle2, AlertCircle, ExternalLink, Info, Shield, RefreshCw, Loader2, Cloud } from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { CredentialEditor } from "./CredentialEditor";
+import { usePlatformIntegrationStatus } from "@/hooks/usePlatformSecretsStatus";
 
 export function FiscalPlatformSettings() {
   const queryClient = useQueryClient();
   
-  const { data: secretStatus, isLoading } = useQuery({
-    queryKey: ['platform-secrets-status', 'nuvem_fiscal'],
-    queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Não autenticado');
-
-      const response = await supabase.functions.invoke('platform-secrets-check', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-
-      if (response.error) throw response.error;
-      if (!response.data.success) throw new Error(response.data.error);
-      
-      const nuvemFiscal = response.data.integrations?.find((i: any) => i.key === 'nuvem_fiscal');
-      return nuvemFiscal || null;
-    },
-  });
+  const { data: secretStatus, isLoading } = usePlatformIntegrationStatus("nuvem_fiscal");
 
   const testConnectionMutation = useMutation({
     mutationFn: async () => {
