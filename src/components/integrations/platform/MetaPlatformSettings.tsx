@@ -13,8 +13,6 @@ import { toast } from "sonner";
 const META_KEYS = [
   { key: "META_APP_ID", label: "App ID", description: "ID do app Meta for Developers", sensitive: false },
   { key: "META_APP_SECRET", label: "App Secret", description: "Chave secreta do app", sensitive: true },
-  { key: "META_GRAPH_API_VERSION", label: "Graph API Version", description: "Ex: v21.0", sensitive: false },
-  { key: "META_WEBHOOK_VERIFY_TOKEN", label: "Webhook Verify Token", description: "Token para verificação de webhooks", sensitive: true },
 ];
 
 export function MetaPlatformSettings() {
