@@ -1,18 +1,63 @@
 // =============================================
-// IMAGE TRANSFORM - Image optimization utilities
-// Since Supabase Image Transformation is NOT enabled,
-// this module returns original URLs but provides helper
-// functions for consistent sizing hints and lazy loading.
+// IMAGE TRANSFORM - Image optimization via wsrv.nl proxy
+// Routes Supabase Storage images through wsrv.nl for
+// automatic resizing, WebP conversion, and CDN caching.
 // =============================================
 
+const WSRV_BASE = 'https://wsrv.nl/?';
+
 /**
- * Returns the image URL as-is (no server-side transform available).
- * Kept as a centralized utility so if Image Transformation is enabled
- * in the future, only this file needs to change.
+ * Check if a URL is a Supabase Storage URL that can be optimized
+ */
+function isOptimizableUrl(url: string): boolean {
+  if (!url) return false;
+  // Only optimize Supabase storage URLs
+  return url.includes('supabase.co/storage/') || url.includes('supabase.in/storage/');
+}
+
+/**
+ * Build a wsrv.nl proxy URL with optimization parameters
+ */
+function buildWsrvUrl(
+  url: string,
+  options?: {
+    width?: number;
+    height?: number;
+    quality?: number;
+    fit?: 'cover' | 'contain' | 'inside';
+  }
+): string {
+  const params = new URLSearchParams();
+  params.set('url', url);
+  
+  if (options?.width) params.set('w', String(options.width));
+  if (options?.height) params.set('h', String(options.height));
+  
+  // WebP output for smaller file sizes
+  params.set('output', 'webp');
+  
+  // Quality (default 80 for good balance)
+  params.set('q', String(options?.quality || 80));
+  
+  // Fit mode
+  if (options?.fit) {
+    const fitMap = { cover: 'cover', contain: 'contain', inside: 'inside' };
+    params.set('fit', fitMap[options.fit] || 'cover');
+  }
+  
+  // Enable CDN caching (1 year)
+  params.set('maxage', '31536000');
+  
+  return `${WSRV_BASE}${params.toString()}`;
+}
+
+/**
+ * Transform an image URL through wsrv.nl proxy if applicable.
+ * Non-Supabase URLs are returned as-is.
  */
 export function transformImageUrl(
   url: string | undefined | null,
-  _options?: {
+  options?: {
     width?: number;
     height?: number;
     quality?: number;
@@ -21,43 +66,72 @@ export function transformImageUrl(
   }
 ): string {
   if (!url) return '/placeholder.svg';
-  if (url.trim() === '') return '';
-  return url;
+  const trimmed = url.trim();
+  if (trimmed === '') return '';
+  
+  // Don't proxy non-optimizable URLs
+  if (!isOptimizableUrl(trimmed)) return trimmed;
+  
+  return buildWsrvUrl(trimmed, {
+    width: options?.width,
+    height: options?.height,
+    quality: options?.quality,
+    fit: options?.resize === 'fill' ? 'cover' : (options?.resize as 'cover' | 'contain' | undefined),
+  });
 }
 
 /**
- * Get product card image URL (pass-through)
+ * Get product card image URL - optimized for card thumbnails
  */
 export function getProductCardImageUrl(url: string | undefined | null): string {
-  return transformImageUrl(url);
+  if (!url) return '/placeholder.svg';
+  const trimmed = url.trim();
+  if (trimmed === '' || !isOptimizableUrl(trimmed)) return trimmed || '/placeholder.svg';
+  
+  return buildWsrvUrl(trimmed, { width: 480, quality: 80, fit: 'cover' });
 }
 
 /**
- * Get hero banner image URL (pass-through)
+ * Get hero banner image URL - optimized per viewport
  */
 export function getHeroBannerImageUrl(
   url: string | undefined | null,
-  _viewport: 'desktop' | 'mobile' = 'desktop'
+  viewport: 'desktop' | 'mobile' = 'desktop'
 ): string {
-  return transformImageUrl(url);
+  if (!url) return '/placeholder.svg';
+  const trimmed = url.trim();
+  if (trimmed === '' || !isOptimizableUrl(trimmed)) return trimmed || '/placeholder.svg';
+  
+  const width = viewport === 'mobile' ? 768 : 1920;
+  const quality = viewport === 'mobile' ? 75 : 80;
+  
+  return buildWsrvUrl(trimmed, { width, quality, fit: 'cover' });
 }
 
 /**
- * Get block image URL (pass-through)
+ * Get block image URL - optimized for content blocks
  */
 export function getBlockImageUrl(
   url: string | undefined | null,
-  _maxWidth: number = 800
+  maxWidth: number = 800
 ): string {
-  return transformImageUrl(url);
+  if (!url) return '/placeholder.svg';
+  const trimmed = url.trim();
+  if (trimmed === '' || !isOptimizableUrl(trimmed)) return trimmed || '/placeholder.svg';
+  
+  return buildWsrvUrl(trimmed, { width: maxWidth, quality: 80 });
 }
 
 /**
- * Get logo/icon URL (pass-through)
+ * Get logo/icon URL - optimized for small images
  */
 export function getLogoImageUrl(
   url: string | undefined | null,
-  _size: number = 200
+  size: number = 200
 ): string {
-  return transformImageUrl(url);
+  if (!url) return '/placeholder.svg';
+  const trimmed = url.trim();
+  if (trimmed === '' || !isOptimizableUrl(trimmed)) return trimmed || '/placeholder.svg';
+  
+  return buildWsrvUrl(trimmed, { width: size, quality: 85 });
 }
