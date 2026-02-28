@@ -40,6 +40,18 @@ const EDITABLE_CREDENTIALS = [
   'FAL_API_KEY',
   // Google Gemini (Geração de Imagens Nativa)
   'GEMINI_API_KEY',
+  // Google Platform (OAuth)
+  'GOOGLE_CLIENT_ID',
+  'GOOGLE_CLIENT_SECRET',
+  // TikTok Shop (Partner API)
+  'TIKTOK_SHOP_APP_KEY',
+  'TIKTOK_SHOP_APP_SECRET',
+  // TikTok Ads (Business API)
+  'TIKTOK_ADS_APP_ID',
+  'TIKTOK_ADS_APP_SECRET',
+  // Shopee (Marketplace)
+  'SHOPEE_PARTNER_ID',
+  'SHOPEE_PARTNER_KEY',
 ];
 
 serve(async (req) => {
