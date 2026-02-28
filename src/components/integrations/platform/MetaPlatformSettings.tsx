@@ -1,79 +1,63 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle2, ExternalLink, Eye, EyeOff, Info, Loader2, Save } from "lucide-react";
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { CheckCircle2, AlertCircle, ExternalLink, Globe, Info, Loader2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-
-const META_KEYS = [
-  { key: "META_APP_ID", label: "App ID", description: "ID do app Meta for Developers", sensitive: false },
-  { key: "META_APP_SECRET", label: "App Secret", description: "Chave secreta do app", sensitive: true },
-];
+import { CredentialEditor } from "../CredentialEditor";
 
 export function MetaPlatformSettings() {
-  const queryClient = useQueryClient();
-  const [values, setValues] = useState<Record<string, string>>({});
-  const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
-
-  const { data: credentials, isLoading } = useQuery({
-    queryKey: ["platform-credentials-meta"],
+  const { data: secretsStatus, isLoading } = useQuery({
+    queryKey: ["platform-secrets-status", "meta"],
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Não autenticado");
-      const { data, error } = await supabase.functions.invoke("platform-secrets-check", {
+
+      const response = await supabase.functions.invoke("platform-secrets-check", {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
-      if (error || !data?.success) throw new Error(data?.error || "Erro");
-      const integration = (data.integrations as any[]).find(
-        (i) => i.key === "meta_platform" || i.key === "whatsapp_meta"
+
+      if (response.error) throw response.error;
+      if (!response.data.success) throw new Error(response.data.error);
+
+      const meta = response.data.integrations?.find(
+        (i: any) => i.key === "meta_platform" || i.key === "whatsapp_meta"
       );
-      return integration || null;
+      return meta || null;
     },
   });
 
-  const saveMutation = useMutation({
-    mutationFn: async ({ key, value }: { key: string; value: string }) => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Não autenticado");
-      const { data, error } = await supabase.functions.invoke("platform-credentials-update", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        body: { key, value },
-      });
-      if (error || !data?.success) throw new Error(data?.error || "Erro ao salvar");
-      return data;
-    },
-    onSuccess: (_, vars) => {
-      toast.success(`${vars.key} atualizado com sucesso`);
-      queryClient.invalidateQueries({ queryKey: ["platform-credentials-meta"] });
-      queryClient.invalidateQueries({ queryKey: ["platform-secrets-status"] });
-      setValues((prev) => ({ ...prev, [vars.key]: "" }));
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
-  const toggleVisibility = (key: string) => {
-    setVisibleKeys((prev) => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
-  };
+  const appIdConfigured = !!secretsStatus?.secrets?.META_APP_ID;
+  const appSecretConfigured = !!secretsStatus?.secrets?.META_APP_SECRET;
+  const allConfigured = appIdConfigured && appSecretConfigured;
 
   if (isLoading) {
-    return <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <div className="p-3 rounded-lg bg-blue-500/10">
+          <Globe className="h-6 w-6 text-blue-600" />
+        </div>
+        <div>
+          <h2 className="text-xl font-semibold">Meta (Facebook / Instagram)</h2>
+          <p className="text-sm text-muted-foreground">
+            Credenciais do app Meta for Developers
+          </p>
+        </div>
+      </div>
+
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          Credenciais do app Meta (Facebook/Instagram). Usadas para OAuth, Pixel, Catálogo, Ads e WhatsApp Cloud API.
+          Usadas para OAuth, Pixel, Catálogo, Ads e WhatsApp Cloud API.
           <Button variant="link" size="sm" className="ml-1 h-auto p-0" asChild>
             <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener noreferrer">
               Meta for Developers <ExternalLink className="h-3 w-3 ml-1" />
@@ -82,67 +66,46 @@ export function MetaPlatformSettings() {
         </AlertDescription>
       </Alert>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {META_KEYS.map(({ key, label, description, sensitive }) => {
-          const isConfigured = credentials?.secrets?.[key];
-          const preview = credentials?.previews?.[key] || "";
-          const source = credentials?.sources?.[key] || "";
-
-          return (
-            <Card key={key}>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-medium">{label}</CardTitle>
-                  {isConfigured ? (
-                    <Badge className="bg-green-500/10 text-green-600 border-green-500/20 gap-1">
-                      <CheckCircle2 className="h-3 w-3" /> Configurado
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-muted-foreground">Pendente</Badge>
-                  )}
-                </div>
-                <CardDescription className="text-xs">{description}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {isConfigured && preview && (
-                  <div className="text-xs text-muted-foreground">
-                    Valor atual: <code className="bg-muted px-1 rounded">{preview}</code>
-                    {source && <span className="ml-1">({source === "db" ? "banco" : "env"})</span>}
-                  </div>
-                )}
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Input
-                      type={sensitive && !visibleKeys.has(key) ? "password" : "text"}
-                      placeholder={isConfigured ? "Novo valor (deixe vazio para manter)" : "Cole o valor aqui"}
-                      value={values[key] || ""}
-                      onChange={(e) => setValues((prev) => ({ ...prev, [key]: e.target.value }))}
-                    />
-                    {sensitive && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                        onClick={() => toggleVisibility(key)}
-                      >
-                        {visibleKeys.has(key) ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                      </Button>
-                    )}
-                  </div>
-                  <Button
-                    size="sm"
-                    disabled={!values[key] || saveMutation.isPending}
-                    onClick={() => saveMutation.mutate({ key, value: values[key] })}
-                  >
-                    {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-500/10">
+                <Globe className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Meta App</CardTitle>
+                <CardDescription>App ID e Secret para integrações Meta</CardDescription>
+              </div>
+            </div>
+            <Badge
+              variant={allConfigured ? "default" : "outline"}
+              className={allConfigured ? "bg-green-500/10 text-green-600" : ""}
+            >
+              {allConfigured ? <CheckCircle2 className="h-3 w-3 mr-1" /> : <AlertCircle className="h-3 w-3 mr-1" />}
+              {allConfigured ? "Configurado" : "Pendente"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <CredentialEditor
+            credentialKey="META_APP_ID"
+            label="App ID"
+            description="ID do app Meta for Developers"
+            isConfigured={appIdConfigured}
+            preview={secretsStatus?.previews?.META_APP_ID}
+            source={secretsStatus?.sources?.META_APP_ID as 'db' | 'env' | null}
+          />
+          <CredentialEditor
+            credentialKey="META_APP_SECRET"
+            label="App Secret"
+            description="Chave secreta do app"
+            isConfigured={appSecretConfigured}
+            preview={secretsStatus?.previews?.META_APP_SECRET}
+            source={secretsStatus?.sources?.META_APP_SECRET as 'db' | 'env' | null}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }
