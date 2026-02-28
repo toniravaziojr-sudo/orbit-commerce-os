@@ -35,6 +35,7 @@ export function HeroBannerBlock({
   context,
 }: HeroBannerBlockProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isFirstPaint, setIsFirstPaint] = useState(true);
   const realIsMobile = useIsMobile();
   
   // Defensive: ensure slides is always an array
@@ -46,16 +47,24 @@ export function HeroBannerBlock({
     ? context.viewport === 'mobile' 
     : realIsMobile;
 
-  // Autoplay
+  // Mark first paint complete after initial render (defer autoplay to avoid rotating before LCP)
   useEffect(() => {
-    if (safeSlides.length <= 1 || !autoplaySeconds) return;
+    if (!isBuilderMode && isFirstPaint) {
+      const timer = setTimeout(() => setIsFirstPaint(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [isBuilderMode, isFirstPaint]);
+
+  // Autoplay - only starts AFTER first paint to keep slide 0 as LCP
+  useEffect(() => {
+    if (safeSlides.length <= 1 || !autoplaySeconds || isFirstPaint) return;
     
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % safeSlides.length);
     }, autoplaySeconds * 1000);
 
     return () => clearInterval(interval);
-  }, [safeSlides.length, autoplaySeconds]);
+  }, [safeSlides.length, autoplaySeconds, isFirstPaint]);
 
   // Reset index if it's out of bounds
   useEffect(() => {
@@ -126,9 +135,9 @@ export function HeroBannerBlock({
                 src={desktopImage}
                 alt={currentSlide?.altText || `Banner ${currentIndex + 1}`}
                 className="w-full h-full object-cover"
-                fetchPriority={currentIndex === 0 ? "high" : "auto"}
-                decoding={currentIndex === 0 ? "sync" : "async"}
-                loading={currentIndex === 0 ? "eager" : "lazy"}
+                fetchPriority="high"
+                decoding="sync"
+                loading="eager"
                 width={1920}
                 height={686}
               />
