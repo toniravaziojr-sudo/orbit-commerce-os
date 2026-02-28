@@ -78,25 +78,28 @@ export function LcpPreloader({ tenantId }: LcpPreloaderProps) {
 
     // Desktop preload
     const desktopUrl = getHeroBannerImageUrl(bannerData.desktopUrl, 'desktop');
-    const desktopLink = document.createElement('link');
-    desktopLink.rel = 'preload';
-    desktopLink.as = 'image';
-    desktopLink.href = desktopUrl;
-    desktopLink.type = 'image/webp';
-    desktopLink.media = '(min-width: 768px)';
-    document.head.appendChild(desktopLink);
-    links.push(desktopLink);
+    if (desktopUrl && desktopUrl !== '/placeholder.svg') {
+      const desktopLink = document.createElement('link');
+      desktopLink.rel = 'preload';
+      desktopLink.as = 'image';
+      desktopLink.href = desktopUrl;
+      desktopLink.media = '(min-width: 768px)';
+      document.head.appendChild(desktopLink);
+      links.push(desktopLink);
+    }
 
     // Mobile preload
-    const mobileUrl = getHeroBannerImageUrl(bannerData.mobileUrl, 'mobile');
-    const mobileLink = document.createElement('link');
-    mobileLink.rel = 'preload';
-    mobileLink.as = 'image';
-    mobileLink.href = mobileUrl;
-    mobileLink.type = 'image/webp';
-    mobileLink.media = '(max-width: 767px)';
-    document.head.appendChild(mobileLink);
-    links.push(mobileLink);
+    const mobileRaw = bannerData.mobileUrl || bannerData.desktopUrl;
+    const mobileUrl = getHeroBannerImageUrl(mobileRaw, 'mobile');
+    if (mobileUrl && mobileUrl !== '/placeholder.svg') {
+      const mobileLink = document.createElement('link');
+      mobileLink.rel = 'preload';
+      mobileLink.as = 'image';
+      mobileLink.href = mobileUrl;
+      mobileLink.media = '(max-width: 767px)';
+      document.head.appendChild(mobileLink);
+      links.push(mobileLink);
+    }
 
     return () => {
       links.forEach(el => el.remove());
