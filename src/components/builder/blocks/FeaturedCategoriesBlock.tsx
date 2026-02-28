@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight, ImageIcon, Loader2 } from 'lucide-react';
 import { BlockRenderContext } from '@/lib/builder/types';
 import { useIsMobile } from '@/hooks/use-mobile';
 import useEmblaCarousel from 'embla-carousel-react';
+import { getLogoImageUrl } from '@/lib/imageTransform';
 import { supabase } from '@/integrations/supabase/client';
 import { Link } from 'react-router-dom';
 import { getPublicCategoryUrl } from '@/lib/publicUrls';
@@ -198,9 +199,11 @@ export function FeaturedCategoriesBlock({
         <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full bg-muted/30 overflow-hidden mb-2 ring-2 ring-transparent group-hover:ring-primary transition-all flex-shrink-0">
           {imageUrl ? (
             <img
-              src={imageUrl}
+              src={getLogoImageUrl(imageUrl, 200)}
               alt={category.name}
               className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+              loading="lazy"
+              decoding="async"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
