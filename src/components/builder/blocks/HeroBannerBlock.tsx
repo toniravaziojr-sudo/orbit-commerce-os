@@ -117,6 +117,10 @@ export function HeroBannerBlock({
                 src={desktopImage}
                 alt={currentSlide?.altText || `Banner ${currentIndex + 1}`}
                 className="w-full h-full object-cover"
+                fetchPriority="high"
+                decoding="async"
+                width={1920}
+                height={686}
               />
             </picture>
           )

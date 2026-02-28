@@ -138,6 +138,9 @@ export function ProductCard({
             alt={product.name}
             className="w-full h-full object-cover transition-transform group-hover:scale-105"
             loading="lazy"
+            decoding="async"
+            width={400}
+            height={400}
           />
           {showBadges && badges && badges.length > 0 && (
             <ProductCardBadges badges={badges} />
@@ -278,6 +281,9 @@ export function ProductCard({
             alt={product.name}
             className="w-full h-full object-cover transition-transform group-hover:scale-105"
             loading="lazy"
+            decoding="async"
+            width={400}
+            height={400}
           />
           {showBadges && badges && badges.length > 0 && (
             <ProductCardBadges badges={badges} />
@@ -400,6 +406,9 @@ export function ProductCard({
           alt={product.name}
           className="w-full h-full object-cover transition-transform group-hover:scale-105"
           loading="lazy"
+          decoding="async"
+          width={400}
+          height={400}
         />
         {showBadges && badges && badges.length > 0 && (
           <ProductCardBadges badges={badges} />
