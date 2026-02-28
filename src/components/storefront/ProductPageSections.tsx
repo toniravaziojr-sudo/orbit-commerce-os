@@ -14,6 +14,7 @@ import { BuyTogetherSection } from './sections/BuyTogetherSection';
 import { RelatedProductsSection } from './sections/RelatedProductsSection';
 import { ProductReviewsSection } from './sections/ProductReviewsSection';
 import { Link } from 'react-router-dom';
+import type { CategorySettings } from '@/hooks/usePageSettings';
 
 interface ProductData {
   id: string;
@@ -34,6 +35,7 @@ interface ProductPageSectionsProps {
   showReviews?: boolean;
   showRelatedProducts?: boolean;
   relatedProductsTitle?: string;
+  categorySettings?: Partial<CategorySettings>;
   viewportOverride?: 'desktop' | 'tablet' | 'mobile';
   isEditing?: boolean;
 }
@@ -58,6 +60,7 @@ export function ProductPageSections({
   showReviews = true,
   showRelatedProducts = true,
   relatedProductsTitle = 'Produtos Relacionados',
+  categorySettings,
   viewportOverride,
   isEditing = false,
 }: ProductPageSectionsProps) {
@@ -109,6 +112,7 @@ export function ProductPageSections({
           tenantSlug={tenantSlug} 
           isEditing={isEditing}
           title={relatedProductsTitle}
+          categorySettings={categorySettings}
         />
       )}
     </div>

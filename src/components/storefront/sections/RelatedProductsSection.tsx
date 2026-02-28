@@ -1,5 +1,6 @@
 // =============================================
 // RELATED PRODUCTS SECTION - Renders related products as a horizontal slider
+// Uses shared ProductCard to respect categorySettings from theme
 // =============================================
 
 import { useQuery } from '@tanstack/react-query';
@@ -12,15 +13,29 @@ import {
   CarouselPrevious,
   CarouselNext,
 } from '@/components/ui/carousel';
+import { ProductCard, formatPrice, getProductImage } from '@/components/builder/blocks/shared/ProductCard';
+import { useProductRatings } from '@/hooks/useProductRating';
+import { useProductBadgesForProducts } from '@/hooks/useProductBadges';
+import { useCart } from '@/contexts/CartContext';
+import { toast } from 'sonner';
+import { useState, useCallback, useMemo } from 'react';
+import type { CategorySettings } from '@/hooks/usePageSettings';
 
 interface RelatedProductsSectionProps {
   productId: string;
   tenantSlug: string;
   isEditing?: boolean;
   title?: string;
+  categorySettings?: Partial<CategorySettings>;
 }
 
-export function RelatedProductsSection({ productId, tenantSlug, isEditing = false, title = 'Produtos Relacionados' }: RelatedProductsSectionProps) {
+export function RelatedProductsSection({ 
+  productId, 
+  tenantSlug, 
+  isEditing = false, 
+  title = 'Produtos Relacionados',
+  categorySettings = {},
+}: RelatedProductsSectionProps) {
   const { data: relatedProducts, isLoading } = useQuery({
     queryKey: ['related-products-public', productId],
     queryFn: async () => {
@@ -51,6 +66,43 @@ export function RelatedProductsSection({ productId, tenantSlug, isEditing = fals
     },
     enabled: !!productId,
   });
+
+  // Batch fetch ratings and badges
+  const productIds = useMemo(() => relatedProducts?.map((p: any) => p.id) || [], [relatedProducts]);
+  const { data: ratingsMap } = useProductRatings(productIds);
+  const { data: badgesMap } = useProductBadgesForProducts(productIds);
+
+  // Cart
+  const { addItem: addToCart } = useCart();
+  const [addedProducts, setAddedProducts] = useState<Set<string>>(new Set());
+
+  const handleAddToCart = useCallback((e: React.MouseEvent, product: any) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isEditing) return;
+    
+    const primaryImage = product.product_images?.find((img: any) => img.is_primary)?.url || product.product_images?.[0]?.url;
+    
+    addToCart({
+      product_id: product.id,
+      name: product.name,
+      sku: product.slug,
+      price: product.price,
+      quantity: 1,
+      image_url: primaryImage,
+    });
+    
+    setAddedProducts(prev => new Set(prev).add(product.id));
+    toast.success('Produto adicionado ao carrinho!');
+    
+    setTimeout(() => {
+      setAddedProducts(prev => {
+        const next = new Set(prev);
+        next.delete(product.id);
+        return next;
+      });
+    }, 2000);
+  }, [addToCart, isEditing]);
 
   if (isLoading || !relatedProducts?.length) {
     if (isEditing) {
@@ -92,53 +144,25 @@ export function RelatedProductsSection({ productId, tenantSlug, isEditing = fals
       >
         <CarouselContent className="-ml-3">
           {relatedProducts.map((product: any) => {
-            const primaryImage = product.product_images?.find((img: any) => img.is_primary)
-              || product.product_images?.[0];
-            const hasDiscount = product.compare_at_price && product.compare_at_price > product.price;
+            const rating = ratingsMap?.get(product.id);
+            const badges = badgesMap?.get(product.id);
             
             return (
               <CarouselItem
                 key={product.id}
-                className="pl-3 basis-1/2 sm:basis-1/2 md:basis-1/3 lg:basis-1/4"
+                className="pl-3 basis-full sm:basis-1/2 md:basis-1/3 lg:basis-1/4"
               >
-                <a
-                  href={getPublicProductUrl(tenantSlug, product.slug) || '#'}
-                  className="group block bg-card rounded-lg overflow-hidden border hover:border-primary/50 transition-colors h-full"
-                >
-                  <div className="aspect-square bg-muted overflow-hidden">
-                    {primaryImage?.url ? (
-                      <img
-                        src={primaryImage.url}
-                        alt={product.name}
-                        loading="lazy"
-                        decoding="async"
-                        width={400}
-                        height={400}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
-                        Sem imagem
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="p-3">
-                    <h3 className="font-medium text-sm line-clamp-2 group-hover:text-primary transition-colors">
-                      {product.name}
-                    </h3>
-                    <div className="mt-2">
-                      {hasDiscount && (
-                        <span className="text-xs text-muted-foreground line-through mr-2">
-                          R$ {product.compare_at_price.toFixed(2).replace('.', ',')}
-                        </span>
-                      )}
-                      <span className="font-bold text-primary">
-                        R$ {product.price.toFixed(2).replace('.', ',')}
-                      </span>
-                    </div>
-                  </div>
-                </a>
+                <ProductCard
+                  product={product}
+                  tenantSlug={tenantSlug}
+                  isEditing={isEditing}
+                  settings={categorySettings}
+                  rating={rating}
+                  badges={badges}
+                  isAddedToCart={addedProducts.has(product.id)}
+                  onAddToCart={handleAddToCart}
+                  variant="compact"
+                />
               </CarouselItem>
             );
           })}

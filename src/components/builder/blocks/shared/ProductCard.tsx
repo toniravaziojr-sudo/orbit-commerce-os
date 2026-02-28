@@ -303,7 +303,7 @@ export function ProductCard({
           <h3 className="font-medium text-sm line-clamp-2 text-foreground">
             {product.name}
           </h3>
-          <div className="mt-1 flex items-center gap-2">
+          <div className="mt-1 flex items-center gap-2 flex-wrap">
             {hasDiscount && (
               <span className="text-xs text-muted-foreground line-through">
                 {formatPrice(product.compare_at_price!)}
@@ -434,7 +434,7 @@ export function ProductCard({
         </h3>
         
         {/* Price */}
-        <div className="mt-1 flex items-center gap-2">
+        <div className="mt-1 flex items-center gap-2 flex-wrap">
           {hasDiscount && (
             <span className="text-xs text-muted-foreground line-through">
               {formatPrice(product.compare_at_price!)}

@@ -1278,6 +1278,7 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing }: any) {
           showReviews={showReviews}
           showRelatedProducts={showRelatedProducts}
           relatedProductsTitle={relatedProductsTitle}
+          categorySettings={(context as any)?.categorySettings || {}}
           viewportOverride={viewportOverride}
           isEditing={isEditing}
         />
