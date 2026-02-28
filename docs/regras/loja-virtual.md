@@ -704,17 +704,24 @@ import StorefrontHome from './pages/storefront/StorefrontHome';
 3. **Lazy loading:** Imagens abaixo da dobra DEVEM ter `loading="lazy"` e `decoding="async"`
 4. **`<picture>` responsivo:** Storefront usa `<source media="(max-width: 767px)">` para imagens mobile
 
-### Supabase Image Transform (WebP otimizado)
+### Otimização de Imagens via wsrv.nl Proxy
 
-Todas as imagens de storage do Supabase DEVEM usar o helper `src/lib/imageTransform.ts`:
+Todas as imagens de storage do Supabase são automaticamente roteadas pelo proxy **wsrv.nl** (`https://wsrv.nl/`) para redimensionamento, conversão WebP e cache CDN (1 ano). Apenas URLs do Supabase Storage são transformadas; imagens externas são retornadas como estão.
 
-| Contexto | Helper | Dimensão |
-|----------|--------|----------|
-| ProductCard | `getProductCardImageUrl()` | 400x400 WebP q75 |
-| HeroBanner desktop | `getHeroBannerImageUrl(url, 'desktop')` | 1920w WebP q80 |
-| HeroBanner mobile | `getHeroBannerImageUrl(url, 'mobile')` | 768w WebP q75 |
-| ImageBlock | `getBlockImageUrl(url, maxWidth)` | custom WebP q80 |
-| Logo (header/footer) | `getLogoImageUrl(url, 300)` | 300x300 WebP q85 contain |
+O helper centralizado é `src/lib/imageTransform.ts`:
+
+| Contexto | Helper | Largura | Qualidade | Formato |
+|----------|--------|---------|-----------|---------|
+| ProductCard | `getProductCardImageUrl()` | 480px | 80 | WebP |
+| HeroBanner desktop | `getHeroBannerImageUrl(url, 'desktop')` | 1920px | 80 | WebP |
+| HeroBanner mobile | `getHeroBannerImageUrl(url, 'mobile')` | 768px | 75 | WebP |
+| ImageBlock | `getBlockImageUrl(url, maxWidth)` | custom | 80 | WebP |
+| Logo (header/footer) | `getLogoImageUrl(url, 200)` | 200px | 85 | WebP |
+
+**Regras:**
+- **NUNCA** chamar URLs de storage diretamente em `<img>` — sempre usar os helpers
+- **NUNCA** alterar o proxy sem validar impacto no PageSpeed
+- Imagens não-Supabase (URLs externas, placeholders) NÃO passam pelo proxy
 
 ### LCP Preloading
 
@@ -730,7 +737,8 @@ O `MarketingTrackerProvider` usa `requestIdleCallback` (fallback `setTimeout 2s`
 
 | Data | Alteração |
 |------|-----------|
-| 2026-02-28 | PageSpeed Mobile: Image Transform WebP, LCP preload, defer marketing scripts |
+| 2026-02-28 | Image Proxy: wsrv.nl para auto-resize + WebP + CDN cache em todas as imagens Supabase |
+| 2026-02-28 | PageSpeed Mobile: LCP preload, defer marketing scripts, autoplay defer 3s |
 | 2025-02-28 | PageSpeed: code splitting, lazy loading, fetchPriority, width/height em imagens |
 | 2025-02-28 | Storefront Bootstrap: Edge Function de carregamento consolidado + hooks com cache agressivo |
 | 2025-01-26 | SEO Home: configuração de meta título/descrição + geração IA em Configurações do Tema |
