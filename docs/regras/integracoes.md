@@ -232,14 +232,48 @@ Disponível apenas para `isPlatformOperator`:
 - Criar cards com `<Input>` + `<Button Save>` manuais para editar credenciais
 - Criar lógica própria de `useMutation` para `platform-credentials-update` dentro do componente da aba
 - Criar estados `values`, `visibleKeys`, `showSecret` etc. manuais para gerenciar visibilidade
+- Fazer chamadas individuais à edge function `platform-secrets-check` por aba/componente
 
 **Obrigatório:**
 - Usar `<CredentialEditor credentialKey="..." label="..." ... />` para CADA credencial
-- Buscar dados via `useQuery` com key `["platform-secrets-status", "<provider>"]`
+- Buscar dados via hook centralizado `usePlatformIntegrationStatus(integrationKey)` de `@/hooks/usePlatformSecretsStatus`
 - Layout padrão: Header com ícone + título + badge → Alert informativo → Card com CredentialEditors empilhados
 - Seções adicionais (URLs, webhooks) ficam em Cards separados abaixo
 
-**Exemplo de estrutura:**
+### ⚠️ REGRA: Cache Centralizado de Status — usePlatformSecretsStatus
+
+> **NÃO NEGOCIÁVEL** — O status de integrações da plataforma DEVE usar o hook centralizado.
+
+**Arquivo:** `src/hooks/usePlatformSecretsStatus.ts`
+
+**Hooks disponíveis:**
+| Hook | Uso | Chamadas à API |
+|------|-----|----------------|
+| `usePlatformSecretsStatus()` | Dashboard (busca TODAS as integrações) | 1 única chamada, cache 2min |
+| `usePlatformIntegrationStatus(key)` | Aba individual (filtra do cache) | 0 chamadas extras |
+
+**Proibido:**
+- Criar `useQuery` individual por aba chamando `platform-secrets-check`
+- Usar `queryKey: ["platform-secrets-status", "<provider>"]` com chamada própria
+- Duplicar lógica de fetch em componentes de aba
+
+**Obrigatório:**
+- Usar `usePlatformIntegrationStatus("key")` em cada aba para obter dados do cache centralizado
+- O dashboard (`PlatformIntegrationsDashboard`) usa `usePlatformSecretsStatus()` diretamente
+- `staleTime: 2min` e `gcTime: 5min` — NÃO alterar sem justificativa
+
+**Exemplo de uso em aba:**
+```tsx
+import { usePlatformIntegrationStatus } from "@/hooks/usePlatformSecretsStatus";
+
+function MinhaAbaSettings() {
+  const { data: integration, isLoading } = usePlatformIntegrationStatus("minha_integracao");
+  const isConfigured = integration?.status === 'configured';
+  // ...
+}
+```
+
+**Exemplo de estrutura visual:**
 ```tsx
 <div className="space-y-6">
   {/* Header com ícone */}
