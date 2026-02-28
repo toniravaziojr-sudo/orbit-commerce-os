@@ -306,3 +306,15 @@ Quando `isEditing=true` e não há menu real:
 | 2025-01-19 | Menu demo interativo com subitens e efeitos de hover |
 | 2025-01-19 | Removido emoji ✨ do badge de promoções |
 | 2025-01-19 | Upload de thumbnail refinado no builder |
+| 2025-02-28 | Logo do header com `loading="eager"` (above-the-fold) e otimização via `getLogoImageUrl()` |
+
+---
+
+## Otimização de Imagens (PageSpeed)
+
+| Elemento | Função | Atributos |
+|----------|--------|-----------|
+| **Logo** | `getLogoImageUrl(url, 200)` | `loading="eager"`, `decoding="async"`, `width={180}`, `height={60}` |
+
+> A logo é above-the-fold, portanto usa `loading="eager"` (não lazy).  
+> O proxy wsrv.nl redimensiona para 200px e converte para WebP automaticamente.
