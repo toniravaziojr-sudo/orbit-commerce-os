@@ -224,6 +224,37 @@ Disponível apenas para `isPlatformOperator`:
 | Mercado Pago | MP Billing platform config | `MP_ACCESS_TOKEN` |
 | Shopee | Shopee platform config | `SHOPEE_PARTNER_ID`, `SHOPEE_PARTNER_KEY` |
 
+### ⚠️ REGRA: Padrão Visual Obrigatório — CredentialEditor
+
+> **NÃO NEGOCIÁVEL** — Todas as abas de credenciais em `/platform-integrations` DEVEM usar o componente `CredentialEditor` (`src/components/integrations/CredentialEditor.tsx`).
+
+**Proibido:**
+- Criar cards com `<Input>` + `<Button Save>` manuais para editar credenciais
+- Criar lógica própria de `useMutation` para `platform-credentials-update` dentro do componente da aba
+- Criar estados `values`, `visibleKeys`, `showSecret` etc. manuais para gerenciar visibilidade
+
+**Obrigatório:**
+- Usar `<CredentialEditor credentialKey="..." label="..." ... />` para CADA credencial
+- Buscar dados via `useQuery` com key `["platform-secrets-status", "<provider>"]`
+- Layout padrão: Header com ícone + título + badge → Alert informativo → Card com CredentialEditors empilhados
+- Seções adicionais (URLs, webhooks) ficam em Cards separados abaixo
+
+**Exemplo de estrutura:**
+```tsx
+<div className="space-y-6">
+  {/* Header com ícone */}
+  {/* Alert informativo */}
+  <Card>
+    <CardHeader> {/* Badge Configurado/Pendente */} </CardHeader>
+    <CardContent className="space-y-4">
+      <CredentialEditor credentialKey="KEY_1" ... />
+      <CredentialEditor credentialKey="KEY_2" ... />
+    </CardContent>
+  </Card>
+  {/* Card de URLs (se aplicável) */}
+</div>
+```
+
 ---
 
 ## Fluxo OAuth (Marketplaces)
