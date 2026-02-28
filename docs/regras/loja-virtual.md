@@ -616,10 +616,68 @@ Endpoint centralizado para geração de SEO otimizado via IA (Gemini).
 
 ---
 
+## Storefront Bootstrap (Otimização de Performance)
+
+### Visão Geral
+
+O storefront utiliza uma Edge Function `storefront-bootstrap` que consolida 6+ queries em uma única chamada server-side, reduzindo drasticamente o tempo de carregamento inicial.
+
+### Arquitetura
+
+```
+Browser → storefront-bootstrap (Edge Function)
+              ├─ Q1: store_settings
+              ├─ Q2: header menu + items
+              ├─ Q3: footer menu + items
+              ├─ Q4: categories (active)
+              ├─ Q5: template set (published)
+              ├─ Q6: custom domain
+              └─ Q7: products (opcional)
+         ← Single JSON response
+```
+
+### Hooks
+
+| Hook | Arquivo | Uso |
+|------|---------|-----|
+| `useStorefrontBootstrap` | `src/hooks/useStorefrontBootstrap.ts` | Bootstrap por `tenant_slug` |
+| `useStorefrontBootstrapById` | `src/hooks/useStorefrontBootstrap.ts` | Bootstrap por `tenant_id` |
+| `usePublicStorefront` | `src/hooks/useStorefront.ts` | Hook público que usa bootstrap internamente |
+
+### Cache
+
+| Configuração | Valor | Motivo |
+|--------------|-------|--------|
+| `staleTime` | 2 minutos | Dados de storefront mudam raramente |
+| `gcTime` | 5 minutos | Mantém cache por mais tempo |
+| `Cache-Control` (HTTP) | `public, max-age=60, s-maxage=120` | Cache CDN |
+
+### Regras
+
+| Regra | Descrição |
+|-------|-----------|
+| **Proibido** queries individuais para dados iniciais | Usar `usePublicStorefront` que chama bootstrap |
+| **Obrigatório** `staleTime` ≥ 2 min | Evitar re-fetches desnecessários |
+| **Opcional** `include_products` | Só incluir produtos quando necessário (home) |
+
+### Mapeamento
+
+| Tabela | Edge Function |
+|--------|---------------|
+| `store_settings` | `storefront-bootstrap` |
+| `menus` + `menu_items` | `storefront-bootstrap` |
+| `categories` | `storefront-bootstrap` |
+| `storefront_template_sets` | `storefront-bootstrap` |
+| `tenant_domains` | `storefront-bootstrap` |
+| `products` + `product_images` | `storefront-bootstrap` (opcional) |
+
+---
+
 ## Histórico de Alterações
 
 | Data | Alteração |
 |------|-----------|
+| 2025-02-28 | Storefront Bootstrap: Edge Function de carregamento consolidado + hooks com cache agressivo |
 | 2025-01-26 | SEO Home: configuração de meta título/descrição + geração IA em Configurações do Tema |
 | 2025-01-25 | Newsletter Popup: campo `icon_image_url` para ícone customizado do incentivo |
 | 2025-01-25 | Footer: aviso de itens ocultos quando páginas não estão publicadas |

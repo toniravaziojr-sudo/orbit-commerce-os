@@ -1762,3 +1762,92 @@ Página reorganizada em 3 abas:
 - **DatabaseImporter**: Aceita múltiplos JSONs, ordena tabelas por foreign keys, envia em chunks de 500
 - **StorageImporter**: Aceita JSONs do StorageExporter, importa em batches de 5 arquivos
 - Ambos mostram progresso visual e relatório de resultados
+
+---
+
+## Storefront Bootstrap (`storefront-bootstrap`)
+
+### Versão Atual: v1.0.0
+
+### Visão Geral
+Edge Function que consolida todas as queries iniciais do storefront em uma única chamada server-side, eliminando a cascata de requests individuais.
+
+### Queries Paralelas (Promise.allSettled)
+
+| # | Dado | Tabela |
+|---|------|--------|
+| Q1 | Store settings | `store_settings` |
+| Q2 | Header menu + items | `menus` + `menu_items` |
+| Q3 | Footer menu + items | `menus` + `menu_items` |
+| Q4 | Categorias ativas | `categories` |
+| Q5 | Template publicado | `storefront_template_sets` |
+| Q6 | Domínio customizado | `tenant_domains` |
+| Q7 | Produtos (opcional) | `products` + `product_images` |
+
+### Parâmetros de Entrada
+
+| Param | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `tenant_slug` | string | ✅* | Slug do tenant |
+| `tenant_id` | string | ✅* | ID direto do tenant |
+| `include_products` | boolean | ❌ | Incluir produtos (default: false) |
+
+*Um dos dois é obrigatório.
+
+### Cache HTTP
+```
+Cache-Control: public, max-age=60, s-maxage=120
+```
+
+### Hooks Frontend
+
+| Hook | Arquivo | Parâmetro |
+|------|---------|-----------|
+| `useStorefrontBootstrap` | `src/hooks/useStorefrontBootstrap.ts` | `tenant_slug` |
+| `useStorefrontBootstrapById` | `src/hooks/useStorefrontBootstrap.ts` | `tenant_id` |
+| `usePublicStorefront` | `src/hooks/useStorefront.ts` | `tenant_slug` (usa bootstrap internamente) |
+
+---
+
+## Scheduler Tick (`scheduler-tick`)
+
+### Versão Atual: v2.0.0
+
+### v2.0.0: Hybrid Dispatcher (Paralelismo)
+- **Antes**: 7 steps executavam sequencialmente (~40s total)
+- **Depois**: Steps 1-3 sequenciais (dependências), Steps 4-7 em paralelo via `Promise.allSettled`
+- **Resultado**: Redução de ~50-60% no tempo total de execução
+
+### Modelo de Execução
+
+```
+Step 1 (whatsapp-health) → sequencial
+Step 2 (process-events) → sequencial
+Step 3 (run-notifications) → sequencial
+Steps 4-7 → Promise.allSettled([
+  reconcile-payments,
+  ads-tracking-health,
+  run-email-sequences,
+  ads-autopilot-creative-check
+])
+```
+
+---
+
+## Reconcile Payments (`reconcile-payments`)
+
+### Versão Atual: v2.0.0
+
+### v2.0.0: Concurrent Batches
+- **Antes**: Processamento sequencial de tenants e pagamentos (~9s)
+- **Depois**: Todos os tenants em paralelo, pagamentos em batches de 5 concorrentes
+- **Resultado**: Redução de ~70% no tempo de execução
+
+### Modelo de Execução
+
+```
+Fetch all pending payments
+  → Group by tenant
+  → Promise.allSettled(tenants.map(processTenant))
+      → Each tenant: batches of 5 payments via Promise.allSettled
+```
