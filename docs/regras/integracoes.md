@@ -32,17 +32,18 @@ Hub central de integrações com serviços externos: pagamentos, redes sociais, 
 
 | Tab | Descrição |
 |-----|-----------|
+| Resumo | Dashboard de status geral |
 | Email e Domínios | SendGrid, Cloudflare (plataforma) |
 | WhatsApp | Z-API manager, Meta Cloud API (plataforma) |
 | Fiscal | Nuvem Fiscal, Focus NFe |
 | Logística | Loggi OAuth global |
 | IA | Gemini Nativa, OpenAI Nativa, Lovable AI Gateway (fallback), Firecrawl |
+| **Meta** | Meta Ads/Pixel (APP_ID, APP_SECRET, GRAPH_API_VERSION, WEBHOOK_VERIFY_TOKEN) |
+| **Google** | Google OAuth (CLIENT_ID, CLIENT_SECRET) |
+| **TikTok** | TikTok Ads (APP_ID, APP_SECRET) + Shop (SHOP_APP_KEY, SHOP_APP_SECRET) |
 | Mercado Livre | Meli platform config |
-| Mercado Livre | Meli platform config |
-| Mercado Pago | MP platform config |
+| Mercado Pago | MP Billing platform config |
 | Shopee | Shopee platform config |
-
-**NUNCA** criar aba "Plataforma" dentro do módulo `/integrations`. Use `/platform-integrations`.
 
 ---
 
@@ -206,16 +207,20 @@ Disponível em **Integrações → WhatsApp → Meta Oficial** (apenas platform 
 
 Disponível apenas para `isPlatformOperator`:
 
-| Tab | Descrição |
-|-----|-----------|
-| Resumo | Dashboard de status geral |
-| Email e Domínios | SendGrid + Cloudflare |
-| WhatsApp | Z-API manager account |
-| Fiscal | Focus NFe |
-| Logística | Loggi OAuth |
-| IA | Firecrawl e AI config |
-| Mercado Livre | Meli platform config |
-| Mercado Livre | Meli platform config |
+| Tab | Descrição | Credenciais |
+|-----|-----------|-------------|
+| Resumo | Dashboard de status geral | — |
+| Email e Domínios | SendGrid + Cloudflare | `SENDGRID_API_KEY`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ZONE_ID` |
+| WhatsApp | Z-API manager account | `ZAPI_MANAGER_TOKEN` |
+| Fiscal | Focus NFe | `FOCUS_NFE_TOKEN` |
+| Logística | Loggi OAuth | `LOGGI_CLIENT_ID`, `LOGGI_CLIENT_SECRET` |
+| IA | Firecrawl e AI config | `FIRECRAWL_API_KEY` |
+| **Meta** | Meta Ads/Pixel platform config | `META_APP_ID`, `META_APP_SECRET`, `META_GRAPH_API_VERSION`, `META_WEBHOOK_VERIFY_TOKEN` |
+| **Google** | Google OAuth platform config | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+| **TikTok** | TikTok Ads + Shop platform config | `TIKTOK_APP_ID`, `TIKTOK_APP_SECRET`, `TIKTOK_SHOP_APP_KEY`, `TIKTOK_SHOP_APP_SECRET` |
+| Mercado Livre | Meli platform config | `MELI_APP_ID`, `MELI_CLIENT_SECRET` |
+| Mercado Pago | MP Billing platform config | `MP_ACCESS_TOKEN` |
+| Shopee | Shopee platform config | `SHOPEE_PARTNER_ID`, `SHOPEE_PARTNER_KEY` |
 
 ---
 
