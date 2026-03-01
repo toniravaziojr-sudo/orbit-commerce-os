@@ -280,7 +280,7 @@
 /* Header search placeholder inherits header text color */
 .sf-header-search-input::placeholder {
   color: var(--sf-header-text-color, currentColor);
-  opacity: 0.7;
+  opacity: 0.65;
 }
 
 /* Footer - separate mobile and desktop layouts */
