@@ -569,7 +569,15 @@ export function StorefrontHeaderContent({
                     <Menu className="h-5 w-5" style={iconStyle} />
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="w-[300px] z-[100]" aria-describedby={undefined}>
+                <SheetContent 
+                  side="left" 
+                  className="w-[300px] z-[100]" 
+                  aria-describedby={undefined}
+                  style={{
+                    backgroundColor: headerBgColor || undefined,
+                    color: headerTextColor || undefined,
+                  }}
+                >
                   <SheetTitle className="sr-only">Menu de navegação</SheetTitle>
                   <div className="flex flex-col gap-4 mt-8">
                     {showSearch && (
@@ -596,14 +604,16 @@ export function StorefrontHeaderContent({
                                   <LinkWrapper
                                     to={getMenuItemUrl(item)}
                                     onClick={() => setMobileMenuOpen(false)}
-                                    className="flex-1 py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-l-lg"
+                                    className="flex-1 py-3 px-4 text-sm font-medium hover:opacity-70 rounded-l-lg"
+                                    style={{ color: headerTextColor || undefined }}
                                   >
                                     {item.label}
                                   </LinkWrapper>
                                   <button
                                     type="button"
                                     onClick={() => toggleMobileDropdown(item.id)}
-                                    className="py-3 px-3 text-muted-foreground hover:bg-muted rounded-r-lg"
+                                    className="py-3 px-3 hover:opacity-70 rounded-r-lg"
+                                    style={{ color: headerTextColor || undefined }}
                                     aria-label={openMobileDropdowns.has(item.id) ? 'Fechar submenu' : 'Abrir submenu'}
                                   >
                                     <ChevronDown className={cn(
@@ -613,7 +623,7 @@ export function StorefrontHeaderContent({
                                   </button>
                                 </div>
                                 {openMobileDropdowns.has(item.id) && (
-                                  <div className="ml-4 border-l-2 border-primary/30">
+                                  <div className="ml-4 border-l-2" style={{ borderColor: headerTextColor ? `${headerTextColor}30` : undefined }}>
                                     {item.children.map((child) => (
                                       <div key={child.id}>
                                         {child.children && child.children.length > 0 ? (
@@ -622,14 +632,16 @@ export function StorefrontHeaderContent({
                                               <LinkWrapper
                                                 to={getMenuItemUrl(child)}
                                                 onClick={() => setMobileMenuOpen(false)}
-                                                className="flex-1 py-2 px-4 text-sm text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-l-lg transition-colors"
+                                                className="flex-1 py-2 px-4 text-sm opacity-80 hover:opacity-100 rounded-l-lg transition-colors"
+                                                style={{ color: headerTextColor || undefined }}
                                               >
                                                 {child.label}
                                               </LinkWrapper>
                                               <button
                                                 type="button"
                                                 onClick={() => toggleMobileDropdown(child.id)}
-                                                className="py-2 px-3 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-r-lg transition-colors"
+                                                className="py-2 px-3 opacity-80 hover:opacity-100 rounded-r-lg transition-colors"
+                                                style={{ color: headerTextColor || undefined }}
                                                 aria-label={openMobileDropdowns.has(child.id) ? 'Fechar submenu' : 'Abrir submenu'}
                                               >
                                                 <ChevronDown className={cn(
@@ -639,13 +651,14 @@ export function StorefrontHeaderContent({
                                               </button>
                                             </div>
                                             {openMobileDropdowns.has(child.id) && (
-                                              <div className="ml-4 border-l-2 border-primary/20">
+                                              <div className="ml-4 border-l-2" style={{ borderColor: headerTextColor ? `${headerTextColor}20` : undefined }}>
                                                 {child.children.map((grandchild) => (
                                                   <LinkWrapper
                                                     key={grandchild.id}
                                                     to={getMenuItemUrl(grandchild)}
                                                     onClick={() => setMobileMenuOpen(false)}
-                                                    className="py-2 px-4 text-sm text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg block transition-colors"
+                                                    className="py-2 px-4 text-sm opacity-80 hover:opacity-100 rounded-lg block transition-colors"
+                                                    style={{ color: headerTextColor || undefined }}
                                                   >
                                                     {grandchild.label}
                                                   </LinkWrapper>
@@ -657,7 +670,8 @@ export function StorefrontHeaderContent({
                                           <LinkWrapper
                                             to={getMenuItemUrl(child)}
                                             onClick={() => setMobileMenuOpen(false)}
-                                            className="py-2 px-4 text-sm text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg block transition-colors"
+                                            className="py-2 px-4 text-sm opacity-80 hover:opacity-100 rounded-lg block transition-colors"
+                                            style={{ color: headerTextColor || undefined }}
                                           >
                                             {child.label}
                                           </LinkWrapper>
@@ -671,7 +685,8 @@ export function StorefrontHeaderContent({
                               <LinkWrapper
                                 to={getMenuItemUrl(item)}
                                 onClick={() => setMobileMenuOpen(false)}
-                                className="py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-lg flex items-center justify-between"
+                                className="py-3 px-4 text-sm font-medium hover:opacity-70 rounded-lg flex items-center justify-between"
+                                style={{ color: headerTextColor || undefined }}
                               >
                                 {item.label}
                               </LinkWrapper>
@@ -684,12 +699,13 @@ export function StorefrontHeaderContent({
                           {['Categorias', 'Novidades', 'Promoções', 'Sobre'].map((label, i) => (
                             <span
                               key={i}
-                              className="py-3 px-4 text-sm font-medium text-muted-foreground/50 cursor-default"
+                              className="py-3 px-4 text-sm font-medium opacity-50 cursor-default"
+                              style={{ color: headerTextColor || undefined }}
                             >
                               {label}
                             </span>
                           ))}
-                          <p className="text-xs text-muted-foreground/40 italic px-4 mt-2">
+                          <p className="text-xs opacity-40 italic px-4 mt-2" style={{ color: headerTextColor || undefined }}>
                             [Demo] Configure em Menus
                           </p>
                         </>
@@ -702,7 +718,7 @@ export function StorefrontHeaderContent({
                           onClick={() => setMobileMenuOpen(false)}
                           className="py-3 px-4 text-sm font-bold rounded-lg inline-flex"
                           style={{ 
-                            color: featuredPromosTextColor,
+                            color: featuredPromosTextColor || headerTextColor || undefined,
                             backgroundColor: featuredPromosBgColor ? `${featuredPromosBgColor}20` : undefined,
                           }}
                         >
@@ -715,7 +731,8 @@ export function StorefrontHeaderContent({
                         <LinkWrapper
                           to={`${baseUrl}/conta`}
                           onClick={() => setMobileMenuOpen(false)}
-                          className="py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-lg flex items-center gap-2"
+                          className="py-3 px-4 text-sm font-medium hover:opacity-70 rounded-lg flex items-center gap-2"
+                          style={{ color: headerTextColor || undefined }}
                         >
                           <User className="h-4 w-4" />
                           Minha Conta
@@ -725,38 +742,41 @@ export function StorefrontHeaderContent({
 
                     {/* Contact Section (Mobile Drawer) */}
                     {(isWhatsAppValid || isPhoneValidFlag || isEmailValid) && (
-                      <div className="border-t pt-4 mt-2">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase mb-3 px-4">Contato</p>
+                      <div className="border-t pt-4 mt-2" style={{ borderColor: headerTextColor ? `${headerTextColor}20` : undefined }}>
+                        <p className="text-xs font-semibold uppercase mb-3 px-4 opacity-60" style={{ color: headerTextColor || undefined }}>Contato</p>
                         <div className="flex flex-col gap-1">
                           {isWhatsAppValid && whatsAppHref && (
                             <a
                               href={whatsAppHref}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-lg flex items-center gap-3"
+                              className="py-3 px-4 text-sm font-medium hover:opacity-70 rounded-lg flex items-center gap-3"
+                              style={{ color: headerTextColor || undefined }}
                               onClick={handleLinkClick}
                             >
-                              <MessageCircle className="h-5 w-5" style={{ color: 'var(--theme-accent-color, #22c55e)' }} />
+                              <MessageCircle className="h-5 w-5" style={{ color: headerTextColor || 'var(--theme-accent-color, #22c55e)' }} />
                               WhatsApp
                             </a>
                           )}
                           {isPhoneValidFlag && phoneHref && (
                             <a
                               href={phoneHref}
-                              className="py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-lg flex items-center gap-3"
+                              className="py-3 px-4 text-sm font-medium hover:opacity-70 rounded-lg flex items-center gap-3"
+                              style={{ color: headerTextColor || undefined }}
                               onClick={handleLinkClick}
                             >
-                              <Phone className="h-5 w-5" style={{ color: 'var(--theme-button-primary-bg, #1a1a1a)' }} />
+                              <Phone className="h-5 w-5" style={{ color: headerTextColor || 'var(--theme-button-primary-bg, #1a1a1a)' }} />
                               Telefone
                             </a>
                           )}
                           {isEmailValid && emailHref && (
                             <a
                               href={emailHref}
-                              className="py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-lg flex items-center gap-3"
+                              className="py-3 px-4 text-sm font-medium hover:opacity-70 rounded-lg flex items-center gap-3"
+                              style={{ color: headerTextColor || undefined }}
                               onClick={handleLinkClick}
                             >
-                              <Mail className="h-5 w-5" style={{ color: 'var(--theme-button-primary-bg, #1a1a1a)' }} />
+                              <Mail className="h-5 w-5" style={{ color: headerTextColor || 'var(--theme-button-primary-bg, #1a1a1a)' }} />
                               Email
                             </a>
                           )}
@@ -766,18 +786,18 @@ export function StorefrontHeaderContent({
                     
                     {/* Social Media Section (Mobile Drawer) */}
                     {(socialFacebook || socialInstagram) && (
-                      <div className="border-t pt-4 mt-2">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase mb-3 px-4">Redes Sociais</p>
+                      <div className="border-t pt-4 mt-2" style={{ borderColor: headerTextColor ? `${headerTextColor}20` : undefined }}>
+                        <p className="text-xs font-semibold uppercase mb-3 px-4 opacity-60" style={{ color: headerTextColor || undefined }}>Redes Sociais</p>
                         <div className="flex gap-4 px-4">
                           {socialFacebook && (
                             <a 
                               href={socialFacebook} 
                               target="_blank" 
                               rel="noopener noreferrer"
-                              className="p-2 hover:bg-muted rounded-lg"
+                              className="p-2 hover:opacity-70 rounded-lg"
                               onClick={handleLinkClick}
                             >
-                              <Facebook className="h-6 w-6" style={{ color: '#1877F2' }} />
+                              <Facebook className="h-6 w-6" style={{ color: headerTextColor || '#1877F2' }} />
                             </a>
                           )}
                           {socialInstagram && (
@@ -785,10 +805,10 @@ export function StorefrontHeaderContent({
                               href={socialInstagram} 
                               target="_blank" 
                               rel="noopener noreferrer"
-                              className="p-2 hover:bg-muted rounded-lg"
+                              className="p-2 hover:opacity-70 rounded-lg"
                               onClick={handleLinkClick}
                             >
-                              <Instagram className="h-6 w-6" style={{ color: '#E4405F' }} />
+                              <Instagram className="h-6 w-6" style={{ color: headerTextColor || '#E4405F' }} />
                             </a>
                           )}
                         </div>
