@@ -133,11 +133,18 @@ Todos os inputs de chat usam o padrão **card pill**:
    - Se há ações: mostra botões de confirmação
    ↓
 5. Usuário confirma ação
+   - Botão mostra "Executando..." com spinner (via executingActionId)
+   - Botão fica disabled durante execução
    ↓
 6. POST /command-assistant-execute
    - Valida permissões RBAC
    - Executa ação no banco
    - Retorna resultado
+   ↓
+7. Fluxo pós-execução (automático)
+   - Frontend envia resultado da ação de volta ao chat (is_tool_result: true)
+   - IA gera resposta de follow-up confirmando/resumindo a execução
+   - UI mostra streaming da resposta de follow-up
 ```
 
 ### Streaming SSE
@@ -282,8 +289,27 @@ Quando propor uma ação, formate em bloco ```action ... ```
 
 - Lista de conversas anteriores
 - Área de chat com streaming
-- Botões de confirmação para ações
+- Botões de confirmação para ações (com loading via `executingActionId`)
 - Histórico persistido por tenant
+- Fluxo pós-execução: envia resultado de volta à IA automaticamente
+
+### Props de CommandChatMessages
+
+| Prop | Tipo | Descrição |
+|------|------|-----------|
+| `messages` | `CommandMessage[]` | Lista de mensagens |
+| `isStreaming` | `boolean` | Se está recebendo streaming |
+| `streamingContent` | `string` | Conteúdo parcial do streaming |
+| `executingActionId` | `string \| null` | ID da ação em execução (mostra "Executando..." no botão) |
+| `onExecuteAction` | `(action) => void` | Callback de execução |
+
+### useCommandAssistant — Retorno
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `executingActionId` | `string \| null` | ID da ação sendo executada (para UI de loading) |
+| `executeAction` | `(action) => Promise<void>` | Executa ação + envia resultado de volta à IA |
+| `cancelStreaming` | `() => void` | Cancela streaming ativo |
 
 ---
 
