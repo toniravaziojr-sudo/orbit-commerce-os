@@ -231,19 +231,29 @@ export function BuilderToolbar({
 
   const previewResult = getPreviewResult();
 
-  // Preview: Opens store with ?preview=1 to see DRAFT content
+  // Preview: Opens store on APP origin with ?preview=1 to see DRAFT content
+  // MUST use app origin (not public domain) so /store/{tenantSlug} routes work
   const handleOpenDraftPreview = () => {
-    if (previewResult.url && primaryOrigin) {
-      const separator = previewResult.url.includes('?') ? '&' : '?';
-      const absoluteUrl = `${primaryOrigin}${previewResult.url}${separator}preview=1`;
-      window.open(absoluteUrl, '_blank');
+    if (previewResult.url) {
+      const appOrigin = window.location.origin;
+      // previewResult.url already has the correct /store/{tenantSlug}/... path for app domain
+      // and may already include ?preview=1 from getPreviewUrlWithValidation
+      const hasPreviewParam = previewResult.url.includes('preview=1');
+      const url = hasPreviewParam 
+        ? `${appOrigin}${previewResult.url}` 
+        : `${appOrigin}${previewResult.url}${previewResult.url.includes('?') ? '&' : '?'}preview=1`;
+      window.open(url, '_blank');
     }
   };
 
-  // View Store: Opens published store (no preview flag)
+  // View Store: Opens PUBLISHED store on PUBLIC domain (custom domain or platform subdomain)
+  // Strips /store/{tenantSlug} prefix since public domain uses root-relative paths
   const handleOpenPublishedStore = () => {
     if (previewResult.url && primaryOrigin) {
-      const absoluteUrl = `${primaryOrigin}${previewResult.url}`;
+      // Remove /store/{tenantSlug} prefix and ?preview=1 for clean published URL
+      let publicPath = previewResult.url.replace(/^\/store\/[^/]+/, '');
+      publicPath = publicPath.replace(/[?&]preview=1/, '').replace(/\?$/, '');
+      const absoluteUrl = `${primaryOrigin}${publicPath || '/'}`;
       window.open(absoluteUrl, '_blank');
     }
   };
