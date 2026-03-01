@@ -1,49 +1,58 @@
 
 
-## Otimizar Grid de Produtos no Mobile
+## Diagnóstico Completo da Geração de Títulos ML
 
-### Problema Identificado
+### Problemas Identificados (3 causas raiz)
 
-Na imagem, os cards de produto em grid 2 colunas no mobile mostram:
-- Nomes de produtos truncados ("Shampoo Calvície Zero...")
-- Preços muito próximos das bordas
-- Botões apertados sem respiro visual
-- Padding interno excessivo para telas pequenas
+**1. Validação excessivamente restritiva no bulk (`meli-bulk-operations`)**
+Os logs mostram que a IA **gera bons títulos** (47-52 chars, ex: "Balm Respeite o Homem Antiqueda Crescimento 60g") mas a função `isValidGeneratedTitle` rejeita TODOS porque `hasSufficientProductCoverage` exige que keywords do nome interno do produto ("calvicie", "banho", "zero") apareçam no título. Como o título otimizado para SEO usa termos melhores ("Antiqueda", "Crescimento"), a validação falha e cai no fallback que retorna o nome original cru.
 
-### Causa
+**2. Validação fraca demais no regenerar individual (`meli-generate-description`)**
+A versão individual usa uma `isValidGeneratedTitle` simplificada (sem `hasSufficientProductCoverage`) que aceita títulos de apenas 10 chars. O resultado: "Balm Respeite o Homem Pós" (25 chars) passa na validação e é retornado imediatamente no attempt 1, sem incentivo para gerar títulos mais completos.
 
-1. **Container**: `px-4` (16px cada lado) + `gap: 1rem` (16px) = 48px consumidos em largura fixa
-2. **Cards**: `p-3` (12px) interno em todas as variantes — muito para mobile em grid 2-col
-3. **Textos**: `text-sm` (14px) para preço e nome — grande demais para o espaço disponível em 2 colunas
-4. **Botões**: `py-1.5 px-3` — padding horizontal desnecessário em botões full-width
+**3. Prompt insuficiente e modelo fraco para regeneração individual**
+O regenerar individual usa `gemini-2.5-flash` (mais fraco) enquanto o bulk usa `openai` (mais forte). O prompt do regenerar individual não inclui um tamanho mínimo explícito e não enfatiza que o título deve PREENCHER o espaço disponível.
 
-### Alterações
+### Plano de Correção
 
-#### 1. `src/index.css` — Reduzir gap do grid mobile
-- Mobile (`max-width: 639px`): gap de `1rem` (16px) para `0.5rem` (8px)
+**Arquivo: `supabase/functions/meli-generate-description/index.ts`**
 
-#### 2. `src/components/builder/blocks/shared/ProductCard.tsx` — Otimizar padding e tipografia mobile
-- **Todas as variantes (default, compact, minimal)**:
-  - Padding interno: `p-3` → `p-2 sm:p-3` (8px no mobile, 12px em telas maiores)
-  - Nome do produto: `text-sm` → `text-xs sm:text-sm`
-  - Preço: `text-sm` → `text-xs sm:text-sm`
-  - Preço riscado: manter `text-xs` mas adicionar `text-[10px] sm:text-xs`
-  - Botões: `py-1.5 px-3` → `py-1 px-1.5 sm:py-1.5 sm:px-3` e `text-xs` → `text-[11px]`
-  - Gap entre botões: `gap-1.5` → `gap-1 sm:gap-1.5`
+1. Substituir a validação simples `isValidGeneratedTitle(candidate, maxTitleLen)` por uma versão que exija no mínimo 60% do `maxTitleLen` (ex: 36 chars para categorias de 60)
+2. Adicionar tamanho mínimo dinâmico ao prompt: "O título DEVE ter entre X e Y caracteres"
+3. Adicionar feedback loop no retry: informar que o título anterior era muito curto
+4. Trocar modelo de `gemini-2.5-flash` para `google/gemini-2.5-pro` para melhor qualidade
+5. Aumentar temperature inicial de 0.35 para 0.5 para mais variedade ao regenerar
+6. Passar `preferProvider: 'openai'` como no bulk, para consistência
 
-#### 3. `src/components/builder/blocks/CategoryPageLayout.tsx` — Reduzir padding horizontal mobile
-- Container: `px-4` → `px-2 sm:px-4`
+**Arquivo: `supabase/functions/meli-bulk-operations/index.ts`**
 
-#### 4. `src/components/builder/blocks/CollectionSectionBlock.tsx` — Mesma redução de gap
-- Grid mobile: `gap-4` → `gap-2 sm:gap-4`
-
-#### 5. `src/components/builder/blocks/interactive/PersonalizedProductsBlock.tsx` — Consistência
-- Grid: `gap-4 sm:gap-6` → `gap-2 sm:gap-4 lg:gap-6`
+7. Relaxar `hasSufficientProductCoverage`: em vez de exigir keywords do nome interno, aceitar títulos que contenham a marca OU o tipo do produto (ex: "Balm"). Isso permite que a IA otimize para SEO sem ser forçada a repetir o nome interno do cadastro.
+8. Reduzir `requiredMatches` de 2 para 1 quando o título já contém a marca completa
 
 ### Resultado Esperado
 
-- Mais espaço para conteúdo dentro dos cards (nomes menos truncados, preços legíveis)
-- Respiro visual adequado sem desperdício de pixels em telas pequenas
-- Botões proporcionais ao espaço disponível
-- Consistência entre todos os componentes de grid de produtos
+- Títulos de 40-60 chars (para categorias de 60) em vez de 23-33 chars
+- Variedade real ao regenerar (não apenas trocar a última palavra)
+- Bulk não descarta mais títulos bons da IA em favor do nome cru do produto
+- Consistência entre bulk e regenerar individual
+
+### Detalhes Técnicos
+
+```text
+ANTES (regenerar individual):
+  Prompt: "Gere UM título... MÁXIMO 60 chars"
+  Validação: length >= 10 ✓ → aceita "Balm Respeite o Homem Pós" (25 chars)
+  
+DEPOIS:
+  Prompt: "Gere UM título... ENTRE 36 E 60 chars. Preencha o espaço."
+  Validação: length >= 60% de maxTitleLen → rejeita < 36 chars → retry → título completo
+
+ANTES (bulk):
+  IA gera: "Balm Respeite o Homem Antiqueda Crescimento 60g" (47 chars) ✓
+  hasSufficientProductCoverage: keywords "calvicie","banho","zero" → 0/2 matches → REJEITA
+  Fallback: retorna nome cru "Balm Pós-Banho Calvície Zero (Dia)"
+
+DEPOIS:
+  hasSufficientProductCoverage: aceita se contém marca ("Respeite o Homem") OU tipo ("Balm") → ACEITA
+```
 
