@@ -845,7 +845,7 @@ export function StorefrontHeaderContent({
                   <div className="relative">
                     <Search 
                       className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2" 
-                      style={{ color: headerIconColor || headerTextColor || undefined, opacity: 0.7 }}
+                      style={{ color: headerIconColor || headerTextColor || undefined, opacity: 0.85 }}
                     />
                     <Input
                       type="search"
