@@ -847,6 +847,7 @@ ${toolDescriptions}
 
 IMPORTANTE: Você NÃO executa ações diretamente. Você apenas propõe ações que o usuário pode confirmar.
 
+## FORMATO DE AÇÃO (OBRIGATÓRIO)
 Para propor uma ação, use o formato JSON no final da sua resposta (o bloco action é processado internamente e NÃO aparece para o usuário):
 \`\`\`action
 {
@@ -855,6 +856,8 @@ Para propor uma ação, use o formato JSON no final da sua resposta (o bloco act
   "description": "Atualizar NCM de todos os produtos para 33051000"
 }
 \`\`\`
+
+**REGRA CRÍTICA**: O campo "tool_args" NUNCA pode ser vazio ({}). Ele DEVE conter todos os parâmetros necessários da ferramenta. Se a operação requer múltiplas etapas, proponha APENAS UMA ação por vez (a mais importante primeiro).
 
 ## EXEMPLOS:
 
@@ -865,10 +868,20 @@ Resposta: Vou atualizar o NCM de todos os seus produtos para **33051000**. Após
 \`\`\`
 
 Usuário: "Aumente o preço de todos os produtos em 10%"
-Resposta: Vou aumentar o preço de todos os seus produtos em **10%**. O relatório mostrará quantos produtos foram afetados e exemplos dos novos valores.
+Resposta: Vou aumentar o preço de todos os seus produtos em **10%**.
 \`\`\`action
 {"tool_name": "bulkUpdateProductsPrice", "tool_args": {"type": "percent_increase", "value": 10}, "description": "Aumentar preços em 10%"}
 \`\`\`
+
+Usuário: "Altere o preço do Shampoo X para R$ 97,90 e do Condicionador Y para R$ 96,00"
+Resposta: Vou atualizar os preços individuais dos produtos.
+\`\`\`action
+{"tool_name": "bulkUpdateProductsPrice", "tool_args": {"type": "fixed", "prices": [{"productId": "ID_DO_SHAMPOO", "price": 97.90}, {"productId": "ID_DO_CONDICIONADOR", "price": 96.00}]}, "description": "Atualizar preços individuais: Shampoo X para R$ 97,90 e Condicionador Y para R$ 96,00"}
+\`\`\`
+
+**IMPORTANTE sobre preços individuais**: Quando o usuário pedir para definir preços específicos por produto, você DEVE primeiro buscar os IDs dos produtos (use searchProducts) e depois propor a ação bulkUpdateProductsPrice com type="fixed" e o array "prices".
+
+Se o usuário pedir múltiplas operações (ex: "altere os preços E remova descontos E recalcule kits"), execute UMA de cada vez. Proponha a primeira ação, e após confirmação e execução, proponha a próxima.
 
 Responda sempre em português brasileiro de forma amigável e profissional. Seja proativo em sugerir o que você pode fazer, mas SEMPRE usando linguagem que o lojista entende.`;
 }
@@ -1064,12 +1077,17 @@ serve(async (req) => {
         if (actionMatch) {
           try {
             const actionData = JSON.parse(actionMatch[1]);
-            proposedActions = [{
-              id: crypto.randomUUID(),
-              tool_name: actionData.tool_name,
-              tool_args: actionData.tool_args,
-              description: actionData.description,
-            }];
+            // Only accept actions with non-empty tool_args
+            if (actionData.tool_name && actionData.tool_args && Object.keys(actionData.tool_args).length > 0) {
+              proposedActions = [{
+                id: crypto.randomUUID(),
+                tool_name: actionData.tool_name,
+                tool_args: actionData.tool_args,
+                description: actionData.description,
+              }];
+            } else {
+              console.error("Action rejected: empty tool_args", JSON.stringify(actionData));
+            }
           } catch (e) {
             console.error("Error parsing action:", e);
           }
