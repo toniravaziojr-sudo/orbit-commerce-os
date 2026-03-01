@@ -888,8 +888,13 @@ export function PageSettingsContent({
                 description: String(settings.seo_description || ''),
               }}
               onGenerated={(result) => {
-                handleChange('seo_title', result.seo_title);
-                handleChange('seo_description', result.seo_description);
+                // Apply both changes at once to avoid state race condition
+                const newSettings = { ...settings, seo_title: result.seo_title, seo_description: result.seo_description };
+                setSettings(newSettings);
+                const validPageTypes: PageSettingsKey[] = ['home', 'category', 'product', 'cart', 'checkout', 'thank_you'];
+                if (draftPageSettings && validPageTypes.includes(pageType as PageSettingsKey)) {
+                  draftPageSettings.setDraftPageSettings(pageType as PageSettingsKey, newSettings);
+                }
               }}
             />
           </div>
