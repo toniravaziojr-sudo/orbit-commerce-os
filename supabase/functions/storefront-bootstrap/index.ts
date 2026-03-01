@@ -109,7 +109,7 @@ serve(async (req) => {
       // Q4: Active categories
       supabase
         .from('categories')
-        .select('id, name, slug, description, is_active, sort_order, parent_id, banner_url')
+        .select('id, name, slug, description, is_active, sort_order, parent_id, image_url')
         .eq('tenant_id', tenantId)
         .eq('is_active', true)
         .order('sort_order'),
@@ -156,6 +156,9 @@ serve(async (req) => {
     const getResult = (index: number) => {
       const r = results[index];
       if (r.status === 'fulfilled') {
+        if (r.value.error) {
+          console.error(`[storefront-bootstrap] Query ${index} supabase error:`, JSON.stringify(r.value.error));
+        }
         return r.value.data;
       }
       console.error(`[storefront-bootstrap] Query ${index} failed:`, r.reason);
