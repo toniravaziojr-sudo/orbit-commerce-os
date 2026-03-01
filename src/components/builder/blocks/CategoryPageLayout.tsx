@@ -441,7 +441,7 @@ export function CategoryPageLayout({
                           {formatPrice(demoProduct.compareAtPrice)}
                         </span>
                       )}
-                      <span className="text-xs sm:text-sm font-semibold" style={{ color: 'var(--theme-text-primary, #1a1a1a)' }}>
+                      <span className="text-xs sm:text-sm font-semibold sf-price-color" style={{ color: 'var(--theme-price-color, var(--theme-text-primary, currentColor))' }}>
                         {formatPrice(demoProduct.price)}
                       </span>
                     </div>
@@ -549,7 +549,7 @@ export function CategoryPageLayout({
                             {formatPrice(product.compare_at_price)}
                           </span>
                         )}
-                        <span className="text-xs sm:text-sm font-semibold" style={{ color: 'var(--theme-text-primary, #1a1a1a)' }}>
+                        <span className="text-xs sm:text-sm font-semibold sf-price-color" style={{ color: 'var(--theme-price-color, var(--theme-text-primary, currentColor))' }}>
                           {formatPrice(product.price)}
                         </span>
                       </div>
