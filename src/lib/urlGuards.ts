@@ -63,6 +63,10 @@ export function isCustomDomain(): boolean {
   // Localhost → NOT custom
   if (hostname === 'localhost' || hostname === '127.0.0.1') return false;
   
+  // Preview/dev domains → NOT custom
+  if (hostname.endsWith('.lovableproject.com')) return false;
+  if (hostname.endsWith('.lovable.app')) return false;
+  
   // Any other domain is custom
   return true;
 }
