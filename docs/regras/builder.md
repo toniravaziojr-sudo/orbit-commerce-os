@@ -340,6 +340,7 @@ A tipografia da loja é gerenciada **exclusivamente** em **Configuração do tem
 | `--theme-button-secondary-text` | Texto de botões secundários |
 | `--theme-text-primary` | Cor de texto principal |
 | `--theme-text-secondary` | Cor de texto secundário |
+| `--theme-price-color` | Cor do valor principal (preço com desconto) |
 
 ### Seletores Aplicados
 
@@ -461,6 +462,13 @@ O sistema organiza as cores em **5 grupos** para facilitar a configuração:
 | `--theme-text-primary` | `colors.textPrimary` | Cor de texto principal |
 | `--theme-text-secondary` | `colors.textSecondary` | Cor de texto secundário |
 | `--theme-accent-color` | `colors.accentColor` | Cor de destaque (preços PIX, selos, etc.) |
+
+#### 💰 Valor Principal
+| Variável | Origem | Uso |
+|----------|--------|-----|
+| `--theme-price-color` | `colors.priceColor` | Cor exclusiva do valor principal (preço com desconto). Fallback: `--theme-text-primary` → `currentColor` |
+
+> **Nota:** Essa variável é aplicada via inline style `color: var(--theme-price-color, ...)` em todos os componentes que exibem o preço final: `ProductCard.tsx`, `CollectionSectionBlock.tsx`, `BlockRenderer.tsx` (ProductDetail), `BuyTogetherSection.tsx`, `CompreJuntoSlotBlock.tsx`, `RelatedProductsSection.tsx`.
 
 #### 🏷️ Tags Especiais
 | Variável | Origem | Uso |
