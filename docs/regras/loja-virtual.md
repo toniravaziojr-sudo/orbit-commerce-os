@@ -217,6 +217,17 @@ draft_content (edição) → Publicar → published_content (público)
 | **Draft** | `storefront_template_sets.draft_content` | Builder + Preview |
 | **Published** | `storefront_template_sets.published_content` | Storefront público |
 
+### Hook de Preview: `usePreviewTemplate`
+
+**Arquivo:** `src/hooks/usePreviewTemplate.ts`
+
+O hook `usePreviewTemplate` é responsável por carregar o conteúdo do rascunho quando o parâmetro `?preview=1` está presente na URL. A ordem de resolução dos dados é:
+
+1. **Fonte primária:** `storefront_template_sets.draft_content[pageType]` — lê do template set vinculado via `store_settings.published_template_id`
+2. **Fallback legado:** `storefront_page_templates` + `store_page_versions` — para lojas que ainda não migraram para o sistema multi-template
+
+> **IMPORTANTE:** O Preview sempre usa `draft_content`, nunca `published_content`. A publicação (botão "Publicar") copia `draft_content` → `published_content` via `useTemplateSetSave.publishTemplateSet`.
+
 ---
 
 ## Blocos Disponíveis
