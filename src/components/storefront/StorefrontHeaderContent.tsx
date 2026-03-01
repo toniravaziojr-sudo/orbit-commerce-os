@@ -843,13 +843,13 @@ export function StorefrontHeaderContent({
               {showSearch && (
                 <div className="max-w-[220px] w-full">
                   <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-foreground/70" />
                     <Input
                       type="search"
                       placeholder="Pesquisar"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="h-9 pl-8 pr-3 text-sm bg-muted/30 border-muted-foreground/20 focus:border-primary/50 placeholder:text-muted-foreground/60"
+                      className="h-9 pl-8 pr-3 text-sm bg-muted/40 border-muted-foreground/30 focus:border-primary/50 placeholder:text-foreground/50"
                     />
                   </div>
                 </div>
