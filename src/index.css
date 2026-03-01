@@ -279,8 +279,8 @@
 
 /* Header search placeholder inherits header text color */
 .sf-header-search-input::placeholder {
-  color: var(--sf-header-text-color, currentColor);
-  opacity: 0.65;
+  color: var(--sf-header-text-color, currentColor) !important;
+  opacity: 0.65 !important;
 }
 
 /* Footer - separate mobile and desktop layouts */
