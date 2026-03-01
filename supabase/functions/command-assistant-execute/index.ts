@@ -314,10 +314,10 @@ async function executeTool(
     case "bulkUpdateProductsPrice": {
       const { type, value, productIds, categoryId } = tool_args;
       
-      // First, get the products to update
+      // First, get the products to update (include compare_at_price)
       let selectQuery = supabase
         .from("products")
-        .select("id, price")
+        .select("id, price, compare_at_price")
         .eq("tenant_id", tenant_id);
       
       if (productIds && productIds.length > 0) {
@@ -343,26 +343,42 @@ async function executeTool(
         filteredProducts = products.filter((p: any) => catProductIds.includes(p.id));
       }
       
-      // Calculate new prices and update
+      // Calculate new prices and update (both price and compare_at_price)
+      // Note: price and compare_at_price are stored as numeric (reais, e.g. 322.00)
       let updateCount = 0;
       for (const product of filteredProducts) {
-        let newPrice = product.price;
+        const currentPrice = parseFloat(product.price) || 0;
+        const currentCompare = product.compare_at_price ? parseFloat(product.compare_at_price) : null;
+        let newPrice = currentPrice;
+        let newCompareAtPrice = currentCompare;
         
         switch (type) {
           case "percent_increase":
-            newPrice = Math.round(product.price * (1 + value / 100));
+            newPrice = Math.round(currentPrice * (1 + value / 100) * 100) / 100;
+            if (newCompareAtPrice !== null) {
+              newCompareAtPrice = Math.round(newCompareAtPrice * (1 + value / 100) * 100) / 100;
+            }
             break;
           case "percent_decrease":
-            newPrice = Math.round(product.price * (1 - value / 100));
+            newPrice = Math.round(currentPrice * (1 - value / 100) * 100) / 100;
+            if (newCompareAtPrice !== null) {
+              newCompareAtPrice = Math.round(newCompareAtPrice * (1 - value / 100) * 100) / 100;
+            }
             break;
           case "fixed":
-            newPrice = Math.round(value * 100); // Convert reais to cents
+            newPrice = value;
+            newCompareAtPrice = null; // Fixed price = no compare
             break;
+        }
+        
+        const updateData: any = { price: newPrice, updated_at: new Date().toISOString() };
+        if (newCompareAtPrice !== null) {
+          updateData.compare_at_price = newCompareAtPrice;
         }
         
         const { error: updateError } = await supabase
           .from("products")
-          .update({ price: newPrice, updated_at: new Date().toISOString() })
+          .update(updateData)
           .eq("id", product.id);
         
         if (!updateError) updateCount++;
@@ -374,7 +390,7 @@ async function executeTool(
       
       return {
         success: true,
-        message: `✅ Preços ${typeLabel} em ${updateCount} produto(s)!`,
+        message: `✅ Preços ${typeLabel} em ${updateCount} produto(s)! (valor base e valor final atualizados)`,
         data: { affected: updateCount, type, value },
       };
     }

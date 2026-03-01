@@ -458,7 +458,7 @@ serve(async (req) => {
       );
     }
 
-    const { conversation_id, message, tenant_id } = await req.json();
+    const { conversation_id, message, tenant_id, is_tool_result } = await req.json();
 
     if (!tenant_id || !message) {
       return new Response(
@@ -482,20 +482,22 @@ serve(async (req) => {
       );
     }
 
-    // Save user message
-    const { error: msgError } = await supabase
-      .from("command_messages")
-      .insert({
-        conversation_id,
-        tenant_id,
-        user_id: user.id,
-        role: "user",
-        content: message,
-        metadata: {},
-      });
+    // Save user message (skip for tool results - already saved by execute function)
+    if (!is_tool_result) {
+      const { error: msgError } = await supabase
+        .from("command_messages")
+        .insert({
+          conversation_id,
+          tenant_id,
+          user_id: user.id,
+          role: "user",
+          content: message,
+          metadata: {},
+        });
 
-    if (msgError) {
-      console.error("Error saving message:", msgError);
+      if (msgError) {
+        console.error("Error saving message:", msgError);
+      }
     }
 
     // Get conversation history
