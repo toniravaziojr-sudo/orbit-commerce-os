@@ -49,7 +49,7 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 │  [Lista de reviews] [Formulário para avaliar]                           │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  PRODUTOS RELACIONADOS (Slider horizontal / Embla Carousel)             │
-│  [Carousel de produtos relacionados - 2 cols mobile, 4 cols desktop]    │
+│  [Carousel - usa ProductCard compartilhado c/ categorySettings do tema] │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                              FOOTER                                      │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -63,6 +63,8 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 |------------|---------|--------|
 | `StorefrontProduct` | `src/pages/storefront/StorefrontProduct.tsx` | Página container |
 | `ProductDetailsBlock` | `src/components/builder/blocks/ProductDetailsBlock.tsx` | Layout principal |
+| `ProductPageSections` | `src/components/storefront/ProductPageSections.tsx` | Seções abaixo (Compre Junto, Descrição, Reviews, Relacionados) |
+| `RelatedProductsSection` | `src/components/storefront/sections/RelatedProductsSection.tsx` | Produtos relacionados (usa ProductCard compartilhado) |
 | `ProductGallery` | `src/components/storefront/product/ProductGallery.tsx` | Galeria de imagens |
 | `ProductVariantSelector` | `src/components/storefront/product/ProductVariantSelector.tsx` | Seletor de variantes |
 | `ProductReviews` | `src/components/storefront/product/ProductReviews.tsx` | Seção de avaliações |
@@ -154,6 +156,31 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 | `description` | `product.seo_description` ou `product.short_description` |
 | OG Image | Primeira imagem do produto |
 | Schema | Product (JSON-LD) |
+
+---
+
+## Produtos Relacionados — Herança de Configurações
+
+A seção de produtos relacionados (`RelatedProductsSection`) utiliza o componente compartilhado `ProductCard` e **herda obrigatoriamente** as configurações de `categorySettings` do tema (Configurações do tema > Páginas > Categorias).
+
+| Configuração herdada | Efeito nos Relacionados |
+|----------------------|------------------------|
+| `showRatings` | Exibe/oculta estrelas nos cards |
+| `showBadges` | Exibe/oculta selos (Mais Vendido, Frete Grátis, etc.) |
+| `showAddToCartButton` | Exibe/oculta botão "Adicionar ao carrinho" |
+| `quickBuyEnabled` | Exibe/oculta botão "Comprar agora" |
+| `customButtonEnabled` | Exibe/oculta botão personalizado (WhatsApp, etc.) |
+| `customButtonText/Color/Link` | Texto, cor e link do botão personalizado |
+
+### Fluxo de dados
+
+```
+StorefrontProduct.tsx → templateSettings.categorySettings
+  → BlockRenderer (context.categorySettings)
+    → ProductPageSections (prop categorySettings)
+      → RelatedProductsSection (prop categorySettings)
+        → ProductCard (prop settings)
+```
 
 ---
 
