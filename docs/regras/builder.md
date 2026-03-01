@@ -1116,8 +1116,12 @@ O builder utiliza um sistema de **preview em tempo real** com **salvamento manua
 │    1. Merge theme draft into themeSettings (colors, typography, css)    │
 │    2. Merge page settings draft into pageSettings por tipo de página    │
 │    3. Save to storefront_template_sets.draft_content                    │
-│    4. Call draftTheme.clearDraft() após sucesso                         │
-│    5. Call draftPageSettings.clearDraft() após sucesso                  │
+│    4. setQueryData theme-settings (cache síncrono)                      │
+│    5. setQueryData page settings por tipo (category, product, etc.)     │
+│    6. requestAnimationFrame + setTimeout(0) — portão de sincronização   │
+│    7. Call draftTheme.clearDraft() após sucesso                         │
+│    8. Call draftPageSettings.clearDraft() após sucesso                  │
+│    9. notifyPageSettingsSaveCompleted() — reload baseline               │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -1192,6 +1196,19 @@ const effectiveSettings = draftPageSettings?.getEffectiveSettings<CategorySettin
 5. **SEMPRE** chamar `clearDraft()` de AMBOS os contexts após persistência bem-sucedida
 6. **SEMPRE** usar `getEffectiveSettings()` para exibir valores (prioriza draft > saved)
 7. **NUNCA** persistir diretamente do componente de settings — apenas via `handleSave` central
+8. **SEMPRE** atualizar os caches de page settings via `setQueryData` antes de `clearDraft()` — caso contrário, o canvas reverte para dados stale (ex: `customButtonEnabled` volta ao valor antigo)
+
+### Caches de Page Settings — Query Keys
+
+| Page Type | Query Key | Hook |
+|-----------|-----------|------|
+| `category` | `['category-settings-builder', tenantId, templateSetId]` | `useCategorySettings` |
+| `product` | `['product-settings-builder', tenantId, templateSetId]` | `useProductSettings` |
+| `cart` | `['cart-settings-builder', tenantId, templateSetId]` | `useCartSettings` |
+| `checkout` | `['checkout-settings-builder', tenantId, templateSetId]` | `useCheckoutSettings` |
+| `thank_you` | `['thankYou-settings-builder', tenantId, templateSetId]` | `useThankYouSettings` |
+
+> **CRÍTICO:** Após salvar `draft_content`, o `handleSave` DEVE chamar `setQueryData` para cada page type que tenha settings salvos, ANTES de `clearDraft()`. Sem isso, `clearDraft()` remove o draft → `getEffectiveSettings()` retorna `savedSettings` → cache stale → canvas mostra estado antigo.
 
 ### Arquivos Relacionados
 
