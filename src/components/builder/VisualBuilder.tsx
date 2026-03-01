@@ -741,6 +741,15 @@ export function VisualBuilder({
           console.log('[VisualBuilder.handleSave] Cleared footer draft');
         }
         
+        // CRITICAL: Invalidate page settings query caches so useCategorySettings/useProductSettings
+        // pick up the newly saved data instead of showing stale cached values.
+        // Without this, clearing the draft above would cause the canvas to revert to OLD cached settings.
+        queryClient.invalidateQueries({ queryKey: ['category-settings-builder', tenantId] });
+        queryClient.invalidateQueries({ queryKey: ['product-settings-builder', tenantId] });
+        queryClient.invalidateQueries({ queryKey: ['cart-settings-builder', tenantId] });
+        queryClient.invalidateQueries({ queryKey: ['checkout-settings-builder', tenantId] });
+        queryClient.invalidateQueries({ queryKey: ['thankYou-settings-builder', tenantId] });
+        
         // Notify PageSettingsContent to reload from DB (for baseline sync)
         const { notifyPageSettingsSaveCompleted } = await import('@/hooks/useBuilderDraftPageSettings');
         notifyPageSettingsSaveCompleted();
