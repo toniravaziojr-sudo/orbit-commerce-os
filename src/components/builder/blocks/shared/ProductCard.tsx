@@ -291,7 +291,7 @@ export function ProductCard({
             <ProductCardBadges badges={badges} />
           )}
         </div>
-        <div className="p-3">
+        <div className="p-2 sm:p-3">
           {showRatings && rating && rating.count > 0 && (
             <RatingSummary
               average={rating.average}
@@ -300,27 +300,27 @@ export function ProductCard({
               className="mb-1"
             />
           )}
-          <h3 className="font-medium text-sm line-clamp-2 text-foreground">
+          <h3 className="font-medium text-xs sm:text-sm line-clamp-2 text-foreground">
             {product.name}
           </h3>
-          <div className="mt-1 flex items-center gap-2 flex-wrap">
+          <div className="mt-1 flex items-center gap-1 sm:gap-2 flex-wrap">
             {hasDiscount && (
-              <span className="text-xs text-muted-foreground line-through">
+              <span className="text-[10px] sm:text-xs text-muted-foreground line-through">
                 {formatPrice(product.compare_at_price!)}
               </span>
             )}
-            <span className="text-sm font-semibold text-primary">
+            <span className="text-xs sm:text-sm font-semibold text-primary">
               {formatPrice(product.price)}
             </span>
           </div>
           
           {/* Botões conforme categorySettings - mesmo comportamento que variant default */}
-          <div className="mt-2 flex flex-col gap-1.5">
+          <div className="mt-2 flex flex-col gap-1 sm:gap-1.5">
             {/* 1º Botão "Adicionar ao carrinho" (se ativo) */}
             {showAddToCartButton && onAddToCart && (
               <button 
                 className={cn(
-                  "w-full py-1.5 px-3 text-xs rounded-md transition-colors flex items-center justify-center gap-1",
+                  "w-full py-1 px-1.5 sm:py-1.5 sm:px-3 text-[11px] sm:text-xs rounded-md transition-colors flex items-center justify-center gap-1",
                   isAddedToCart
                     ? "bg-green-500 text-white border-green-500"
                     : "sf-btn-outline-primary"
@@ -350,7 +350,7 @@ export function ProductCard({
               <a
                 href={customButtonLink || '#'}
                 className={cn(
-                  "w-full py-1.5 px-3 text-xs rounded-md text-center transition-colors",
+                  "w-full py-1 px-1.5 sm:py-1.5 sm:px-3 text-[11px] sm:text-xs rounded-md text-center transition-colors",
                   !customButtonBgColor && "sf-btn-secondary"
                 )}
                 style={customButtonBgColor ? { 
@@ -382,12 +382,12 @@ export function ProductCard({
                     e.stopPropagation();
                     onQuickBuy(e, product);
                   }}
-                  className="w-full py-1.5 px-3 text-xs rounded-md hover:opacity-90 transition-colors text-center sf-btn-primary"
+                  className="w-full py-1 px-1.5 sm:py-1.5 sm:px-3 text-[11px] sm:text-xs rounded-md hover:opacity-90 transition-colors text-center sf-btn-primary"
                 >
                   {buyNowButtonText}
                 </button>
               ) : (
-                <span className="w-full py-1.5 px-3 text-xs rounded-md text-center sf-btn-primary">
+                <span className="w-full py-1 px-1.5 sm:py-1.5 sm:px-3 text-[11px] sm:text-xs rounded-md text-center sf-btn-primary">
                   {buyNowButtonText}
                 </span>
               )
@@ -418,7 +418,7 @@ export function ProductCard({
       </div>
       
       {/* Product Info */}
-      <div className="p-3">
+      <div className="p-2 sm:p-3">
         {/* Rating acima do nome */}
         {showRatings && rating && rating.count > 0 && (
           <RatingSummary
@@ -429,29 +429,29 @@ export function ProductCard({
           />
         )}
         
-        <h3 className="font-medium text-sm line-clamp-2 text-foreground">
+        <h3 className="font-medium text-xs sm:text-sm line-clamp-2 text-foreground">
           {product.name}
         </h3>
         
         {/* Price */}
-        <div className="mt-1 flex items-center gap-2 flex-wrap">
+        <div className="mt-1 flex items-center gap-1 sm:gap-2 flex-wrap">
           {hasDiscount && (
-            <span className="text-xs text-muted-foreground line-through">
+            <span className="text-[10px] sm:text-xs text-muted-foreground line-through">
               {formatPrice(product.compare_at_price!)}
             </span>
           )}
-          <span className="text-sm font-semibold text-primary">
+          <span className="text-xs sm:text-sm font-semibold text-primary">
             {formatPrice(product.price)}
           </span>
         </div>
         
         {/* Botões conforme REGRAS.md linha 79-84 */}
-        <div className="mt-2 flex flex-col gap-1.5">
+        <div className="mt-2 flex flex-col gap-1 sm:gap-1.5">
           {/* 1º Botão "Adicionar ao carrinho" (se ativo) */}
           {showAddToCartButton && onAddToCart && (
             <button 
               className={cn(
-                "w-full py-1.5 px-3 text-xs rounded-md transition-colors flex items-center justify-center gap-1",
+                "w-full py-1 px-1.5 sm:py-1.5 sm:px-3 text-[11px] sm:text-xs rounded-md transition-colors flex items-center justify-center gap-1",
                 isAddedToCart
                   ? "bg-green-500 text-white border-green-500"
                   : "sf-btn-outline-primary"
@@ -481,7 +481,7 @@ export function ProductCard({
             <a
               href={customButtonLink || '#'}
               className={cn(
-                "w-full py-1.5 px-3 text-xs rounded-md text-center transition-colors",
+                "w-full py-1 px-1.5 sm:py-1.5 sm:px-3 text-[11px] sm:text-xs rounded-md text-center transition-colors",
                 !customButtonBgColor && "sf-btn-secondary"
               )}
               style={customButtonBgColor ? { 
@@ -513,12 +513,12 @@ export function ProductCard({
                   e.stopPropagation();
                   onQuickBuy(e, product);
                 }}
-                className="w-full py-1.5 px-3 text-xs rounded-md hover:opacity-90 transition-colors text-center sf-btn-primary"
+                className="w-full py-1 px-1.5 sm:py-1.5 sm:px-3 text-[11px] sm:text-xs rounded-md hover:opacity-90 transition-colors text-center sf-btn-primary"
               >
                 {buyNowButtonText}
               </button>
             ) : (
-              <span className="w-full py-1.5 px-3 text-xs rounded-md text-center sf-btn-primary">
+              <span className="w-full py-1 px-1.5 sm:py-1.5 sm:px-3 text-[11px] sm:text-xs rounded-md text-center sf-btn-primary">
                 {buyNowButtonText}
               </span>
             )

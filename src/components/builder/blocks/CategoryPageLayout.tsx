@@ -343,7 +343,7 @@ export function CategoryPageLayout({
   }
 
   return (
-    <div className="px-4 py-6">
+    <div className="px-2 sm:px-4 py-6">
       {/* Mobile filters */}
       {showFilters && isMobile && (
         <CategoryFilters
@@ -405,7 +405,7 @@ export function CategoryPageLayout({
                   </div>
                   
                   {/* Demo Product Info */}
-                  <div className="p-3">
+                   <div className="p-2 sm:p-3">
                     {/* Demo rating quando showRatings ativo */}
                     {showRatings && (
                       <div className="flex items-center gap-1 mb-1">
@@ -430,28 +430,28 @@ export function CategoryPageLayout({
                       </div>
                     )}
                     
-                    <h3 className="font-medium text-sm line-clamp-2 text-foreground">
+                    <h3 className="font-medium text-xs sm:text-sm line-clamp-2 text-foreground">
                       {demoProduct.name}
                     </h3>
                     
                     {/* Demo Price */}
-                    <div className="mt-1 flex items-center gap-2">
+                    <div className="mt-1 flex items-center gap-1 sm:gap-2">
                       {demoProduct.compareAtPrice && (
-                        <span className="text-xs text-muted-foreground line-through">
+                        <span className="text-[10px] sm:text-xs text-muted-foreground line-through">
                           {formatPrice(demoProduct.compareAtPrice)}
                         </span>
                       )}
-                      <span className="text-sm font-semibold" style={{ color: 'var(--theme-text-primary, #1a1a1a)' }}>
+                      <span className="text-xs sm:text-sm font-semibold" style={{ color: 'var(--theme-text-primary, #1a1a1a)' }}>
                         {formatPrice(demoProduct.price)}
                       </span>
                     </div>
                     
                     {/* Demo Buttons - mesma ordem da versão real */}
-                    <div className="mt-2 flex flex-col gap-1.5">
+                    <div className="mt-2 flex flex-col gap-1 sm:gap-1.5">
                       {/* 1º Botão "Adicionar ao carrinho" (se ativo) */}
                       {showAddToCartButton && (
                         <button 
-                          className="w-full py-1.5 px-3 text-xs border bg-transparent rounded-md hover:opacity-80 transition-colors flex items-center justify-center gap-1"
+                          className="w-full py-1 px-1.5 sm:py-1.5 sm:px-3 text-[11px] sm:text-xs border bg-transparent rounded-md hover:opacity-80 transition-colors flex items-center justify-center gap-1"
                           style={{
                             borderColor: 'var(--theme-button-primary-bg)',
                             color: 'var(--theme-button-primary-bg)',
@@ -466,7 +466,7 @@ export function CategoryPageLayout({
                       {customButtonEnabled && customButtonText && (
                         <button
                           className={cn(
-                            "w-full py-1.5 px-3 text-xs rounded-md text-center transition-colors",
+                            "w-full py-1 px-1.5 sm:py-1.5 sm:px-3 text-[11px] sm:text-xs rounded-md text-center transition-colors",
                             !customButtonBgColor && "sf-btn-secondary"
                           )}
                           style={customButtonBgColor ? { 
@@ -490,7 +490,7 @@ export function CategoryPageLayout({
                       )}
                       
                       {/* 3º Botão principal "Comprar agora" - usa sf-btn-primary para respeitar tema */}
-                      <button className="w-full py-1.5 px-3 text-xs rounded-md hover:opacity-90 transition-colors sf-btn-primary">
+                      <button className="w-full py-1 px-1.5 sm:py-1.5 sm:px-3 text-[11px] sm:text-xs rounded-md hover:opacity-90 transition-colors sf-btn-primary">
                         {buyNowButtonText}
                       </button>
                     </div>
@@ -527,7 +527,7 @@ export function CategoryPageLayout({
                     </div>
                     
                     {/* Product Info */}
-                    <div className="p-3">
+                    <div className="p-2 sm:p-3">
                       {/* REGRAS.md linha 78: Avaliações abaixo do nome */}
                       {showRatings && rating && rating.count > 0 && (
                         <RatingSummary
@@ -538,29 +538,29 @@ export function CategoryPageLayout({
                         />
                       )}
                       
-                      <h3 className="font-medium text-sm line-clamp-2 text-foreground">
+                      <h3 className="font-medium text-xs sm:text-sm line-clamp-2 text-foreground">
                         {product.name}
                       </h3>
                       
                       {/* Price */}
-                      <div className="mt-1 flex items-center gap-2">
+                      <div className="mt-1 flex items-center gap-1 sm:gap-2">
                         {product.compare_at_price && product.compare_at_price > product.price && (
-                          <span className="text-xs text-muted-foreground line-through">
+                          <span className="text-[10px] sm:text-xs text-muted-foreground line-through">
                             {formatPrice(product.compare_at_price)}
                           </span>
                         )}
-                        <span className="text-sm font-semibold" style={{ color: 'var(--theme-text-primary, #1a1a1a)' }}>
+                        <span className="text-xs sm:text-sm font-semibold" style={{ color: 'var(--theme-text-primary, #1a1a1a)' }}>
                           {formatPrice(product.price)}
                         </span>
                       </div>
                       
                       {/* REGRAS.md linha 79-84: Botões com ordem específica */}
-                      <div className="mt-2 flex flex-col gap-1.5">
+                      <div className="mt-2 flex flex-col gap-1 sm:gap-1.5">
                         {/* 1º Botão "Adicionar ao carrinho" (se ativo) */}
                         {showAddToCartButton && (
                           <button 
                             className={cn(
-                              "w-full py-1.5 px-3 text-xs rounded-md transition-colors flex items-center justify-center gap-1",
+                              "w-full py-1 px-1.5 sm:py-1.5 sm:px-3 text-[11px] sm:text-xs rounded-md transition-colors flex items-center justify-center gap-1",
                               addedProducts.has(product.id)
                                 ? "text-white sf-accent-bg"
                                 : "border bg-transparent hover:opacity-80"
@@ -593,7 +593,7 @@ export function CategoryPageLayout({
                           <a
                             href={customButtonLink || '#'}
                             className={cn(
-                              "w-full py-1.5 px-3 text-xs rounded-md text-center transition-colors",
+                              "w-full py-1 px-1.5 sm:py-1.5 sm:px-3 text-[11px] sm:text-xs rounded-md text-center transition-colors",
                               !customButtonBgColor && "sf-btn-secondary"
                             )}
                             style={customButtonBgColor ? { 
@@ -621,14 +621,14 @@ export function CategoryPageLayout({
                         {quickBuyEnabled ? (
                           <button
                             onClick={(e) => handleQuickBuy(e, product)}
-                            className="w-full py-1.5 px-3 text-xs rounded-md hover:opacity-90 transition-colors text-center sf-btn-primary"
+                            className="w-full py-1 px-1.5 sm:py-1.5 sm:px-3 text-[11px] sm:text-xs rounded-md hover:opacity-90 transition-colors text-center sf-btn-primary"
                           >
                             {buyNowButtonText}
                           </button>
                         ) : (
                           <a
                             href={isEditing ? undefined : productUrl || undefined}
-                            className="w-full py-1.5 px-3 text-xs rounded-md hover:opacity-90 transition-colors text-center sf-btn-primary"
+                            className="w-full py-1 px-1.5 sm:py-1.5 sm:px-3 text-[11px] sm:text-xs rounded-md hover:opacity-90 transition-colors text-center sf-btn-primary"
                           >
                             {buyNowButtonText}
                           </a>

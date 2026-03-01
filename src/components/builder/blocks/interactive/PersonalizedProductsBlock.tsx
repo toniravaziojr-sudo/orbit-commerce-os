@@ -225,7 +225,7 @@ export function PersonalizedProductsBlock({
         </div>
 
         {/* Grid de produtos */}
-        <div className={cn('grid gap-4 sm:gap-6', gridColsClass)}>
+        <div className={cn('grid gap-2 sm:gap-4 lg:gap-6', gridColsClass)}>
           {normalizedProducts.map((product, index) => {
             const rating = ratingsMap?.get(product.id);
             const badges = badgesMap?.get(product.id);
