@@ -845,7 +845,7 @@ export function StorefrontHeaderContent({
                   <div className="relative">
                     <Search 
                       className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2" 
-                      style={{ color: headerIconColor || headerTextColor || undefined, opacity: 0.85 }}
+                      style={{ color: headerIconColor || headerTextColor || undefined, opacity: 0.65 }}
                     />
                     <Input
                       type="search"
@@ -857,7 +857,8 @@ export function StorefrontHeaderContent({
                         backgroundColor: headerTextColor ? `${headerTextColor}15` : undefined,
                         borderColor: headerTextColor ? `${headerTextColor}30` : undefined,
                         color: headerTextColor || undefined,
-                      }}
+                        '--sf-header-text-color': headerTextColor || 'currentColor',
+                      } as React.CSSProperties}
                     />
                   </div>
                 </div>
