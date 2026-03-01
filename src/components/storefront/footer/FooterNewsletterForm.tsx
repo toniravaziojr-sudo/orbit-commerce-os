@@ -140,8 +140,8 @@ export function FooterNewsletterForm({
             disabled={isLoading || isEditing}
             className={cn(
               "w-full h-11 px-4 text-sm rounded-l-md",
-              "border border-r-0 bg-white/10 backdrop-blur-sm",
-              "placeholder:opacity-60 focus:outline-none focus:ring-2 focus:ring-primary/30",
+              "border border-r-0 bg-white/15 backdrop-blur-sm",
+              "placeholder:opacity-70 focus:outline-none focus:ring-2 focus:ring-primary/30",
               "disabled:opacity-50 disabled:cursor-not-allowed",
               error && "border-destructive"
             )}
