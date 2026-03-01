@@ -288,6 +288,30 @@ Quando `isEditing=true` e não há menu real:
 
 ---
 
+## Menu Mobile — Herança de Cores do Header
+
+O drawer do menu mobile (`SheetContent`) **herda obrigatoriamente** as cores configuradas no header (`headerBgColor`, `headerTextColor`, `headerIconColor`).
+
+| Elemento | Propriedade aplicada | Fallback |
+|----------|---------------------|----------|
+| `SheetContent` (fundo) | `backgroundColor: headerBgColor` | `bg-background` (tema) |
+| `SheetContent` (texto) | `color: headerTextColor` | `color` do tema |
+| Itens de menu (nível 1) | `style.color = headerTextColor` | herança CSS |
+| Subitens (nível 2/3) | `style.color = headerTextColor` + `opacity: 0.8` | herança CSS |
+| Chevrons (expand/collapse) | `style.color = headerTextColor` | herança CSS |
+| Bordas de separação | `borderColor = headerTextColor + "20"` | `border-primary/30` |
+| Seção Contato | `style.color = headerTextColor` | cores de ícone padrão |
+| Seção Redes Sociais | ícones com `headerTextColor` | cores de marca (Facebook azul, Instagram rosa) |
+| Botão fechar (X) | Herda `color` do `SheetContent` | `opacity-70` padrão |
+
+### Regras
+
+1. **PROIBIDO** usar classes `text-foreground` ou `text-muted-foreground` dentro do drawer mobile — usar `style={{ color: headerTextColor || undefined }}` com opacidade para hierarquia visual.
+2. Hover deve usar `opacity` (ex: `hover:opacity-70`) em vez de `hover:bg-muted` quando cores customizadas estão ativas.
+3. Quando `headerTextColor` é vazio/null, o fallback é `undefined` (herda do tema normalmente).
+
+---
+
 ## Histórico de Alterações
 
 | Data | Alteração |
@@ -307,6 +331,7 @@ Quando `isEditing=true` e não há menu real:
 | 2025-01-19 | Removido emoji ✨ do badge de promoções |
 | 2025-01-19 | Upload de thumbnail refinado no builder |
 | 2025-02-28 | Logo do header com `loading="eager"` (above-the-fold) e otimização via `getLogoImageUrl()` |
+| 2025-03-01 | Menu mobile herda cores do header (`headerBgColor`, `headerTextColor`) — substituído `text-foreground`/`text-muted-foreground` por `style` inline |
 
 ---
 
