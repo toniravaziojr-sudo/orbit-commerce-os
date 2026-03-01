@@ -141,15 +141,17 @@ Página de listagem de produtos filtrados por categoria.
 
 ## Product Card
 
-| Elemento | Visibilidade |
-|----------|--------------|
-| Imagem | Sempre |
-| Nome | Sempre |
-| Preço | Sempre |
-| Preço original | Se houver desconto |
-| Estrelas | Se `showRatings=true` |
-| Badges | Se `showBadges=true` |
-| Botão carrinho | Se `showAddToCartButton=true` |
+| Elemento | Visibilidade | Cor |
+|----------|--------------|-----|
+| Imagem | Sempre | — |
+| Nome | Sempre | `--theme-text-primary` |
+| Preço | Sempre | `--theme-price-color` (fallback: `--theme-text-primary`) |
+| Preço original | Se houver desconto | `text-muted-foreground` (riscado) |
+| Estrelas | Se `showRatings=true` | — |
+| Badges | Se `showBadges=true` | — |
+| Botão carrinho | Se `showAddToCartButton=true` | — |
+
+> **OBRIGATÓRIO:** O preço principal (valor com desconto) DEVE usar `var(--theme-price-color, var(--theme-text-primary, currentColor))` com classe `sf-price-color`. NÃO usar `--theme-text-primary` diretamente nos preços.
 
 ---
 
