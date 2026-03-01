@@ -98,7 +98,7 @@ export function CommandAssistantPanel() {
           </div>
 
           {/* Chat */}
-          <div className="flex flex-1 flex-col">
+          <div className="flex flex-1 flex-col min-h-0">
             {currentConversationId ? (
               <>
                 <CommandChatMessages
