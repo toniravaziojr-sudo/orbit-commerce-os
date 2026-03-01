@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
 import { Loader2, Bot } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { CommandMessage, ProposedAction } from "@/hooks/useCommandAssistant";
 import { ChatMessageBubble, ChatTypingIndicator } from "@/components/chat";
@@ -23,15 +22,13 @@ export function CommandChatMessages({
   executingActionId,
   onExecuteAction,
 }: CommandChatMessagesProps) {
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Find the Radix ScrollArea viewport and scroll to bottom
-    const viewport = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
-    if (viewport) {
+    const el = scrollContainerRef.current;
+    if (el) {
       requestAnimationFrame(() => {
-        viewport.scrollTop = viewport.scrollHeight;
+        el.scrollTop = el.scrollHeight;
       });
     }
   }, [messages, streamingContent]);
@@ -45,7 +42,7 @@ export function CommandChatMessages({
   }
 
   return (
-    <ScrollArea ref={scrollAreaRef} className="h-full px-4 py-4">
+    <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 py-4">
       <div className="space-y-5 max-w-2xl mx-auto">
         {messages.map((message) => {
           const proposedActions = message.metadata?.proposed_actions || [];
@@ -141,8 +138,7 @@ export function CommandChatMessages({
             </div>
           </div>
         )}
-        <div ref={bottomRef} />
       </div>
-    </ScrollArea>
+    </div>
   );
 }
