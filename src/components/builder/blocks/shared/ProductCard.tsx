@@ -178,7 +178,7 @@ export function ProductCard({
                 {formatPrice(product.compare_at_price!)}
               </span>
             )}
-            <span className="text-xs sm:text-sm font-semibold text-primary">
+            <span className="text-xs sm:text-sm font-semibold sf-price-color" style={{ color: 'var(--theme-price-color, var(--theme-text-primary, currentColor))' }}>
               {formatPrice(product.price)}
             </span>
           </div>
@@ -309,7 +309,7 @@ export function ProductCard({
                 {formatPrice(product.compare_at_price!)}
               </span>
             )}
-            <span className="text-xs sm:text-sm font-semibold text-primary">
+            <span className="text-xs sm:text-sm font-semibold sf-price-color" style={{ color: 'var(--theme-price-color, var(--theme-text-primary, currentColor))' }}>
               {formatPrice(product.price)}
             </span>
           </div>
@@ -440,7 +440,7 @@ export function ProductCard({
               {formatPrice(product.compare_at_price!)}
             </span>
           )}
-          <span className="text-xs sm:text-sm font-semibold text-primary">
+          <span className="text-xs sm:text-sm font-semibold sf-price-color" style={{ color: 'var(--theme-price-color, var(--theme-text-primary, currentColor))' }}>
             {formatPrice(product.price)}
           </span>
         </div>

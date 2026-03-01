@@ -224,7 +224,7 @@ export function BuyTogetherSection({ productId, tenantSlug, currentProduct, view
               {formatPrice(originalPrice)}
             </span>
           )}
-          <span className="text-primary font-bold">{formatPrice(price)}</span>
+          <span className="font-bold sf-price-color" style={{ color: 'var(--theme-price-color, var(--theme-text-primary, currentColor))' }}>{formatPrice(price)}</span>
         </div>
       </div>
     </div>
@@ -243,7 +243,7 @@ export function BuyTogetherSection({ productId, tenantSlug, currentProduct, view
       )}
       <div className="text-center">
         <p className="text-xs text-muted-foreground font-medium">COMPRANDO JUNTO:</p>
-        <p className="text-xl md:text-2xl font-bold text-primary">
+        <p className="text-xl md:text-2xl font-bold sf-price-color" style={{ color: 'var(--theme-price-color, var(--theme-text-primary, currentColor))' }}>
           {formatPrice(totalDiscounted)}
         </p>
       </div>

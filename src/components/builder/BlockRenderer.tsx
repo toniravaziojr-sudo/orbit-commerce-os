@@ -1202,7 +1202,7 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing }: any) {
           
           {/* 4. Valores/preços */}
           <div className="flex flex-wrap items-center gap-2">
-            <p className={`${priceClasses} text-primary font-bold`}>
+            <p className={`${priceClasses} font-bold sf-price-color`} style={{ color: 'var(--theme-price-color, var(--theme-text-primary, currentColor))' }}>
               R$ {productPrice.toFixed(2).replace('.', ',')}
             </p>
             {hasDiscount && discountPercent >= 1 && (

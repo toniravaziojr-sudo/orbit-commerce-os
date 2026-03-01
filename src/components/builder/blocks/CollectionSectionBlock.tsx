@@ -161,7 +161,7 @@ export function CollectionSectionBlock({
                           {formatPrice(product.compare_at_price)}
                         </span>
                       )}
-                      <span className="text-sm font-semibold text-primary">
+                      <span className="text-sm font-semibold sf-price-color" style={{ color: 'var(--theme-price-color, var(--theme-text-primary, currentColor))' }}>
                         {formatPrice(product.price)}
                       </span>
                     </div>

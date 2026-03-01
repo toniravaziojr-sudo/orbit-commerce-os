@@ -117,7 +117,7 @@ export function RelatedProductsSection({
                 </div>
                 <div className="p-3">
                   <p className="font-medium text-sm">Produto Exemplo {i}</p>
-                  <p className="font-bold text-primary mt-1">R$ 99,90</p>
+                  <p className="font-bold mt-1 sf-price-color" style={{ color: 'var(--theme-price-color, var(--theme-text-primary, currentColor))' }}>R$ 99,90</p>
                 </div>
               </div>
             ))}
