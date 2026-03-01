@@ -18,6 +18,7 @@ export function EmbeddedCommandAssistant() {
     isLoadingMessages,
     isStreaming,
     streamingContent,
+    executingActionId,
     createConversation,
     setCurrentConversationId,
     sendMessage,
@@ -78,6 +79,7 @@ export function EmbeddedCommandAssistant() {
                 isLoading={isLoadingMessages}
                 isStreaming={isStreaming}
                 streamingContent={streamingContent}
+                executingActionId={executingActionId}
                 onExecuteAction={executeAction}
               />
             </div>

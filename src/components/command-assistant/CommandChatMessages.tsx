@@ -11,6 +11,7 @@ interface CommandChatMessagesProps {
   isLoading: boolean;
   isStreaming: boolean;
   streamingContent: string;
+  executingActionId?: string | null;
   onExecuteAction: (action: ProposedAction) => void;
 }
 
@@ -19,6 +20,7 @@ export function CommandChatMessages({
   isLoading,
   isStreaming,
   streamingContent,
+  executingActionId,
   onExecuteAction,
 }: CommandChatMessagesProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -86,10 +88,23 @@ export function CommandChatMessages({
                               size="sm"
                               className="h-7 text-xs rounded-lg"
                               onClick={() => onExecuteAction(action)}
+                              disabled={!!executingActionId}
                             >
-                              Confirmar
+                              {executingActionId === action.id ? (
+                                <>
+                                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                  Executando...
+                                </>
+                              ) : (
+                                "Confirmar"
+                              )}
                             </Button>
-                            <Button size="sm" variant="outline" className="h-7 text-xs rounded-lg">
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="h-7 text-xs rounded-lg"
+                              disabled={!!executingActionId}
+                            >
                               Cancelar
                             </Button>
                           </div>

@@ -19,6 +19,7 @@ export function CommandAssistantPanel() {
     isLoadingMessages,
     isStreaming,
     streamingContent,
+    executingActionId,
     setCurrentConversationId,
     createConversation,
     deleteConversation,
@@ -105,6 +106,7 @@ export function CommandAssistantPanel() {
                   isLoading={isLoadingMessages}
                   isStreaming={isStreaming}
                   streamingContent={streamingContent}
+                  executingActionId={executingActionId}
                   onExecuteAction={executeAction}
                 />
                 <div className="border-t p-3">
