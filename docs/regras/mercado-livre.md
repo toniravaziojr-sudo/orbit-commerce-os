@@ -1,7 +1,7 @@
 # Mercado Livre — Regras e Especificações
 
 > **Status:** 🟩 Atualizado  
-> **Última atualização:** 2026-02-26 (v2.0.0: cron automático de sync)
+> **Última atualização:** 2026-03-01 (v2.1.0: melhoria na geração de títulos IA — validação mínima 60%, modelo Pro, coverage relaxado)
 
 ---
 
@@ -362,7 +362,7 @@ Busca dados diretamente da API do ML (não armazena localmente):
 
 Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 
-**Roteamento IA:** Ambas as edge functions (`meli-bulk-operations` e `meli-generate-description`) utilizam o `ai-router.ts` centralizado (`aiChatCompletion`) para fallback multi-provedor. Para **títulos**, o provedor primário é **OpenAI** (`preferProvider: 'openai'`) pois o Gemini nativo retorna conteúdo vazio em marketing copy (filtro de segurança). Para **descrições**, usa roteamento automático (Gemini → OpenAI → Lovable Gateway). **NÃO fazem fetch direto** para provedores de IA.
+**Roteamento IA:** Ambas as edge functions (`meli-bulk-operations` e `meli-generate-description`) utilizam o `ai-router.ts` centralizado (`aiChatCompletion`) para fallback multi-provedor. Para **títulos**, o provedor primário é **OpenAI** (`preferProvider: 'openai'`) pois o Gemini nativo retorna conteúdo vazio em marketing copy (filtro de segurança). O modelo usado é `google/gemini-2.5-pro` (roteado para OpenAI). Para **descrições**, usa roteamento automático (Gemini → OpenAI → Lovable Gateway). **NÃO fazem fetch direto** para provedores de IA.
 
 **Pré-processamento de contexto:** Antes de enviar para a IA, o HTML da descrição do produto é stripado (`description.replace(/<[^>]*>/g, " ")`) para evitar confusão do modelo. O contexto enviado à IA para **títulos** inclui: nome do produto, marca, SKU, peso, resumo/benefícios (`short_description`) e até 800 caracteres da descrição completa. Para **descrições**, o contexto inclui peso, dimensões e SKU, mas **NÃO inclui** código de barras/EAN/GTIN (que vão como atributos separados do anúncio).
 
@@ -401,7 +401,7 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 | Ação | Descrição |
 |------|-----------|
 | `bulk_create` | Cria rascunhos para todos os produtos ativos sem anúncio ML |
-| `bulk_generate_titles` | Gera títulos otimizados via ai-router (OpenAI como provedor primário, modelo `google/gemini-2.5-pro` roteado para `gpt-4o`), limite dinâmico por categoria, com instrução explícita no user message ("Gere UM título otimizado..."), validação semântica anti-truncamento com feedback de tentativas rejeitadas, e fallback robusto (nunca persiste título inválido). O prompt inclui exemplos de bons/maus títulos e checklist. |
+| `bulk_generate_titles` | Gera títulos otimizados via ai-router (OpenAI como provedor primário, modelo `google/gemini-2.5-pro`), limite dinâmico por categoria, com instrução explícita no user message ("Gere UM título otimizado..."), validação semântica anti-truncamento com feedback de tentativas rejeitadas, e fallback robusto (nunca persiste título inválido). O prompt inclui exemplos de bons/maus títulos e checklist. **`hasSufficientProductCoverage` (v2.1.0):** aceita títulos que contenham a **marca** OU o **tipo do produto** (primeira palavra do nome), além de keywords. `requiredMatches` reduzido para 1 quando a marca está presente. |
 | `bulk_generate_descriptions` | Converte descrições HTML para texto plano via ai-router (sem EAN/GTIN) |
 | `bulk_auto_categories` | Categoriza em massa via ML domain_discovery (limit=5) + `pickBestCategory` com scoring inteligente baseado em `CATEGORY_DOMAIN_HINTS`, penalidades para domínios absurdos (Pet Shop, Hidroponia) e resolução de path completo para validação. Se todos os candidatos pontuam negativamente, tenta fallback com busca simplificada (nome + marca). |
 | `auto_suggest_category` | Categorização individual com `productName` + `productDescription` para melhor precisão |
@@ -470,13 +470,16 @@ Edge function `meli-bulk-operations` processa em chunks de 5 itens.
 ## Regra: Título ML Sem Truncamento no `meli-generate-description` (OBRIGATÓRIO)
 
 > A edge function `meli-generate-description` (modo `generateTitle: true`) DEVE aplicar validação semântica e retry:
-> - Até 3 tentativas com temperatura progressiva (0.35 → 0.5 → 0.65)
+> - Até 3 tentativas com temperatura progressiva (0.5 → 0.65 → 0.8)
 > - Limite de caracteres dinâmico por categoria (`max_title_length` da API ML)
+> - **Tamanho mínimo obrigatório:** 60% do `max_title_length` (ex: 36 chars para categorias de 60). Títulos abaixo do mínimo são rejeitados e retried com feedback para a IA ("título muito curto, precisa ter entre X e Y chars")
 > - Rejeitar títulos que terminem em preposições soltas, hífens, vírgulas ou frases incompletas
 > - **PROIBIDO** corte cego com `.slice(0, N)` no retorno final
 > - Se todas as tentativas falharem, aplicar fallback seguro com nome do produto + benefício
+> - Modelo: `google/gemini-2.5-pro` com `preferProvider: 'openai'` (consistente com bulk)
+> - Prompt inclui range de caracteres explícito ("ENTRE X E Y caracteres") e instrução para preencher o espaço disponível
 >
-> Objetivo: impedir títulos truncados como `"Balm Respeite o Homem Anti-"` no botão **Regenerar** do Creator/Wizard.
+> Objetivo: impedir títulos truncados como `"Balm Respeite o Homem Anti-"` e títulos curtos como `"Balm Respeite o Homem Pós"` (25 chars) no botão **Regenerar** do Creator/Wizard.
 
 ## Sincronização de Status dos Anúncios (`meli-sync-listings`)
 
