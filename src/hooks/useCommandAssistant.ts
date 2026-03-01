@@ -44,6 +44,7 @@ export function useCommandAssistant() {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
+  const [executingActionId, setExecutingActionId] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Fetch conversations
@@ -308,6 +309,8 @@ export function useCommandAssistant() {
       return;
     }
 
+    setExecutingActionId(action.id);
+
     try {
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/command-assistant-execute`,
@@ -337,13 +340,104 @@ export function useCommandAssistant() {
       toast.success(data.message || "Ação executada com sucesso!");
       
       // Refresh messages to show tool result
+      await queryClient.invalidateQueries({ queryKey: ["command-messages", currentConversationId] });
+
+      // After successful execution, send the result back to the AI so it can continue the conversation
+      try {
+        setIsStreaming(true);
+        const toolResultMessage = `[Resultado da ação "${action.description}"]: ${data.message || "Executado com sucesso"}`;
+        
+        const chatResponse = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/command-assistant-chat`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+            },
+            body: JSON.stringify({
+              conversation_id: currentConversationId,
+              message: toolResultMessage,
+              tenant_id: currentTenant.id,
+              is_tool_result: true,
+            }),
+          }
+        );
+
+        if (chatResponse.ok && chatResponse.body) {
+          const reader = chatResponse.body.getReader();
+          const decoder = new TextDecoder();
+          let textBuffer = "";
+          let assistantContent = "";
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            textBuffer += decoder.decode(value, { stream: true });
+
+            let newlineIndex: number;
+            while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
+              let line = textBuffer.slice(0, newlineIndex);
+              textBuffer = textBuffer.slice(newlineIndex + 1);
+
+              if (line.endsWith("\r")) line = line.slice(0, -1);
+              if (line.startsWith(":") || line.trim() === "") continue;
+              if (!line.startsWith("data: ")) continue;
+
+              const jsonStr = line.slice(6).trim();
+              if (jsonStr === "[DONE]") break;
+
+              try {
+                const parsed = JSON.parse(jsonStr);
+                const content = parsed.choices?.[0]?.delta?.content;
+                if (content) {
+                  assistantContent += content;
+                  setStreamingContent(assistantContent);
+                }
+              } catch {
+                textBuffer = line + "\n" + textBuffer;
+                break;
+              }
+            }
+          }
+
+          // Add the AI follow-up to cache
+          if (assistantContent) {
+            const followUpMessage: CommandMessage = {
+              id: crypto.randomUUID(),
+              conversation_id: currentConversationId,
+              tenant_id: currentTenant.id,
+              user_id: user!.id,
+              role: "assistant",
+              content: assistantContent,
+              metadata: {},
+              created_at: new Date().toISOString(),
+            };
+
+            queryClient.setQueryData<CommandMessage[]>(
+              ["command-messages", currentConversationId],
+              (old = []) => [...old, followUpMessage]
+            );
+          }
+        }
+      } catch (streamError) {
+        console.error("Post-action stream error:", streamError);
+      } finally {
+        setIsStreaming(false);
+        setStreamingContent("");
+      }
+
+      // Refresh from server
       queryClient.invalidateQueries({ queryKey: ["command-messages", currentConversationId] });
 
     } catch (error: any) {
       console.error("Execute action error:", error);
       toast.error(error.message || "Erro ao executar ação");
+    } finally {
+      setExecutingActionId(null);
     }
-  }, [currentConversationId, currentTenant?.id, queryClient]);
+  }, [currentConversationId, currentTenant?.id, user?.id, queryClient]);
 
   // Cancel streaming
   const cancelStreaming = useCallback(() => {
@@ -360,6 +454,7 @@ export function useCommandAssistant() {
     isLoadingMessages,
     isStreaming,
     streamingContent,
+    executingActionId,
     setCurrentConversationId,
     createConversation: createConversationMutation.mutateAsync,
     deleteConversation: deleteConversationMutation.mutateAsync,
