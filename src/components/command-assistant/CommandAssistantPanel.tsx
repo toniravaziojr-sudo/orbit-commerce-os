@@ -111,6 +111,7 @@ export function CommandAssistantPanel() {
                 />
                 <div className="border-t p-3">
                   <CommandChatInput
+                    key={currentConversationId}
                     onSend={sendMessage}
                     isStreaming={isStreaming}
                     onCancel={cancelStreaming}
