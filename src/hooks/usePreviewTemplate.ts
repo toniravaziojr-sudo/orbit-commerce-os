@@ -51,7 +51,37 @@ export function usePreviewTemplate(tenantSlug: string, pageType: PageType): Prev
         throw new Error('Access denied: not a member of this store');
       }
 
-      // Get the template for this page type
+      // NEW MULTI-TEMPLATE SYSTEM: Read from storefront_template_sets.draft_content
+      // This matches the save flow in VisualBuilder (useTemplateSetSave)
+      const { data: storeSettings } = await supabase
+        .from('store_settings')
+        .select('published_template_id')
+        .eq('tenant_id', tenant.id)
+        .maybeSingle();
+
+      const templateSetId = storeSettings?.published_template_id;
+
+      if (templateSetId) {
+        const { data: templateSet, error: templateError } = await supabase
+          .from('storefront_template_sets')
+          .select('draft_content')
+          .eq('id', templateSetId)
+          .eq('tenant_id', tenant.id)
+          .single();
+
+        if (!templateError && templateSet?.draft_content) {
+          const draftContent = templateSet.draft_content as unknown as Record<string, BlockNode | null> | null;
+          if (draftContent && draftContent[pageType]) {
+            return {
+              content: draftContent[pageType] as BlockNode,
+              isDefault: false,
+              canPreview: true,
+            };
+          }
+        }
+      }
+
+      // LEGACY FALLBACK: Read from storefront_page_templates + store_page_versions
       const { data: template, error: templateError } = await supabase
         .from('storefront_page_templates')
         .select('draft_version, published_version')
@@ -63,10 +93,8 @@ export function usePreviewTemplate(tenantSlug: string, pageType: PageType): Prev
         throw templateError;
       }
 
-      // Use draft_version first, fallback to published_version
       const versionToUse = template?.draft_version || template?.published_version;
 
-      // If no version, return default
       if (!versionToUse) {
         return {
           content: getDefaultTemplate(pageType),
@@ -75,7 +103,6 @@ export function usePreviewTemplate(tenantSlug: string, pageType: PageType): Prev
         };
       }
 
-      // Get the version content (draft or published)
       const { data: version, error: versionError } = await supabase
         .from('store_page_versions')
         .select('content')
@@ -86,7 +113,6 @@ export function usePreviewTemplate(tenantSlug: string, pageType: PageType): Prev
         .single();
 
       if (versionError) {
-        // Fallback to default if version not found
         return {
           content: getDefaultTemplate(pageType),
           isDefault: true,
@@ -101,10 +127,9 @@ export function usePreviewTemplate(tenantSlug: string, pageType: PageType): Prev
       };
     },
     enabled: !!tenantSlug && !!user,
-    staleTime: 1000 * 30, // Cache for 30 seconds (shorter for preview)
+    staleTime: 1000 * 30,
   });
 
-  // User not logged in
   if (!user) {
     return {
       content: getDefaultTemplate(pageType),
