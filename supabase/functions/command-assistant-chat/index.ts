@@ -528,13 +528,13 @@ serve(async (req) => {
     ];
 
     // Call AI via centralized router (Gemini/OpenAI native → Lovable fallback)
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const aiSupabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const aiSupabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     resetAIRouterCache();
 
     const endpoint = await getAIEndpoint("google/gemini-2.5-flash", {
-      supabaseUrl,
-      supabaseServiceKey,
+      supabaseUrl: aiSupabaseUrl,
+      supabaseServiceKey: aiSupabaseServiceKey,
     });
 
     console.log(`[command-assistant-chat] Using provider: ${endpoint.provider}, model: ${endpoint.model}`);
