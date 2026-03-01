@@ -735,10 +735,56 @@ O `MarketingTrackerProvider` usa `requestIdleCallback` (fallback `setTimeout 2s`
 
 ---
 
+## Detecção de Domínio — Regras Obrigatórias
+
+### Contexto
+
+O sistema de URLs do storefront precisa distinguir entre três cenários:
+
+| Cenário | Exemplo | `basePath` |
+|---------|---------|------------|
+| **Domínio customizado** | `loja.cliente.com.br` | `` (vazio) |
+| **Subdomínio plataforma** | `tenant.shops.comandocentral.com.br` | `` (vazio) |
+| **App/Legacy/Preview** | `app.comandocentral.com.br`, `*.lovableproject.com` | `/store/{tenantSlug}` |
+
+### Domínios de Preview/Dev — NÃO são domínios de tenant
+
+**REGRA CRÍTICA:** Domínios de preview e desenvolvimento **NUNCA** devem ser tratados como domínios de tenant (custom domain ou platform subdomain). Caso contrário, os links do storefront ficam sem o prefixo `/store/{tenantSlug}` e apontam para rotas administrativas.
+
+**Domínios que DEVEM retornar `false` em `isOnTenantHost()` e `isCustomDomain()`:**
+
+| Domínio | Tipo |
+|---------|------|
+| `*.lovableproject.com` | Preview Lovable |
+| `*.lovable.app` | Preview/Publish Lovable |
+| `localhost` / `127.0.0.1` | Desenvolvimento local |
+
+**Arquivos afetados:**
+
+| Arquivo | Função | Regra |
+|---------|--------|-------|
+| `src/lib/canonicalDomainService.ts` | `isAppDomain()` | Deve incluir `*.lovableproject.com` e `*.lovable.app` |
+| `src/lib/publicUrls.ts` | `isOnTenantHost()` | Deve excluir domínios de preview/dev antes de retornar `true` |
+| `src/lib/urlGuards.ts` | `isCustomDomain()` | Deve retornar `false` para domínios de preview/dev |
+| `src/hooks/useStorefrontUrls.ts` | `isOnTenantHost()` | Mesma lógica — herda de `canonicalDomainService` |
+
+### Hooks de URL
+
+| Hook | Uso | Arquivo |
+|------|-----|---------|
+| `useStorefrontUrls()` | Gera URLs relativas para navegação interna | `src/hooks/useStorefrontUrls.ts` |
+| `useCanonicalUrls()` | Gera URLs absolutas para SEO/meta tags | `src/hooks/useCanonicalUrls.ts` |
+| `useSafeNavigation()` | Navegação com validação de URLs | `src/hooks/useSafeNavigation.ts` |
+
+**REGRA:** Sempre usar `useStorefrontUrls()` para gerar links de navegação no storefront. Nunca montar URLs manualmente com concatenação de strings.
+
+---
+
 ## Histórico de Alterações
 
 | Data | Alteração |
 |------|-----------|
+| 2026-03-01 | **DOMÍNIOS**: Regras de detecção de domínio para preview/dev (lovableproject.com, lovable.app) |
 | 2026-02-28 | **PERFORMANCE**: Footer selos e FeaturedCategories thumbs agora usam `getLogoImageUrl()` com lazy loading |
 | 2026-02-28 | Image Proxy: wsrv.nl para auto-resize + WebP + CDN cache em todas as imagens Supabase |
 | 2026-02-28 | PageSpeed Mobile: LCP preload, defer marketing scripts, autoplay defer 3s |
