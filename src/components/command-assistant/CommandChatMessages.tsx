@@ -24,10 +24,16 @@ export function CommandChatMessages({
   onExecuteAction,
 }: CommandChatMessagesProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Use scrollIntoView on a bottom anchor element for reliable scrolling
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Find the Radix ScrollArea viewport and scroll to bottom
+    const viewport = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+    if (viewport) {
+      requestAnimationFrame(() => {
+        viewport.scrollTop = viewport.scrollHeight;
+      });
+    }
   }, [messages, streamingContent]);
 
   if (isLoading) {
@@ -39,7 +45,7 @@ export function CommandChatMessages({
   }
 
   return (
-    <ScrollArea className="flex-1 px-4 py-4">
+    <ScrollArea ref={scrollAreaRef} className="flex-1 px-4 py-4">
       <div className="space-y-5 max-w-2xl mx-auto">
         {messages.map((message) => {
           const proposedActions = message.metadata?.proposed_actions || [];
