@@ -253,7 +253,7 @@ export function CollectionSectionBlock({
           </div>
         ) : (
           <div className={cn(
-            'grid gap-4',
+            'grid gap-2 sm:gap-4',
             isMobile 
               ? `grid-cols-${mobileColumns}` 
               : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4'
