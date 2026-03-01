@@ -73,7 +73,7 @@ export function EmbeddedCommandAssistant() {
 
         {currentConversationId ? (
           <>
-            <div className="flex-1 overflow-hidden min-h-0">
+            <div className="flex-1 overflow-hidden min-h-0 flex flex-col">
               <CommandChatMessages
                 messages={messages || []}
                 isLoading={isLoadingMessages}

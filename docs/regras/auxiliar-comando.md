@@ -585,6 +585,28 @@ O `memoryContext` é concatenado ao final do system prompt de cada IA, contendo:
 
 ---
 
+## Regras de Layout do Chat (OBRIGATÓRIO)
+
+**Scroll do chat** — O componente `CommandChatMessages` retorna um `div` com `flex-1 overflow-y-auto`. Para que o scroll funcione:
+
+1. O **container pai direto** DEVE ser `flex flex-col` com `min-h-0` e `overflow-hidden`
+2. Exemplo correto no `EmbeddedCommandAssistant.tsx`:
+   ```
+   <div className="flex-1 overflow-hidden min-h-0 flex flex-col">
+     <CommandChatMessages ... />
+   </div>
+   ```
+3. Exemplo correto no `CommandAssistantPanel.tsx`:
+   ```
+   <div className="flex flex-1 flex-col min-h-0">
+     <CommandChatMessages ... />
+   </div>
+   ```
+4. **NUNCA** usar `ScrollArea` do Radix para o chat — usar `overflow-y-auto` nativo
+5. **NUNCA** remover `min-h-0` ou `flex flex-col` dos containers pai — isso quebra o scroll
+
+---
+
 ## Checklist
 
 - [ ] Painel abre com ⌘K
@@ -595,3 +617,4 @@ O `memoryContext` é concatenado ao final do system prompt de cada IA, contendo:
 - [ ] Permissões RBAC respeitadas
 - [ ] Linguagem UI-friendly (sem jargão técnico)
 - [ ] Memória persistente funciona entre sessões
+- [ ] **Chat scrollável** (container pai é flex flex-col min-h-0)
